@@ -33,6 +33,9 @@ import pytest
 from fichero_server.api import main as api_main
 
 
+# The test enters the real lifespan (threads, executors, a shutdown): a stall must end the test with a thread dump, not the
+# suite (the "thread" method dumps every stack; the repo default "signal" cannot interrupt a blocked executor join).
+@pytest.mark.timeout(60, method="thread")
 @pytest.mark.asyncio
 async def test_provider_seed_and_collapse_run_before_yield(monkeypatch) -> None:
     calls: list[str] = []
