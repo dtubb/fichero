@@ -1,3 +1,7 @@
+// Set Up's one store: the saved recipe, the jobs, Try, the start plan and (since 5b9b4aeb3) what the cloud
+// would be sent and its estimate. Over SwiftLint's 1000 lines; the cost part moves to its own extension file when
+// Swift builds are allowed again (#5904). ponytail: a comment, not a split, so nothing needs compiling now.
+// swiftlint:disable file_length
 import FicheroAPIClient
 import Foundation
 import Observation
