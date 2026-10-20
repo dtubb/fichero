@@ -296,6 +296,7 @@ def test_the_fake_arms_dry_run_works_anywhere_and_the_cloud_arms_are_unchanged(t
 
 def test_mlx_picks_only_an_installed_qwen_vl_inside_the_memory_gate_and_logs_why(monkeypatch):
     from fichero_server.llm import local_model_choice as choice
+    from fichero_server.llm import mlx_model_store
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 
     class Store:
@@ -308,15 +309,34 @@ def test_mlx_picks_only_an_installed_qwen_vl_inside_the_memory_gate_and_logs_why
     seven = MANAGED_MLX_MODELS["Qwen2.5-VL-7B"]
     monkeypatch.setattr(choice, "runs_here", lambda spec, cap="text", **k: (spec.model_id != "mlx-community/Qwen3-VL-8B",
                                                                            "needs 24 GB to read a page"))
-    monkeypatch.setattr(choice, "_store", lambda: Store({seven.model_id}))
+    monkeypatch.setattr(mlx_model_store, "get_mlx_model_store", lambda: Store({seven.model_id}))
     logged = []
     name, config, why = ab.pick_mlx("auto", log=logged.append)
     assert name == f"mlx:{seven.model_id}" and config.provider == "omlx" and why["repo"] == seven.repo_id
     assert seven.repo_id in logged[0], "the repo id is logged"
     with pytest.raises(SystemExit, match="memory gate"):
         ab.pick_mlx("mlx-community/Qwen3-VL-8B")
-    monkeypatch.setattr(choice, "_store", lambda: Store(set()))
+    monkeypatch.setattr(mlx_model_store, "get_mlx_model_store", lambda: Store(set()))
     with pytest.raises(SystemExit, match="never downloads"):
         ab.pick_mlx("Qwen2.5-VL-7B")
     with pytest.raises(SystemExit, match="not a Qwen VL"):
         ab.pick_mlx("Chandra-OCR")
+
+
+def test_the_reference_arm_is_not_scored_against_itself(tmp_path):
+    readers = {"vision": _reader({"0": "hola", "1": "mundo", "2": "adios"}), "mlx:m": _reader({"0": "hola", "1": "mundo", "2": "adios"})}
+    report = _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers)
+    assert report["per_arm"]["mlx:m"]["cer"] is None and report["per_arm"]["mlx:m"]["is_reference"]
+    assert report["per_arm"]["vision"]["cer"] == 0.0
+    assert "| the reference | the reference |" in (tmp_path / "out" / "report.md").read_text()
+
+
+def test_a_cloud_reference_that_fails_leaves_its_cells_empty_and_the_run_goes_on(tmp_path, monkeypatch):
+    async def boom(*a, **k):
+        raise RuntimeError("the reference model is unreachable")
+
+    monkeypatch.setattr(ab, "reading_by_model", boom)
+    report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model="fake", bar=0.6, cap=1.0,
+                    reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", "B"])
+    assert {f["arm"] for f in report["failures"]} >= {"reference", "B"} and report["pages_done"] == 2
+    assert report["lines_with_reference"] == 0
