@@ -33,6 +33,8 @@ tests/unit/seams/test_state_channel_seam.py::test_every_key_read_from_graph_stat
 # has more (186 on 2026-09-27, 167 after the first drain). Ruled: lint is a
 # milestone to FIX, never a baseline to raise. The guard was right the whole time
 # and ran nowhere anyone looked (#4861); this node is where it now runs.
+# 2026-10-20 (#5905): integration c13efa580 has 216 warnings, candidate 12 has 233 (+17);
+# the +17 get fixed with a compile at the next Pro build window, then this node comes off.
 tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_swiftlint_warning_ratchet.py]
 
 # ---- #5134 (1) ----
