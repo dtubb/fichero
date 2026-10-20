@@ -129,7 +129,7 @@ def _synthetic_pages(folder: Path, count: int) -> list[Path]:
     return out
 
 
-def run(model: str, pages: int, images: Path | None, concurrency: int = 1) -> tuple[list[dict], Counter]:
+def run(model: str, pages: int, images: Path | None, concurrency: int = 1, automatic: bool = False) -> tuple[list[dict], Counter]:
     """Read the pages through Kraken's own seam, as a person's Start would: flat out, the engine's per-page lines
     collected."""
     import tempfile
@@ -142,7 +142,7 @@ def run(model: str, pages: int, images: Path | None, concurrency: int = 1) -> tu
     logging.getLogger().setLevel(logging.INFO)
     files = sorted(images.glob("*.*"))[:pages] if images else _synthetic_pages(Path(tempfile.mkdtemp()), pages)
     def read(path: Path) -> None:
-        jobs._current.person = True  # a job a person started or watches (`current_job_is_a_persons`); per thread
+        jobs._current.person = not automatic  # a job a person started or watches (`current_job_is_a_persons`); per thread; --automatic: an import's own run
         kraken_runtime.recognize_lines(str(path), model)
 
     began = time.perf_counter()
@@ -172,11 +172,12 @@ def main() -> int:
     ap.add_argument("--images", type=Path, help="a folder of page images (default: drawn pages)")
     ap.add_argument("--concurrency", type=int, default=1,
                     help="pages sent at once, as the engine's fan-out does (the seam reads two together when memory allows)")
+    ap.add_argument("--automatic", action="store_true", help="read as an import's own (automatic) run, not a person's")
     args = ap.parse_args()
     if args.log:
         pages, lane = parse(Path(args.log).read_text(errors="replace").splitlines())
     elif args.model:
-        pages, lane = run(args.model, args.pages, args.images, args.concurrency)
+        pages, lane = run(args.model, args.pages, args.images, args.concurrency, args.automatic)
     else:
         ap.error("give --model (to run) or --log (to read an engine log)")
     return report(pages, lane)
