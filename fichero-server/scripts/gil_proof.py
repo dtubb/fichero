@@ -49,6 +49,36 @@ ONE_THREAD = {k: "1" for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_N
 CORES = os.cpu_count() or 1
 
 
+#: Most processes or pages at once on a Mac this size, whatever --n says, unless --max-n lifts it. The ceiling run with
+#: more swapped the M4 Air to 103 MB free (2026-10-20): a measurement must never starve the Mac it runs on.
+DEFAULT_MAX_N = 4
+#: A guess at one process's resident memory (blla + a reader + a page); --rss-gb overrides it.
+DEFAULT_RSS_GB = 3.0
+
+
+def free_ram_gb() -> float | None:
+    """Free + inactive + purgeable memory (`vm_stat`), in GB; None when it cannot be read (then the cap is the count)."""
+    try:
+        text = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=10).stdout
+        size = int(text.split("page size of")[1].split("bytes")[0])
+        pages = {k: int(v.strip().rstrip(".")) for k, v in (ln.split(":") for ln in text.splitlines()
+                                                          if ln.startswith("Pages ") and ":" in ln)}
+        got = sum(pages.get(k, 0) for k in ("Pages free", "Pages inactive", "Pages purgeable", "Pages speculative"))
+        return got * size / 1024**3
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
+
+
+def affordable(n: int, args, free: float | None = None) -> str | None:
+    """None when N processes fit; else why they do not (N x RSS must stay under 80% of the free RAM, N <= --max-n)."""
+    if n > args.max_n:
+        return f"N={n} is over --max-n {args.max_n}"
+    free = free_ram_gb() if free is None else free
+    if free is not None and n * args.rss_gb > 0.8 * free:
+        return f"N={n} x {args.rss_gb:.1f} GB is over 80% of the {free:.1f} GB free"
+    return None
+
+
 def therm() -> str:
     """The Mac's thermal state (`pmset -g therm`): a fanless laptop slows under a long run, and the rows must say so."""
     try:
@@ -100,12 +130,18 @@ def row(mode: str, n: int, pages: int, wall: float, cpu: float, extra: dict | No
 
 
 # -- ceiling: the plain CLI in N processes ----------------------------------------------------------------------------
+MODE_OF = {"ceiling": "ceiling", "threads": "threads", "procs": "procs", "engine": "engine"}
+
+
 def ceiling(args) -> None:
     beside = Path(sys.executable).parent / "kraken"  # the venv python's own `kraken` command
     kraken = args.kraken or (str(beside) if beside.exists() else shutil.which("kraken")) or sys.exit(
         "no `kraken` command: pass --kraken <engine venv>/bin/kraken")
     files = pages_in(args.images, args.pages, args.repeat)
     for n in args.n:
+        if (why := affordable(n, args)) is not None:
+            print(f"| {MODE_OF[args.mode]} n={n}: SKIPPED, {why} |", flush=True)
+            continue
         before = therm()
         with tempfile.TemporaryDirectory() as scratch:  # the CLI writes beside its input: never in the corpus
             procs = []
@@ -153,6 +189,9 @@ def threads(args) -> None:
     files = [str(p) for p in pages_in(args.images, args.pages, args.repeat)]
     _segment_all(model, files[:1])  # warm: the first page pays the lazy imports
     for n in args.n:
+        if (why := affordable(n, args)) is not None:
+            print(f"| {MODE_OF[args.mode]} n={n}: SKIPPED, {why} |", flush=True)
+            continue
         before = therm()
         pool = [threading.Thread(target=_segment_all, args=(model, [str(p) for p in shard]))
                 for shard in shards([Path(f) for f in files], n)]
@@ -182,6 +221,9 @@ def procs(args) -> None:
     files = [str(p) for p in pages_in(args.images, args.pages, args.repeat)]
     context = mp.get_context("spawn")  # a forked child of a process that has run torch crashes (the spec's note)
     for n in args.n:
+        if (why := affordable(n, args)) is not None:
+            print(f"| {MODE_OF[args.mode]} n={n}: SKIPPED, {why} |", flush=True)
+            continue
         before = therm()
         parts = [[str(p) for p in shard] for shard in shards([Path(f) for f in files], n)]
         ready, done, go = context.Queue(), context.Queue(), context.Event()
@@ -236,6 +278,9 @@ def engine(args) -> None:
     real_memory = kraken_runtime.assert_memory_available_for_kraken
     kraken_runtime.assert_memory_available_for_kraken = lambda *a, **k: waits.timed("memory guard", lambda: real_memory(*a, **k))
     for n in args.n:
+        if (why := affordable(n, args)) is not None:
+            print(f"| {MODE_OF[args.mode]} n={n}: SKIPPED, {why} |", flush=True)
+            continue
         kraken_runtime.pages_at_once = lambda person=False, _n=n: _n  # the cap lifted to N: the thing under test
         waits.by_lock.clear()
         before = therm()
@@ -300,6 +345,10 @@ def main() -> int:
                             "no worker reads the same page twice in a row")
         p.add_argument("--n", type=lambda s: [int(x) for x in s.split(",")], default=[1, 2, 4, 8])
         p.add_argument("--out", type=Path)
+        p.add_argument("--max-n", type=int, default=DEFAULT_MAX_N,
+                       help=f"never more than this many at once (default {DEFAULT_MAX_N}); raising it is a decision")
+        p.add_argument("--rss-gb", type=float, default=DEFAULT_RSS_GB,
+                       help="one process's resident memory: N x this must stay under 80%% of the free RAM")
         if name in ("threads", "procs"):
             p.add_argument("--pools", choices=("one", "default"), default="one",
                            help="one: every native thread pool (OpenMP, BLAS, Accelerate) set to 1 thread before torch "
