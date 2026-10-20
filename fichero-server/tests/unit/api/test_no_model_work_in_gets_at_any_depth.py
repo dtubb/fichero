@@ -58,7 +58,7 @@ def test_the_embedder_and_the_lane_refuse_inside_a_get_and_not_outside():
 
     with no_model_in_get.marked_get("/api/thing"):
         with pytest.raises(ModelWorkInGet):
-            DatabaseEmbeddingMixin._embed_text(object(), "x")
+            DatabaseEmbeddingMixin._embed_text(object(), "x", role="passage")  # a query is allowed, bounded
         with pytest.raises(ModelWorkInGet):
             DatabaseEmbeddingMixin._embed_texts(object(), ["x"])
         with pytest.raises(ModelWorkInGet):
@@ -119,3 +119,45 @@ def test_work_that_outlives_the_get_is_not_the_get():
     assert outcomes["inside"] == "refused", "work in the request itself is the GET"
     assert outcomes["background"] == "allowed", "a background task runs after the response"
     assert outcomes["spawned"] == "allowed", "a task left running past the response is not the GET"
+
+
+def test_a_task_spawned_during_a_get_runs_its_model_call_even_while_the_get_is_still_answering():
+    """Review 361 MED 2: the auto-embed, the activity tracker's recovery, work started at a library open are spawned by a
+    GET and run while it is still going. Only the request's own task and its to_thread are refused."""
+    app = FastAPI()
+    app.add_middleware(NoModelWorkInGet)
+    no_model_in_get.install_handler(app)
+    seen: dict[str, str] = {}
+
+    def attempt(name: str) -> None:
+        try:
+            forbid_in_get("a read")
+            seen[name] = "allowed"
+        except ModelWorkInGet:
+            seen[name] = "refused"
+
+    async def spawned():
+        attempt("spawned task")
+        await asyncio.to_thread(attempt, "its to_thread")
+
+    @app.get("/spawns")
+    async def spawns():
+        await asyncio.ensure_future(spawned())  # awaited, so the GET is still answering while it runs
+        await asyncio.create_task(asyncio.sleep(0))
+        await asyncio.to_thread(attempt, "the request's to_thread")
+        attempt("the request")
+        return {"ok": True}
+
+    @app.middleware("http")
+    async def a_base_http_middleware(request, call_next):  # the framework's child task keeps the request's mark
+        return await call_next(request)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as client:
+            assert (await client.get("/spawns")).status_code == 200
+
+    asyncio.run(go())
+    assert seen == {
+        "spawned task": "allowed", "its to_thread": "allowed",
+        "the request's to_thread": "refused", "the request": "refused",
+    }

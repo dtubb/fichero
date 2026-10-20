@@ -886,7 +886,8 @@ async def search_entities_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic entity search via LanceDB."""
-    return search_entities_semantic_impl(
+    return await asyncio.to_thread(  # the query embed waits up to its bound (`activity.read.get-embeds-its-own-query`)
+        search_entities_semantic_impl,
         db=db,
         q=q,
         entity_type=entity_type,
