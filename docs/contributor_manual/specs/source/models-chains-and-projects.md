@@ -2842,6 +2842,11 @@ Projects
   `::test_a_resumed_run_after_a_failed_batch_redoes_nothing`). A person's Stop ends the run after the current
   batch (#5609; tested in `::test_stop_still_ends_the_run_after_the_current_batch`), failures or not; Start then
   begins a new run, which skips only what `source.recipe.done-is-not-redone` can tell is done.
+- `activity.run.systemic-error-rule` — **[OK]** (Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
+  systemic failure when a refusal holds for every page (at the first), when five pages in a row fail on a batch under ten
+  pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
+  folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
+  names the files. `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`.
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
   it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
