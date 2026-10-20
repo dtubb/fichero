@@ -553,6 +553,15 @@ def _should_recompute(
     return node_id in exits
 
 
+#: Pages of a fan-out inside the function now, by run (thread) id. The runner keeps driving its event stream while a paused
+#: run still has pages reading, so the pause is raised by the fan-out and no page is cancelled mid-read (#5932).
+_PAGES_READING: dict[str, int] = {}
+
+
+def pages_reading(run_id: str) -> int:
+    return _PAGES_READING.get(run_id, 0)
+
+
 def build_graph(
     workflow: WorkflowDef,
     enable_parallel: bool = True,
@@ -1740,6 +1749,8 @@ def _make_parallel_node_function(
         again. Held until the readers are done, their results are kept with the checkpoint and only undone pages are read
         on Resume (`activity.durable.paused-stays-paused`, `nothing-twice`; #5919)."""
         reading["active"] += 1
+        run_key = state.get("task_id", "") or ""
+        _PAGES_READING[run_key] = _PAGES_READING.get(run_key, 0) + 1
         parked = False
         try:
             try:
@@ -1756,6 +1767,9 @@ def _make_parallel_node_function(
                 raise
         finally:
             reading["active"] -= 1
+            _PAGES_READING[run_key] = _PAGES_READING.get(run_key, 1) - 1
+            if _PAGES_READING[run_key] <= 0:
+                _PAGES_READING.pop(run_key, None)
             if parked:
                 reading["parked"] -= 1
 
