@@ -434,7 +434,21 @@ def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
 _WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print); cloud vision models cannot find lines yet"}
 
 
-def choose_try_candidates(own: Any, fits: list[Any], frontier: list[Any], *, limit: int) -> tuple[list[Any], list[Any]]:
+#: Variant A's candidate id prefix and the sureness under which the cloud model re-reads a line.
+VARIANT_A = "variant-a:"
+UNSURE_BELOW = 0.8  # ponytail: a knob; the Try's own measures (bad lines under the bar) tune it
+
+
+def variant_a_card(frontier: Any) -> Any:
+    """"Kraken reads, then `frontier` re-reads only the unsure lines" as a candidate: the frontier card under a
+    prefixed id and a name that says what it is (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922)."""
+    import dataclasses
+
+    name = str(frontier.note).strip().rstrip(".") or frontier.id
+    return dataclasses.replace(frontier, id=VARIANT_A + frontier.id, note=f"Kraken, then {name} on the unsure lines")
+
+
+def choose_try_candidates(own: Any, fits: list[Any], frontier: list[Any], *, limit: int, variant_a: Any = None) -> tuple[list[Any], list[Any]]:
     """The Try's default candidates, at most `limit`: the step's own card, then the FIRST frontier reader listed (the
     person's provider rows in their order, when pages may leave: nothing is measured yet, so none is ranked), then the finder's next local ones, then any more frontier ones.
     (chosen, the frontier readers left out for the limit): the limit stays three, and the recommendation says who was
@@ -451,10 +465,12 @@ def choose_try_candidates(own: Any, fits: list[Any], frontier: list[Any], *, lim
     add([own])
     add(frontier[:1])
     add(fits)
+    add([variant_a])
     add(frontier[1:])
     chosen = ordered[:limit]
     taken = {c.id for c in chosen}
-    left_out = [c for c in dict(((f.id, f) for f in frontier)).values() if c.id not in taken]
+    left_out = [c for c in dict(((f.id, f) for f in [*frontier, *([variant_a] if variant_a else [])])).values()
+                if c.id not in taken]
     return chosen, left_out
 
 
@@ -494,6 +510,9 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     found = step_candidates(found, job, frozenset({own_card} if own_card else ()),
                             step.get("model") if isinstance(step.get("model"), dict) else None)  # Find a Reader's list: page readers, cloud and remote ones included (#5808)
     by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
+    for i in wanted or []:  # a variant-A id names the frontier card it re-reads with
+        if i.startswith(VARIANT_A) and i[len(VARIANT_A):] in by_id:
+            by_id[i] = variant_a_card(by_id[i[len(VARIANT_A):]])
     if wanted:
         named = [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
         wrong = [c for c in named if job not in c.jobs]
@@ -506,7 +525,13 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
         own = next((c.id for c in found if dict(c.pin) == step.get("model")), None)
     fits = sorted((c for c in found if job in c.jobs and c.runs_here and not c.offered_only
                    and _refusal(job, c, a, a.material) is None), key=lambda c: _rank_key(c, a.material, a))
-    return choose_try_candidates(by_id.get(own), [c for c in fits if c.id != own], _frontier_cards(a, job), limit=COMPARED)[0]
+    frontier = _frontier_cards(a, job)
+    own_card = by_id.get(own)
+    # Variant A needs a local first reader to re-read after, and a read step that has no correction after it yet.
+    variant = (variant_a_card(frontier[0]) if frontier and own_card is not None and own_card.runs_on == "this-mac"
+               and job in ("read-a-line", "read-a-page") else None)
+    return choose_try_candidates(own_card, [c for c in fits if c.id != own], frontier, limit=COMPARED,
+                                 variant_a=variant)[0]
 
 
 def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) -> dict[str, Any]:
@@ -516,6 +541,16 @@ def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) ->
     if step is None or card is None:
         return setup
     changed = copy.deepcopy(setup)
+    if card.id.startswith(VARIANT_A):  # the step keeps its reader; a cloud correction of the unsure lines follows it
+        from fichero_server.recipes.jobs import get_job
+
+        steps = (changed["recipe"] or {}).setdefault("steps", [])
+        fix = {"id": "correct", "job": "correct", "layer": get_job("correct").layer, "model": dict(card.pin),
+               "runs_on": card.runs_on, "card": {"id": card.id, "note": card.note}, "uses_cloud": True,
+               "settings": {"only_below_confidence": UNSURE_BELOW}}
+        steps[:] = [s for s in steps if s.get("job") != "correct"]
+        steps.insert(next(i for i, s in enumerate(steps) if s.get("id") == step.get("id")) + 1, fix)
+        return changed
     for s in (changed["recipe"] or {}).get("steps") or []:
         if s.get("id") == step.get("id"):
             s.update(model=dict(card.pin), runs_on=card.runs_on, card={"id": card.id, "note": card.note})
