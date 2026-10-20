@@ -111,6 +111,15 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         unknown = [x for x in _list(job_answers["review_lenses"]) if x not in lens_ids()]
         if unknown:
             problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
+    if isinstance(job_answers, dict) and job_answers.get("review_certainty_bar") not in (None, "", "whole-page"):
+        bar = job_answers["review_certainty_bar"]
+        try:
+            ok = not isinstance(bar, bool) and 0 < float(bar) <= 1
+        except (TypeError, ValueError):
+            ok = False
+        if not ok:
+            problems.append(f"The certainty under which a line goes to the second model is a number above 0 and up to "
+                            f"1 (or the whole page), not {bar!r}.")
     cap = out.get(SPEND_CAP)
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0):
         problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")

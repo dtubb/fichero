@@ -139,6 +139,8 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "correct": ("review_lenses", "lenses"),
                        "work-out-dates": ("calendars", "calendars"),
                        "find-regions": ("layout", "layout")}
+#: Setup's answer to "send the second model only the lines Kraken is unsure of?": "whole-page" or the bar, 0 to 1.
+CERTAINTY_BAR_ANSWER, WHOLE_PAGE = "review_certainty_bar", "whole-page"
 #: Job answers whose empty list says "none of them", never "not answered".
 _EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
@@ -463,6 +465,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if (answer and setting not in settings and given not in (None, "")
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
             settings[setting] = given
+        bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
+        if bar not in (None, "", WHOLE_PAGE) and "only_below_confidence" not in settings:
+            settings["only_below_confidence"] = float(bar)  # variant A: only the lines under the bar go to the model
         runs_on = step.get("runs_on") or "this-mac"
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder
