@@ -41,7 +41,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from fichero_server.api import client_presence
+from fichero_server.api import client_presence, transport_diagnostics
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
@@ -1380,8 +1380,6 @@ app.add_middleware(
 @app.middleware("http")
 async def _note_first_request(request: Request, call_next):
     """One log line per transport, the first time a request arrives on it (#5868)."""
-    from fichero_server.api import transport_diagnostics
-
     transport_diagnostics.note_first_request(request.scope)
     return await call_next(request)
 
