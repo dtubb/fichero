@@ -66,11 +66,29 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 ### B. Connecting from the second Mac
 
-- `sharing.mac-finds-host` — **[PARTIAL]** (→ #5734; decided by the manager 2026-10-17) the guest Mac pastes the
-  invite link (or scans its QR); the invite carries the host, the pin and the library, so there is no host
-  picker and **no open lookup** (anyone on the network could probe libraries). The drawer shows the host the
-  pasted invite points at, read-only, so the person sees where they connect; the pairing code catches a wrong
-  host (`MacRemoteClientPairingSection.swift`; Swift, not built or run). Not built: the camera/QR scan on a Mac. Open: the drawer still says "Scan the QR code shown on the host Mac" (`MacRemoteClientPairingSection.swift`); the Mac has no scanner, so it needs paste-only wording or a Mac scan.
+- `sharing.mac-finds-host` — **[PARTIAL]** (→ #5734, #5892; owner's two-Mac test 2026-10-20, which overrules the
+  manager's "no host picker" of 2026-10-17) Settings › Sharing › "Connect This Mac to Another Fichero" lists the
+  Fichero Macs nearby, found by browsing Bonjour (`_fichero._tcp`, `NearbyHosts.swift`), without this Mac and
+  without a host that has no secure address (`HostChoices.offered`); with none found it says so and the invite
+  link still works. A `.ts.net` host is listed only when it is in THIS Mac's own tailnet: its suffix equals the
+  Mac's own MagicDNS suffix, read from Tailscale by the engine (`/api/pair/tailnet`), never from Bonjour; a host in
+  another tailnet is not listed, and when this Mac's suffix is unknown no `.ts.net` host is (the Bonjour record is
+  unauthenticated, so a name on it proves nothing: an impostor could advertise the owner's Mac name with its own
+  tailnet address and take the code). Picking a host starts pairing with it, showing "Connects to <full address>"
+  before anything is sent: a listed `.ts.net` host asks for the pairing code shown on that host, certified by a
+  public authority and checked by the system's trust and the host name (no pin, no bypass; http is refused); a
+  `.local` host asks for its invite link, because the invite carries the key to pin, which Bonjour never does, and
+  an invite that points at another host than the one picked is refused in words. There is
+  still **no open lookup** of libraries: the list is hosts, never their libraries, and the pairing code grants
+  trust. The drawer shows the host being connected to, read-only. Tests: `HostChoicesTests.swift` (the pure
+  rules); Swift, not built or run. Not built: the camera/QR scan on a Mac. Open: the drawer still says "Scan the
+  QR code shown on the host Mac" (`MacRemoteClientPairingSection.swift`); the Mac has no scanner, so it needs
+  paste-only wording or a Mac scan.
+- `sharing.connect-section-always-shown` — **[PARTIAL]** (#5893, owner's test 2026-10-20) the "Connect This Mac to
+  Another Fichero" section is on the Devices pane whether or not Sharing is on: connecting to another Mac does not
+  need this Mac to share (`ShareSettingsView.swift`: outside the `hostingEnabled` branch, and placed right under the
+  Sharing switch and its pairing card, above Connected Devices, Connected Clients and Advanced, because a guest Mac
+  needs it first and the pane is long; found by reading, no test can show a view's place). Swift, not built or run.
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
