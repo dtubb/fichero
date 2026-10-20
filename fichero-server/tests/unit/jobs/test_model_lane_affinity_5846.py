@@ -17,6 +17,10 @@ def test_a_queued_kraken_page_holds_other_models_off(db, monkeypatch):
 
     jobs.set_paused(True)  # queued, not run
     try:
+        # The row is written directly: `enqueue` has never taken a model (it reads none from the kind, and `find-lines` is an
+        # attached kind with none), so the call this test made, `enqueue(..., model=...)`, raised TypeError since the test was
+        # written. A queued Kraken page is a waiting row carrying its model, which is all `_loaded_work_queued` reads. A
+        # test-only change: `enqueue` under `set_paused` still leaves a waiting row (`test_job_queue.py::test_pause_holds_every_job_says_why_and_is_kept_in_app_settings`).
         db.execute("INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
                    "VALUES ('q1', 'find-lines', 'page-1', 'kraken:blla', 'waiting', 0, 'automatic', ?)", [jobs.utc_now()])
         key = str(db.path)
@@ -85,8 +89,8 @@ def test_each_load_logs_once_and_a_reuse_logs_nothing(caplog):
     kraken._RESIDENT.clear()
 
 
-def test_an_embed_waits_while_kraken_pages_are_in_flight_even_after_the_quiet_spell(db, monkeypatch):
-    """WHY: a slow page outlasts the quiet spell; the embed must not take the lane (and unload Kraken) between
+def test_a_heavy_model_waits_while_kraken_pages_are_in_flight_even_after_the_quiet_spell(db, monkeypatch):
+    """WHY: a slow page outlasts the quiet spell; a heavy model's job (the embedder is light now, so a served model stands in for it) must not take the lane (and unload Kraken) between
     a run's pages. Same clock-free shape as the quiet-spell test: the light job queued after the embed runs first
     only while the embed is held."""
     from fichero_server.workflows.tools import vision_base
