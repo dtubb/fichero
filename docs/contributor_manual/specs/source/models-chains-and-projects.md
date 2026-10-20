@@ -2855,7 +2855,7 @@ Projects
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
   folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
   names the files. `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`.
-  M4 PASS 2026-10-20 9707dcc83: test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (4 passed).
+  The pages not yet started of a refusal that holds for every page are withdrawn (`fichero-server/tests/unit/workflows/test_refusal_for_every_page_fails_the_node_at_once_2026_10_19.py::test_pages_queued_behind_one_slot_re_check_the_refusal_when_they_get_it`); a rate stop comes once the pages have run, so there is none to withdraw. Unrun on the M4 since the OR fix (the earlier PASS was for the AND rule).
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py::test_the_run_says_how_many_folders_are_done`) a recipe run's row says how far
   it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
