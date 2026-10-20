@@ -3682,9 +3682,9 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
 - `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a reading step,
   setup offers the train-your-own path (`compute/distillation.md`) and shows the corrected-line
   count at which training will be offered.
-- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) superseded 2026-10-01 by
-  `source.onboard.cloud-asked-once`: asked once per project, showing what is sent, to whom, how many
-  pages and the estimated cost; the default is that nothing leaves.
+- `source.onboard.egress-asked-twice` — **[PARTIAL]** (#4951) superseded 2026-10-01 by
+  `source.onboard.cloud-asked-once` (the question is asked once, only when a cloud model fits, default nothing leaves; built).
+  What the question must show is built in the engine and not yet in the app: see `cloud-asked-once`.
 - `source.onboard.flagship-recipe` — **[GAP]** (#4950, #4951) historical Spanish hands have a
   flagship recipe, shipped with Fichero and in the catalogue, measured end to end on real pages of
   that material, whose defaults need no adjusting; its `measurements.yaml` is published with it.
@@ -3774,7 +3774,7 @@ The recipe and its format
   updates and a re-run of existing pages is offered as one job with its estimate.
 - `source.onboard.cloud-asked-once` — **[PARTIAL]** (#4951) **Built 2026-10-03:** asked only when the recipe names cloud_options, saved with the project's answers (PUT /api/recipes/project); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. whether pages may leave the Mac is asked once per
   project (at setup or first cloud use, whichever is first) and shown in the recipe editor, where
-  every cloud step is marked; it is not asked again per provider or per step.
+  every cloud step is marked; it is not asked again per provider or per step. **What the toggle says** (`source.onboard.egress-asked-once`, #4951): the assembled recipe carries `cloud_offer`, one entry per step a cloud model would fit, saying what would be sent (the page pictures, or the text of the pages), to whom (the provider), for how many pages, and at about what cost, as one sentence ("Correct: would send the text of 3,000 pages to google, about $4.50."); unknown pages or price are said so, never a made-up number. Built: `assemble.cloud_offer`, `AssembledRecipe.cloud_offer` (a new response field: the generated client needs a regen); pinned by `test_the_egress_question_says_what_is_sent_to_whom_how_many_pages_and_the_estimate` and `test_a_picture_step_says_the_page_pictures_are_sent` in `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. NOT yet: the app shows these sentences under the toggle (`RecipeCloudQuestion` still reads "cost a few cents a page"); that needs the regen and a compile.
 - `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
   job, the model it was written for, its version and its variables; a variable the step does not
   supply is refused when the recipe is checked.
