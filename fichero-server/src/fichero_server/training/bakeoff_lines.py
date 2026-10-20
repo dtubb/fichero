@@ -128,11 +128,11 @@ def _git_work_tree_above(path: Path) -> Path | None:
 
 
 def stage_dataset(winning: Winning, pages_dir: str | Path, out_dir: str | Path,
-                  person_keys: set[str] | None = None) -> Staged:
+                  *, person_keys: set[str]) -> Staged:
     """Line pictures (`line_cut.crop_line`, the teacher's own cut), `pairs.jsonl` and the dataset card in `out_dir`, which
     may not be inside ANY git work tree: material from the owner's test pages is never written where `git add` could take it.
 
-    `person_keys` (`kraken_set.TrainingSet.line_keys`): lines a person already chose or typed are dropped here, before
+    `person_keys` (`kraken_set.TrainingSet.line_keys`, REQUIRED: pass `set()` to say no person's set applies, so a caller cannot skip the drop by forgetting it): lines a person already chose or typed are dropped here, before
     anything is written, and counted in the card (`source.compare.pick-is-a-training-line`). The key is the page picture's
     bytes plus the polygon, so it matches only when `pages_dir` holds the ORIGINAL page pictures the person's set was made
     from (the bake-off stages the originals)."""

@@ -61,7 +61,7 @@ def test_a_winner_that_is_not_in_the_file_is_refused_in_words(tmp_path):
 def test_staging_writes_each_line_picture_and_a_pairs_file_and_counts_them(tmp_path):
     got = bl.winning_lines(_lines_json(tmp_path), winner="mlx:m")
     out = tmp_path / "stage"
-    staged = bl.stage_dataset(got, _pages(tmp_path), out)
+    staged = bl.stage_dataset(got, _pages(tmp_path), out, person_keys=set())
     assert staged.count == 1
     [row] = [json.loads(x) for x in (out / "pairs.jsonl").read_text().splitlines()]
     assert row["text"] == "hola" and row["read_by"] == "mlx:m" and row["checked_by_person"] is False
@@ -75,7 +75,7 @@ def test_staging_refuses_a_folder_inside_any_git_work_tree_not_only_this_checkou
     got = bl.winning_lines(_lines_json(tmp_path), winner="mlx:m")
     for inside in (repo / "scratch-stage", other / "data" / "stage"):
         with pytest.raises(ValueError, match="inside the git work tree"):
-            bl.stage_dataset(got, _pages(tmp_path) if not (tmp_path / "pages").exists() else tmp_path / "pages", inside)
+            bl.stage_dataset(got, _pages(tmp_path) if not (tmp_path / "pages").exists() else tmp_path / "pages", inside, person_keys=set())
         assert not inside.exists()
 
 
@@ -121,7 +121,7 @@ class Api:
 
 
 def _staged(tmp_path):
-    return bl.stage_dataset(bl.winning_lines(_lines_json(tmp_path), winner="mlx:m"), _pages(tmp_path), tmp_path / "stage")
+    return bl.stage_dataset(bl.winning_lines(_lines_json(tmp_path), winner="mlx:m"), _pages(tmp_path), tmp_path / "stage", person_keys=set())
 
 
 def test_a_push_creates_a_private_dataset_checks_it_is_private_then_uploads(tmp_path):
@@ -183,7 +183,7 @@ def test_staging_refuses_a_folder_that_already_holds_something(tmp_path):
     full.mkdir()
     (full / "passport.pdf").write_text("not ours")
     with pytest.raises(ValueError, match="not empty"):
-        bl.stage_dataset(got, _pages(tmp_path), full)
+        bl.stage_dataset(got, _pages(tmp_path), full, person_keys=set())
     assert [p.name for p in full.iterdir()] == ["passport.pdf"], "nothing was written into it"
 
 
@@ -208,7 +208,7 @@ def test_crops_are_named_by_number_so_a_page_name_with_glob_characters_still_upl
     lines.write_text(json.dumps(data))
     pages = _pages(tmp_path)
     shutil.move(str(pages / "p0.png"), str(pages / "p[0]*?.png"))
-    staged = bl.stage_dataset(bl.winning_lines(lines, winner="mlx:m"), pages, tmp_path / "stage")
+    staged = bl.stage_dataset(bl.winning_lines(lines, winner="mlx:m"), pages, tmp_path / "stage", person_keys=set())
     assert "lines/00001.jpg" in staged.files and (staged.path / "lines" / "00001.jpg").exists()
     import fnmatch
 
