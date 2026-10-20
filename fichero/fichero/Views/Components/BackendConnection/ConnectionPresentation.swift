@@ -286,6 +286,15 @@ enum ConnectionPresentation {
 
     private static let restartReasonLock = OSAllocatedUnfairLock<String?>(initialState: nil)
 
+    /// What the engine last said held its loop (`GET /api/health` `dependencies['previous_stall']`, #5843), kept from the
+    /// health read so the next restart sentence can add it. The engine reports it once, in the life AFTER the stall.
+    static var lastPreviousStall: String? {
+        get { previousStallLock.withLock { $0 } }
+        set { previousStallLock.withLock { $0 = newValue } }
+    }
+
+    private static let previousStallLock = OSAllocatedUnfairLock<String?>(initialState: nil)
+
     /// The failure half of the mapping, split out so `status(…)` stays one
     /// bounded switch.
     private static func failureStatus(

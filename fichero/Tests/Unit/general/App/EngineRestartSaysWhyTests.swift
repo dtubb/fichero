@@ -32,4 +32,13 @@ struct EngineRestartSaysWhyTests {
         )
         #expect(without == "Fichero's engine stopped responding. Reconnecting…")
     }
+
+    @Test("the engine's previous stall is appended when the app has it, and absent when it does not")
+    func sentenceAppendsPreviousStall() {
+        let with = AppState.restartSentence(failures: 2, busyWithImport: false, previousStall: "31s in fichero_server.db:save")
+        #expect(with.hasSuffix("The last time it got stuck was 31s in fichero_server.db:save."))
+        #expect(AppState.restartSentence(failures: 2, busyWithImport: false, previousStall: nil)
+            == AppState.restartSentence(failures: 2, busyWithImport: false))
+        #expect(!AppState.restartSentence(failures: 2, busyWithImport: false, previousStall: "").contains("stuck"))
+    }
 }
