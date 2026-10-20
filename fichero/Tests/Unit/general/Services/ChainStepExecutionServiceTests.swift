@@ -6,8 +6,8 @@
 //  staged chain rides ChainService. Locks the transport contract:
 //    * per-step provider_override/model_override survive the chain mapper,
 //    * execute-steps 202 maps the pre-assigned thread id per step,
-//    * execute-steps 404 surfaces as .stepExecutionUnavailable — the
-//      feature-detect seam that sends the bar back to its client-side loop.
+//    * execute-steps 404 surfaces as .stepExecutionUnavailable, which the bar
+//      says in words (ChainRunWords); there is no client-side loop to fall back to.
 //  Own mock URLProtocol (per-session, never registered globally) so this
 //  suite cannot intercept or race other suites' requests (#4024).
 //
@@ -115,12 +115,11 @@ struct ChainStepExecutionServiceTests {
         #expect(execution.steps.first?.threadId == "thread-abc123")
     }
 
-    @Test("execute-steps 404 surfaces as stepExecutionUnavailable — the feature-detect seam")
+    @Test("execute-steps 404 surfaces as stepExecutionUnavailable")
     func executeChainStepsFeatureDetect() async throws {
         defer { ChainStepExecutionMockURLProtocol.requestHandler = nil }
-        // An older engine has no execute-steps route: the bar must fall back
-        // to its client-side loop, never break. That decision keys on THIS
-        // error case, so it is the contract under test.
+        // An older engine has no execute-steps route: the bar says so in words (ChainRunWords.startFailure keys on
+        // THIS error case), and runs nothing else.
         let service = ChainService(apiClient: APIClient(client: makeClient { request in
             Self.respond(request, status: 404, #"{"detail":"Not Found"}"#)
         }))
@@ -132,5 +131,23 @@ struct ChainStepExecutionServiceTests {
         } catch {
             Issue.record("expected .stepExecutionUnavailable, got \(error)")
         }
+    }
+
+    @Test("activity.run.one-way-to-run: an engine that cannot run the chain, or no project, is said in words; no client loop")
+    func theBarSaysWhyAChainCannotStart() async throws {
+        defer { ChainStepExecutionMockURLProtocol.requestHandler = nil }
+        let service = ChainService(apiClient: APIClient(client: makeClient { request in
+            Self.respond(request, status: 404, #"{"detail":"Not Found"}"#)
+        }))
+        var said: String?
+        do {
+            _ = try await service.executeChainSteps(chainId: "c1")
+        } catch {
+            said = ChainRunWords.startFailure(error)
+        }
+        #expect(said == ChainRunWords.engineCannot)
+        #expect(ChainRunWords.engineCannot.contains("Update Fichero"))
+        #expect(ChainRunWords.noProject == "Open a project to run a chain.")
+        #expect(ChainRunWords.startFailure(ChainServiceError.timeout).hasPrefix("Chain failed to start:"))
     }
 }

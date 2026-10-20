@@ -225,6 +225,12 @@ _instances_lock = threading.Lock()
 _REFS_PER_INSTANCE = 4
 
 
+#: The last failed liveness probe (a closed instance is normal; an odd error text is worth seeing).
+_last_probe_error: dict[str, str] = {}
+#: Instances whose limit could not be re-applied, by key: retried at the next rebalance (`_applied` is not updated).
+apply_failures: dict[str, str] = {}
+
+
 def _live(refs: list[Any]) -> Any:
     """The first still-open connection among `refs`, or None. Probed on a cursor of its own: a connection is not for
     two threads, and another may be mid-query on this one."""
@@ -235,7 +241,8 @@ def _live(refs: list[Any]) -> Any:
         try:
             conn.cursor().execute("SELECT 1")
             return conn
-        except Exception:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
+        except Exception as exc:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
+            _last_probe_error["error"] = f"{type(exc).__name__}: {exc}"  # kept for diagnostics: a probe that fails is seen
             continue
     return None
 
@@ -264,7 +271,9 @@ def _rebalance() -> None:
             _set_limit(conn, limit)
             with _instances_lock:
                 _applied[key] = limit
+                apply_failures.pop(key, None)
         except Exception as exc:  # noqa: BLE001
+            apply_failures[key] = str(exc)  # recorded where a caller can read it; retried next time
             logger.warning("Could not re-apply the DuckDB memory limit: %s", exc)
 
 

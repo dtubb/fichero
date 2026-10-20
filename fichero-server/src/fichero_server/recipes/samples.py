@@ -685,6 +685,9 @@ def _say_on_row(db: Any, job_id: str, stage_id: str, reason: str) -> None:
     detail = {"stage": stage_id, **{k: kept[k] for k in ("done", "total") if k in kept}}
     jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
 
+#: What went wrong keeping a running try's progress, by the try's job id: said once when the candidate's run ends.
+PROGRESS_PROBLEMS: dict[str, str] = {}
+
 
 def _count_on_the_row(db: Any, job_id: str, stage_id: str, progress: dict[str, Any]) -> None:
     """The try's own row carries the pages done and tried (`activity.details.progress-counts`): its pages live in a
@@ -693,22 +696,23 @@ def _count_on_the_row(db: Any, job_id: str, stage_id: str, progress: dict[str, A
 
     try:
         jobs.save_detail(db, job_id, json.dumps({"stage": stage_id, "done": progress["done"], "total": progress["total"]}))
-    except Exception:  # noqa: BLE001 -- a count is a courtesy; the try's result stands
-        logger.debug("a try's count could not be kept on its row", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 -- a count is a courtesy; the try's result stands, and says it
+        PROGRESS_PROBLEMS[job_id] = f"its page count could not be kept on its row: {exc}"
 
 
 #: How often a running candidate's finished pages are read back from its copy and published (seconds).
 PROGRESS_EVERY = 2.0
 
 
-def _watch(copy: Any, before: dict[str, set[str]], back: dict[str, str], publish: Any, stop: threading.Event) -> None:
+def _watch(copy: Any, before: dict[str, set[str]], back: dict[str, str], publish: Any, stop: threading.Event,
+           problems: list[str]) -> None:
     """Publish a candidate's finished pages while its steps run, until `stop`: a read of the copy that fails is
     skipped, never a failed try (the final result is read once the run ends)."""
     while not stop.wait(PROGRESS_EVERY):
         try:
             publish(_collect(copy, before, back)["per_page"])
-        except Exception:  # noqa: BLE001 -- progress is a courtesy; the run's own result stands
-            logger.debug("a try's progress could not be read", exc_info=True)
+        except Exception as exc:  # noqa: BLE001 -- progress is a courtesy; the run's own result stands
+            problems[0] = f"its progress could not be read: {exc}"
 
 
 def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], job_id: str, scratch_name: str, *,
@@ -758,9 +762,10 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         before = _snapshot(copy)
         ran, extra = [], {}
         stop = threading.Event()
+        problems = [""]  # what the progress watcher could not do, said once when the run ends
         watcher = None
         if publish is not None:
-            watcher = threading.Thread(target=_watch, args=(copy, before, back, publish, stop), name="try-progress",
+            watcher = threading.Thread(target=_watch, args=(copy, before, back, publish, stop, problems), name="try-progress",
                                        daemon=True)
             watcher.start()
         for card in cards:
@@ -793,6 +798,8 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         stop.set()
         if watcher is not None:
             watcher.join()  # no late publish may land after the final result is written (review 323)
+        if problem := (problems[0] or PROGRESS_PROBLEMS.pop(job_id, "")):
+            logger.warning("the try's progress for %s was incomplete: %s", name, problem)
         made = _collect(copy, before, back)
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)
         out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
