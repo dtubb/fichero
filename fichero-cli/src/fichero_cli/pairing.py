@@ -25,6 +25,9 @@ import httpx
 from fichero_cli.client import _TOKEN_PATH, FicheroError, engine_key
 
 DEVICES_PATH = _TOKEN_PATH.with_name("paired-devices.json")
+PAIR_NEXT_HEADER = "x-fichero-pair-next"  # what the host asks the person for next (api/routes/auth/pairing.py)
+NEXT_PERSON = "person-required"
+NEXT_NEW_PASSWORD = "choose-password"
 _PAIR_HOSTS = {"fichero.app"}  # the https universal link the app also accepts
 
 
@@ -224,10 +227,11 @@ def pair(
     try:
         with _open_client(link.api_url, uds, pin) as http:
             reply = http.post("/api/pair", json=body)
-            if reply.status_code == 401 and "person required" in reply.text:
+            next_step = reply.headers.get(PAIR_NEXT_HEADER)  # the host's typed hint, never its prose
+            if reply.status_code == 401 and next_step == NEXT_PERSON:
                 username, password = ask_person()
                 reply = http.post("/api/pair", json={**body, "username": username, "password": password})
-            elif reply.status_code == 422 and "choose a password" in reply.text:
+            elif reply.status_code == 422 and next_step == NEXT_NEW_PASSWORD:
                 reply = http.post("/api/pair", json={**body, "new_password": ask_new_password()})
     except httpx.ConnectError as exc:
         text = f"{exc} {exc.__cause__ or ''}".lower()

@@ -1186,14 +1186,15 @@ class AppDatabase:
         )
 
     def get_user_by_username(self, username: str) -> AccountUser | None:
-        """Get a user row by username."""
+        """Get a user row by username, case-folded: 'Carol' and 'carol' are one person (sign-in and create alike)."""
         with self._lock:
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, password_hash,
                        is_owner, active, created_at
                 FROM users
-                WHERE username = ?
+                WHERE lower(username) = lower(?)
+                ORDER BY created_at
                 """,
                 [username.strip()],
             ).fetchone()

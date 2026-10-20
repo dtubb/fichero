@@ -40,13 +40,17 @@ class Host:
     def client(self, api_url, uds, spki):
         def handle(request: httpx.Request) -> httpx.Response:
             self.sent.append(json.loads(request.content))
-            status, body = self.answers.pop(0)
-            return httpx.Response(status, json=body)
+            status, body, *more = self.answers.pop(0)
+            return httpx.Response(status, json=body, headers=more[0] if more else None)
         return httpx.Client(base_url=api_url, transport=httpx.MockTransport(handle))
 
 
 GOOD = (200, {"device_id": "dev-1", "device_token": TOKEN, "expires_at": "2099-01-01T00:00:00Z"})
-PERSON = (401, {"detail": "person required: this library uses Multi-user, sign in as a person"})
+PERSON = (401, {"detail": "person required: this library uses Multi-user, sign in as a person"},
+          {"X-Fichero-Pair-Next": "person-required"})  # the host's typed hint; the words are only for a person
+PROSE_ONLY = (401, {"detail": "person required: this library uses Multi-user, sign in as a person"})
+NEW_PASSWORD = (422, {"detail": "choose a password of at least 8 characters to accept this invitation"},
+                {"X-Fichero-Pair-Next": "choose-password"})
 
 
 @pytest.fixture(autouse=True)
@@ -269,3 +273,19 @@ def test_a_paired_remote_host_with_an_expired_certificate_says_to_pair_again(mon
     client = client_module.FicheroClient(base_url=LOCAL, transport=httpx.MockTransport(handle))
     with pytest.raises(FicheroError, match="devices pair --link-file"):
         client.request("GET", "/api/documents")
+
+
+def test_the_cli_asks_for_a_person_only_on_the_hosts_typed_hint_never_on_its_words(monkeypatch):
+    host = Host([PROSE_ONLY])
+    with pytest.raises(pairing.FicheroError) as refused:
+        run(monkeypatch, host, link(), ask_person=lambda: pytest.fail("matched the prose"))
+    assert refused.value.status_code == 401 and len(host.sent) == 1
+
+
+def test_a_new_person_is_asked_for_a_password_of_their_own_on_the_typed_hint(monkeypatch):
+    host = Host([NEW_PASSWORD, GOOD])
+    run(monkeypatch, host, link(), ask_new_password=lambda: "a long secret")
+    assert host.sent[1]["new_password"] == "a long secret" and "password" not in host.sent[1]
+    prose = Host([(422, {"detail": "choose a password of at least 8 characters to accept this invitation"})])
+    with pytest.raises(pairing.FicheroError):
+        run(monkeypatch, prose, link(), ask_new_password=lambda: pytest.fail("matched the prose"))
