@@ -44,6 +44,12 @@ NAMED = {
         "pins that the loopback host app still ingests (the S1 condition test); delete at slice 10 "
         "(manager's OK 2026-10-20)",
     ),
+    "fichero-server/tests/unit/security/test_owner_session_sets_the_switch_5908.py::"
+    "test_the_start_up_key_is_refused_for_both_steps": (
+        1,
+        "proves the start-up key is REFUSED for the owner-session switch (ruling A, #5908); delete at slice 10 "
+        "(manager's OK 2026-10-20)",
+    ),
 }
 
 _ALLOWED = sum(lines for lines, _ in NAMED.values())
