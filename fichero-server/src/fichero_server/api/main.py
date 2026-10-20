@@ -875,10 +875,6 @@ def _log_fm_bridge_presence() -> None:
         )
 
 
-#: Why the startup keychain warm-up failed, or None: the lookups then read on demand.
-keychain_warm_failure: str | None = None
-
-
 def _warm_configured_provider_keys() -> None:
     from fichero_server.db.app import get_app_db
     from fichero_server.llm.providers import get_provider_info
