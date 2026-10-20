@@ -73,6 +73,7 @@ class _PairingCode:
     paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
     ambient: bool = False  # minted by the host app (no signed-in person): the device must say who it is
     person: str | None = None  # the username this code was minted FOR (multiuser.person-bound-invite)
+    minted_by: str = ""  # who minted it: a username, or "host app" (audited on redeem)
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -275,16 +276,15 @@ def _pairing_user(request: Request, app_db: AppDatabase) -> AccountUser:
 
 
 def _invited_person(request: Request, app_db: AppDatabase, username: str | None) -> AccountUser | None:
-    """The person a code is minted for, when one is named: only the host app or an owner may name one (multiuser.person-bound-invite)."""
+    """The person a code is minted for, when one is named: only a signed-in owner may name one (multiuser.person-bound-invite)."""
     if not (username or "").strip():
         return None
     if not _use_multiuser_auth():
         raise HTTPException(status_code=422, detail="inviting a person needs Multi-user on")
     session_user = _current_session_user(request)
-    if not (session_user is None and getattr(request.state, "bootstrap_auth", False)) and not (
-        session_user and session_user.is_owner
-    ):
-        raise HTTPException(status_code=403, detail="only the host or an owner can invite a person")
+    if not (session_user and session_user.is_owner):
+        # Not the ambient start-up key (loopback + bootstrap): inviting a person is an owner's act, signed in.
+        raise HTTPException(status_code=403, detail="only a signed-in owner can invite a person")
     person = app_db.get_user_by_username(username.strip())
     if person is None:
         raise HTTPException(status_code=404, detail="no such person")
@@ -608,6 +608,7 @@ def create_pairing_code(
         paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
         ambient=invited is None and _use_multiuser_auth() and _current_session_user(request) is None,
         person=invited.username if invited else None,
+        minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -653,6 +654,10 @@ def pair_device(
 
         user_id = record.user_id
         chosen = None
+        if record.person and not _use_multiuser_auth():
+            # Multi-user was turned off after the invite: nothing is bound, nothing is spent, and the answer is the
+            # one a bad code gets (it does not say what the setting is).
+            raise HTTPException(status_code=401, detail="invalid or expired pairing code")
         if record.person:
             # The code was minted for this person: the device is theirs, with no password, and no one else's.
             if body.username is not None and body.username.strip() != record.person:
@@ -698,6 +703,14 @@ def pair_device(
         app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
+        if record.person:
+            _record_device_audit(
+                action_name="device.pair_for_person",
+                actor=f"invite:{record.minted_by}",
+                params={"person": record.person, "minted_by": record.minted_by, "device_name": name},
+                device_id=device.id,
+                after=_to_public_device(device).model_dump(mode="json"),
+            )
         return _to_pair_response(device, raw_token)
     except HTTPException:
         _record_pair_attempt(request, now)
