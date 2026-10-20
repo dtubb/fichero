@@ -337,6 +337,36 @@ def test_the_copies_are_freed_with_the_model_and_a_different_model_gets_its_own(
     assert _Reader.copies == 3  # another model, another pool
 
 
+def test_idle_copies_are_trimmed_to_the_pages_at_once_now_allowed(reader_world, monkeypatch):
+    gate = kr._PageGate()
+    monkeypatch.setattr(kr, "_INFERENCE_LOCK", gate)
+    with gate.page(2):  # two pages at once: two copies, both kept idle afterwards
+        first, second = kr._own_reader("m.mlmodel", reader_world.load), kr._own_reader("m.mlmodel", reader_world.load)
+        first.__enter__(), second.__enter__()
+        first.__exit__(None, None, None)
+        second.__exit__(None, None, None)
+    pool = kr._RESIDENT["read-copies"][1]
+    assert (pool.live, len(pool._idle), _Reader.copies) == (2, 2, 2)
+    with gate.page(1):  # N dropped to one (memory, or a background run): the extra copy goes, not kept for nothing
+        with kr._own_reader("m.mlmodel", reader_world.load):
+            pass
+    assert (pool.live, len(pool._idle), _Reader.copies) == (1, 1, 2)  # one copy kept, none made, one freed
+    with gate.page(2):  # and back to two: one more copy is made, as before
+        a, b = kr._own_reader("m.mlmodel", reader_world.load), kr._own_reader("m.mlmodel", reader_world.load)
+        a.__enter__(), b.__enter__()
+        assert _Reader.copies == 3 and pool.live == 2
+        a.__exit__(None, None, None)
+        b.__exit__(None, None, None)
+
+
+def test_a_failed_pages_copy_leaves_the_count(reader_world):
+    with pytest.raises(RuntimeError):
+        with kr._own_reader("m.mlmodel", reader_world.load):
+            raise RuntimeError("failed")
+    pool = kr._RESIDENT["read-copies"][1]
+    assert (pool.live, len(pool._idle)) == (0, 0)
+
+
 def test_both_read_paths_take_their_reader_from_the_pool():
     import inspect
 
