@@ -507,6 +507,21 @@ async def list_stages(request: Request) -> SetupStageList:
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
 
+def _where_facts(request: Request) -> tuple[float | None, bool, list[str]]:
+    """(this Mac's memory in GB, whether a Hugging Face account is set up, the clusters set up here this caller may see),
+    for the places each candidate lists (#5976). Never the network; a fact that cannot be read is None / False / none."""
+    from fichero_server.recipes.discovery import remote_compute
+
+    try:
+        from fichero_server.llm.kraken_runtime import _physical_memory_bytes
+
+        total = _physical_memory_bytes()
+        mac = round(total / 1024**3, 1) if total else None
+    except Exception:  # noqa: BLE001 -- unknown memory: no option is refused for it
+        mac = None
+    return mac, bool(remote_compute(price=False)["available"]), _cluster_names(request)
+
+
 def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
     """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
     None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
@@ -1196,6 +1211,15 @@ def _mlx_model_of(card: Any) -> Any:
                            download_size_bytes=int(card.size_gb * GIB), kv_bytes_per_token=None)
 
 
+class PlaceOption(BaseModel):
+    place: str = Field(description="this-mac, hf-jobs, cluster or provider")
+    name: str = Field(description="this Mac, Hugging Face Jobs, the cluster's name, or the provider")
+    can: bool
+    needs: str = ""
+    why: str = Field(default="", description="why it cannot run there, in words")
+    blocked: str = Field(default="", description="why the app cannot send there yet, though the model could run there")
+
+
 class ModelCandidate(BaseModel):
     """One reader candidate as a card: where it came from, why it is offered, what it states, and what
     the rules make of it for the project's scripts, languages and material."""
@@ -1233,6 +1257,10 @@ class ModelCandidate(BaseModel):
     download: Optional[CandidateDownload] = Field(default=None, description=(
         "the action that downloads its model, as the Start plan's downloads name it; null when there is nothing "
         "to download first (#5612)"))
+    places: list["PlaceOption"] = Field(default_factory=list, description=(
+        "every place it can run, this Mac, Hugging Face Jobs and each cluster set up here, with what it needs there and, "
+        "where it cannot, why in words; `blocked` is set where the model could run but the app cannot send there yet "
+        "(#5976, #5238)"))
     runs_where: CandidatePlace = Field(description=(
         "where it runs: this Mac, a machine of the person's own, or the provider that runs it (llm.places, #5612)"))
     availability: CandidateAvailability = Field(description=(
@@ -1417,6 +1445,7 @@ async def model_candidates(
         candidate_download,
         candidate_installed,
         candidate_place,
+        remote_compute,
         STEP_SEARCHES,
         discover,
         egress_allowed,
@@ -1511,6 +1540,9 @@ async def model_candidates(
         return f"Downloading{': ' + d['progress'] if d.get('progress') else ''}" if d and d.get("downloading") else said
 
     compared = await run_in_threadpool(_compared_by_default, library_path, step) if library_path and step else set()
+    from fichero_server.recipes.where_it_runs import places_it_can_run
+
+    mac_gb, hf_ready, cluster_names = await run_in_threadpool(_where_facts, request)
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, tier=reader_tier(c, job),
         tier_words=TIER_WORDS.get(reader_tier(c, job) or ""), short_name=short_name(c), source=c.source,
@@ -1523,6 +1555,7 @@ async def model_candidates(
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
         rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
         installed=candidate_installed(c), download=downloads[c.id],
+        places=[PlaceOption(**o) for o in places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=cluster_names)],
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
