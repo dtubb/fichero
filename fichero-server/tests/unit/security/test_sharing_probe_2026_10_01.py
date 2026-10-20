@@ -765,3 +765,25 @@ def test_s1_an_unbound_device_is_refused_in_words(harness, monkeypatch):
 def test_s1_the_host_app_on_loopback_still_ingests(harness):
     r = harness.host().post("/api/ingest/file", json={"path": "/etc/hosts"})
     assert "Owner access" not in r.text and r.status_code != 401, r.text
+
+
+@pytest.mark.parametrize("route, body", _INGESTS)
+def test_s1_the_owners_keychain_key_session_still_ingests_a_host_path(harness, monkeypatch, route, body):
+    """Challenge -> sign-in (not the bootstrap shortcut): the owner's own app keeps working with Sharing on.
+    With Multi-user OFF the engine accepts no session token at all (bootstrap or device only; slice 10 ends that),
+    so the owner's app there is the loopback bootstrap owner, pinned by `..._host_app_on_loopback_still_ingests`."""
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    session = signed_in_client(harness, users["owner"], name="Owner's Mac")
+    r = harness.client().post(route, json=body, headers=session.headers)
+    assert "Owner access" not in r.text and r.status_code != 401, r.text  # the path itself may still be refused
+
+
+def test_s1_a_non_owner_keychain_session_cannot_ingest_a_host_path(harness, monkeypatch):
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    session = signed_in_client(harness, users["bob"])
+    r = harness.client().post("/api/ingest/file", json={"path": "/etc/hosts"}, headers=session.headers)
+    assert r.status_code == 403, r.text  # a viewer's session: refused by its role before the owner check
