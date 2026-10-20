@@ -2687,15 +2687,19 @@ Jobs and chains
 
 The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; `compute.leave.one-gate` (`compute/transfer-and-results.md`) is the remote-work sheet over this gate.
 
-- `source.egress.every-call-site` — **[OK]** (#5368) every model call goes through the gate, and every client that is not the
-  model factory is built behind it. The gate sits INSIDE `get_langchain_model` and `_build_langchain_model`, so
-  `chat_with_tools`, `structured_output` and everything `chat_workflow` reaches are covered; translation (DeepL), audio
-  transcription and the Hugging Face inference API each call it where their client is built. Cloud OCR providers
-  (`enforce_ocr_provider_policy`) read the same check (the Set Up answer and the local-only setting) and no cloud OCR client exists
-  yet to build. Embeddings run in fastembed on this Mac; no cloud embeddings client exists. Pinned by
-  `fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`: the AST guardrail lists every caller of the factory and
-  every function that builds a network client, and fails on a new one without the gate or on a cloud embeddings client.
-  NOT covered (their own entry, `source.egress.fichero-own-fetches-listed`): Fichero's own fetches that carry no library content.
+- `source.egress.every-call-site` — **[OK]** (#5368) everything that carries library content off this Mac meets the gate, and the
+  guardrail covers the WHOLE package. A model call meets `_enforce_local_only_provider` (inside `get_langchain_model` and
+  `_build_langchain_model`; translation, audio and the Hugging Face API where their client is built; cloud OCR through the same
+  check). Everything else that opens a connection meets `core/egress.check_egress` (the local-only setting and the Set Up
+  answer, per place: `cloud` or `another-mac`): the geocoder, Wikidata, the authority refreshers, Crossref and Open Library,
+  the research web tools (the agent's queries), and the copy to another Mac (`transfer/machines.client`). A refusal is in words
+  (403 for a route; a lookup that degrades, geocoding and DOI/ISBN, returns nothing and says why in the log). Pinned by
+  `fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`: an AST scan of every function in the package that opens a
+  connection (httpx, aiohttp, requests, urllib) fails unless it is gated or listed in `ALLOWED` with its reason (Fichero's own
+  fetches, API keys sent to the provider the person set up, the source being imported, a server on this Mac), and fails again when a
+  listed one becomes gated or goes. Allowing another Mac does not open the cloud, and the reverse. Embeddings run in fastembed on this
+  Mac; no cloud embeddings client exists. LIMIT: the scan sees the listed call shapes; a client reached through a new library
+  needs its shape added to the scan.
 - `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
   model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
   `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
