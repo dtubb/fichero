@@ -2842,6 +2842,10 @@ Projects
   `::test_a_resumed_run_after_a_failed_batch_redoes_nothing`). A person's Stop ends the run after the current
   batch (#5609; tested in `::test_stop_still_ends_the_run_after_the_current_batch`), failures or not; Start then
   begins a new run, which skips only what `source.recipe.done-is-not-redone` can tell is done.
+- `source.recipe.pages-in-finder-order` — **[OK]** (#5849; Fable review #9 found no spec line) a started recipe queues and reads its pages in
+  Finder order: by the full path from the project's root (at each level the order a person set, else the name read
+  naturally), then the page's own place (`IMG_2` before `IMG_10`), not the order the files were imported; its Activity
+  rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`.
 - `activity.run.systemic-error-rule` — **[OK]** (Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
   systemic failure when a refusal holds for every page (at the first), when five pages in a row fail on a batch under ten
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
