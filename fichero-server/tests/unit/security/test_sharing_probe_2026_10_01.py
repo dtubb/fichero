@@ -806,3 +806,33 @@ def test_s1_a_refused_device_says_why(harness):
     token = _device_for(harness, _a_person(harness).id)
     r = harness.remote().get("/api/notes", headers=_bearer(token))
     assert r.status_code == 401 and "Multi-user" in r.json()["detail"], r.text
+
+
+# --- S1, Multi-user ON: a device bound to anyone else acts as that person (`sharing.device-acts-as-its-binding`) ----
+
+
+def test_s1_with_multiuser_on_a_viewer_bound_device_reads_but_cannot_write(harness, monkeypatch):
+    users = _multiuser_on(harness, monkeypatch)
+    token = _device_for(harness, users["bob"].id, name="Bob's iPad")  # bob is a viewer
+    assert harness.remote().get("/api/notes", headers=_bearer(token)).status_code == 200
+    r = harness.remote().post("/api/notes", json={"body": "from bob's iPad"}, headers=_bearer(token))
+    assert r.status_code == 403, r.text  # his role, not the owner's
+
+
+def test_s1_with_multiuser_on_an_editor_bound_device_writes_as_that_person(harness, monkeypatch):
+    users = _multiuser_on(harness, monkeypatch)
+    token = _device_for(harness, users["alice"].id, name="Alice's Mac")  # alice is an editor
+    r = harness.remote().post("/api/notes", json={"body": "from alice's Mac"}, headers=_bearer(token))
+    assert r.status_code == 200, r.text
+    row = [a for a in harness.audit_rows() if a.action_name == "note.create"][-1]
+    assert row.actor == "alice", row.actor  # acts as the person it is bound to, never as the owner by fallback
+    assert row.device and row.device["name"] == "Alice's Mac"
+
+
+@pytest.mark.parametrize("route, body", _INGESTS)
+def test_s1_with_multiuser_on_no_non_owner_bound_device_ingests_a_host_path(harness, monkeypatch, route, body):
+    users = _multiuser_on(harness, monkeypatch)
+    for person in ("alice", "bob"):
+        token = _device_for(harness, users[person].id, name=f"{person}'s device")
+        r = harness.remote().post(route, json=body, headers=_bearer(token))
+        assert r.status_code == 403, (person, route, r.text)
