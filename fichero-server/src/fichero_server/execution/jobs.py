@@ -643,14 +643,23 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         detail = node.pop("detail")
         usage = list((json.loads(detail) if detail else {}).get("usage", [])) if node["kind"] not in RUN_KINDS else []
         failed = 1 if node["state"] == "failed" and not node["children"] and node["kind"] not in RUN_KINDS else 0
+        # A page is one page however many steps read it (#5959, `activity.run.pages-counted-once`): `units` holds, per page
+        # (document), one (done, failed) entry for each step that read it; `extra` counts what has no document of its own.
+        units: dict[str, list[tuple[bool, bool]]] = {}
+        extra = [0, 0, 0]  # done, total, failed
         if not node["children"] and node["kind"] in RUN_KINDS:
             node["done"], node["total"] = 0, 0  # a step that handed nothing to a lane has no pages
         elif not node["children"]:
-            node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
-            counted = json.loads(detail) if detail else {}
-            if isinstance(counted.get("total"), int) and counted["total"] > 0 and isinstance(counted.get("done"), int):
-                # A leaf that counts its own pages (a try: its pages live in a scratch copy that is gone after) says so
-                node["done"], node["total"] = (counted["total"] if node["state"] == "done" else counted["done"]), counted["total"]
+            if node["document_id"]:
+                units[node["document_id"]] = [(node["state"] == "done", failed == 1)]
+                node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
+            else:
+                node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
+                counted = json.loads(detail) if detail else {}
+                if isinstance(counted.get("total"), int) and counted["total"] > 0 and isinstance(counted.get("done"), int):
+                    # A leaf that counts its own pages (a try: its pages live in a scratch copy that is gone after) says so
+                    node["done"], node["total"] = (counted["total"] if node["state"] == "done" else counted["done"]), counted["total"]
+                extra = [node["done"], node["total"], failed]
         else:
             for child in node["children"]:
                 usage += roll(child)
@@ -660,10 +669,15 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             for child in node["children"]:  # in the order they were made
                 page = child["document_id"] and not child["children"]
                 last[(child["kind"], child["document_id"]) if page else child["id"]] = child
-            counted = list(last.values())
-            failed += sum(c["failed"] for c in counted)
-            node["done"] = sum(c["done"] for c in counted)
-            node["total"] = sum(c["total"] for c in counted)
+            for child in last.values():
+                for document, entries in child["_units"].items():
+                    units.setdefault(document, []).extend(entries)
+                for i in range(3):
+                    extra[i] += child["_extra"][i]
+            node["done"] = extra[0] + sum(1 for e in units.values() if all(d for d, _ in e))
+            node["total"] = extra[1] + len(units)
+            failed += extra[2] + sum(1 for e in units.values() if any(f for _, f in e))
+        node["_units"], node["_extra"] = units, extra
         node["name"] = kind_name(node["kind"])
         node["failed"] = failed  # the pages under it that failed; each says why on its own row
         # What a running row works on now (#5561): its running child by name, and what that one works on.
@@ -692,6 +706,8 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     root = nodes[job_id]
     roll(root)
     for node in nodes.values():  # absolute times, as the engine recorded them (#5561, never "now")
+        node.pop("_units", None)  # the roll-up's working, not part of the answer
+        node.pop("_extra", None)
         if node["started_at"] is None and node["kind"] in RUN_KINDS and node["state"] != "waiting":
             node["started_at"] = node["created_at"]  # a run row written before it said when it started
         for key in ("started_at", "finished_at", "created_at"):
