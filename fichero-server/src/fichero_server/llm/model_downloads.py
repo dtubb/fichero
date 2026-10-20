@@ -35,8 +35,9 @@ _T = TypeVar("_T")
 #: The pauses between tries after a broken connection: four more tries, about a minute in all.
 BACKOFF_SECONDS: tuple[float, ...] = (2.0, 5.0, 15.0, 30.0)
 CHUNK_BYTES = 1 << 20
-#: How long a read waits for the server before the try counts as a broken connection.
-READ_TIMEOUT_SECONDS = 60.0
+#: How long the server may stay silent (connecting, answering, or between bytes) before the try counts as a
+#: broken connection. A server that took the request and sent nothing was a ~100 s stall at 60 s.
+READ_TIMEOUT_SECONDS = 20.0
 
 #: Exception class names that mean the connection broke, whichever library raised them.
 _TRANSIENT_NAMES = frozenset({
@@ -150,6 +151,9 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
     if dest.is_file() and (size is None or dest.stat().st_size == size):
         return dest
 
+    started = time.monotonic()
+    logger.info("download of %s starting: %s (size %s)", name, url, megabytes(size))
+
     def one_try() -> None:
         have = part.stat().st_size if part.is_file() else 0
         if size is not None and have == size:
@@ -193,6 +197,7 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
     if size is not None and got != size:
         raise DownloadInterrupted(name)
     part.replace(dest)
+    logger.info("download of %s done: %s in %.0f s", name, megabytes(got), time.monotonic() - started)
     return dest
 
 
