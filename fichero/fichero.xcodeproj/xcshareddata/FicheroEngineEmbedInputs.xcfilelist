@@ -638,6 +638,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/url_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/xml_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/spatial_arrange.py
 $(SRCROOT)/../fichero-server/src/fichero_server/split_carry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/startup_warnings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/sync_folder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/tool_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/__init__.py
