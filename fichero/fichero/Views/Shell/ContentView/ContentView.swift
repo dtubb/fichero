@@ -856,6 +856,8 @@ struct ContentView: View {
         #endif
         // A drop onto another project, from the sidebar or Items (#2397, #4311).
         .modifier(ProjectTransferSheetHost(store: windowState.projectTransfer))
+        // A synced project whose host holds no token here asks once for its pairing link (#5898).
+        .modifier(SyncedHostAskHost(libraryRoot: libraryManager.openLibraries.first { $0.id == libraryManager.currentLibraryId }?.url))
         .onKeyPress(.tab, phases: .down) { keyPress in
             // Tab inside an ACTIVE TEXT FIELD belongs to the text (Daniel,
             // 2026-08-10: "tab would be used for editing in text fields
