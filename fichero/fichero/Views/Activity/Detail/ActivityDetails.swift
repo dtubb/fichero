@@ -319,11 +319,11 @@ extension ActivityRun {
     init(node: ActivityJobNode, libraryId: UUID?, libraryName: String?) {
         let status: ActivityRunStatus
         switch ActivityMonitorRow.Phase(engineState: node.state) {
-        case .running, .waiting: status = .running
+        case .running, .waiting, .unknown: status = .running
         case .paused: status = .paused
-        case .failed: status = .failed
-        case .cancelled: status = .cancelled
-        case .done: status = .completed
+        case .failed, .interrupted: status = .failed
+        case .cancelled, .notRun: status = .cancelled
+        case .done, .partial: status = .completed
         }
         self.init(
             id: "\(libraryId?.uuidString ?? "")|\(node.id)",
@@ -342,6 +342,7 @@ extension ActivityRun {
             libraryName: libraryName,
             failureReason: status == .failed ? node.reason : nil
         )
+        engineState = node.state  // what the engine said, so waiting is not drawn as Running (#5958)
     }
 }
 

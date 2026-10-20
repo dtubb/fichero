@@ -25,6 +25,9 @@ struct ActivityRun: Identifiable {
     /// Why a failed run failed, as the runs table recorded it; the Activity
     /// table's state column shows it (`activity.window.row-shows-lane-state-reason`).
     var failureReason: String?
+    /// The engine's own state for a run seen only as a node of the job tree (waiting, partial, …): the row says what the
+    /// engine said, not the nearest of the five statuses (#5958).
+    var engineState: String?
 
     /// The details' selection for this run (#5561): its job (the thread id)
     /// and its project. Nothing else is copied: the details read the row.
