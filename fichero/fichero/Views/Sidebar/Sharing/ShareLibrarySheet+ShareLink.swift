@@ -1,11 +1,6 @@
 import SwiftUI
 
 extension ShareLibrarySheet {
-    /// Under the pairing link, for a person whose other Mac already holds a synced copy of the project
-    /// (`sharing.synced-device-pairs-by-host-code`, #5898): the same one-time link pairs it, so say so. Here, not in the
-    /// AppKit-only pairing card file, so the share sheet compiles on iOS too; the Settings card reads it from here.
-    static let syncedCopyHint = "Already have a copy of this project on another Mac? Paste this link there when it asks to connect."
-
     /// The link the person you just shared with actually opens.
     ///
     /// It is the SAME `fichero://` payload as the pairing QR and the copyable
@@ -37,9 +32,6 @@ extension ShareLibrarySheet {
                 }
                 Text("This link lets \(sharedPersonName) connect to your project — "
                     + "it carries a single-use code that expires. Share only with them.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(Self.syncedCopyHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let localNetworkOnlyAdvisory {

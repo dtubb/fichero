@@ -128,6 +128,13 @@ enum PairingLinkCopy {
     }
 }
 
+extension PairingLinkCopy {
+    /// Under the Settings pairing link only (`sharing.synced-device-pairs-by-host-code`, #5898): the link is the signed-in
+    /// person's, so it pairs THEIR OWN other Mac. Never in the share sheet, where the host shares with ANOTHER person and
+    /// the link would pair that Mac as the host's person (## 534).
+    static let ownOtherMacHint = "Your other Mac already has a copy of this project? Paste this link there when it asks to connect."
+}
+
 func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
     devices.filter { !$0.revoked }
 }
@@ -279,7 +286,7 @@ struct PairingCardView: View {
             Text("On the other device, choose Enter Link Manually and paste this.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(ShareLibrarySheet.syncedCopyHint)
+            Text(PairingLinkCopy.ownOtherMacHint)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
