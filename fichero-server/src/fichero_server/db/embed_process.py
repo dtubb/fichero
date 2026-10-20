@@ -55,12 +55,13 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
 
     # The pinned e5's fastembed name is an alias; its files live under the repo it is fetched from
-    # (models--qdrant--multilingual-e5-large-onnx), so match the source model's name inside the folder name.
+    # (models--qdrant--multilingual-e5-large-onnx), so match the source model's name at the END of the folder name,
+    # with or without "-onnx" (never a sibling such as -instruct).
     space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
     tail = (space.source_model_name if space else model_name).rsplit("/", 1)[-1].lower()
     try:
         return any(
-            d.name.startswith("models--") and tail in d.name.lower() and (d / "snapshots").is_dir()
+            d.name.startswith("models--") and d.name.lower().endswith((tail, f"{tail}-onnx")) and (d / "snapshots").is_dir()
             for d in os.scandir(cache_dir)
         )
     except OSError:
