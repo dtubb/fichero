@@ -393,7 +393,7 @@ def _wait_out_a_pause(db: Any, job_id: str) -> None:
 
     if pause_requested(job_id) and not _stop_asked(job_id):
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused with its run")
+        raise jobs.JobDeferred("Paused between steps")
 
 
 def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> None:
@@ -402,16 +402,27 @@ def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> N
     from fichero_server.api.routes.workflow_execution import core
     from fichero_server.execution.runner import on_background_loop
 
+    from fichero_server.db.manager import db_manager
+
+    key = jobs._key(db)
+
     def said(done: Any) -> None:
         exc = done.exception()
         if exc is not None and recipe_id is not None:
             try:
-                db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Could not resume its step: {exc}", recipe_id])
+                # This runs on the engine's loop thread, not the request's: say it through the store's own open connection.
+                (db_manager.open_database(key) or db).execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Could not resume its step: {exc}", recipe_id])
             except Exception:  # noqa: BLE001 -- the row is what we can say it on; the log has the rest
                 logger.exception("could not say the failed resume of %s on %s", thread_id, recipe_id)
             logger.warning("recipe %s: resuming its step run %s failed: %s", recipe_id, thread_id, exc)
 
     on_background_loop(core.resume_workflow(thread_id, None, db=db)).add_done_callback(said)
+
+
+def _awaited_child(db: Any, job_id: str) -> str | None:
+    """The step run a parked recipe is waiting on, if it is parked on one."""
+    row = jobs.read_job(db, job_id)
+    return ((json.loads(row["detail"] or "{}")).get("awaiting") or {}).get("child")
 
 
 def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
@@ -435,6 +446,14 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         jobs.say_pausing(db, job_id)
         return "running"
     if not pause_requested(job_id):
+        awaited = _awaited_child(db, job_id)
+        if awaited is not None and jobs._job_row(db, awaited)[1] == "paused":
+            # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
+            clear_pause(awaited)
+            _resume_step_run(db, awaited, job_id)
+            db.execute("UPDATE jobs SET run_after = NULL, reason = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+            jobs.wake_lane(db)
+            return jobs._job_row(db, job_id)[1]
         return jobs.pause_stored(db, job_id, False, state)
     clear_pause(job_id)
     child = jobs.running_child(db, job_id)
