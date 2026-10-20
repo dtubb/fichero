@@ -884,8 +884,6 @@ def _warm_configured_provider_keys() -> None:
         types = [p.provider_type.value for p in get_app_db().list_providers() if p.enabled]
         keychain.warm_api_keys([t for t in types if (info := get_provider_info(t)) is not None and not info.is_local])
     except Exception as exc:  # noqa: BLE001 -- a warm-up that fails leaves the lookups to read on demand
-        global keychain_warm_failure
-        keychain_warm_failure = f"{type(exc).__name__}: {exc}"
         logger.warning("Keychain warm-up skipped: %s", exc)
 
 
