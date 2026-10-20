@@ -1434,8 +1434,9 @@ and node, not by job); a retry action for failed pages.
   (the indirect-call test above stays).
 - `activity.read.claims-backfill-is-a-lane-job` — **[PARTIAL]** a GET never embeds the claims that lack a vector. It
   searches the vectors that exist, says how many claims are not embedded yet (`not_embedded` on the response, absent when
-  none), and queues ONE background job (kind `embed-claims`, the embed lane, so the throttle applies); a second GET while
-  that job waits or runs queues nothing. Pinned by `test_a_get_with_unembedded_claims_queues_the_backfill_once`. NOTE:
+  none), and queues ONE background job (kind `embed-knowledge`, subject `claims` or `entities`, the embed lane, so the throttle applies); a second GET while
+  that job waits or runs queues nothing. An auto-embed that finds no event loop inside a GET (a `to_thread`) queues the same job for the
+  kind it was asked to embed (claims or entities), so no vectors are lost. Pinned by `test_a_get_with_unembedded_claims_queues_the_backfill_once` and `test_auto_embed_with_no_loop_inside_a_get_queues_the_backfill_instead_of_losing_the_vectors` (claims and entities). NOTE:
   no GET embedded claims before this (the reindex action is a POST), so this is the count and the queue, not a move.
 - `activity.engine.restart-says-why` — **[PARTIAL]** (overnight P1, 2026-10-19) when the app restarts its engine because its
   health checks went unanswered, the connection detail says why in words: how many seconds were missed, and that an import was
