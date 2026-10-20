@@ -137,6 +137,26 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertEqual(RecipeBuiltInRows.heading, "Built in")
     }
 
+    // MARK: - source.onboard.train-path: the count, said early
+
+    func testReady_saysHowManyCorrectedLinesTrainingNeeds_perJob_beforeAnyOffer() async throws {
+        // WHY: the plan carries `train_ahead` (one sentence per trainable step not ready yet); the store hands a stage
+        // page the sentences of its own jobs only, decoded through the generated client (trainAhead).
+        var plan = try Self.object(try Self.recorded("start_plan_skips_and_downloads"))
+        let sentence = "Training a model of your own for Read a line is offered once the project has the corrected work. It needs 2,000 corrected lines; 0 on 0 pages so far."
+        plan["train_ahead"] = [["step": "read", "job": "read-a-line", "sentence": sentence]]
+        let store = RecipeSetupStore(client: Self.client())
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/start", method: "GET", status: 200,
+                 body: try JSONSerialization.data(withJSONObject: plan))
+        ])
+        await store.loadStartPlan()
+
+        XCTAssertEqual(store.trainAhead(forJobs: ["read-a-line"]), [sentence])
+        XCTAssertEqual(store.trainAhead(forJobs: ["find-lines", "find-names-tag-words"]), [], "another stage's jobs: nothing")
+        XCTAssertEqual(store.trainAhead(forJobs: []), [])
+    }
+
     // MARK: - source.onboard.auto.plan-shows-what-will-not-run (#5573)
 
     func testReady_showsEverySkippedStepWithWhyAndFix_andWhatStartWillFetch() async throws {
