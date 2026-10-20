@@ -36,6 +36,9 @@ def _open_as_the_engine_does(test_package):
 
 def test_no_job_is_left_running_after_the_engine_died(client, db, test_package, monkeypatch):
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # nothing is taken up while we read
+    # A tracker made here would sweep 'running' runs on the background loop at once (max age 0), racing the open's own
+    # marking and writing the sweep's reason; the open marks them ("Interrupted: the engine stopped at …", #5555).
+    monkeypatch.setattr("fichero_server.execution.runner.on_background_loop", lambda coro: coro.close())
     jobs.load_kinds()
     page = _killed_mid_job(db, "thumbnail", "doc-1")
     download = _killed_mid_job(db, "download-model", "spacy:es_core_news_sm")
