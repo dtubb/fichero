@@ -46,7 +46,7 @@ extension UsersContent {
             // not exist, so a single-user owner never learned invites were a thing,
             // let alone what turned them on. Name it, and name the place.
             //
-            // ponytail: it names Engine settings rather than duplicating the
+            // ponytail: it names the Sharing switch rather than duplicating the
             // multi-user switch here — a second switch over the same state is the
             // exact duplicate-surface disease #3777 just removed.
             if identityStore.isOwnerAccess {
@@ -54,9 +54,7 @@ extension UsersContent {
                     InviteAccountSection(store: store)
                 } else {
                     Section {
-                        Text("Multi-user mode is off, so this project has one account and "
-                             + "nobody to invite. Turn it on in Settings → Engine, and Fichero "
-                             + "will restart its engine to apply it.")
+                        Text(SharingToggles.multiUserOffHint)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } header: {
