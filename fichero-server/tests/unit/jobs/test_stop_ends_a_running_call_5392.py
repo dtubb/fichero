@@ -111,3 +111,28 @@ def test_the_guard_reads_only_the_in_memory_signal():
     """It runs ON the event loop (#5843): the stop is read from `cancellation_requested` (a dict and an Event), never the database."""
     source = inspect.getsource(jobs._end_call_on_stop) + inspect.getsource(jobs._stop_requested)
     assert "execute" not in source and "cancellation_requested" in source
+
+
+def test_a_callee_that_swallows_the_cancel_still_ends_in_a_stop(db, test_package):
+    """A call that catches CancelledError and returns normally must not turn the Stop into a finished page."""
+    async def go():
+        asyncio.get_running_loop().call_later(0.4, request_cancellation, "run-sc")
+        with pytest.raises(WorkflowCancelled):
+            async with jobs.lane_slot(str(test_package), "ask-a-model", "swallow page", model="omlx:reader", run_id="run-sc", lane="local-ml"):
+                try:
+                    await asyncio.sleep(30)
+                except asyncio.CancelledError:
+                    pass  # swallowed, as a careless callee does
+
+    asyncio.run(asyncio.wait_for(go(), 30))
+    for _ in range(60):
+        if _row(db, "swallow page")[0] == "cancelled":
+            break
+        time.sleep(0.1)
+    assert _row(db, "swallow page")[:2] == ("cancelled", "Stopped by you")
+
+
+def test_the_floor_is_labelled_as_an_estimate_in_the_rows_words(db, test_package):
+    asyncio.run(_stopped_call(test_package, "words page", "openai:gpt-x", "network"))
+    log = json.loads(_row(db, "words page")[2])["log"]
+    assert any("ESTIMATE" in entry["message"] and str(jobs.STOPPED_CALL_INPUT_TOKENS) in entry["message"] for entry in log), log

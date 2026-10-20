@@ -1328,11 +1328,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
         _call_row.set((db, future.job_id))
         stop_state: dict[str, bool] = {"fired": False, "over": False}
         guard = asyncio.ensure_future(_end_call_on_stop(run_id, asyncio.current_task(), stop_state)) if run_id else None
-        try:
-            yield
-        except asyncio.CancelledError:
-            if not stop_state["fired"]:
-                raise  # cancelled by someone else (its caller went away): not ours to turn into a stop
+        async def stopped() -> None:
+            """The run was stopped while the call ran: balance the cancel, book what a cloud call may have cost, raise the stop."""
             asyncio.current_task().uncancel()
             outcome["result"] = STOPPED_BY_YOU
             if lane == "network":  # a cloud call may have been billed: a Stop never hides spend
@@ -1340,11 +1337,20 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             from fichero_server.execution.cancellation import WorkflowCancelled
 
             raise WorkflowCancelled(run_id) from None
+
+        try:
+            yield
+        except asyncio.CancelledError:
+            if not stop_state["fired"]:
+                raise  # cancelled by someone else (its caller went away): not ours to turn into a stop
+            await stopped()
         except Exception as exc:
             outcome["result"] = str(exc) or type(exc).__name__
             raise
         finally:
             stop_state["over"] = True
+        if stop_state["fired"]:  # the callee swallowed the cancel and came back normally: the Stop still stands
+            await stopped()
         outcome["result"] = "done"
         if _scheduler.is_stopping(future.job_id):
             raise PageStopped(stopped_by(future.job_id))  # stopped while it ran: the caller's next step is skipped
@@ -1378,6 +1384,8 @@ def _note_stopped_cost(model: str) -> None:
     note_usage({"provider": provider, "model": name, "kind": "stopped", "input_tokens": STOPPED_CALL_INPUT_TOKENS,
                 "output_tokens": 0, "total_tokens": STOPPED_CALL_INPUT_TOKENS, "cache_read_tokens": 0,
                 "estimated": True, "place": "cloud"})
+    note_call_log(f"Stopped before the provider answered: its cost is booked as an ESTIMATE (a floor of "
+                  f"{STOPPED_CALL_INPUT_TOKENS} input tokens), not what it billed.", level="warning")
 
 
 async def _end_call_on_stop(run_id: str, task: "asyncio.Task | None", state: dict[str, bool]) -> None:
