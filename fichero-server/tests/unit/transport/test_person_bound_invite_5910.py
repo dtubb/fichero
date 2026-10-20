@@ -22,9 +22,12 @@ class _FakeRequest:
         bootstrap_auth = True
 
 
-def _as(harness, username):
+def _as(harness, username, library=True):
+    """A signed-in client; `library` sends the open library's header, as the app does for every request."""
     client = harness.client()
     client.headers.update(_bearer(_login(harness, username)))
+    if library:
+        client.headers["X-Fichero-Library-Path"] = str(harness.library)
     return client
 
 
@@ -295,3 +298,107 @@ def test_the_audit_row_of_a_new_persons_redeem_names_the_minting_owner_the_role_
     row = next(r for r in harness.app_db.list_action_audits() if r.action_name == "device.pair_for_person")
     assert row.target_ids == [paired["device_id"]] and row.actor == "invite:owner"
     assert row.params["new_person"] is True and row.params["role"] == "editor" and row.params["never_expires"] is True
+
+
+# -- review 635 -------------------------------------------------------------------------------------------------------
+import threading  # noqa: E402
+
+
+def test_an_invitation_defaults_to_the_library_open_when_it_is_minted_and_the_person_can_read_it_but_not_write(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    minted = _invite(harness, "carol").json()  # no `library` in the request: the header names the open one
+    assert pairing._PAIRING_CODES[minted["code"]].library == _lib(harness)
+    paired = _redeem(harness, minted["code"], new_password="a long secret").json()
+    carol = harness.app_db.get_user_by_username("carol")
+    assert harness.app_db.get_library_role(carol.id, _lib(harness)).role == "viewer" == minted["role"]
+    token = _bearer(paired["device_token"])
+    read = harness.remote().get("/api/notes", headers=token)
+    assert read.status_code == 200, read.text
+    wrote = harness.remote().post("/api/notes", json={"body": "carol writes"}, headers=token)
+    assert wrote.status_code == 403, wrote.text
+
+
+def test_a_new_person_with_no_library_at_all_is_refused_at_the_mint_in_words(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    refused = _invite(harness, "carol", client=_as(harness, "owner", library=False))
+    assert refused.status_code == 422 and "library" in refused.json()["detail"]
+    assert pairing._PAIRING_CODES == {}, "nothing was minted"
+
+
+def test_the_answer_the_list_and_the_audit_say_the_role_really_granted(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    owner = _as(harness, "owner")
+    new = _invite(harness, "carol", client=owner, role="editor").json()
+    existing = _invite(harness, "bob", client=owner, role="editor").json()  # bob is a viewer and stays one
+    assert new["role"] == "editor" and existing["role"] == "viewer"
+    listed = {i["person"]: i["role"] for i in owner.get("/api/pair/invites").json()}
+    assert listed == {"carol": "editor", "bob": "viewer"}
+    minted = {r.params["person"]: r.params["role"] for r in harness.app_db.list_action_audits() if r.action_name == "invite.mint"}
+    assert minted == {"carol": "editor", "bob": "viewer"}
+
+
+def test_every_mint_is_audited_with_the_owner_the_role_the_library_and_the_expiry_never_the_code(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    minted = _invite(harness, "carol", never_expires=True).json()
+    rows = [r for r in harness.app_db.list_action_audits() if r.action_name == "invite.mint"]
+    assert len(rows) == 1 and rows[0].actor == "owner" and rows[0].target_ids == [minted["invite_id"]]
+    assert rows[0].params["never_expires"] is True and rows[0].params["library"] == _lib(harness)
+    assert minted["code"] not in str(rows[0].params) and minted["code"] not in str(rows[0].target_ids)
+
+
+def test_the_list_and_revoke_admit_a_signed_in_owner_only_not_the_start_up_key(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    with pytest.raises(HTTPException) as refused:
+        pairing._signed_in_owner(_FakeRequest())
+    assert refused.value.status_code == 403
+    assert _as(harness, "alice").get("/api/pair/invites").status_code == 403
+    assert _as(harness, "owner").get("/api/pair/invites").status_code == 200
+
+
+def test_two_redeems_of_one_code_at_once_make_one_device_and_the_other_is_told(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    code = _invite(harness, "carol").json()["code"]
+    gate, answers = threading.Barrier(2), []
+
+    def go():
+        remote = harness.remote()
+        gate.wait()
+        answers.append(remote.post("/api/pair", json={"code": code, "device_name": "Mac", "new_password": "a long secret"}).status_code)
+
+    workers = [threading.Thread(target=go) for _ in range(2)]
+    [w.start() for w in workers]
+    [w.join() for w in workers]
+    assert sorted(answers).count(200) == 1 and set(answers) <= {200, 401, 409}, answers
+    assert len(harness.app_db.list_devices()) == 1 and harness.app_db.get_user_by_username("carol") is not None
+
+
+def test_a_code_being_redeemed_refuses_a_second_redeem_in_words_and_a_refusal_releases_it(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    code = _invite(harness, "carol").json()["code"]
+    pairing._PAIRING_CODES[code].claimed = True  # another redeem is under way
+    busy = _redeem(harness, code, new_password="a long secret")
+    assert busy.status_code == 409 and "being used right now" in busy.json()["detail"]
+    assert pairing._PAIRING_CODES[code].claimed is True, "the loser never releases the winner's claim"
+    pairing._PAIRING_CODES[code].claimed = False
+    assert _redeem(harness, code).status_code == 422 and pairing._PAIRING_CODES[code].claimed is False, "a refusal releases it"
+    assert _redeem(harness, code, new_password="a long secret").status_code == 200
+
+
+def test_a_refused_redeem_hints_the_next_step_in_a_typed_header_not_in_prose(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    new = _redeem(harness, _invite(harness, "carol").json()["code"])
+    assert new.status_code == 422 and new.headers["X-Fichero-Pair-Next"] == "choose-password"
+    existing = _redeem(harness, _invite(harness, "alice").json()["code"], bare=True)
+    assert existing.status_code == 401 and existing.headers["X-Fichero-Pair-Next"] == "person-required"
+
+
+def test_usernames_are_one_person_whatever_their_case(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    owner = _as(harness, "owner")
+    clash = owner.post("/api/users", json={"username": "ALICE", "display_name": "Other", "password": "pw-other-1"})
+    assert clash.status_code == 409, "'ALICE' beside 'alice' is refused"
+    assert harness.client().post("/api/auth/login", json={"username": "Alice", "password": "pw-alice"}).status_code == 200
+    code = _invite(harness, "Alice", client=owner).json()  # names the existing person, not a second account
+    assert code["person"] == "alice" and pairing._PAIRING_CODES[code["code"]].new_person is False
+    other = _redeem(harness, code["code"], username="ALICE", password="pw-alice")
+    assert other.status_code == 200, other.text

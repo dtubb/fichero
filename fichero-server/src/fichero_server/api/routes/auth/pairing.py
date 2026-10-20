@@ -10,6 +10,7 @@ from fichero_server.core.timeutil import ensure_utc, utc_now
 import logging
 import os
 import secrets
+import threading
 import sys
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -90,6 +91,7 @@ class _PairingCode:
     role: str = INVITE_DEFAULT_ROLE  # on `library`, for a NEW person (an existing person keeps the role they have)
     library: str | None = None
     never_expires: bool = False
+    claimed: bool = False  # a redeem is under way: only one at a time may spend the code
 
     @property
     def invite_id(self) -> str:
@@ -108,6 +110,11 @@ class _PairingCode:
 # authoritative. If the API is launched outside that path with multiple workers,
 # codes minted in one process will not be visible to another.
 _PAIRING_CODES: dict[str, _PairingCode] = {}
+_REDEEM_LOCK = threading.Lock()  # the claim of a code: two redeems of one code can never both go through
+#: A typed hint for a client on what to ask the person next, in a response header, so no client matches prose.
+PAIR_NEXT_HEADER = "X-Fichero-Pair-Next"
+NEXT_PERSON = "person-required"
+NEXT_NEW_PASSWORD = "choose-password"
 _PAIRING_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_RENEW_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_WORKER_WARNING_EMITTED = False
@@ -206,7 +213,7 @@ class InviteResponse(BaseModel):
     id: str
     person: str
     new_person: bool
-    role: str
+    role: str | None = Field(default=None, description="the role it gives; none: the person keeps the role they have")
     library: str | None = None
     minted_by: str
     expires_at: datetime | None = Field(default=None, description="none when it never expires")
@@ -339,6 +346,14 @@ def _invited_person(request: Request, app_db: AppDatabase, username: str | None)
     if not person.active:
         raise HTTPException(status_code=403, detail="that person is disabled")
     return person
+
+
+def _signed_in_owner(request: Request) -> AccountUser:
+    """The signed-in owner: the same rule as minting an invitation. The ambient start-up key is not one."""
+    session_user = _current_session_user(request)
+    if not (session_user and session_user.is_owner):
+        raise HTTPException(status_code=403, detail="only a signed-in owner can manage invitations")
+    return session_user
 
 
 def _can_manage_device(request: Request, device: Device) -> bool:
@@ -648,14 +663,28 @@ def create_pairing_code(
     if person_name is None and (body.never_expires or body.expires_in_days is not None):
         raise HTTPException(status_code=422, detail="a lifetime is for an invitation to a named person")
     library_path = None
-    if person_name is not None and body.library:
+    granted_role = None  # the role this invitation really gives; the answer, the list and the audit all say this
+    if person_name is not None:
         from fichero_server.security import authz
 
-        try:
-            authz.require_owner(_current_session_user(request), body.library)  # only the library's owner grants on it
-        except authz.AuthorizationError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        library_path = authz.normalize_library_path(body.library)
+        # The library is the one the owner named, else the one open in the request (X-Fichero-Library-Path).
+        library = body.library or request.headers.get("x-fichero-library-path") or None
+        if library is not None:
+            try:
+                authz.require_owner(_current_session_user(request), library)  # only the library's owner grants on it
+            except authz.AuthorizationError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
+            library_path = authz.normalize_library_path(library)
+        if invited is None:
+            if library_path is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="a new person needs a library to be invited to: open one (or name it) and invite again",
+                )
+            granted_role = body.role
+        elif library_path is not None:  # an existing person keeps the role they have; that is what is said
+            held = app_db.get_library_role(invited.id, library_path)
+            granted_role = held.role if held else None
     from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
 
     # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
@@ -677,7 +706,7 @@ def create_pairing_code(
         person=person_name,
         new_person=new_name is not None,
         display_name=(body.display_name or "").strip(),
-        role=body.role,
+        role=granted_role or "",
         library=library_path,
         never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
@@ -692,11 +721,18 @@ def create_pairing_code(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = _PAIRING_CODES[code]
+    if person_name:  # every mint is audited: who, for whom, what role on which library, until when (never the code)
+        get_app_db().save_action_audit(ActionAudit(
+            action_name="invite.mint", actor=record.minted_by, target_ids=[record.invite_id],
+            params={"person": person_name, "new_person": record.new_person, "role": granted_role,
+                    "library": library_path, "never_expires": record.never_expires,
+                    "expires_at": None if record.never_expires else expires_at.isoformat()},
+            created_at=utc_now()))
     return PairCodeResponse(
         code=code,
         person=person_name,
         invite_id=record.invite_id if person_name else None,
-        role=record.role if person_name else None,
+        role=granted_role,
         never_expires=record.never_expires,
         expires_at=None if record.never_expires else expires_at,
         tailnet_url=tailnet_url or None,
@@ -709,12 +745,12 @@ def create_pairing_code(
 @router.get("/invites", response_model=list[InviteResponse])
 def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> list[InviteResponse]:
     """The owner's list of unused invitations to named people, with their expiry (never the codes)."""
-    _owner_only(request, app_db)
+    _signed_in_owner(request)
     now = utc_now()
     _prune_pairing_codes(now)
     return [
         InviteResponse(
-            id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role, library=r.library,
+            id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role or None, library=r.library,
             minted_by=r.minted_by, expires_at=None if r.never_expires else r.expires_at, never_expires=r.never_expires,
         )
         for r in _PAIRING_CODES.values()
@@ -725,7 +761,7 @@ def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_databas
 @router.delete("/invites/{invite_id}")
 def revoke_invite(invite_id: str, request: Request, app_db: AppDatabase = Depends(get_app_database)) -> dict[str, str]:
     """Revoke an unused invitation at any time, a never-expiring one too: the link stops working at once."""
-    _owner_only(request, app_db)
+    _signed_in_owner(request)
     for code, record in list(_PAIRING_CODES.items()):
         if record.person and record.invite_id == invite_id:
             _PAIRING_CODES.pop(code, None)
@@ -748,11 +784,19 @@ def pair_device(
     _prune_pairing_codes(now)
     _check_pair_rate_limit(request, now, record_attempt=False)
 
+    claimed_here: _PairingCode | None = None
     try:
         code = body.code.strip().upper()
         record = _PAIRING_CODES.get(code)
         if record is None or record.used or record.expires_at <= now:
             raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+        with _REDEEM_LOCK:  # one redeem at a time may spend a code: the other is told, in words, and spends nothing
+            if record.claimed:
+                raise HTTPException(
+                    status_code=409, detail="this code is being used right now: if that was not you, ask for a new one"
+                )
+            record.claimed = True
+            claimed_here = record
 
         name = body.device_name.strip()
         if not name:
@@ -768,7 +812,7 @@ def pair_device(
         if record.person:
             # The code was minted for this person: the device is theirs and no one else's, and they prove who they
             # are: an existing person with their password, a new person by choosing one (the owner never sets it).
-            if body.username is not None and body.username.strip() != record.person:
+            if body.username is not None and body.username.strip().casefold() != record.person.casefold():
                 raise HTTPException(status_code=403, detail="this invitation is for another person")
             if record.new_person:
                 if app_db.get_user_by_username(record.person) is not None:
@@ -777,6 +821,7 @@ def pair_device(
                     raise HTTPException(
                         status_code=422,
                         detail=f"choose a password of at least {MIN_NEW_PASSWORD} characters to accept this invitation",
+                        headers={PAIR_NEXT_HEADER: NEXT_NEW_PASSWORD},
                     )
             else:
                 chosen = app_db.get_user_by_username(record.person)
@@ -787,6 +832,7 @@ def pair_device(
                     raise HTTPException(
                         status_code=401,
                         detail=f"person required: this invitation is for {record.person}; sign in as them with their password",
+                        headers={PAIR_NEXT_HEADER: NEXT_PERSON},
                     )
                 if not accounts.verify_password(body.password, chosen.password_hash):
                     raise HTTPException(status_code=401, detail="invalid username or password")
@@ -819,7 +865,8 @@ def pair_device(
             if chosen is None and record.ambient:
                 # The host owner is never ambient on a remote device: the device says who it is.
                 raise HTTPException(
-                    status_code=401, detail="person required: this library uses Multi-user, sign in as a person"
+                    status_code=401, detail="person required: this library uses Multi-user, sign in as a person",
+                    headers={PAIR_NEXT_HEADER: NEXT_PERSON},
                 )
             user = chosen or app_db.get_user(record.user_id)
             if user is None or not user.active:
@@ -854,6 +901,9 @@ def pair_device(
     except HTTPException:
         _record_pair_attempt(request, now)
         raise
+    finally:
+        if claimed_here is not None and not claimed_here.used:
+            claimed_here.claimed = False  # a refusal spends nothing: the code is good for the next try
 
 
 @router.post("/enroll", response_model=PairResponse)
