@@ -81,10 +81,9 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   paste-only wording or a Mac scan.
 - `sharing.connect-section-always-shown` — **[PARTIAL]** (#5893, owner's test 2026-10-20) the "Connect This Mac to
   Another Fichero" section is on the Devices pane whether or not Sharing is on: connecting to another Mac does not
-  need this Mac to share (`ShareSettingsView.swift`, outside the `hostingEnabled` branch: found by reading, no test
-  can show a view's place). It is the LAST section of that long pane, below Connected Clients and Advanced, so on a
-  small window it is below the fold; the nearby list (`sharing.mac-finds-host`) is what makes it worth finding.
-  Swift, not built or run.
+  need this Mac to share (`ShareSettingsView.swift`: outside the `hostingEnabled` branch, and placed right under the
+  Sharing switch and its pairing card, above Connected Devices, Connected Clients and Advanced, because a guest Mac
+  needs it first and the pane is long; found by reading, no test can show a view's place). Swift, not built or run.
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
