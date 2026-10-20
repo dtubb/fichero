@@ -91,6 +91,8 @@ struct RemoteConnectionSetupView: View {
     // + SPKI pin, so tapping a host routes into the scanner.
     @StateObject private var discovery = BonjourDiscoveryService()
     @State private var showingScanner = false
+    /// The nearby Mac that was tapped (#5918): shown before anything is sent, and the only host a code may be for.
+    @State private var pickedHost: HostChoices.Found?
     @State private var didAutoPresentScanner = false
     @State private var showingManualEntry = false
     @State private var isPairing = false
@@ -153,7 +155,9 @@ struct RemoteConnectionSetupView: View {
                 DiscoveredMacsSection(
                     discovery: discovery,
                     isPairing: isPairing,
-                    onSelectHost: {
+                    onSelectHost: { host in
+                        pickedHost = HostChoices.Found(name: host.displayName, publicURL: host.reachableURL)
+                        errorMessage = nil
                         if supportsCameraScanner {
                             showingScanner = true
                         } else {
@@ -161,6 +165,22 @@ struct RemoteConnectionSetupView: View {
                         }
                     }
                 )
+
+                if let pickedHost {
+                    Section {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Pairing with \(pickedHost.name)")
+                                if let address = pickedHost.publicURL {
+                                    Text(address).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button("Clear") { self.pickedHost = nil }
+                                .disabled(isPairing)
+                        }
+                    }
+                }
 
                 Section {
                     ZStack {
@@ -369,6 +389,9 @@ private extension RemoteConnectionSetupView {
     }
 
     func finishPairing(with fields: RemoteClientPairingFields) async throws {
+        if let pickedHost, let refusal = HostChoices.refusal(forInviteAt: fields.remoteURL, picked: pickedHost) {
+            throw APIError.badRequest(refusal)
+        }
         isPairing = true
         errorMessage = nil
         defer { isPairing = false }

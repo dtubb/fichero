@@ -40,6 +40,13 @@ enum HostChoices {
         return want == got
     }
 
+    /// The sentence that refuses a code or link for another host than the Mac that was picked; nil when it is for the
+    /// picked one, or when the picked Mac has no address Bonjour resolved to compare with (#5918).
+    static func refusal(forInviteAt inviteURL: String, picked: Found) -> String? {
+        guard picked.publicURL != nil, !invite(inviteURL, isFor: picked) else { return nil }
+        return "That code is for another Mac than \(picked.name). Scan the one shown on \(picked.name)."
+    }
+
     /// Reachable, secure, not this Mac, one row per address, sorted by name. A `.ts.net` host is offered only in THIS
     /// Mac's own tailnet, whose suffix is read from Tailscale (`ownTailnetURL`, the engine's detected address), never
     /// from Bonjour; with that suffix unknown every `.ts.net` host is left out (review 474).
