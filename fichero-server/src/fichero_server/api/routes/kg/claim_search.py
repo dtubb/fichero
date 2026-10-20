@@ -76,9 +76,18 @@ def search_claims_semantic_impl(
         raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
 
     results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    # A GET never embeds the claims that lack a vector: it says how many, and a lane job does them
+    # (`activity.read.claims-backfill-is-a-lane-job`).
+    indexed = db._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)["indexed_count"]
+    missing = max(0, db.count(KnowledgeClaim) - int(indexed))
+    if missing:
+        from fichero_server.importers.derivatives import queue_claims_backfill
+
+        queue_claims_backfill(db)
+    not_embedded = missing or None
     claim_ids = [r["id"] for r in results]
     if not claim_ids:
-        return KGGraphListResponse(items=[], count=0)
+        return KGGraphListResponse(items=[], count=0, not_embedded=not_embedded)
 
     claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
     score_map = {r["id"]: _vector_similarity(r) for r in results}
@@ -89,7 +98,7 @@ def search_claims_semantic_impl(
         and (claim_type is None or claims[cid].claim_type == claim_type)
         and (curation_state is None or claims[cid].curation_state == curation_state)
     ]
-    return KGGraphListResponse(items=items, count=len(items))
+    return KGGraphListResponse(items=items, count=len(items), not_embedded=not_embedded)
 
 
 @action(
@@ -160,7 +169,9 @@ async def search_claims_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic claim search via LanceDB cosine similarity."""
-    return search_claims_semantic_impl(
+    # In a thread: the query embed waits up to its bound (`activity.read.get-embeds-its-own-query`).
+    return await asyncio.to_thread(
+        search_claims_semantic_impl,
         db=db,
         q=q,
         claim_type=claim_type,

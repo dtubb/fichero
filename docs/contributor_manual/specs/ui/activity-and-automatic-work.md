@@ -1417,7 +1417,24 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py`). Built: `GET /api/claims/{id}/similar` reads the
   claim's stored vector. The mark ends when the response's last byte is sent, so a `BackgroundTasks` function or a task the GET left running runs free after it (work awaited inside the request, `asyncio.to_thread` included, is the GET). LIMITS: a thread started with `run_in_executor` or `threading.Thread` does not inherit the mark (the
   scan and review cover those); Apple Vision and the MLX servers are not guarded yet; the bench (GETs firing during a read, on
-  the M4, `briefs/tester-gets-bench-2026-10-19.md`) is pending.
+  the M4, `briefs/tester-gets-bench-2026-10-19.md`) is pending. A task a GET spawns (`create_task`, the auto-embed, the activity
+  tracker's recovery, work started at a library open) is not the GET: it runs its model call (a task factory clears the mark in
+  tasks created by code outside the web framework). Pinned by `test_a_task_spawned_during_a_get_runs_its_model_call_even_while_the_get_is_still_answering`.
+- `activity.read.get-embeds-its-own-query` — **[PARTIAL]** (manager ruling on review 361, 2026-10-19) a GET may embed its OWN
+  query text, one short vector, and nothing else: `GET /api/kg/claim-search?q=`, `GET /api/kg/entities/semantic?q=` (and
+  `/api/search`) answer with a query embedding. The embed is bounded (`QUERY_EMBED_SECONDS`, 5 s): if the embedder is busy
+  or cold past the bound the GET answers 503 in words ("The search model is busy …, try again"), never hangs; the late embed
+  finishes on its own thread and the next GET finds the model loaded. It never loads, unloads or waits on a heavy model
+  (Kraken, MLX, a VLM): the embedder is the small model that runs beside them. A passage embed (`role="passage"`, the batch
+  `_embed_texts`) stays refused. Pinned by `fichero-server/tests/unit/api/test_get_embeds_its_own_query.py` (a answers,
+  b busy answers in words within the bound, c the loaded heavy model is still loaded).
+- `activity.read.get-keeps-kraken-and-lane-refused` — **[OK]** Kraken, recognise and `run_on_lane` stay refused in every GET
+  (the indirect-call test above stays).
+- `activity.read.claims-backfill-is-a-lane-job` — **[PARTIAL]** a GET never embeds the claims that lack a vector. It
+  searches the vectors that exist, says how many claims are not embedded yet (`not_embedded` on the response, absent when
+  none), and queues ONE background job (kind `embed-claims`, the embed lane, so the throttle applies); a second GET while
+  that job waits or runs queues nothing. Pinned by `test_a_get_with_unembedded_claims_queues_the_backfill_once`. NOTE:
+  no GET embedded claims before this (the reindex action is a POST), so this is the count and the queue, not a move.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a

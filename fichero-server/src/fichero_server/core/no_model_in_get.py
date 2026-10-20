@@ -6,13 +6,19 @@ their threads, and the places a model is loaded or run (`kraken_runtime._kraken_
 call `forbid_in_get`, which raises `ModelWorkInGet` there. The route answers 503 in words: a GET returns what is stored, or
 says it isn't ready; the read belongs to the model lane.
 
-A task the GET spawned (`create_task`) and a `BackgroundTasks` function copy the mark, but it ends when the response is
-complete, so they run free after it; work awaited INSIDE the request (including `asyncio.to_thread`) is the GET and is refused.
+One exception (`activity.read.get-embeds-its-own-query`): a GET may embed its own query text, bounded, by `embed_query_in_get`.
+
+Only the request's own work is refused: its task(s) (the framework's child tasks keep the mark), and `asyncio.to_thread`
+under them. A task the code spawns (`create_task`, `ensure_future`: the auto-embed, the activity tracker's recovery) is
+created with the mark cleared by a task factory, and a `BackgroundTasks` function runs after the response, when the mark
+has ended.
 
 Not covered: a thread started with `loop.run_in_executor` or `threading.Thread` begins with no context, so it is not marked.
 """
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import contextlib
 from contextvars import ContextVar
 
@@ -43,6 +49,37 @@ def forbid_in_get(what: str) -> None:
         )
 
 
+def in_get() -> bool:
+    mark = _get_mark.get()
+    return mark is not None and mark.active
+
+
+#: How long a GET waits for its own query embedding (`activity.read.get-embeds-its-own-query`).
+QUERY_EMBED_SECONDS = 5.0
+
+
+class QueryEmbeddingBusy(ModelWorkInGet):
+    """The embedder could not answer a GET's query in time."""
+
+
+# One worker: a query embed waits behind another and the wait is the bound. Its threads start with no context, so the
+# embed they run is not marked.
+_query_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="fichero-query-embed")
+
+
+def embed_query_in_get(embed):
+    """Run `embed()` (one query's vector) for a GET, within `QUERY_EMBED_SECONDS`; 503 in words if the embedder is busy or
+    still loading. A late embed finishes on its thread, so the next GET finds the model loaded."""
+    future = _query_pool.submit(embed)
+    try:
+        return future.result(timeout=QUERY_EMBED_SECONDS)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise QueryEmbeddingBusy(
+            f"The search model is busy or still loading (waited {QUERY_EMBED_SECONDS:g} s). Try the search again in a moment."
+        ) from None
+
+
 @contextlib.contextmanager
 def marked_get(path: str):
     """Mark the code inside as running for a GET (the middleware's job; a test's too)."""
@@ -55,6 +92,28 @@ def marked_get(path: str):
         _get_mark.reset(token)
 
 
+#: Where the framework runs the request in tasks of its own (a `BaseHTTPMiddleware` hands the handler to a child task): those
+#: tasks ARE the request and keep the mark. Any other task created while a GET is answered is the code's own, and is free.
+_FRAMEWORK_PATHS = ("/anyio/", "/starlette/", "/uvicorn/", "/fastapi/")
+
+
+def _task_factory(loop, coro, **kwargs):
+    context = kwargs.pop("context", None)
+    task = asyncio.Task(coro, loop=loop, context=context, **kwargs)
+    if _get_mark.get() is not None:
+        code = getattr(coro, "cr_code", None) or getattr(getattr(coro, "gi_code", None), "co_filename", None)
+        filename = getattr(code, "co_filename", "") or ""
+        if not any(part in filename for part in _FRAMEWORK_PATHS):
+            task.get_context().run(_get_mark.set, None)  # a task the GET spawned: not the GET (review 361)
+    return task
+
+
+def _install_task_factory() -> None:
+    loop = asyncio.get_running_loop()
+    if loop.get_task_factory() is not _task_factory:
+        loop.set_task_factory(_task_factory)
+
+
 class NoModelWorkInGet:
     """Pure ASGI middleware: marks GET and HEAD requests for the whole of their handling."""
 
@@ -63,6 +122,7 @@ class NoModelWorkInGet:
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] == "http" and scope.get("method") in ("GET", "HEAD"):
+            _install_task_factory()
             with marked_get(scope.get("path", "")) as mark:
                 async def watching(message) -> None:
                     # The response is complete: what runs after it (background tasks, a task the GET left running) is
