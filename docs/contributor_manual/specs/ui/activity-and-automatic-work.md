@@ -657,6 +657,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 - `activity.window.acts-on` — **[GAP]** (#5839) the live block says what it acts on with counts ("Read: 7 of 20 pages,
   folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written: a layout test, `ActivityLayoutTests`.)
+- `activity.window.expands-to-pages` — **[GAP]** (#5839) a kind's row opens to the pages queued behind it, each a line in the order the lane will pick them, running first. Engine side built: `GET /api/activity/jobs/kind/{kind}/items` (`limit`, `offset`; pinned by `fichero-server/tests/unit/jobs/test_queue_summary_and_items_5839.py`). Not yet: the app's store and the row's disclosure; the endpoint is a KNOWN_GAPS entry of `check_endpoint_coverage_matrix` until then (manager's OK 2026-10-20).
 - `activity.window.next-in-run-order` — **[PARTIAL]** (#5839) what comes next is listed in run order; a waiting row has no
   spinner and says what it waits for (`activity.waiting-says-why`). Engine side: `GET /api/activity/jobs` ranks every row
   by its state, a live run first, then the queues beside it, then what has ended, and gives each row `group` ("live" or
