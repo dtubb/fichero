@@ -66,6 +66,14 @@ def record_stall(frame_name: str, seconds: float) -> None:
         logger.warning("could not record the loop stall", exc_info=True)
 
 
+def clear_stall() -> None:
+    """The loop answered again, or the engine is stopping cleanly: only a stall the engine died in stays on disk."""
+    try:
+        _stall_path().unlink(missing_ok=True)
+    except Exception:
+        logger.warning("could not clear the loop stall record", exc_info=True)
+
+
 def take_previous_stall() -> str | None:
     """Read the previous engine's stall once and delete it: `'41s in kraken_runtime:load_model'`, or None. A corrupt
     or missing file is ignored (logged). Call from a thread, not the event loop."""
@@ -126,6 +134,7 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
                 loop.call_soon_threadsafe(heartbeat, answered)
             except RuntimeError:  # the loop is closed: nothing left to watch
                 faulthandler.cancel_dump_traceback_later()
+                clear_stall()
                 return
             if answered.wait(slow_seconds):
                 continue
@@ -134,9 +143,10 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
             name = culprit(frame)
             record_stall(name, time.monotonic() - asked)  # now: the app may kill this engine before the loop is free
             answered.wait()
-            record_stall(name, time.monotonic() - asked)
+            clear_stall()  # recovered: a normal relaunch must not report it
             logger.warning("the event loop was held for %.1f s (health answers late); it was in:\n%s",
                            time.monotonic() - asked, where)
+        clear_stall()  # stopped cleanly (ponytail: a daemon thread, so a very fast exit may skip this; a stall record only exists mid-hold anyway)
 
     threading.Thread(target=watch, name="loop-lag-watch", daemon=True).start()
     return stop

@@ -24,7 +24,7 @@ def _state(tmp_path, monkeypatch):
     startup_warnings.set_previous_stall(None)
 
 
-def test_a_stall_is_written_by_the_watcher_thread(tmp_path):
+def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
     loop = asyncio.new_event_loop()
     ready = threading.Event()
     release = threading.Event()
@@ -53,10 +53,14 @@ def test_a_stall_is_written_by_the_watcher_thread(tmp_path):
     deadline = time.monotonic() + 5
     while not path.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
+    record = json.loads(path.read_text())  # killed mid-stall: this is what the next engine finds
+    assert record["frame"].endswith(":hold"), record
     release.set()
     t.join(5)
-    record = json.loads(path.read_text())
-    assert record["frame"].endswith(":hold"), record
+    deadline = time.monotonic() + 5
+    while path.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not path.exists(), "a stall the engine recovered from is not reported after a normal relaunch"
     assert not list(tmp_path.glob("*.tmp"))
 
 
