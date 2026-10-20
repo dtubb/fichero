@@ -15,6 +15,7 @@ struct LiveUpdatesPausedPill: View {
     static let pausedMessage = "Live updates paused"
     /// Activity only, while its stream is really retrying by itself (#5912).
     static let reconnectingMessage = "Reconnecting to the engine…"
+    static let reconnectNowTitle = "Reconnect now"
 
     /// Headline text. Defaults to the dropped-stream wording; an access-denied
     /// surface passes its own (#2479).
@@ -25,6 +26,8 @@ struct LiveUpdatesPausedPill: View {
     /// with backoff regardless), leaving an informational pill. A 403/access-denied
     /// surface leaves this nil — retrying can't mint authorization.
     var onReconnect: (@MainActor () -> Void)?
+    /// The button's label; Activity says "Reconnect now" beside "Reconnecting…" (#5912).
+    var reconnectTitle: String = ConnectionPresentation.Action.reconnect.title
 
     var body: some View {
         HStack(spacing: 8) {
@@ -36,7 +39,7 @@ struct LiveUpdatesPausedPill: View {
                 // The SAME word the engine popover's primary action uses
                 // (#4380): the pill and the popover must not offer the user two
                 // differently-named ways to do one thing.
-                Button(ConnectionPresentation.Action.reconnect.title, action: onReconnect)
+                Button(reconnectTitle, action: onReconnect)
                     .buttonStyle(.borderless)
                     .font(.callout.weight(.medium))
             }

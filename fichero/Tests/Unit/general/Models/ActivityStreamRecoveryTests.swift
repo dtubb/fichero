@@ -78,4 +78,9 @@ struct ActivityStreamRecoveryTests {
         #expect(resolved == 1)
         #expect(store.refreshToken == before + 1)
     }
+
+    @Test func theButtonBesideReconnectingSaysReconnectNowAndOtherPillsKeepTheirWord() {
+        #expect(LiveUpdatesPausedPill.reconnectNowTitle == "Reconnect now")
+        #expect(LiveUpdatesPausedPill().reconnectTitle == ConnectionPresentation.Action.reconnect.title)
+    }
 }

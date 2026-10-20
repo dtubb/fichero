@@ -210,7 +210,8 @@ struct ActivityBrowserView: View {
         .overlay(alignment: .top) {
             VStack(spacing: 6) {
                 if activityStore.liveUpdatesPaused {
-                    LiveUpdatesPausedPill(message: activityStore.livePillMessage, onReconnect: { activityStore.reconnectLiveUpdates() })
+                    LiveUpdatesPausedPill(message: activityStore.livePillMessage, onReconnect: { activityStore.reconnectLiveUpdates() },
+                                          reconnectTitle: activityStore.liveUpdatesAccessDenied ? ConnectionPresentation.Action.reconnect.title : LiveUpdatesPausedPill.reconnectNowTitle)
                 }
                 // Live backend-work indicator (#2279): imports/batches/indexing
                 // the engine or CLI kicked off out of band show here.
