@@ -1462,7 +1462,22 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
                      "detail": TRANSKRIBUS_NOT_SEARCHED}, _htr_united_source(a)]
-    return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+    return [*shipped, *installed, *repo_cards, *hf_cards, *remote, *_print_baselines(seed, job, a)], sources
+
+
+def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
+    """Tesseract's data, named for a project that reads print or typescript and for no other: a card Fichero cannot run
+    yet, listed so a person sees the fast local baseline exists (`source.recipe.reader-tiers`). Never for handwriting."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.bakeoff import TESSERACT_MATERIALS
+
+    if not any(m in TESSERACT_MATERIALS for m in a.materials):
+        return []
+    return [replace(c, offered_because="the fast local baseline for print and typescript",
+                    cannot_run_because="Tesseract is not in this build yet")
+            for c in seed if not c.runs_here and "tesseract" in c.pin and job in c.jobs
+            and any(m in TESSERACT_MATERIALS for m in c.material)]
 
 
 def _htr_united_source(a: Answers) -> dict[str, Any]:

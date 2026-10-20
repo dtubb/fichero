@@ -1464,6 +1464,9 @@ async def model_candidates(
     def refused(c: Any) -> Optional[str]:
         if c.id in rank:
             return None
+        made_for = _refusal(job, c, a, material)
+        if made_for is not None and made_for[0] == "no-reader-for-material":
+            return made_for[1]  # a print reader says it is for print, before it says it cannot run here
         if not c.runs_here:
             return f"Fichero cannot run it yet: {c.cannot_run_because or 'not in this build'}"
         if c.offered_only:
