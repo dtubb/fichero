@@ -57,6 +57,14 @@ struct SetupStagePage: View {
                     )
                 }
             }
+            // Early, in one calm sentence: how many corrected lines training a model of your own will need.
+            ForEach(store.trainAhead(forJobs: stage.jobs), id: \.self) { sentence in
+                Text(sentence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            // A stage that cannot be tried on the pages yet says so, in words (`source.try.every-job`).
+            if !stage.sampleable, let words = stage.notTried {
+                Text(words).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if stage.sampleable, let tryStore {
                 Divider()
                 if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {

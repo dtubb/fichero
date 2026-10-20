@@ -271,6 +271,25 @@ def offered(offers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def train_ahead(offers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One calm sentence for each trainable step that is not ready yet, so Set Up says early how many corrected lines
+    training a model of your own will need (`source.onboard.train-path`). Not an offer and not a greyed row (#5804):
+    the offer itself still waits for the threshold. A step nothing here can train has no sentence."""
+    from fichero_server.recipes.jobs import get_job
+
+    out = []
+    for offer in offers:
+        ready = offer["readiness"]
+        if ready.get("ready") or not ready.get("sentence"):
+            continue
+        job = get_job(offer["job"])
+        name = job.name if job else offer["job"]
+        out.append({"step": offer["step"], "job": offer["job"],
+                    "sentence": f"Training a model of your own for {name} is offered once the project has the corrected "
+                                f"work. {ready['sentence']}"})
+    return out
+
+
 #: The jobs a start on this Mac makes; one that is waiting, running, paused or done means training has started.
 _HERE_KINDS = ("train-on-this-mac", "train-regions-on-this-mac")
 

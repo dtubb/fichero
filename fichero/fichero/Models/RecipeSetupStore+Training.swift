@@ -15,6 +15,12 @@ extension RecipeSetupStore {
     /// The offers on the plan shown, in the recipe's order.
     var trainOffers: [TrainOffer] { startPlan?.trainOffers ?? [] }
 
+    /// The sentences, early, on how many corrected lines training a model of your own will need
+    /// (`source.onboard.train-path`): for the steps of `jobs` that are not ready. Never an offer or a greyed row (#5804).
+    func trainAhead(forJobs jobs: [String]) -> [String] {
+        (startPlan?.trainAhead ?? []).filter { jobs.contains($0.job) }.map(\.sentence)
+    }
+
     /// The offer's need sentence ("Needs 2,000 corrected lines on at least 2 pages; …"), or nil once it is ready.
     nonisolated static func needSentence(_ offer: TrainOffer) -> String? {
         let readiness = offer.readiness.additionalProperties.value

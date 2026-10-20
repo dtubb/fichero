@@ -176,6 +176,25 @@ struct SetupStagesTests {
         #expect(store.removedJobs.isEmpty)
     }
 
+    @Test("source.try.every-job: a stage that cannot be tried says so in the engine's words (notTried); one that can has none")
+    func aStageThatCannotBeTriedSaysSo() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/stages": (200, """
+        {"items": [
+          {"id": "find-lines", "title": "Find Lines", "sentence": "Finds the lines.", "example": "", "jobs": ["find-lines"],
+           "on": true, "jobs_in_recipe": ["find-lines"], "questions": [], "needs": [], "sampleable": true,
+           "tried_by": "bake-off", "not_tried": null},
+          {"id": "names", "title": "Names", "sentence": "Finds names.", "example": "", "jobs": ["find-names-tag-words"],
+           "on": false, "jobs_in_recipe": [], "questions": [], "needs": [], "sampleable": false, "tried_by": "workflow",
+           "not_tried": "This stage cannot be tried on sample pages yet; it runs when you press Start."}
+        ], "count": 2}
+        """)]
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        await store.loadStages()
+        let byId = Dictionary(uniqueKeysWithValues: store.stages.map { ($0.id, $0) })
+        #expect(byId["find-lines"]?.notTried == nil)
+        #expect(byId["names"]?.notTried == "This stage cannot be tried on sample pages yet; it runs when you press Start.")
+    }
+
     @Test("source.onboard.stages.normalise-and-translate: Translate's target is a language question, kept as its tag")
     func translateIntoAnyLanguage() throws {
         let into = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
