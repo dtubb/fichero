@@ -31,6 +31,7 @@ def lane(monkeypatch):
         gate.wait(30)
 
     monkeypatch.setitem(jobs.KINDS, KRAKEN, jobs.Kind(run=work, model="kraken:blla", lane="local-ml", name="Read a page"))
+    # a test-only kind: in production a hosted `ask-a-model` call goes to the network lane (`llm.model_call_slot`)
     monkeypatch.setitem(jobs.KINDS, HOSTED, jobs.Kind(run=work, model="openai:gpt-x", lane="local-ml", name="Hosted page"))
     monkeypatch.setitem(jobs._RELEASE, "kraken", lambda reason="": None)
     monkeypatch.setattr(jobs, "_kraken_pages_at_once", lambda: 1)
@@ -42,6 +43,11 @@ def lane(monkeypatch):
 def test_is_hosted_names_only_provider_models():
     assert jobs.is_hosted("openai:gpt-x") and jobs.is_hosted("anthropic:claude")
     assert not any(jobs.is_hosted(m) for m in ("kraken:blla", "omlx:big", "ollama:x", "apple:vision", "embedder", None))
+
+
+def test_an_unknown_provider_counts_as_local():
+    """Fail-closed: YOLO, Whisper, a typo, a provider nobody registered never start beside a local page."""
+    assert not any(jobs.is_hosted(m) for m in ("yolo:v8", "whisper:large", "nobody-registered:x", "OpenAI-typo:gpt"))
 
 
 def test_a_persons_hosted_page_starts_beside_a_running_kraken_page(db, lane):
