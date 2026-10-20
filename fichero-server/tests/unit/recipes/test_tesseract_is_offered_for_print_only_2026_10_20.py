@@ -42,3 +42,11 @@ def test_each_reading_candidate_names_its_tier(client):
     assert all(t[0] == "small-vlm" for t in small)
     names = client.get("/api/recipes/candidates", params={"scripts": "Latn", "job": "find-regions"}).json()["items"]
     assert all(c["tier"] is None for c in names)  # another job has no reader tier
+
+
+def test_an_english_or_arabic_print_project_is_not_offered_spanish_tessdata(client):
+    """Review 408: the one seed card is Spanish data; a print project in another language or script gets no such card."""
+    for languages, scripts in (("en", "Latn"), ("ar", "Arab")):
+        r = client.get("/api/recipes/candidates", params={"scripts": scripts, "languages": languages, "material": "print",
+                                                          "job": "read-a-line", "mac_memory_gb": 32})
+        assert TESSERACT not in {c["id"] for c in r.json()["items"]}, languages
