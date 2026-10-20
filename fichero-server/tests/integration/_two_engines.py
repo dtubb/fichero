@@ -152,6 +152,7 @@ class Engine:
         """TLS for the host's LAN address, pinned to the certificate this harness made for it (never verify=False)."""
         context = ssl.create_default_context(cafile=str(self.cert))
         context.check_hostname = False  # the certificate is pinned; its names are not what is under test
+        context.verify_flags &= ~ssl.VERIFY_X509_STRICT  # Python 3.13 rejects a self-signed leaf without the extensions strict mode wants (## 585)
         return context
 
     def make_library(self, name: str = "Release bar", client: httpx.Client | None = None) -> dict[str, str]:
@@ -240,7 +241,10 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
     def env_for(sharing_on: bool) -> dict[str, str]:
         env = _env(base, sock, token)
         if sharing_on:
-            env.update(FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
+            # As the app's spawn (EmbeddedBackendService+Spawn.swift, RemoteAccessConfig.launchEnvironment): the bind host is the access
+            # material's (loopback), the LAN address rides FICHERO_LAN_HOST, and resolve_lan_bind_host asks for the acknowledgement
+            # of a non-loopback address, which the app passes with the public URL (RemoteAccessConfig.swift:122).
+            env.update(FICHERO_ALLOW_NON_LOOPBACK_BIND="I_UNDERSTAND_SHARED_SECRET_RISK", FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
                        FICHERO_TLS_CERTFILE=str(material.certificate_path), FICHERO_TLS_KEYFILE=str(material.key_path),
                        FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
         return env
