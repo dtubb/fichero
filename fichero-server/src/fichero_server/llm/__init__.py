@@ -735,14 +735,22 @@ class LocalOnlyViolationError(RuntimeError):
 class EgressRefusedError(LocalOnlyViolationError):
     """A call that leaves this Mac, refused because its project has not said that its pages may go to a cloud model
     (`ai.where.one-egress-gate`, #5368). Nothing was sent. A `LocalOnlyViolationError`, so every handler that reports
-    the engine-wide switch reports this too."""
+    the engine-wide switch reports this too. `project` is the library the call ran under (None: it ran under none) and
+    `allow_action` the audited action that lets the project's pages go (`project.allow_cloud`)."""
 
-    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm"):
+    allow_action = "project.allow_cloud"
+
+    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm", project: str | None = None):
         super().__init__(provider, model=model, kind=kind)
+        self.project = project
         model_label = f"/{model}" if model else ""
+        from fichero_server.llm.egress import project_name
+
+        name = project_name(project)
+        who = f"The project {name} keeps its pages on this Mac" if name else "No project is open for this call, and a call outside a project is not sent"
         self.args = (
-            f"This project keeps its pages on this Mac, so the {kind} call to {provider}{model_label} was not sent. "
-            "Say yes to cloud models in the project's Set Up, or choose a model that runs on this Mac.",
+            f"{who}, so the {kind} call to {provider}{model_label} was not sent (nothing left this Mac). "
+            "Allow cloud models for the project (one click, recorded), or say yes in its Set Up, or choose a model that runs on this Mac.",
         )
 
 
@@ -1265,7 +1273,7 @@ def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
     from fichero_server.llm.egress import current_library, project_allows_leaving
 
     if not project_allows_leaving(current_library()):
-        raise EgressRefusedError(config.provider, model=config.model, kind=kind)
+        raise EgressRefusedError(config.provider, model=config.model, kind=kind, project=current_library())
 
 
 # =============================================================================

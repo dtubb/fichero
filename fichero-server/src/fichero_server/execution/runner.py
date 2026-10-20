@@ -450,7 +450,7 @@ def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
                 "action": "Top up account or switch provider/model."}
     if isinstance(exc, LocalOnlyViolationError):
         return {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
-                "action": "Choose a model on this Mac, or allow cloud models for the project."}
+                "action": "Allow cloud models for the project (one click, recorded), or choose a model on this Mac."}
     if isinstance(exc, (MemoryShortError, LocalModelMemoryUnavailableError)):
         return {"category": "memory", "message": "This Mac does not have the memory for this model now.",
                 "action": "Close other work, or choose a smaller model."}

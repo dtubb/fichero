@@ -78,6 +78,17 @@ class PagesMayNotLeave(PermissionError):
     """No yes was given for the pages to leave this Mac."""
 
 
+def _project_must_agree(db: Any, what: str) -> None:
+    """The request's yes is not enough: the project's own rule must say yes too (`ai.where.batch-sends-ask-the-project`,
+    #5368); both must. Refused in words, with nothing queued."""
+    from fichero_server.llm.egress import project_allows_leaving, project_name
+
+    library = str(Path(db.path).parent)
+    if not project_allows_leaving(library):
+        raise PagesMayNotLeave(f"{what} sends pages of the project {project_name(library)}, which keeps its pages on this "
+                               "Mac. Allow cloud models for it (one click, recorded) or say yes in its Set Up first.")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -136,6 +147,7 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
 
     if (no := places.refusal("huggingface" if place == TARGET else "acenet")):
         raise PagesMayNotLeave(no)  # the app's places cap the request's yes (#5831)
+    _project_must_agree(db, f"Training on {where}")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:

@@ -76,7 +76,7 @@ def test_a_project_that_has_not_said_yes_sends_nothing_on_any_path(tmp_path, sen
         done()
     assert sent == []
     words = str(refused.value)
-    assert "keeps its pages on this Mac" in words and "openai" in words and "Set Up" in words
+    assert "keeps its pages on this Mac" in words and "openai" in words and "Set Up" in words and "Proj" in words
 
 
 def test_a_project_that_said_yes_may_send(tmp_path, sent):
@@ -113,9 +113,10 @@ def test_a_model_on_this_mac_is_never_asked_of_the_project(tmp_path, sent):
     assert len(sent) == 1
 
 
-def test_a_call_under_no_library_meets_only_the_engine_wide_switch(sent, monkeypatch):
-    llm.get_langchain_model(CLOUD)
-    assert len(sent) == 1
+def test_a_call_under_no_library_is_refused_and_the_engine_wide_switch_still_wins(sent, monkeypatch):
+    with pytest.raises(EgressRefusedError):
+        llm.get_langchain_model(CLOUD)
+    assert sent == []
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
     with pytest.raises(LocalOnlyViolationError) as refused:
         llm.get_langchain_model(CLOUD)

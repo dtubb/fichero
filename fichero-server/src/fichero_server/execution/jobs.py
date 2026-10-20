@@ -3193,6 +3193,11 @@ class _Scheduler:
         _current.job_id = job_id
         _current.lane = lane.name
         _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
+        # The job's project is the project its model calls belong to (the egress gate, #5368): a worker thread does not
+        # carry the caller's context, and a stored job has none.
+        from fichero_server.observability.episodes import _episode_library_path, set_library
+
+        library_token = set_library(key)
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
             with self._lock:
@@ -3217,6 +3222,7 @@ class _Scheduler:
             _current.person = False
             with self._lock:
                 self._stopping.discard(job_id)
+            _episode_library_path.reset(library_token)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
