@@ -37,6 +37,31 @@ def pages(db, tmp_path):
 
 
 @pytest.fixture
+def page_sets(db, tmp_path):
+    """A new set of three letters on every call: a page is read by one live run at a time (#5848,
+    `activity.run.one-live-read-per-page`), so runs that must each make their calls need letters of their own."""
+    from fichero_server.models import DocType, Document, FileType
+
+    made = []
+
+    def new():
+        tag = len(made)
+        docs = []
+        for i in range(3):
+            text = f"Letter {tag}-{i}: the vecino of Cartagena sold a house."
+            path = tmp_path / f"set{tag}-letter-{i}.txt"
+            path.write_text(text, encoding="utf-8")
+            doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.text, path=str(path),
+                           page_content=text)
+            db.save(doc)
+            docs.append(doc)
+        made.append(docs)
+        return docs
+
+    return new
+
+
+@pytest.fixture
 def workflow(db):
     """Files in, entities read by a cloud model (as Mosquera's entity runs do)."""
     from fichero_server.models import Workflow
@@ -121,14 +146,14 @@ def test_activity_jobs_are_a_tree__a_text_models_calls_are_jobs_under_their_step
     assert len(calls) == 3
 
 
-def test_activity_run_lane_cap_per_mac__text_calls_of_three_runs_share_one_cap(client, workflow, pages, cloud, monkeypatch):
+def test_activity_run_lane_cap_per_mac__text_calls_of_three_runs_share_one_cap(client, workflow, page_sets, cloud, monkeypatch):
     """Behaviour `activity.run.lane-cap-per-mac`: "the cap on concurrent model calls is one per Mac,
     shared by every run." Three entity runs (each asks about its letters one after another), with
     the network lane two wide, never make more than two calls at once."""
     monkeypatch.setitem(jobs.LANES, "network", 2)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     cloud.seconds = 0.3
-    runs = [_execute(client, workflow, pages) for _ in range(3)]
+    runs = [_execute(client, workflow, page_sets()) for _ in range(3)]
     assert _wait_for(lambda: all(_status(client, run) == "completed" for run in runs))
     assert cloud.calls == 9
     assert cloud.peak <= 2
