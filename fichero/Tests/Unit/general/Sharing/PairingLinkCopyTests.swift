@@ -18,6 +18,7 @@ struct PairingLinkCopyTests {
         #expect(ShareLibrarySheet.syncedCopyHint.contains("copy of this project"))
         #expect(ShareLibrarySheet.syncedCopyHint.contains("Paste this link"))
         #expect(!ShareLibrarySheet.syncedCopyHint.contains("fichero://"), "the hint never carries a link or code itself")
+        #expect(!ShareLibrarySheet.syncedCopyHint.lowercased().contains("code"), "the guest takes the link only, never a bare code (## 533)")
     }
 
     @Test func withNoLinkTheCardSaysWhyInWords() {
