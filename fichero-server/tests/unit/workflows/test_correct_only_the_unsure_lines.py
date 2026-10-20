@@ -164,7 +164,11 @@ def test_a_correct_step_with_a_bar_reaches_the_review_node(monkeypatch):
     from fichero_server.recipes import start
     from tests.unit.recipes.test_start_plan import CLOUD_CORRECT, LINES, READ, _recipe
 
+    # as test_start_plan.py's autouse fixture does: this Mac's models and keys are not what is under test. Without the key
+    # patch the M4 has no OpenAI key, so Start skips the cloud step ("Needs a key for openai") and the plan has no run.
     monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
+    monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])
+    monkeypatch.setattr(start, "provider_without_key", lambda step: None)
     step = {**CLOUD_CORRECT, "settings": {"only_below_confidence": 0.6}}
     [run] = [r for r in start.plan_start(_recipe(LINES, READ, step), stays_local=False)["runs"]
              if "correct" in r["steps"]]
