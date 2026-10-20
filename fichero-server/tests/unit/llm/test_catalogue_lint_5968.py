@@ -59,3 +59,75 @@ def test_the_folder_and_collection_summaries_use_the_folder_prompt():
     source = inspect.getsource(summarize)
     assert source.count('load_prompt("catalogue", "folder"') == 2
     assert "common themes" not in source
+
+
+# --- enforced at write time (## 724): retry once with the finding, cut at a sentence end, flag what remains ---
+
+import asyncio  # noqa: E402
+
+
+def sentences(n_words: int) -> str:
+    """Sentences of ten words each, n_words in all."""
+    return " ".join(f"{' '.join(['word'] * 9)}{i}." for i in range(n_words // 10))
+
+
+def test_a_banned_word_inside_a_quotation_is_the_records_own():
+    assert lint.check('The letter states "this is important" in the margin. ' + words(160))[0] == []
+
+
+def test_a_260_word_answer_is_retried_then_cut_to_200_at_a_sentence_end():
+    asked: list[str] = []
+
+    async def ask(note):
+        asked.append(note)
+        return sentences(260)  # the model does it again
+
+    entry, flags = asyncio.run(lint.enforce(sentences(260), ask))
+    assert len(asked) == 1 and "260 words" in asked[0]
+    assert len(entry.split()) <= 200 and entry.endswith(".") and flags == []
+
+
+def test_a_retry_that_fixes_it_is_stored_as_it_came():
+    async def ask(note):
+        return sentences(180)
+
+    entry, flags = asyncio.run(lint.enforce(sentences(260), ask))
+    assert len(entry.split()) == 180 and flags == []
+
+
+def test_a_reveals_answer_is_retried_then_flagged_never_dropped():
+    async def ask(note):
+        return "The deed reveals a debt. " + sentences(160)
+
+    entry, flags = asyncio.run(lint.enforce("The deed reveals a debt. " + sentences(160), ask))
+    assert "reveals" in entry and any("reveals" in f for f in flags)
+
+
+def test_a_clean_entry_is_not_asked_again():
+    async def ask(note):
+        raise AssertionError("no retry for a clean entry")
+
+    assert asyncio.run(lint.enforce(sentences(170), ask)) == (sentences(170), [])
+
+
+def test_the_catalogue_narrative_is_held_to_the_cap_and_the_flag_is_reported(monkeypatch):
+    from fichero_server.workflows.tools import catalogue
+
+    calls: list[str] = []
+
+    async def fake_chat(text, *, config, system, permissive_guardrails):
+        calls.append(system)
+        return "The file reveals much. " + sentences(250)
+
+    sink: list[str] = []
+    entry = asyncio.run(catalogue._enforced("source", None, "RULES", sink, ask=fake_chat))
+    assert len(calls) == 2 and "RULES" in calls[0] and "broke the rules" in calls[1]
+    assert len(entry.split()) <= 200 and any("reveals" in f for f in sink)
+
+
+def test_the_live_narrative_uses_the_registered_prompt_not_an_inline_150_300():
+    import inspect
+
+    from fichero_server.workflows.tools import catalogue
+
+    assert "150-300" not in inspect.getsource(catalogue)

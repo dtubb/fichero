@@ -134,7 +134,7 @@ CATALOGUE_INPUT_PORTS = merge_ports(
 # rather than the string "{output_language}" to avoid accidental collisions
 # with future schema content that happens to contain the same literal.
 _CATALOGUE_SCHEMA = """{
-  "summary": "string — narrative summary, 150-300 words in __LANG__",
+  "summary": "string — narrative summary, at most 200 words in __LANG__",
   "keywords": ["keyword1", "keyword2", "..."],
   "people": [
     {"name": "...", "context": "role and importance in __LANG__"}
@@ -596,6 +596,7 @@ async def catalogue(
     # produced — quota / auth / rate-limit are user-actionable and
     # should appear in Activity, not be swallowed.
     catalogue_errors: list[str] = []
+    lint_flags: list[str] = []  # an entry stored over the rules is flagged on its data, never silently (#5968)
 
     # --- Path 1: claims already exist for this container -------------------
     # If extractors ran ahead of catalogue (composable workflow), use the
@@ -621,7 +622,7 @@ async def catalogue(
             )
             paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config,
-                claim_context=claim_context, error_sink=catalogue_errors,
+                claim_context=claim_context, error_sink=catalogue_errors, flag_sink=lint_flags,
             )
             data["summary"] = paragraph
             data["chunk_summaries"] = chunk_summaries
@@ -674,7 +675,7 @@ async def catalogue(
         try:
             paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config, claim_context="",
-                error_sink=catalogue_errors,
+                error_sink=catalogue_errors, flag_sink=lint_flags,
             )
         except Exception as exc:
             logger.error(f"Catalogue LLM call failed: {exc}")
@@ -705,6 +706,9 @@ async def catalogue(
         # Per-entity data lives in the typed entity artifacts (which
         # KnowledgeGraph tab renders) so duplicating it here is noise.
         markdown = (data.get("summary", "") if data else "") or ""
+
+    if lint_flags and data is not None:
+        data["lint_flags"] = lint_flags
 
     # Multi-output catalogue (Phase E, #805): produce THREE artifacts —
     # narrative, timeline, keywords — each from a focused LLM call.
@@ -1343,12 +1347,28 @@ def _strip_narrative_header(text: str) -> str:
     return cleaned.strip()
 
 
+async def _enforced(text: str, config: LLMConfig, instructions: str, flag_sink: list[str] | None, *, ask) -> str:
+    """The model's entry, held to the cap and the ban at write time (`catalogue.model-entry-is-concise`, #5968)."""
+    from fichero_server.llm.catalogue_lint import enforce
+
+    async def call(note: str = "") -> str:
+        return _strip_narrative_header(
+            await ask(text, config=config, system=instructions + ("\n\n" + note if note else ""),
+                      permissive_guardrails=True))
+
+    entry, flags = await enforce(await call(), call)
+    if flag_sink is not None:
+        flag_sink.extend(flags)
+    return entry
+
+
 async def _generate_resumen(
     text: str,
     output_language: str,
     llm_config: LLMConfig,
     claim_context: str = "",
     error_sink: list[str] | None = None,
+    flag_sink: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Generate the catalogue narrative paragraph from the merged transcript
     plus optional typed-entity context surfaced from the Extract* nodes.
@@ -1411,21 +1431,11 @@ async def _generate_resumen(
     # folder-scale transcript runs in one call instead of fan-out (#835).
     chunk_threshold = _effective_chunk_size(llm_config)
     if len(text) <= chunk_threshold:
-        instructions = (
-            f"You are an expert archivist. Write a 150-300 word "
-            f"narrative catalogue entry in {output_language} summarizing "
-            f"the document the user supplies. Plain prose, no headers, "
-            f"no bullets, no JSON. Ground the narrative in concrete "
-            f"names, places, and dates from the entities below."
-            f"{context_block}"
-        )
+        # The registered prompt (cap, aim and the ban on analysis), never an inline copy of it (#5968).
+        instructions = _build_prompt(output_language) + context_block
         try:
-            response = await chat_with_fallback(
-                text,
-                config=synthesis_config,
-                system=instructions,
-                permissive_guardrails=True,
-            )
+            response = await _enforced(
+                text, synthesis_config, instructions, flag_sink, ask=chat_with_fallback)
         except Exception as exc:
             logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
             if error_sink is not None:
@@ -1472,22 +1482,11 @@ async def _generate_resumen(
     combined_summaries = "\n\n".join(
         f"Section {i + 1}: {s}" for i, s in enumerate(chunk_summaries)
     )
-    final_instructions = (
-        f"You are an expert archivist. Synthesize the section summaries "
-        f"the user supplies into a single 150-300 word finding-aid "
-        f"abstract in {output_language}. Pack with concrete facts: full "
-        f"names, exact dates, places, organizations, events, outcomes. "
-        f"Plain prose, no headers, no bullets, no JSON."
-        f"{context_block}"
-    )
+    final_instructions = _build_prompt(output_language) + context_block
     try:
         # Final synthesis: reasoning ON (#859 — same as single-shot above).
-        response = await chat_with_fallback(
-            combined_summaries,
-            config=synthesis_config,
-            system=final_instructions,
-            permissive_guardrails=True,
-        )
+        response = await _enforced(
+            combined_summaries, synthesis_config, final_instructions, flag_sink, ask=chat_with_fallback)
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
         return "", chunk_summaries

@@ -327,6 +327,7 @@ async def summarize_folder(
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
         chunk_size_chars=inputs.get("chunk_size_chars"),
+        catalogue_entry=True,
     )
 
     return {
@@ -483,6 +484,7 @@ async def summarize_collection(
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
         chunk_size_chars=inputs.get("chunk_size_chars"),
+        catalogue_entry=True,
     )
 
     return {
