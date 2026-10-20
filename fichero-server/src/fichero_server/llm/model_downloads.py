@@ -53,8 +53,8 @@ TRANSIENT_MARKERS: tuple[str, ...] = tuple(sorted(_TRANSIENT_NAMES)) + ("Connect
 class DownloadInterrupted(RuntimeError):
     """The connection broke on every try: the message is the one sentence a person reads."""
 
-    def __init__(self, name: str, cause: BaseException | None = None) -> None:
-        super().__init__(interrupted_sentence(name))
+    def __init__(self, name: str, cause: BaseException | None = None, *, offline: bool = False) -> None:
+        super().__init__(interrupted_sentence(name, offline=offline))
         self.name = name
         self.cause = cause
 
@@ -67,7 +67,24 @@ class DownloadStopped(RuntimeError):
         self.name = name
 
 
-def interrupted_sentence(name: str) -> str:
+def looks_offline(broken: DownloadInterrupted) -> bool:
+    """Whether the connection never came up at all (no DNS, no route): this Mac is offline, not the server flaky."""
+    import socket
+
+    current: BaseException | None = broken.cause
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, socket.gaierror) or "Name or service not known" in str(current) \
+                or "nodename nor servname" in str(current) or "offline" in str(current).lower():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def interrupted_sentence(name: str, *, offline: bool = False) -> str:
+    if offline:
+        return f"{name} can't be downloaded: this Mac looks offline. It tries again by itself when the internet is back."
     return f"The download of {name} stopped part-way; it will try again."
 
 
