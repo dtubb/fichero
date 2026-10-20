@@ -36,13 +36,22 @@ def _host_url() -> str | None:
     return f"https://{parts.hostname}{port}"
 
 
+MAX_NAME = 200  # what the guest's reader accepts for hostName and person (`synced_host.SyncedHost`): 1-200 characters, no "://"
+
+
+def _clip(text: str) -> str:
+    """A name the reader will accept: control characters dropped, nothing link-like, at most 200 characters; '' if nothing is left."""
+    cleaned = "".join(ch for ch in (text or "") if ch.isprintable()).replace("://", "")
+    return cleaned.strip()[:MAX_NAME].strip()
+
+
 def _host_name() -> str:
     """The name the person sees for this Mac (System Settings > General > About: `scutil --get ComputerName`), else the host name."""
     try:
         name = subprocess.run(["scutil", "--get", "ComputerName"], capture_output=True, text=True, timeout=2).stdout.strip()
     except Exception:  # noqa: BLE001 -- not macOS, or scutil is not there
         name = ""
-    return name or socket.gethostname().split(".")[0] or "this Mac"
+    return _clip(name) or _clip(socket.gethostname().split(".")[0]) or "this Mac"
 
 
 def record_for(person: str) -> dict[str, str] | None:
@@ -53,7 +62,7 @@ def record_for(person: str) -> dict[str, str] | None:
     from fichero_server.security import synced_host
 
     name = _host_name()
-    return {"hostURL": url, "hostName": name, "person": (person or "").strip() or name, "hostEngineId": synced_host.this_engine_id()}
+    return {"hostURL": url, "hostName": name, "person": _clip(person) or name, "hostEngineId": synced_host.this_engine_id()}
 
 
 def _may_write(target: Path) -> bool:

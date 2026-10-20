@@ -795,6 +795,15 @@ def pytest_pyfunc_call(pyfuncitem):
     return None
 
 
+def _clear_engine_id_cache() -> None:
+    """`synced_host.this_engine_id` is cached for an engine's life; a test that swaps the app DB must not see another test's id."""
+    from fichero_server.security import synced_host
+
+    clear = getattr(synced_host.this_engine_id, "cache_clear", None)  # a test may have swapped in a plain function
+    if clear is not None:
+        clear()
+
+
 @pytest.fixture
 def app_db(tmp_path):
     """
@@ -815,12 +824,14 @@ def app_db(tmp_path):
     import fichero_server.db.app as _app_db_module
     saved_singleton = _app_db_module._app_db
     _app_db_module._app_db = db
+    _clear_engine_id_cache()  # the engine id lives in the app DB: a cached one is the previous test's (## 548)
 
     yield db
 
     # Restore the prior singleton (likely None) so test isolation is
     # preserved across the session.
     _app_db_module._app_db = saved_singleton
+    _clear_engine_id_cache()
     db.close()
 
 

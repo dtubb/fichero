@@ -120,3 +120,23 @@ def test_sharing_a_library_writes_it(tmp_path, monkeypatch):
     monkeypatch.setattr(route, "ensure_owner_account", lambda app_db: owner)
     route._name_the_host_in_the_project(str(tmp_path), SimpleNamespace(actor="system"))
     assert _file(tmp_path)["person"] == "Daniel"
+
+
+def test_names_are_clipped_to_what_the_guests_reader_accepts(tmp_path, monkeypatch):
+    """A long or odd ComputerName (or person) must not make the guest's validator reject the whole file."""
+    monkeypatch.undo()  # the real _host_name (the autouse fake is dropped), with scutil faked below
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://mbp.local:8765")
+    monkeypatch.setattr(synced_host, "this_engine_id", lambda: MINE)
+    monkeypatch.setattr(synced_host, "is_this_engine", lambda host_engine_id: host_engine_id == MINE)
+    monkeypatch.setattr(shf.subprocess, "run", lambda *a, **k: type("R", (), {"stdout": ("Daniel\n's https://evil.example " + "x" * 400) + "\n"})())
+    assert shf.write(tmp_path, "Maya\x00 " + "y" * 300) is True
+    data = _file(tmp_path)
+    assert 1 <= len(data["hostName"]) <= 200 and "://" not in data["hostName"] and "\n" not in data["hostName"]
+    assert 1 <= len(data["person"]) <= 200
+    assert synced_host.read_synced_host(tmp_path) is not None, "the guest's own validator accepts the clipped file"
+
+
+def test_clip_leaves_a_plain_name_alone_and_empties_a_link():
+    assert shf._clip("Daniel's MacBook Pro") == "Daniel's MacBook Pro"
+    assert shf._clip("https://") == "https", "nothing link-like survives"
+    assert shf._clip("   ") == ""
