@@ -127,8 +127,8 @@ def _photos(db, tmp_path, folder, n):
     from fichero_server.models import DocType, Document, FileType
 
     ids = []
-    for _ in range(n):
-        name = f"{uuid.uuid4().hex[:8]}.png"
+    for i in range(n):
+        name = f"{i}-{uuid.uuid4().hex[:8]}.png"  # a run reads in Finder order (#5849): the leading number is that order
         doc = Document(name=name, doc_type=DocType.file, file_type=FileType.image, parent_id=folder,
                        path=str(_png(tmp_path / name)), page_content="Don Juan de Mosquera vendió una casa.")
         db.save(doc)
@@ -289,14 +289,14 @@ def test_a_page_failing_in_one_batch_does_not_stop_the_next(client, db, archive,
     step and the folder; its summary lists the failed page with Read Again for just it. WHY: one bad page ended the
     run at its folder, so an 800-folder run stalled at the same folder on every Start."""
     _save(client)
-    steps.fail[("lines", 0)] = "page"  # folder A, the first batch
+    steps.fail[("lines", 0)] = "page"  # the first batch: pages in no folder come first in Finder order (#5849)
     run = _finished(client, _start(client)["started"]["job_id"])
 
     lines = [set(pages) for step, pages in steps.ran if step == "lines"]
     assert len(lines) == 4, f"the batches after the failed one did not run: {steps.ran}"
     assert (run["folders_done"], run["folders_total"]) == (4, 4), run
     assert run["state"] == "failed", run
-    assert run["reason"].startswith("Done with failures: step lines, read failed on 1 of 4 folders (A: 1 page failed)"), (
+    assert run["reason"].startswith("Done with failures: step lines, read failed on 1 of 4 folders (pages in no folder: 1 page failed)"), (
         run["reason"])
     assert run["steps"][0]["state"] == "failed", run["steps"]
 
@@ -304,7 +304,7 @@ def test_a_page_failing_in_one_batch_does_not_stop_the_next(client, db, archive,
     assert summary["pages_failed"] == 1, summary["failed"]
     failed = summary["failed"][0]
     assert failed["steps"] == ["lines", "read"] and failed["offer"] == "Read the 1 page that failed"
-    assert failed["failures"][0]["document_id"] in archive["a"], failed
+    assert failed["failures"][0]["document_id"] in archive["loose"], failed
 
 
 def test_stop_still_ends_the_run_after_the_current_batch(client, db, archive, steps):
