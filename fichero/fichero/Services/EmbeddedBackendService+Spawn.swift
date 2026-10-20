@@ -369,7 +369,7 @@ extension EmbeddedBackendService {
         }
         environment["FICHERO_FEATURE_TIER"] =
             FeatureManager.shared.activeBuildTier.environmentValue
-        environment["FICHERO_MULTIUSER"] = EngineConfig.multiuserEnabled ? "1" : "0"
+        // No FICHERO_MULTIUSER: Multi-user is the engine's persisted choice, switched through its route (#5914), not an environment value.
         #if os(macOS)
         // Sandboxed (Mac App Store) engine: hand it the security-scoped bookmarks for
         // the user's libraries (#3747). A dynamic Powerbox grant does NOT inherit into

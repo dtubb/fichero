@@ -29,26 +29,23 @@ extension ShareSettingsView {
         )
     }
 
-    /// One action, like Sharing: the engine reads the flag at startup, so flipping it
-    /// restarts our own engine (#3776). A no-op if the engine already reflects it.
+    /// One truth (#5914): the switch shows what the ENGINE says (`backendMultiuser`, the same value the Accounts row reads) and
+    /// a flip goes to the engine through the audited route, which refuses in words (the owner has no password yet) and takes
+    /// effect at once; nothing restarts the engine, so there is no restart that can fail and leave the two disagreeing.
     var multiuserBinding: Binding<Bool> {
         Binding(
-            get: { multiuserEnabled },
+            get: { backendMultiuser },
             set: { newValue in
-                multiuserEnabled = newValue
                 guard newValue != backendMultiuser else { return }
-                if backendService.isUsingExternalBackend {
-                    Task { await setMultiuserOnEngine(newValue) }
-                } else {
-                    Task { await applySharing() }
-                }
+                Task { await setMultiuserOnEngine(newValue) }
             }
         )
     }
 
-    /// An engine this app did not start (so it cannot restart it with the flag) takes the switch
-    /// through the audited action; the Settings window has no project steps, so ⌘Z is the audit
-    /// row's, reachable from the CLI and MCP (#5751).
+    /// The switch goes through `PUT /api/pair/multiuser` for every engine, ours included (the app no longer hands the embedded
+    /// engine `FICHERO_MULTIUSER`, which made the route refuse and bypassed its owner-password rule); the Settings window has
+    /// no project steps, so ⌘Z is the audit row's, reachable from the CLI and MCP (#5751). On a refusal or a failure the switch
+    /// is left as the engine really is, with the engine's reason in words.
     func setMultiuserOnEngine(_ enabled: Bool) async {
         isApplyingChange = true
         shareError = nil
@@ -56,11 +53,11 @@ extension ShareSettingsView {
         do {
             try await MultiuserSwitch.set(
                 enabled, pairing: PairingService(apiRoot: EngineConfig.host), service: nil, steps: nil)
-            await appState.checkBackendHealth()
         } catch {
-            multiuserEnabled = backendMultiuser
             shareError = error.localizedDescription
         }
+        await appState.checkBackendHealth()
+        multiuserEnabled = backendMultiuser  // the local copy other views read follows the engine, never the other way round
     }
 
     func applySharing() async {
