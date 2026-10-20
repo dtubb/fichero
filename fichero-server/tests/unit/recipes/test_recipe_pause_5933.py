@@ -135,3 +135,32 @@ async def test_pages_of_a_child_run_count_under_the_top_run(tmp_path):
         assert builder.pages_reading("parent-run") == 0
     finally:
         builder.TOP_RUN.reset(token)
+
+
+def test_resume_on_a_parked_recipe_resumes_the_step_run_a_person_paused_660(db, monkeypatch):
+    """## 660 LOW 1: the recipe is parked (waiting) on a step run a person paused; Resume on the recipe row resumes that run."""
+    import json
+
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "resume-parked")
+    child = jobs.enqueue(db, "workflow", "thread-p")
+    db.execute("UPDATE jobs SET state = 'paused', detail = ? WHERE id = ?", [None, child])
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps({"awaiting": {"card": "read", "child": child}}), recipe])
+    resumed: list[str] = []
+    monkeypatch.setattr(runner, "_resume_step_run", lambda database, thread, recipe=None: resumed.append(thread))
+    jobs.pause_job(db, recipe, False)
+    assert resumed == [child]
+    clear_pause(child)
+
+
+def test_the_between_steps_pause_says_so_660(db):
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "between")
+    from fichero_server.execution.cancellation import request_pause
+
+    request_pause(recipe)
+    try:
+        with pytest.raises(jobs.JobDeferred, match="Paused between steps"):
+            runner._wait_out_a_pause(db, recipe)
+    finally:
+        clear_pause(recipe)
