@@ -122,4 +122,7 @@ def test_a_person_job_for_another_model_goes_at_the_next_page_boundary_and_its_p
     jobs.enqueue(db, VLM, "person-b", started_by="owner")
     lane.gate.set()  # the page in flight ends: the next boundary
     assert _wait_for(lambda: len(lane.ran) == 6)
-    assert lane.ran == ["a1-hold", "person-b", "b1", "b2", "a2", "a3"]  # the person's, B's queued pages, back to A
+    # What the lane had loaded as each page started, and what it released, say WHY if the order is wrong (#5357 flake, M4 2026-10-20:
+    # A,A then B means the lane handed back to A while b1/b2 were queued; this prints whether `loaded_model` was B at that pick).
+    why = f"ran={lane.ran} loaded_at_run={lane.loaded_at_run} swaps={lane.swaps}"
+    assert lane.ran == ["a1-hold", "person-b", "b1", "b2", "a2", "a3"], why  # the person's, B's queued pages, back to A
