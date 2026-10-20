@@ -457,8 +457,11 @@ class ActivityStore:
         error: Optional[str] = None,
         completed_at: Optional[datetime] = None,
         run_usage: Optional[dict] = None,
+        partial: Optional[str] = None,
     ) -> None:
         """Update an existing workflow run record.
+
+        ``partial`` ("Partial: 4 of 6 pages read") rides on the run's job row as its reason when it completed with pages failed (#5937).
 
         ``run_usage`` is the run's own accounting -- tokens, model calls and cost -- written on EVERY terminal path,
         not just success: a run that failed halfway still spent what it spent (2026-09-03).
@@ -477,7 +480,7 @@ class ActivityStore:
         if status is not None:  # the run's job row follows (#5353)
             from fichero_server.execution import jobs
 
-            await asyncio.to_thread(jobs.record_run, self.db_path, thread_id, status=status, reason=error)
+            await asyncio.to_thread(jobs.record_run, self.db_path, thread_id, status=status, reason=error or partial)
 
     async def flush_node_boundary(self, thread_id: str, *, progress_timeline: dict, log_text: str,
                                   replace: bool) -> None:

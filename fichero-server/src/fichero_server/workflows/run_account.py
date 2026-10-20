@@ -131,6 +131,15 @@ def _one_call_steps(state: dict[str, Any], fanned: dict[str, Any]) -> dict[str, 
     return found
 
 
+def partial_words(state: dict[str, Any] | None) -> str | None:
+    """"Partial: N of M pages read" for a run that finished with some pages failed, else None. The run's row stays `done` and
+    the reason carries the word, until a real partial state exists (#5937)."""
+    account = build_account(status="completed", reason=None, state=state)
+    if not account.pages_failed:
+        return None
+    return f"Partial: {account.pages_done} of {account.pages_total} pages read"
+
+
 def build_account(*, status: str | None, reason: str | None, state: dict[str, Any] | None,
                   pending_writes: Iterable[Any] = (), started_at: datetime | None = None,
                   run_usage: dict[str, Any] | None = None, live_peaks: dict[str, int] | None = None,

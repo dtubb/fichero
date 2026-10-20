@@ -29,6 +29,7 @@ from fichero_server.execution.cancellation import (
 from fichero_server.execution.run_log import BoundedLog, bounded_final_state
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
+from fichero_server.workflows.run_account import partial_words
 from fichero_server.workflows.run_steps import close_open_steps
 
 logger = logging.getLogger(__name__)
@@ -2634,6 +2635,7 @@ async def _run_workflow_body(
             duration_ms=total_duration_ms,
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            partial=None if _all_files_failed else partial_words(final_state),
         )
 
     except WorkflowCancelled:
