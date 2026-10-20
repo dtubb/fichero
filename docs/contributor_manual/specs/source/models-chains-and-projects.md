@@ -2686,13 +2686,15 @@ Jobs and chains
 
 The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; `compute.leave.one-gate` (`compute/transfer-and-results.md`) is the remote-work sheet over this gate.
 
-- `source.egress.every-call-site` — **[PARTIAL]** (#5368) every model call goes through the gate: it sits INSIDE
-  `get_langchain_model`, so `chat_with_tools`, `structured_output` and everything `chat_workflow` reaches are covered, and the
-  per-function checks stay as the earlier, clearer refusal. The guardrail lists every caller of the factory (by AST, anywhere in
-  the engine's source) and fails on a new one outside the reviewed files, then proves a refusal through the factory and through
-  each of the two that skipped it (`fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`). NOT covered: a provider
-  reached without the factory (Fichero's own fetches, `source.egress.fichero-own-fetches-listed`; embeddings; the cloud OCR and
-  transcription paths that build their own client), which keep their own per-function check.
+- `source.egress.every-call-site` — **[OK]** (#5368) every model call goes through the gate, and every client that is not the
+  model factory is built behind it. The gate sits INSIDE `get_langchain_model` and `_build_langchain_model`, so
+  `chat_with_tools`, `structured_output` and everything `chat_workflow` reaches are covered; translation (DeepL), audio
+  transcription and the Hugging Face inference API each call it where their client is built. Cloud OCR providers
+  (`enforce_ocr_provider_policy`) read the same check (the Set Up answer and the local-only setting) and no cloud OCR client exists
+  yet to build. Embeddings run in fastembed on this Mac; no cloud embeddings client exists. Pinned by
+  `fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`: the AST guardrail lists every caller of the factory and
+  every function that builds a network client, and fails on a new one without the gate or on a cloud embeddings client.
+  NOT covered (their own entry, `source.egress.fichero-own-fetches-listed`): Fichero's own fetches that carry no library content.
 - `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
   model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
   `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
