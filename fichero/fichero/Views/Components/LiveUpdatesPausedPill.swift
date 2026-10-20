@@ -10,9 +10,15 @@ import SwiftUI
 /// each of which exposes a `liveUpdatesUnavailable` flag. Render it in an
 /// `.overlay(alignment: .top)` and gate it on that flag.
 struct LiveUpdatesPausedPill: View {
+    /// The default: a stream that is down (the WorkflowEditor's never reconnects; the Library's sits beside a manual
+    /// Reconnect button).
+    static let pausedMessage = "Live updates paused"
+    /// Activity only, while its stream is really retrying by itself (#5912).
+    static let reconnectingMessage = "Reconnecting to the engine…"
+
     /// Headline text. Defaults to the dropped-stream wording; an access-denied
     /// surface passes its own (#2479).
-    var message: String = "Reconnecting to the engine…"
+    var message: String = LiveUpdatesPausedPill.pausedMessage
     /// Leading SF Symbol. Defaults to the dropped-stream bolt.
     var systemImage: String = "bolt.horizontal.circle"
     /// Force an immediate reconnect. Nil hides the button (the stream auto-retries

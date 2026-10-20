@@ -56,8 +56,14 @@ struct ActivityStreamRecoveryTests {
         #expect(resynced == 1)
     }
 
-    @Test func theDroppedStreamPillSaysReconnecting() {
-        #expect(LiveUpdatesPausedPill().message == "Reconnecting to the engine…")
+    @Test func thePillKeepsItsPlainDefaultForEveryOtherScreen() {
+        #expect(LiveUpdatesPausedPill().message == "Live updates paused")
+    }
+
+    @Test func activityPillSaysReconnectingWhileTheStreamRetriesItself() {
+        let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/ActivityStreamRecoveryTests.fichero")
+        let store = ActivityStore(service: ActivityService(ficheroClient: client))
+        #expect(store.livePillMessage == "Reconnecting to the engine…")
     }
 
     @Test func theStoreWiresTheStreamToItsEndpointAndItsRunList() {
