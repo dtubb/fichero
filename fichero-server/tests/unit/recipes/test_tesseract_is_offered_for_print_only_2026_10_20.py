@@ -24,3 +24,9 @@ def test_for_typescript_too(client):
 
 def test_for_handwriting_it_is_not_offered_at_all(client):
     assert TESSERACT not in _listed(client, "handwriting")
+
+
+def test_only_where_its_data_covers_the_language_and_script(client):
+    r = client.get("/api/recipes/candidates", params={"scripts": "Latf", "languages": "de", "material": "print",
+                                                      "job": "read-a-line", "mac_memory_gb": 32})
+    assert TESSERACT not in {c["id"] for c in r.json()["items"]}  # Spanish data, not German in Fraktur
