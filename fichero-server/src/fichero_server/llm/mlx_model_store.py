@@ -173,6 +173,22 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         capabilities=("text", "vision"),
         note="Purpose-built document OCR (layout, tables, handwriting) rather than a general VLM. Not yet run inside Fichero -- untested here.",
     ),
+    # An OCR model from Z.ai (0.9B, model_type glm_ocr), mlx-community's own 4-bit conversion (#5980). Added after the
+    # catalogue's other OCR readers were weighed on memory: it is the smallest entry that reads whole pages. Curation
+    # cap stays 8; DeepSeek-OCR enters only by replacing a weaker entry on a measured page, never by raising it.
+    "GLM-OCR": ManagedModelSpec(
+        licence="MIT",
+        model_id="GLM-OCR",
+        repo_id="mlx-community/GLM-OCR-4bit",
+        revision="97f587506984cc92fa69b2694b4128e53db6b081",
+        display_name="GLM-OCR",
+        download_size_bytes=1_254_097_532,
+        min_memory_bytes=4 * 1024**3,
+        memory_class="needs 4 GB unified memory",
+        capabilities=("text", "vision"),
+        note="A small document-OCR reader (pages, tables, formulas), MIT. Converted with mlx-vlm 0.3.10; Fichero bundles "
+             "0.6.17. Not yet run inside Fichero -- untested here.",
+    ),
     # A 0.8B Qwen 3.5 vision model fine-tuned to read medieval Latin hands the CATMuS way (#5665, the
     # maintainer's ask 2026-10-11). No MLX build is published: the Hugging Face checkpoint itself (bf16
     # safetensors, `qwen3_5`, one 1.7 GB file) is what is fetched, and mlx-vlm (0.6.17, bundled) loads that
