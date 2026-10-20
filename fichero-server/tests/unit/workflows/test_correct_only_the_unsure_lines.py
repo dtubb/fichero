@@ -106,6 +106,32 @@ async def test_a_line_the_model_gives_nothing_for_keeps_krakens_text_and_says_so
 
 
 @pytest.mark.asyncio
+async def test_a_re_run_does_not_ask_again_the_lines_this_model_already_answered(page, monkeypatch):
+    _kraken_was_sure(page, [0.95, 0.30, 0.50])
+    first_run = await _correct(page, monkeypatch, ["vezino de la ciudad", "y lo firmo."])
+    assert sum(len(c["images"]) for c in first_run["calls"]) == 2
+
+    again = await _correct(page, monkeypatch, [])
+
+    assert again["calls"] == [], "both unsure lines already carry this model's reading: no call, no cost"
+    assert any("already answered by mlx/" in note and "not asked again" in note for note in again["notes"]), again["notes"]
+    assert _counting(page) == [KRAKEN_READS[0], "vezino de la ciudad", "y lo firmo."]
+
+
+@pytest.mark.asyncio
+async def test_a_line_answer_that_is_commentary_is_refused_and_the_line_keeps_krakens_text(page, monkeypatch):
+    _first, second, third = _lines(page)
+    _kraken_was_sure(page, [0.95, 0.30, 0.30])
+
+    result = await _correct(page, monkeypatch, ["Let me think about this line step by step. First, I notice that the "
+                                                "writing is hard to read, so I will describe my approach:",
+                                                "y lo firmo."])
+
+    assert _counting(page) == [KRAKEN_READS[0], KRAKEN_READS[1], "y lo firmo."]
+    assert any(second.id in note and "was not a reading" in note for note in result["notes"]), result["notes"]
+
+
+@pytest.mark.asyncio
 async def test_without_the_bar_the_page_is_sent_as_before(page, monkeypatch):
     import fichero_server.llm as llm
     from tests.unit.workflows.test_review_corrects_the_lines_5654 import _review
