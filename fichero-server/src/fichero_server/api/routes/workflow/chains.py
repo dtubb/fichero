@@ -12,7 +12,7 @@ import threading
 import uuid
 from typing import Any, Callable
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.execution.chaining import (

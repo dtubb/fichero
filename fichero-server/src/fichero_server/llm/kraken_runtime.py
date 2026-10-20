@@ -928,7 +928,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # is UTILITY, not background, because someone is waiting for this page (measured:
             # 23 s at utility against 426 s at background for one page, #4959); fast drops the
             # throttle; background yields to everything.
-            from fichero_server.core.compute_preferences import apply_to_this_thread, compute_preferences
+            from fichero_server.core.compute_preferences import apply_to_this_thread
 
             from fichero_server.core.compute_preferences import priority_for
 

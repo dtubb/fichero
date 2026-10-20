@@ -16,7 +16,6 @@ Not covered: a thread started with `loop.run_in_executor` or `threading.Thread` 
 """
 from __future__ import annotations
 
-import asyncio
 import concurrent.futures
 import contextlib
 import contextvars

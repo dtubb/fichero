@@ -331,7 +331,6 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
 
     setup = read_project_setup(Path(db.path).parent)
     answers = setup["answers"] or {}
-    from fichero_server.recipes import places
 
     stays_local, stays_why = training_stays_local(answers)
     setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
