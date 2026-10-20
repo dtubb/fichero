@@ -115,6 +115,8 @@ HEAVY_LANES = ("local-ml", "images")
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
 #: "local-ml"), and it is held by the same signals.
+#: A held reason already written to the waiting rows is written again only after this long (Fable review #11).
+SAY_WHY_AGAIN_SECONDS = 30.0
 THROTTLED_LANES = ("local-ml", "embed")
 #: What a row held so says, before what runs.
 ONE_HEAVY_REASON = "Waiting: memory is busy, so heavy work runs one job at a time"
@@ -1182,6 +1184,8 @@ THROTTLE_LOOK_AGAIN_SECONDS = 5.0
 #: Longest the lane is held for one model call before it carries on regardless (a caller that
 #: vanished without letting go must not wedge the lane for good).
 HOLD_LIMIT_SECONDS = 900.0
+#: A held model call that has not finished after this long says so on its row, and again at each multiple (Fable review #16).
+SLOW_CALL_SECONDS = 60.0
 
 
 async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
@@ -1210,19 +1214,29 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
     #: What the caller's work came to, so the row says it: None (the caller went away), "done", or
     #: the error in words.
     outcome: dict[str, str | None] = {"result": None}
+    job_ref: list[str] = []  # the slot's own row, for the words a slow call earns
 
     def hold() -> None:
         try:
             loop.call_soon_threadsafe(lambda: granted.done() or granted.set_result(None))
         except Exception as exc:  # noqa: BLE001 -- the caller's loop is gone: so is the caller
             raise JobCancelled("Its run had ended before this page started") from exc
-        release.wait(HOLD_LIMIT_SECONDS)
+        waited = 0.0
+        while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited)):
+            waited += SLOW_CALL_SECONDS
+            if job_ref:  # in words, so a model server that stopped answering is not a silent 15 minutes
+                db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+                           [f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
+                            else f"Waiting for the model to answer ({waited:g} s so far)", job_ref[0]])
+            if waited >= HOLD_LIMIT_SECONDS:
+                break
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
         if outcome["result"] != "done":
             raise RuntimeError(outcome["result"])
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
+    job_ref.append(future.job_id)
     token = None
     waiting_job = _waiting_job.get()
     echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
@@ -2608,6 +2622,11 @@ class _Scheduler:
         # The flags a claim reads come from the app database on their first read only: warm them HERE, never while
         # `_heavy_pick` is held (a stuck app-DB call under it stalled every heavy lane, owner 18:11).
         is_paused(), is_started()
+        # The battery reading runs `pmset` (up to 5 s, every 10 s): take it HERE, so the pick under the lock reads a fresh cache
+        # (Fable review #11: thumbnails waited on `_heavy_pick` for the whole subprocess).
+        from fichero_server.execution.throttle import battery_or_low_power
+
+        battery_or_low_power()
         with self._heavy_pick:
             if memory_is_busy() and self.heavy_running() is not None:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
@@ -2713,6 +2732,15 @@ class _Scheduler:
         stored = [name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
         with self._lock:
             keys = list(lane.libraries)
+        # Said once per change, not once per scan (every 5 s while held, one write per open project): the list recomputes
+        # the reason itself (`waiting_reason`); this write is for the tree. Again after `SAY_WHY_AGAIN_SECONDS`, for rows
+        # that joined the queue since.
+        said = (reason, tuple(sorted(keys)))
+        now = time.monotonic()
+        last = getattr(lane, "_said_held", None)
+        if last is not None and last[0] == said and now - last[1] < SAY_WHY_AGAIN_SECONDS:
+            return
+        lane._said_held = (said, now)  # type: ignore[attr-defined]
         for key in keys:
             db = db_manager.open_database(key)
             if db is not None and stored:

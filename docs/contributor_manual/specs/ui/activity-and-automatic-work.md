@@ -1443,6 +1443,17 @@ and node, not by job); a retry action for failed pages.
   running, then "Reconnecting…" (`AppState.restartSentence`, `ConnectionPresentation.lastRestartReason`, cleared when the
   engine answers). Pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift` (needs compile). LIMIT: it says
   the engine did not answer, not what held the loop (the engine log's `loop_lag` dump names that).
+- `activity.lane.pick-holds-no-lock-across-slow-probes` — **[PARTIAL]** (Fable runner review #11, 2026-10-19; the lock-P1 family) a heavy
+  lane's pick holds neither `_heavy_pick` nor its own lock across a slow probe. The flags (`is_paused`, `is_started`) were already
+  read before the lock; the battery reading (`pmset`, up to 5 s) is now taken there too, so the pick reads a fresh cache; and the
+  held reason is written to the waiting rows once per change (again after 30 s), not once per scan per open project. Pinned by
+  `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py`. NOT done: the held-reason write still happens
+  inside the lane's pick when it does happen, and the thermal and memory probes are read in place (cheap sysctls).
+- `activity.lane.hung-call-says-so` — **[PARTIAL]** (Fable runner review #16) a model call that holds the lane's slot and does not
+  answer says so on its row after 60 s and at each minute after ("Waiting for the model to answer (2 min so far)"), instead of the last
+  reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
+  hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
+  reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
