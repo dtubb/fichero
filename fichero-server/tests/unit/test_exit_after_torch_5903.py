@@ -39,7 +39,10 @@ def _run(tmp_path: Path, test_source: str) -> tuple[int, Path, str]:
     marker = tmp_path / "fast-exit-marker"
     (tmp_path / "conftest.py").write_text(CONFTEST.format(tests_parent=str(ENGINE_ROOT), marker=str(marker)))
     (tmp_path / "test_inner.py").write_text(textwrap.dedent(test_source))
-    env = {**os.environ, "FICHERO_BASE_PATH": str(tmp_path / "state"), "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {**os.environ, "FICHERO_BASE_PATH": str(tmp_path / "state"), "PYTHONDONTWRITEBYTECODE": "1",
+           # the inner run starts in tmp_path, so a relative PYTHONPATH (the gate passes "src") would miss this tree
+           # and import whatever fichero_server the venv has installed
+           "PYTHONPATH": os.pathsep.join([str(ENGINE_ROOT / "src"), os.environ.get("PYTHONPATH", "")]).rstrip(os.pathsep)}
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(tmp_path),
                            str(tmp_path / "test_inner.py")], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300)
     return proc.returncode, marker, _say(proc)
@@ -84,7 +87,8 @@ def test_without_torch_the_ordinary_exit_is_taken(tmp_path):
     (tmp_path / "conftest.py").write_text(CONFTEST.format(tests_parent=str(ENGINE_ROOT), marker=str(tmp_path / "m")).replace(
         'sys.modules.setdefault("torch", types.ModuleType("torch"))', "pass"))
     (tmp_path / "test_inner.py").write_text("def test_ok():\n    assert True\n")
-    env = {**os.environ, "FICHERO_BASE_PATH": str(tmp_path / "state")}
+    env = {**os.environ, "FICHERO_BASE_PATH": str(tmp_path / "state"),
+           "PYTHONPATH": os.pathsep.join([str(ENGINE_ROOT / "src"), os.environ.get("PYTHONPATH", "")]).rstrip(os.pathsep)}
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(tmp_path),
                            str(tmp_path / "test_inner.py")], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300)
     assert proc.returncode == 0 and not (tmp_path / "m").exists()
