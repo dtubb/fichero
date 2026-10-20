@@ -96,7 +96,7 @@ struct SourceInfoView: View {
 
     /// Whether a part has anything to draw for this document, so one with nothing draws no box (a Form row is drawn even
     /// when the view in it is empty). Pure on what the document is.
-    static func isShown(_ part: Part, docType: DocType, hasPath: Bool, isIIIFSource: Bool, hasMetadata: Bool) -> Bool {
+    nonisolated static func isShown(_ part: Part, docType: DocType, hasPath: Bool, isIIIFSource: Bool, hasMetadata: Bool) -> Bool {
         switch part {
         case .folderSync: docType == .folder && hasPath
         case .iiif: isIIIFSource
