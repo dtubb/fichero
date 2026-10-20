@@ -49,6 +49,9 @@ FAKE_TEXT = "texto de prueba"
 FAKE_REFERENCE_TEXT = "texto de referencia"
 GOOD_LINE_CER = 0.10  # a line is "good" when Kraken's text is within this CER of the reference
 WIDE_PX = 120  # a polygon narrower than this is a fragment (a mark, a stray stroke), not a line
+#: The script a language is written in, by the first word of a letter's Unicode name; all the languages the harness meets are Latin.
+SCRIPT_OF = {"es": "LATIN", "en": "LATIN", "fr": "LATIN", "de": "LATIN", "it": "LATIN", "pt": "LATIN", "la": "LATIN"}
+ORDINALS = "ªº"  # Spanish No, 1o: letters by Unicode, but Latin writing
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 
 
@@ -492,7 +495,7 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
             rows.append(row)
     report = summarise(rows, ledger, bar=bar, sent=sent, total=total, stopped=stopped, model=model, reference=ref_spec,
                        pages=len(images), arms=arms, ref_arm=ref_arm, seconds=seconds, failures=failures,
-                       mlx_choice=mlx_choice)
+                       mlx_choice=mlx_choice, language=language)
     write_outputs(out, rows, report, images)
     return report
 
@@ -509,13 +512,22 @@ class _Counted(dict):
         self.count = count
 
 
+def outside_script(text: str, language: str | None) -> bool:
+    """Whether the text has a letter outside the script its language is written in (Cyrillic in a Spanish line): a reader that
+    wrote one did not read the page's hand, whatever the language it was told."""
+    import unicodedata
+
+    script = SCRIPT_OF.get((language or "es").split("-")[0].lower(), "LATIN")
+    return any(ch.isalpha() and ch not in ORDINALS and not unicodedata.name(ch, "").startswith(script) for ch in text or "")
+
+
 def _width(row: dict) -> float:
     xs = [p[0] for p in row["polygon"]]
     return max(xs) - min(xs)
 
 
 def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, reference, pages, arms=None, ref_arm=None,
-              seconds=None, failures=None, mlx_choice=None) -> dict:
+              seconds=None, failures=None, mlx_choice=None, language="es") -> dict:
     arms = arms or parse_arms(DEFAULT_ARMS)
     measured = [r for r in rows if r["reference"].strip()]
     done = len({r["page"] for r in rows})
@@ -530,6 +542,7 @@ def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, referen
                         "s_per_page": (sum(times) / len(times)) if times else None,
                         "usd_per_page": (ledger.by_stage.get(arm, 0.0) / done) if done else None,
                         "lines_read": sum(1 for r in rows if (r.get(arm) or "").strip()),
+                        "off_script_lines": sum(1 for r in rows if outside_script(r.get(arm) or "", language)),
                         "pages_failed": len([f for f in (failures or []) if f["arm"] == arm])}
     return {
         "label": label, "model": model, "reference_model": reference, "pages_planned": pages, "arms": arms,
@@ -594,13 +607,15 @@ def _report_md(r: dict) -> str:
              f"\nAll CER and WER below are against a **{r['label']}** ({r['reference_model']}), over "
              f"{r['lines_with_reference']} of {r['lines']} lines. All arms read the same lines, Kraken's. Model for A and "
              f"B: {r['model']}.\n",
-             "| arm | CER | WER | s/page | $/page | lines read |", "|---|---|---|---|---|---|"]
+             "| arm | CER | WER | s/page | $/page | lines read | off-script lines |", "|---|---|---|---|---|---|---|"]
     for arm in r["arms"]:
         m = r["per_arm"][arm]
         spp = "n/a" if m["s_per_page"] is None else f"{m['s_per_page']:.1f}"
         usd = "n/a" if m["usd_per_page"] is None else f"${m['usd_per_page']:.4f}"
         errs = ("the reference", "the reference") if m.get("is_reference") else (_pct(m["cer"]), _pct(m["wer"]))
-        lines.append(f"| {_arm_title(arm, r)} | {errs[0]} | {errs[1]} | {spp} | {usd} | {m['lines_read']} |")
+        lines.append(f"| {_arm_title(arm, r)} | {errs[0]} | {errs[1]} | {spp} | {usd} | {m['lines_read']} | {m['off_script_lines']} |")
+    lines.append("\nOff-script lines: lines with a letter outside the language's script (Cyrillic in a Spanish line); a reader "
+                 "that writes one did not read the hand, whatever language it was told.")
     frag = r["fragments"]
     lines += [f"\n### On lines at least {frag['px']} px wide\n{frag['lines']} of {frag['of']} lines are narrower: fragments, "
               "not lines, which a reader may rightly leave empty. The same arms without them:\n",

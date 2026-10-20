@@ -360,3 +360,16 @@ def test_cer_is_also_reported_over_lines_at_least_120_px_wide_and_the_fragments_
     assert report["per_arm"]["mlx:m"]["wide"] is None, "the reference arm is not scored against itself"
     md = (tmp_path / "out" / "report.md").read_text()
     assert "at least 120 px wide" in md and "1 of 3 lines are narrower" in md
+
+
+def test_off_script_letters_are_counted_per_arm_and_a_spanish_ordinal_is_not_one():
+    assert ab.outside_script("хорессіон", "es") and ab.outside_script("mundo теісто", "es-ES")
+    assert not ab.outside_script("Nº 3, 1º de mayo, año 1.923 ñ ó", "es") and not ab.outside_script("", "es")
+
+
+def test_the_report_counts_each_arms_off_script_lines(tmp_path):
+    readers = {"vision": _reader({"0": "hola", "1": "теісто", "2": "adios"}),
+               "mlx:m": _reader({"0": "hola", "1": "mundo", "2": "adios"})}
+    report = _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers)
+    assert {a: report["per_arm"][a]["off_script_lines"] for a in report["arms"]} == {"kraken": 0, "vision": 1, "mlx:m": 0}
+    assert "off-script lines" in (tmp_path / "out" / "report.md").read_text()
