@@ -250,3 +250,22 @@ def test_a_key_the_person_set_in_the_environment_may_go_to_the_host_named_with_i
     with pytest.raises(FicheroError):
         _remote_client(monkeypatch, tmp_path, seen).request("GET", "/api/documents")
     assert "Bearer their-own-key-for-that-host" in seen
+
+
+def test_an_expired_certificate_with_the_pinned_key_is_said_in_words_not_as_a_raw_ssl_error(monkeypatch):
+    def refuse(api_url, uds, spki):
+        def handle(request):
+            raise httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate has expired")
+        return httpx.Client(base_url=api_url, transport=httpx.MockTransport(handle))
+    monkeypatch.setattr(pairing, "_open_client", refuse)
+    with pytest.raises(FicheroError, match="expired or replaced"):
+        pairing.pair(link(), device_name="x", fetch_der=lambda h, p: DER)
+
+
+def test_a_paired_remote_host_with_an_expired_certificate_says_to_pair_again(monkeypatch, tmp_path):
+    def handle(request):
+        raise httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate has expired")
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    client = client_module.FicheroClient(base_url=LOCAL, transport=httpx.MockTransport(handle))
+    with pytest.raises(FicheroError, match="devices pair --link-file"):
+        client.request("GET", "/api/documents")
