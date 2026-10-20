@@ -876,6 +876,7 @@ def _log_fm_bridge_presence() -> None:
 
 
 def _warm_configured_provider_keys() -> None:
+    from fichero_server import startup_warnings
     from fichero_server.db.app import get_app_db
     from fichero_server.llm.providers import get_provider_info
     from fichero_server.security import keychain
@@ -885,6 +886,7 @@ def _warm_configured_provider_keys() -> None:
         keychain.warm_api_keys([t for t in types if (info := get_provider_info(t)) is not None and not info.is_local])
     except Exception as exc:  # noqa: BLE001 -- a warm-up that fails leaves the lookups to read on demand
         logger.warning("Keychain warm-up skipped: %s", exc)
+        startup_warnings.note("keychain-warm-up", f"{type(exc).__name__}: {exc}")  # health says it (#4420)
 
 
 @asynccontextmanager
@@ -2078,10 +2080,12 @@ def _reset_dependency_report() -> None:
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
+    from fichero_server import startup_warnings
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
+    response.startup_warnings = startup_warnings.current()
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"
