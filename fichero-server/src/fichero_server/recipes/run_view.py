@@ -514,7 +514,12 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
                 said += f", {s.lines_review_unreadable} it could not read and left as read"
         lines.append(said)
     if s.pages_read_nothing:
-        lines.append(f"{_plural(s.pages_read_nothing, 'page')} the reader returned nothing for")
+        from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE, NOTHING_FOR_PAGE
+
+        # Most lines empty (the rate rule) is not "nothing": say which it was.
+        mostly = MOSTLY_NOTHING_FOR_PAGE in s.lines_unread_why and NOTHING_FOR_PAGE not in s.lines_unread_why
+        lines.append(f"{_plural(s.pages_read_nothing, 'page')} the reader "
+                     f"{'came back empty on most lines for' if mostly else 'returned nothing for'}")
     if s.lines_seen_blank:
         lines.append(f"{_plural(s.lines_seen_blank, 'line')} the reader found no writing on")
     if s.lines_unread:
