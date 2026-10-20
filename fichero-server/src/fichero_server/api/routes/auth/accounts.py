@@ -832,6 +832,7 @@ def update_user(
 
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
+    _require_new_password_length(body.password)  # after the access checks: a refusal there is still that refusal
 
     display_name = None
     if body.display_name is not None:

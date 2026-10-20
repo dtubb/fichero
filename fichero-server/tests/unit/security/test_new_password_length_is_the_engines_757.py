@@ -47,3 +47,24 @@ def test_a_key_redemption_has_no_password_and_is_not_held_to_the_rule(harness, m
     _multiuser_on(harness, monkeypatch)
     _key, pem = new_key()
     assert _redeem(harness, _invite(harness), public_key_pem=pem, client={"kind": "app", "name": "m"}).status_code == 200
+
+
+# --- ## 758: changing a password holds to the same rule ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("password", ["p", "1234567"])
+def test_changing_a_password_to_a_short_one_is_refused_in_words(harness, monkeypatch, password):
+    _multiuser_on(harness, monkeypatch)
+    made = _create(harness, "12345678").json()
+    token = _login(harness, "owner")
+    refused = harness.client().patch(f"/api/users/{made['id']}", headers=_bearer(token), json={"password": password})
+    assert refused.status_code == 422 and "at least 8 characters" in refused.json()["detail"], refused.text
+
+
+def test_changing_a_password_to_eight_characters_works_and_a_patch_without_one_is_untouched(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    made = _create(harness, "12345678").json()
+    token = _login(harness, "owner")
+    client = harness.client()
+    assert client.patch(f"/api/users/{made['id']}", headers=_bearer(token), json={"password": "87654321"}).status_code == 200
+    assert client.patch(f"/api/users/{made['id']}", headers=_bearer(token), json={"display_name": "Cy T"}).status_code == 200
