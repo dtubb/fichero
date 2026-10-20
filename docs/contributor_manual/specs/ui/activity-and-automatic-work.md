@@ -1190,6 +1190,8 @@ and node, not by job); a retry action for failed pages.
 - `activity.details.progress-counts` — **[OK]** (#5561, #5555) a row with pages shows pages
   done, failed and left with the time left at the pace so far; a row with no pages shows no counts
   rather than "0 of 0". Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
+  A recipe run's row counts the pages of every stage it has started, not only the last (92 of 92 at Read does not read 0 of 92 when Names starts; Fable #13);
+  `fichero-server/tests/unit/recipes/test_recipe_row_progress_does_not_reset_per_stage_2026_10_20.py`.
   A try's row has no child rows (its pages live in a scratch copy that is deleted when it ends), so it keeps the
   pages made and tried on its own detail and the tree reads them (Fable review 2026-10-19 #3, built 2026-10-20);
   `fichero-server/tests/unit/jobs/test_a_try_row_counts_its_pages_2026_10_20.py`.
