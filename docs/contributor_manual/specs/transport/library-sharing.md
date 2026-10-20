@@ -63,6 +63,18 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   with a `.ts.net` sharing address the engine binds loopback only and makes `tailscale serve --https=<port> https+insecure://127.0.0.1:<port>` at start and removes it at stop (only the forward it made; a port serving something else is refused). Tailscale terminates TLS with its own public certificate, so the client trusts the **system** certificate for `.ts.net` (Tailscale identity plus the pairing token protect it) and keeps the **SPKI pin** only for `.local` hosts (ruled 2026-10-17). Proxied requests carry Tailscale headers and are never loopback (`api/auth.py`). Pairing codes carry the address as `tailnet_url`. #5752/#5753 fixed: no forward for a socket-only engine; a `.ts.net` invite carries no pin (`test_tailnet_invite_has_no_pin_to_spec.py`). **Still open:** an app pairing over the tailnet (#5320, needs the M4); the sandboxed app cannot run the Tailscale CLI, so it shows one command to paste with a copy button (#5317); the address is offered in the share sheet, not typed (#5318).
 - `sharing.invite` — **[PARTIAL]** (→ #5049) the pairing card's QR / link carries the address, a one-time
   code, the pin and ONE library path (the host's current library).
+- `sharing.pairing.copy-link-says-why` — **[PARTIAL]** (#5891; owner, 2026-10-20 07:40: "Copy Pairing Link" did nothing on the host)
+  the pairing card never shows a code with neither a pairing link nor a reason. When the link cannot be built (no pin
+  derived yet for this address, an address that does not work) the card says why in words, with the cure where the app can
+  do it (the blocker's own headline and detail: "Preparing the security certificate …"), instead of "use the pairing link
+  below" over nothing; the blocker used to be hidden whenever a one-time code existed. Copy Pairing Link reads the clipboard
+  back and says "Fichero couldn't copy the link to the clipboard" when it did not take. The link carries the pin of
+  an address that serves its own certificate (`.local`); an address a public CA terminates (`.ts.net` behind
+  `tailscale serve`) gets a link with NO pin, which the guest checks with normal TLS validation (system trust + hostname
+  match) and the pairing code still grants trust; plain http gets no link at all, with the reason in words: never a link
+  with no pin and no TLS check. A missing pin is made by the button "Make a Pairing Link" on the blocker, which says it restarts sharing (and so stops work in flight); never automatically when the pane opens. Pinned by
+  `fichero/Tests/Unit/general/Sharing/PairingLinkCopyTests.swift` (unrun: **[PARTIAL]** until compiled and tried on the
+  owner's Pro).
 
 ### B. Connecting from the second Mac
 

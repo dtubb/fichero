@@ -85,7 +85,7 @@ final class PairingRestoreDiagnosticsTests: XCTestCase {
     /// cannot-proceed fallbacks also stay button-less honest messages; only the two
     /// the app can cure in one tap keep a button.
     func testPinNotDerivedOffersNoPrepareCertificateButton() {
-        XCTAssertNil(PairingBlocker.pinNotDerived.actionTitle)
+        XCTAssertEqual(PairingBlocker.pinNotDerived.actionTitle, "Make a Pairing Link")  // #5891: restarts the engine, so a press, never automatic
         XCTAssertNil(PairingBlocker.engineIsRemote.actionTitle)
         XCTAssertNil(PairingBlocker.addressInsecure.actionTitle)
         XCTAssertNotNil(PairingBlocker.engineNotRunning.actionTitle)

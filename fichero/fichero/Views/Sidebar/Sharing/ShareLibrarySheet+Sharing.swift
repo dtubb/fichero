@@ -99,9 +99,14 @@ extension ShareLibrarySheet {
     /// format, and never the loopback share_url.
     var pairingLink: String? {
         guard let pairingCode,
-              let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL),
-              let advertisedPin = try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: reachableURL)
+              let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
         else { return nil }
+        let advertisedPin: String?
+        switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {
+        case .missing: return nil
+        case .notNeeded: advertisedPin = nil  // a publicly-trusted host: no pin in the link (#5891)
+        case .pin(let pin): advertisedPin = pin
+        }
         let payload = PairingService.buildQRCodePayload(
             apiRoot: reachableURL,
             from: pairingCode,
@@ -134,7 +139,7 @@ extension ShareLibrarySheet {
         // never "still minting" — only an engine serving its own cert can be.
         let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
         guard let reachableURL,
-              (try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: reachableURL)) != nil else {
+              RemoteClientPairing.invitePin(spkiPin, for: reachableURL) != .missing else {
             return ("Preparing the security certificate",
                     "Fichero is still minting the certificate for this address — try again in a moment.")
         }
