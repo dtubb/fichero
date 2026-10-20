@@ -625,6 +625,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      "turn a lens on under the purpose in the project's setup")
                 continue
             entry["lenses"] = lenses
+        if job == "correct" and settings.get("only_below_confidence") is not None:
+            # Kraken reads, the model re-reads only the lines Kraken was under this sure of (variant A).
+            entry["tool_config"] = {**entry.get("tool_config", {}), "transcribe_review": {
+                "only_below_confidence": float(settings["only_below_confidence"])}}
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
