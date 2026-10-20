@@ -53,17 +53,16 @@ def in_process() -> bool:
 def _cached(model_name: str, cache_dir: str) -> bool:
     """Whether the model's files are already in the cache, so loading needs no Hub call."""
     from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+    from fichero_server.llm.local_models import _fastembed_source_repo
 
-    # The pinned e5's fastembed name is an alias; its files live under the repo it is fetched from
-    # (models--qdrant--multilingual-e5-large-onnx), so match the source model's name at the END of the folder name,
-    # with or without "-onnx" (never a sibling such as -instruct).
+    # The pinned e5's fastembed name is an alias; its files live under the repo fastembed fetches it from
+    # (qdrant/multilingual-e5-large-onnx), in that exact folder: a sibling (-instruct, or intfloat's own non-onnx
+    # format, which fastembed cannot load) is not it. A model fastembed does not list is fetched from its own name.
     space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
-    tail = (space.source_model_name if space else model_name).rsplit("/", 1)[-1].lower()
+    source = space.source_model_name if space else model_name
+    folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
-        return any(
-            d.name.startswith("models--") and d.name.lower().endswith((tail, f"{tail}-onnx")) and (d / "snapshots").is_dir()
-            for d in os.scandir(cache_dir)
-        )
+        return any(d.name.lower() == folder.lower() and (d / "snapshots").is_dir() for d in os.scandir(cache_dir))
     except OSError:
         return False
 
