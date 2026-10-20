@@ -1068,7 +1068,7 @@ def _checked_root(request: Request, db: Database, new_root: str) -> None:
     """The folder picked is a real folder this engine may read, picked by someone who may read server paths."""
     from fichero_server.api.routes.ingest.core import _require_ingest_owner, _validate_ingest_path
 
-    _require_ingest_owner(request, str(Path(db.path).parent))
+    _require_ingest_owner(request)
     _validate_ingest_path(new_root)
     root = Path(new_root)
     if root.is_symlink() or not root.is_dir():
