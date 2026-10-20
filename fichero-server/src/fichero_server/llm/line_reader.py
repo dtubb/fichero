@@ -53,6 +53,10 @@ PAGE_CONTEXT = ("Before the {n} line images comes one more, first: the whole pag
 PAGE_CONTEXT_SIDE = 768
 
 
+#: Why a line Apple Vision came back empty on is unread (`source.read.vision-empty-line-says-so`).
+VISION_RETURNED_NOTHING = "Apple Vision returned nothing for this line (it can read the same picture on another try)"
+
+
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
     """The instruction for n line pictures, with the language when it is known, and the page's place when it rides."""
     hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
@@ -164,7 +168,13 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:
-            return [" ".join((raw or "").split()) or None]
+            text = " ".join((raw or "").split())
+            if not text:
+                # Vision does not read one picture the same way twice (#5901): an empty answer is not "no writing". The line
+                # stays unread and says so; it is never marked looked-at.
+                why_not[indices[0]] = VISION_RETURNED_NOTHING
+                return None
+            return [text]
         answer = parse_answer(raw, len(indices))
         if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
             return [cut_short_reading(raw)]
