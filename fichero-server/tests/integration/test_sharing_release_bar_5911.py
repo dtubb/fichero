@@ -1,6 +1,6 @@
 """Sharing release bar (#5910) driven by two real engines (#5911, spec `testenv.two-engines`).
 
-Item 1: a guest pairs to the host over the host's LAN listener, with the pin checked against the certificate the host
+Item 8: the host survives Sharing and Multi-user switched on and off in a loop. Item 1: a guest pairs to the host over the host's LAN listener, with the pin checked against the certificate the host
 presents, and the device token it gets then works on the host over that listener. M4 only (`FICHERO_TWO_ENGINES=1`).
 """
 from __future__ import annotations
@@ -63,3 +63,35 @@ def test_a_wrong_pin_is_refused_and_nothing_is_redeemed(pair):
     link = engines.pairing_link(host, code, pin="AAAA")
     with pytest.raises(RuntimeError, match="pin"):
         engines.pair_with_link(guest, link)
+
+
+def _lan_answers(host) -> bool:
+    try:
+        with httpx.Client(verify=False, base_url=f"https://{host.lan}:{host.port}", timeout=5) as client:
+            return client.get("/api/health").status_code == 200
+    except httpx.TransportError:
+        return False
+
+
+def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
+    """The engine half of #5909: what the app does for a switch is stop the engine and start it again with the new settings.
+    Every combination, three times round, must come up, answer health on its socket (and on the LAN address exactly while
+    Sharing is on), and still be running afterwards. The app-side race (a start already in flight) is Swift and is not
+    reached from here (`sharing.switching-restarts-the-engine-once`)."""
+    lan = engines.lan_address()
+    if lan is None:
+        pytest.skip("this Mac has no LAN address")
+    host = engines.start_host(lan, sharing=False)
+    try:
+        for cycle in range(3):
+            for sharing, multiuser in ((True, False), (True, True), (False, True), (False, False)):
+                host.restart(sharing=sharing, multiuser=multiuser)
+                where = f"cycle {cycle}, sharing={sharing}, multiuser={multiuser}"
+                assert host.alive(), f"the engine died: {where}"
+                with host.uds as local:
+                    assert local.get("/api/health").status_code == 200, where
+                assert _lan_answers(host) is sharing, f"the LAN listener does not follow Sharing: {where}"
+                assert host.alive(), f"the engine died after answering: {where}"
+    finally:
+        host.stop()
+

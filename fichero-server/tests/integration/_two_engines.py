@@ -16,6 +16,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote
@@ -62,6 +63,7 @@ class Engine:
     lan: str | None = None
     spki_pin: str | None = None
     _clean: list[Path] = field(default_factory=list)
+    env_for: Callable[[bool, bool], dict[str, str]] | None = None  # (sharing, multiuser) -> the env the app would give the engine
 
     @property
     def uds(self) -> httpx.Client:
@@ -79,13 +81,28 @@ class Engine:
         if why:
             raise RuntimeError(f"{self.name} engine never became ready: {why}")
 
-    def stop(self) -> None:
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def _end_process(self) -> None:
         self.proc.terminate()
         try:
             self.proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             self.proc.kill()
             self.proc.wait(timeout=5)
+
+    def restart(self, *, sharing: bool, multiuser: bool) -> None:
+        """What the app does for a Sharing or Multi-user switch: stop its engine and start it again, same libraries and
+        socket, with the new settings in its environment. Raises if the new engine does not come up."""
+        assert self.env_for is not None, "only a host restarts"
+        self._end_process()
+        self.proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=self.env_for(sharing, multiuser),
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.wait_ready()
+
+    def stop(self) -> None:
+        self._end_process()
         for path in self._clean:
             shutil.rmtree(path, ignore_errors=True)
 
@@ -118,8 +135,9 @@ def _spawn(name: str, env: dict[str, str], base: Path, sock: Path, token: str, *
     return engine
 
 
-def start_host(lan: str) -> Engine:
-    """A host sharing on `lan` at a free test port: the LAN listener beside its socket, its own TLS identity."""
+def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> Engine:
+    """A host sharing on `lan` at a free test port: the LAN listener beside its socket, its own TLS identity.
+    `sharing=False` starts it as the app does with Sharing off (its socket only)."""
     from fichero_server.security.remote_access_tls import prepare_remote_access_tls
 
     token = secrets.token_urlsafe(24)
@@ -128,11 +146,19 @@ def start_host(lan: str) -> Engine:
     port = free_port()
     public = f"https://{lan}:{port}"
     material = prepare_remote_access_tls(public, storage_root=base)
-    env = _env(base, sock, token)
-    env.update(FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
-               FICHERO_TLS_CERTFILE=str(material.certificate_path), FICHERO_TLS_KEYFILE=str(material.key_path),
-               FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
-    return _spawn("host", env, base, sock, token, port=port, lan=lan, spki_pin=material.spki_pin)
+
+    def env_for(sharing_on: bool, multiuser_on: bool) -> dict[str, str]:
+        env = _env(base, sock, token)
+        env["FICHERO_MULTIUSER"] = "1" if multiuser_on else "0"  # the app sets this from its switch, every spawn
+        if sharing_on:
+            env.update(FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
+                       FICHERO_TLS_CERTFILE=str(material.certificate_path), FICHERO_TLS_KEYFILE=str(material.key_path),
+                       FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
+        return env
+
+    engine = _spawn("host", env_for(sharing, multiuser), base, sock, token, port=port, lan=lan, spki_pin=material.spki_pin)
+    engine.env_for = env_for
+    return engine
 
 
 def start_guest() -> Engine:
