@@ -179,6 +179,14 @@ struct ShareSettingsView: View {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
+        // A code is replaced when it expires, not left on screen past the time it names (#5915). The task is keyed on
+        // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
+        .task(id: pairingCode?.code) {
+            guard didBootstrap, let expiresAt = pairingCode?.expiresAt else { return }
+            try? await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt))
+            guard !Task.isCancelled else { return }
+            await refreshPairingCode()
+        }
         .onChange(of: publicBaseURL) { _, newValue in
             loadSPKIPin()
             addressDraft = newValue
