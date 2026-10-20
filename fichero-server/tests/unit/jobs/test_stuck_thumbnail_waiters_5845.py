@@ -68,7 +68,8 @@ def test_a_cancelled_set_aside_job_offers_nothing(client, db):
     db.execute("UPDATE jobs SET state = 'failed', finished_at = now(), reason = ? WHERE id = ?",
                [jobs.set_aside_reason(3), job_id])
     assert client.post(f"/api/activity/jobs/{job_id}/cancel").json()["state"] == "cancelled"
-    assert jobs.offer_for("stuck-5845", "cancelled", "Stopped by you") is None
+    row = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}[job_id]
+    assert row["state"] == "cancelled" and row["offer"] is None, row  # the row the app reads offers nothing
 
 
 def test_stopping_a_waiting_job_works_through_the_route_the_app_calls(client, db):
