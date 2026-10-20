@@ -325,7 +325,7 @@ struct LibraryWindow: View {
             // A stage asked for opens its page: Train a Model… opens Train, any other stage Ready (`SetupStep.opening`).
             FirstRunWindow(mode: .setUp, project: windowState.library,
                            initialStep: SetupStep.opening(requestedStage: libraryManager.setUpRequestedStage))
-                .modifier(SetUpSheetEnvironment(appState: appState, library: windowState.library))
+                .environment(appState)  // the window adds the project's services itself (`FirstRunWindow`)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a
         // MODAL Retry/Quit over the live main GUI (the toolbar popover stays for
