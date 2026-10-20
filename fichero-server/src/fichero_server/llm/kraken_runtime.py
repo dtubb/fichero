@@ -893,6 +893,9 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     memory blow-up ever shows up here, move `op()` into a worker process;
     this is the one place to change it.
     """
+    from fichero_server.core.no_model_in_get import forbid_in_get
+
+    forbid_in_get("a Kraken read")
     require_installed()
     outcome: list[object] = []
     # Read here, on the job's own thread: the thread below is new and has no job. A page of a run the person started

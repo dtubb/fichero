@@ -1350,6 +1350,12 @@ cors_origins = _get_cors_origins()
 
 # Security: Never allow credentials with wildcard origins
 # Credentials are only allowed when specific origins are configured
+# A GET never runs a model, at any depth (`activity.read.get-runs-no-model`): marked here, refused where a model runs.
+from fichero_server.core import no_model_in_get as _no_model_in_get  # noqa: E402
+
+app.add_middleware(_no_model_in_get.NoModelWorkInGet)
+_no_model_in_get.install_handler(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

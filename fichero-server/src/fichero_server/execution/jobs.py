@@ -1067,6 +1067,9 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
     its row is cancelled ("Stopped by you") and `WorkflowCancelled` is raised, the runner's
     signal for a stop, not a failure. A page already running is waited for (the call has no
     way to be interrupted yet)."""
+    from fichero_server.core.no_model_in_get import forbid_in_get
+
+    forbid_in_get("model work")
     db = _open_library(library_path)
     if db is None:
         return await asyncio.to_thread(fn)
@@ -1308,6 +1311,9 @@ def offer_for(kind: str, state: str, reason: str | None) -> str | None:
 def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
                          fn: Callable[[], Any]) -> Any:
     """`run_on_lane` for a synchronous caller."""
+    from fichero_server.core.no_model_in_get import forbid_in_get
+
+    forbid_in_get("model work")
     db = _open_library(library_path)
     if db is None:
         return fn()

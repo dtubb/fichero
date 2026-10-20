@@ -2788,6 +2788,8 @@ class KGGraphListResponse(BaseModel):
 
     items: list[Any]  # Various graph analysis rows (CentralityRow, PageRankRow, etc.)
     count: int
+    #: Claim search only: how many claims have no vector yet and so cannot be found by meaning (a backfill job is queued).
+    not_embedded: int | None = None
 
 
 class PykeenListResponse(BaseModel):

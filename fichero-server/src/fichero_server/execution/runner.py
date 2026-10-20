@@ -1116,7 +1116,9 @@ def on_background_loop(coro: Any) -> Any:
             threading.Thread(target=serve, name="engine-background-loop", daemon=True).start()
             started.wait(10)
             _background_loop = loop
-    return asyncio.run_coroutine_threadsafe(coro, _background_loop)
+    from fichero_server.core.no_model_in_get import spawn_free
+
+    return spawn_free(asyncio.run_coroutine_threadsafe, coro, _background_loop)  # not the GET that opened a project
 
 
 async def run_and_wait(db: Database, workflow: Workflow, inputs: dict[str, Any], *,
