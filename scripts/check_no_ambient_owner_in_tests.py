@@ -36,6 +36,12 @@ NAMED = {
         "shipped embedded path (bootstrap bearer, first-run 409 -> migrate-owner -> sign-in -> Set Up/Start); "
         "delete at slice 10",
     ),
+    "fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::"
+    "test_s1_the_host_app_on_loopback_still_ingests": (
+        1,
+        "pins that the loopback host app still ingests (the S1 condition test); delete at slice 10 "
+        "(manager's OK 2026-10-20)",
+    ),
 }
 
 _ALLOWED = sum(lines for lines, _ in NAMED.values())
