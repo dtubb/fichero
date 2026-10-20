@@ -831,13 +831,29 @@ class _ChainStepsCanceller:
 
     def __init__(self) -> None:
         self._cancelled = False
+        #: The step run in flight (its thread id): Stop reaches it, not only the steps not yet started.
+        self.current_thread: str | None = None
 
     def cancel(self) -> None:
         self._cancelled = True
+        if self.current_thread:
+            from fichero_server.execution.cancellation import request_cancellation  # noqa: PLC0415
+
+            request_cancellation(self.current_thread)
 
     @property
     def cancelled(self) -> bool:
         return self._cancelled
+
+
+def stop_chain(execution_id: str) -> None:
+    """Stop a chain from Activity's row (`jobs.cancel_job`): the same Stop as DELETE /executions/{id}."""
+    executor = _running_executors.get(execution_id)
+    if executor is not None:
+        executor.cancel()
+    result = _running_executions.get(execution_id)
+    if result is not None and result.status == ChainStepStatus.PENDING:
+        result.status = ChainStepStatus.CANCELLED
 
 
 # Passthrough seams (same pattern as chaining.py's WorkflowExecutor, #3950):
@@ -979,7 +995,10 @@ async def _run_chain_steps(
         message=f"Starting chain '{chain.name}' with {len(chain.steps)} steps",
     )
 
+    from fichero_server.execution import jobs  # noqa: PLC0415
+
     db = _acquire_chain_db(library_path)
+    jobs.record_chain(db, execution_id, status="running", name=chain.name)
     for index, (step, thread_id) in enumerate(step_threads):
         if failed or canceller.cancelled:
             # Later chips stay visibly un-run: the rail shows exactly where
@@ -1020,7 +1039,9 @@ async def _run_chain_steps(
                 message=f"Starting step '{step.name or step.id}'",
             )
             try:
+                canceller.current_thread = thread_id
                 await _record_step_run_accepted(db, thread_id, workflow, exec_request)
+                jobs.set_parent(db, thread_id, execution_id)  # the step's run shows under the chain in Activity
                 await _run_step_workflow(
                     thread_id=thread_id,
                     workflow=workflow,
@@ -1075,6 +1096,8 @@ async def _run_chain_steps(
         result.total_duration_ms = (
             result.completed_at - result.started_at
         ).total_seconds() * 1000
+    jobs.record_chain(db, execution_id, status=result.status.value, name=chain.name,
+                      reason=next((r.error for r in result.step_results if r.error), None))
 
 
 def _chain_steps_thread_main(
@@ -1106,29 +1129,11 @@ def _chain_steps_thread_main(
         _running_step_threads.pop(execution_id, None)
 
 
-@router.post(
-    "/{chain_id}/execute-steps",
-    response_model=ChainStepsAcceptedResponse,
-    status_code=202,
-)
-async def execute_chain_steps(
-    chain_id: str,
-    request: ExecuteChainStepsRequest,
-    http_request: Request,
-    x_fichero_library_path: str = Depends(require_library_path),
-) -> ChainStepsAcceptedResponse:
-    """Run a chain's steps as real, sequential workflow runs (workflow bar).
-
-    202 with a pre-assigned thread id per step; poll
-    GET /chains/executions/{execution_id} for per-step statuses, or attach to
-    any step's SSE stream_url as it runs.
-    """
-    chain = chain_store.get(chain_id)
-    if not chain:
-        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
-    if not chain.steps:
-        raise HTTPException(status_code=400, detail="Chain has no steps to run")
-    assert_library_read_authorized(http_request, x_fichero_library_path)
+def _start_chain(chain: WorkflowChain, inputs: dict[str, Any], library_path: str) -> tuple[str, list[tuple[ChainStep, str]]]:
+    """Start a chain's steps as real, sequential runs of the one runner on their own thread, under a chain row in
+    Activity (`activity.run.one-way-to-run`); returns the execution id and each step's pre-assigned thread id. Both
+    `/execute` and `/execute-steps` start here."""
+    from fichero_server.execution import jobs  # noqa: PLC0415
 
     # Register per-step workflow state UP FRONT (light import — dict writes
     # and a hub), so a client can attach to a step's SSE stream before the
@@ -1186,15 +1191,44 @@ async def execute_chain_steps(
             execution_id,
             chain,
             step_threads,
-            dict(request.inputs),
-            x_fichero_library_path,
+            inputs,
+            library_path,
             canceller,
         ),
         name=f"chain-steps-{execution_id[:8]}",
         daemon=True,
     )
     _running_step_threads[execution_id] = runner
+    jobs.record_chain(_acquire_chain_db(library_path), execution_id, status="pending", name=chain.name)
     runner.start()
+    return execution_id, step_threads
+
+
+@router.post(
+    "/{chain_id}/execute-steps",
+    response_model=ChainStepsAcceptedResponse,
+    status_code=202,
+)
+async def execute_chain_steps(
+    chain_id: str,
+    request: ExecuteChainStepsRequest,
+    http_request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> ChainStepsAcceptedResponse:
+    """Run a chain's steps as real, sequential workflow runs (workflow bar).
+
+    202 with a pre-assigned thread id per step; poll
+    GET /chains/executions/{execution_id} for per-step statuses, or attach to
+    any step's SSE stream_url as it runs.
+    """
+    chain = chain_store.get(chain_id)
+    if not chain:
+        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
+    if not chain.steps:
+        raise HTTPException(status_code=400, detail="Chain has no steps to run")
+    assert_library_read_authorized(http_request, x_fichero_library_path)
+
+    execution_id, step_threads = _start_chain(chain, dict(request.inputs), x_fichero_library_path)
 
     base_url = str(http_request.base_url).rstrip("/")
     return ChainStepsAcceptedResponse(

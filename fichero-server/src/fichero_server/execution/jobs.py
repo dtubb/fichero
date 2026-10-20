@@ -443,7 +443,18 @@ register_kind("workflow", None, model=None, name="Workflow run", cancel=_cancel_
 register_kind("workflow-step", None, model=None, name="Step")
 # A batch: one workflow over many items, each item a run of the one runner, its child (#5374).
 register_kind("batch", None, model=None, name="Batch")
-RUN_KINDS = ("workflow", "workflow-step", "batch")
+def _cancel_chain(db: "Database", job_id: str) -> str:
+    """Stop a chain: the steps not yet started are skipped and the step run in flight is cancelled (its own run row)."""
+    from fichero_server.api.routes.workflow.chains import stop_chain
+
+    stop_chain(job_id)
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
+    return _job_row(db, job_id)[1]
+
+
+# A chain: a list of workflows run one after the other, each step a run of the one runner, its child.
+register_kind("chain", None, model=None, name="Chain run", cancel=_cancel_chain)
+RUN_KINDS = ("workflow", "workflow-step", "batch", "chain")
 #: The run record's words for its state -> the job table's.
 _RUN_STATES = {"accepted": "waiting", "running": "running", "completed": "done", "failed": "failed",
                "cancelled": "cancelled", "paused": "paused"}
@@ -521,6 +532,18 @@ def record_batch(db: "Database", batch_id: str, *, status: str, name: str | None
     if status in _BATCH_STATES:
         _record(db, batch_id, kind="batch", subject=batch_id, parent_id=None, state=_BATCH_STATES[status],
                 reason=reason, name=name)
+
+
+def record_chain(db: "Database", execution_id: str, *, status: str, name: str | None = None,
+                 reason: str | None = None) -> None:
+    """A chain's row follows its execution; its step runs are its children (`set_parent`), so a chain shows in Activity
+    as one run with its steps under it (`activity.run.one-way-to-run`)."""
+    states = {"pending": "waiting", "running": "running", "completed": "done", "failed": "failed", "cancelled": "cancelled"}
+    if status in states:
+        _record(db, execution_id, kind="chain", subject=execution_id, parent_id=None, state=states[status],
+                reason=reason, name=name)
+        if states[status] == "cancelled":
+            settle_stopped_children(db, execution_id)
 
 
 def record_step(db_path: str | Path, thread_id: str, node_id: str, *, status: str, name: str | None = None,
