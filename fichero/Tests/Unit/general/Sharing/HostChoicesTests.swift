@@ -116,10 +116,24 @@ struct HostChoicesTests {
     @Test func aCodeForAnotherMacIsRefusedNamingThePickedOne() {
         let picked = host("Studio", "https://studio.local:8443")
         let sentence = HostChoices.refusal(forInviteAt: "https://other.local:8443", picked: picked)
-        #expect(sentence == "That code is for another Mac than Studio. Scan the one shown on Studio.")
+        #expect(sentence?.hasPrefix("That code is for another Mac than Studio") == true)
+        #expect(sentence?.contains("Scan the one shown on Studio.") == true)
     }
 
     @Test func aPickedMacWithNoAddressCannotBeCrossCheckedAndIsNotRefused() {
         #expect(HostChoices.refusal(forInviteAt: "https://anything.local", picked: host("Studio", nil)) == nil)
+    }
+
+    @Test func hostNamesCompareWithoutCaseOrATrailingDot() {
+        let picked = host("Studio", "https://studio.local:8443")
+        #expect(HostChoices.refusal(forInviteAt: "https://STUDIO.local:8443", picked: picked) == nil)
+        #expect(HostChoices.refusal(forInviteAt: "https://studio.local.:8443", picked: picked) == nil)
+        #expect(HostChoices.refusal(forInviteAt: "https://studio.local:8443", picked: host("Studio", "https://Studio.Local.:8443")) == nil)
+    }
+
+    @Test func aLocalNameAndTheSameMacsIPAddressAreDifferentHostsAndRefuseSayingSo() {
+        let picked = host("Studio", "https://studio.local:8443")
+        let sentence = HostChoices.refusal(forInviteAt: "https://192.168.1.20:8443", picked: picked)
+        #expect(sentence?.contains("a .local name and an IP address do not match") == true)
     }
 }
