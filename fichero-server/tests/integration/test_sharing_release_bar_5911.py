@@ -5,6 +5,8 @@ presents, and the device token it gets then works on the host over that listener
 """
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 import httpx
 import pytest
 
@@ -153,3 +155,21 @@ def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
     finally:
         host.stop()
 
+
+
+def test_a_guest_sending_its_own_library_path_is_refused_in_words_that_name_what_the_host_serves(pair):
+    """`sharing.guest-addresses-the-hosts-library` (#5965): the paired iPhone's own `/var/mobile/.../global.fichero` as the
+    library header gets a 403 that ends with the libraries this Mac serves; the host's own library header still reads."""
+    host, guest = pair
+    made = host.make_library("Served by the host")
+    with host.uds as local:  # the host's registry lists what it serves
+        local.post("/api/registry/add", params={"path": unquote(made["X-Fichero-Library-Path"]), "name": "Served by the host"}).raise_for_status()
+    paired = _paired_guest_device(host, guest)
+    own = {"Authorization": f"Bearer {paired['device_token']}",
+           "X-Fichero-Library-Path": "/var/mobile/Containers/Data/Application/ABC/Documents/global.fichero"}
+    with httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=30) as lan:
+        refused = lan.get("/api/notes", headers=own)
+        assert refused.status_code == 403, refused.text
+        assert "This Mac serves:" in refused.json()["detail"] and "Served by the host" in refused.json()["detail"], refused.text
+        read = lan.get("/api/notes", headers={"Authorization": f"Bearer {paired['device_token']}", **made})
+        assert read.status_code == 200, read.text
