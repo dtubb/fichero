@@ -1,0 +1,38 @@
+"""`transport.listen-port-is-chosen-in-dev-and-test-only` (#5895): one place decides the engine's TCP port.
+
+WHY: the listener and its start-up check were fixed at 8765, so on a Mac where the app runs a second engine (the pairs
+check) could not listen. The shipped port stays 8765; a dev or test engine may name another.
+"""
+from __future__ import annotations
+
+import pytest
+
+from fichero_server.security.bind_host import listen_port
+
+
+def test_the_shipped_port_is_8765():
+    assert listen_port({}) == 8765
+    assert listen_port({"FICHERO_ENV": "production"}) == 8765
+
+
+@pytest.mark.parametrize("env", [{}, {"FICHERO_ENV": "development"}, {"FICHERO_ENV": "test"}])
+def test_a_dev_or_test_engine_may_choose_its_port(env):
+    assert listen_port({**env, "FICHERO_TCP_PORT": "18765"}) == 18765
+
+
+def test_a_shipped_engine_ignores_the_variable():
+    assert listen_port({"FICHERO_ENV": "production", "FICHERO_TCP_PORT": "18765"}) == 8765
+    assert listen_port({"FICHERO_ENV": " Production ", "FICHERO_TCP_PORT": "18765"}) == 8765
+
+
+@pytest.mark.parametrize("raw", ["abc", "0", "70000", "-5", "87 65"])
+def test_a_value_that_is_not_a_port_refuses_in_words(raw):
+    with pytest.raises(SystemExit, match="FICHERO_TCP_PORT"):
+        listen_port({"FICHERO_TCP_PORT": raw})
+
+
+def test_the_bonjour_advert_follows_the_one_port():
+    from fichero_server.security.discovery import build_bonjour_config
+
+    assert build_bonjour_config({"FICHERO_TCP_PORT": "18765", "FICHERO_ENV": "test"}, host="192.0.2.1").port == 18765
+    assert build_bonjour_config({"FICHERO_TCP_PORT": "18765", "FICHERO_ENV": "production"}, host="192.0.2.1").port == 8765

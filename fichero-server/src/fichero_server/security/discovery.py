@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fichero_server import __version__
-from fichero_server.security.bind_host import primary_lan_ip, resolve_lan_bind_host
+from fichero_server.security.bind_host import listen_port, primary_lan_ip, resolve_lan_bind_host
 from fichero_server.security.remote_access_tls import _validate_public_base_url
 
 SERVICE_TYPE = "_fichero._tcp.local."
@@ -81,7 +81,7 @@ def build_bonjour_config(
     # bind host. No LAN listener (loopback only, e.g. behind tailscale serve): no address.
     lan_host = resolve_lan_bind_host(source)
     resolved_host = host if host is not None else (_lan_address(lan_host) if lan_host else "")
-    raw_port = str(port if port is not None else source.get(PORT_ENV, DEFAULT_PORT))
+    raw_port = str(port if port is not None else source.get(PORT_ENV, listen_port(source)))
     resolved_port = int(raw_port)
     if not 1 <= resolved_port <= 65535:
         raise ValueError(f"{PORT_ENV} must be between 1 and 65535")
