@@ -5779,7 +5779,12 @@ async def process_vision(
 
                 def _write_onto_lines(saved_artifact_id: str) -> None:
                     from fichero_server.db import db_manager as _dbm
-                    from fichero_server.llm.working_lines import NO_WRITING_KEY, mark_no_writing, write_readings
+                    from fichero_server.llm.working_lines import (
+                        NO_WRITING_KEY,
+                        mark_no_writing,
+                        mark_unread_reasons,
+                        write_readings,
+                    )
 
                     _flagged = [b for b in page_geometry.boxes
                                 if b.metadata.get("segment_id") and READ_FLAG_KEY in b.metadata]
@@ -5790,6 +5795,10 @@ async def process_vision(
                                      b.metadata["segment_id"], doc_id_for_file, b.metadata[READ_FLAG_KEY].get("kind"))
                     mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [],
                                     model=page_geometry.model, run_id=task_id, library_path=library_path)
+                    # A line the model refused, or answered with text that is not a reading, says why (#5894).
+                    mark_unread_reasons(_dbm.get_database(library_path),
+                                        page_geometry.metadata.get("lines_unanswered") or {},
+                                        run_id=task_id, library_path=library_path)
 
                     # A line whose read the checker flagged (#5522) gets no reading: it
                     # would otherwise count over a better one.

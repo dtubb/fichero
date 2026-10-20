@@ -176,6 +176,24 @@ def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_i
                                                 "no_writing_model": model or ""}, ctx)
 
 
+def mark_unread_reasons(db: Any, reasons: dict[str, str], *, run_id: str | None = None,
+                        library_path: str | None = None) -> None:
+    """Say on each line why a model left it without a reading (a refusal, or an answer that was not a reading), through
+    `segment.update` (versioned and audited). The line stays unread; its reason replaces "no reader has answered for
+    it" (#5894, `source.recipe.kraken-lines-cloud-reads`)."""
+    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.update)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.segments import Segment
+
+    ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
+    for segment_id, reason in reasons.items():
+        segment = db.get(Segment, segment_id)
+        if segment is None or segment.deleted_at is not None or (segment.metadata or {}).get("unread_reason") == reason:
+            continue
+        registry.invoke(db, "segment.update", {"segment_id": segment_id, "expected_version": segment.version,
+                                                "unread_reason": reason}, ctx)
+
+
 class _Lines(list):
     """The shown rows regrouped by line, with the lines that hold a person's word (left as the person read them)."""
     people: set[str]

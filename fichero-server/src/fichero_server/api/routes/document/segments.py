@@ -1642,6 +1642,7 @@ class SegmentUpdateParams(BaseModel):
     is_furniture: Optional[bool] = Field(default=None, description='True marks the segment as page furniture (running heads, folio numbers).')
     mark_state: Optional[Literal['ticked', 'crossed', 'struck', 'none']] = Field(default=None, description='The segment\'s one mark: ticked, crossed, struck or none.')
     no_writing_model: Optional[str] = Field(default=None, description="The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).")
+    unread_reason: Optional[str] = Field(default=None, description="Why a reader left this line without a reading, in words (a model's refusal, or an answer that was not a reading): the line stays unread and says so (#5894).")
     #: The cascade's three facts (slice 9, #4938). Set here rather than through
     #: an action of their own, because `segment.update` already owns the version
     #: snapshot, the stale check, the inverse and the audit row -- a second
@@ -1820,6 +1821,8 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         row.mark_state = params.mark_state
     if params.no_writing_model is not None:
         row.metadata = {**(row.metadata or {}), "read_no_writing": {"model": params.no_writing_model}}
+    if params.unread_reason is not None:
+        row.metadata = {**(row.metadata or {}), "unread_reason": params.unread_reason}
     _apply_cascade_facts(db, row, params, ctx)
     db.save(row)
 

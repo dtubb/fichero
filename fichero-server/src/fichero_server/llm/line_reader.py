@@ -46,10 +46,28 @@ PROMPT = (
 )
 
 
-def prompt_for(n: int, language: str | None = None) -> str:
-    """The instruction for n line pictures, with the language when it is known."""
+#: Said before the line instruction when the page itself rides once, first, beside the batch of lines.
+PAGE_CONTEXT = ("Before the {n} line images comes one more, first: the whole page, reduced, so you can see the hand and "
+                "what the page is. It is for context only: do not read it, and do not count it in your answer. ")
+#: The page beside a batch is cut to this long side: enough to see the hand and the layout, cheap to send.
+PAGE_CONTEXT_SIDE = 768
+#: Providers that read one line picture at a time as trained, or are not generative: no page beside the lines.
+NO_PAGE_CONTEXT = ("omlx", "apple", "kraken")
+
+
+def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
+    """The instruction for n line pictures, with the language when it is known, and the page's place when it rides."""
     hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
-    return PROMPT.format(n=n, language=hint)
+    return (PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
+
+
+def _page_context_uri(page: Image.Image) -> str:
+    """The whole page, cut to `PAGE_CONTEXT_SIDE` on its long side, as a JPEG data URI."""
+    small = page.convert("RGB")
+    small.thumbnail((PAGE_CONTEXT_SIDE, PAGE_CONTEXT_SIDE))
+    buf = io.BytesIO()
+    small.save(buf, format="JPEG", quality=70)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def _crop_data_uri(page: Image.Image, polygon_px: list) -> str:
@@ -113,7 +131,8 @@ def request_groups(found: list[OCRGeometryBox], granularity: str | None, per_cal
 
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
-                     apple: bool = False, granularity: str | None = None) -> OCRGeometryResult:
+                     apple: bool = False, granularity: str | None = None,
+                     page_context: bool | None = None) -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops)."""
@@ -130,12 +149,16 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     regions = [b for _i, b in kept]
     moved = {i: n for n, (i, _b) in enumerate(kept)}
     crops = [_crop(page, b) for b in found]
+    # Variant B (`source.recipe.kraken-lines-cloud-reads`): a generative model gets the page ONCE per request, reduced,
+    # beside the batch of lines; never once a line, and never for a reader trained on one picture or Apple's.
+    context = (not apple and getattr(config, "provider", "") not in NO_PAGE_CONTEXT) if page_context is None else page_context
+    page_uri = _page_context_uri(page) if context and crops else None
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
     async def ask(indices: list[int]) -> list[str | None] | None:
         async with gate:
-            raw = await vision(images=[crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language),
+            raw = await vision(images=([page_uri] if page_uri else []) + [crops[i] for i in indices],
+                               prompt=prompt_for(len(indices), language, page_context=page_uri is not None),
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:
