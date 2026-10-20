@@ -2482,12 +2482,17 @@ def normalize_vision_language(language: str | None) -> str:
     return lowered
 
 
+#: Why the startup Vision locale warm-up failed (off macOS, always), or None.
+locale_warm_failure: str | None = None
+
+
 def warm_supported_locales() -> None:
     """Load the Vision bundle and ask it, in the caller's thread (the engine does this at startup, off the loop)."""
+    global locale_warm_failure
     try:
         _supported_vision_locales()
-    except Exception:  # noqa: BLE001 -- off macOS: nothing to warm
-        pass
+    except Exception as exc:  # noqa: BLE001 -- off macOS: nothing to warm
+        locale_warm_failure = f"{type(exc).__name__}: {exc}"
 
 
 def supported_locales_are_known() -> bool:
