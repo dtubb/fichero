@@ -18,6 +18,8 @@ from fichero_server.models import ActionAudit, DocType, Document
 from fichero_server.models.knowledge import ClaimCurationState, KnowledgeClaim, KnowledgeEntity
 from tests.unit.training.test_kraken_training_set import _page
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 CHECKER = "anthropic/claude-fable"
 SIZE = (274, 396)
 

@@ -40,6 +40,8 @@ from tests.unit.api.test_segments_multiuser_access import (  # noqa: F401  (fixt
     users,
 )
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 #: Ids the sweep puts on the page (`_page_records`): a route taking one is swept.
 ON_A_PAGE = {"doc_id", "document_id", "folder_id", "item_id", "source_id", "segment_id", "id", "end_id",
              "target_id", "pass_id", "representation_id", "order_id", "annotation_id", "note_id", "link_id",

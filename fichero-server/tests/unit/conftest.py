@@ -105,3 +105,18 @@ def _unit_test_auth_all_testclients(monkeypatch):
 
     monkeypatch.setattr(TestClient, "request", _request_with_default_auth)
     yield
+
+
+@pytest.fixture
+def project_says_yes(test_package):
+    """The test project has said yes to cloud models (Set Up's `cloud_allowed`). A package sent to Hugging Face or a
+    cluster now needs the project's yes AND the request's (`ai.where.batch-sends-ask-the-project`, #5368, review 672);
+    tests of those starts say the project's yes here and keep the request's `pages_may_leave` as they had it. Merges into a
+    setup the test already wrote."""
+    import yaml
+
+    path = test_package / "recipe" / "setup.yaml"
+    path.parent.mkdir(exist_ok=True)
+    answers = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None) or {}
+    answers["cloud_allowed"] = True
+    path.write_text(yaml.safe_dump(answers), encoding="utf-8")

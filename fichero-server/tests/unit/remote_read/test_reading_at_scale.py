@@ -21,6 +21,8 @@ from fichero_server.remote_read.job import ReadAtScaleRequest
 from fichero_server.remote_read.package import ReadPackage
 from fichero_server.training.hf_jobs import FarStatus
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 
 class ScaleHub:
     """Hugging Face Jobs at a hundred shards: each Job finishes on its second look; the shards in

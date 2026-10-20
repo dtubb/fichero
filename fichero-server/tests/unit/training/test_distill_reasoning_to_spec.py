@@ -21,6 +21,8 @@ from fichero_server.models import DocType, Document
 from tests.unit.training.test_kraken_training_set import _page
 from tests.unit.training.test_training_job import FakeHub
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 CHECKED = "fable-checked"  # the checked pass's model id: the right readings
 TEACHER = "Qwen/Qwen3-VL-8B-Thinking"
 SIZE = (274, 396)
