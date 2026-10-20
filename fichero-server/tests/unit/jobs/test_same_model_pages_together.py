@@ -103,3 +103,12 @@ def test_the_lanes_own_pages_in_the_gate_are_not_a_page_outside_the_queue():
     assert jobs._kraken_busy() is False
     with gate:  # held whole: always busy
         assert jobs._kraken_busy(queued=1) is True
+
+
+def test_the_third_page_says_two_pages_of_its_model_are_already_reading(db, lane):
+    ids = [jobs.enqueue(db, KRAKEN, f"w{number}", started_by="owner") for number in range(3)]
+    assert _wait_for(lambda: len(lane.started) == 2)
+    waiting = next(i for i in ids if jobs.read_job(db, i)["state"] == "waiting")
+    assert jobs.waiting_reason(db, waiting, KRAKEN) == jobs.PAGES_AT_CAP_REASON
+    other = jobs.enqueue(db, VLM, "wv", started_by="owner")  # a different model is not waiting on the cap
+    assert jobs.waiting_reason(db, other, VLM) != jobs.PAGES_AT_CAP_REASON

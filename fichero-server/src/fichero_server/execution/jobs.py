@@ -2168,6 +2168,10 @@ def _holder_words(db: "Database", job_id: str) -> str:
     return f"{kind_name(kind)} is running"
 
 
+#: A page's reason when the model lane is reading as many pages of its model as it may at once (`activity.lane.same-model-pages-together`).
+PAGES_AT_CAP_REASON = "Waiting: two pages of this model are already reading"
+
+
 def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None = None,
                    created_at: Any = None, run_after: Any = None) -> str:
     """THE one place a waiting row's reason is decided (`activity.waiting-says-why`, #5606): what it
@@ -2191,6 +2195,11 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
             f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running)}
         running = [r for r in running if r not in not_running]
     if lane is not None and len(running) >= lane.slots:
+        if lane_name == "local-ml" and len(running) >= 2:  # the cap of pages at once, not a lane held by something else
+            found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+            same = {lane.running.get(r) for r in running}
+            if found and (found[0] or "").startswith(KRAKEN_MODEL_PREFIX) and same == {found[0]}:
+                return PAGES_AT_CAP_REASON
         return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if lane_name in HEAVY_LANES:
         from fichero_server.execution.throttle import memory_is_busy
