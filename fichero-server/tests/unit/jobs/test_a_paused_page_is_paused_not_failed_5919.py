@@ -75,3 +75,24 @@ def test_a_missing_refinement_keeps_the_reflowed_text_and_says_so_once_per_run(m
     for _ in range(3):  # three pages of one run
         assert asyncio.run(text_reflow._refine_with_llm("some text", config)) == "some text"
     assert said == [text_reflow.REFINEMENT_UNAVAILABLE] and "#5921" in said[0] and "isn't available yet" in said[0]
+
+
+def test_the_note_is_an_activity_warning_in_the_runs_library(monkeypatch):
+    """#5921 (## 619): with a library the one-per-run note goes to that library's Activity tracker as a warning, in words."""
+    from types import SimpleNamespace
+
+    from fichero_server.workflows import activity, node_context
+    from fichero_server.workflows.activity_types import ActivityLevel
+    from fichero_server.workflows.tools import text_reflow
+
+    logged = []
+    monkeypatch.setattr(text_reflow, "_said_for", set())
+    monkeypatch.setattr("fichero_server.db.db_manager.get_database", lambda path: SimpleNamespace(path=f"{path}/fichero.duckdb"))
+    monkeypatch.setattr(activity, "get_activity_tracker", lambda db_path=None: SimpleNamespace(log=lambda **kw: logged.append((db_path, kw))))
+    node_context.set_current_node("n1", "Reflow", "wf1", "run-1", "text_reflow")
+    for _ in range(2):
+        text_reflow._say_refinement_unavailable("/lib.fichero")
+    assert len(logged) == 1
+    db_path, entry = logged[0]
+    assert db_path == "/lib.fichero/fichero.duckdb" and entry["level"] == ActivityLevel.WARNING
+    assert entry["message"] == text_reflow.REFINEMENT_UNAVAILABLE and entry["thread_id"] == "run-1" and entry["workflow_id"] == "wf1"
