@@ -48,8 +48,7 @@ def test_the_real_search_is_started_by_automatic_and_not_watched_and_does_not_qu
     from fichero_server.execution import jobs
 
     first = discovery.search(db, frozenset({"es"}), by_itself=True)
-    row = jobs.find_jobs(db, kinds=[discovery.SEARCH_KIND], job_id=first["id"])[0]
-    assert row["started_by"] == "automatic"
+    assert jobs.read_job(db, first["id"])["started_by"] == "automatic"
     assert not jobs.person_waits_on(db, first["id"])
     assert discovery.search(db, frozenset({"es"}), by_itself=True)["id"] == first["id"]  # dedupe holds
     assert discovery.search(db, frozenset({"es"}))["id"] == first["id"]  # the button joins the same job
