@@ -62,12 +62,15 @@ def _validate_ingest_path(raw_path: str) -> None:
 
 
 def _require_ingest_owner(request: Request, library_path: str) -> None:
-    if not authz.multiuser_enabled() or getattr(request.state, "bootstrap_auth", False):
+    if getattr(request.state, "bootstrap_auth", False):
         return
-    try:
-        authz.require_owner(getattr(request.state, "user", None), library_path)
-    except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail="Owner access required for server-path ingest") from exc
+    user = getattr(request.state, "user", None)
+    signed_in = getattr(request.state, "device", None) is not None or getattr(request.state, "session", None) is not None
+    if signed_in or authz.multiuser_enabled():
+        # The host's disk is the ENGINE owner's: a paired device or a signed-in person reaches it only as that
+        # owner, whatever role they hold in a library (a library-owner person is not the engine owner) (S1).
+        if user is None or not getattr(user, "is_owner", False):
+            raise HTTPException(status_code=403, detail="Owner access required for server-path ingest")
 
 
 def _ingest_action_context(
