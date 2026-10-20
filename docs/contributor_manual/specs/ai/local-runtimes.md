@@ -331,6 +331,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   (`llm/local_models.py` `load_spacy_pipeline`, with its lemmatizer, store first then bundled); pinned by
   `fichero-server/tests/unit/knowledge/test_one_spacy_pipeline_per_model_5370.py`. Still a gap: morphology on the same
   pipeline, and parsing each page once with `nlp.pipe` rather than two to three times.
+- `runtime.torch.exits-cleanly` — **[GAP]** (#5929; M4 crash reports 2026-10-20) a Python process that has imported torch ends with exit code 0 on macOS 27. All 25 `python3.12` reports from the GIL runs fault on the main thread in `libtorch_cpu` `at::native::mps::MetalShaderLibrary::~MetalShaderLibrary()`, called from `exit()` (SIGSEGV, or SIGABRT "pointer being freed was not allocated"), in one-thread and many-thread runs and in two-thread `python -c` processes alike: it is torch's static destructor at exit, not Kraken's threads, and every result row had printed before it. Test (written, red until the fix, M4 only): `fichero-server/tests/unit/llm/test_torch_exit_5929.py` (`import torch`, the same with `torch.backends.mps.is_available()`, and a `SystemExit` all exit 0).
 - `runtime.mlx.idle-unload-and-loading-state` — **[GAP]** (#5370, #5358) a resident MLX model is
   released after the lane's idle time, and while it loads the step says "Loading <model>"; today the
   server child stays up with no idle release and a 30–300 s warm-up is a silent wait *(review)*.
