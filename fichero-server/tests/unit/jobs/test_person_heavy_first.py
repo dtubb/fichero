@@ -82,6 +82,11 @@ def _images_lane_with_a_page(db, monkeypatch, *, run_started_by=None, page_held=
         real = throttle.decide
         monkeypatch.setattr(throttle, "decide", lambda *a, **k: throttle.Decision("hold", "memory", "fast")
                             if k.get("model") else real(*a, **k))
+        # The claim asks `why_wait`, not `decide`: hold the page there too, or it simply runs once a slot is free
+        # (the throttle is off in this test) and "held" would only be a stand-in for the yield check.
+        real_wait = throttle.why_wait
+        monkeypatch.setattr(throttle, "why_wait", lambda **k: "Waiting: memory is tight"
+                            if k.get("model") else real_wait(**k))
     jobs.enqueue(db, BG, "t1")
     assert _wait_for(lambda: "start:t1" in events)
     page = jobs.submit(db, "read-a-page", "page", model="kraken:blla", fn=lambda: events.append("person-page") or "ok")
