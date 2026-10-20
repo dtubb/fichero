@@ -304,50 +304,76 @@ def extract(db: Any, documents: list[str], *, prototype: str, provider: str, mod
             spans[doc_id] = line_spans(db, doc_id, text)
         return spans[doc_id]
 
-    for unit in todo:
+    from fichero_server.workflows.tools._together import extract_width
+
+    width = extract_width(config)  # the step's cloud width for a hosted model, 3 for one served here
+    # Units in waves of `width`: one event loop for the wave, its questions asked together (a new loop for each unit and one
+    # call after another before: `runtime.cloud-extractors.pages-together`, #5955); the answers are landed one by one, in
+    # unit order, as before. A stop is looked for between waves.
+    waves = [todo[at:at + width] for at in range(0, len(todo), width)]
+    for wave in waves:
         if stop is not None and stop():
             break
-        text = _text(db, unit)
-        if not text:
-            account["without_text"] += 1
-            continue
-        account["asked"] += 1
-        try:
-            answer = asyncio.run(chat_structured_with_fallback(
-                prompt(fields, text), schema, config, system=_SYSTEM, use_case="extract_to_a_table"))
-        except Exception as exc:  # noqa: BLE001 -- the model's failure, in its words, on the account
-            account["failed"] += 1
-            account["errors"].append(f"{unit.name}: {exc}")
-            continue
-        landing: dict[str, tuple[Any, dict]] = {}
-        for i, (key, decl) in enumerate(fields.items()):
-            given: FieldAnswer = getattr(answer, f"f{i}")
-            base = sources.machine_source(tool=TOOL, step=step, run_id=run_id, artifact_id=None, provider=provider,
-                                          model=model, said=json.dumps(given.model_dump(), ensure_ascii=False))
-            base.update(status=given.status, confidence_said=given.confidence, method="text, one call per unit",
-                        input={"text": "derived page text" if unit.node_kind != "entry" else "entry text from its lines",
-                               "cer": None, "cer_why": "no project error-rate bar is measured yet"})
-            if given.status != FOUND:
-                landing[key] = (None, {**base, "cites": None})
+        texts = [_text(db, unit) for unit in wave]
+        answers = iter(asyncio.run(_ask_together(fields, schema, config, [t for t in texts if t])))
+        for unit, text in zip(wave, texts):
+            if not text:
+                account["without_text"] += 1
                 continue
-            ok, value = checked(decl, given.value)
-            if not ok:
-                account["refused"] += 1
-                if len(account["refusals"]) < REFUSALS_KEPT:
-                    account["refusals"].append({"document_id": unit.id, "field": key, "said": given.value,
-                                                "why": value})
+            account["asked"] += 1
+            answer = next(answers)
+            if isinstance(answer, BaseException):
+                if not isinstance(answer, Exception):
+                    raise answer
+                account["failed"] += 1  # the model's failure, in its words, on the account
+                account["errors"].append(f"{unit.name}: {answer}")
                 continue
-            where = cite(db, unit, given.words, spans_for=spans_for)
-            if decl.type == "entity_ref":
-                base["unlinked"] = True  # a name as written; an entity only when a person links it (#5636)
-            landing[key] = (value, {**base, "cites": where})
-        written = set(sources.write_answers_from_run(db, unit, landing)) if landing else set()
-        account["kept"] += len(set(landing) - written)
-        for key in written:
-            value, source = landing[key]
-            if value is None:
-                account["not_found"] += 1
-            else:
-                account["values"] += 1
-                account["unanchored"] += (source["cites"] or {}).get("anchor") == "none"
+            _land(db, unit, answer, fields=fields, account=account, spans_for=spans_for, step=step, run_id=run_id,
+                  provider=provider, model=model)
     return account
+
+
+async def _ask_together(fields: dict[str, Any], schema: Any, config: Any, texts: list[str]) -> list[Any]:
+    """The answers (or the exceptions) to these texts' questions, asked together, in order."""
+    return list(await asyncio.gather(
+        *(chat_structured_with_fallback(prompt(fields, text), schema, config, system=_SYSTEM,
+                                        use_case="extract_to_a_table") for text in texts),
+        return_exceptions=True))
+
+
+def _land(db: Any, unit: Any, answer: Any, *, fields: dict[str, Any], account: dict[str, Any], spans_for: Callable[..., list],
+          step: str | None, run_id: str | None, provider: str, model: str) -> None:
+    """Check one unit's answer against its fields and land what holds, on the account."""
+    from fichero_server.workflows import attribute_sources as sources
+
+    landing: dict[str, tuple[Any, dict]] = {}
+    for i, (key, decl) in enumerate(fields.items()):
+        given: FieldAnswer = getattr(answer, f"f{i}")
+        base = sources.machine_source(tool=TOOL, step=step, run_id=run_id, artifact_id=None, provider=provider,
+                                      model=model, said=json.dumps(given.model_dump(), ensure_ascii=False))
+        base.update(status=given.status, confidence_said=given.confidence, method="text, one call per unit",
+                    input={"text": "derived page text" if unit.node_kind != "entry" else "entry text from its lines",
+                           "cer": None, "cer_why": "no project error-rate bar is measured yet"})
+        if given.status != FOUND:
+            landing[key] = (None, {**base, "cites": None})
+            continue
+        ok, value = checked(decl, given.value)
+        if not ok:
+            account["refused"] += 1
+            if len(account["refusals"]) < REFUSALS_KEPT:
+                account["refusals"].append({"document_id": unit.id, "field": key, "said": given.value,
+                                            "why": value})
+            continue
+        where = cite(db, unit, given.words, spans_for=spans_for)
+        if decl.type == "entity_ref":
+            base["unlinked"] = True  # a name as written; an entity only when a person links it (#5636)
+        landing[key] = (value, {**base, "cites": where})
+    written = set(sources.write_answers_from_run(db, unit, landing)) if landing else set()
+    account["kept"] += len(set(landing) - written)
+    for key in written:
+        value, source = landing[key]
+        if value is None:
+            account["not_found"] += 1
+        else:
+            account["values"] += 1
+            account["unanchored"] += (source["cites"] or {}).get("anchor") == "none"

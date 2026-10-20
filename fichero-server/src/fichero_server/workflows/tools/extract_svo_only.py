@@ -68,6 +68,7 @@ from fichero_server.workflows.tools.extractors import (
 )
 from fichero_server.workflows.tools.date_extract import volume_years_for
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
+from fichero_server.workflows.tools._together import ahead, extract_width
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
 from fichero_server.workflows.types import DataType, PortDef, State
@@ -275,7 +276,7 @@ async def extract_svo_only(
     project_language = project_facts(db).language
 
     progress_callback = inputs.get("__progress_callback")
-    max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
+    max_in_flight = extract_width(llm_config)  # the step's cloud width for a hosted model, 3 for one served here
     extraction_sem = asyncio.Semaphore(max_in_flight)
 
     entities_processed = 0
@@ -283,7 +284,10 @@ async def extract_svo_only(
     parser = (getattr(llm_config, "provider", "") or "").lower() == SPACY_PROVIDER
     left_out: list[dict[str, str]] = []
 
-    for index, record in enumerate(records):
+    async def start(item: tuple[int, dict[str, Any]]) -> dict[str, Any]:
+        """Everything this page asks a model, started together and awaited together: its dates and its claims
+        (`runtime.cloud-extractors.pages-together`, #5955). The loop below writes what comes back, in page order."""
+        index, record = item
         doc_id = record["doc_id"]
         doc_name = record.get("doc_name") or doc_id or f"document-{index + 1}"
         page_entities = entities_by_doc.get(doc_id) or {}
@@ -292,9 +296,7 @@ async def extract_svo_only(
             from fichero_server.recipes.runner import reading_too_uncertain
 
             if reading_too_uncertain(db, doc_id):
-                left_out.append({"page_id": doc_id, "page": doc_name,
-                                 "why": "its reading is too uncertain to find statements in"})
-                continue
+                return {"uncertain": True}
 
         resolution = resolve_language(
             requested=inputs.get("output_language"),
@@ -320,28 +322,13 @@ async def extract_svo_only(
         # when a nearby name has been stamped onto someone else's "we".
         speaker = str(doc_meta.get("author") or "").strip()
 
-        await emit_progress_event(
-            progress_callback,
-            "file_start",
-            "",
-            f"Extract SVO {doc_name}",
-            index + 1,
-            len(records),
-            message=f"Extracting step-3 SVO claims for {doc_name}",
-        )
-
         # Dates are claim-only (entity_type None — no canonical entity row),
         # so the per-entity loop below can never yield a date claim. Extract
         # them directly per record, the way extract_all's combined pass did,
         # so the timeline probe contract (#1470: time_start/time_end/
         # date_values on date claims) survives the Catalogue chain (2026-09-03).
-        dates_section = _SECTION_BY_KEY.get("dates")
-        if (
-            dates_section is not None
-            and not parser  # the parser finds no dates of its own: a model's dates pass only
-            and "dates" in requested_sections
-            and (record["text"] or "").strip()
-        ):
+        async def ask_dates() -> list[dict]:
+            dates_section = _SECTION_BY_KEY["dates"]
             # The page's own date and its volume's years (#5514 K9): without
             # them a yearless heading left the model echoing "YYYY".
             date_note = page_date_note(document, volume_years_for(db, document))
@@ -358,7 +345,7 @@ async def extract_svo_only(
                         include_schema_in_prompt=False,
                         permissive_guardrails=True,
                     )
-                date_items = [
+                return [
                     item.model_dump()
                     for item in (getattr(dates_result, "items", None) or [])
                 ]
@@ -372,37 +359,20 @@ async def extract_svo_only(
                     doc_name,
                     exc,
                 )
-                date_items = []
-            if date_items:
-                # Date claims skip the per-entity loop (entity_type None), so
-                # they never met the near-dup collapse the entity path runs. A
-                # model repeating "1830 | firmó la escritura" left both rows.
-                # Collapse within each date so a repeat of one date's statement
-                # folds while two different dates stay distinct.
-                date_before = len(date_items)
-                date_items = collapse_dated_claims(date_items)
-                if len(date_items) != date_before:
-                    logger.info(
-                        "SVO date cleanup for %s: %d in → %d kept "
-                        "(%d near-dup collapsed)",
-                        doc_name,
-                        date_before,
-                        len(date_items),
-                        date_before - len(date_items),
-                    )
-                claims_extracted += len(date_items)
-                _write_kg_rows(
-                    db,
-                    dates_section,
-                    date_items,
-                    doc_id,
-                    page_label=_page_label(documents[record["index"]]),
-                    source_excerpt=record["text"][:500] if record["text"] else None,
-                    provider=getattr(llm_config, "provider", None),
-                    model=getattr(llm_config, "model", None),
-                    grounding_text=record["text"],
-                    run_id=state.get("task_id"),
-                )
+                return []
+
+        async def nothing() -> None:
+            return None
+
+        async def resolved(value: Any) -> Any:
+            return value
+
+        asks_dates = (
+            _SECTION_BY_KEY.get("dates") is not None
+            and not parser  # the parser finds no dates of its own: a model's dates pass only
+            and "dates" in requested_sections
+            and (record["text"] or "").strip()
+        )
 
         # Page-at-a-time SVO (was: one _extract_claims_for_entity call per
         # entity, which copied each sentence's predicate onto EVERY nearby entity
@@ -418,6 +388,7 @@ async def extract_svo_only(
             for entity in entities:
                 entity_by_norm.setdefault(normalize_name(entity.name), (section_key, entity))
 
+        claims_call = nothing()
         if entity_by_norm and (record["text"] or "").strip():
             page_instructions = prompt_override or _build_page_claim_instructions(
                 instruction_key,
@@ -428,10 +399,69 @@ async def extract_svo_only(
                 },
                 document_context or None,
             )
-            page_claims = (_spacy_page_claims(record["text"], getattr(llm_config, "model", "") or "")
-                           if parser else await _extract_page_claims(
-                               record["text"], llm_config, page_instructions, extraction_sem))
+            if parser:
+                claims_call = resolved(_spacy_page_claims(record["text"], getattr(llm_config, "model", "") or ""))
+            else:
+                claims_call = _extract_page_claims(record["text"], llm_config, page_instructions, extraction_sem)
+        date_items, page_claims = await asyncio.gather(ask_dates() if asks_dates else nothing(), claims_call)
+        return {"speaker": speaker, "entity_by_norm": entity_by_norm, "date_items": date_items or [],
+                "page_claims": page_claims}
 
+    async for (index, record), pre in ahead(enumerate(records), start, max_in_flight):
+        doc_id = record["doc_id"]
+        doc_name = record.get("doc_name") or doc_id or f"document-{index + 1}"
+        if pre.get("uncertain"):
+            left_out.append({"page_id": doc_id, "page": doc_name,
+                             "why": "its reading is too uncertain to find statements in"})
+            continue
+        speaker, entity_by_norm = pre["speaker"], pre["entity_by_norm"]
+
+        await emit_progress_event(
+            progress_callback,
+            "file_start",
+            "",
+            f"Extract SVO {doc_name}",
+            index + 1,
+            len(records),
+            message=f"Extracting step-3 SVO claims for {doc_name}",
+        )
+
+        date_items = pre["date_items"]
+        dates_section = _SECTION_BY_KEY.get("dates")
+        if date_items:
+            # Date claims skip the per-entity loop (entity_type None), so
+            # they never met the near-dup collapse the entity path runs. A
+            # model repeating "1830 | firmó la escritura" left both rows.
+            # Collapse within each date so a repeat of one date's statement
+            # folds while two different dates stay distinct.
+            date_before = len(date_items)
+            date_items = collapse_dated_claims(date_items)
+            if len(date_items) != date_before:
+                logger.info(
+                    "SVO date cleanup for %s: %d in → %d kept "
+                    "(%d near-dup collapsed)",
+                    doc_name,
+                    date_before,
+                    len(date_items),
+                    date_before - len(date_items),
+                )
+            claims_extracted += len(date_items)
+            _write_kg_rows(
+                db,
+                dates_section,
+                date_items,
+                doc_id,
+                page_label=_page_label(documents[record["index"]]),
+                source_excerpt=record["text"][:500] if record["text"] else None,
+                provider=getattr(llm_config, "provider", None),
+                model=getattr(llm_config, "model", None),
+                grounding_text=record["text"],
+                run_id=state.get("task_id"),
+            )
+
+
+        if pre["page_claims"] is not None:
+            page_claims = pre["page_claims"]
             claims_by_entity: dict[str, list[dict]] = defaultdict(list)
             for page_claim in page_claims:
                 hit = entity_by_norm.get(normalize_name(page_claim.get("subject", "")))
