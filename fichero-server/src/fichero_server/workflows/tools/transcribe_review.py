@@ -227,6 +227,34 @@ def _within_budget(prior_text: Any, model: str, prompt: str = "", files: list | 
     return (texts if isinstance(prior_text, list) else texts[0]), said
 
 
+def _only_unsure(prior_text: Any, below: float, model: str) -> tuple[Any, list[str], tuple[int, int]]:
+    """Variant A, Kraken then a cloud model (`source.recipe.kraken-then-cloud-unsure-lines`): of each page's listed lines
+    only those whose stated certainty is under `below` stay in what the model is sent; a line at or above it is not
+    sent, so the answer names no such line and its reading is untouched. A line with no stated certainty is sent: it
+    cannot be called sure. Returns the context, the note for the step ("N of M lines sent to <model>"), and (N, M)."""
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text or ""]
+    sent = total = 0
+    for index, text in enumerate(texts):
+        rows = str(text or "").split("\n")
+        keep = []
+        for row in rows:
+            if not _SHOWN_LINE.match(row):
+                keep.append(row)
+                continue
+            total += 1
+            fields = row.split(" | ", 4)
+            try:
+                sure = float(fields[3])
+            except (IndexError, ValueError):
+                sure = None  # "-": the machine stated none
+            if sure is None or sure < below:
+                sent += 1
+                keep.append(row)
+        texts[index] = "\n".join(keep)
+    note = f"{sent} of {total} lines sent to {model}: the others are at or above {below:g} sure and are not re-read"
+    return (texts if isinstance(prior_text, list) else texts[0]), [note], (sent, total)
+
+
 def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     """The prompt for `lens` built from the project's setup answers and the profile they choose
     (`source.job.review-is-built-from-the-project-and-a-profile`), and which profile that was."""
@@ -335,6 +363,11 @@ async def transcribe_review(
         if names:
             prompt = f"{prompt}\n\n{names}"
 
+    counted: tuple[int, int] | None = None
+    said_sent: list[str] = []
+    if inputs.get("only_below_confidence") is not None:
+        prior_text, said_sent, counted = _only_unsure(
+            prior_text, float(inputs["only_below_confidence"]), f"{llm_config.provider}/{llm_config.model}")
     prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""), prompt, files)
     tool_config = VisionToolConfig(
         artifact_type="transcription_review",
@@ -365,7 +398,9 @@ async def transcribe_review(
     )
     if profile_said:
         result.setdefault("notes", []).append(profile_said)
-    result.setdefault("notes", []).extend(cut)
+    result.setdefault("notes", []).extend(said_sent + cut)
+    if counted is not None:
+        result["lines_sent"], result["lines_total"] = counted
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio
