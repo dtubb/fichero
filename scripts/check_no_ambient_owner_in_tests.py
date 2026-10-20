@@ -44,6 +44,11 @@ NAMED = {
         "pins that the loopback host app still ingests (the S1 condition test); delete at slice 10 "
         "(manager's OK 2026-10-20)",
     ),
+    "fichero-server/tests/integration/_two_engines.py::set_owner_password": (
+        1,
+        "the product's own #5908 step: while Multi-user is off the owner's password is set only with the app's start-up "
+        "credential; the two-engine harness (#5911); delete at slice 10 or when the route takes the owner's session",
+    ),
 }
 
 _ALLOWED = sum(lines for lines, _ in NAMED.values())
