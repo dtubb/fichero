@@ -26,6 +26,12 @@ class DB:
     def all(self, _model):
         return self.claims
 
+    def _vector_table_stats(self, _table):  # every claim has its vector
+        return {"indexed_count": len(self.claims)}
+
+    def count(self, _model):
+        return len(self.claims)
+
 
 def test_vector_similarity_prefers_score_and_converts_distance():
     assert routes._vector_similarity({"_score": 0.75, "_distance": 1.0}) == 0.75

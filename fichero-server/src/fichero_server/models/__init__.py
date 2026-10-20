@@ -2788,7 +2788,12 @@ class KGGraphListResponse(BaseModel):
 
     items: list[Any]  # Various graph analysis rows (CentralityRow, PageRankRow, etc.)
     count: int
-    #: Claim search only: how many claims have no vector yet and so cannot be found by meaning (a backfill job is queued).
+
+
+class KGClaimSearchResponse(KGGraphListResponse):
+    """Claim search by meaning: the envelope plus how many claims cannot be found yet."""
+
+    #: How many claims have no vector yet and so cannot be found by meaning (a backfill job is queued); None = all have.
     not_embedded: int | None = None
 
 

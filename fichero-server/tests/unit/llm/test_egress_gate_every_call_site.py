@@ -5,6 +5,14 @@ from __future__ import annotations
 import ast
 import asyncio
 from pathlib import Path
+import importlib.util
+
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location(
+    "_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 import pytest
 from pydantic import BaseModel
@@ -19,7 +27,7 @@ CLOUD = ["openai", "anthropic", "google", "mistral"]
 def _callers() -> list[tuple[str, str]]:
     """(file, enclosing function) of every call to `get_langchain_model` in the engine's source."""
     found = []
-    for path in SRC.rglob("*.py"):
+    for path in scan_files.scan_rglob(SRC, "*.py"):
         tree = ast.parse(path.read_text())
         for fn in ast.walk(tree):
             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -118,7 +126,7 @@ def test_a_cloud_ocr_provider_meets_the_same_check_as_a_model_call(client, app_d
 def test_no_cloud_embeddings_client_exists_and_a_new_one_must_be_gated():
     """Embeddings run in fastembed on this Mac (`db/embeddings.py`). If a cloud embeddings client is ever added, this
     fails until it is built behind the gate and listed in `_CLIENTS`."""
-    hits = [str(p.relative_to(SRC)) for p in SRC.rglob("*.py")
+    hits = [str(p.relative_to(SRC)) for p in scan_files.scan_rglob(SRC, "*.py")
             if any(w in p.read_text() for w in ("OpenAIEmbeddings(", "init_embeddings(", ".embeddings.create("))]
     assert hits == []
 
@@ -161,7 +169,7 @@ ALLOWED = {
 
 def _network_functions() -> set[str]:
     found = set()
-    for path in SRC.rglob("*.py"):
+    for path in scan_files.scan_rglob(SRC, "*.py"):
         for fn in ast.walk(ast.parse(path.read_text())):
             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 gated = any(g in ast.unparse(fn) for g in _GATES)
