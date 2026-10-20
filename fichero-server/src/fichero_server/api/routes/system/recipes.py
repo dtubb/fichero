@@ -7,6 +7,7 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -64,7 +65,6 @@ def check_recipe(recipe: Any) -> list[str]:
 
     return check(recipe)
 
-import logging
 
 logger = logging.getLogger(__name__)
 
