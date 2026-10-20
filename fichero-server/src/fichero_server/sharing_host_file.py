@@ -41,7 +41,9 @@ MAX_NAME = 200  # what the guest's reader accepts for hostName and person (`sync
 
 def _clip(text: str) -> str:
     """A name the reader will accept: control characters dropped, nothing link-like, at most 200 characters; '' if nothing is left."""
-    cleaned = "".join(ch for ch in (text or "") if ch.isprintable()).replace("://", "")
+    cleaned = "".join(ch for ch in (text or "") if ch.isprintable())
+    while "://" in cleaned:  # removing one can join the neighbours into another ('::////' -> '://'): until none is left
+        cleaned = cleaned.replace("://", "")
     return cleaned.strip()[:MAX_NAME].strip()
 
 
