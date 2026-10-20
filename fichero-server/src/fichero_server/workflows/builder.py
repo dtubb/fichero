@@ -24,7 +24,7 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
-from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused, cancellation_requested
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
 from fichero_server.workflows.node_context import set_current_node
 from fichero_server.workflows.registry import get_tool, get_tool_def
@@ -1748,7 +1748,10 @@ def _make_parallel_node_function(
                 parked = True
                 reading["parked"] += 1
                 deadline = time.monotonic() + PAUSE_WAITS_FOR_READING_SECONDS
+                run_id = state.get("task_id", "")
                 while reading["active"] > reading["parked"] and time.monotonic() < deadline:
+                    if cancellation_requested(run_id):  # a Stop while the pause waits stops at once (## 607)
+                        raise WorkflowCancelled(run_id)
                     await asyncio.sleep(0.05)
                 raise
         finally:
