@@ -10,6 +10,7 @@ held on the second page so the run is caught mid-read.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 
@@ -18,6 +19,10 @@ from tests.unit.mcp.test_onboarding_journey_through_mcp import _call, agent  # n
 from tests.unit.mcp.test_reading_journey_through_mcp import UnsureCards, assert_no_download  # noqa: F401
 from tests.unit.mcp.test_reading_journey_through_mcp import engine as _engine  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import _png
+
+#: The pages read in parallel, so with the second held the run is caught at 1 or 2 of 3 done: the count is not the claim,
+#: the step and the pages are.
+SAID = re.compile(r"Reading the lines with Kraken: [12] of 3 pages")
 
 RECIPE = {"fichero_recipe": 1, "id": "t/reads", "version": "0.1.0", "title": "Reads", "steps": [
     {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}},
@@ -51,14 +56,16 @@ def test_a_reading_run_says_which_step_reads_and_how_many_pages(agent, client, d
     run_id = _call(agent, "fichero_recipes_start_project", {})["started"]["job_id"]
 
     try:
-        deadline, status = time.monotonic() + 90, {}
+        deadline, status, seen = time.monotonic() + 90, {}, []
         while time.monotonic() < deadline:
             status = _call(agent, "fichero_recipes_run_status", {"job_id": run_id})
-            if "1 of 3 pages" in (status.get("reason") or ""):
+            if (status.get("reason") or "") not in seen:
+                seen.append(status.get("reason") or "")
+            if SAID.match(status.get("reason") or ""):
                 break
             time.sleep(0.3)
         said = status.get("reason") or ""
-        assert said.startswith("Reading the lines with Kraken: 1 of 3 pages"), status
+        assert SAID.match(said), (seen, status)
         assert "folder" not in said, said
         assert "model lane" not in (status.get("waiting_for") or ""), status["waiting_for"]
     finally:
