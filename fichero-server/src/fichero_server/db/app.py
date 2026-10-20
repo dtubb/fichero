@@ -2103,14 +2103,6 @@ class AppDatabase:
             row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
         return row[0] if row else None
 
-    def has_lan_paired_device(self, legacy_is_lan: bool = True) -> bool:
-        """A live device paired over .local or the LAN. One paired before the route was recorded counts as LAN
-        only when `legacy_is_lan` (this Mac shares over .local); otherwise as Tailscale. A tailnet-paired never."""
-        routes = "paired_route = 'lan'" + (" OR paired_route IS NULL" if legacy_is_lan else "")
-        with self._lock:
-            row = self.conn.execute(f"SELECT 1 FROM devices WHERE NOT revoked AND ({routes}) LIMIT 1").fetchone()
-        return row is not None
-
     def device_paired_by(self) -> dict[str, str]:
         """device id -> the paired device that paired it (devices paired by the host are absent)."""
         with self._lock:

@@ -157,5 +157,5 @@ def network_listener_gap(public_base_url: str, bound: list[str] | None) -> str |
         return None
     if any(not (a.startswith("127.") or a in ("::1", "localhost")) for a in bound):
         return None
-    return (f"Sharing is on at {host}, but this Mac is not listening there yet: 'This network' is off, so no device "
-            "could connect. Turn it on, or share over Tailscale.")
+    return (f"Sharing is on at {host}, but this Mac is not listening there, so no device could connect. Restart "
+            "Fichero; if it still isn't, share over Tailscale.")
