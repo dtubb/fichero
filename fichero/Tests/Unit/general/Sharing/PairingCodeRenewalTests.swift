@@ -24,4 +24,37 @@ struct PairingCodeRenewalTests {
     @Test func aCodeAboutToExpireWaitsNoLessThanTheShortestWait() {
         #expect(PairingCodeRenewal.wait(until: now.addingTimeInterval(1), now: now) == .seconds(5))
     }
+
+    // The expiry path itself (review 597): the renewal returns the fresh code, reports a failure, and is never
+    // mistaken for a failure when it is cancelled.
+    private let fresh = PairingCodeRecord(code: "NEW-CODE", expiresAt: Date(timeIntervalSince1970: 2_000_000))
+
+    @Test func renewingReturnsTheFreshCode() async {
+        let outcome = await PairingCodeRenewal.renew(mint: { fresh })
+        guard case .fresh(let code) = outcome else { Issue.record("expected a fresh code"); return }
+        #expect(code.code == "NEW-CODE")
+    }
+
+    @Test func aFailedMintIsReportedInWords() async {
+        struct Down: LocalizedError { var errorDescription: String? { "The engine is not responding." } }
+        let outcome = await PairingCodeRenewal.renew(mint: { throw Down() })
+        guard case .failed(let message) = outcome else { Issue.record("expected a failure"); return }
+        #expect(message == "The engine is not responding.")
+    }
+
+    @Test func aCancelledRenewalIsNotAFailure() async {
+        let task = Task { await PairingCodeRenewal.renew(mint: { try await Task.sleep(for: .seconds(60)); return fresh }) }
+        task.cancel()
+        guard case .cancelled = await task.value else { Issue.record("expected cancelled"); return }
+    }
+
+    @Test func aCodeIsNeverClearedBeforeItsReplacementArrives() async {
+        // The mint runs while the caller still holds the old code; renew has no way to clear anything.
+        var held: PairingCodeRecord? = PairingCodeRecord(code: "OLD-CODE", expiresAt: now)
+        var heldDuringMint: String?
+        let outcome = await PairingCodeRenewal.renew(mint: { heldDuringMint = held?.code; return fresh })
+        if case .fresh(let code) = outcome { held = code }
+        #expect(heldDuringMint == "OLD-CODE")
+        #expect(held?.code == "NEW-CODE")
+    }
 }
