@@ -224,6 +224,12 @@ class TestTheRealBinaryIntegration:
             import pytest
             pytest.skip("swiftlint not installed")
         module = _import_script()
-        count, top_rules = module.measure()
+        try:
+            count, top_rules = module.measure()
+        except module.Blind as blind:
+            if "sourcekitd" in str(blind).lower():  # a Mac with no Xcode toolchain (the M4) cannot run swiftlint at all
+                import pytest
+                pytest.skip(f"swiftlint cannot load SourceKit here: {str(blind)[:120]}")
+            raise
         assert count >= 0
         assert isinstance(top_rules, list)
