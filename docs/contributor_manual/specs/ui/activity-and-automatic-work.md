@@ -1401,7 +1401,7 @@ and node, not by job); a retry action for failed pages.
   base URL (`reconfigure(baseURL:)`), which returns early when the URL is unchanged and never rebuilds the transport. A change in HOW
   the engine is dialled (its socket path, or the socket against its https listener, as turning Sharing on does) was therefore
   never applied to the clients built at the first connect; Activity kept the old one while a store built afterwards got the new
-  one. Fixed: both paths now pass `EngineConfig.transportMode` too. Not proven: that this is the EPERM (macOS answers a refused
+  one. Fixed: every host-change rebind now passes `EngineConfig.transportMode` too (AppState, LibraryManager, KnownLibraryRegistryStore, AppleScriptSupport, IntegrationsService, ModelComparisonService, LooveCoverageService), and the host-only `reconfigure(baseURL:)` is DELETED from `FicheroClient` and `APIClient`, so a new rebind that forgets the mode does not compile; pinned by the `transportMode == EngineConfig.transportMode` expectations in `ServiceHostReconfigurationTests`. Not proven: that this is the EPERM (macOS answers a refused
   sandbox connect with EPERM, and the engine log showed the same socket path), which needs the M4 repro: turn Sharing on with
   Activity open, then read the app log for `endpoint re-resolved … (was …)`, which now names the old and the new mode.
 

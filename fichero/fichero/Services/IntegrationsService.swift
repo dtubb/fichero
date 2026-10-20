@@ -53,7 +53,7 @@ final class IntegrationsService {
     }
 
     func reconfigureBackendHost() {
-        client.reconfigure(baseURL: EngineConfig.host)
+        client.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
     }
 
     // MARK: - Response Mapping Helpers
