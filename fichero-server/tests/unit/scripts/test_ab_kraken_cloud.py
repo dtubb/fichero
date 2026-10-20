@@ -407,11 +407,8 @@ def test_an_openrouter_arm_builds_its_request_and_is_priced(tmp_path, monkeypatc
 
     monkeypatch.setattr(llm, "vision", transport)
     arm = f"{variant}:openrouter:{model}"
-    report = ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
-                    reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", arm],
-                    reference_arm=None, fake_arms=False) if False else ab.run(
-        _pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=f"openrouter:{model}", bar=0.6, cap=1.0,
-        reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", arm])
+    report = ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=f"openrouter:{model}", bar=0.6,
+                    cap=1.0, reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", arm])
     assert seen and all(p == "openrouter" and m == model and n >= 1 and has for p, m, n, has in seen)
     assert 0 < report["cost"]["total"] <= 1.0 and report["cost"]["by_stage"].get(arm, 0) > 0
     assert arm in report["arms"] and report["per_arm"][arm]["lines_read"] >= 1
