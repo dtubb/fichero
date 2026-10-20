@@ -63,7 +63,8 @@ def two_macs(harness, monkeypatch, tmp_path):
         code = host.post("/api/pair/code", json={"username": person}).json()["code"]
         payload = json.dumps({"v": 1, "api_url": url, "pair_code": code, "spki": SPKI_PIN}).encode()
         link = "fichero://pair?payload=" + base64.b64encode(payload).decode()
-        pairing.pair(link, device_name="guest CLI", fetch_der=lambda h, p: PIN_KEY)
+        pairing.pair(link, device_name="guest CLI", fetch_der=lambda h, p: PIN_KEY,
+                     ask_person=lambda: (person, "pw-" + person))  # an invited existing person proves who they are
         sent = []
         guest = FicheroClient(base_url=url, transport=_through(guest_wire, sent))
         stored = pairing.device_token(client_module.engine_key(url, None))
@@ -116,3 +117,20 @@ def test_a_viewer_guest_reads_but_its_rename_is_refused(two_macs):
         guest.update_document(doc_id, name="Ledgers, renamed by a viewer")
     assert refused.value.status_code == 403
     assert host.get(f"/api/documents/{doc_id}").json()["name"] == "Ledgers"
+
+
+def test_a_new_person_invited_by_name_chooses_their_password_in_the_cli_and_is_that_person(harness, two_macs):
+    """An invitation for a name with no account: `fichero devices pair` asks the person for a password of their own
+    (never taken from the host), the account is made at the redeem and the device acts as them."""
+    host, _guest_as, _users = two_macs
+    code = host.post("/api/pair/code", json={"username": "newbie", "display_name": "Newbie"}).json()["code"]
+    url = "https://newbie-mac.example"
+    payload = json.dumps({"v": 1, "api_url": url, "pair_code": code, "spki": SPKI_PIN}).encode()
+    link = "fichero://pair?payload=" + base64.b64encode(payload).decode()
+
+    pairing.pair(link, device_name="guest CLI", fetch_der=lambda h, p: PIN_KEY, ask_new_password=lambda: "a long secret")
+
+    person = harness.app_db.get_user_by_username("newbie")
+    assert person is not None and person.display_name == "Newbie" and person.is_owner is False
+    assert pairing.device_token(client_module.engine_key(url, None))
+    assert harness.client().post("/api/auth/login", json={"username": "newbie", "password": "a long secret"}).status_code == 200

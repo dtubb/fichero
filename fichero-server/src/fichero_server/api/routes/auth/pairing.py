@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+import hashlib
+import re
+from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import ensure_utc, utc_now
 import logging
 import os
@@ -15,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
@@ -30,6 +33,14 @@ from fichero_server.security.remote_access_tls import validate_spki_pin, validat
 logger = logging.getLogger(__name__)
 
 PAIRING_CODE_TTL = timedelta(minutes=10)
+# An invitation to a named person (multiuser.person-bound-invite, owner's rulings 2026-10-20): a viewer by default; an
+# unused one lasts 7 days by default and the owner may set it per invitation, up to never expiring.
+INVITE_DEFAULT_ROLE = "viewer"
+INVITE_DEFAULT_DAYS = 7
+INVITE_MAX_DAYS = 3650
+NEVER_EXPIRES = datetime(9999, 12, 31, tzinfo=timezone.utc)
+MIN_NEW_PASSWORD = 8
+_USERNAME = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 PAIRING_RATE_LIMIT = 5
 PAIRING_RATE_WINDOW = timedelta(minutes=1)
 _PAIRING_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -74,6 +85,16 @@ class _PairingCode:
     ambient: bool = False  # minted by the host app (no signed-in person): the device must say who it is
     person: str | None = None  # the username this code was minted FOR (multiuser.person-bound-invite)
     minted_by: str = ""  # who minted it: a username, or "host app" (audited on redeem)
+    new_person: bool = False  # no account yet: the person makes it, and sets their own password, at the redeem
+    display_name: str = ""
+    role: str = INVITE_DEFAULT_ROLE  # on `library`, for a NEW person (an existing person keeps the role they have)
+    library: str | None = None
+    never_expires: bool = False
+
+    @property
+    def invite_id(self) -> str:
+        """What the owner's list and Revoke name it by: never the code itself (the code is the secret)."""
+        return hashlib.sha256(self.code.encode()).hexdigest()[:16]
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -94,14 +115,23 @@ _LOCAL_PAIRING_CLIENT_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "t
 
 
 class PairCodeRequest(BaseModel):
-    # Mint the code FOR this person: the device that redeems it is bound to them, no password (multiuser.person-bound-invite).
+    # Mint the code FOR this person (multiuser.person-bound-invite): an existing person proves who they are with their
+    # password; a NEW name makes the account at the redeem, and the person sets their own password then.
     username: str | None = None
+    display_name: str | None = None
+    role: Literal["viewer", "editor"] = INVITE_DEFAULT_ROLE
+    library: str | None = Field(default=None, description="the library the role is granted on, for a new person")
+    expires_in_days: int | None = Field(default=None, ge=1, le=INVITE_MAX_DAYS, description="default 7")
+    never_expires: bool = False
 
 
 class PairCodeResponse(BaseModel):
     code: str
     person: str | None = None
-    expires_at: datetime
+    invite_id: str | None = None
+    role: str | None = None
+    never_expires: bool = False
+    expires_at: datetime | None = Field(default=None, description="none when the invitation never expires")
     tailnet_url: str | None = None
     spki_pin: str | None = None
 
@@ -166,6 +196,21 @@ class PairRequest(BaseModel):
     # whoever minted the code (sharing.device-chooses-person, #2403).
     username: str | None = None
     password: str | None = None
+    # An invitation to a NEW person: the password they choose for their account (the owner never sees or sets it).
+    new_password: str | None = None
+
+
+class InviteResponse(BaseModel):
+    """An unused invitation, as the owner's list shows it (never the code)."""
+
+    id: str
+    person: str
+    new_person: bool
+    role: str
+    library: str | None = None
+    minted_by: str
+    expires_at: datetime | None = Field(default=None, description="none when it never expires")
+    never_expires: bool = False
 
 
 class EnrollmentRequest(BaseModel):
@@ -276,7 +321,8 @@ def _pairing_user(request: Request, app_db: AppDatabase) -> AccountUser:
 
 
 def _invited_person(request: Request, app_db: AppDatabase, username: str | None) -> AccountUser | None:
-    """The person a code is minted for, when one is named: only a signed-in owner may name one (multiuser.person-bound-invite)."""
+    """The EXISTING person a code is minted for, when one is named; None for no name or a NEW name (the account is
+    made at the redeem). Only a signed-in owner may name anyone (multiuser.person-bound-invite)."""
     if not (username or "").strip():
         return None
     if not _use_multiuser_auth():
@@ -287,7 +333,9 @@ def _invited_person(request: Request, app_db: AppDatabase, username: str | None)
         raise HTTPException(status_code=403, detail="only a signed-in owner can invite a person")
     person = app_db.get_user_by_username(username.strip())
     if person is None:
-        raise HTTPException(status_code=404, detail="no such person")
+        if not _USERNAME.match(username.strip()):
+            raise HTTPException(status_code=422, detail="a username is letters, digits, . _ - (up to 64)")
+        return None
     if not person.active:
         raise HTTPException(status_code=403, detail="that person is disabled")
     return person
@@ -305,10 +353,11 @@ def _single_user_pairing_owner(app_db: AppDatabase) -> AccountUser:
     return ensure_owner_account(app_db)
 
 
-def _new_pairing_code() -> str:
+def _new_pairing_code(groups: int = 2) -> str:
+    """Two groups of four (40 bits) for the 10-minute code; four (80 bits) for an invitation, which lives for days."""
     return "-".join(
         "".join(secrets.choice(_PAIRING_ALPHABET) for _ in range(4))
-        for _ in range(2)
+        for _ in range(groups)
     )
 
 
@@ -591,7 +640,22 @@ def create_pairing_code(
     """Mint a short-lived one-time pairing code for the authenticated caller."""
     _require_secure_pairing_transport(request)
     user = _pairing_user(request, app_db)
-    invited = _invited_person(request, app_db, body.username if body else None)
+    body = body or PairCodeRequest()
+    invited = _invited_person(request, app_db, body.username)
+    named = (body.username or "").strip()
+    new_name = named if named and invited is None else None
+    person_name = invited.username if invited else new_name
+    if person_name is None and (body.never_expires or body.expires_in_days is not None):
+        raise HTTPException(status_code=422, detail="a lifetime is for an invitation to a named person")
+    library_path = None
+    if person_name is not None and body.library:
+        from fichero_server.security import authz
+
+        try:
+            authz.require_owner(_current_session_user(request), body.library)  # only the library's owner grants on it
+        except authz.AuthorizationError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        library_path = authz.normalize_library_path(body.library)
     from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
 
     # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
@@ -599,15 +663,23 @@ def create_pairing_code(
         raise HTTPException(status_code=409, detail=gap)
     now = utc_now()
     _prune_pairing_codes(now)
-    code = _new_pairing_code()
-    expires_at = now + PAIRING_CODE_TTL
+    code = _new_pairing_code(4 if person_name else 2)
+    if person_name is None:
+        expires_at = now + PAIRING_CODE_TTL
+    else:  # an invitation lives for days (7 by default), or until revoked when the owner says never expires
+        expires_at = NEVER_EXPIRES if body.never_expires else now + timedelta(days=body.expires_in_days or INVITE_DEFAULT_DAYS)
     _PAIRING_CODES[code] = _PairingCode(
         code=code,
         user_id=(invited or user).id,
         expires_at=expires_at,
         paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
-        ambient=invited is None and _use_multiuser_auth() and _current_session_user(request) is None,
-        person=invited.username if invited else None,
+        ambient=person_name is None and _use_multiuser_auth() and _current_session_user(request) is None,
+        person=person_name,
+        new_person=new_name is not None,
+        display_name=(body.display_name or "").strip(),
+        role=body.role,
+        library=library_path,
+        never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
@@ -619,15 +691,49 @@ def create_pairing_code(
             tailnet_url = validate_tailnet_url(tailnet_url)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+    record = _PAIRING_CODES[code]
     return PairCodeResponse(
         code=code,
-        person=invited.username if invited else None,
-        expires_at=expires_at,
+        person=person_name,
+        invite_id=record.invite_id if person_name else None,
+        role=record.role if person_name else None,
+        never_expires=record.never_expires,
+        expires_at=None if record.never_expires else expires_at,
         tailnet_url=tailnet_url or None,
         # By the sharing address the guest uses, not by whether Tailscale is up: .ts.net is system
         # trust (no pin), anything else (.local, an IP) is pinned (#5753).
         spki_pin=None if _shares_at_ts_net() else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
+
+
+@router.get("/invites", response_model=list[InviteResponse])
+def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> list[InviteResponse]:
+    """The owner's list of unused invitations to named people, with their expiry (never the codes)."""
+    _owner_only(request, app_db)
+    now = utc_now()
+    _prune_pairing_codes(now)
+    return [
+        InviteResponse(
+            id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role, library=r.library,
+            minted_by=r.minted_by, expires_at=None if r.never_expires else r.expires_at, never_expires=r.never_expires,
+        )
+        for r in _PAIRING_CODES.values()
+        if r.person and not r.used
+    ]
+
+
+@router.delete("/invites/{invite_id}")
+def revoke_invite(invite_id: str, request: Request, app_db: AppDatabase = Depends(get_app_database)) -> dict[str, str]:
+    """Revoke an unused invitation at any time, a never-expiring one too: the link stops working at once."""
+    _owner_only(request, app_db)
+    for code, record in list(_PAIRING_CODES.items()):
+        if record.person and record.invite_id == invite_id:
+            _PAIRING_CODES.pop(code, None)
+            get_app_db().save_action_audit(ActionAudit(
+                action_name="invite.revoke", actor=actor_from_request(request) or "owner", target_ids=[invite_id],
+                params={"person": record.person, "minted_by": record.minted_by}, created_at=utc_now()))
+            return {"status": "revoked"}
+    raise HTTPException(status_code=404, detail="no such invitation")
 
 
 @router.post("", response_model=PairResponse)
@@ -658,15 +764,35 @@ def pair_device(
             # Multi-user was turned off after the invite: nothing is bound, nothing is spent, and the answer is the
             # one a bad code gets (it does not say what the setting is).
             raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+        new_account = None
         if record.person:
-            # The code was minted for this person: the device is theirs, with no password, and no one else's.
+            # The code was minted for this person: the device is theirs and no one else's, and they prove who they
+            # are: an existing person with their password, a new person by choosing one (the owner never sets it).
             if body.username is not None and body.username.strip() != record.person:
                 raise HTTPException(status_code=403, detail="this invitation is for another person")
-            chosen = app_db.get_user_by_username(record.person)
-            if chosen is None or not chosen.active:
-                _PAIRING_CODES.pop(code, None)
-                raise HTTPException(status_code=401, detail="invalid or expired pairing code")
-            user_id = chosen.id
+            if record.new_person:
+                if app_db.get_user_by_username(record.person) is not None:
+                    raise HTTPException(status_code=409, detail="that username is taken now: ask for a new invitation")
+                if len(body.new_password or "") < MIN_NEW_PASSWORD:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"choose a password of at least {MIN_NEW_PASSWORD} characters to accept this invitation",
+                    )
+            else:
+                chosen = app_db.get_user_by_username(record.person)
+                if chosen is None or not chosen.active:
+                    _PAIRING_CODES.pop(code, None)
+                    raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+                if body.password is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail=f"person required: this invitation is for {record.person}; sign in as them with their password",
+                    )
+                if not accounts.verify_password(body.password, chosen.password_hash):
+                    raise HTTPException(status_code=401, detail="invalid username or password")
+                user_id = chosen.id
+            if record.new_person:
+                new_account = True
         elif body.username is not None:
             if not _use_multiuser_auth():
                 raise HTTPException(status_code=422, detail="choosing a person needs Multi-user on")
@@ -678,6 +804,17 @@ def pair_device(
             if not chosen.active:
                 raise HTTPException(status_code=403, detail="user is disabled")
             user_id = chosen.id
+        if new_account:
+            chosen = app_db.create_user(
+                username=record.person,
+                display_name=record.display_name or record.person,
+                password_hash=accounts.hash_password(body.new_password or ""),
+                is_owner=False,
+                active=True,
+            )
+            user_id = chosen.id
+            if record.library:  # the role the owner picked (a viewer unless they said editor), on the library they named
+                app_db.set_library_role(user_id=chosen.id, library_path=record.library, role=record.role)
         if _use_multiuser_auth():
             if chosen is None and record.ambient:
                 # The host owner is never ambient on a remote device: the device says who it is.
@@ -707,7 +844,9 @@ def pair_device(
             _record_device_audit(
                 action_name="device.pair_for_person",
                 actor=f"invite:{record.minted_by}",
-                params={"person": record.person, "minted_by": record.minted_by, "device_name": name},
+                params={"person": record.person, "minted_by": record.minted_by, "device_name": name,
+                        "new_person": bool(new_account), "role": record.role if new_account else None,
+                        "library": record.library if new_account else None, "never_expires": record.never_expires},
                 device_id=device.id,
                 after=_to_public_device(device).model_dump(mode="json"),
             )

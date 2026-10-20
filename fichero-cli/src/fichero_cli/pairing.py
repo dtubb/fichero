@@ -192,6 +192,19 @@ def _ask_person() -> tuple[str, str]:
     return input("Username: ").strip(), getpass.getpass("Password: ")
 
 
+def _ask_new_password() -> str:
+    """An invitation to a NEW person: they choose their own password here (the host never sees or sets it)."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        raise FicheroError(
+            "This invitation makes your account, so you choose a password, and there is no terminal to ask on. "
+            "Run `fichero devices pair` in a terminal. The password is never taken from arguments or the environment."
+        )
+    first = getpass.getpass("Choose a password for your account: ")
+    if first != getpass.getpass("Again: "):
+        raise FicheroError("The two passwords differ: nothing was paired. Run the command again.")
+    return first
+
+
 def pair(
     link_text: str,
     *,
@@ -199,6 +212,7 @@ def pair(
     uds: str | None = None,
     fetch_der: Callable[[str, int], bytes] | None = None,
     ask_person: Callable[[], tuple[str, str]] = _ask_person,
+    ask_new_password: Callable[[], str] = _ask_new_password,
 ) -> dict[str, str]:
     """Redeem the link and store the device token. Returns the device id, name and host only, never the token."""
     link = parse_link(link_text)
@@ -213,6 +227,8 @@ def pair(
             if reply.status_code == 401 and "person required" in reply.text:
                 username, password = ask_person()
                 reply = http.post("/api/pair", json={**body, "username": username, "password": password})
+            elif reply.status_code == 422 and "choose a password" in reply.text:
+                reply = http.post("/api/pair", json={**body, "new_password": ask_new_password()})
     except httpx.ConnectError as exc:
         text = f"{exc} {exc.__cause__ or ''}".lower()
         if "certificate" in text or "ssl" in text:
