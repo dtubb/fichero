@@ -308,11 +308,13 @@ def pick_mlx(wanted: str, *, log=print) -> tuple[str, object, dict]:
     Qwen VL models (installed first, then the larger). The repo id and why are LOGGED and land in the report."""
     from fichero_server import llm
     from fichero_server.llm import local_model_choice as choice
-    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
+
+    store = get_mlx_model_store()
 
     qwen = [s for s in MANAGED_MLX_MODELS.values() if "vision" in s.capabilities and "qwen" in s.model_id.lower()]
     if wanted == "auto":
-        picked = choice.choose_local_model("vision", catalog=qwen)
+        picked = choice.choose_local_model("vision", catalog=qwen, store=store)
         if picked.model_id is None:
             raise SystemExit(f"mlx:auto: {picked.reason}")
         spec, why = next(s for s in qwen if s.model_id == picked.model_id), picked.reason
@@ -325,7 +327,6 @@ def pick_mlx(wanted: str, *, log=print) -> tuple[str, object, dict]:
         if not ok:
             raise SystemExit(f"mlx:{wanted}: this Mac may not run it ({refusal}): not over the memory gate")
         why = f"named on the command line; {spec.display_name} passes the memory gate for reading a page"
-    store = choice._store()
     if not store.is_complete(spec):
         raise SystemExit(f"mlx:{spec.model_id} ({spec.repo_id}) is not installed; this harness never downloads: "
                          "install it in the app's Settings first")
@@ -463,7 +464,8 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
             if ref_arm is None:
                 ledger.stage = "reference"
                 ref_config = install_model(ref_spec, ledger)
-                answers["reference"] = asyncio.run(reading_by_model(image, lines, ref_config, language))
+                answers["reference"] = timed("reference", lambda: asyncio.run(
+                    reading_by_model(image, lines, ref_config, language)))
             if cloud:
                 a_config = install_model(model, ledger)
                 if "A" in arms:
@@ -515,7 +517,8 @@ def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, referen
     per_arm = {}
     for arm in arms:
         times = (seconds or {}).get(arm, [])
-        per_arm[arm] = {**rates([(r["reference"], r.get(arm, "")) for r in measured]),
+        per_arm[arm] = {**(rates([(r["reference"], r.get(arm, "")) for r in measured]) if arm != ref_arm
+                           else {"cer": None, "wer": None, "lines": 0, "reference_chars": 0, "is_reference": True}),
                         "s_per_page": (sum(times) / len(times)) if times else None,
                         "usd_per_page": (ledger.by_stage.get(arm, 0.0) / done) if done else None,
                         "lines_read": sum(1 for r in rows if (r.get(arm) or "").strip()),
@@ -587,7 +590,8 @@ def _report_md(r: dict) -> str:
         m = r["per_arm"][arm]
         spp = "n/a" if m["s_per_page"] is None else f"{m['s_per_page']:.1f}"
         usd = "n/a" if m["usd_per_page"] is None else f"${m['usd_per_page']:.4f}"
-        lines.append(f"| {_arm_title(arm, r)} | {_pct(m['cer'])} | {_pct(m['wer'])} | {spp} | {usd} | {m['lines_read']} |")
+        errs = ("the reference", "the reference") if m.get("is_reference") else (_pct(m["cer"]), _pct(m["wer"]))
+        lines.append(f"| {_arm_title(arm, r)} | {errs[0]} | {errs[1]} | {spp} | {usd} | {m['lines_read']} |")
     if "A" in r["arms"]:
         lines.append(f"\nVariant A sent {r['A_lines_sent']} of {r['A_lines_total']} lines ({_pct(r['A_share_sent'])}).")
     for arm, got in r["mlx"].items():
