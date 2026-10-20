@@ -75022,6 +75022,18 @@
             "type": "string",
             "title": "Name"
           },
+          "tier": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tier",
+            "description": "a reading candidate's tier: specialist, small-vlm or general (source.recipe.reader-tiers); null for another job"
+          },
+          "tier_words": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tier Words",
+            "description": "the tier in words for a row: Specialist line reader, Small vision model on this Mac, General model"
+          },
           "short_name": {
             "type": "string",
             "title": "Short Name",
