@@ -33,9 +33,6 @@
             reference = "container:Tests/plans/fichero.xctestplan"
             default = "YES">
          </TestPlanReference>
-         <TestPlanReference
-            reference = "container:Tests/plans/fichero-ipad.xctestplan">
-         </TestPlanReference>
       </TestPlans>
       <Testables>
          <TestableReference
