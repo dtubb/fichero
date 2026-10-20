@@ -113,6 +113,10 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
     processor = AutoProcessor.from_pretrained(step["model"])
     model = AutoModelForImageTextToText.from_pretrained(step["model"], torch_dtype=torch.bfloat16, device_map=device,
                                                                 use_safetensors=True)  # never unpickle a repository (#5981 sweep)
+    if step.get("adapter"):  # a PEFT adapter on its base, merged so the read runs as a plain model (#5977)
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, step["adapter"]).merge_and_unload()
     prompt = step["prompt"]
 
     def ask(picture: Any) -> str | None:

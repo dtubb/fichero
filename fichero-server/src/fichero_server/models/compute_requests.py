@@ -102,6 +102,8 @@ class ReadAtScaleRequest(BaseModel):
     reader: str = Field("kraken", description="`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).")
     card: str = Field(description="The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, "
                       "its Hugging Face build), or a Hub repo.")
+    base_model: str | None = Field(None, description="`vlm` only: the card is a PEFT adapter on this base model (a Hub "
+                                   "repo); the Job loads the base, then the adapter on it (#5977).")
     language: str | None = None
     shard_size: int = Field(50, ge=1, le=10000)
     longest: int = Field(2000, ge=256, le=10000, description="Pixels on the longer side each image is read at.")

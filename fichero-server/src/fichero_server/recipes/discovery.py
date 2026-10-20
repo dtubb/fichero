@@ -1174,7 +1174,7 @@ def _remote_vlm(model: dict[str, Any]) -> bool:
     """A vision-language model in standard Hugging Face form (safetensors, transformers) that no MLX build covers:
     the kind the remote reader runs (`remote_read.job.VLM_DEPENDENCIES`)."""
     return (model.get("pipeline_tag") == "image-text-to-text" and "safetensors" in (model.get("tags") or [])
-            and not _runs_on_mlx(model) and not _gguf_only(model))
+            and not _runs_on_mlx(model) and not _gguf_only(model) and not _is_adapter(model))
 
 
 def _remote_card(model: dict[str, Any], what: str, remote: dict[str, Any], wanted: frozenset[str]) -> Card:
@@ -1193,6 +1193,41 @@ def _remote_card(model: dict[str, Any], what: str, remote: dict[str, Any], wante
     return replace(card, id=card.id.replace("mlx:hf/", "remote:hf/"), runs_on=REMOTE_RUNS_ON, trainable=False,
                    offered_only=True, size_gb=round(gib(weights * 2), 1) if weights else 0.0,
                    runs_here=bool(remote["available"]),
+                   cannot_run_because="" if remote["available"] else remote["why"])
+
+
+def _is_adapter(model: dict[str, Any]) -> bool:
+    """A PEFT/LoRA adapter (`library_name: peft`, or the tag): weights that are only a difference to a base model."""
+    return model.get("library_name") == "peft" or "peft" in (model.get("tags") or [])
+
+
+def _adapter_base(model: dict[str, Any]) -> str | None:
+    """The base model an adapter's listing names (`base_model:adapter:<repo>`, else `base_model:<repo>`), or None."""
+    tags = [str(t) for t in model.get("tags") or [] if str(t).startswith("base_model:")]
+    named = [t.split(":", 2)[2] for t in tags if t.startswith("base_model:adapter:")] or [
+        t.split(":", 1)[1] for t in tags if t.count(":") == 1]
+    return next(iter(named), None) if _is_adapter(model) else None
+
+
+def _adapter_card(model: dict[str, Any], what: str, remote: dict[str, Any], wanted: frozenset[str]) -> Card:
+    """An adapter's card (`source.onboard.model-search-adapters-name-their-base`, #5977): "adapter: needs <base>", offered for
+    remote compute only, which loads the base and puts the adapter on it. One with no base named, or with no safetensors
+    (its adapter file would be unpickled), is listed as unable to run, in words."""
+    from dataclasses import replace
+
+    repo = str(model.get("modelId") or model.get("id"))
+    base = _adapter_base(model)
+    if base is None or "safetensors" not in (model.get("tags") or []):
+        why = ("an adapter that does not name its base model" if base is None
+               else f"an adapter with no safetensors file (a pickled adapter is never loaded); it needs {base}")
+        card = _hf_card(model, what, f"adapter: {why}", wanted)
+        return replace(card, id=card.id.replace("mlx:hf/", "hf:hf/"), runs_here=False, cannot_run_because=why)
+    price = remote["price_per_hour_usd"]
+    how = (f"adapter: needs {base}, loaded under it on remote compute ({remote['where']}, {remote['flavor']}, "
+           + (f"about ${price:.2f} an hour" if price is not None else "price not listed") + "); the pages leave this Mac")
+    card = _hf_card(model, what, how, wanted)
+    return replace(card, id=card.id.replace("mlx:hf/", "remote:hf/"), pin={**card.pin, "base_model": base},
+                   runs_on=REMOTE_RUNS_ON, trainable=False, offered_only=True, runs_here=bool(remote["available"]),
                    cannot_run_because="" if remote["available"] else remote["why"])
 
 
@@ -1232,6 +1267,7 @@ async def search_hugging_face(languages: frozenset[str],
     left_out: set[str] = set()
     originals: list[tuple[dict[str, Any], str]] = []
     vlms: dict[str, tuple[dict[str, Any], str]] = {}  # reader VLMs no MLX build covers: offered for remote compute
+    adapters: dict[str, tuple[dict[str, Any], str]] = {}  # PEFT adapters: each needs its base (#5977)
     queries, asked = len(HF_READER_TASKS) * len(filters) * 2, 0
     for task in HF_READER_TASKS:
         for tags in filters:
@@ -1253,6 +1289,8 @@ async def search_hugging_face(languages: frozenset[str],
                         else:
                             found.setdefault(repo, _hf_card(
                                 m, what, "an MLX build on Hugging Face that runs on this Mac", languages))
+                    elif not mlx and what is not None and _is_adapter(m):
+                        adapters[str(m.get("modelId") or m.get("id"))] = (m, what)
                     elif (not mlx and what is not None and not _runs_on_mlx(m) and not _gguf_only(m)
                           and "safetensors" in (m.get("tags") or [])):
                         originals.append((m, what))
@@ -1281,6 +1319,9 @@ async def search_hugging_face(languages: frozenset[str],
                 found.setdefault(repo, _trocr_hub_card(m, what, languages))
             except ValueError:
                 not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
+            return
+        if _is_adapter(m):
+            adapters[repo] = (m, what)
             return
         if _remote_vlm(m) and not _catalogue_repo(repo):
             vlms[repo] = (m, what)
@@ -1345,6 +1386,11 @@ async def search_hugging_face(languages: frozenset[str],
             not_runnable.pop(repo, None)
             downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
             found[f"remote:{repo}"] = _remote_card(m, what, remote, languages)
+    if adapters:
+        remote = remote_compute()
+        for repo, (m, what) in adapters.items():
+            downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
+            found[f"adapter:{repo}"] = _adapter_card(m, what, remote, languages)
     for repo, card in not_runnable.items():
         if repo not in converted and repo not in found:
             found.setdefault(f"not-runnable:{repo}", card)
