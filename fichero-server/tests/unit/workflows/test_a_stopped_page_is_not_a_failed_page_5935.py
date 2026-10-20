@@ -93,6 +93,10 @@ async def test_a_page_stopped_alone_is_skipped_cancelled_and_the_run_completes(t
     assert len(cancelled) == 1
     assert not [r for r in results if r.get("error") and not r.get("cancelled")], "the stopped page counted as a failure"
     assert len(results) == PAGE_COUNT
+    from fichero_server.workflows.run_account import build_account
+
+    account = build_account(status="completed", reason=None, state=final)
+    assert account.pages_failed == 0 and not account.failures, "the run account listed the stopped page as failed"
 
 
 @pytest.mark.asyncio
