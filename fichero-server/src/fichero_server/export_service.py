@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import tempfile
@@ -431,6 +432,7 @@ def export_eleventy_site(
     )
 
     collections: set[str] = set()
+    skipped_images: list[tuple[str, str]] = []
     used_per_dir: dict[str, set[str]] = {}
     page_paths_by_id: dict[str, Path] = {}
     checks = _checks_by_target(db)
@@ -453,7 +455,7 @@ def export_eleventy_site(
         asset_refs: list[_AssetRef] = []
         if _is_image_document(doc):
             assets_dir.mkdir(exist_ok=True)
-            asset_refs = _copy_document_assets(db, doc, assets_dir, package)
+            asset_refs = _copy_document_assets(db, doc, assets_dir, package, skipped_images)
 
         used = used_per_dir.setdefault(str(doc_dir), set())
         filename = _unique_filename(_slugify(doc.name), used, ".md")
@@ -472,6 +474,7 @@ def export_eleventy_site(
             for a in asset_refs
         )
 
+    _write_not_included(output_dir, skipped_images)
     result.collection_count = len(collections)
     page_records = list(
         iter_export_records(
@@ -1278,13 +1281,14 @@ def export_markdown_folder(
         document_count=len(documents),
     )
     used_names: set[str] = set()
+    skipped_images: list[tuple[str, str]] = []
     index_links: list[tuple[str, str]] = []
 
     for doc in documents:
         filename = _unique_filename(_slugify(doc.name), used_names, ".md")
         doc_path = output_dir / filename
         asset_refs = (
-            _copy_document_assets(db, doc, assets_dir, package) if include_assets else []
+            _copy_document_assets(db, doc, assets_dir, package, skipped_images) if include_assets else []
         )
         body = _render_document_markdown(db, doc, asset_refs)
         doc_path.write_text(body, encoding="utf-8")
@@ -1297,6 +1301,7 @@ def export_markdown_folder(
         )
         index_links.append((doc.name, filename))
 
+    _write_not_included(output_dir, skipped_images)
     index_path = output_dir / "index.md"
     index_path.write_text(_render_index(root, index_links), encoding="utf-8")
     result.files.insert(0, ExportedFile(path=str(index_path), kind="index"))
@@ -1348,7 +1353,12 @@ def export_word_docx(
 
     for index, doc in enumerate(documents, start=1):
         text = text_for(doc) if text_for is not None else _document_text(db, doc)
-        image_source = _docx_image_source(db, doc, package)
+        try:
+            image_source = _docx_image_source(db, doc, package)
+        except ExportImageUnavailable as unavailable:
+            logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
+            image_source = None
+            text = f"[Image not included: {unavailable.why}]\n\n{text}"
         if image_source:
             rel_id = f"rIdImage{index}"
             media_name = f"image{index}{image_source.suffix.lower() or '.jpg'}"
@@ -1919,16 +1929,33 @@ def _text_artifacts(db: Database, document_id: str) -> list[Artifact]:
     return artifacts
 
 
+def _write_not_included(output_dir: Path, skipped: list[tuple[str, str]]) -> None:
+    """List every page whose image an export left out, with why, at the export's root; nothing when none (#5966)."""
+    if not skipped:
+        return
+    lines = ["# Images not included", "", "These pages were exported without their image:", ""]
+    lines += [f"- {name}: {why}" for name, why in skipped]
+    (output_dir / "NOT-INCLUDED.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    logger.warning("Export left out %d image(s); see %s", len(skipped), output_dir / "NOT-INCLUDED.md")
+
+
 def _copy_document_assets(
     db: Database,
     doc: Document,
     assets_dir: Path,
     package_path: Path | None,
+    skipped: list[tuple[str, str]] | None = None,
 ) -> list[_AssetRef]:
     if not _is_image_document(doc):
         return []
 
-    source = _require_image_source(db, doc, package_path)
+    try:
+        source = _require_image_source(db, doc, package_path)
+    except ExportImageUnavailable as unavailable:
+        if skipped is None:
+            raise
+        skipped.append((unavailable.doc_name, unavailable.why))  # fails only this page; the export lists it
+        return []
 
     suffix = source.suffix.lower() or ".jpg"
     # A photo's name usually ends in its own extension ("SM_NPQ_C01_005.jpg"): drop it before the
@@ -1949,16 +1976,37 @@ def _docx_image_source(db: Database, doc: Document, package_path: Path | None) -
     return _require_image_source(db, doc, package_path)
 
 
+class ExportImageUnavailable(ValueError):
+    """An export's image could not be read; the message says which document and why (#5966)."""
+
+    def __init__(self, doc: Document, why: str) -> None:
+        super().__init__(f"Export image source missing for document {doc.id} ({doc.name}) path={doc.path!r}: {why}")
+        self.doc_name = doc.name
+        self.why = why
+
+
+def _why_image_unavailable(doc: Document) -> str:
+    """In words: no recorded file, not at its recorded place, not readable by this engine, or outside what it may open."""
+    if not doc.path:
+        return "no recorded file for this page"
+    try:
+        os.stat(doc.path)
+    except FileNotFoundError:
+        return "not found at its recorded place (moved or deleted)"
+    except PermissionError:
+        return "this engine may not read it: grant access to its folder"
+    except OSError as exc:
+        return f"this engine could not open it ({exc.strerror or type(exc).__name__})"
+    return "this engine may not open files in that folder: grant access to the folder"
+
+
 def _require_image_source(db: Database, doc: Document, package_path: Path | None) -> Path:
     source = resolve_edited_source(doc, db)
     if source is not None and source.exists() and source.is_file():
         return source
-    message = (
-        f"Export image source missing for document {doc.id} "
-        f"({doc.name}) path={doc.path!r}"
-    )
-    logger.error(message)
-    raise ValueError(message)
+    error = ExportImageUnavailable(doc, _why_image_unavailable(doc))
+    logger.error(str(error))
+    raise error
 
 
 def _is_image_document(doc: Document) -> bool:

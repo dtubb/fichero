@@ -523,7 +523,7 @@ def test_export_eleventy_site_raises_for_missing_search_page_path(db, tmp_path):
         )
 
 
-def test_export_markdown_folder_raises_for_missing_declared_image_source(db, tmp_path, caplog):
+def test_export_markdown_folder_lists_a_missing_declared_image_source_and_writes_the_rest(db, tmp_path, caplog):
     root = Document(id="image-root", name="Archivo", doc_type=DocType.folder)
     image = Document(
         id="image-doc",
@@ -536,12 +536,13 @@ def test_export_markdown_folder_raises_for_missing_declared_image_source(db, tmp
     db.save(root)
     db.save(image)
 
-    with pytest.raises(ValueError, match=image.id):
-        export_markdown_folder(db, tmp_path / "export", target_id=root.id)
+    # #5966 (spec decides): one unreadable image fails only its page; the export lists it and writes the rest.
+    export_markdown_folder(db, tmp_path / "export", target_id=root.id)
+    assert "Photo One" in (tmp_path / "export" / "NOT-INCLUDED.md").read_text()
     assert image.id in caplog.text
 
 
-def test_export_word_docx_raises_for_missing_declared_image_source(db, tmp_path, caplog):
+def test_export_word_docx_notes_a_missing_declared_image_source_and_writes_the_rest(db, tmp_path, caplog):
     root = Document(id="word-root", name="Archivo", doc_type=DocType.folder)
     image = Document(
         id="word-image-doc",
@@ -554,9 +555,9 @@ def test_export_word_docx_raises_for_missing_declared_image_source(db, tmp_path,
     db.save(root)
     db.save(image)
 
-    with pytest.raises(ValueError, match=image.id):
-        export_word_docx(db, tmp_path / "export.docx", target_id=root.id)
-    assert image.id in caplog.text
+    export_word_docx(db, tmp_path / "export.docx", target_id=root.id)
+    assert (tmp_path / "export.docx").exists()
+    assert "Photo One" in caplog.text
 
 
 def test_iter_export_records_exports_unsourced_knowledge_at_library_scope(db):
