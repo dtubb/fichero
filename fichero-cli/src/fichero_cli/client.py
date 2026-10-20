@@ -314,6 +314,12 @@ def _connect_error(base_url: str, exc: httpx.ConnectError) -> "FicheroError":
     """
     text = f"{exc} {exc.__cause__ or ''}".lower()
     if "certificate" in text or "ssl" in text or "tls" in text:
+        if _is_loopback_base_url(base_url) is False:
+            # A pinned remote host whose certificate expired passes the pin (same key) and fails here (review 587).
+            return FicheroError(
+                f"{base_url} presented a certificate the system refused (expired or replaced). If this device was "
+                "paired with it, ask the host for a new pairing link and run `fichero devices pair --link-file …` again."
+            )
         return FicheroError(
             f"TLS certificate verification failed for {base_url}. The engine is "
             "likely RUNNING; its loopback certificate is self-signed. Trust it "
