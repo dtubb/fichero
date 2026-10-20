@@ -257,7 +257,7 @@ extension AppState {
         // through the #4221 seam, and a .standard write here is the exact
         // clobber-the-developer's-real-prefs bug the seam exists to prevent
         // (rollbackFailedHostSwitch's sibling, missed in the first sweep).
-        EngineConfig.defaults.set(host.url.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.storeHost(host.url.absoluteString)
         reconfigureGeneratedClientsForCurrentHost()
         PairedHostEndpointStore.record(host.url)
     }

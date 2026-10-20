@@ -248,3 +248,20 @@ def test_the_sanctioned_file_is_exempt_for_exactly_one_call(tmp_path: Path) -> N
     _write(tmp_path, "App/AppState/AppState+Heartbeat.swift",
            "let p = FicheroClient(baseURL: a.url)\nlet q = FicheroClient(baseURL: b.url)\n")
     assert len(scan(tmp_path)) == 1
+
+def test_flags_a_second_writer_of_the_stored_engine_host(tmp_path: Path) -> None:
+    """#5916: Advanced > Apply and Connect This Mac both wrote the host, by two procedures."""
+    _write(tmp_path, "Services/S.swift", "EngineConfig.defaults.set(url, forKey: EngineConfig.userDefaultsKey)\n")
+    _write(tmp_path, "Services/T.swift", "EngineConfig.defaults.removeObject(forKey: EngineConfig.legacyUserDefaultsKey)\n")
+    _write(tmp_path, "Views/V.swift", "Button(\"Apply\") { engineHost = draft }\n")
+    assert len(scan(tmp_path)) == 3
+
+
+def test_allows_the_one_writer_and_its_callers(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/EngineConfig.swift", "defaults.set(host, forKey: userDefaultsKey)\n")
+    _write(tmp_path, "Services/S.swift", "EngineConfig.storeHost(url)\nEngineConfig.clearStoredHost()\n")
+    _write(tmp_path, "Views/V.swift",
+           "@AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString\n"
+           ".standard(appState: a, backendService: b, libraryManager: c, setHost: { engineHost = $0 })\n"
+           "guard let engineHost = EngineConfig.host.host?.lowercased() else { return }\n")
+    assert not scan(tmp_path)

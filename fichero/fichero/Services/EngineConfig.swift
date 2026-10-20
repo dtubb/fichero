@@ -18,6 +18,16 @@ enum EngineConfig {
     /// fallback for non-app processes that never run the migration.
     static let legacyUserDefaultsKey = "fichero.engine.host"
 
+    /// The ONLY code that writes the stored engine host (guard: `scripts/check_swift_transport.py` rule 6). The sanctioned
+    /// callers are listed in `sharing.one-writer-of-the-engine-host`.
+    static func storeHost(_ host: String) { defaults.set(host, forKey: userDefaultsKey) }
+
+    /// Drops the stored host, and the pre-rename key the read paths fall back to (#4227), so a forgotten host stays forgotten.
+    static func clearStoredHost() {
+        defaults.removeObject(forKey: userDefaultsKey)
+        defaults.removeObject(forKey: legacyUserDefaultsKey)
+    }
+
     /// One-time, in-place key migration: if the canonical key has never been
     /// written but the legacy key holds a value, copy it forward. The legacy
     /// value is deliberately NOT deleted, so rolling back to a pre-rename build
