@@ -207,9 +207,10 @@ def test_the_import_rows_details_say_what_it_works_on_its_stages_and_its_log(db,
         assert (tree["done"], tree["total"]) == (2, 5)
 
         log = client.get("/api/activity/jobs/derivatives/log").json()["lines"]
-        messages = [line["message"] for line in log]
-        assert any(m.startswith("Done: ") for m in messages)
-        assert any(m.startswith("Started ") and "doc-e0" in m for m in messages)
+        assert any(line["message"].startswith("Done: ") for line in log)  # the person's log
+        # "Started …" is a Developer-level line (`activity.log.developer-level`, #5850).
+        developer = client.get("/api/activity/jobs/derivatives/log?detail=developer").json()["lines"]
+        assert any(line["message"].startswith("Started ") and "doc-e0" in line["message"] for line in developer)
     finally:
         release.set()
     assert _wait_for(lambda: client.get("/api/activity/jobs/derivatives").status_code == 404)
