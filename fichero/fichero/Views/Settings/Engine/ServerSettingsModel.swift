@@ -15,9 +15,18 @@ enum ServerSettingsText {
     static func canRestart(isRestarting: Bool, engineIsLocal: Bool) -> Bool { !isRestarting && engineIsLocal }
 
     /// The one red line under the Server URL field when it cannot be used; nothing when it can (blank means built-in).
-    static func addressProblem(_ draft: String) -> String? {
-        if case .invalid = EngineConfig.hostConfiguration(from: draft) { return "Address must start with https://" }
+    /// A blank field is the built-in engine only where one exists; elsewhere it asks for an address (## 649).
+    static func addressProblem(_ draft: String, builtInAvailable: Bool = EngineConfig.allowsEmbeddedLocalDefault) -> String? {
+        if case .invalid(let text) = EngineConfig.hostConfiguration(from: draft, allowsImplicitEmbeddedLocalDefault: builtInAvailable) {
+            return text.isEmpty ? "Enter the address of the Mac that runs this project, starting with https://"
+                : "Address must start with https://"
+        }
         return nil
+    }
+
+    /// What the field shows for the stored host: blank ("Built-in") when it is the app's own default, never that address (## 649).
+    static func shownAddress(stored: String, builtInAvailable: Bool = EngineConfig.allowsEmbeddedLocalDefault) -> String {
+        builtInAvailable && stored == EngineConfig.defaultHostString ? "" : stored
     }
 }
 
@@ -32,7 +41,7 @@ final class ServerAdvancedModel {
 
     var problem: String? { ServerSettingsText.addressProblem(draft) }
 
-    func sync(stored: String) { draft = stored }
+    func sync(stored: String) { draft = ServerSettingsText.shownAddress(stored: stored) }
 
     /// `switchHost(from, to, notResponding)` is `EngineHostSwitch.run`; an unchanged address is repointed and read again.
     func commit(stored: String, switchHost: (_ from: String, _ to: String, _ notResponding: String) async throws -> Void) async {
@@ -43,7 +52,7 @@ final class ServerAdvancedModel {
         do {
             try await switchHost(
                 stored, draft,
-                draft == stored ? "The engine did not answer." : "That address did not answer, so the previous one is back.")
+                draft == ServerSettingsText.shownAddress(stored: stored) ? "The engine did not answer." : "That address did not answer, so the previous one is back.")
         } catch {
             self.error = error.localizedDescription
         }
