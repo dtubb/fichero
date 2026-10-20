@@ -124,6 +124,18 @@ enum PairingLinkCopy {
     }
 }
 
+/// When the Sharing pane derives the pin itself (#5891): sharing is on, this app started the engine, the address serves
+/// its own certificate, and no pin is filed for it (the engine was started before the address was set, or by a path that
+/// did not file it). Restarting the engine mints and files it (`applySharing`); once per opening of the pane, so a
+/// restart that cannot derive it does not loop.
+enum PairingPinRepair {
+    static func needed(hostingEnabled: Bool, backendRunning: Bool, externalEngine: Bool, address: URL?,
+                       pin: String, alreadyTried: Bool) -> Bool {
+        guard hostingEnabled, backendRunning, !externalEngine, !alreadyTried, let address else { return false }
+        return RemoteClientPairing.invitePin(pin, for: address) == .missing
+    }
+}
+
 func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
     devices.filter { !$0.revoked }
 }

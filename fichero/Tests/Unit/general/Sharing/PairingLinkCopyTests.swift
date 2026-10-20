@@ -40,3 +40,44 @@ struct PairingLinkCopyTests {
         #expect(reason.contains("couldn't copy the link"))
     }
 }
+
+/// The pin an invite carries (#5891): a publicly-trusted host needs none, and used to be read as "no pin derived" because
+/// `try?` flattens the optional; and the pane derives a missing pin itself, once.
+struct PairingInvitePinTests {
+    private let ownCert = URL(string: "https://macbook-pro.local:8765")!
+    private let tailnet = URL(string: "https://macbook-pro.tail1234.ts.net")!
+    private let validPin = Data(repeating: 7, count: 32).base64EncodedString()
+
+    @Test func aHostServingItsOwnCertificateNeedsItsPin() {
+        #expect(RemoteClientPairing.invitePin("", for: ownCert) == .missing)
+        #expect(RemoteClientPairing.invitePin(validPin, for: ownCert) == .pin(validPin))
+    }
+
+    @Test func aPubliclyTrustedHostGetsAnUnpinnedLinkThatSystemTLSValidates() throws {
+        #expect(RemoteClientPairing.invitePin("", for: tailnet) == .notNeeded)
+        // The guest holds no pin for it and checks the host with normal TLS (system trust + hostname).
+        #expect(try RemoteClientPairing.resolvedSPKIPin(nil, for: tailnet) == nil)
+    }
+
+    @Test func plainHttpGetsNoLinkWhateverTheHost() {
+        for url in [URL(string: "http://macbook-pro.tail1234.ts.net")!, URL(string: "http://macbook-pro.local:8765")!] {
+            #expect(RemoteClientPairing.invitePin(validPin, for: url) == .missing)
+            #expect(RemoteClientPairing.invitePin("", for: url) == .missing)
+        }
+        #expect(throws: (any Error).self) { try validatedHostedRemoteURL(from: "http://macbook-pro.tail1234.ts.net") }
+    }
+
+    @Test func theMissingPinIsDerivedOnceAndOnlyForAnEngineThisAppStarted() {
+        func needed(external: Bool = false, tried: Bool = false, url: URL? = nil, pin: String = "") -> Bool {
+            PairingPinRepair.needed(hostingEnabled: true, backendRunning: true, externalEngine: external,
+                                    address: url ?? ownCert, pin: pin, alreadyTried: tried)
+        }
+        #expect(needed())
+        #expect(!needed(tried: true), "once per opening of the pane: no loop")
+        #expect(!needed(external: true), "an engine this app did not start cannot be restarted")
+        #expect(!needed(url: tailnet), "a publicly-trusted host has no pin to derive")
+        #expect(!needed(pin: validPin), "a pin that is filed needs nothing")
+        #expect(!PairingPinRepair.needed(hostingEnabled: false, backendRunning: true, externalEngine: false,
+                                         address: ownCert, pin: "", alreadyTried: false), "sharing is off")
+    }
+}

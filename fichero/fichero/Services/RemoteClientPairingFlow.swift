@@ -97,6 +97,28 @@ enum RemoteClientPairing {
         )
     }
 
+    /// What an invite for `url` carries as its pin (#5891). `try? advertisableSPKIPin(...)` flattens the optional, so a
+    /// publicly-trusted host (a `.ts.net` name behind `tailscale serve`), whose correct pin is nil, read as "no pin
+    /// derived" and the host got no link at all.
+    enum InvitePin: Equatable {
+        /// The host's TLS is terminated by a public CA: the invite carries no pin.
+        case notNeeded
+        case pin(String)
+        /// The host serves its own certificate and its pin is not known (yet) or not valid.
+        case missing
+    }
+
+    static func invitePin(_ raw: String, for url: URL) -> InvitePin {
+        // Never a link with no pin AND no TLS check: plain http is refused whatever the host (#5891).
+        guard url.scheme?.lowercased() == "https" else { return .missing }
+        do {
+            if let pin = try advertisableSPKIPin(raw, for: url) { return .pin(pin) }
+            return .notNeeded
+        } catch {
+            return .missing
+        }
+    }
+
     /// The pin a share surface should ADVERTISE for `url` — the mint-side twin
     /// of `resolvedSPKIPin`, so the two sides of a link agree by construction
     /// rather than by two surfaces remembering the same rule.
