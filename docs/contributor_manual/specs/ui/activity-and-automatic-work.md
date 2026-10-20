@@ -1686,11 +1686,11 @@ and node, not by job); a retry action for failed pages.
   is not live (Pause then Start reads), and a different model or setting is a different read, never joined. Matched
   by the page ids each run recorded: a run started on a folder and one on its pages do not match.
   Pinned by `fichero-server/tests/unit/recipes/test_one_live_read_per_page_5848.py`.
-- `activity.durable.paused-stays-paused` — **[OK]** (#5357) a paused job is still
+- `activity.durable.paused-stays-paused` — **[PARTIAL]** (#5357; #5919 fix built, test unrun: [OK] when the M4 is green) a paused job is still
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
   running and accepted runs, a paused run is listed in Activity as paused, and its Resume carries on
-  from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`). A page waiting for the lane when its run is paused is paused with it, never recorded as that page's error, even when the run's pause flag is already cleared (`fichero-server/tests/unit/jobs/test_a_paused_waiter_is_paused_not_failed.py`).
+  from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`). A page waiting for the lane when its run is paused is paused with it, never recorded as that page's error, even when the run's pause flag is already cleared (`fichero-server/tests/unit/jobs/test_a_paused_waiter_is_paused_not_failed.py`). The same holds for a page of a run's parallel fan-out that the pause cut short, whether it waited for the lane or was in the middle of its read (#5919, found by the M4 on 2026-10-20: 5 runs in 6 resumed with a page never read, the run "completed", its two cut pages recorded as errors): it raises the pause, so the checkpoint keeps it as not done and Resume reads it; only a page that finished is skipped on Resume.
 - `activity.durable.run-deletable-after-a-crash` — **[OK]** (#5644) a failed run from a session the engine did not close cleanly can be deleted or cleared, and the project stays usable. Deleting it used to raise DuckDB's FATAL "Failed to delete all rows from index" on a stale index and shut the database for the session. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_failed_run_can_be_deleted_after_the_engine_was_killed`.
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
