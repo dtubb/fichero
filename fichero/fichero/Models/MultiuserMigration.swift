@@ -1,0 +1,52 @@
+import Foundation
+
+/// One-time launch migration for #5914 (## 609). Until then the app switched Multi-user by handing its engine
+/// `FICHERO_MULTIUSER`, so the engine never persisted the choice; the app no longer passes it, so an install whose app
+/// preference says ON and whose engine says OFF is turned on ONCE through the engine's route, else the update would switch
+/// Multi-user off silently and lock out the people invited. If the route refuses (no owner password chosen yet) the person is
+/// told once and it is not tried again: it never loops. After it the app's local copy follows the engine, never the reverse.
+@MainActor
+enum MultiuserMigration {
+    static let triedKey = "fichero.multiuser.migration5914.tried"
+    static let noteKey = "fichero.multiuser.migration5914.note"
+
+    static func shouldPush(localOn: Bool, engineOn: Bool, alreadyTried: Bool, engineIsLocal: Bool) -> Bool {
+        localOn && !engineOn && !alreadyTried && engineIsLocal
+    }
+
+    static func note(for reason: String) -> String {
+        "Multi-user was on before this update and could not be carried over: \(reason)"
+    }
+
+    /// True when it asked the engine to turn Multi-user on (so the caller reads the engine's state again).
+    @discardableResult
+    static func run(
+        engineOn: Bool, engineIsLocal: Bool, defaults: UserDefaults, turnOn: () async throws -> Void
+    ) async -> Bool {
+        let local = defaults.object(forKey: EngineConfig.multiuserEnabledKey) != nil
+            && defaults.bool(forKey: EngineConfig.multiuserEnabledKey)
+        guard shouldPush(
+            localOn: local, engineOn: engineOn, alreadyTried: defaults.bool(forKey: triedKey), engineIsLocal: engineIsLocal
+        ) else { return false }
+        defaults.set(true, forKey: triedKey)  // before the call: once, whatever happens
+        do {
+            try await turnOn()
+            defaults.removeObject(forKey: noteKey)
+        } catch {
+            defaults.set(note(for: error.localizedDescription), forKey: noteKey)
+        }
+        return true
+    }
+
+    /// The app's local copy of the switch follows the engine (the sidebar and inspector read it).
+    static func follow(engineOn: Bool, defaults: UserDefaults) {
+        defaults.set(engineOn, forKey: EngineConfig.multiuserEnabledKey)
+    }
+
+    /// The migration's refusal, once, for the Sharing pane to show.
+    static func takeNote(defaults: UserDefaults) -> String? {
+        guard let text = defaults.string(forKey: noteKey) else { return nil }
+        defaults.removeObject(forKey: noteKey)
+        return text
+    }
+}

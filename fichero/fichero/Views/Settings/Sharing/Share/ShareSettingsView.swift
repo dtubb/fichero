@@ -159,6 +159,7 @@ struct ShareSettingsView: View {
             // matches Users + Engine (#3331).
             await appState.identityStore.load()
             multiuserEnabled = appState.identityStore.multiuserEnabled
+            if let note = MultiuserMigration.takeNote(defaults: EngineConfig.defaults) { shareError = note }
             if hostingEnabled && publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 publicBaseURL = Self.autoLocalBaseURL
                 await applySharing()

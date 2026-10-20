@@ -81,6 +81,16 @@ extension AppState {
         async let session: Void = sessionStore.refresh()
         async let identity: Void = identityStore.load()
         _ = await (session, identity)
+        // Multi-user is the engine's persisted choice now (#5914): carry an old app-side ON over once, then let the app's local
+        // copy follow the engine.
+        let pushed = await MultiuserMigration.run(
+            engineOn: identityStore.multiuserEnabled, engineIsLocal: EngineConfig.engineIsLocal, defaults: EngineConfig.defaults
+        ) {
+            try await MultiuserSwitch.set(
+                true, pairing: PairingService(apiRoot: EngineConfig.host), service: nil, steps: nil)
+        }
+        if pushed { await identityStore.load() }
+        MultiuserMigration.follow(engineOn: identityStore.multiuserEnabled, defaults: EngineConfig.defaults)
         recordActiveEndpoint()
         backendAccessError = nil
         engine.markReady()
