@@ -353,6 +353,8 @@
    "graph",
    "vectors"
   ],
-  "folder_id": null
+  "folder_id": null,
+  "built_in": [],
+  "train_ahead": []
  }
 }
