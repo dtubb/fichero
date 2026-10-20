@@ -175,9 +175,9 @@ async def _refine_with_llm(text: str, llm_config: LLMConfig) -> str:
             cache_key=f"text_reflow_refine_{hash(text) % (10**9)}",
         )
         return response.strip() if response else text
-    except (WorkflowCancelled, WorkflowPaused, JobCancelled):
+    except (WorkflowCancelled, WorkflowPaused, JobCancelled, ImportError):
         # A Stop or Pause is not a failed refinement (#5919 sweep): swallowed, the page would be marked done unrefined and
-        # never redone; raised, Resume does it again.
+        # never redone; raised, Resume does it again. A broken import is a bug, not a provider failure (#5921): it surfaces.
         raise
     except Exception:
         # If LLM call fails, return the heuristic result
