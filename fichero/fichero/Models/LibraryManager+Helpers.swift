@@ -125,6 +125,7 @@ extension LibraryManager {
         await registryRefreshed
         LaunchProfile.milestone("library registry refreshed")
         adoptPairedRemoteLibrary()
+        await adoptHostLibraryWhenPairingCarriedNone()
         reconcileOpenLibrariesFromRegistry()
     }
 
@@ -256,6 +257,39 @@ extension LibraryManager {
         guard EngineConfig.requiresExternalBackendConnection else { return }
         let path = RemoteAccessConfig.pairedLibraryPath
         guard !path.isEmpty else { return }
+        adoptRemoteLibrary(at: path)
+    }
+
+    /// A guest paired without a library path (a code-only pairing with a nearby Mac, an older invite) asks the host which
+    /// libraries its credential may open and adopts the host's, never keeping its own local path as the library it sends
+    /// to a remote host (`sharing.guest-addresses-the-hosts-library`, #5965). One code path for the Mac guest and the iPhone:
+    /// both reach it from the engine-ready transition and the host switch. Remembered like a path from the invite.
+    func adoptHostLibraryWhenPairingCarriedNone(
+        accessible: () async throws -> [String] = { try await PairingService(apiRoot: EngineConfig.host).accessibleLibraryPaths() }
+    ) async {
+        guard EngineConfig.requiresExternalBackendConnection, RemoteAccessConfig.pairedLibraryPath.isEmpty else { return }
+        do {
+            switch GuestLibraryChoice.choose(paired: "", accessible: try await accessible()) {
+            case .path(let path):
+                EngineConfig.defaults.set(path, forKey: RemoteAccessConfig.pairedLibraryPathKey)
+                guestLibraryProblem = nil
+                adoptRemoteLibrary(at: path)
+            case .none:
+                guestLibraryProblem = GuestLibraryChoice.noneServedWords
+                dropLocalLibraryForRemoteHost()
+            }
+        } catch {
+            libraryManagerLogger.error("Could not ask the host which libraries it serves: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// With no library the host serves for this guest, the guest's own local library must not be the one it addresses to the host.
+    private func dropLocalLibraryForRemoteHost() {
+        openLibraries.removeAll { $0.id == Self.globalLibraryId }
+        currentLibraryId = nil
+    }
+
+    private func adoptRemoteLibrary(at path: String) {
 
         let remoteURL = URL(fileURLWithPath: path)
         if let current = globalLibrary, current.url.path == remoteURL.path {
