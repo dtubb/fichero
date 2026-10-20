@@ -448,11 +448,14 @@ async def _ask(llm: Any, messages: list, *, config: Any, ctx: ActionContext) -> 
     served on this Mac on the local-model lane. Its usage is recorded for cost."""
     from fichero_server import llm as llm_module  # noqa: PLC0415
 
-    if config is None:  # a caller that names no model config: the call alone
-        return await llm.ainvoke(messages)
+    if config is None:  # a caller that names no model config: no lane, but the project's cloud cap still holds the call
+        from fichero_server.llm import spend  # noqa: PLC0415
+
+        async with spend.holding(None, ctx.library_path):
+            return await llm.ainvoke(messages)
     async with llm_module.model_call_slot(config, library=ctx.library_path, subject="Chat"):
         response = await llm.ainvoke(messages)
-    llm_module.record_call_usage(config, response)
+        llm_module.record_call_usage(config, response)  # inside the slot: the cap books what the answer cost, not its worst case
     return response
 
 
