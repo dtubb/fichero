@@ -28,6 +28,12 @@ TCP_PORT_ENV = "FICHERO_TCP_PORT"
 DEV_TEST_ENVS = frozenset({"development", "test"})
 
 
+def is_dev_or_test(env: Mapping[str, str] | None = None) -> bool:
+    """Whether the environment says dev or test EXPLICITLY (`FICHERO_ENV`); unset is not (#5895)."""
+    source = env if env is not None else environ
+    return (source.get("FICHERO_ENV") or "").strip().lower() in DEV_TEST_ENVS
+
+
 def listen_port(env: Mapping[str, str] | None = None) -> int:
     """The engine's TCP port (#5895): 8765, the shipped port, unless `FICHERO_TCP_PORT` names another AND the
     environment says dev or test EXPLICITLY (`FICHERO_ENV` is `development` or `test`). A Release app that sets
@@ -35,7 +41,7 @@ def listen_port(env: Mapping[str, str] | None = None) -> int:
     its start-up check, the Bonjour advert, the Tailscale forward and the remote-backend status cannot disagree."""
     source = env if env is not None else environ
     raw = (source.get(TCP_PORT_ENV) or "").strip()
-    if not raw or (source.get("FICHERO_ENV") or "").strip().lower() not in DEV_TEST_ENVS:
+    if not raw or not is_dev_or_test(source):
         return SHIPPED_PORT
     if not raw.isdigit() or not 1 <= int(raw) <= 65535:
         raise SystemExit(f"{TCP_PORT_ENV}={raw!r} is not a port number (1 to 65535); refusing to start.")
