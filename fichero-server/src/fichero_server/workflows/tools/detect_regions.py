@@ -18,6 +18,7 @@ local and free even in an all-cloud workflow).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -114,6 +115,25 @@ DETECT_REGIONS_CONFIG = {
     sort_order=4,
     tested=True,
 )
+async def _find_regions_with_kraken(files: list, documents: list, state: State) -> dict[str, Any]:
+    from fichero_server.db.manager import db_manager
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import regions
+
+    ids = [d.get("id") if isinstance(d, dict) else d for d in documents]
+    if not ids or not all(ids):
+        raise ValueError("Detect Regions (Kraken) needs the pages as documents of the project, and some have none")
+    db = db_manager.get_database(state.get("library_path", ""))
+    account = await asyncio.to_thread(
+        regions.find_regions, db, ids, state.get("task_id") or "", "kraken:blla", provider="kraken",
+        person=jobs.current_job_is_a_persons())
+    result: dict[str, Any] = {"files": files, "documents": documents, "regions_found": account, "results": [], "artifacts": []}
+    if account["no_image"] and not account["pages"]:
+        # A PDF (or a text file) has no page image for the segmenter: said, as before, never empty geometry.
+        result["error"] = "Kraken's segmenter needs a page image, and none of these has one (a PDF is split into pages first)"
+    return result
+
+
 async def detect_regions(
     inputs: dict[str, Any],
     state: State,
@@ -133,11 +153,9 @@ async def detect_regions(
     use_vlm = provider == "vlm"
     use_kraken = provider == "kraken"
     if use_kraken:
-        # Kraken's own neural segmenter — no LLM, no prompt. It reads nothing;
-        # the baseline/polygon geometry is the whole output.
-        prompt = ""
-        effective_llm = LLMConfig(provider="kraken", model="kraken-blla")
-    elif use_vlm:
+        # ONE Find Regions (`prep.regions.one-find-regions`, #5962): the recipe's own loop, not a second copy of it.
+        return await _find_regions_with_kraken(files, documents, state)
+    if use_vlm:
         # The boxes prompt is transcribe's own (function-local import: the
         # two tools import each other, both late, so neither loads first).
         from fichero_server.workflows.tools.transcribe import (  # noqa: PLC0415
@@ -207,7 +225,7 @@ async def detect_regions(
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
         tool_config=TOOL_CONFIG,
-        vision_mode="kraken" if use_kraken else ("llm" if use_vlm else "apple"),
+        vision_mode="llm" if use_vlm else "apple",
         # The user explicitly chose a VLM for BOXES — honour the request for
         # any vision model; the orphan-rejection guard is the safety net, not
         # a provider allow-list (2026-08-23, "some of these documents are
