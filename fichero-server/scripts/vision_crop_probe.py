@@ -84,11 +84,22 @@ def vision_text(image) -> str:
 
 def probe(rows: list[dict], pages: Path, *, arm: str = "vision", ocr=vision_text) -> dict:
     """For each row whose `arm` text is empty: what each variant reads. `ocr(image) -> text` is replaceable for a test."""
-    from PIL import Image
+    from PIL import Image  # noqa: F401  (the cache's type)
 
     empties = [r for r in rows if not (r.get(arm) or "").strip()]
     results = []
     cache: dict[str, Image.Image] = {}
+    try:
+        _probe_rows(empties, pages, cache, ocr, results)
+    finally:
+        for page in cache.values():
+            page.close()
+    return _summary(arm, results)
+
+
+def _probe_rows(empties, pages, cache, ocr, results) -> None:
+    from PIL import Image
+
     for row in empties:
         if row["page"] not in cache:
             cache[row["page"]] = Image.open(pages / row["page"])
@@ -101,6 +112,9 @@ def probe(rows: list[dict], pages: Path, *, arm: str = "vision", ocr=vision_text
                 read[name], errors[name] = "", f"{type(exc).__name__}: {exc}"[:200]
         results.append({"page": row["page"], "id": row["id"], "kraken": row.get("kraken", ""), "real_word": real_word(row),
                         "read": read, "errors": errors})
+
+
+def _summary(arm: str, results: list[dict]) -> dict:
     real = [r for r in results if r["real_word"]]
     count = lambda group, name: sum(1 for r in group if r["read"][name])  # noqa: E731
     errored = {n: sum(1 for r in results if n in r["errors"]) for n in VARIANTS}

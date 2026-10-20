@@ -365,6 +365,8 @@ def test_cer_is_also_reported_over_lines_at_least_120_px_wide_and_the_fragments_
 def test_off_script_letters_are_counted_per_arm_and_a_spanish_ordinal_is_not_one():
     assert ab.outside_script("хорессіон", "es") and ab.outside_script("mundo теісто", "es-ES")
     assert not ab.outside_script("Nº 3, 1º de mayo, año 1.923 ñ ó", "es") and not ab.outside_script("", "es")
+    assert not ab.outside_script("q\u0303\u1d49 Sr \u02b3 \u1d52", "es"), "superscript abbreviation letters are Latin writing"
+    assert ab.outside_script("q\u0303\u1d49 \u0442", "es"), "a Cyrillic letter beside them still counts"
 
 
 def test_the_report_counts_each_arms_off_script_lines(tmp_path):

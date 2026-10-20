@@ -31,8 +31,9 @@ def _own(func):
 
 
 def _requests():
-    """(function, variable, line, lines of `set_vision_languages(variable, ...)` after it in the same function) of each
-    `x = Vision.VNRecognizeTextRequest.alloc().init()`."""
+    """(function, variable, line, first line of a `set_vision_languages(variable, ...)`, first line the request is USED:
+    handed to any call but that one, as `performRequests_error_([request], ...)` or `_extract_text(request, ...)`) of each
+    `x = Vision.VNRecognizeTextRequest.alloc().init()`. Calls on the request itself (`request.setRevision_`) are not uses."""
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     found = []
     for func in (n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))):
@@ -41,17 +42,24 @@ def _requests():
             if (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
                     and "VNRecognizeTextRequest" in ast.unparse(node.value) and ".alloc()" in ast.unparse(node.value)):
                 var = node.targets[0].id
-                sets = [c.lineno for c in nodes if isinstance(c, ast.Call) and ast.unparse(c.func) == "set_vision_languages"
-                        and c.args and ast.unparse(c.args[0]) == var and c.lineno > node.lineno]
-                found.append((func.name, var, node.lineno, sets))
+                calls = [c for c in nodes if isinstance(c, ast.Call) and c.lineno > node.lineno]
+                sets = [c.lineno for c in calls if ast.unparse(c.func) == "set_vision_languages" and c.args
+                        and ast.unparse(c.args[0]) == var]
+                uses = [c.lineno for c in calls if ast.unparse(c.func) != "set_vision_languages"
+                        and not ast.unparse(c.func).startswith(f"{var}.")
+                        and any(isinstance(n, ast.Name) and n.id == var for a in [*c.args, *(k.value for k in c.keywords)]
+                                for n in ast.walk(a))]
+                found.append((func.name, var, node.lineno, min(sets) if sets else None, min(uses) if uses else None))
     return found
 
 
 def test_every_recognition_request_gets_its_language_set_before_it_is_performed():
     reads = [r for r in _requests() if r[0] not in NOT_A_READ]
     assert len(reads) >= 5, f"the five request sites were expected, found {reads}: renamed? update this guard, do not drop it"
-    missing = [(name, line) for name, _var, line, sets in reads if not sets]
-    assert not missing, f"a Vision request that never gets set_vision_languages: {missing}"
+    never = [(name, line) for name, _var, line, sets, _use in reads if sets is None]
+    assert not never, f"a Vision request that never gets set_vision_languages: {never}"
+    late = [(name, line) for name, _var, line, sets, use in reads if use is None or sets > use]
+    assert not late, f"a Vision request used (performed or handed on) before its language is set, or never used: {late}"
 
 
 @pytest.mark.parametrize("given", ["es-ES", "es", "es_ES", "Spanish", "spanish", "español"])
