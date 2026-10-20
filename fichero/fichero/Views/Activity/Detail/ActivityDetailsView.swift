@@ -94,6 +94,9 @@ struct ActivityDetailsView: View {
                 if details.row.engineKind == "read-at-scale", let jobId = details.row.jobId {
                     RemoteRunInspector(jobId: jobId, service: appState.remoteRunService)
                 }
+                if let kind = ActivityStore.queuedKind(ofRowId: details.jobId) {
+                    ActivityDetailsQueuedPages(store: store, kind: kind, rowId: details.jobId, refreshKey: details.logKey)
+                }
                 ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey)
                 if !details.resources.isEmpty {
                     ActivityDetailsResources(resources: details.resources)
@@ -268,6 +271,37 @@ private struct ActivityDetailsFailedPages: View {
             }
         }
         .accessibilityIdentifier("activity.details.failedPages")
+    }
+}
+
+/// The pages queued behind a kind's row, in the order the lane picks them, each with its state and why
+/// (`activity.window.expands-to-pages`, #5839). The first 50; it says how many more.
+private struct ActivityDetailsQueuedPages: View {
+    let store: ActivityStore
+    let kind: String
+    let rowId: String
+    let refreshKey: String
+    private static let shown = 50
+
+    var body: some View {
+        let items = store.queuedItems[kind] ?? []
+        VStack(alignment: .leading, spacing: 4) {
+            if !items.isEmpty {
+                Text(items.count == 1 ? "1 page queued" : "\(items.count) pages queued").font(.headline)
+                ForEach(items) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(item.subject).font(.body.weight(.medium))
+                        Text(item.reason ?? item.state).foregroundStyle(.secondary)
+                    }
+                    .font(.callout)
+                }
+                if items.count == Self.shown {
+                    Text("and perhaps more").font(.callout).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task(id: refreshKey) { await store.loadQueuedItems(rowId: rowId, limit: Self.shown) }
+        .accessibilityIdentifier("activity.details.queuedPages")
     }
 }
 

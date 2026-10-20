@@ -154,6 +154,8 @@ final class ActivityStore: ChangeEventConsumer {
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
     var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    /// The jobs queued behind a kind's row, by kind (`activity.window.expands-to-pages`, #5839).
+    var queuedItems: [String: [ActivityQueuedItem]] = [:]
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
     var recipeRunFolders: [String: RecipeRunFolders] = [:]
