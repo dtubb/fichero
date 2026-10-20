@@ -892,6 +892,7 @@ def _warm_configured_provider_keys() -> None:
 def _gate_multiuser_env() -> None:
     """`multiuser.env-without-owner-password-starts-off` (#5908): never exits, says why through health."""
     from fichero_server import startup_warnings
+    from fichero_server.db.app import get_app_db
     from fichero_server.security.multiuser import gate_env_at_start
 
     try:
