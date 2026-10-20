@@ -83,8 +83,10 @@ def test_the_gate_is_one_for_the_whole_process_across_calls_loops_and_threads():
             with guard:
                 live -= 1
 
-    threads = [threading.Thread(target=lambda: asyncio.run(asyncio.gather(*(call() for _ in range(3)))))
-               for _ in range(2)]
+    async def three_calls():  # `gather` needs the thread's own running loop
+        await asyncio.gather(*(call() for _ in range(3)))
+
+    threads = [threading.Thread(target=lambda: asyncio.run(three_calls())) for _ in range(2)]
     [t.start() for t in threads]
     [t.join() for t in threads]
     assert high == 1
@@ -96,7 +98,9 @@ def test_the_page_gate_is_taken_before_the_vision_slot():
 
     from fichero_server.workflows.tools import vision_base
 
-    assert "async with _page_gate(), vision_slot():" in Path(vision_base.__file__).read_text()
+    # `vision_slot(neural=...)`: an Apple Vision page draws from its own pool (`activity.lane.each-unit-its-own-lane`), so the
+    # call grew an argument; the order (gate first, slot second) is what is pinned.
+    assert "async with _page_gate(), vision_slot(" in Path(vision_base.__file__).read_text()
 
 
 def test_the_filter_is_in_place_before_coremltools_is_imported():

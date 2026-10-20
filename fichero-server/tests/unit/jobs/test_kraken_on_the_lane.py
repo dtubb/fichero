@@ -126,8 +126,10 @@ class TestAWorkflowsKrakenPageIsAJob:
             ("find-lines", "kraken:blla", "done"), ("find-lines", "kraken:blla", "done")]
 
 
-def _blocked_lane(db):
-    """Hold the lane with one job so the next ones queue up together, as a folder's pages do."""
+def _blocked_lane(db, model="kraken:blla"):
+    """Hold the lane with one job so the next ones queue up together, as a folder's pages do. A person's page of the SAME
+    model joins a running one when memory allows (`activity.lane.same-model-pages-together`), so a test of a page that must
+    WAIT holds the lane with another reader's job."""
     gate = threading.Event()
     started = threading.Event()
 
@@ -135,7 +137,7 @@ def _blocked_lane(db):
         started.set()
         gate.wait(10)
 
-    first = jobs.submit(db, "find-lines", "first", model="kraken:blla", fn=hold)
+    first = jobs.submit(db, "find-lines", "first", model=model, fn=hold)
     assert started.wait(10)
     return gate, first
 
@@ -170,9 +172,9 @@ class TestTheLaneKeepsOneModelLoaded:
 
 
 class TestSwitchingBetweenHeavyModels:
-    def test_the_embedder_lets_go_before_kraken_runs(self, db, monkeypatch):
-        """WHY: the embedder (~1.5 GB) and Kraken (2-3 GB) do not both fit an 8 GB Mac. The
-        switch frees the embedder first, unless an embed or a search is using it this moment."""
+    def test_the_embedder_is_a_light_model_and_a_kraken_run_does_not_free_it(self, db, monkeypatch):
+        """WHY: the embedder is a small model that runs beside the big ones and is never "the loaded model" (cf6fbab84,
+        `is_light`): a Kraken page after an embed does not unload it; memory pressure does, when it must."""
         import fichero_server.db.embeddings as embeddings
 
         released = []
@@ -180,7 +182,7 @@ class TestSwitchingBetweenHeavyModels:
                             lambda idle_seconds=None, reason="": released.append(idle_seconds) or [])
         jobs.submit(db, "read-a-line", "p1", model="embedder", fn=lambda: None).result(10)
         jobs.submit(db, "read-a-line", "p2", model="kraken:a", fn=lambda: None).result(10)
-        assert released == [0]
+        assert jobs.is_light("embedder") and released == []
 
     def test_background_work_waits_for_a_quiet_spell_before_swapping_models(self, db, monkeypatch):
         """WHY: a run's Kraken pages come in bursts, each followed by its saved page's embed.
@@ -312,10 +314,10 @@ class TestStopReachesAPageWaitingForTheLane:
         ran = []
         monkeypatch.setattr(kraken_runtime, "segment_to_geometry",
                             lambda image_path, rendition_id=None: ran.append(1) or _geometry(""))
-        gate, first = _blocked_lane(db)
+        gate, first = _blocked_lane(db, model="kraken:another-reader")
         try:
             step = asyncio.ensure_future(_transcribe(library, doc, {}, task_id="run-stop"))
-            for _ in range(200):  # until the page is queued behind the held job
+            for _ in range(1500):  # until the page is queued behind the held job (a cold import is slow on the M4)
                 await asyncio.sleep(0.02)
                 if db.execute_fetchone("SELECT 1 FROM jobs WHERE subject = ? AND state = 'waiting'", [doc.id]):
                     break
