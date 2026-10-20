@@ -3645,17 +3645,18 @@ Setup
   or typescript project (as a card Fichero cannot run yet, "the fast local baseline for print and typescript") and
   does not list it for handwriting; a print-only reader refused for handwriting says "it is made for print or
   typescript, never handwriting" before it says it cannot run here;
-  `fichero-server/tests/unit/recipes/test_tesseract_is_offered_for_print_only_2026_10_20.py`. **Plan (not built):**
+  `fichero-server/tests/unit/recipes/test_tesseract_is_offered_for_print_only_2026_10_20.py`. **Built 2026-10-20 (the tier field):** each reading candidate carries
+  its `tier` and `tier_words` (`discovery.reader_tier`: Kraken, PP-OCR and Tesseract are specialist; a vision model on this Mac
+  up to 8 GB is small-vlm; the rest, general), pinned by the same test file. **Plan (not built):**
   the rules' unmeasured order today is script fit, language, period, material, published error, then local before
-  remote; it has no tier. Add a `tier` to each candidate, from its card: `specialist` (a line recogniser made for
+  remote; it has no tier. The tier of each candidate, from its card: `specialist` (a line recogniser made for
   the script: Kraken, PP-OCR, a repository model, Tesseract for print), `small-vlm` (a vision-language model that
   runs on this Mac), `general` (a large or cloud vision model). The order becomes: a measurement on the person's
   pages first (as now), then script fit and language, then tier (specialist, small-vlm, general), then period,
   material and the rest as now; within a tier by coverage (how much of the project's script, language and period
   its card states). The candidate list labels each row with its tier in words ("Specialist line reader", "Small
   vision model, on this Mac", "General model") and groups by it in Set Up's model sheet; a person's choice and a
-  measured result still override the tier. Needs the candidate field (engine), then the label and grouping (Swift,
-  a separate commit).
+  measured result still override the tier. The order by tier is not built; the label and grouping are the Swift half (a separate commit).
 - `source.recipe.no-other-style-substitute` — **[OK]** (#4951) a reader made for another style of
   the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
   model" and the gap is named. *Built: `assemble._refusal` refuses a reader whose card does not state the
