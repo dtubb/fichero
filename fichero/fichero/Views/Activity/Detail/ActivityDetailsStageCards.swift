@@ -76,6 +76,7 @@ struct ActivityDetailsStageCards: View {
     static func symbol(_ state: ActivityStageCardState) -> String {
         switch state {
         case .done: "checkmark.circle.fill"
+        case .partial: "exclamationmark.circle.fill"
         case .running: "play.circle.fill"
         case .waiting: "hourglass"
         case .notRun: "minus.circle"
@@ -89,6 +90,7 @@ struct ActivityDetailsStageCards: View {
         case .done: .green
         case .running: .accentColor
         case .failed: .red
+        case .partial: .orange
         case .waiting, .notRun, .skipped: .secondary
         }
     }

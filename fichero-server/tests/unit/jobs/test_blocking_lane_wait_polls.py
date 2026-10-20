@@ -62,3 +62,13 @@ def test_closing_the_project_while_waiting_ends_the_wait_cancelled(db, test_pack
 
 def test_a_find_regions_page_with_a_free_lane_runs_it_the_kind_is_registered(db, test_package):
     assert jobs.run_on_lane_blocking(str(test_package), "find-regions", "page", model="kraken:blla", fn=lambda: "ran") == "ran"
+
+
+def test_pause_while_waiting_withdraws_the_page_and_raises_paused(db, test_package, busy_lane, monkeypatch):
+    from fichero_server.execution.cancellation import WorkflowPaused
+
+    thread, outcome = _wait_in_thread(test_package, run_id="run-paused")
+    time.sleep(0.5)
+    monkeypatch.setattr(jobs, "_pause_requested", lambda run_id: run_id == "run-paused")
+    thread.join(10)
+    assert not thread.is_alive() and isinstance(outcome.get("error"), WorkflowPaused)

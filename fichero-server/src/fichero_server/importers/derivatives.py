@@ -609,12 +609,20 @@ def _embed_document_tree(
             elif not _embed_one(db, target, library):
                 outcome = getattr(db, "last_embed_outcome", None)
                 reason = getattr(outcome, "reason", None)
+                if reason == "embedder_unavailable":  # the model is not there: the stage waits and says so, once
+                    from fichero_server.db.embed_process import EmbedderUnavailable
+
+                    raise EmbedderUnavailable(getattr(outcome, "error", None) or "The search model is not available.")
                 # 'unsupported'/'empty' style outcomes are not failures.
                 if reason in (None, "embedding_failed", "error"):
                     failures += 1
             else:
                 embedded += 1
         except Exception as exc:
+            from fichero_server.db.embed_process import EmbedderUnavailable
+
+            if isinstance(exc, EmbedderUnavailable):
+                raise  # not this page's failure: the stage waits (`_embed_stage`)
             failures += 1
             logger.warning(
                 "Deferred embed failed for %s: %s", target.id, exc
@@ -869,6 +877,10 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
     return thumb
 
 
+#: How soon an embed job whose model is missing looks again.
+EMBED_RETRY_SECONDS = 120.0
+
+
 def _embed_stage(doc_id: str, library: str) -> None:
     """Embed one document's text tree, flip pending → completed (#4225), and
     tick the queue-progress counter that feeds the status island.
@@ -900,8 +912,20 @@ def _embed_stage(doc_id: str, library: str) -> None:
         # Gate the CPU-heavy embed so at most embed_concurrency() run at once —
         # keeps a bulk import from stacking multiple all-core ONNX passes and
         # pegging the machine ([[user-machine-always-useful]]).
-        with _embed_gate:
-            embed_error = _embed_document_tree(doc, db, library)
+        from fichero_server.db.embed_process import EmbedderUnavailable
+
+        try:
+            with _embed_gate:
+                embed_error = _embed_document_tree(doc, db, library)
+        except EmbedderUnavailable as exc:
+            from fichero_server.execution import jobs
+
+            # Search cannot index yet (its model is missing): the row WAITS with the sentence as its reason, and comes
+            # back later; the download clears it (P2, 436). Not "done", and not a count in the document's metadata.
+            job_id = getattr(jobs._current, "job_id", None)
+            if job_id:
+                jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
+            raise jobs.JobDeferred(str(exc)) from exc
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
         # takes seconds, and saving the copy read at stage START resurrected

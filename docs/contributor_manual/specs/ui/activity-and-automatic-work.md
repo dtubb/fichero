@@ -697,11 +697,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` and, against the real graph (one model call, the run
   id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches), green on the M4 at `c7cc86d09` (REALGRAPH, 3-page stopped test included).
 - `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
-  `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
-  spawns no subprocess (a stale one is returned at once and re-read on a thread); a refusal is never kept; saving or deleting a key
+  `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 30 seconds, so a repeated lookup
+  spawns no subprocess (a stale one is returned at once and re-read on a thread; a key deleted outside the engine reads as found for
+  at most that long); a refusal (UNREADABLE) is kept 5 seconds and then re-read on a thread like any stale answer, so a locked keychain never runs `security` on the caller's thread on each lookup, and a refused re-read replaces the old found answer, never served on (#4534, 435); saving or deleting a key
   drops its entry, and a read begun before it never stores its old answer; at startup only the providers the person has set up (the
   app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
+- `activity.engine.embedder-model-missing-says-so` — **[PARTIAL]** (P2; test `fichero-server/tests/unit/db/test_embedder_model_missing_says_so.py`, not yet run on the M4) when the search model is not in the cache and cannot be fetched, the embed job fails with "Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet connection; it tries again later" as its reason in Activity, never fastembed's "Could not find the model tar.gz". GAP: the engine does not download the weights itself through the in-app models path (`everything the app needs ships inside`: only weights download, in-app); fastembed fetches on first load when online. A models-path download with a progress row is the follow-up.
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
 - `activity.engine.auth-never-hangs` — **[PARTIAL]** (owner, 2026-10-19 18:11: the engine stopped answering and was respawned; review 317:
@@ -1343,7 +1345,8 @@ and node, not by job); a retry action for failed pages.
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
-  Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
+  Kraken's resident models first; the embedder is a light model (runs beside the big ones, never "the loaded model"), so a
+  Kraken page after an embed does not free it (memory pressure does, when it must); a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). The quiet spell is not the only hold (#5846,
@@ -1475,6 +1478,7 @@ and node, not by job); a retry action for failed pages.
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
   hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
   reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
+- `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card does not know `partial` yet) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
 - `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
   #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
   runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;

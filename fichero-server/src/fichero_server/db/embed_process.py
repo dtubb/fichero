@@ -32,6 +32,19 @@ class EmbedderUnavailable(RuntimeError):
     """The embedding model could not be loaded or answer in time; the message is for the person."""
 
 
+def load_failure_words(payload: str, cached: bool) -> str:
+    """What a failed model load says to a person, in words (P2: eight "Could not find the model tar.gz" errors in a real
+    run were engine text). A model that is not in the cache and could not be fetched is the usual cause; Activity shows
+    this sentence as the embed job's reason, so search never stops indexing without saying why."""
+    text = str(payload)
+    missing = any(mark in text.lower() for mark in ("tar.gz", "could not find the model", "offline", "connection",
+                                                    "name or service not known", "max retries", "timed out"))
+    if missing and not cached:
+        return ("Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet "
+                "connection; it tries again later and nothing already indexed is lost.")
+    return f"The search model could not be loaded: {text}"
+
+
 def in_process() -> bool:
     """FICHERO_EMBED_IN_PROCESS=1 loads the model in the engine itself, as before (tests and bare tools)."""
     return os.environ.get("FICHERO_EMBED_IN_PROCESS") == "1"
@@ -151,7 +164,7 @@ class RemoteEmbedder:
                                       "embedding for search will try again later.") from exc
         if kind != "ready":
             self.close()
-            raise EmbedderUnavailable(f"The search model could not be loaded: {payload}")
+            raise EmbedderUnavailable(load_failure_words(payload, _cached(self.model_name, self._cache_dir)))
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         with self._lock:
