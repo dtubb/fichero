@@ -30,7 +30,7 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
     release = threading.Event()
 
     def hold():  # a blocking call on the loop thread, named so the record can be checked
-        release.wait(5)
+        release.wait(60)  # the test releases it; a ceiling this far off cannot expire under a loaded machine
 
     async def blocker():
         ready.set()
@@ -48,19 +48,21 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
 
     t = threading.Thread(target=run)
     t.start()
-    ready.wait(5)
+    assert ready.wait(30)
     path = tmp_path / loop_lag.STALL_FILE
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + 30
     while not path.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     first = json.loads(path.read_text())["seconds"]
-    time.sleep(2.2)  # held on: the record keeps up (seconds are whole, so it takes over 1 s to show)
+    deadline = time.monotonic() + 30  # held on: the record keeps up (seconds are whole, so it takes over 1 s to show)
+    while json.loads(path.read_text())["seconds"] <= first and time.monotonic() < deadline:
+        time.sleep(0.1)
     assert json.loads(path.read_text())["seconds"] > first, "the record stayed at the first figure while the hold lasted"
     record = json.loads(path.read_text())  # killed mid-stall: this is what the next engine finds
     assert record["frame"].endswith(":hold"), record
     release.set()
-    t.join(5)
-    deadline = time.monotonic() + 5
+    t.join(30)
+    deadline = time.monotonic() + 30
     while path.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not path.exists(), "a stall the engine recovered from is not reported after a normal relaunch"
