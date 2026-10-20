@@ -308,7 +308,7 @@ final class ActivityDetailsTests: XCTestCase {
 
         let failed = try details(store)
         XCTAssertEqual(failed.failedPages, [
-            ActivityDetails.FailedPage(id: "0", title: "p1.png", reason: "the provider refused this letter")
+            ActivityDetails.FailedPageRow(id: "0", title: "p1.png", reason: "the provider refused this letter")
         ])
         XCTAssertTrue(failed.actions.contains(.readAgain(label: "Read the 1 page that failed again")))
         XCTAssertFalse(failed.actions.contains(.control(.pause)), "a finished run has no Pause: absent, not disabled")
