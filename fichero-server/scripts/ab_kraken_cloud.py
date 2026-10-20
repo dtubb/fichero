@@ -234,8 +234,10 @@ def kraken_lines(image: Path, reader_ref: str) -> list[dict]:
                                   and x.metadata.get("polygon_px"))]
 
 
-async def reading_by_model(image: Path, lines: list[dict], config, language: str | None) -> dict[str, str]:
-    """Variant B / the reference: the model reads EVERY line (the line reader, as a vision reader of Kraken's lines)."""
+async def reading_by_model(image: Path, lines: list[dict], config, language: str | None, *, apple: bool = False
+                           ) -> dict[str, str]:
+    """Variant B / the reference / the free arms: a reader reads EVERY line of Kraken's (the line reader, as a vision
+    reader of Kraken's lines; `apple`: Apple Vision on each line's own picture, `config` unused)."""
     from fichero_server.llm.line_reader import read_lines
     from fichero_server.media.ocr_geometry import OCRGeometryResult
 
@@ -243,7 +245,7 @@ async def reading_by_model(image: Path, lines: list[dict], config, language: str
         **line["box"].metadata, "line_id": line["id"]}}) for line in lines)]
     geometry = OCRGeometryResult(text="", provider="kraken", model="kraken", boxes=boxes, source="kraken-blla",
                                  metadata={})
-    out = await read_lines(str(image), geometry, config, language=language)
+    out = await read_lines(str(image), geometry, config, language=language, apple=apple)
     return {b.metadata["line_id"]: b.text for b in out.boxes if b.metadata.get("line_id") and b.text}
 
 
@@ -271,66 +273,280 @@ async def reading_unsure(image: Path, lines: list[dict], config, language: str |
     return answers, len(unsure)
 
 
+# ---------------------------------------------------------------- the free arms, the arms, the agreement
+
+#: Every arm reads the SAME lines (Kraken's segmentation), keyed by line id, so they are scored the same way.
+DEFAULT_ARMS = "kraken,A,B"
+VISION_LANGUAGE = "es-ES"  # Apple Vision is given a locale, never 'auto'
+FAKE_ARM_TEXT = {"vision": "texto vision", "mlx": "texto mlx"}
+#: Which arm is the strongest reader when there is no cloud model to be the reference.
+REFERENCE_ORDER = ("mlx", "vision", "kraken")
+
+
+def kind_of(arm: str) -> str:
+    return "mlx" if arm.startswith("mlx:") else arm
+
+
+def parse_arms(text: str) -> list[str]:
+    """`kraken,vision,mlx:auto,A,B` -> the arm names, in the order shown. kraken is always an arm: the lines are its."""
+    arms = []
+    for raw in (x.strip() for x in text.split(",")):
+        if raw in ("kraken", "A", "B", "vision") or (raw.startswith("mlx:") and len(raw) > 4):
+            if raw not in arms:
+                arms.append(raw)
+        elif raw:
+            raise SystemExit(f"--arms {raw!r}: one of kraken, vision, mlx:<model or auto>, A, B")
+    if "kraken" not in arms:
+        arms.insert(0, "kraken")
+    return arms
+
+
+def pick_mlx(wanted: str, *, log=print) -> tuple[str, object, dict]:
+    """(the arm's name, its LLMConfig, what was chosen and why) for `mlx:<wanted>`: a Qwen VL from the engine's own catalogue that this Mac may
+    run for reading a page (`local_model_choice.runs_here`, the memory gate) and that is already installed: the harness
+    never downloads (the M4's disk is nearly full) and never goes over the gate. `auto`: the engine's own choice among
+    Qwen VL models (installed first, then the larger). The repo id and why are LOGGED and land in the report."""
+    from fichero_server import llm
+    from fichero_server.llm import local_model_choice as choice
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+    qwen = [s for s in MANAGED_MLX_MODELS.values() if "vision" in s.capabilities and "qwen" in s.model_id.lower()]
+    if wanted == "auto":
+        picked = choice.choose_local_model("vision", catalog=qwen)
+        if picked.model_id is None:
+            raise SystemExit(f"mlx:auto: {picked.reason}")
+        spec, why = next(s for s in qwen if s.model_id == picked.model_id), picked.reason
+    else:
+        found = [s for s in qwen if wanted.lower() in (s.model_id.lower(), s.repo_id.lower())]
+        if not found:
+            raise SystemExit(f"mlx:{wanted}: not a Qwen VL in the catalogue ({', '.join(s.model_id for s in qwen)})")
+        spec = found[0]
+        ok, refusal = choice.runs_here(spec, "vision")
+        if not ok:
+            raise SystemExit(f"mlx:{wanted}: this Mac may not run it ({refusal}): not over the memory gate")
+        why = f"named on the command line; {spec.display_name} passes the memory gate for reading a page"
+    store = choice._store()
+    if not store.is_complete(spec):
+        raise SystemExit(f"mlx:{spec.model_id} ({spec.repo_id}) is not installed; this harness never downloads: "
+                         "install it in the app's Settings first")
+    from fichero_server.llm.local_inference import local_reads_at_once
+
+    reads = local_reads_at_once(spec)
+    log(f"mlx arm: {spec.repo_id} ({spec.model_id}); {why}; {reads} reads at once beside the app")
+    return f"mlx:{spec.model_id}", llm.LLMConfig(provider="omlx", model=spec.model_id, temperature=0.0), \
+        {"repo": spec.repo_id, "model": spec.model_id, "why": why, "reads_at_once": reads}
+
+
+def free_reader(arm: str, *, fake: bool, config=None, language: str = VISION_LANGUAGE):
+    """The async reader of a free arm: (image, lines) -> {line id: text}. `fake`: a stub, for the dry run anywhere."""
+    if fake:
+        text = FAKE_ARM_TEXT[kind_of(arm)]
+
+        async def stub(image, lines):
+            return {line["id"]: text for line in lines}
+
+        return stub
+    if arm == "vision":
+        return lambda image, lines: reading_by_model(image, lines, None, language, apple=True)
+    return lambda image, lines: reading_by_model(image, lines, config, language)
+
+
+def reference_arm_for(arms: list[str], explicit: str | None, cloud_reference: bool) -> str | None:
+    """The arm whose read is the reference: the named one, else (no cloud model to be it) the strongest free arm present.
+    None: the cloud reference model reads. A (the unsure lines only) is never one."""
+    if explicit:
+        if explicit not in arms or explicit == "A":
+            raise SystemExit(f"--reference-arm {explicit!r}: not a full reading among --arms {','.join(arms)}")
+        return explicit
+    if cloud_reference:
+        return None
+    for kind in REFERENCE_ORDER:
+        found = [a for a in arms if kind_of(a) == kind]
+        if found:
+            if kind == "kraken":
+                raise SystemExit("--arms has only kraken: add vision or mlx:<model>, or give --reference-model")
+            return found[0]
+    raise SystemExit("no arm to be the reference")
+
+
+def _same(text: str | None) -> str:
+    return " ".join((text or "").casefold().split())
+
+
+def agreement(rows: list[dict], arms: list[str]) -> dict:
+    """With three or more independent readers (A reads only some lines, so it is not one), per line: every reader that
+    answered gave the same text (`all agree`: probably right) or they split (the lines to look at). Sets
+    `row['agreement']` ('agree' | 'split' | None when fewer than two answered) and says the share."""
+    readers = [a for a in arms if a != "A"]
+    if len(readers) < 3:
+        return {"readers": readers, "scored": 0}
+    agree = split = 0
+    for row in rows:
+        said = {a: _same(row.get(a)) for a in readers if (row.get(a) or "").strip()}
+        if len(said) < 2:
+            row["agreement"] = None
+        elif len(set(said.values())) == 1:
+            row["agreement"], agree = "agree", agree + 1
+        else:
+            row["agreement"], split = "split", split + 1
+    scored = agree + split
+    return {"readers": readers, "scored": scored, "all_agree": agree, "split": split,
+            "share_agree": (agree / scored) if scored else None}
+
+
 # ---------------------------------------------------------------- the run
 
 
 def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar: float, cap: float,
-        reader_ref: str, language: str | None, kraken=kraken_lines) -> dict:
+        reader_ref: str, language: str | None, kraken=kraken_lines, arms: list[str] | None = None,
+        reference_arm: str | None = None, readers: dict | None = None, mlx_choice: dict | None = None,
+        fake_arms: bool = False) -> dict:
+    """`arms`: which readings to make, all on Kraken's own lines (default kraken, A, B). `readers`: an arm's async
+    (image, lines) -> {line id: text}, for tests; a free arm without one gets the real reader, or a stub when
+    `fake_arms` (`--fake-arms`, the dry run anywhere; `--model fake` is only the cloud models' stub). An arm that fails on a page leaves its cells empty and says why; the others go on."""
+    import time
+
     require_scratch_state()  # every entry that reads a Kraken reader or calls a model, not only main()
+    arms = arms or parse_arms(DEFAULT_ARMS)
+    readers = dict(readers or {})
+    mlx_choice = dict(mlx_choice or {})
+    cloud = "A" in arms or "B" in arms
+    ref_arm = reference_arm_for(arms, reference_arm, cloud or reference_model is not None)
+    fake = fake_arms
+    for arm in arms:  # the real free arms, made once, before any page: a refused model stops the run here
+        if arm in readers or arm in ("kraken", "A", "B"):
+            continue
+        if kind_of(arm) == "mlx" and not fake:
+            name, config, mlx_choice[arm] = pick_mlx(arm.split(":", 1)[1])
+            readers[arm] = free_reader(arm, fake=False, config=config)
+        else:
+            readers[arm] = free_reader(arm, fake=fake)
     ledger = Ledger(cap=cap)
     images = sorted(p for p in pages.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
     if not images:
         raise SystemExit(f"no page images in {pages}")
-    ref_spec = reference_model or ("fake-reference" if model == "fake" else model)
+    ref_spec = (f"{ref_arm} arm" if ref_arm else reference_model or ("fake-reference" if model == "fake" else model))
     rows: list[dict] = []
+    failures: list[dict] = []
+    seconds: dict[str, list[float]] = {}
     stopped = None
     sent = total = 0
+
+    def timed(name: str, make):
+        began = time.perf_counter()
+        try:
+            return make()
+        except CapReached:
+            raise
+        except Exception as exc:  # noqa: BLE001 -- an arm that fails leaves its cells empty with a reason; the rest go on
+            failures.append({"arm": name, "page": ledger.page, "why": f"{type(exc).__name__}: {exc}"[:240]})
+            return {}
+        finally:
+            seconds.setdefault(name, []).append(time.perf_counter() - began)
+
     for image in images:
         ledger.page = image.name
+        began = time.perf_counter()
         lines = kraken(image, reader_ref)
+        seconds.setdefault("kraken", []).append(time.perf_counter() - began)
+        answers: dict[str, dict] = {}
+        n = 0
         try:
-            ledger.stage = "reference"
-            ref_config = install_model(ref_spec, ledger)
-            reference = asyncio.run(reading_by_model(image, lines, ref_config, language))
-            ledger.stage = "A"
-            a_config = install_model(model, ledger)
-            a_answers, n = asyncio.run(reading_unsure(image, lines, a_config, language, bar))
-            ledger.stage = "B"
-            b_answers = asyncio.run(reading_by_model(image, lines, a_config, language))
+            for arm in arms:  # the free arms: no model cost, no cap; through the engine's own vision, never the priced wrapper
+                if arm in readers:
+                    if not fake:
+                        from fichero_server import llm
+
+                        llm.vision = _real_vision()
+                    ledger.stage = arm
+                    answers[arm] = timed(arm, lambda arm=arm: _free_call(readers[arm], image, lines))
+            if ref_arm is None:
+                ledger.stage = "reference"
+                ref_config = install_model(ref_spec, ledger)
+                answers["reference"] = asyncio.run(reading_by_model(image, lines, ref_config, language))
+            if cloud:
+                a_config = install_model(model, ledger)
+                if "A" in arms:
+                    ledger.stage = "A"
+                    got = timed("A", lambda: _Counted(*asyncio.run(reading_unsure(image, lines, a_config, language, bar))))
+                    answers["A"], n = dict(got), getattr(got, "count", 0)
+                if "B" in arms:
+                    ledger.stage = "B"
+                    answers["B"] = timed("B", lambda: asyncio.run(reading_by_model(image, lines, a_config, language)))
         except CapReached as exc:
             stopped = f"{image.name}: {exc}"
             break
         sent, total = sent + n, total + len(lines)
         for line in lines:
-            rows.append({"page": image.name, "id": line["id"], "confidence": line["confidence"],
-                         "polygon": line["polygon"], "kraken": line["text"],
-                         "A": a_answers.get(line["id"], line["text"]), "B": b_answers.get(line["id"], ""),
-                         "reference": reference.get(line["id"], ""), "sent_in_A": line["id"] in a_answers})
+            row = {"page": image.name, "id": line["id"], "confidence": line["confidence"], "polygon": line["polygon"],
+                   "kraken": line["text"], "sent_in_A": line["id"] in answers.get("A", {})}
+            for arm in arms:
+                if arm == "A":
+                    row["A"] = answers["A"].get(line["id"], line["text"])
+                elif arm != "kraken":
+                    row[arm] = answers.get(arm, {}).get(line["id"], "")
+            row["reference"] = (row.get(ref_arm) or "") if ref_arm else answers.get("reference", {}).get(line["id"], "")
+            rows.append(row)
     report = summarise(rows, ledger, bar=bar, sent=sent, total=total, stopped=stopped, model=model, reference=ref_spec,
-                       pages=len(images))
+                       pages=len(images), arms=arms, ref_arm=ref_arm, seconds=seconds, failures=failures,
+                       mlx_choice=mlx_choice)
     write_outputs(out, rows, report, images)
     return report
 
 
-def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, reference, pages) -> dict:
+def _free_call(reader, image, lines):
+    return asyncio.run(reader(image, lines))
+
+
+class _Counted(dict):
+    """A's answers by line id, with how many lines it sent (`timed` hands back one value)."""
+
+    def __init__(self, answers, count):
+        super().__init__(answers)
+        self.count = count
+
+
+def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, reference, pages, arms=None, ref_arm=None,
+              seconds=None, failures=None, mlx_choice=None) -> dict:
+    arms = arms or parse_arms(DEFAULT_ARMS)
     measured = [r for r in rows if r["reference"].strip()]
+    done = len({r["page"] for r in rows})
+    label = LABEL if ref_arm is None else f"model reference ({ref_arm}), not ground truth"
+    per_arm = {}
+    for arm in arms:
+        times = (seconds or {}).get(arm, [])
+        per_arm[arm] = {**rates([(r["reference"], r.get(arm, "")) for r in measured]),
+                        "s_per_page": (sum(times) / len(times)) if times else None,
+                        "usd_per_page": (ledger.by_stage.get(arm, 0.0) / done) if done else None,
+                        "lines_read": sum(1 for r in rows if (r.get(arm) or "").strip()),
+                        "pages_failed": len([f for f in (failures or []) if f["arm"] == arm])}
     return {
-        "label": LABEL, "model": model, "reference_model": reference, "pages_planned": pages,
-        "pages_done": len({r["page"] for r in rows}), "lines": len(rows), "lines_with_reference": len(measured),
-        "kraken": rates([(r["reference"], r["kraken"]) for r in measured]),
-        "A": rates([(r["reference"], r["A"]) for r in measured]),
-        "B": rates([(r["reference"], r["B"]) for r in measured]),
+        "label": label, "model": model, "reference_model": reference, "pages_planned": pages, "arms": arms,
+        "reference_arm": ref_arm, "pages_done": done, "lines": len(rows), "lines_with_reference": len(measured),
+        "per_arm": per_arm, "kraken": per_arm["kraken"], "A": per_arm.get("A"), "B": per_arm.get("B"),
         "A_lines_sent": sent, "A_lines_total": total, "A_share_sent": (sent / total) if total else None,
-        "calibration": calibration(measured, bar),
+        "calibration": calibration(measured, bar), "agreement": agreement(rows, arms), "failures": failures or [],
+        "mlx": mlx_choice or {},
         "cost": {"total": ledger.spent, "cap": ledger.cap, "calls": ledger.calls, "by_stage": ledger.by_stage,
                  "by_page": ledger.by_page, "per_page": (ledger.spent / pages) if pages else None,
-                 "estimated": model != "fake"},
+                 "estimated": model != "fake" and ("A" in arms or "B" in arms or ref_arm is None)},
         "stopped": stopped,
     }
 
 
 def _pct(x) -> str:
     return "n/a" if x is None else f"{100 * x:.1f}%"
+
+
+def _shown(rows: list[dict]) -> list[dict]:
+    """The lines for the owner's sheet: where the readers split first, then the lines Kraken read worst."""
+    def worst(r):
+        got = line_errors(r["reference"], r["kraken"]) or (0, 1, 0, 1)
+        return -got[0] / max(1, got[1])
+
+    split = [r for r in rows if r.get("agreement") == "split"][:30]
+    rest = sorted((r for r in rows if r["reference"].strip() and r not in split), key=worst)
+    return split + rest[: max(0, 10 - len(split))]
 
 
 def write_outputs(out: Path, rows: list[dict], report: dict, images: list[Path]) -> None:
@@ -340,9 +556,7 @@ def write_outputs(out: Path, rows: list[dict], report: dict, images: list[Path])
     crops = out / "crops"
     crops.mkdir(exist_ok=True)
     pages = {p.name: p for p in images}
-    shown = sorted((r for r in rows if r["reference"].strip()),
-                   key=lambda r: -(line_errors(r["reference"], r["kraken"]) or (0, 1, 0, 1))[0]
-                   / max(1, (line_errors(r["reference"], r["kraken"]) or (0, 1, 0, 1))[1]))[:10]
+    shown = _shown(rows)
     for n, row in enumerate(shown):
         with Image.open(pages[row["page"]]) as im:
             xs, ys = [p[0] for p in row["polygon"]], [p[1] for p in row["polygon"]]
@@ -350,31 +564,50 @@ def write_outputs(out: Path, rows: list[dict], report: dict, images: list[Path])
             if box[2] > box[0] and box[3] > box[1]:
                 im.convert("RGB").crop(box).save(crops / f"{n:02}.png")
         row["crop"] = f"crops/{n:02}.png"
-    (out / "lines.json").write_text(json.dumps({"label": LABEL, "lines": [
+    (out / "lines.json").write_text(json.dumps({"label": report["label"], "lines": [
         {k: v for k, v in r.items() if k != "box"} for r in rows]}, indent=1), encoding="utf-8")
     (out / "report.md").write_text(_report_md(report), encoding="utf-8")
     (out / "sheet.html").write_text(_sheet_html(shown, report), encoding="utf-8")
 
 
+def _arm_title(arm: str, r: dict) -> str:
+    return {"kraken": "Kraken alone", "vision": f"Apple Vision ({VISION_LANGUAGE})",
+            "A": "A: Kraken, then the model on unsure lines", "B": "B: the model reads every line"
+            }.get(arm, f"{arm} (local, MLX)" if arm.startswith("mlx:") else arm)
+
+
 def _report_md(r: dict) -> str:
-    c, cal = r["cost"], r["calibration"]
-    lines = [f"# Kraken, A and B on {r['pages_done']} of {r['pages_planned']} pages",
+    c, cal, ag = r["cost"], r["calibration"], r["agreement"]
+    lines = [f"# {', '.join(r['arms'])} on {r['pages_done']} of {r['pages_planned']} pages",
              f"\nAll CER and WER below are against a **{r['label']}** ({r['reference_model']}), over "
-             f"{r['lines_with_reference']} of {r['lines']} lines. Model for A and B: {r['model']}.\n",
-             "| | CER | WER |", "|---|---|---|"]
-    for name, key in (("Kraken alone", "kraken"), ("A: Kraken, then the model on unsure lines", "A"),
-                      ("B: the model reads every line", "B")):
-        lines.append(f"| {name} | {_pct(r[key]['cer'])} | {_pct(r[key]['wer'])} |")
-    lines += [f"\nVariant A sent {r['A_lines_sent']} of {r['A_lines_total']} lines ({_pct(r['A_share_sent'])}).",
-              f"\n## Calibration (bar {cal.get('bar')})\n"
+             f"{r['lines_with_reference']} of {r['lines']} lines. All arms read the same lines, Kraken's. Model for A and "
+             f"B: {r['model']}.\n",
+             "| arm | CER | WER | s/page | $/page | lines read |", "|---|---|---|---|---|---|"]
+    for arm in r["arms"]:
+        m = r["per_arm"][arm]
+        spp = "n/a" if m["s_per_page"] is None else f"{m['s_per_page']:.1f}"
+        usd = "n/a" if m["usd_per_page"] is None else f"${m['usd_per_page']:.4f}"
+        lines.append(f"| {_arm_title(arm, r)} | {_pct(m['cer'])} | {_pct(m['wer'])} | {spp} | {usd} | {m['lines_read']} |")
+    if "A" in r["arms"]:
+        lines.append(f"\nVariant A sent {r['A_lines_sent']} of {r['A_lines_total']} lines ({_pct(r['A_share_sent'])}).")
+    for arm, got in r["mlx"].items():
+        lines.append(f"\nLocal model for `{arm}`: {got['repo']} ({got['model']}); {got['why']}; {got['reads_at_once']} reads at once.")
+    if ag.get("scored"):
+        lines.append(f"\n## Agreement ({', '.join(ag['readers'])})\n"
+                     f"{ag['all_agree']} of {ag['scored']} lines read by two or more readers: all agree "
+                     f"({_pct(ag['share_agree'])}, probably right); {ag['split']} split (the sheet lists them first).")
+    lines += [f"\n## Calibration (bar {cal.get('bar')})\n"
               f"Worst-CER decile ({cal.get('worst_decile_lines')} lines): {_pct(cal.get('worst_decile_below_bar'))} fall "
               f"below the bar (would be sent). Good lines (CER <= {GOOD_LINE_CER:.0%}, {cal.get('good_lines')} lines): "
               f"{_pct(cal.get('good_below_bar'))} fall below it. If the first is not far above the second, Kraken is "
               "confidently wrong and A cannot find its bad lines.",
-              f"\n## Cost{' (estimated from the registry price)' if c['estimated'] else ' (fake model: none)'}\n"
+              f"\n## Cost{' (estimated from the registry price)' if c['estimated'] else ' (fake model or free arms: none)'}\n"
               f"Total ${c['total']:.4f} of the ${c['cap']:.2f} cap over {c['calls']} calls; per page "
               f"${(c['per_page'] or 0):.4f}. By stage: "
               + ", ".join(f"{k or '-'} ${v:.4f}" for k, v in c["by_stage"].items())]
+    if r["failures"]:
+        lines.append("\n## Arms that failed (their cells are empty)\n" + "\n".join(
+            f"- {f['arm']} on {f['page']}: {f['why']}" for f in r["failures"]))
     if r["stopped"]:
         lines.append(f"\n**Stopped at the cap:** {r['stopped']}")
     return "\n".join(lines) + "\n"
@@ -382,15 +615,17 @@ def _report_md(r: dict) -> str:
 
 def _sheet_html(shown: list[dict], r: dict) -> str:
     esc = lambda s: (s or "").replace("&", "&amp;").replace("<", "&lt;")  # noqa: E731
+    arms = r["arms"]
     body = "".join(
-        f"<tr><td><img src='{row.get('crop', '')}' style='max-width:420px'></td><td>{esc(row['kraken'])}</td>"
-        f"<td>{esc(row['A'])}{' (sent)' if row['sent_in_A'] else ''}</td><td>{esc(row['B'])}</td>"
-        f"<td>{esc(row['reference'])}</td></tr>" for row in shown)
-    return ("<!doctype html><meta charset=utf-8><title>Kraken, A and B</title><style>body{font:14px system-ui;margin:2em}"
-            "td,th{border:1px solid #888;padding:6px;vertical-align:top}table{border-collapse:collapse}</style>"
-            f"<h1>The ten lines Kraken read worst</h1><p>The last column is a <b>{LABEL}</b> ({esc(r['reference_model'])}), "
-            "not what the page says.</p><table><tr><th>Line</th><th>Kraken</th><th>A</th><th>B</th><th>Reference</th></tr>"
-            f"{body}</table>")
+        f"<tr><td><img src='{row.get('crop', '')}' style='max-width:420px'></td>"
+        + "".join(f"<td>{esc(row.get(a, ''))}{' (sent)' if a == 'A' and row['sent_in_A'] else ''}</td>" for a in arms)
+        + f"<td>{esc(row['reference'])}</td><td>{esc(row.get('agreement') or '')}</td></tr>" for row in shown)
+    heads = "".join(f"<th>{esc(_arm_title(a, r))}</th>" for a in arms)
+    return ("<!doctype html><meta charset=utf-8><title>Readers on Kraken's lines</title><style>body{font:14px system-ui;"
+            "margin:2em}td,th{border:1px solid #888;padding:6px;vertical-align:top}table{border-collapse:collapse}</style>"
+            f"<h1>Where the readers split, then the lines Kraken read worst</h1><p>The reference column is a "
+            f"<b>{esc(r['label'])}</b> ({esc(r['reference_model'])}), not what the page says.</p>"
+            f"<table><tr><th>Line</th>{heads}<th>Reference</th><th>Readers</th></tr>{body}</table>")
 
 
 #: Where the app and the owner keep their own things, under the home directory: never a scratch directory.
@@ -424,14 +659,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cap", type=float, default=1.0, help="US$ cap over every call, reference included")
     ap.add_argument("--reader", default=None, help="the Kraken reader (a catalogue id or a .mlmodel path)")
     ap.add_argument("--language", default="es")
+    ap.add_argument("--arms", default=DEFAULT_ARMS, help="comma list of readings, all on Kraken's lines: kraken, vision "
+                    "(Apple Vision es-ES), mlx:<Qwen VL model id, or auto> (a local MLX model, installed, within the "
+                    "memory gate), A, B (the cloud --model)")
+    ap.add_argument("--fake-arms", action="store_true", help="free arms answer stub text: the dry run on any machine")
+    ap.add_argument("--reference-arm", help="an arm to be the reference when no cloud model is (default: the strongest "
+                    "free arm present, mlx then vision)")
     args = ap.parse_args(argv)
+    arms = parse_arms(args.arms)
     reader = args.reader
     if reader is None:
         from fichero_server.recipes.cards import kraken_reader_for
 
         reader = kraken_reader_for({"zenodo": "10.5281/zenodo.21788410"})  # the seeded PP-OCRv6 medium
     report = run(args.pages, args.out, model=args.model, reference_model=args.reference_model, bar=args.bar,
-                 cap=args.cap, reader_ref=reader, language=args.language)
+                 cap=args.cap, reader_ref=reader, language=args.language, arms=arms,
+                 reference_arm=args.reference_arm, fake_arms=args.fake_arms)
     print((args.out / "report.md").read_text(encoding="utf-8"))
     return 0 if not report["stopped"] else 2
 

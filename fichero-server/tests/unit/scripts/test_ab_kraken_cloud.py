@@ -201,3 +201,121 @@ def test_run_itself_refuses_without_the_guard_not_only_main(monkeypatch, tmp_pat
     with pytest.raises(SystemExit, match="FICHERO_BASE_PATH"):
         ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
                reader_ref="unused", language="es", kraken=_stub_kraken)
+
+
+# ---------------------------------------------------------------- the free arms (#5894, the bake-off)
+
+
+def _reader(texts: dict[str, str]):
+    """A fake arm reader: line id -> text, whatever the page."""
+    async def read(image, lines):
+        return {line["id"]: texts[line["id"]] for line in lines if line["id"] in texts}
+
+    return read
+
+
+def _free_run(tmp_path, arms, readers, **kw):
+    return ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+                  reader_ref="unused", language="es", kraken=_stub_kraken, arms=arms, readers=readers, **kw)
+
+
+def test_arms_parse_with_kraken_always_first_and_a_bad_arm_refused():
+    assert ab.parse_arms("kraken,A,B") == ["kraken", "A", "B"]
+    assert ab.parse_arms("vision,mlx:auto") == ["kraken", "vision", "mlx:auto"], "kraken is always an arm: the lines are its"
+    with pytest.raises(SystemExit, match="--arms"):
+        ab.parse_arms("kraken,gpt")
+
+
+def test_each_arm_text_lands_on_its_line_id_and_the_reference_is_the_strongest_free_arm(tmp_path):
+    readers = {"vision": _reader({"0": "hola", "1": "mundo", "2": "adios"}),
+               "mlx:Qwen2.5-VL-7B": _reader({"0": "hola", "1": "mundo!", "2": "adiós"})}
+    report = _free_run(tmp_path, ["kraken", "vision", "mlx:Qwen2.5-VL-7B"], readers)
+    assert report["reference_arm"] == "mlx:Qwen2.5-VL-7B", "mlx is the strongest present"
+    assert report["label"] == "model reference (mlx:Qwen2.5-VL-7B), not ground truth"
+    by = {r["id"]: r for r in json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]}
+    assert (by["1"]["kraken"], by["1"]["vision"], by["1"]["mlx:Qwen2.5-VL-7B"]) == ("mundo", "mundo", "mundo!")
+    assert by["2"]["reference"] == "adiós" and report["cost"]["total"] == 0
+    assert report["per_arm"]["vision"]["cer"] > 0 and report["per_arm"]["kraken"]["lines"] == 3
+    assert all(report["per_arm"][a]["s_per_page"] is not None and report["per_arm"][a]["usd_per_page"] == 0
+               for a in ("kraken", "vision"))
+
+
+def test_reference_arm_can_be_named_and_a_arm_that_is_not_a_full_reading_is_refused(tmp_path):
+    readers = {"vision": _reader({"0": "hola"}), "mlx:m": _reader({"0": "hola"})}
+    assert _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers, reference_arm="vision")["reference_arm"] == "vision"
+    with pytest.raises(SystemExit, match="reference-arm"):
+        ab.reference_arm_for(["kraken", "A"], "A", False)
+    with pytest.raises(SystemExit, match="only kraken"):
+        ab.reference_arm_for(["kraken"], None, False)
+    assert ab.reference_arm_for(["kraken", "A", "B"], None, True) is None, "with a cloud model it is the reference"
+
+
+def test_a_failing_arm_leaves_its_cells_empty_with_a_reason_and_the_others_go_on(tmp_path):
+    async def boom(image, lines):
+        raise RuntimeError("Apple Vision can't read Spanish on this Mac")
+
+    readers = {"vision": boom, "mlx:m": _reader({"0": "hola", "1": "mundo", "2": "adios"})}
+    report = _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers)
+    assert report["failures"] == [{"arm": "vision", "page": "p0.png", "why": "RuntimeError: Apple Vision can't read "
+                                   "Spanish on this Mac"}]
+    rows = json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]
+    assert all(r["vision"] == "" and r["mlx:m"] for r in rows)
+    assert report["per_arm"]["vision"]["lines_read"] == 0 and report["per_arm"]["mlx:m"]["lines_read"] == 3
+    md = (tmp_path / "out" / "report.md").read_text()
+    assert "Arms that failed" in md and "Apple Vision can't read Spanish" in md
+
+
+def test_agreement_counts_all_agree_and_split_lines_and_the_sheet_lists_the_splits_first(tmp_path):
+    readers = {"vision": _reader({"0": "hola", "1": "mundo", "2": "xdios"}),
+               "mlx:m": _reader({"0": "Hola ", "1": "mundo", "2": "adios"})}  # case and spacing do not split
+    report = _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers)
+    ag = report["agreement"]
+    assert (ag["scored"], ag["all_agree"], ag["split"]) == (3, 2, 1) and ag["share_agree"] == pytest.approx(2 / 3)
+    assert "A" not in ag["readers"]
+    sheet = (tmp_path / "out" / "sheet.html").read_text()
+    assert sheet.index("xdios") < sheet.index("<td>mundo"), "the split line comes first"
+    assert "1 split" in (tmp_path / "out" / "report.md").read_text()
+
+
+def test_two_readers_report_no_agreement_and_a_is_never_one(tmp_path):
+    assert ab.agreement([{"kraken": "a", "A": "b", "B": "a"}], ["kraken", "A", "B"])["scored"] == 0
+    rows = [{"kraken": "a", "B": "a", "vision": "a"}]
+    assert ab.agreement(rows, ["kraken", "vision", "A", "B"])["all_agree"] == 1 and rows[0]["agreement"] == "agree"
+
+
+def test_the_fake_arms_dry_run_works_anywhere_and_the_cloud_arms_are_unchanged(tmp_path):
+    report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+                    reader_ref="unused", language="es", kraken=_stub_kraken,
+                    arms=ab.parse_arms("vision,mlx:auto,A,B"), fake_arms=True)
+    assert report["reference_arm"] is None and report["label"] == "model reference, not ground truth"
+    rows = json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]
+    assert all(r["vision"] == ab.FAKE_ARM_TEXT["vision"] and r["mlx:auto"] == ab.FAKE_ARM_TEXT["mlx"] for r in rows)
+    assert (report["A_lines_sent"], report["A_lines_total"]) == (4, 6) and report["agreement"]["scored"] == 6
+
+
+def test_mlx_picks_only_an_installed_qwen_vl_inside_the_memory_gate_and_logs_why(monkeypatch):
+    from fichero_server.llm import local_model_choice as choice
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+    class Store:
+        def __init__(self, done):
+            self.done = done
+
+        def is_complete(self, spec):
+            return spec.model_id in self.done
+
+    seven = MANAGED_MLX_MODELS["Qwen2.5-VL-7B"]
+    monkeypatch.setattr(choice, "runs_here", lambda spec, cap="text", **k: (spec.model_id != "mlx-community/Qwen3-VL-8B",
+                                                                           "needs 24 GB to read a page"))
+    monkeypatch.setattr(choice, "_store", lambda: Store({seven.model_id}))
+    logged = []
+    name, config, why = ab.pick_mlx("auto", log=logged.append)
+    assert name == f"mlx:{seven.model_id}" and config.provider == "omlx" and why["repo"] == seven.repo_id
+    assert seven.repo_id in logged[0], "the repo id is logged"
+    with pytest.raises(SystemExit, match="memory gate"):
+        ab.pick_mlx("mlx-community/Qwen3-VL-8B")
+    monkeypatch.setattr(choice, "_store", lambda: Store(set()))
+    with pytest.raises(SystemExit, match="never downloads"):
+        ab.pick_mlx("Qwen2.5-VL-7B")
+    with pytest.raises(SystemExit, match="not a Qwen VL"):
+        ab.pick_mlx("Chandra-OCR")
