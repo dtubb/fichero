@@ -2776,6 +2776,7 @@ The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; 
   listed one becomes gated or goes. Allowing another Mac does not open the cloud, and the reverse. Embeddings run in fastembed on this
   Mac; no cloud embeddings client exists. LIMIT: the scan sees the listed call shapes; a client reached through a new library
   needs its shape added to the scan.
+  The model-call gate also asks the project the call runs under (`cloud_allowed`, `fichero-server/src/fichero_server/llm/egress.py`; `ai.where.one-egress-gate`, `ai.where.egress-at-every-call`): built, unrun until an M4 pass, pinned by `fichero-server/tests/unit/llm/test_one_egress_gate_5368.py` (a second provider client built outside `get_langchain_model` fails it).
 - `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
   model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
   `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database

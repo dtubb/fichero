@@ -732,6 +732,20 @@ class LocalOnlyViolationError(RuntimeError):
         )
 
 
+class EgressRefusedError(LocalOnlyViolationError):
+    """A call that leaves this Mac, refused because its project has not said that its pages may go to a cloud model
+    (`ai.where.one-egress-gate`, #5368). Nothing was sent. A `LocalOnlyViolationError`, so every handler that reports
+    the engine-wide switch reports this too."""
+
+    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm"):
+        super().__init__(provider, model=model, kind=kind)
+        model_label = f"/{model}" if model else ""
+        self.args = (
+            f"This project keeps its pages on this Mac, so the {kind} call to {provider}{model_label} was not sent. "
+            "Say yes to cloud models in the project's Set Up, or choose a model that runs on this Mac.",
+        )
+
+
 class LLMBatchItemError(RuntimeError):
     """One item inside a batched LLM call failed."""
 
@@ -1233,6 +1247,10 @@ def _runs_on_this_mac(config: LLMConfig) -> bool:
 
 
 def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
+    """The one egress gate (`ai.where.one-egress-gate`, #5368): a call that leaves this Mac needs the Set Up answer for its
+    place, the engine-wide switch off AND the project it runs under to have said yes. Every model call meets it:
+    `get_langchain_model` (every model built, so chat, MCP and workflow calls) and the few calls that build none (audio,
+    the Hub's inference API)."""
     if _runs_on_this_mac(config):
         return
     # The Set Up answer, per place (`source.egress.setting-is-reachable`): another Mac is not the cloud.
@@ -1244,6 +1262,10 @@ def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind, because=because)
     if is_local_only():
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
+    from fichero_server.llm.egress import current_library, project_allows_leaving
+
+    if not project_allows_leaving(current_library()):
+        raise EgressRefusedError(config.provider, model=config.model, kind=kind)
 
 
 # =============================================================================
@@ -4918,6 +4940,7 @@ __all__ = [
     "LLMBatchItemError",
     "LocalOnlyViolationError",
     "is_local_only",
+    "EgressRefusedError",
     # Chat
     "chat",
     "chat_batch",
