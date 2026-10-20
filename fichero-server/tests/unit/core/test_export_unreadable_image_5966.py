@@ -4,6 +4,8 @@ from __future__ import annotations
 import unicodedata
 from pathlib import Path
 
+import pytest
+
 from fichero_server.export_service import export_markdown_folder, export_word_docx
 from fichero_server.models import DocType, Document, FileType
 
@@ -51,6 +53,7 @@ def test_a_word_export_writes_the_rest_and_says_where_the_image_would_be(db, tmp
     assert "Texto del folio" in xml and "not found" in xml
 
 
+@pytest.mark.xfail(strict=False, reason="#5966: which normalisation resolves is unconfirmed; the M4 decides (then this loses the marker)")
 def test_a_linked_source_with_accents_dollar_parentheses_and_a_long_name_resolves_in_either_normalisation(db, tmp_path):
     from fichero_server.db.storage import resolve_source
 
@@ -62,3 +65,23 @@ def test_a_linked_source_with_accents_dollar_parentheses_and_a_long_name_resolve
         stored = str(folder / unicodedata.normalize(form, LONG))
         doc = Document(id=f"d-{form}", name=LONG, file_type=FileType.image, path=stored)
         assert resolve_source(doc, library_root=tmp_path / "lib.fichero") is not None, form
+
+
+def test_a_package_relative_path_is_looked_for_under_the_package_not_the_working_directory(tmp_path):
+    from fichero_server.export_service import _why_image_unavailable
+
+    package = tmp_path / "lib.fichero"
+    (package / "files").mkdir(parents=True)
+    (package / "files" / "here.jpg").write_bytes(b"x")
+    present = Document(id="p", name="P", file_type=FileType.image, path="files/here.jpg")
+    absent = Document(id="q", name="Q", file_type=FileType.image, path="files/gone.jpg")
+    assert "not found" in _why_image_unavailable(absent, package)
+    assert "not found" not in _why_image_unavailable(present, package)  # it is there: the reason is the engine's reach, not absence
+
+
+def test_the_job_keeps_the_words_for_what_it_left_out():
+    from fichero_server.execution import jobs
+
+    jobs.note_done("2 image(s) left out")
+    assert getattr(jobs._current, "done_note") == "2 image(s) left out"
+    jobs._current.done_note = None
