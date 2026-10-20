@@ -41,7 +41,7 @@ ln -s python3 python
 # does not look. Latent because nothing calls this script today (see
 # scripts/README.md — stale candidate pending removal review).
 mkdir -p "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero_server/resources/bin"
-swiftc -O -parse-as-library \
+swiftc -O -parse-as-library -target arm64-apple-macos26.0 \
   -o "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero_server/resources/bin/fm-bridge" \
   "$FM_BRIDGE_SOURCE"
 cp "$API_ROOT/scripts/start_backend.py" "$BUNDLE_DIR/"
