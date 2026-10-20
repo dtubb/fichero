@@ -67,6 +67,7 @@ class Engine:
     env_for: Callable[[bool, bool], dict[str, str]] | None = None  # (sharing, multiuser) -> the env the app would give the engine
     _key: object | None = None  # the owner's P-256 key, made once; the engine keeps only its public half
     _client_id: str | None = None
+    library: dict[str, str] | None = None  # the header naming this engine's library, once make_library has run
 
     def _socket_client(self, headers: dict[str, str] | None = None) -> httpx.Client:
         return httpx.Client(transport=httpx.HTTPTransport(uds=str(self.sock)), base_url="http://localhost", timeout=30,
@@ -151,6 +152,15 @@ class Engine:
         env = _env(self.base, self.sock, "unused")
         env.pop("FICHERO_MULTIUSER", None)
         subprocess.run([sys.executable, "-c", code], env=env, check=True, timeout=120)
+
+    def make_library(self, name: str = "Release bar") -> dict[str, str]:
+        """A library on this engine, under its throwaway HOME (an allowed location), as the header every library route wants."""
+        path = self.base / "home" / "Documents" / f"{name}.fichero"
+        with self.uds as local:
+            made = local.post("/api/library", json={"path": str(path)})
+        made.raise_for_status()
+        self.library = {"X-Fichero-Library-Path": quote(str(path), safe="/")}
+        return self.library
 
     def lan_expected(self, sharing: bool) -> bool:
         return sharing and self.port is not None
@@ -276,3 +286,44 @@ def pair_with_link(guest: Engine, link: str, device_name: str = "Guest test") ->
         response = client.post("/api/pair", json={"code": code, "device_name": device_name})
     response.raise_for_status()
     return response.json()
+
+
+class Stream:
+    """A server-sent-events stream read on a thread: `frames` fills as data arrives, `ended` is set when the server closes it."""
+
+    def __init__(self, url: str, headers: dict[str, str]):
+        import threading
+
+        self.frames: list[str] = []
+        self.status: int | None = None
+        self.ended = threading.Event()
+        self.opened = threading.Event()
+        self._thread = threading.Thread(target=self._read, args=(url, headers), daemon=True)
+        self._thread.start()
+
+    def _read(self, url: str, headers: dict[str, str]) -> None:
+        try:
+            with httpx.Client(verify=False, timeout=httpx.Timeout(60, read=60)) as client, \
+                    client.stream("GET", url, headers=headers) as response:
+                self.status = response.status_code
+                self.opened.set()
+                for line in response.iter_lines():
+                    if line.startswith("data:"):
+                        self.frames.append(line)
+        except httpx.HTTPError:
+            pass  # a closed or reset connection is an end
+        finally:
+            self.opened.set()
+            self.ended.set()
+
+    def wait_open(self, seconds: float = 15.0) -> None:
+        assert self.opened.wait(seconds), "the stream never opened"
+        assert self.status == 200, f"the stream answered {self.status}"
+
+    def wait_frame(self, seconds: float = 15.0) -> bool:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if self.frames:
+                return True
+            time.sleep(0.1)
+        return False
