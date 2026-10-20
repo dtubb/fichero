@@ -787,3 +787,22 @@ def test_s1_a_non_owner_keychain_session_cannot_ingest_a_host_path(harness, monk
     session = signed_in_client(harness, users["bob"])
     r = harness.client().post("/api/ingest/file", json={"path": "/etc/hosts"}, headers=session.headers)
     assert r.status_code == 403, r.text  # a viewer's session: refused by its role before the owner check
+
+
+def test_s1_a_library_owner_person_is_not_the_engine_owner_for_host_paths(harness, monkeypatch):
+    """Multi-user ON: a person granted LIBRARY-owner passes `require_owner`, but the host's disk is the engine owner's."""
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    lib = authz.normalize_library_path(harness.library)
+    harness.app_db.set_library_role(user_id=users["alice"].id, library_path=lib, role=authz.ROLE_OWNER)
+    session = signed_in_client(harness, users["alice"])
+    for route, body in _INGESTS:
+        r = harness.client().post(route, json=body, headers=session.headers)
+        assert r.status_code == 403 and "Owner access" in r.text, (route, r.text)
+
+
+def test_s1_a_refused_device_says_why(harness):
+    token = _device_for(harness, _a_person(harness).id)
+    r = harness.remote().get("/api/notes", headers=_bearer(token))
+    assert r.status_code == 401 and "Multi-user" in r.json()["detail"], r.text
