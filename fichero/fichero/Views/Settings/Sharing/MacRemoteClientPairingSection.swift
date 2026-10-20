@@ -13,6 +13,8 @@ struct MacRemoteClientPairingSection: View {
     @State private var nearby = NearbyHosts()
     @State private var chosen: HostChoices.Found?
     @State private var pairCode = ""
+    // This Mac's own `.ts.net` address, from its own engine; a host in another tailnet always asks for its invite.
+    @State private var ownTailnetURL: String?
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
@@ -42,6 +44,10 @@ struct MacRemoteClientPairingSection: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 if chosenNeedsCodeOnly {
+                    // What the code will be sent to, in full, before it is sent.
+                    if let address = chosen?.publicURL {
+                        Text("Connects to \(address)").font(.caption).foregroundStyle(.secondary)
+                    }
                     TextField("Pairing code", text: $pairCode)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
@@ -93,6 +99,9 @@ struct MacRemoteClientPairingSection: View {
             }
             .task {
                 nearby.start()
+                if EngineConfig.engineIsLocal {
+                    ownTailnetURL = try? await PairingService(apiRoot: EngineConfig.host).detectedTailnetURL()
+                }
                 // The link may have arrived BEFORE this view existed (the app was
                 // launched by the link). onChange would never fire for that.
                 if let invite = appState.pendingPairingInvite, !invite.isEmpty {
@@ -112,7 +121,8 @@ struct MacRemoteClientPairingSection: View {
     /// The Fichero Macs nearby, this Mac left out; picking one starts pairing with it (#5892).
     @ViewBuilder private var nearbyList: some View {
         let hosts = HostChoices.offered(
-            nearby.found, ownName: HostChoices.ownServiceName(hostName: ProcessInfo.processInfo.hostName))
+            nearby.found, ownName: HostChoices.ownServiceName(hostName: ProcessInfo.processInfo.hostName),
+            ownTailnetURL: ownTailnetURL)
         if hosts.isEmpty {
             Text("No other Fichero found nearby. Paste an invite link from the host Mac below.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -132,7 +142,7 @@ struct MacRemoteClientPairingSection: View {
     /// A picked host certified by a public authority is paired with from its code alone; any other needs its invite
     /// (the invite carries the key to pin, which Bonjour never does).
     private var chosenNeedsCodeOnly: Bool {
-        chosen.map { !HostChoices.needsInvite($0) } ?? false
+        chosen.map { !HostChoices.needsInvite($0, ownTailnetURL: ownTailnetURL) } ?? false
     }
 
     /// What Connect pairs with: the picked host and its typed code, or the pasted invite (which must be for the host

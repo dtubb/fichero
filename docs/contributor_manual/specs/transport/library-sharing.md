@@ -70,10 +70,15 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   manager's "no host picker" of 2026-10-17) Settings › Sharing › "Connect This Mac to Another Fichero" lists the
   Fichero Macs nearby, found by browsing Bonjour (`_fichero._tcp`, `NearbyHosts.swift`), without this Mac and
   without a host that has no secure address (`HostChoices.offered`); with none found it says so and the invite
-  link still works. Picking a host starts pairing with it: a host whose address is certified by a public
-  authority asks for the pairing code shown on that host; any other host asks for its invite link, because the
-  invite carries the key to pin and Bonjour never does (its TXT record is unauthenticated, so it is presence,
-  not trust), and a pasted invite that points at another host than the one picked is refused in words. There is
+  link still works. A `.ts.net` host is listed only when it is in THIS Mac's own tailnet: its suffix equals the
+  Mac's own MagicDNS suffix, read from Tailscale by the engine (`/api/pair/tailnet`), never from Bonjour; a host in
+  another tailnet is not listed, and when this Mac's suffix is unknown no `.ts.net` host is (the Bonjour record is
+  unauthenticated, so a name on it proves nothing: an impostor could advertise the owner's Mac name with its own
+  tailnet address and take the code). Picking a host starts pairing with it, showing "Connects to <full address>"
+  before anything is sent: a listed `.ts.net` host asks for the pairing code shown on that host, certified by a
+  public authority and checked by the system's trust and the host name (no pin, no bypass; http is refused); a
+  `.local` host asks for its invite link, because the invite carries the key to pin, which Bonjour never does, and
+  an invite that points at another host than the one picked is refused in words. There is
   still **no open lookup** of libraries: the list is hosts, never their libraries, and the pairing code grants
   trust. The drawer shows the host being connected to, read-only. Tests: `HostChoicesTests.swift` (the pure
   rules); Swift, not built or run. Not built: the camera/QR scan on a Mac. Open: the drawer still says "Scan the
