@@ -185,7 +185,7 @@ def test_a_model_server_death_is_said_in_words_and_its_output_is_in_the_job_log(
     page = _node(client.get("/api/activity/jobs/run-read").json(), call)
     assert (page["state"], page["reason"]) == ("failed", llm.SERVER_STOPPED_REASON)
     assert "Decode progress" not in page["reason"] and "INFO" not in page["reason"]
-    log = client.get("/api/activity/jobs/run-read/log").json()["lines"]
+    log = client.get("/api/activity/jobs/run-read/log?detail=developer").json()["lines"]
     kept = [line for line in log if line["job_id"] == call and "Decode progress" in line["message"]]
     assert kept and "Insufficient Memory" in kept[0]["message"] and kept[0]["timestamp"]
 
@@ -197,5 +197,5 @@ def test_a_server_stopped_as_the_engine_shuts_down_says_the_engine_was_shutting_
     call = _read_a_page_when(db, test_package, servers.shutdown_managed_local_inference_services)
     page = _node(client.get("/api/activity/jobs/run-read").json(), call)
     assert (page["state"], page["reason"]) == ("failed", "Stopped: the engine was shutting down")
-    log = client.get("/api/activity/jobs/run-read/log").json()["lines"]
+    log = client.get("/api/activity/jobs/run-read/log?detail=developer").json()["lines"]
     assert any(line["job_id"] == call and "Decode progress" in line["message"] for line in log)
