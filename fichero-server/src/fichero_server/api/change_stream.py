@@ -331,12 +331,15 @@ class _ChangeHub:
         gone = set(device_ids)
         with self._lock:
             targets = [(key, sub) for key, subs in self._subscribers.items() for sub in subs if sub.device_id in gone]
+        told = 0
         for key, subscriber in targets:
             try:
                 self._dispatch_to_subscriber(key, subscriber, ChangeEvent(type="sharing.revoked"))
-            except Exception as exc:  # pragma: no cover - defensive
+                subscriber.active = False  # nothing more is delivered to a revoked device
+                told += 1
+            except Exception as exc:  # noqa: BLE001 - one stream failing never keeps the others open
                 logger.debug("change-hub: could not tell one revoked stream: %s", exc)
-        return len(targets)
+        return told
 
     def subscriber_count(self, library_path: str) -> int:
         library_path = self._canonical_key(library_path)
