@@ -75,3 +75,36 @@ async def test_one_latin_page_refused_does_not_stop_the_spanish_pages(tmp_path):
     calls, stopped = await _run(tmp_path, answer)
     assert stopped is None, "a page's own refused language must not stop the others"
     assert len(calls) == PAGE_COUNT, f"only {len(calls)} of {PAGE_COUNT} pages were tried"
+
+
+@pytest.mark.asyncio
+async def test_the_real_hops_carry_a_pages_own_refused_language_to_that_page_only(tmp_path, monkeypatch):
+    """Only Vision's own call is stubbed (`_apple_ocr_pdf_page_geometry`, which validates the locale first, as the real
+    one does). transcribe -> process_vision -> `_process_file`'s error entry -> the builder run for real: a page of its
+    own refused language (Latin, the project says Spanish) fails alone and the Spanish pages read."""
+    from fichero_server.workflows.tools import transcribe as transcribe_tool
+
+    monkeypatch.setattr(vision_base, "_supported_vision_locales", lambda: frozenset({"en-US", "es-ES"}))
+    monkeypatch.setattr(transcribe_tool, "_project_language", lambda state: "es")
+    read: list[str] = []
+
+    def vision_call(pdf_path, page_index, language="en"):
+        locale = vision_base.validate_vision_language(language)  # raises VisionLocaleRefused for 'la'
+        read.append(locale)
+        return vision_base.VisionOCRResult(text=f"text {page_index}", line_boxes=[], word_boxes=[])
+
+    monkeypatch.setattr(vision_base, "_apple_ocr_pdf_page_geometry", vision_call)
+    library_path, _pdf, db = _library(tmp_path)
+    latin = db.get(None, "page-1")
+    latin.language, latin.language_meta = "la", {"source": "user", "level": "document"}
+    workflow = _fan_out_workflow().model_copy(update={"provider": "apple", "model": "apple-vision"})
+    workflow.nodes[1].config.update({"vision_mode": "apple", "language": "auto"})
+    state = {"selected_doc_ids": ["pdf-1"], "library_path": library_path, "task_id": "run-real",
+             "workflow_id": "wf-4553", "input_files": [], "outputs": {}, "completed_nodes": []}
+    with (
+        patch("fichero_server.workflows.tools.sources.db_manager.get_database", return_value=db),
+        patch("fichero_server.db.db_manager.get_database", return_value=db),
+        patch("fichero_server.workflows.tools.vision_base._try_pdf_text_layer", return_value=None),
+    ):
+        await asyncio.wait_for(build_graph(workflow, skip_cache=True).ainvoke(state), timeout=60)  # no Systemic error
+    assert read.count("es-ES") == PAGE_COUNT - 1, f"the Spanish pages read: {read}"
