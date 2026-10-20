@@ -177,24 +177,60 @@ def test_extract_svo_asks_the_dates_of_forty_pages_together_and_writes_them_in_p
     assert written == [f"d{i:02d}" for i in range(40)], "write order changed"
 
 
-def test_the_table_step_asks_its_units_together_and_gets_the_answers_back_in_order(monkeypatch):
+def _table_run(monkeypatch, units, stop_after=None):
     from fichero_server.recipes import table
 
+    asked = []
+
     async def fake(prompt, schema, config, system=None, use_case=None):
+        asked.append(prompt)
         await asyncio.sleep(LATENCY)
         if "boom" in prompt:
             raise RuntimeError("model said no")
         return prompt
 
+    landed = []
     monkeypatch.setattr(table, "chat_structured_with_fallback", fake)
     monkeypatch.setattr(table, "prompt", lambda fields, text: text)
-    texts = [f"unit {i}" for i in range(40)]
-    texts[7] = "boom"
+    monkeypatch.setattr(table, "_text", lambda db, unit: unit.text)
+    monkeypatch.setattr(table, "_fields_of", lambda db, prototype: {"a": object()})
+    monkeypatch.setattr(table, "answer_schema", lambda fields: None)
+    monkeypatch.setattr(table, "units", lambda db, documents, prototype: units)
+    monkeypatch.setattr(table, "_land", lambda db, unit, answer, **kw: landed.append(unit.name))
+    stop = None if stop_after is None else (lambda: len(asked) >= stop_after)
+    account = table.extract(None, [], prototype="p", provider="fake", model="m", run_id=None, step=None, stop=stop)
+    return account, asked, landed
+
+
+def _units(n):
+    from types import SimpleNamespace
+
+    return [SimpleNamespace(name=f"u{i:02d}", text=f"unit {i}") for i in range(n)]
+
+
+def test_the_table_step_asks_its_units_together_and_lands_them_in_unit_order(monkeypatch):
+    units = _units(40)
+    units[7].text = "boom"
+    units[9].text = ""
     began = time.monotonic()
-    got = asyncio.run(table._ask_together({}, None, None, texts))
+    account, asked, landed = _table_run(monkeypatch, units)
     assert time.monotonic() - began < 2.0
-    assert [g for i, g in enumerate(got) if i != 7] == [t for i, t in enumerate(texts) if i != 7]
-    assert isinstance(got[7], RuntimeError)
+    assert landed == [u.name for i, u in enumerate(units) if i not in (7, 9)], "landing order changed"
+    assert (account["asked"], account["failed"], account["without_text"]) == (39, 1, 1)
+    assert account["errors"] == ["u07: model said no"]
+
+
+def test_a_stop_sends_no_new_call_to_the_model(monkeypatch):
+    account, asked, landed = _table_run(monkeypatch, _units(40), stop_after=12)
+    assert 12 <= len(asked) <= 12 + 10, "calls went out after the stop beyond those already in flight"
+    assert len(landed) < 40
+
+
+@pytest.mark.xfail(reason="#5955: several pages in ONE call (the ruling: 20 pages make 2 to 4 calls) is not built; today one page per call",
+                   strict=True)
+def test_twenty_pages_make_two_to_four_calls(monkeypatch):
+    account, asked, landed = _table_run(monkeypatch, _units(20))
+    assert 2 <= len(asked) <= 4
 
 
 def test_the_diary_step_asks_forty_pages_together_and_splits_them_in_page_order(monkeypatch):

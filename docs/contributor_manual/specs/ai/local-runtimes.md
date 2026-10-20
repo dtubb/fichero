@@ -351,15 +351,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   `fichero-server/tests/unit/db/test_embed_once_per_text_version_5954.py` (a page embedded after a read is "unchanged" for
   the search step; changed text and another model embed again; a batch of six pages with one current runs one pass; 130
   pages queue as 64, 64 and 2).
-- `runtime.cloud-extractors.pages-together` — **[PARTIAL]** (#5955; Fable steps-efficiency review) the cloud steps that read a
-  page's text with a model (names, claims, tables, diary entries) send their pages together and write in page order.
-  *Built:* `workflows/tools/_together.py` `ahead()` keeps up to the step's width of calls in flight (10 for a hosted model,
-  3 for a local one, `FICHERO_EXTRACT_MAX_IN_FLIGHT` overrides), reads the pages lazily and hands the answers back in page
-  order; the claims step asks its dates and claims calls together; the table step asks a wave of units in one event loop;
-  the diary step asks its pages' splits ahead. Writes stay sequential. *Not built:* a stop lands between table waves, and
-  up to one width of calls already sent may finish unread; the 40-page timing is built but unrun until an M4 pass.
-  *Test:* `tests/unit/workflows/test_cloud_extractors_pages_together_5955.py` (40 pages at 200 ms finish in under 2 s at
-  width 10; write order unchanged).
+- `runtime.cloud-extractors.pages-together` — **[PARTIAL]** (#5955; owner ruling 2026-10-20) a cloud extractor (entities, SVO, tables) sends 5 to 10 pages in one call (within the provider's limits and the project's spend cap), not one call per page. *Built:* concurrent single-page calls with an ordered look-ahead: `workflows/tools/_together.py` `ahead()` keeps up to the step's width in flight (10 for a hosted model, 3 for one served here, `FICHERO_EXTRACT_MAX_IN_FLIGHT` overrides), reads pages lazily and hands answers back in page order; the claims step asks its dates and claims calls together; the entities, diary-split and table steps ask ahead; writes stay sequential; the table step looks for a stop as each call starts. *Not built:* several pages in ONE call (20 pages make 2 to 4 calls; each page still repeats the instruction and schema tokens, and 10 in flight meets provider rate limits a single call would not), so #5955 stays open for it; the width is fixed per step, not taken from the place's width (`ai.where.one-cloud-cap`, #5358) once that lands; the 40-page timing is unrun until an M4 pass. *Tests:* `tests/unit/workflows/test_cloud_extractors_pages_together_5955.py` (40 pages at 200 ms finish in under 2 s at width 10; write order unchanged; a stop sends no new call; `test_twenty_pages_make_two_to_four_calls` is the ruled test, an expected failure citing #5955 until the one-call form is built).
 - `runtime.embed.batched-at-utility-when-watched` — **[GAP]** (#5370, #5358) embedding passes an
   explicit batch size, and an embed a person is waiting on (search right after import) runs at
   utility QoS; the Core ML execution provider and an int8 bge-m3 are measured against fp32 CPU
