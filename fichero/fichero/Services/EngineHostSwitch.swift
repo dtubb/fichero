@@ -17,12 +17,14 @@ struct EngineHostSwitch {
     /// Even the previous host would not start again.
     var onRestoreFailure: (Error) -> Void = { _ in }
 
-    /// Switch from `previous` to `attempted`. An unchanged host only repoints the clients (no restart). A new host that
-    /// does not answer throws `notResponding` after the previous host has been put back.
+    /// Switch from `previous` to `attempted`. An unchanged host is not restarted, but it IS repointed and reconnected: a
+    /// re-pair after a revoke picks up new credentials and must read the engine's health again, or the status stays
+    /// failed. A new host that does not answer throws `notResponding` after the previous host has been put back.
     func run(from previous: String, to attempted: String, notResponding: String,
              onFailure: (String) -> Void = { _ in }) async throws {
         guard attempted != previous else {
             repoint()
+            guard await reconnect() else { throw EngineHostSwitchError.notResponding(notResponding) }
             return
         }
         stop()
