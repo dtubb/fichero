@@ -16,3 +16,18 @@ struct SheetLibraryEnvironment: ViewModifier {
         }
     }
 }
+
+/// What the Set Up window gets when the library window presents it as a sheet: the app's state and the project's
+/// services. The sheet hangs off the window, above the library tree where `LibraryTreeEnvironment` is applied, so
+/// without this Set Up's page thumbnails and the compare window's page picture found no `StorageService` and drew
+/// placeholders (review 360). The one modifier the sheet and its test both use.
+struct SetUpSheetEnvironment: ViewModifier {
+    let appState: AppState
+    let library: LibraryManager.LibraryReference?
+
+    func body(content: Content) -> some View {
+        content
+            .environment(appState)
+            .modifier(SheetLibraryEnvironment(library: library))
+    }
+}

@@ -58,3 +58,18 @@ def test_set_up_saved_languages_are_the_projects_language_when_no_fact_row_was_w
     write_project_setup(tmp_path, {"languages": ["es"], "scripts": ["Latn"]}, None)
     assert _project_language({"library_path": str(tmp_path)}) == "es"
     assert _project_language({"library_path": ""}) is None
+
+
+def test_a_page_is_its_own_source_only_when_it_decided_and_differs_from_the_runs_language():
+    from fichero_server.llm.language_policy import LEVEL_DOCUMENT, LEVEL_PROJECT, RESOLVED, LanguageResolution
+    from fichero_server.workflows.tools.transcribe import _language_source_of
+
+    def page(language, level=LEVEL_DOCUMENT):
+        return LanguageResolution(language=language, status=RESOLVED, source="user", basis="", level=level)
+
+    assert _language_source_of(page("la"), "auto", "es") == "page"  # its own Latin, not the project's Spanish
+    assert _language_source_of(page("es"), "auto", "es") == "run"  # a page stating the project's language is the run's
+    assert _language_source_of(page("Spanish"), None, "es") == "run"  # a name for the same language
+    assert _language_source_of(page("es", LEVEL_PROJECT), "auto", "es") == "run"
+    assert _language_source_of(page("la"), "es", "es") == "run"  # the node asked for one: every page is held to it
+    assert _language_source_of(page("la"), "auto", None) == "page"  # no run language: the page's own is its own
