@@ -38,6 +38,9 @@ struct AccountsAddSheet: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                 }
+                if let note = AccountsAddSheetModel.inviteNote(multiUserOn: multiUserOn) {
+                    Text(note).font(.caption).foregroundStyle(.secondary)
+                }
                 if way == .password {
                     SecureField("Password", text: $password)
                         .textContentType(.newPassword)
