@@ -4875,12 +4875,12 @@ def get_langchain_model(config: LLMConfig) -> Any:
     """Return a cached LangChain ChatModel for one config identity."""
     from fichero_server.llm.places import with_row_address
 
+    # The provider row's Server URL is the address every call to that row uses (#5587); part of
+    # the cache identity, so a changed Server URL is a new model. Read once: it is a database read.
+    config = with_row_address(config)
     # The one gate, here, so every caller is covered (`source.egress.every-call-site`): chat_with_tools and
     # structured_output reach a model only through this.
-    _enforce_local_only_provider(with_row_address(config), kind="chat")
-    # The provider row's Server URL is the address every call to that row uses (#5587); part of
-    # the cache identity, so a changed Server URL is a new model.
-    config = with_row_address(config)
+    _enforce_local_only_provider(config, kind="chat")
     api_key_identity = _resolve_api_key(config) or ""
     cache_key = _langchain_model_cache_key(
         config,

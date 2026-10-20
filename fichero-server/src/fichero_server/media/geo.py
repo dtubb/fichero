@@ -175,7 +175,15 @@ def geocode_places_with_source(
 
 
 def _geocode_online(name: str, *, timeout: float) -> GeoPoint | None:
-    """Single Nominatim lookup. Returns None on any error (network, parse)."""
+    """Single Nominatim lookup. Returns None on any error (network, parse) and when the person's places do not let a place
+    name leave this Mac (the gazetteer answers alone then, said in the log)."""
+    from fichero_server.core.egress import EgressRefused, check_egress
+
+    try:
+        check_egress("cloud", what="the place name", to="OpenStreetMap's geocoder")
+    except EgressRefused as exc:
+        logger.warning("Online geocoding skipped for %r: %s", name, exc)
+        return None
     try:
         import httpx
 
