@@ -458,15 +458,17 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   `workflows/circuit_breaker.call_with_breaker`, which a workflow's vision calls already ran inside and which every other
   model call (chat, tools, structured output, the line reader, a check) now runs inside through `llm/retry.py` (a call
   already inside the layer is not wrapped again; a model on this Mac is not retried here, its no-progress rule and
-  `page_retry` own that). The table: **slow-down** (429, rate limit) and **transient** (5xx, 408, 409, a timeout, a dropped
+  `page_retry` own that; the chat's agent loop is wrapped per try the same way). The table: **slow-down** (429, rate limit) and **transient** (5xx, 408, 409, the SDK's timeout, a dropped
   connection) are retried after the provider's Retry-After (a floor, capped at 120 s) or the exponential backoff, at most
   `FICHERO_VISION_MAX_RETRIES` (4) times, so **a cloud call is sent at most 5 times** and a page is that times the calls it
-  needs (a local-cause `page_retry` reads a page once more, local models only); neither is a breaker failure, a call whose
-  retries are spent is one, and K such in a row open the breaker; **fatal** (401, 402, `insufficient_quota`, a key limit)
-  opens the breaker at once with no retry and the provider is failed fast for 30 s engine-wide; anything else is raised at
-  once. Each try takes the lane slot and the cloud spend hold again, so a backoff holds neither. *Not built:* the
-  workflow vision tool's `hold_lane` still wraps its whole retry loop (the backoff holds the network slot there),
-  `ai.where.retry-outside-the-slot`. *Test:* `fichero-server/tests/unit/llm/test_one_retry_layer_5944.py`,
+  needs (a local-cause `page_retry` reads a page once more, local models only); neither is a breaker failure on its own; a call whose retries are spent is one, counted per provider across calls
+  (`llm/retry.py`), and five (`DEFAULT_BREAKER_THRESHOLD`) of them in a row, with no answer between, fail the provider
+  fast for 30 s engine-wide; our own wall-clock budget for a call running out is raised at once, not retried; **fatal** (401,
+  402, `insufficient_quota`, a key limit) opens the breaker at once with no retry and the provider is failed fast for 30 s
+  engine-wide; anything else is raised at once. Each try takes the lane slot and the cloud spend hold again, so a backoff holds neither. *Not built (same retry layer, not yet reached):* the Hub's inference API
+  (`vision_inference_api`), streaming (`astream`) and the unused `abatch` run without it, so each is one send with no
+  retry; the workflow vision tool's `hold_lane` still wraps its whole retry loop (the backoff holds the network slot
+  there), `ai.where.retry-outside-the-slot`. *Test:* `fichero-server/tests/unit/llm/test_one_retry_layer_5944.py` (including a chat turn that gets a 429 then an answer),
   `fichero-server/tests/unit/workflows/test_circuit_breaker.py`.
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).

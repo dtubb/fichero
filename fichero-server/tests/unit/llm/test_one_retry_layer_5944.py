@@ -34,6 +34,7 @@ def _no_waiting(monkeypatch):
 
     monkeypatch.setattr(cb.asyncio, "sleep", fake_sleep)
     retry._DEAD.clear()
+    retry._SPENT.clear()
     return waits
 
 
@@ -135,3 +136,65 @@ def test_each_try_takes_the_lane_slot_again_so_a_backoff_does_not_hold_it():
     source = Path(llm.__file__).read_text(encoding="utf-8")
     assert source.count("await _resilient(_once, config)") == 5
     assert source.count("async def _once") == 5
+
+
+def test_our_own_call_budget_running_out_is_not_retried(waits):
+    sent = []
+
+    async def once():
+        sent.append(1)
+        raise asyncio.TimeoutError()
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(retry.resilient(once, CLOUD))
+    assert len(sent) == 1 and waits == []  # four more tries at the full budget would be minutes
+
+
+def test_calls_whose_retries_are_spent_fail_the_provider_fast_after_k_in_a_row_and_a_success_resets(waits):
+    sent, once = _always(503)
+    for _ in range(cb.DEFAULT_BREAKER_THRESHOLD - 1):
+        with pytest.raises(_Http):
+            asyncio.run(retry.resilient(once, CLOUD))
+    ok = []
+
+    async def fine():
+        ok.append(1)
+        return "ok"
+    assert asyncio.run(retry.resilient(fine, CLOUD)) == "ok"  # the run of failures is broken
+    for _ in range(cb.DEFAULT_BREAKER_THRESHOLD):
+        with pytest.raises(_Http):
+            asyncio.run(retry.resilient(once, CLOUD))
+    before = len(sent)
+    with pytest.raises(cb.ProviderRateLimitedError):
+        asyncio.run(retry.resilient(once, CLOUD))
+    assert len(sent) == before  # failed fast, nothing sent
+
+
+def test_a_chat_turn_that_gets_a_429_then_an_answer_is_answered(tmp_path, monkeypatch, waits):
+    """The chat's agent loop runs its model call under the one retry layer too: with the SDK retries at 0, one 429 would
+    otherwise fail the turn (review 680)."""
+    import contextlib
+
+    from langchain_core.messages import AIMessage
+
+    from fichero_server.actions.registry import ActionContext
+    from fichero_server.api.routes.system import chat
+
+    @contextlib.asynccontextmanager
+    async def slot(config, *, library=None, subject=None):
+        yield
+
+    monkeypatch.setattr(llm, "_model_call_slot", slot)
+    tries = []
+
+    class Model:
+        async def ainvoke(self, messages):
+            tries.append(1)
+            if len(tries) == 1:
+                raise _Http(429, retry_after="1")
+            return AIMessage(content="answer")
+
+    library = tmp_path / "P.fichero"
+    (library / "recipe").mkdir(parents=True)
+    ctx = ActionContext(library_path=str(library))
+    answer = asyncio.run(chat._ask(Model(), [], config=CLOUD, ctx=ctx))
+    assert answer.content == "answer" and len(tries) == 2 and waits and waits[0] >= 1
