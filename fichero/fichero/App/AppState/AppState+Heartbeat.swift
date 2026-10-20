@@ -35,6 +35,7 @@ extension AppState {
         switch await EngineReadinessProbe(client: ficheroClient).probe() {
         case .ready:
             heartbeatFailureCount = 0
+            ConnectionPresentation.lastRestartReason = nil
             recordActiveEndpoint()
             if !isBackendRunning {
                 logger.info("Backend heartbeat: recovered — back online")
@@ -55,6 +56,13 @@ extension AppState {
         case .identityMismatch:
             await noteHeartbeatFailure(reason: "engine identity mismatch")
         }
+    }
+
+    /// The reason the app restarts its engine, in words: it missed its health checks (one every 5 s), and was working.
+    static func restartSentence(failures: Int, busyWithImport: Bool) -> String {
+        let seconds = failures * 5
+        let busy = busyWithImport ? " while importing" : ""
+        return "Fichero's engine didn't answer its health check for about \(seconds) seconds\(busy), so the app is restarting it."
     }
 
     func noteHeartbeatFailure(reason: String) async {
@@ -99,6 +107,7 @@ extension AppState {
         switch Self.supervisedDropOutcome(for: EngineConfig.engineProvisioningStrategy()) {
         case .autoRestart:
             if let onDropped = onSupervisedBackendDropped {
+                ConnectionPresentation.lastRestartReason = Self.restartSentence(failures: heartbeatFailureCount, busyWithImport: importsRunning)
                 logger.warning(
                     """
                     Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures \

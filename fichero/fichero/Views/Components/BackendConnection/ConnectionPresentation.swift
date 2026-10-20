@@ -274,6 +274,10 @@ enum ConnectionPresentation {
         }
     }
 
+    /// Why the app last restarted its engine, one sentence, set by the heartbeat when it hands the engine to the supervisor
+    /// and cleared when the engine answers again (`activity.engine.restart-says-why`).
+    static var lastRestartReason: String?
+
     /// The failure half of the mapping, split out so `status(…)` stays one
     /// bounded switch.
     private static func failureStatus(
@@ -390,7 +394,8 @@ enum ConnectionPresentation {
     static func failureDetail(
         accessError: AccessError?,
         authBroken: Bool,
-        ownership: EngineOwnership
+        ownership: EngineOwnership,
+        restartReason: String? = ConnectionPresentation.lastRestartReason
     ) -> String {
         switch accessError {
         case .staleBootstrapToken:
@@ -413,7 +418,8 @@ enum ConnectionPresentation {
         case .appManaged:
             // The supervisor is already respawning it (#4064/#4296) — say so
             // and let it happen rather than demanding a click.
-            return "Fichero's engine stopped responding. Reconnecting…"
+            // Why, in words, when the heartbeat knows (`activity.engine.restart-says-why`).
+            return restartReason.map { "\($0) Reconnecting…" } ?? "Fichero's engine stopped responding. Reconnecting…"
         case .externalLocal:
             // The truth, with no command attached: the app did not start this
             // engine and cannot restart it.

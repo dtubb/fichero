@@ -104,11 +104,11 @@ def test_the_loaded_heavy_model_is_untouched_by_a_get_that_embeds(no_eviction):
 
 def test_a_get_with_unembedded_claims_queues_the_backfill_once(db, monkeypatch):
     from fichero_server.execution import jobs
-    from fichero_server.importers.derivatives import EMBED_CLAIMS_KIND
+    from fichero_server.importers.derivatives import EMBED_KNOWLEDGE_KIND
 
     jobs.load_kinds()
     gate = threading.Event()
-    monkeypatch.setitem(jobs.KINDS, EMBED_CLAIMS_KIND, jobs.Kind(
+    monkeypatch.setitem(jobs.KINDS, EMBED_KNOWLEDGE_KIND, jobs.Kind(
         run=lambda _db, _subject: gate.wait(30), model="embedder", lane="embed", name="Embed claims for search"))
     fake = _FakeDb(claims_total=5, indexed=2)
     monkeypatch.setattr(db, "_lance_tables", fake._lance_tables)
@@ -121,14 +121,14 @@ def test_a_get_with_unembedded_claims_queues_the_backfill_once(db, monkeypatch):
         with no_model_in_get.marked_get("/api/kg/claim-search"):
             answers = [search_claims_semantic_impl(db=db, q="q") for _ in range(3)]
         assert [a.not_embedded for a in answers] == [3, 3, 3], "it says how many claims are not embedded yet"
-        rows = db.execute_fetchall("SELECT id FROM jobs WHERE kind = ?", [EMBED_CLAIMS_KIND])
+        rows = db.execute_fetchall("SELECT id FROM jobs WHERE kind = ?", [EMBED_KNOWLEDGE_KIND])
         assert len(rows) == 1, "one backfill job, not one per GET"
     finally:
         gate.set()
 
 
 def test_a_get_with_every_claim_embedded_says_nothing_and_queues_nothing(db):
-    from fichero_server.importers.derivatives import EMBED_CLAIMS_KIND
+    from fichero_server.importers.derivatives import EMBED_KNOWLEDGE_KIND
 
     fake = _FakeDb(claims_total=2, indexed=2)
     for name in ("_lance_tables", "search_vectors", "_vector_table_stats", "count", "all"):
@@ -137,4 +137,32 @@ def test_a_get_with_every_claim_embedded_says_nothing_and_queues_nothing(db):
     with no_model_in_get.marked_get("/api/kg/claim-search"):
         answer = search_claims_semantic_impl(db=db, q="q")
     assert answer.not_embedded is None
-    assert db.execute_fetchall("SELECT id FROM jobs WHERE kind = ?", [EMBED_CLAIMS_KIND]) == []
+    assert db.execute_fetchall("SELECT id FROM jobs WHERE kind = ?", [EMBED_KNOWLEDGE_KIND]) == []
+
+
+@pytest.mark.parametrize("label, what", [("claim", "claims"), ("entity", "entities")])
+def test_auto_embed_with_no_loop_inside_a_get_queues_the_backfill_instead_of_losing_the_vectors(monkeypatch, label, what):
+    """Review 366: the sync fallback runs inline in the GET's marked thread, where the passage embed is refused."""
+    import contextvars
+
+    from fichero_server.importers import derivatives
+
+    queued: list[object] = []
+    monkeypatch.setattr(derivatives, "queue_knowledge_backfill", lambda database, what: queued.append((database, what)))
+
+    class Db(DatabaseEmbeddingMixin):
+        def _embed_worker(self):
+            raise AssertionError("the GET's thread must not embed")
+
+    db, outcome = Db(), []
+
+    def in_a_thread():  # as asyncio.to_thread: a thread with the GET's context and no running loop
+        db._schedule_embedding_task([_Row(id="c1")], label=label)
+        outcome.append("returned")
+
+    with no_model_in_get.marked_get("/api/thing"):
+        context = contextvars.copy_context()
+        thread = threading.Thread(target=context.run, args=(in_a_thread,))
+        thread.start()
+        thread.join(10)
+    assert outcome == ["returned"] and queued == [(db, what)]
