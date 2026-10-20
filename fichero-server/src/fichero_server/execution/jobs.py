@@ -1316,7 +1316,7 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
                 words = (f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
                          else f"Waiting for the model to answer ({waited:g} s so far)")
                 if waited >= HOLD_LIMIT_SECONDS:
-                    words += "; it keeps its place until the call ends or is stopped"
+                    words = f"This call has run {waited / 60:g} min and keeps its place; Stop ends it"
                 db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [words, job_ref[0]])
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")

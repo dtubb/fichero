@@ -47,7 +47,7 @@ def test_past_the_limit_the_row_says_it_keeps_its_place(db, test_package):
             seen.append(db.execute_fetchone("SELECT reason FROM jobs WHERE subject = ?", ["slow page"])[0] or "")
 
     asyncio.run(go())
-    assert "keeps its place" in seen[0], seen
+    assert "keeps its place; Stop ends it" in seen[0], seen
     for _ in range(60):
         state = db.execute_fetchone("SELECT state FROM jobs WHERE subject = ?", ["slow page"])[0]
         if state not in ("running", "waiting"):
