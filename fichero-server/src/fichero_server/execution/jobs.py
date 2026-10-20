@@ -1316,6 +1316,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             raise JobCancelled("Its run had ended before this page was read")
         if outcome["result"] == STOPPED_BY_YOU:
             raise JobCancelled(STOPPED_BY_YOU)  # its run was stopped while the call ran: 'cancelled', not 'failed'
+        if outcome["result"] == PAUSED_WITH_ITS_RUN:
+            raise JobCancelled(PAUSED_WITH_ITS_RUN)  # its run was paused while the call waited: 'cancelled', not 'failed'
         if outcome["result"] != "done":
             raise RuntimeError(outcome["result"])
 
@@ -1356,7 +1358,12 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
                 raise  # cancelled by someone else (its caller went away): not ours to turn into a stop
             await stopped()
         except Exception as exc:
-            outcome["result"] = str(exc) or type(exc).__name__
+            from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+
+            # A Pause or Stop from its run is not a failure of the call (#5936): the slot's row ends cancelled, in those words.
+            outcome["result"] = (PAUSED_WITH_ITS_RUN if isinstance(exc, WorkflowPaused)
+                                 else STOPPED_BY_YOU if isinstance(exc, WorkflowCancelled)
+                                 else str(exc) or type(exc).__name__)
             raise
         finally:
             stop_state["over"] = True
@@ -1377,6 +1384,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
 
 #: The reason a call's row carries when its run was stopped while the call ran.
 STOPPED_BY_YOU = "Stopped by you"
+#: The reason a call's row carries when its run was paused while the call waited.
+PAUSED_WITH_ITS_RUN = "Paused with its run"
 #: What a cloud call stopped before its provider answered is booked at: a FLOOR, not a measurement (the provider never said how
 #: many tokens it billed, and the prompt's size is not known at the lane). Labelled `estimated`, kind `stopped`.
 STOPPED_CALL_INPUT_TOKENS = 1000
