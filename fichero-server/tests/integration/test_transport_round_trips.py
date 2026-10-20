@@ -267,6 +267,7 @@ def dual_engine():
     env.update(
         FICHERO_UDS_PATH=str(sock),
         FICHERO_TCP_TLS_ALSO="1",
+        FICHERO_ENV="test",
         FICHERO_TCP_PORT=str(port),
         FICHERO_TLS_CERTFILE=str(material.certificate_path),
         FICHERO_TLS_KEYFILE=str(material.key_path),
