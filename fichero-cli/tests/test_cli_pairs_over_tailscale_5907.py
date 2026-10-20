@@ -90,3 +90,23 @@ def test_http_for_a_ts_net_name_is_refused(pairing_rig, tmp_path):
     assert "plain http" in out.stderr
     assert pairing_rig["sent"] == []
     assert not (tmp_path / "paired-devices.json").exists()
+
+
+@pytest.mark.parametrize("lookalike", [
+    "https://evil.ts.net.example.com",
+    "https://evilts.net",
+    "https://studio.tail1234.ts.net.",
+    "https://studio.tail1234.ts.net.evil.example",
+])
+def test_a_lookalike_of_a_ts_net_name_is_not_system_trust_and_needs_the_pin(pairing_rig, tmp_path, lookalike):
+    out = pair_command(tmp_path, link(api_url=lookalike, spki=None))
+
+    assert out.exit_code == 1
+    assert "no certificate pin" in out.stderr
+    assert pairing_rig["sent"] == []
+
+
+def test_a_ts_net_name_on_another_port_is_still_system_trust(pairing_rig, tmp_path):
+    out = pair_command(tmp_path, link(api_url=TAILNET + ":8443"))
+    assert out.exit_code == 0, out.output
+    assert pairing_rig["opened"][0][2] is None
