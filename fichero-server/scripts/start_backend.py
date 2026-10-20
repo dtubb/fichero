@@ -102,6 +102,10 @@ def main(argv: list[str] | None = None) -> None:
         sys.stdout.write("\n")
         return
 
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))  # never a dev engine on the owner's real libraries
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

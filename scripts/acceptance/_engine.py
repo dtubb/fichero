@@ -53,6 +53,10 @@ for _sub in ("fichero-cli/src", "fichero-server/src", "fichero-mcp/src"):
 
 
 def engine_env() -> dict[str, str]:
+    sys.path.insert(0, str(REPO / "fichero-server/src"))
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(STATE)  # an acceptance engine never writes into the owner's real libraries
     env = dict(os.environ)
     env.update(
         {
