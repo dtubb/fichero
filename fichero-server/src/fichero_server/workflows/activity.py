@@ -841,19 +841,16 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
             # Fire-and-forget: wrap in try/except so a DB error never blocks
             # library-open or startup.
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                logger.debug(
-                    "recover_stale_runs skipped for %s: no running event loop", db_path
-                )
+                # On the engine's one background loop (Fable review #15), not on whatever loop is running here: a recipe
+                # step's `asyncio.run` ends with its step and cancels the sweep half-way, and with no loop at all the
+                # sweep used to be skipped. `on_background_loop` also starts the sweep free of a GET's mark.
+                from fichero_server.execution.runner import on_background_loop
+
+                on_background_loop(_recover_stale_runs_bg(tracker, db_path))
             except Exception:
                 logger.exception(
                     "recover_stale_runs scheduling failed for %s (ignored)", db_path
                 )
-            else:
-                from fichero_server.core.no_model_in_get import spawn_free
-
-                spawn_free(loop.create_task, _recover_stale_runs_bg(tracker, db_path))
         else:
             logger.debug(f"Reusing existing ActivityTracker for: {db_path}")
         return _activity_trackers[db_path]

@@ -1462,6 +1462,25 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py` (an AST check that no blocking reading is called in the
   handler's own body; a slow-`pmset` loop test). NOT covered: `_recipe_state` (async, reads the run's tree) and the one DuckDB read inside
   `run_account`; a measured loop stall under a 50-row queue is the M4 bench.
+- `activity.lane.pick-holds-no-lock-across-slow-probes` — **[PARTIAL]** (Fable runner review #11, 2026-10-19; the lock-P1 family) a heavy
+  lane's pick holds neither `_heavy_pick` nor its own lock across a slow probe. The flags (`is_paused`, `is_started`) were already
+  read before the lock; the battery reading (`pmset`, up to 5 s) is now taken there too, so the pick reads a fresh cache; and the
+  held reason is written to the waiting rows once per change (again after 30 s), not once per scan per open project. Pinned by
+  `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py`. NOT done: the held-reason write still happens
+  inside the lane's pick when it does happen, and the thermal and memory probes are read in place (cheap sysctls).
+- `activity.lane.hung-call-says-so` — **[PARTIAL]** (Fable runner review #16) a model call that holds the lane's slot and does not
+  answer says so on its row after 60 s and at each minute after ("Waiting for the model to answer (2 min so far)"), instead of the last
+  reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
+  hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
+  reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
+- `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
+  #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
+  runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;
+  #21 a lane thread that dies on an error wakes the lane again after half a second, so waiting jobs do not sit until the next
+  enqueue; #8 and #14 a job ends, or is deferred, on the connection its project has NOW, so a reopen no longer leaves a phantom
+  `running` row or counts a deferral as an attempt; #15 the stale-run sweep runs on the engine's background loop, not on whichever
+  loop made the tracker, and is no longer skipped when none runs. NOT done in this entry: #18 (`_wait_for_lane` polling), #19 (the
+  lane's reason before Kraken's lock), #23 (an embed timeout kills a healthy child), #10 (Swift, its own entry).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
