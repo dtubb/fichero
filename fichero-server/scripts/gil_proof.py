@@ -340,6 +340,16 @@ def profile(args) -> None:
         widths = sorted(_line_width(line) for line in lines)
         print(f"| page={path.name} | lines={len(lines)} | segment_s={seg_s:.2f} | width_px min/median/max="
               f"{widths[0]:.0f}/{widths[len(widths) // 2]:.0f}/{widths[-1]:.0f} |", flush=True)
+        # Kraken's OWN defaults (what the plain `kraken` command runs: its batch size and a pool of line workers), against
+        # the engine's config (device=1, num_line_workers=0 for the app sandbox, batch_size 1): the difference we feed it.
+        try:
+            default = RecognitionInferenceConfig(accelerator="cpu")
+            began = time.perf_counter()
+            count = sum(1 for _ in net.predict(image, segmentation, default))
+            print(f"| KRAKEN-DEFAULTS | batch={getattr(default, 'batch_size', '?')} | workers={getattr(default, 'num_line_workers', '?')} "
+                  f"| predict_s={time.perf_counter() - began:.2f} | lines={count} |", flush=True)
+        except Exception as exc:  # noqa: BLE001 -- a pool the sandbox forbids, or a missing option, is a result
+            print(f"| KRAKEN-DEFAULTS: FAILED {type(exc).__name__}: {exc} |", flush=True)
         for device in devices:
             for batch in args.batches:
                 for order in ("page", "by-width"):
