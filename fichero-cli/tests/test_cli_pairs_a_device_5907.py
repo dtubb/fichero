@@ -223,3 +223,30 @@ def test_a_file_in_the_wrong_mode_does_not_wipe_other_engines_and_is_rewritten_0
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert pairing.device_token(client_module.engine_key(LOCAL, None)) == TOKEN, "the first engine's entry survived"
     assert not (tmp_path / "paired-devices.json.tmp").exists()
+
+
+def _remote_client(monkeypatch, tmp_path, seen):
+    def handle(request):
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(401, json={"detail": "missing or invalid Authorization header"})
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    return client_module.FicheroClient(base_url=LOCAL, transport=httpx.MockTransport(handle))
+
+
+def test_a_remote_host_with_no_credential_says_to_pair_first_and_never_gets_the_app_key_file(monkeypatch, tmp_path):
+    key_file = tmp_path / ".api-key"
+    key_file.write_text("this-macs-app-key")
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", key_file)
+    monkeypatch.setattr(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "none")
+    seen = []
+    with pytest.raises(FicheroError, match="devices pair --link-file"):
+        _remote_client(monkeypatch, tmp_path, seen).request("GET", "/api/documents")
+    assert all(h in (None, "", "Bearer ") for h in seen), f"the app key file must not go to a remote host: {seen}"
+
+
+def test_a_key_the_person_set_in_the_environment_may_go_to_the_host_named_with_it(monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_API_KEY", "their-own-key-for-that-host")
+    seen = []
+    with pytest.raises(FicheroError):
+        _remote_client(monkeypatch, tmp_path, seen).request("GET", "/api/documents")
+    assert "Bearer their-own-key-for-that-host" in seen
