@@ -859,9 +859,22 @@ PICTURE_JOBS = frozenset({"find-the-script", "find-regions", "find-lines", "refi
                           "find-a-tables-cells", "read-a-line", "read-a-page"})
 
 
+def _page_price(card: Card) -> float | None:
+    """What a cloud card costs a page, from the vendored price list (the pin names provider and model). The card's own
+    `cost_per_page` is only a fallback: the shipped cards never set it, so reading it alone priced nothing (review 379)."""
+    from fichero_server.recipes.routes import _cloud_cost
+
+    if card.pin.get("cloud") and card.pin.get("model"):
+        price = _cloud_cost(f"{card.pin['cloud']}/{card.pin['model']}", 1)
+        if price:
+            return price
+    return card.cost_per_page or None
+
+
 def cloud_offer(jobs: list[str], cards: list[Card], with_cloud: Answers) -> list[dict[str, Any]]:
     """What the egress question is about (`source.onboard.egress-asked-once`): per step a cloud model would fit, what would
-    be sent, to whom, for how many pages and at about what cost, in one sentence. The cheapest fitting card is the one named."""
+    be sent, to whom, for how many pages and at about what cost, in one sentence. The cheapest PRICED fitting card is the one
+    named; a card with no known price is named only when none has one, and then the price is said unknown."""
     from fichero_server.recipes.jobs import get_job
 
     pages = with_cloud.pages if with_cloud.pages > 0 else None
@@ -871,10 +884,16 @@ def cloud_offer(jobs: list[str], cards: list[Card], with_cloud: Answers) -> list
                 and _hard_constraints(job, c, with_cloud) is None]
         if not fits:
             continue
-        card = min(fits, key=lambda c: c.cost_per_page)
+        priced = [(price, c) for c in fits if (price := _page_price(c))]
+        per_page, card = min(priced, key=lambda pc: pc[0]) if priced else (None, fits[0])
+        calls = 1
+        if job == CORRECT and per_page:  # the review makes one call a pass (#5723)
+            from fichero_server.recipes.review_profiles import REVIEW_PRESET, review_passes
+
+            calls = review_passes(REVIEW_PRESET, (with_cloud.job_answers or {}).get("review_lenses"))
         to = card.runs_on.split(":", 1)[-1]
         sends = "the page pictures" if job in PICTURE_JOBS else "the text of the pages"
-        cost = round(card.cost_per_page * pages, 2) if pages and card.cost_per_page else None
+        cost = round(per_page * calls * pages, 2) if pages and per_page else None
         known = get_job(job)
         title = known.name if known else job
         count = f"{pages:,} {'page' if pages == 1 else 'pages'}" if pages else "every page"
