@@ -35,7 +35,7 @@ def test_the_text_refinement_lets_a_pause_or_stop_through(monkeypatch, exc):
     async def stopped(**_kw):
         raise exc
 
-    monkeypatch.setattr(llm, "call_llm_with_cache", stopped)
+    monkeypatch.setattr(llm, "call_llm_with_cache", stopped, raising=False)  # the name does not exist in llm today: see the last test
     config = llm.LLMConfig(provider="openai", model="gpt-x")
     with pytest.raises(type(exc)):
         asyncio.run(text_reflow._refine_with_llm("some text", config))
@@ -48,6 +48,15 @@ def test_the_text_refinement_still_falls_back_to_the_text_on_an_ordinary_failure
     async def broken(**_kw):
         raise RuntimeError("provider down")
 
-    monkeypatch.setattr(llm, "call_llm_with_cache", broken)
+    monkeypatch.setattr(llm, "call_llm_with_cache", broken, raising=False)
     config = llm.LLMConfig(provider="openai", model="gpt-x")
     assert asyncio.run(text_reflow._refine_with_llm("some text", config)) == "some text"
+
+
+def test_the_refinement_function_it_calls_does_not_exist_today():
+    """Honest pin (found by the M4 run of this file): `fichero_server.llm` has no `call_llm_with_cache`, so the AI refinement
+    (`use_ai_refinement`) has always raised ImportError, swallowed into 'return the heuristic text'. The tests above inject the
+    name so the Pause/Stop re-raise is exercised; when the refinement is built or removed this test is deleted."""
+    from fichero_server import llm
+
+    assert not hasattr(llm, "call_llm_with_cache")
