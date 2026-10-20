@@ -182,6 +182,9 @@ def test_kraken_transcribe_page_resolves_a_catalog_id_and_reads_in_process(
 def test_kraken_catalog_id_not_downloaded_says_install_it(tmp_path: Path, monkeypatch):
     from fichero_server.llm import kraken_runtime
 
+    # Its own empty store: the session's shared one may hold a McCATMuS marker an earlier test left (a marker with its
+    # file missing reads "not downloaded whole", not "not on this Mac yet"; P0 full-run red, passes alone).
+    monkeypatch.setenv("FICHERO_KRAKEN_DATA_DIR", str(tmp_path / "kraken-data"))
     monkeypatch.setattr(
         kraken_runtime, "recognition_model_path", lambda model_id, home=None: None
     )
