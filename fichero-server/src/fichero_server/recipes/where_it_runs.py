@@ -69,6 +69,8 @@ def places_it_can_run(card: Card, *, this_mac_gb: float | None, hf_ready: bool,
                 _option(HF_JOBS, HF_NAME, False, why=why), *[_option(CLUSTER, c, False, why=why) for c in clusters]]
     if kind == "vlm":
         needs = f"a GPU with room for about {_gb(card.size_gb)} of weights" if card.size_gb else "a GPU"
+        if card.pin.get("base_model"):
+            needs = f"a GPU with room for the adapter's base, {card.pin['base_model']}, and the adapter (the base's size is not listed)"
         return [_option(THIS_MAC, "this Mac", False, why="it has no MLX build, and this Mac runs MLX builds"),
                 _option(HF_JOBS, HF_NAME, hf_ready, needs=needs, why="" if hf_ready else NO_HF),
                 *[_option(CLUSTER, c, True, needs=needs + "; transformers or vLLM", blocked=CLUSTER_BLOCKED)

@@ -33,6 +33,16 @@ POLL_SECONDS = 60.0
 STEP_KINDS = ("run-a-recipe", "workflow", "workflow-step", "batch", "recipe")
 #: A vision-model reader needs these where the Job runs (the runner's own header has Kraken).
 VLM_DEPENDENCIES = ["torch>=2.5", "transformers>=4.57,<5", "accelerate>=1.3"]
+#: Added for a step that puts a PEFT adapter on its base model (#5977); other steps do not install it.
+ADAPTER_DEPENDENCIES = ["peft>=0.14"]
+
+
+def dependencies_for(step: dict[str, Any]) -> list[str] | None:
+    """What the Job installs for this step: nothing for Kraken (the image has it), the vision-model set for a vlm,
+    and `peft` besides for one with an adapter."""
+    if step["reader"] != "vlm":
+        return None
+    return [*VLM_DEPENDENCIES, *(ADAPTER_DEPENDENCIES if step.get("adapter") else [])]
 
 
 class PagesMayNotLeave(PermissionError):
@@ -93,9 +103,12 @@ def resolve_step(request: ReadAtScaleRequest, *, bucket: str | None) -> dict[str
         if not hf.get("merged") or hf.get("bucket") != bucket:
             raise NotSendable(f"{request.card} has no Hugging Face build in your bucket to read with off this Mac")
         model = f"{MOUNT}/{hf['merged']}"
-    ReadStep(reader="vlm", card=request.card, model=model)  # the same refusals as the package
+    adapter = None
+    if request.base_model:  # the card is a PEFT adapter: the base is the model, the adapter goes on it (#5977)
+        adapter, model = request.card, request.base_model
+    ReadStep(reader="vlm", card=request.card, model=model, adapter=adapter)  # the same refusals as the package
     return {"reader": "vlm", "card": request.card, "model": model, "prompt": prompt_for(1, request.language),
-            "lines_per_call": 1, "language": request.language}
+            "lines_per_call": 1, "language": request.language, **({"adapter": adapter} if adapter else {})}
 
 
 def cluster_target(cluster_id: str) -> Callable[[], Any]:
@@ -241,7 +254,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             far_id = target.submit(
                 job_id, script=RUNNER, flavor=request.flavor, timeout=request.timeout,
                 script_args=["--package", f"{root}/data", "--shard", key, "--out", f"{root}/out"],
-                dependencies=VLM_DEPENDENCIES if detail["step"]["reader"] == "vlm" else None,
+                dependencies=dependencies_for(detail["step"]),
                 labels={"fichero-shard": key})
             shards[key].update(state="submitted", far_id=far_id, tries=shards[key]["tries"] + 1)
             running += 1
