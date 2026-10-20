@@ -2130,6 +2130,9 @@ class AppDatabase:
             self.conn.commit()
             for one in ids:
                 self.revoke_client(one)
+        from fichero_server.security import revocation
+
+        revocation.notify(ids)  # open change streams of these devices end now (#5913)
         return self.get_device(device_id)
 
     def renew_device(
