@@ -1072,9 +1072,14 @@ def _collect(copy: Any, before: dict[str, set[str]], back: dict[str, str]) -> di
         return per_page.setdefault(original, {"id": original, "readings": [], "segments": {}, "statements": []})
 
     new = {name: [r for r in copy.all(models[name]) if r.id not in ids] for name, ids in before.items()}
+    # Where on the page each reading's line is, so a compare view can match one candidate's line to another's
+    # (`source.compare.try-candidates-same-shape`); None for a reading that is not on a line.
+    boxes = {s.id: [s.bbox_x, s.bbox_y, s.bbox_w, s.bbox_h] for s in copy.all(models["Segment"])
+             if s.kind == "line"} if "Segment" in models else {}
     for r in new.get("ContentRepresentation", []):
         if (entry := page(r.document_id)) is not None:
-            entry["readings"].append({"kind": r.kind, "level": r.level, "text": _readable(r)})
+            entry["readings"].append({"kind": r.kind, "level": r.level, "text": _readable(r),
+                                      "bbox": boxes.get(getattr(r, "segment_id", None))})
     for s in new.get("Segment", []):
         if (entry := page(s.document_id)) is not None:
             entry["segments"][s.kind] = entry["segments"].get(s.kind, 0) + 1

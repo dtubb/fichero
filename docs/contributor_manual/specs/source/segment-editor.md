@@ -1649,7 +1649,7 @@ Try, a page's Inspector). It is a *view*: it adds no pane kind and no window kin
 shows the difference: the compare design of 2026-08-25). Nothing in it vouches for a reading: agreement is never a check
 (`source.disagree.agreement-not-accuracy`), so the only way a reading becomes a person's is a person's pick.
 
-- `source.compare.readers-answer` — **[GAP]** (#5900) `GET /api/documents/{page_id}/compare-readers` answers, read-only,
+- `source.compare.readers-answer` — **[OK]** (#5900; built, unrun until an M4 pass: `compare_readings.py` `compare_lines` / `page_compare`, `GET /api/documents/{page_id}/compare-readers`; the route is a new API route, so the CLI and MCP tools arrive with the OpenAPI regen, HELD) `GET /api/documents/{page_id}/compare-readers` answers, read-only,
   for one page: `{page_id, readers: [{id, label, kind}], image_width, image_height, lines: [{segment_id, order, bbox,
   picture, readings: [{reader_id, text}], agreement, differs, words: [{text, char_start, char_end, agreement, variants:
   [{text, readers}]}], counting_reader_id, picked_by_person}]}`. It reuses the disagreement answer
@@ -1664,14 +1664,14 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   leaves out the lines where the readers agree. An unknown page is 404; with fewer than two readers the answer is 200
   with `lines` and no `differs`, and the view says so (`source.disagree.fewer-than-two`). *CLI:* `fichero documents
   compare-readers <page_id> [--readers a,b] [--only-differing]`; *MCP:* `fichero_documents_compare_readers`; both before
-  any app work. *Tests (red first):* test, when built: `test_compare_readers_5900` (the shape; as written
+  any app work. *Tests (red first):* `fichero-server/tests/unit/api/test_compare_readers_5900.py` (unrun; the shape; as written
   vs normalised; one reader; a person's reading shown as the counting one; the picture is a reference).
-- `source.compare.try-candidates-same-shape` — **[GAP]** (#5900) the Try candidates path feeds the same view and is not
+- `source.compare.try-candidates-same-shape` — **[OK]** (#5900; built, unrun until an M4 pass: NOT a second route: the SAME `GET /api/documents/{page_id}/compare-readers` with `?try_stage=<stage>` (`try_compare`); a Try's per-page readings now carry the line's `bbox` (`samples._collect`) so candidates' lines are matched by the box they cover) the Try candidates path feeds the same view and is not
   rebuilt: a stage Try (`POST /api/recipes/stages/{stage}/try`, `GET /api/recipes/stages/{stage}/try`, `recipes/samples.py`
   `start_try` and `read_result`; `source.onboard.stages.compares-candidates`) already runs 2 or 3 candidate readers on
   its own copy of the sample pages and keeps each candidate's `per_page` readings and `shapes`
   (`source.onboard.stages.compare-results-per-model`). The same answer is given for a Try with `GET
-  /api/recipes/stages/{stage}/try/compare-readers?page_id=...`: its `readers` are the candidates (id the card id, label its
+  /api/documents/{page_id}/compare-readers?try_stage=<stage>` (one route, not a second Try route): its `readers` are the candidates (id the card id, label its
   model, `kind: "candidate"`), its `lines` are the candidates' lines matched one for one for the Read stage (the same lines
   read by each) and by the box they cover (overlap of at least a half) otherwise, and every line has `picked_by_person`
   false. Find Lines is not a text comparison: the existing `StageCompareWindow` (each candidate's boxes on the page) stays
@@ -1684,7 +1684,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
   under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
   reading count and this is it: `reading.choose`, described once, at `source.reading.chosen-is-worked-out` (audited, one undo, only a
-  person: 403 for a model; and its optional `expected_counting_id` (**built**, #5900: `ReadingChooseParams` and `ReadingChoiceBody`; `content_representations.refuse_if_counting_moved`, the same compare-and-set `representation.create` uses; `test_compare_pick_5900.py`), which the view will send so a pick on a stale view is refused with
+  person: 403 for a model; and its optional `expected_counting_id` (**built, unrun until an M4 pass**, #5900: `ReadingChooseParams` and `ReadingChoiceBody`; `content_representations.refuse_if_counting_moved`, the same compare-and-set `representation.create` uses; `test_compare_pick_5900.py`), which the view will send so a pick on a stale view is refused with
   409 and writes nothing). Nothing is copied here.
   A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
   a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
@@ -1700,7 +1700,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   (`compute.tune.bootstrapped-data-is-marked`). The bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`)
   are the other source and stay marked as a model's reading. **Dedupe:** both carry a `line_key`, the SHA-256 of the page image's
   bytes and the line's polygon rounded to whole pixels; when a line is in both, the person's is kept and the bake-off row is dropped
-  before staging, and the count says how many were dropped. *Test (green on the M4):*
+  before staging, and the count says how many were dropped. *Test (the first two green on the M4; the staging test `test_staging_drops_the_lines_a_person_already_checked_and_says_so` unrun):*
   `test_compare_pick_5900.py::test_a_pick_is_in_the_persons_training_set_and_a_model_reading_is_not` and `::test_a_line_in_both_sets_is_counted_once_as_the_persons`.
 - `source.compare.segments-mode` — **[GAP]** (#5900; the app, after the engine and the tool) the Segments pane has a Compare
   mode beside its existing modes (a toggle in the pane's toolbar, remembered with the pane's state): a list of the page's

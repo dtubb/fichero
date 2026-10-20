@@ -401,3 +401,247 @@ async def get_page_disagreement(page_id: str, db: Database = Depends(get_library
         return page_disagreement(db, page_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# =============================================================================
+# Compare readers (#5900): one answer for choosing between readers of the same lines. ONE builder
+# (`compare_lines`) and ONE route; a page's own readings and a stage Try's candidates feed the same builder
+# (`source.compare.readers-answer`, `source.compare.try-candidates-same-shape`).
+# =============================================================================
+
+#: The id of the reader that stands for what a person typed (a correction): one reader on the page, whoever typed it.
+PERSON_READER = "person"
+
+
+class CompareReader(BaseModel):
+    id: str
+    label: str
+    kind: Literal["reader", "person", "candidate"]
+
+
+class CompareReading(BaseModel):
+    reader_id: str
+    text: str = Field(description="the reader's own text, AS WRITTEN: what a pick keeps")
+    representation_id: Optional[str] = Field(default=None, description=(
+        "the reading's id, what `reading.choose` takes; null in a Try (its pages are copies: there is no pick)"))
+
+
+class CompareWord(BaseModel):
+    text: str
+    char_start: int
+    char_end: int
+    agreement: float
+    variants: list[DisagreementVariant]
+
+
+class CompareLine(BaseModel):
+    segment_id: Optional[str] = Field(default=None, description="null in a Try (its lines are copies)")
+    order: int
+    bbox: Optional[list[float]] = Field(default=None, description="[x, y, width, height] in the page image's pixels")
+    picture: Optional[str] = Field(default=None, description=(
+        "a storage reference to the line's cut (`GET /api/segments/{id}/picture`), never a local path"))
+    readings: list[CompareReading]
+    agreement: Optional[float] = Field(default=None, description="null with fewer than two readings or no words")
+    differs: bool = Field(description="the readers' texts are not all the same once normalised; false with one reading")
+    words: list[CompareWord]
+    counting_reader_id: Optional[str] = Field(default=None, description="the reader whose reading counts now")
+    picked_by_person: bool = Field(description="a person typed or chose the reading that counts")
+
+
+class CompareReadersResponse(BaseModel):
+    """What several readers made of the same lines, for choosing between them. Agreement, never accuracy."""
+
+    page_id: str
+    readers: list[CompareReader]
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    lines: list[CompareLine]
+
+
+def compare_lines(raw: list[dict[str, Any]]) -> list[CompareLine]:
+    """THE builder. Each `raw` line: `order`, `segment_id`, `bbox`, `picture`, `readings` [(reader id, text as written,
+    representation id or None)], `counting_reader_id`, `picked_by_person`. Agreement and words are worked out on the
+    normalised text (`source.disagree.normalised-first`); what is shown and what a pick keeps is as written."""
+    from fichero_server.workflows.transcription_accuracy import normalize
+
+    policy = POLICIES[DISAGREEMENT_POLICY]
+    out: list[CompareLine] = []
+    for line in raw:
+        readings = line["readings"]
+        normalised = [(reader, normalize(text, policy)) for reader, text, _rep in readings]
+        found = line_disagreement(normalised)
+        differs = len(readings) >= 2 and len({text for _reader, text in normalised}) > 1
+        out.append(CompareLine(
+            segment_id=line.get("segment_id"), order=line["order"], bbox=line.get("bbox"), picture=line.get("picture"),
+            readings=[CompareReading(reader_id=r, text=t, representation_id=rep) for r, t, rep in readings],
+            agreement=found["agreement"] if found else None, differs=differs,
+            words=[CompareWord(**{k: w[k] for k in ("text", "char_start", "char_end", "agreement")},
+                               variants=[DisagreementVariant(**v) for v in w["variants"]]) for w in (found or {}).get("words", [])],
+            counting_reader_id=line.get("counting_reader_id"), picked_by_person=bool(line.get("picked_by_person"))))
+    return out
+
+
+def _narrow(raw: list[dict[str, Any]], readers: list[CompareReader], only: set[str] | None,
+            only_differing: bool) -> tuple[list[dict[str, Any]], list[CompareReader]]:
+    """`?readers=` keeps the named readers (agreement is then among them); lines left with no reading are dropped."""
+    if only:
+        readers = [r for r in readers if r.id in only]
+        raw = [{**line, "readings": [x for x in line["readings"] if x[0] in only]} for line in raw]
+        raw = [line for line in raw if line["readings"]]
+    return raw, readers
+
+
+def page_compare(db: Database, page_id: str, *, only: set[str] | None = None,
+                 only_differing: bool = False) -> CompareReadersResponse:
+    """A page's readers compared (`source.compare.readers-answer`). LookupError: no such page."""
+    from fichero_server.api.routes.document.segment_readings import (
+        counting_readings, is_unconverted_pass, ordered_lines, working_pass)
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.readings import ReadingChoice
+    from fichero_server.workflows.transcription_accuracy import normalize  # noqa: F401 -- builder imports it too
+
+    document = db.get(Document, page_id)
+    if document is None:
+        raise LookupError(f"document {page_id} not found")
+    width, height = _image_size(db, document)
+    answer = working_pass(db, page_id)
+    empty = CompareReadersResponse(page_id=page_id, readers=[], image_width=width, image_height=height, lines=[])
+    if answer.pass_id is None or is_unconverted_pass(answer.pass_id):
+        return empty
+    lines = ordered_lines(db, answer.pass_id)
+    line_ids = {line.id for line in lines}
+    rows = [r for r in db.query(ContentRepresentation, document_id=page_id)
+            if r.kind == "transcription" and r.level in _AS_WRITTEN_LEVELS and r.segment_id in line_ids
+            and r.producer_tool not in _DERIVED_TOOLS and getattr(r, "retracted_at", None) is None]
+    human = lambda r: getattr(r.provenance_kind, "value", r.provenance_kind) == "human"  # noqa: E731
+    artifact_ids = sorted({r.derived_from_artifact_id for r in rows if r.derived_from_artifact_id})
+    artifacts = {a.id: a for a in db.query_in(Artifact, "id", artifact_ids)} if artifact_ids else {}
+    # Each row's reader: a model and its run (the ids /disagreement uses), or "person" for what a person typed.
+    reader_of: dict[str, str] = {}
+    labels: dict[str, str] = {}
+    keyed: dict[tuple[str, str], str] = {}
+    for row in sorted(rows, key=lambda r: (r.created_at, r.id)):
+        if human(row):
+            reader_of[row.id] = PERSON_READER
+            labels[PERSON_READER] = "Typed by a person"
+        else:
+            model, run = _reader_of(row, artifacts)
+            reader_of[row.id] = keyed.setdefault((model, run), f"{model}#{run}")
+            labels.setdefault(reader_of[row.id], model)
+    runs_of: dict[str, list[str]] = {}
+    for model, run in keyed:
+        runs_of.setdefault(model, []).append(run)
+    for (model, run), reader_id in keyed.items():
+        labels[reader_id] = _model_label(model) + (f", run {runs_of[model].index(run) + 1}" if len(runs_of[model]) > 1 else "")
+    order: list[str] = []
+    for row in sorted(rows, key=lambda r: (r.created_at, r.id)):
+        if reader_of[row.id] not in order:
+            order.append(reader_of[row.id])
+    readers = [CompareReader(id=r, label=labels[r], kind="person" if r == PERSON_READER else "reader") for r in order]
+    counted = counting_readings(db, lines)
+    chosen = {c.representation_id for c in db.query_in(ReadingChoice, "segment_id", list(line_ids))
+              if c.superseded_at is None} if line_ids else set()
+    by_segment: dict[str, dict[str, ContentRepresentation]] = {}
+    for row in sorted(rows, key=lambda r: (r.created_at, r.id)):
+        by_segment.setdefault(row.segment_id, {})[reader_of[row.id]] = row  # the reader's newest reading of the line
+    raw: list[dict[str, Any]] = []
+    for index, line in enumerate(lines):
+        newest = dict(by_segment.get(line.id, {}))
+        count = counted.get(line.id)
+        counting_reader = None
+        if count is not None and count.id in reader_of:
+            counting_reader = reader_of[count.id]
+            counting_row = next((r for r in rows if r.id == count.id), None)
+            if counting_row is not None:
+                newest[counting_reader] = counting_row  # the reading that counts is the one shown for its reader
+        if not newest:
+            continue
+        raw.append({
+            "order": index, "segment_id": line.id, "picture": f"/api/segments/{line.id}/picture",
+            "bbox": [line.bbox_x * width, line.bbox_y * height, line.bbox_w * width, line.bbox_h * height]
+            if width and height else None,
+            "readings": [(rid, newest[rid].content, newest[rid].id) for rid in order if rid in newest],
+            "counting_reader_id": counting_reader,
+            "picked_by_person": bool(count is not None and (count.id in chosen or (
+                getattr(count.provenance_kind, "value", count.provenance_kind) == "human")))})
+    raw, readers = _narrow(raw, readers, only, only_differing)
+    built = compare_lines(raw)
+    if only_differing:
+        built = [line for line in built if line.differs]
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+
+
+def _overlap(a: list[float], b: list[float]) -> float:
+    """The share of the smaller box that the two share (boxes [x, y, w, h])."""
+    ix = max(0.0, min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1]))
+    smaller = min(a[2] * a[3], b[2] * b[3])
+    return (ix * iy) / smaller if smaller > 0 else 0.0
+
+
+def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None = None,
+                only_differing: bool = False) -> CompareReadersResponse:
+    """A stage Try's candidates compared on one page (`source.compare.try-candidates-same-shape`): the SAME answer, from the
+    Try's kept readings. A candidate's line is matched to another's by the box it covers (overlap of at least a half).
+    No segment, no representation id, nothing picked: a Try's pages are copies. LookupError: no such Try or page."""
+    from pathlib import Path
+
+    from fichero_server.recipes import samples
+    from fichero_server.recipes.project import read_project_setup
+
+    result = samples.read_result(db, stage, read_project_setup(Path(db.path).parent)["recipe"])
+    if result is None:
+        raise LookupError(f"{stage} has no sample result")
+    document = db.get(Document, page_id)
+    if document is None:
+        raise LookupError(f"document {page_id} not found")
+    width, height = _image_size(db, document)
+    readers: list[CompareReader] = []
+    groups: list[dict[str, Any]] = []   # one per matched line: {"box": [...], "readings": {reader: text}}
+    for column in result.get("candidates") or []:
+        page = next((p for p in column.get("per_page") or [] if p.get("id") == page_id), None)
+        if page is None:
+            continue
+        reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate")
+        placed = [r for r in page.get("readings") or [] if r.get("kind") == "transcription" and r.get("bbox") and r.get("text")]
+        if not placed:
+            continue
+        readers.append(reader)
+        for item in placed:
+            hit = next((g for g in groups if reader.id not in g["readings"] and _overlap(g["box"], item["bbox"]) >= 0.5), None)
+            if hit is None:
+                hit = {"box": item["bbox"], "readings": {}}
+                groups.append(hit)
+            hit["readings"][reader.id] = item["text"]
+    groups.sort(key=lambda g: (g["box"][1], g["box"][0]))
+    raw = [{"order": i, "segment_id": None, "picture": None,
+            "bbox": [g["box"][0] * width, g["box"][1] * height, g["box"][2] * width, g["box"][3] * height]
+            if width and height else None,
+            "readings": [(r.id, g["readings"][r.id], None) for r in readers if r.id in g["readings"]],
+            "counting_reader_id": None, "picked_by_person": False} for i, g in enumerate(groups)]
+    raw, readers = _narrow(raw, readers, only, only_differing)
+    built = compare_lines(raw)
+    if only_differing:
+        built = [line for line in built if line.differs]
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+
+
+@router.get("/{page_id}/compare-readers", response_model=CompareReadersResponse)
+async def get_compare_readers(page_id: str, readers: Optional[str] = None, only_differing: bool = False,
+                              try_stage: Optional[str] = None,
+                              db: Database = Depends(get_library_database)) -> CompareReadersResponse:
+    """What this page's readers made of the same lines, for choosing between them (`source.compare.readers-answer`, #5900).
+    Read-only. Per line: every reader's own text AS WRITTEN with the `representation_id` a pick sends to
+    `POST /api/segments/{id}/readings/choice`, whether the readers differ, the words that differ, the line's picture, the
+    reader whose reading counts now and whether a person made it. A line one reader read is listed with its one reading.
+    `?readers=a,b` narrows to those readers (ids from the answer); `?only_differing=true` leaves out the lines where they
+    agree; `?try_stage=read` answers the SAME shape from that stage's Try candidates instead of the page's own readings
+    (`source.compare.try-candidates-same-shape`: no segment ids, nothing to pick). Agreement, never accuracy. An unknown
+    page, or a stage with no Try, is 404."""
+    only = {r for r in (readers or "").split(",") if r} or None
+    try:
+        if try_stage:
+            return try_compare(db, page_id, try_stage, only=only, only_differing=only_differing)
+        return page_compare(db, page_id, only=only, only_differing=only_differing)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
