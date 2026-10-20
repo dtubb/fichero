@@ -357,7 +357,7 @@ def _jobs_say(library: str, since: Any = None) -> str | None:
         return said
     except Exception as exc:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
         if jobs_say_failure is None:  # once per outage, not once per poll
-            logger.warning("derivatives: job table unreadable for the stall check: %s", exc, exc_info=True)
+            logger.warning("derivatives: job table unreadable for the stall check: %s", exc)
         jobs_say_failure = f"{type(exc).__name__}: {exc}"
     return None
 
