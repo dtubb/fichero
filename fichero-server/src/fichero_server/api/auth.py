@@ -491,14 +491,14 @@ def _authenticate_device_token(token: str):
     # owner by fallback (S1). The owner's own device is bound to the owner, so it stays owner by that
     # binding; a device with no binding is refused.
     if not device.user_id:
-        return None, device, "missing or invalid Authorization header"
+        return None, device, "this device is not tied to a person: pair it again"
     user = app_db.get_user(device.user_id, wait=AUTH_DB_WAIT_SECONDS)
     if user is None or not user.active:
         return None, device, "missing or invalid Authorization header"
     if not _use_multiuser_auth() and not user.is_owner:
         # Roles are only evaluated with Multi-user on, so a person's device acting "as that person"
         # with it off would carry no limits at all: refuse it until Multi-user is on again (#5344).
-        return None, device, "missing or invalid Authorization header"
+        return None, device, "this device was paired by someone other than the owner: turn Multi-user on to use it"
     if _should_touch_last_seen(device.last_seen, now):
         app_db.touch_device(token_hash, when=now)
     return user, device, None
