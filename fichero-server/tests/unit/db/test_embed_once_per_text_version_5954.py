@@ -26,8 +26,10 @@ class _Table:
         return self
 
     def to_list(self):
-        doc = self._where.split("'")[1]
-        return [r for r in self.rows if r["document_id"] == doc]
+        import re
+
+        wanted = set(re.findall(r"'([^']*)'", self._where))
+        return [r for r in self.rows if r["document_id"] in wanted]
 
 
 class _Lance:
@@ -165,3 +167,74 @@ def test_the_recipes_pages_are_queued_in_batches_of_64(tmp_path):
         execution.jobs = original
     assert [len(q[2]) for q in queued] == [64, 64, 2] and sum((q[2] for q in queued), []) == ids
     assert all(q[0] == cache.REEMBED_KIND and q[1].startswith(cache.BATCH_PREFIX) for q in queued)
+
+
+def test_two_doors_asking_for_the_same_page_at_once_embed_it_once():
+    import threading
+    import time
+
+    lib, page = _Lib(), _page("p1", LONG)
+    real = lib._embed_texts
+
+    def slow(texts, **kw):
+        time.sleep(0.2)  # the first door is still embedding when the second asks
+        return real(texts, **kw)
+
+    lib._embed_texts = slow
+    outcomes = []
+    doors = [threading.Thread(target=lambda: outcomes.append(lib.embed_unless_current(page))) for _ in range(3)]
+    for door in doors:
+        door.start()
+    for door in doors:
+        door.join()
+    assert lib.calls == 1 and sorted(o.reason or "" for o in outcomes) == ["", "unchanged", "unchanged"]
+
+
+def test_a_batch_and_a_single_page_that_share_a_page_embed_it_once():
+    import threading
+    import time
+
+    lib, shared, other = _Lib(), _page("shared", LONG), _page("other", "otro texto distinto " * 30)
+    real = lib._embed_texts
+
+    def slow(texts, **kw):
+        time.sleep(0.2)
+        return real(texts, **kw)
+
+    lib._embed_texts = slow
+    batch = threading.Thread(target=lambda: lib.embed_many_unless_current([shared, other]))
+    batch.start()
+    time.sleep(0.05)
+    single = lib.embed_unless_current(shared)  # a correction job arrives while the batch is embedding
+    batch.join()
+    assert single.reason == "unchanged"
+    assert lib.texts_embedded.count(next(iter(lib.passage_units_for_document(shared, text=shared.page_content))).text) == 1
+
+
+def test_the_currency_of_a_whole_batch_is_one_query():
+    lib = _Lib()
+    pages = [_page(f"n{i}", f"texto {i} " * 40) for i in range(6)]
+    for page in pages[:3]:
+        lib.embed_unless_current(page)
+    queries = []
+    table = lib.lance.open_table(EMBEDDINGS_TABLE)
+    real_where = _Table.where
+
+    def counting(self, clause):
+        queries.append(clause)
+        return real_where(self, clause)
+
+    _Table.where = counting
+    try:
+        assert lib._current_ids(pages) == {p.id for p in pages[:3]}
+    finally:
+        _Table.where = real_where
+    assert len(queries) == 1 and "IN (" in queries[0]
+
+
+def test_the_locks_are_dropped_when_no_one_holds_them():
+    from fichero_server.db.embeddings import _DOCUMENT_EMBED_LOCKS
+
+    lib = _Lib()
+    lib.embed_unless_current(_page("p", LONG))
+    assert _DOCUMENT_EMBED_LOCKS._locks == {}
