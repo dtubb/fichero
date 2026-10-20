@@ -1650,6 +1650,24 @@ def _bootstrap_legacy_library_owner_if_needed(
         logger.info("Bootstrapped legacy library owner for %s", normalized_path)
 
 
+def _route_filters_by_grants(request: Request) -> bool:
+    """Whether the route being served is on the list that filters its rows per document (`authz.SCOPED_LIBRARY_READ_ROUTES`)."""
+    from fichero_server.security import authz
+
+    endpoint = getattr(getattr(request, "scope", {}).get("route"), "endpoint", None)
+    if endpoint is None:
+        return False
+    return f"{getattr(endpoint, '__module__', '')}:{getattr(endpoint, '__name__', '')}" in authz.SCOPED_LIBRARY_READ_ROUTES
+
+
+def _caller_is_scoped(request: Request, library_path: str | None) -> bool:
+    """Shared a folder of the library, not the library: the health probe gives them the general answer, never a count of
+    the whole project."""
+    from fichero_server.security import authz
+
+    return bool(library_path) and authz.is_scoped(getattr(getattr(request, "state", None), "user", None), library_path)
+
+
 def assert_library_read_authorized(
     request: Request,
     library_path: str,
@@ -1668,6 +1686,11 @@ def assert_library_read_authorized(
     try:
         for target in targets:
             authz.assert_can_read(user, library_path, target)
+        if None in targets and authz.is_scoped(user, library_path) and not _route_filters_by_grants(request):
+            # Shared a folder, not the project: a read of the whole library (search, entities, chat, exports, counts,
+            # Activity) is refused unless the route lists only what they may open (`authz.SCOPED_LIBRARY_READ_ROUTES`,
+            # fail closed, #5967, review 704). The words name nothing.
+            raise authz.AuthorizationError("read access denied", required="read")
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -1880,7 +1903,7 @@ def _health_sync(
     """
     from fichero_server.models import Document
 
-    if x_fichero_library_path and not _may_see_library_health(request):
+    if x_fichero_library_path and (not _may_see_library_health(request) or _caller_is_scoped(request, x_fichero_library_path)):
         # Health is unauthenticated so the app can poll before it has a token, but a library's
         # document count and its path on the host's disk are not for an anonymous network caller
         # (#5349). They get the general answer, as if they had named no library.

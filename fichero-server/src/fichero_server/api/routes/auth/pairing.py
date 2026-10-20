@@ -700,6 +700,12 @@ def create_pairing_code(
                 )
             granted_role = body.role
         elif folder_id:  # a folder shared to an existing person: the role asked, on that folder
+            held = app_db.get_library_role(invited.id, library_path) if library_path else None
+            if held is not None and (held.role in ("owner", "editor") or (held.role == "viewer" and body.role != "editor")):
+                # No downgrade and no second grant: the owner is told, in words, that the person already reaches it all.
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{invited.username} already has more access: {held.role} of the whole project. Nothing was shared.")
             granted_role = body.role
         elif library_path is not None:  # an existing person keeps the role they have; that is what is said
             held = app_db.get_library_role(invited.id, library_path)

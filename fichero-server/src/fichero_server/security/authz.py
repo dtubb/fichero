@@ -147,6 +147,40 @@ def resolve_user(user: Any) -> ResolvedUser | None:
     return ResolvedUser(id=row.id, username=row.username)
 
 
+#: The routes a `scoped` person (shared a folder, not the project) may call with NO target id: each one filters its rows
+#: through `readable_rows` / `readable_documents`. Any other library-level read is REFUSED for them, so a new route is
+#: closed until it is listed here (`sharing.share-sheet-chooses-what`, #5967, review 704). "module:function". A test walks
+#: the route table: every entry is a real route whose source filters, and no unlisted route lets a scoped person through.
+SCOPED_LIBRARY_READ_ROUTES: frozenset[str] = frozenset({
+    "fichero_server.api.routes.check:list_verdicts",
+    "fichero_server.api.routes.find_documents:list_find_documents_scores",
+    "fichero_server.api.routes.training:preview_training_set",
+    "fichero_server.api.routes.citation.rendering:export_bibtex",
+    "fichero_server.api.routes.document.documents:list_documents",
+    "fichero_server.api.routes.document.documents:list_roots",
+    "fichero_server.api.routes.document.documents:list_workspaces",
+    "fichero_server.api.routes.document.documents:list_deleted_documents",
+    "fichero_server.api.routes.document.documents:get_run_history",
+    "fichero_server.api.routes.document.signs:list_sign_instances",
+    "fichero_server.api.routes.document.hands:everything_in_a_hand",
+    "fichero_server.api.routes.document.segments:list_segments_in_scope",
+    "fichero_server.api.routes.document.reading_orders:flows_onto_page",
+    "fichero_server.api.routes.system.bookmarks:list_bookmarks",
+})
+
+
+def is_scoped(user: Any, library: str | Path | None) -> bool:
+    """Whether ``user`` holds only the `scoped` role on the library (shared a folder of it, not the project)."""
+    if not multiuser_enabled():
+        return False
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if resolved is None or library_path is None:
+        return False
+    role = get_app_db().get_library_role(resolved.id, library_path)
+    return role is not None and role.role == ROLE_SCOPED
+
+
 def assert_can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> None:
     if not can_read(user, library, target_id):
         raise AuthorizationError("read access denied", required="read")
