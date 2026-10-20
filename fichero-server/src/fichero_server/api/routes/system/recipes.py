@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.core.single_flight import single_flight
@@ -598,6 +598,14 @@ class TryCost(BaseModel):
     measured: bool = Field(default=False, description="true when `value` is what the run really cost")
     why: Optional[str] = Field(default=None, description="when `measured` is false for a run that called a model: why")
     source: Optional[str] = Field(default=None, alias="from", description="where the figure comes from, in words")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _old_results_have_no_flag(cls, data: Any) -> Any:
+        """A result stored before the flag existed: it was measured when its basis says so (review 632)."""
+        if isinstance(data, dict) and "measured" not in data:
+            return {**data, "measured": data.get("basis") == "measured"}
+        return data
 
 
 class TryCandidate(BaseModel):

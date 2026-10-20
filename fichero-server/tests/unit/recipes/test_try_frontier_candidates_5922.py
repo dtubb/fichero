@@ -203,3 +203,43 @@ def test_the_try_result_is_a_typed_answer_that_keeps_what_it_does_not_name():
     assert dumped["candidates"][0]["cost_usd"]["measured"] is False
     assert dumped["candidates"][0]["per_page"] == [{"id": "p1"}] and dumped["per_page_extra"] == {"kept": 1}
     assert answer.recommendation.sentence == "s" and answer.left_out.startswith("Gemini")
+
+
+# -- review 632 ------------------------------------------------------------------------------------------------------
+def test_a_result_stored_before_the_flag_reads_measured_from_its_basis():
+    from fichero_server.api.routes.system.recipes import TryCost
+
+    assert TryCost.model_validate({"value": 0.04, "basis": "measured", "from": "run"}).measured is True
+    assert TryCost.model_validate({"value": 0.04, "basis": "estimate", "from": "list"}).measured is False
+    assert TryCost.model_validate({"value": None, "basis": "unknown", "from": "x"}).measured is False
+    # a stored flag is never overridden by the basis
+    assert TryCost.model_validate({"value": 0.04, "basis": "measured", "measured": False, "from": "x"}).measured is False
+
+
+def test_the_try_route_answers_a_stored_result_typed_and_keeps_the_extras(client, db):
+    """GET /api/recipes/stages/{stage}/try over a stored result file: the typed fields come back typed (an OLD
+    candidate with no `measured` reads it from its basis), and what the model does not name passes through."""
+    import json
+    from pathlib import Path
+
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "jobs": ["find-regions"], "cloud_allowed": False}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe}).status_code == 200
+    samples._write(Path(db.path).parent, "find-regions", {
+        "stage": "find-regions", "pages": ["p1"], "tried_at": "2026-10-20T10:00:00", "state": "done",
+        "left_out": "Gemini was not tried: a Try compares three readers.", "how": "its own steps on a copy of these pages",
+        "per_page_extra": {"kept": 1},
+        "candidates": [{"card": "c1", "name": "One", "local": False, "runs_on": "cloud:x", "state": "done", "cer": 0.02,
+                        "seconds": 3.0, "per_page": [{"id": "p1"}],
+                        "cost_usd": {"value": 0.04, "basis": "measured", "from": "run"}}],
+        "recommendation": {"card": "c1", "name": "One", "cer": 0.02, "local": False, "sentence": "One reads best."}})
+
+    got = client.get("/api/recipes/stages/find-regions/try")
+
+    assert got.status_code == 200, got.text
+    body = json.loads(got.text)
+    assert body["left_out"].startswith("Gemini") and body["recommendation"]["sentence"] == "One reads best."
+    column = body["candidates"][0]
+    assert column["cost_usd"] == {"value": 0.04, "basis": "measured", "measured": True, "why": None, "from": "run"}
+    assert column["seconds"] == 3.0 and column["per_page"] == [{"id": "p1"}] and body["per_page_extra"] == {"kept": 1}
