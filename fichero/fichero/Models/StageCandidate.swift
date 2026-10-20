@@ -7,7 +7,11 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
     struct Cost: Decodable, Equatable {
         let value: Double?
         let basis: String?
-        /// The engine's words for the figure ("up to this: …", or "cost not measured: <why>").
+        /// True when `value` is what the run really cost (or free, on this Mac): the contract, never the wording.
+        let measured: Bool?
+        /// Why a run that called a model has no measured cost, in the engine's words for a person.
+        let why: String?
+        /// Where the figure comes from, in words.
         let from: String?
     }
 
@@ -108,14 +112,16 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
             said.append("free, on this Mac")
         } else if let value = costUsd?.value {
             // A price in US dollars reads "$0.04" everywhere; the machine's locale would say "US$0.04" in Canada.
-            let price = value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
+            // Under a cent reads "< $0.01", never "$0.00": a measured cloud run is not free.
+            let price = value > 0 && value < 0.01 ? "< $0.01"
+                : value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
             switch costUsd?.basis {
             case "estimate": said.append("about \(price)")
             case "upper bound": said.append("up to \(price)")  // variant A re-reads only the unsure lines (#5922)
             default: said.append(price)
             }
-            // A cost the engine could not measure says so, in its words, beside the figure that is left.
-            if let note = costUsd?.from, note.hasPrefix("cost not measured") { said.append(note) }
+            // A cost the engine could not measure says why, from its typed `measured` and `why`, never from parsing words.
+            if costUsd?.measured == false, let why = costUsd?.why { said.append(why) }
         } else {
             said.append("price not known")
         }

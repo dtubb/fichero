@@ -600,9 +600,10 @@ def cost_figure(card: Any, estimate: Any, local: bool, spent: dict[str, Any] | N
     from fichero_server.recipes.bakeoff import _figure
 
     if local:
-        return _figure(0.0, "measured", "runs on this Mac")
+        return {**_figure(0.0, "measured", "runs on this Mac"), "measured": True, "why": None}
     if spent and spent.get("cost_usd") is not None:
-        return _figure(spent["cost_usd"], "measured", f"what the run cost on these pages ({spent['model_calls']} model calls)")
+        return {**_figure(spent["cost_usd"], "measured", f"what the run cost on these pages ({spent['model_calls']} model calls)"),
+                "measured": True, "why": None}
     value = estimate if isinstance(estimate, (int, float)) else None
     if spent and spent.get("not_measured"):  # said in words, with the figure that is left (the estimate or the bound)
         why = spent["not_measured"]
@@ -611,8 +612,10 @@ def cost_figure(card: Any, estimate: Any, local: bool, spent: dict[str, Any] | N
     else:
         why = None
     if card is not None and str(card.id).startswith(VARIANT_A):
-        return _figure(value, "upper bound", why or "up to this: it re-reads only the unsure lines, so it costs less")
-    return _figure(value, "estimate", why or "the price list, on these pages")
+        figure = _figure(value, "upper bound", why or "up to this: it re-reads only the unsure lines, so it costs less")
+    else:
+        figure = _figure(value, "estimate", why or "the price list, on these pages")
+    return {**figure, "measured": False, "why": why}
 
 
 def recommendation_rows(columns: list[dict[str, Any]], *, pages: int, volume: int) -> list[dict[str, Any]]:
@@ -625,7 +628,7 @@ def recommendation_rows(columns: list[dict[str, Any]], *, pages: int, volume: in
         done = c.get("state") == "done" and c.get("cer") is not None
         if c.get("local"):
             value = 0.0
-        elif cost.get("basis") == "measured" and pages:
+        elif cost.get("measured") and pages:
             value = cost["value"] * volume / pages
         else:
             value = None
