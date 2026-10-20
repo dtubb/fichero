@@ -96,6 +96,34 @@ enum PairingBlocker: Equatable {
     }
 }
 
+/// Copy Pairing Link, as a value (#5891, `sharing.pairing.copy-link-says-why`): the link is copied and the clipboard is
+/// read back, or the person is told in words why not. It used to do nothing, silently, when there was no link (no
+/// pin derived for this address yet) and the card printed "use the pairing link below" over nothing.
+enum PairingLinkCopy {
+    enum Outcome: Equatable {
+        case copied
+        /// Nothing was copied; the sentence says why.
+        case notCopied(String)
+    }
+
+    /// Why there is no link, in words: the blocker's own headline and cure when the card has one, else the general case.
+    static func noLinkReason(blocker: PairingBlocker?) -> String {
+        if let blocker { return "\(blocker.headline). \(blocker.detail)" }
+        return "The pairing link isn't ready: this Mac has no address and certificate pin to put in it yet. "
+            + "Turning sharing off and on prepares them."
+    }
+
+    static func attempt(link: String?, blocker: PairingBlocker?, write: (String) -> Void,
+                        read: () -> String?) -> Outcome {
+        guard let link else { return .notCopied(noLinkReason(blocker: blocker)) }
+        write(link)
+        guard read() == link else {
+            return .notCopied("Fichero couldn't copy the link to the clipboard. Select the pairing link above and copy it by hand.")
+        }
+        return .copied
+    }
+}
+
 func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
     devices.filter { !$0.revoked }
 }
@@ -130,6 +158,8 @@ struct PairingCardView: View {
     let onResolve: (PairingBlocker) -> Void
     let copiedInvite: Bool
     let onCopyInvite: () -> Void
+    /// What the last Copy said when it copied nothing, in words (#5891).
+    var copyNote: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -170,7 +200,9 @@ struct PairingCardView: View {
                 // The QR encoder can fail even when everything else is ready. Say so
                 // rather than printing "Scan this" beside nothing (#3769).
                 Label(
-                    "Fichero couldn't draw the QR code. Use the pairing link below — it carries the same invite.",
+                    inviteLink == nil
+                        ? "Fichero couldn't draw the QR code, and there is no pairing link yet."
+                        : "Fichero couldn't draw the QR code. Use the pairing link below — it carries the same invite.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -187,6 +219,24 @@ struct PairingCardView: View {
 
             if let inviteLink {
                 inviteLinkBlock(inviteLink)
+            } else {
+                // Never a card with a code and neither a link nor a reason (#5891).
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(PairingLinkCopy.noLinkReason(blocker: blocker), systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    if let actionTitle = blocker?.actionTitle, let blocker {
+                        Button(isResolving ? "Working…" : actionTitle) { onResolve(blocker) }
+                            .buttonStyle(.bordered)
+                            .disabled(isResolving)
+                    }
+                }
+            }
+            if let copyNote {
+                Label(copyNote, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("sharing.pairing.copyNote")
             }
 
             Text("Expires \(pairingCode.expiresAt.formatted(date: .omitted, time: .shortened))")

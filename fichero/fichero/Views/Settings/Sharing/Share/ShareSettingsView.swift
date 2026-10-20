@@ -45,6 +45,7 @@ struct ShareSettingsView: View {
     @State var isLoadingDevices = false
     @State var didBootstrap = false
     @State var copiedInvite = false
+    @State var copyNote: String?
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
@@ -100,7 +101,8 @@ struct ShareSettingsView: View {
                         isResolving: isApplyingChange,
                         onResolve: { blocker in Task { await resolve(blocker) } },
                         copiedInvite: copiedInvite,
-                        onCopyInvite: copyInvite
+                        onCopyInvite: copyInvite,
+                        copyNote: copyNote
                     )
                 }
             }
