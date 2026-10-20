@@ -319,3 +319,26 @@ def test_owner_can_list_and_revoke_pending_invites(app_db, monkeypatch):
     assert after.json() == {"items": [], "count": 0}
     assert redeem.status_code == 401
     assert redeem.json()["code"] == "invite_revoked"
+
+
+def test_accepting_an_invite_for_a_name_that_differs_only_in_case_from_an_existing_person_is_refused(app_db, monkeypatch):
+    """'dave' accepted after 'DAVE' exists would be a look-alike: 409, and no second account is made (review 641)."""
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "dave", "display_name": "Dave"},
+        )
+        assert invite.status_code == 200
+        app_db.create_user(username="DAVE", display_name="Dave", password_hash=accounts.hash_password("x-pass-1"),
+                           is_owner=False)
+
+        redeemed = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": invite.json()["invite_token"], "new_password": "correct horse battery staple"},
+        )
+
+    assert redeemed.status_code == 409
+    assert app_db.get_user_by_username("dave") is None
