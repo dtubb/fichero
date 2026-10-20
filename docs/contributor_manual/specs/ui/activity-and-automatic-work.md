@@ -1343,7 +1343,8 @@ and node, not by job); a retry action for failed pages.
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
-  Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
+  Kraken's resident models first; the embedder is a light model (runs beside the big ones, never "the loaded model"), so a
+  Kraken page after an embed does not free it (memory pressure does, when it must); a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). The quiet spell is not the only hold (#5846,
