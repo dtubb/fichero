@@ -3821,7 +3821,7 @@ The recipe and its format
   kind is kept and re-routes the page.
 - `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
   library's, and a step's model can be overridden on a folder, resolved by the cascade; work in
-  that folder runs that recipe. *Spec review 2026-10-20:* a folder-scoped Use This is stored (the engine keeps the override) but no run applies it, so the app does not offer "Use for a folder" until a run does; Use This is for the project.
+  that folder runs that recipe. *Spec review 2026-10-20:* a folder-scoped Use This is stored (the engine keeps the override) but no run applies it, so neither the app nor the route offers "Use for a folder" until a run does (the route answers 422 "Use This applies to the whole project; per-folder choices aren't applied yet"); Use This is for the project.
 - `source.recipe.reaches-the-whole-model` — **[GAP]** (#4949, #5364) a recipe can name the knowledge
   and output jobs too: link to authorities, place in a gazetteer, enrich from linked data over
   SPARQL, work out dates, attribute hands, export and publish; each is owned by its own spec and
