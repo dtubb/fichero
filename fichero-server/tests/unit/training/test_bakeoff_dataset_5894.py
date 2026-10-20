@@ -188,3 +188,21 @@ def test_only_the_files_that_were_staged_are_uploaded_by_name(tmp_path):
     assert sorted(upload["allow_patterns"]) == sorted(staged.files)
     assert "README.md" in staged.files and "pairs.jsonl" in staged.files and any(f.startswith("lines/") for f in staged.files)
     assert "stray-note.txt" not in upload["allow_patterns"]
+
+
+def test_crops_are_named_by_number_so_a_page_name_with_glob_characters_still_uploads(tmp_path):
+    import shutil
+
+    lines = _lines_json(tmp_path)
+    data = json.loads(lines.read_text())
+    for row in data["lines"]:
+        row["page"] = "p[0]*?.png"
+    lines.write_text(json.dumps(data))
+    pages = _pages(tmp_path)
+    shutil.move(str(pages / "p0.png"), str(pages / "p[0]*?.png"))
+    staged = bl.stage_dataset(bl.winning_lines(lines, winner="mlx:m"), pages, tmp_path / "stage")
+    assert "lines/00001.jpg" in staged.files and (staged.path / "lines" / "00001.jpg").exists()
+    import fnmatch
+
+    assert all(any(fnmatch.fnmatchcase(f, pattern) for pattern in staged.files) for f in staged.files), \
+        "every staged file matches its own allow_pattern"

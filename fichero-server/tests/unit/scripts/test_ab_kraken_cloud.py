@@ -340,3 +340,23 @@ def test_a_cloud_reference_that_fails_leaves_its_cells_empty_and_the_run_goes_on
                     reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", "B"])
     assert {f["arm"] for f in report["failures"]} >= {"reference", "B"} and report["pages_done"] == 2
     assert report["lines_with_reference"] == 0
+
+
+def test_cer_is_also_reported_over_lines_at_least_120_px_wide_and_the_fragments_are_counted(tmp_path):
+    """`source.recipe.reader-variants-measured`: a polygon under 120 px wide is a fragment, not a line; a reader that
+    rightly returns nothing for it must not look as if it failed, so every arm is scored a second time without them."""
+    def kraken(image, reader):
+        lines = _stub_kraken(image, reader)
+        lines[1]["polygon"] = [[10, 50], [60, 50], [60, 80], [10, 80]]  # 50 px wide: a fragment
+        return lines
+
+    readers = {"vision": _reader({"0": "hola", "1": "", "2": "adios"}),
+               "mlx:m": _reader({"0": "hola", "1": "mundo", "2": "adios"})}
+    report = ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+                    reader_ref="unused", language="es", kraken=kraken, arms=["kraken", "vision", "mlx:m"], readers=readers)
+    assert report["fragments"] == {"px": 120, "lines": 1, "of": 3}
+    assert report["per_arm"]["vision"]["cer"] > 0, "over every line the fragment's empty read counts as a deletion"
+    assert report["per_arm"]["vision"]["wide"]["cer"] == 0.0 and report["per_arm"]["vision"]["wide"]["lines"] == 2
+    assert report["per_arm"]["mlx:m"]["wide"] is None, "the reference arm is not scored against itself"
+    md = (tmp_path / "out" / "report.md").read_text()
+    assert "at least 120 px wide" in md and "1 of 3 lines are narrower" in md

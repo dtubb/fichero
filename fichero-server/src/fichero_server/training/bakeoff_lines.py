@@ -123,10 +123,11 @@ def stage_dataset(winning: Winning, pages_dir: str | Path, out_dir: str | Path) 
     written = [PAIRS, "README.md"]
     with ExitStack() as stack, (out / PAIRS).open("w", encoding="utf-8") as pairs:
         pages: dict[str, Any] = {}
-        for line in winning.lines:
+        for number, line in enumerate(winning.lines, 1):
             if line.page not in pages:
                 pages[line.page] = stack.enter_context(Image.open(Path(pages_dir) / line.page))
-            name = f"{LINES_DIR}/{Path(line.page).stem}_{line.line_id}.jpg"
+            # By number, never by page name: `allow_patterns` are globs, and a name with [ ] * ? would not match itself.
+            name = f"{LINES_DIR}/{number:05d}.jpg"
             crop_line(pages[line.page], line.polygon).save(out / name, format="JPEG", quality=90)
             written.append(name)
             pairs.write(json.dumps({"image": name, "text": line.text, "read_by": line.read_by, "agreed_by": line.agreed_by,

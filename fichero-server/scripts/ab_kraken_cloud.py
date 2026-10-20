@@ -48,6 +48,7 @@ LABEL = "model reference, not ground truth"
 FAKE_TEXT = "texto de prueba"
 FAKE_REFERENCE_TEXT = "texto de referencia"
 GOOD_LINE_CER = 0.10  # a line is "good" when Kraken's text is within this CER of the reference
+WIDE_PX = 120  # a polygon narrower than this is a fragment (a mark, a stray stroke), not a line
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 
 
@@ -508,17 +509,24 @@ class _Counted(dict):
         self.count = count
 
 
+def _width(row: dict) -> float:
+    xs = [p[0] for p in row["polygon"]]
+    return max(xs) - min(xs)
+
+
 def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, reference, pages, arms=None, ref_arm=None,
               seconds=None, failures=None, mlx_choice=None) -> dict:
     arms = arms or parse_arms(DEFAULT_ARMS)
     measured = [r for r in rows if r["reference"].strip()]
     done = len({r["page"] for r in rows})
     label = LABEL if ref_arm is None else f"model reference ({ref_arm}), not ground truth"
+    wide = [r for r in measured if _width(r) >= WIDE_PX]
     per_arm = {}
     for arm in arms:
         times = (seconds or {}).get(arm, [])
         per_arm[arm] = {**(rates([(r["reference"], r.get(arm, "")) for r in measured]) if arm != ref_arm
                            else {"cer": None, "wer": None, "lines": 0, "reference_chars": 0, "is_reference": True}),
+                        "wide": rates([(r["reference"], r.get(arm, "")) for r in wide]) if arm != ref_arm else None,
                         "s_per_page": (sum(times) / len(times)) if times else None,
                         "usd_per_page": (ledger.by_stage.get(arm, 0.0) / done) if done else None,
                         "lines_read": sum(1 for r in rows if (r.get(arm) or "").strip()),
@@ -526,6 +534,7 @@ def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, referen
     return {
         "label": label, "model": model, "reference_model": reference, "pages_planned": pages, "arms": arms,
         "reference_arm": ref_arm, "pages_done": done, "lines": len(rows), "lines_with_reference": len(measured),
+        "fragments": {"px": WIDE_PX, "lines": sum(1 for r in rows if _width(r) < WIDE_PX), "of": len(rows)},
         "per_arm": per_arm, "kraken": per_arm["kraken"], "A": per_arm.get("A"), "B": per_arm.get("B"),
         "A_lines_sent": sent, "A_lines_total": total, "A_share_sent": (sent / total) if total else None,
         "calibration": calibration(measured, bar), "agreement": agreement(rows, arms), "failures": failures or [],
@@ -592,6 +601,14 @@ def _report_md(r: dict) -> str:
         usd = "n/a" if m["usd_per_page"] is None else f"${m['usd_per_page']:.4f}"
         errs = ("the reference", "the reference") if m.get("is_reference") else (_pct(m["cer"]), _pct(m["wer"]))
         lines.append(f"| {_arm_title(arm, r)} | {errs[0]} | {errs[1]} | {spp} | {usd} | {m['lines_read']} |")
+    frag = r["fragments"]
+    lines += [f"\n### On lines at least {frag['px']} px wide\n{frag['lines']} of {frag['of']} lines are narrower: fragments, "
+              "not lines, which a reader may rightly leave empty. The same arms without them:\n",
+              "| arm | CER | WER | lines |", "|---|---|---|---|"]
+    for arm in r["arms"]:
+        w = r["per_arm"][arm].get("wide")
+        lines.append(f"| {_arm_title(arm, r)} | " + (f"{_pct(w['cer'])} | {_pct(w['wer'])} | {w['lines']} |" if w
+                                                      else "the reference | the reference | |"))
     if "A" in r["arms"]:
         lines.append(f"\nVariant A sent {r['A_lines_sent']} of {r['A_lines_total']} lines ({_pct(r['A_share_sent'])}).")
     for arm, got in r["mlx"].items():
