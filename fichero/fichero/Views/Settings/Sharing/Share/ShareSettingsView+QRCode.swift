@@ -57,12 +57,20 @@ extension ShareSettingsView {
     }
 
     func copyInvite() {
-        guard let inviteLinkString else { return }
-        PlatformPasteboard.writeString(inviteLinkString)
-        copiedInvite = true
-        Task {
-            try? await Task.sleep(for: .seconds(2))
+        let outcome = PairingLinkCopy.attempt(
+            link: inviteLinkString, blocker: pairingBlocker,
+            write: PlatformPasteboard.writeString, read: PlatformPasteboard.string)
+        switch outcome {
+        case .copied:
+            copyNote = nil
+            copiedInvite = true
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                copiedInvite = false
+            }
+        case .notCopied(let reason):
             copiedInvite = false
+            copyNote = reason
         }
     }
 }
