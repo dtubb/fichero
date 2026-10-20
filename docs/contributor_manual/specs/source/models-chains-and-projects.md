@@ -2779,7 +2779,7 @@ Projects
   project's last finished run did not do (failed, or not run) stays in the Start plan, even beside a layer's
   proposed steps, marked with how it ended and why ("failed last time …; runs again"), and Start runs it
   again without naming it to redo.
-- `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above) a recipe
+- `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above; a running step points at the job it made only when its card makes one (workflow, check, find-documents, entries): Find Regions, prepare, embed and table never borrow a download's or an earlier step's row, Fable #12, `fichero-server/tests/unit/recipes/test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py`) a recipe
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
   account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
   ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
