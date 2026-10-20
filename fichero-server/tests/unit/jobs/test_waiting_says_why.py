@@ -22,6 +22,8 @@ from fichero_server.importers import derivatives
 from fichero_server.models import DocType, Document, FileType, Status
 
 HELD = "Waiting for the model lane: Paleographer Review is reading"
+#: Embed for search is text work: it waits for the reading itself (`activity.lane.embed-after-reading`), on its own lane.
+READING_FIRST = jobs.READING_FIRST_REASON
 ON_BATTERY = "Waiting: the Mac is on battery"
 
 
@@ -74,6 +76,16 @@ def lane_held(db):
     page.result(timeout=30)
 
 
+@pytest.fixture
+def waiter(monkeypatch):
+    """A row of the model lane that is not text work (a line check): the lane's holder is what it waits for."""
+    from fichero_server.checking import line_check
+
+    line_check.register_job_kinds()
+    monkeypatch.setattr(line_check, "run", lambda db, subject: None)  # never really checks: it only waits
+    return line_check.KIND
+
+
 def _docs(db, n):
     docs = [Document(name=f"p{i}.md", doc_type=DocType.file, file_type=FileType.text,
                      status=Status.pending, page_content=f"page {i}") for i in range(n)]
@@ -87,33 +99,40 @@ def _rows(client):
     return {j["task_type"]: j for j in body["jobs"]}, body["machine"]
 
 
-def test_a_job_behind_the_model_lane_names_what_holds_it_not_the_mac(db, client, mac, stages, lane_held):
+def test_a_job_behind_the_model_lane_names_what_holds_it_not_the_mac(db, client, mac, stages, lane_held, waiter):
     """WHY (#5606): the embed row said "you're using the Mac" (an earlier scan's words, left on the
     row) while `machine.in_use` was false; the true wait was the lane, held by Paleographer Review."""
+    jobs.enqueue(db, waiter, "x-1")
+    db.execute("UPDATE jobs SET reason = ? WHERE kind = ?", [ON_BATTERY, waiter])  # stale
+    rows, machine = _rows(client)
+    assert machine["on_battery"] is False and machine["why_wait"] is None
+    assert (rows[waiter]["state"], rows[waiter]["reason"]) == ("waiting", HELD)
+
+
+def test_embed_for_search_waits_for_the_reading_not_the_mac(db, client, mac, stages, lane_held):
+    """`activity.lane.embed-after-reading`: the embed row (the small-model lane) says it waits for reading to finish."""
     derivatives.register_job_kinds()
     jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
     db.execute("UPDATE jobs SET reason = ? WHERE kind = ?", [ON_BATTERY, derivatives.EMBED_KIND])  # stale
-    rows, machine = _rows(client)
-    assert machine["on_battery"] is False and machine["why_wait"] is None
-    assert (rows["embed"]["state"], rows["embed"]["reason"]) == ("waiting", HELD)
+    rows, _ = _rows(client)
+    assert (rows["embed"]["state"], rows["embed"]["reason"]) == ("waiting", READING_FIRST)
 
 
-def test_the_battery_is_the_reason_only_while_the_throttle_says_so(db, client, mac, stages, lane_held):
+def test_the_battery_is_the_reason_only_while_the_throttle_says_so(db, client, mac, stages, lane_held, waiter):
     """WHY: "you're using the Mac" is true only while the throttle reads the Mac as in use. And while the
     lane is held, the row names what holds it (#5622): the rows read "you're using the Mac" while heavy
     runs were plainly working, and the lane is what the job would still wait for if the person stepped
     away. The throttle's reason is the row's once the lane is free, and the popover's `machine.why_wait`
     says it all along."""
-    derivatives.register_job_kinds()
-    jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
+    jobs.enqueue(db, waiter, "x-1")
     mac["battery"] = True
     rows, machine = _rows(client)
     assert machine["on_battery"] is True and machine["why_wait"] == ON_BATTERY
-    assert rows["embed"]["reason"] == HELD
+    assert rows[waiter]["reason"] == HELD
     mac["battery"] = False
     rows, machine = _rows(client)
     assert machine["on_battery"] is False
-    assert rows["embed"]["reason"] == HELD
+    assert rows[waiter]["reason"] == HELD
 
 
 def test_with_the_lane_free_the_battery_is_the_reason(db, client, mac, stages):
@@ -139,7 +158,7 @@ def test_the_imports_progress_row_says_why_it_waits(db, client, test_package, ma
     rows, _ = _rows(client)
     progress = rows["derivatives"]
     assert progress["current"] < progress["total"]
-    assert (progress["state"], progress["reason"]) == ("waiting", HELD)
+    assert (progress["state"], progress["reason"]) == ("waiting", READING_FIRST)
     assert not [s for s in stages if s[0] == "embed"]
 
 
@@ -153,4 +172,4 @@ def test_every_waiting_row_has_a_reason(db, client, mac, stages):
     assert rows["embed"]["reason"] == "Paused by you"
     assert jobs.waiting_reason(db, "x", derivatives.EMBED_KIND) == "Paused by you"
     jobs.set_paused(False)
-    assert jobs.waiting_reason(db, "x", derivatives.EMBED_KIND) == "Waiting for its turn on the model lane"
+    assert jobs.waiting_reason(db, "x", derivatives.EMBED_KIND) == "Waiting for its turn on the small-model lane"

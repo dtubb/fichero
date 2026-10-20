@@ -27,7 +27,7 @@ struct ActivityDetails: Equatable {
         case useNextCandidate(step: String, card: String)
     }
 
-    struct FailedPage: Equatable, Identifiable {
+    struct FailedPageRow: Equatable, Identifiable {
         let id: String
         /// The page's title as the Reader names it (the account's titles, 542d845eb; a tree node's display name).
         let title: String
@@ -70,7 +70,7 @@ struct ActivityDetails: Equatable {
     /// This Mac's reading a waiting row rests on ("memory pressure warn"), or nil.
     let machineText: String?
     let counts: Counts?
-    let failedPages: [FailedPage]
+    let failedPages: [FailedPageRow]
     /// How many failed pages are under it, more than `failedPages` may list.
     let failedCount: Int
     let resources: [Resource]
@@ -175,13 +175,13 @@ extension ActivityDetails {
         }
         if row.kind == .run, let account = row.account, !account.failures.isEmpty {
             failedPages = account.failures.enumerated().map {
-                FailedPage(id: "\($0.offset)", title: $0.element.title,
+                FailedPageRow(id: "\($0.offset)", title: $0.element.title,
                            reason: $0.element.reason + ($0.element.retried ? " (read twice)" : ""))
             }
             failedCount = max(account.pagesFailed, account.failures.count)
         } else if row.kind != .page {
             failedPages = failedLeaves.map {
-                FailedPage(id: $0.id, title: $0.displayName ?? $0.name, reason: $0.reason ?? "No reason recorded")
+                FailedPageRow(id: $0.id, title: $0.displayName ?? $0.name, reason: $0.reason ?? "No reason recorded")
             }
             failedCount = max(failedLeaves.count, node?.failed ?? 0)
         } else {

@@ -161,7 +161,8 @@ async def test_a_download_reports_its_bytes_as_they_arrive(tmp_path, monkeypatch
             break
     assert job.current == 1_000_000
     assert 0 < job.percent < 1
-    assert "1 MB of 3.1 GB" in job.message
+    # A model's size is said in the GB the Mac says (1024^3, one helper with the Mac's memory, #5833): 3.09e9 bytes is 2.9 GB.
+    assert "1 MB of 2.9 GB" in job.message
 
     finish.set()
     await store._job_tasks[job.job_id]
