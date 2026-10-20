@@ -506,19 +506,28 @@ def recommend(rows: list[dict[str, Any]], *, volume: int, noise_band: float) -> 
         value = (r.get("cost_usd") or {}).get("value")
         return math.inf if value is None else value
 
-    # Within the band the cheaper wins (a reader on this Mac costs nothing); an unpriced one is last.
-    chosen = min(within, key=lambda r: (not r.get("local"), price(r), r["cer"]))
+    # Within the band the cheapest for the whole set wins, an unpriced reader after every priced one (never as $0), and
+    # at an equal cost the one on this Mac, then the better reading.
+    chosen = min(within, key=lambda r: (price(r), not r.get("local"), r["cer"]))
     set_cost = (chosen.get("cost_usd") or {}).get("value")
     per_page = None if set_cost is None or not volume else round(set_cost / volume, 4)
     name = chosen.get("name") or "this reader"
     where = "on this Mac" if chosen.get("local") else f"at {chosen.get('runs_on') or 'a remote service'}"
-    if per_page is None:
+    if set_cost is None:
         cost = "price not known"
+    elif per_page is None:  # no page count to divide by: the set price is still said, "per page" is not
+        cost = f"${set_cost:.2f} for the set"
     else:
         cost = f"${per_page:.2f} per page, ${set_cost:.2f} for the {volume} pages"
     if chosen is best:
         sentence = (f"{name} reads best by more than the noise band: {cost}, {where}." if len(within) == 1
                     else f"{name} reads best: {cost}, {where}.")
+        cheaper = [r for r in measured if r is not chosen and price(r) < price(chosen)]
+        if cheaper:
+            near = min(cheaper, key=lambda r: r["cer"] - best["cer"])
+            gap = (near["cer"] - best["cer"]) * 100
+            sentence += (f" {near.get('name') or 'A cheaper reader'} costs less but reads {gap:.1f} points worse, "
+                         f"beyond the {noise_band * 100:.1f}-point noise band.")
     else:
         sentence = (f"{name} reads within the noise band of {best.get('name') or 'the best reader'} for {cost}, {where}.")
     return {"card": chosen["card"], "name": name, "cer": chosen["cer"], "local": bool(chosen.get("local")),

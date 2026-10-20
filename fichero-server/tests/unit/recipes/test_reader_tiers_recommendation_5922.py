@@ -57,3 +57,35 @@ def test_an_unpriced_cloud_reader_is_recommended_without_inventing_a_price():
     pick = bakeoff.recommend([unpriced, LOCAL], volume=400, noise_band=BAND)
     assert pick["card"] == "openrouter:new/model"
     assert pick["cost_per_page_usd"] is None and "price not known" in pick["sentence"]
+
+
+def test_an_unpriced_reader_within_the_band_sorts_after_a_priced_one_never_as_free():
+    unpriced = row("openrouter:new/model", "New", 0.010, None, local=False)
+    priced = row("openrouter:google/gemini", "Gemini", 0.015, 12.0, local=False)
+    pick = bakeoff.recommend([unpriced, priced], volume=400, noise_band=BAND)
+    assert pick["card"] == "openrouter:google/gemini"
+
+
+def test_a_dearer_local_reader_loses_to_a_cheaper_cloud_one_within_the_band():
+    dear_local = row("kraken:model", "Kraken", 0.022, 30.0, local=True)
+    cheap_cloud = row("openrouter:google/gemini", "Gemini", 0.020, 5.0, local=False)
+    assert bakeoff.recommend([dear_local, cheap_cloud], volume=400, noise_band=BAND)["card"] == "openrouter:google/gemini"
+
+
+def test_at_an_equal_cost_the_reader_on_this_mac_wins():
+    local = row("kraken:model", "Kraken", 0.024, 5.0, local=True)
+    cloud = row("openrouter:google/gemini", "Gemini", 0.020, 5.0, local=False)
+    assert bakeoff.recommend([cloud, local], volume=400, noise_band=BAND)["card"] == "kraken:model"
+
+
+def test_no_page_count_does_not_hide_a_known_set_price():
+    pick = bakeoff.recommend([FRONTIER], volume=0, noise_band=BAND)
+    assert pick["cost_set_usd"] == 80.0 and pick["cost_per_page_usd"] is None
+    assert "$80.00 for the set" in pick["sentence"] and "per page" not in pick["sentence"]
+
+
+def test_when_the_best_wins_over_a_close_cheaper_reader_the_sentence_says_by_how_much():
+    close = row("kraken:model", "Kraken", 0.035, 0.0, local=True)  # 1.5 points behind, beyond the 1.0-point band
+    pick = bakeoff.recommend([FRONTIER, close], volume=400, noise_band=BAND)
+    assert pick["card"] == FRONTIER["card"]
+    assert "Kraken costs less but reads 1.5 points worse, beyond the 1.0-point noise band." in pick["sentence"]
