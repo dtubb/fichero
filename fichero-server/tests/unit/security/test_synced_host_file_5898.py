@@ -71,9 +71,19 @@ def test_is_this_engine_compares_the_engines_own_id(monkeypatch):
 
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: object())
     monkeypatch.setattr(accounts, "_engine_id", lambda db: "eng-host-1")
-    assert synced_host.this_engine_id() == "eng-host-1"
-    assert synced_host.is_this_engine("eng-host-1")
-    assert not synced_host.is_this_engine("eng-other")
+    synced_host.this_engine_id.cache_clear()
+    try:
+        assert synced_host.this_engine_id() == "eng-host-1"
+        monkeypatch.setattr(accounts, "_engine_id", lambda db: "changed")
+        assert synced_host.this_engine_id() == "eng-host-1"  # cached: no second app-DB read
+    finally:
+        synced_host.this_engine_id.cache_clear()
+    monkeypatch.setattr(accounts, "_engine_id", lambda db: "eng-host-1")
+    try:
+        assert synced_host.is_this_engine("eng-host-1")
+        assert not synced_host.is_this_engine("eng-other")
+    finally:
+        synced_host.this_engine_id.cache_clear()
     assert not synced_host.is_this_engine(None)
     assert not synced_host.is_this_engine("")
 
