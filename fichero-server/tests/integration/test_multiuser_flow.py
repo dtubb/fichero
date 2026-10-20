@@ -318,7 +318,7 @@ async def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db
         }
 
         activity_response = await stream_activities(
-            db=db_manager.get_database(primary),
+            http_request=None, db=db_manager.get_database(primary),
             types=None,
             levels=None,
         )
