@@ -19,6 +19,13 @@ struct ConnectSheetModelTests {
         #expect(Model.nearbyStatus(searching: false, found: 0) == nil)
     }
 
+    @Test("a pending invite link opens the sheet; none, or an empty one, does not")
+    func opensForAnInvite() {
+        #expect(Model.opensFor(pendingInvite: "fichero://pair?x=1"))
+        #expect(!Model.opensFor(pendingInvite: nil))
+        #expect(!Model.opensFor(pendingInvite: ""))
+    }
+
     @Test("where it connects is said once: the picked Mac, else the pasted link's host")
     func connectsTo() {
         #expect(Model.connectsTo(pickedAddress: "https://studio.local:8765", pastedHost: "other.local") == "Connects to https://studio.local:8765")

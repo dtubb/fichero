@@ -83,7 +83,12 @@ struct ShareSettingsView: View {
         .formStyle(.grouped)
         .sheet(isPresented: $showAddDevice) { addDeviceSheet }
         .sheet(isPresented: $showConnect) { connectSheet }
+        // A tapped invite link opens the Connect sheet with the link filled in (`sharing.settings.connect-sheet`).
+        .onChange(of: appState.pendingPairingInvite) { _, invite in
+            if ConnectSheetModel.opensFor(pendingInvite: invite) { showConnect = true }
+        }
         .task {
+            if ConnectSheetModel.opensFor(pendingInvite: appState.pendingPairingInvite) { showConnect = true }
             loadSPKIPin()
             addressDraft = publicBaseURL
             // Refresh the backend's real multi-user state so this pane matches Accounts (#3331).
@@ -235,7 +240,7 @@ struct ShareSettingsView: View {
             .formStyle(.grouped)
             HStack {
                 Spacer()
-                Button("Done") { showConnect = false }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { showConnect = false }.keyboardShortcut(.cancelAction)
             }
         }
         .padding()

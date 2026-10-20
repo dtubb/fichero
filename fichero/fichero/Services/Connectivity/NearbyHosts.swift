@@ -10,10 +10,13 @@ import Observation
 @MainActor @Observable
 final class NearbyHosts {
     private(set) var found: [HostChoices.Found] = []
+    /// True from start() to stop(): the Connect sheet says "Searching…" while it is and nothing is found yet.
+    private(set) var searching = false
     private var browser: NWBrowser?
 
     func start() {
         guard browser == nil else { return }
+        searching = true
         let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_fichero._tcp", domain: "local."), using: .tcp)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             let hosts = results.compactMap { result -> HostChoices.Found? in
@@ -31,6 +34,7 @@ final class NearbyHosts {
     func stop() {
         browser?.cancel()
         browser = nil
+        searching = false
     }
 }
 #endif
