@@ -244,6 +244,15 @@ def test_the_catalog_is_curated_and_labels_every_entry_honestly() -> None:
         assert spec.download_size_bytes > 0
 
 
+def test_glm_ocr_is_in_the_catalog_pinned_and_within_the_cap_5980() -> None:
+    spec = MANAGED_MLX_MODELS["GLM-OCR"]
+    assert spec.repo_id == "mlx-community/GLM-OCR-4bit" and spec.licence == "MIT"
+    assert spec.revision == "97f587506984cc92fa69b2694b4128e53db6b081"
+    assert spec.download_size_bytes == 1_254_097_532 and spec.tested_status == "untested"
+    assert len(MANAGED_MLX_MODELS) == 8  # the cap is a curation cap: DeepSeek-OCR waits for a measured page
+    assert not any("DeepSeek" in m.repo_id for m in MANAGED_MLX_MODELS.values())
+
+
 def test_the_catalog_covers_both_a_vision_tier_and_a_text_tier() -> None:
     capabilities = {cap for spec in MANAGED_MLX_MODELS.values() for cap in spec.capabilities}
     assert {"text", "vision"} <= capabilities
