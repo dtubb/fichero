@@ -2,127 +2,11 @@ import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
 import SwiftUI
 
-/// Owner-side account-invite UI (#3157). Mints a `fichero://invite` link the
-/// owner hands to a new person, and lists/revokes pending invites. Wired to the
-/// invite endpoints the backend shipped in #3153 through `UsersStore` — no
-/// direct client calls from the view.
-struct InviteAccountSection: View {
-    let store: UsersStore
-
-    @State private var newUsername = ""
-    @State private var newDisplayName = ""
-    @State private var isMinting = false
-    @State private var errorMessage: String?
-    @State private var minted: MintedInvite?
-
-    private var canInvite: Bool {
-        !newUsername.trimmingCharacters(in: .whitespaces).isEmpty && !isMinting
-    }
-
-    var body: some View {
-        Group {
-            Section {
-                TextField("Username", text: $newUsername)
-                    .textContentType(.username)
-                    #if !os(macOS)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    #endif
-                TextField("Full name (optional)", text: $newDisplayName)
-                    .textContentType(.name)
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Button {
-                    Task { await mint() }
-                } label: {
-                    if isMinting {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Invite Person…")
-                    }
-                }
-                .disabled(!canInvite)
-            } header: {
-                Text("Invite a Person")
-            } footer: {
-                Text("Creates an invite link to hand over. They open it and set their own password to join.")
-                    .foregroundStyle(.secondary)
-            }
-
-            if !store.invites.isEmpty {
-                Section("Pending Invites") {
-                    ForEach(store.invites, id: \.id) { invite in
-                        inviteRow(invite)
-                    }
-                }
-            }
-        }
-        .sheet(item: $minted) { wrapper in
-            InviteLinkSheet(mint: wrapper.mint)
-        }
-    }
-
-    @ViewBuilder
-    private func inviteRow(_ invite: Components.Schemas.InviteResponse) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(invite.displayName.isEmpty ? invite.username : invite.displayName)
-                    .fontWeight(.medium)
-                Text("@\(invite.username) · expires \(invite.expiresAt.formatted(.relative(presentation: .named)))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Revoke") {
-                Task { await revoke(invite.id) }
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
-            .disabled(isMinting)
-        }
-        .padding(.vertical, 2)
-    }
-
-    @MainActor
-    private func mint() async {
-        isMinting = true
-        errorMessage = nil
-        defer { isMinting = false }
-        do {
-            let mint = try await store.createInvite(
-                username: newUsername.trimmingCharacters(in: .whitespaces),
-                displayName: newDisplayName.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? nil : newDisplayName.trimmingCharacters(in: .whitespaces)
-            )
-            newUsername = ""
-            newDisplayName = ""
-            minted = MintedInvite(mint: mint)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    @MainActor
-    private func revoke(_ id: String) async {
-        isMinting = true
-        errorMessage = nil
-        defer { isMinting = false }
-        do {
-            try await store.revokeInvite(id: id)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-}
+// The hand-over of an invite link, shown after the Accounts `+` sheet mints one (`sharing.settings.accounts-add-sheet`).
 
 /// Identifiable wrapper so a freshly-minted invite can drive a `.sheet(item:)`
 /// (the generated `InviteMintResponse` isn't `Identifiable`).
-private struct MintedInvite: Identifiable {
+struct MintedInvite: Identifiable {
     let id = UUID()
     let mint: Components.Schemas.InviteMintResponse
 }
@@ -130,7 +14,7 @@ private struct MintedInvite: Identifiable {
 /// The hand-over sheet: shows the redemption link and its QR (reusing the same
 /// `CIFilter.qrCodeGenerator` presentation as device pairing) for the owner to
 /// pass to the invitee.
-private struct InviteLinkSheet: View {
+struct InviteLinkSheet: View {
     let mint: Components.Schemas.InviteMintResponse
 
     @Environment(\.dismiss) private var dismiss

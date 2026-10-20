@@ -41,11 +41,10 @@ struct UsersContent: View {
     @State var pendingRoleDrafts: [String: String] = [:]
     @State var isApplyingRoleChange = false
 
-    // Add Account form (owner-only)
-    @State var newDisplayName = ""
-    @State var newUsername = ""
-    @State var newPassword = ""
-    @State var newIsOwner = false
+    // The people list: the selected row (what − acts on), the `+` sheet, and a person's Capture… sheet.
+    @State var selectedAccountID: String?
+    @State var showAddAccount = false
+    @State var capturePerson: CapturePersonTarget?
     @State var isCreatingUser = false
     @State var accountError: String?
 
@@ -78,6 +77,10 @@ struct UsersContent: View {
 }
 
 let authzRoles = ["owner", "editor", "viewer"]
+
+struct CapturePersonTarget: Identifiable {
+    let id: String
+}
 
 // MARK: - Preview
 

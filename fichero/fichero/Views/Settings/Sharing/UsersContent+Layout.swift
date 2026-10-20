@@ -7,132 +7,51 @@ extension UsersContent {
     @ViewBuilder
     internal var accountList: some View {
         Form {
-            if let signedInUser = store.currentUser {
-                Section {
-                    userRow(signedInUser, isCurrent: true)
-                } header: {
-                    Text("Signed In As")
-                }
-            }
-
-            if identityStore.isOwnerAccess && !store.users.isEmpty {
-                Section {
-                    ForEach(store.users, id: \.id) { user in
-                        userRow(user, isCurrent: user.id == store.currentUser?.id)
-                    }
-                } header: {
-                    Text("All Accounts")
-                } footer: {
-                    Text("Owner accounts can manage users and all projects.")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             if !identityStore.isOwnerAccess {
                 Section {
                     Text("Account management is owner-only. Your current access appears below.")
                         .foregroundStyle(.secondary)
-                } header: {
-                    Text("Accounts")
                 }
             }
 
-            if identityStore.isOwnerAccess {
-                addAccountSection
-            }
-
-            // Invite links (#3157) are only meaningful in multi-user mode, and only
-            // owners can mint them. When multi-user is off the section used to simply
-            // not exist, so a single-user owner never learned invites were a thing,
-            // let alone what turned them on. Name it, and name the place.
-            //
-            // ponytail: it names the Sharing switch rather than duplicating the
-            // multi-user switch here — a second switch over the same state is the
-            // exact duplicate-surface disease #3777 just removed.
-            if identityStore.isOwnerAccess {
-                if authzSnapshot?.multiuserEnabled == true {
-                    InviteAccountSection(store: store)
-                } else {
-                    Section {
-                        Text(SharingToggles.multiUserOffHint)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } header: {
-                        Text("Invite a Person")
+            // The people (you first, with the You mark), grey Invited rows, `+` and `−` (`sharing.settings.three-panes`).
+            Section {
+                ForEach(accountRows) { accountRow($0) }
+                if let accountError {
+                    Text(accountError).font(.caption).foregroundStyle(.red)
+                }
+                if identityStore.isOwnerAccess {
+                    HStack(spacing: 4) {
+                        Button { showAddAccount = true } label: { Image(systemName: "plus") }
+                            .help("Add Account")
+                            .accessibilityLabel("Add Account")
+                            .accessibilityIdentifier("accounts.add")
+                        Button { Task { await removeSelectedAccount() } } label: { Image(systemName: "minus") }
+                            .help(accountRows.first { $0.id == selectedAccountID }?.removeAction ?? "Select a person")
+                            .accessibilityLabel("Disable or revoke the selected account")
+                            .accessibilityIdentifier("accounts.remove")
+                            .disabled(accountRows.first { $0.id == selectedAccountID }?.removeAction == nil || isCreatingUser)
+                        Spacer()
                     }
+                    .buttonStyle(.borderless)
                 }
             }
 
-            sharingSection
+            rolesSection
         }
         .formStyle(.grouped)
-    }
-
-    @ViewBuilder
-    internal var addAccountSection: some View {
-        Section {
-            TextField("Full name", text: $newDisplayName)
-            TextField("Username", text: $newUsername)
-                .textContentType(.username)
-            SecureField("Password", text: $newPassword)
-                .textContentType(.newPassword)
-            Toggle("Owner (can manage users and all projects)", isOn: $newIsOwner)
-
-            if let accountError {
-                Text(accountError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Button {
-                Task { await createAccount() }
-            } label: {
-                if isCreatingUser {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text("Create Account")
-                }
-            }
-            .disabled(isCreatingUser || !canCreateAccount)
-        } header: {
-            Text("Add Account")
-        } footer: {
-            Text("New accounts sign in with their username and password.")
-                .foregroundStyle(.secondary)
+        .sheet(isPresented: $showAddAccount) {
+            AccountsAddSheet(store: store, multiUserOn: authzSnapshot?.multiuserEnabled == true) { showAddAccount = false }
+        }
+        .sheet(item: $capturePerson) { target in
+            CaptureSettingsView(startingUser: target.id, onClose: { capturePerson = nil })
+                .frame(minWidth: 460, minHeight: 320)
         }
     }
 
+    /// Until the project's Share sheet takes per-project roles (`sharing.settings.project-share-sheet`), the roles stay here.
     @ViewBuilder
-    internal var sharingSection: some View {
-        Section {
-            if let authzSnapshot {
-                LabeledContent("Multi-user mode") {
-                    authzStatusText(authzSnapshot.multiuserEnabled)
-                }
-                LabeledContent("Role management") {
-                    authzStatusText(authzSnapshot.canManageRoles)
-                }
-                LabeledContent("Your role") {
-                    Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Project access") {
-                    Text(targetAccessText(authzSnapshot))
-                        .foregroundStyle(.secondary)
-                }
-            } else if let authzError {
-                Text(authzError)
-                    .foregroundStyle(.red)
-            } else {
-                ProgressView("Loading sharing…")
-            }
-        } header: {
-            Text("Project Sharing")
-        } footer: {
-            Text("Owners can assign roles for the current project when multi-user mode is enabled.")
-                .foregroundStyle(.secondary)
-        }
-
+    internal var rolesSection: some View {
         if let authzSnapshot, authzSnapshot.canManageRoles {
             Section("Assigned Roles") {
                 if sortedRoles.isEmpty {
@@ -238,13 +157,12 @@ extension UsersContent {
     }
 
     @ViewBuilder
-    internal func userRow(_ user: Components.Schemas.UserResponse, isCurrent: Bool) -> some View {
+    internal func accountRow(_ row: AccountsPaneModel.Row) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(displayName(for: user))
-                        .fontWeight(.medium)
-                    if isCurrent {
+                    Text(row.title).fontWeight(.medium)
+                    if row.isYou {
                         Text("You")
                             .font(.caption2)
                             .fontWeight(.semibold)
@@ -254,37 +172,22 @@ extension UsersContent {
                             .foregroundStyle(.tint)
                     }
                 }
-                Text("@\(user.username)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("@\(row.username)").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            HStack(spacing: 6) {
-                if user.isOwner {
-                    Label("Owner", systemImage: "crown")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.iconOnly)
-                }
-                if !user.active {
-                    Text("Inactive")
-                        .font(.caption2)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.15), in: Capsule())
-                        .foregroundStyle(.secondary)
-                }
-                // Owners can disable/enable other accounts (never themselves).
-                if store.currentUser?.isOwner == true, !isCurrent {
-                    Button(user.active ? "Disable" : "Enable") {
-                        Task { await setActive(userId: user.id, active: !user.active) }
-                    }
+            if !row.role.isEmpty { Text(row.role).font(.caption).foregroundStyle(.secondary) }
+            if row.kind == .person, !row.isActive { Text("Disabled").font(.caption).foregroundStyle(.secondary) }
+            if row.kind == .person, identityStore.isOwnerAccess {
+                Button("Capture…") { capturePerson = CapturePersonTarget(id: row.username) }
                     .buttonStyle(.borderless)
                     .font(.caption)
-                    .disabled(isCreatingUser)
-                }
             }
         }
         .padding(.vertical, 2)
+        .opacity(row.kind == .invited || !row.isActive ? 0.55 : 1)
+        .contentShape(Rectangle())
+        .background(selectedAccountID == row.id ? Color.secondary.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .onTapGesture { selectedAccountID = row.id }
+        .accessibilityIdentifier("accounts.row.\(row.id)")
     }
 }

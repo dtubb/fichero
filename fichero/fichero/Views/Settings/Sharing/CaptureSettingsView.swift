@@ -29,6 +29,10 @@ struct CaptureSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(LibraryManager.self) var libraryManager
 
+    /// Opened from an Accounts row's Capture…: that person's policy first, and `onClose` when Back is pressed.
+    var startingUser: String?
+    var onClose: (() -> Void)?
+
     @State private var policies: [String: CapturePolicy] = [:]
     @State private var managingUser: String?
 
@@ -50,7 +54,7 @@ struct CaptureSettingsView: View {
                     username: user,
                     policy: policyBinding(for: user),
                     libraries: libraryManager.openLibraries,
-                    onBack: { managingUser = nil }
+                    onBack: { managingUser = nil; onClose?() }
                 )
             } else {
                 overviewForm
@@ -59,6 +63,7 @@ struct CaptureSettingsView: View {
         .task {
             await appState.usersStore.load()
             loadPolicies()
+            if managingUser == nil { managingUser = startingUser }
         }
     }
 
