@@ -183,9 +183,15 @@ struct ShareSettingsView: View {
         // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
         .task(id: pairingCode?.code) {
             guard didBootstrap, let expiresAt = pairingCode?.expiresAt else { return }
-            try? await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt))
-            guard !Task.isCancelled else { return }
-            await refreshPairingCode()
+            do { try await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt)) } catch { return }  // the code changed or the card went away
+            guard pairingBlocker == nil else { return }
+            // The old code stays on screen until the new one lands: clearing it first would change this task's key
+            // and cancel the renewal itself (review 597).
+            switch await PairingCodeRenewal.renew(mint: { try await PairingService(apiRoot: EngineConfig.host).createPairingCode() }) {
+            case .fresh(let code): pairingCode = code
+            case .failed(let message): pairingCode = nil; shareError = message
+            case .cancelled: break
+            }
         }
         .onChange(of: publicBaseURL) { _, newValue in
             loadSPKIPin()
