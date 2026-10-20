@@ -86,8 +86,8 @@ class ProviderRateLimitedError(RuntimeError):
         )
 
 
-#: The longest wait a provider's Retry-After may ask for before the call gives up (a provider asking for more than this
-#: is not going to answer this run).
+#: The longest a provider's Retry-After is waited for: a provider asking for more is waited for this long, then tried again
+#: (the retries are bounded, so a provider that keeps asking ends the call after `max_retries` of these waits).
 RETRY_AFTER_CAP = 120.0
 
 
@@ -117,7 +117,7 @@ def classify_provider_error(exc: BaseException) -> str:
     * **transient**: 5xx, 408, 409, a timeout or a dropped connection. Back off and retry; not a breaker failure.
     * **fatal**: this provider will not answer for this run: no credit (402, ``insufficient_quota``, a key limit) or a
       refused key (401). Opens the breaker at once; no retry.
-    * **terminal**: anything else (a bad request, a refusal, a bug). Raised at once.
+    * **terminal**: anything else (a bad request, a refusal, a bug, our own call budget running out). Raised at once.
     """
     from fichero_server.llm import _extract_exc_message, _extract_exc_status_code, _is_provider_quota_error
 
@@ -135,6 +135,8 @@ def classify_provider_error(exc: BaseException) -> str:
         is_quota = False
     if status == 429 or is_quota:
         return "slow-down"
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return "terminal"  # OUR wall-clock budget for the call ran out: another try would spend the whole budget again
     name = type(exc).__name__.lower()
     if (status is not None and (status >= 500 or status in (408, 409))) or any(
             k in name for k in ("timeout", "connecterror", "connectionerror", "remoteprotocol", "readerror")):

@@ -453,10 +453,13 @@ async def _ask(llm: Any, messages: list, *, config: Any, ctx: ActionContext) -> 
 
         async with spend.holding(None, ctx.library_path):
             return await llm.ainvoke(messages)
-    async with llm_module.model_call_slot(config, library=ctx.library_path, subject="Chat"):
-        response = await llm.ainvoke(messages)
-        llm_module.record_call_usage(config, response)  # inside the slot: the cap books what the answer cost, not its worst case
-    return response
+    async def _once():  # one try: its lane slot and cap hold are taken again on every retry
+        async with llm_module.model_call_slot(config, library=ctx.library_path, subject="Chat"):
+            response = await llm.ainvoke(messages)
+            llm_module.record_call_usage(config, response)  # inside the slot: the cap books what the answer cost
+            return response
+
+    return await llm_module._resilient(_once, config)  # the one retry layer (`ai.where.one-retry-policy`, #5944)
 
 
 def _build_rag_user_prompt(query: str, context_docs: list[dict]) -> str:
