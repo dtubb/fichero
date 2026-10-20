@@ -69,7 +69,13 @@ STAGES: tuple[Stage, ...] = (
           "Reads the writing line by line, and can correct it with a second model.",
           "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",
           # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
-          (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),)),
+          (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),
+           # Kraken, then a model for the unsure lines (variant A, #5894): the bar the step reads as `only_below_confidence`.
+           Question("review_certainty_bar", "Send the second model only the lines Kraken is unsure of?", "one",
+                    (("whole-page", "No: it checks the whole page"), ("0.5", "Only lines under 0.5 sure"),
+                     ("0.6", "Only lines under 0.6 sure"), ("0.7", "Only lines under 0.7 sure"),
+                     ("0.8", "Only lines under 0.8 sure"), ("0.9", "Only lines under 0.9 sure")),
+                    default="whole-page", read_by_a_step=True))),
     Stage("normalise", "Normalise", ("translate-transliterate-normalise",),
           "Writes the text again in the same language at another level: as written (a diplomatic reading), "
           "abbreviations expanded, spelling normalised, or modernised.",
