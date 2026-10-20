@@ -7,7 +7,9 @@ Pro. Every mode prints one markdown table row per N, and with --out appends the 
   ceiling   the plain `kraken` CLI in N separate processes, torch/BLAS threads 1 each: pages/minute and CPU%. What the
             app should reach. Segment + recognise together (the CLI does both).
   threads   blla.segment alone in N THREADS of one process, one shared model (as the engine does), threads 1.
-  procs     blla.segment alone in N PROCESSES, a model each, threads 1. threads vs procs on the same stage and pages is
+  procs     blla.segment alone in N PROCESSES, a model each, threads 1 (--pools one: every native pool 1 thread; the
+            first M4 run used --pools default and burned ~110% CPU a process at N=1 and twice the CPU a page at N=4:
+            hidden threads, so cpu_s_per_page is in every row). threads vs procs on the same stage and pages is
             the GIL test with nothing of ours in between: if procs scale and threads do not, it is the GIL.
   engine    the engine's own seam (kraken_runtime._kraken_call) with N pages at once, the cap lifted to N, run twice
             (--threads one: 1 torch thread a page; --threads default: the engine's own split). Per stage seconds, wall,
@@ -66,7 +68,8 @@ def cpu_seconds(who: int) -> float:
 def row(mode: str, n: int, pages: int, wall: float, cpu: float, extra: dict | None = None, out: Path | None = None) -> dict:
     """One line of the table: pages a minute, seconds a page (wall), and CPU as % of ONE core and of the whole Mac."""
     record = {"mode": mode, "n": n, "pages": pages, "wall_s": round(wall, 1), "s_per_page": round(wall / pages, 2),
-              "pages_per_min": round(60 * pages / wall, 1), "cpu_pct_of_one_core": round(100 * cpu / wall),
+              "pages_per_min": round(60 * pages / wall, 1), "cpu_s_per_page": round(cpu / pages, 2),
+              "cpu_pct_of_one_core": round(100 * cpu / wall),
               "cpu_pct_of_mac": round(100 * cpu / wall / CORES), **(extra or {})}
     print("| " + " | ".join(f"{k}={v}" for k, v in record.items()) + " |", flush=True)
     if out:
@@ -77,7 +80,9 @@ def row(mode: str, n: int, pages: int, wall: float, cpu: float, extra: dict | No
 
 # -- ceiling: the plain CLI in N processes ----------------------------------------------------------------------------
 def ceiling(args) -> None:
-    kraken = args.kraken or shutil.which("kraken") or sys.exit("no `kraken` command: use the engine's venv")
+    beside = Path(sys.executable).parent / "kraken"  # the venv python's own `kraken` command
+    kraken = args.kraken or (str(beside) if beside.exists() else shutil.which("kraken")) or sys.exit(
+        "no `kraken` command: pass --kraken <engine venv>/bin/kraken")
     files = pages_in(args.images, args.pages)
     for n in args.n:
         with tempfile.TemporaryDirectory() as scratch:  # the CLI writes beside its input: never in the corpus
@@ -265,6 +270,10 @@ def main() -> int:
         p.add_argument("--pages", type=int, default=20)
         p.add_argument("--n", type=lambda s: [int(x) for x in s.split(",")], default=[1, 2, 4, 8])
         p.add_argument("--out", type=Path)
+        if name in ("threads", "procs"):
+            p.add_argument("--pools", choices=("one", "default"), default="one",
+                           help="one: every native thread pool (OpenMP, BLAS, Accelerate) set to 1 thread before torch "
+                                "loads; default: torch.set_num_threads(1) only, as the first run did")
         if name in ("ceiling", "engine"):
             p.add_argument("--model", type=Path, required=True)
         if name == "ceiling":
@@ -277,6 +286,8 @@ def main() -> int:
     p.add_argument("--all", type=Path)
     p.set_defaults(fn=spy_top)
     args = ap.parse_args()
+    if getattr(args, "pools", None) == "one":  # before any torch import; spawned children inherit it
+        os.environ.update(ONE_THREAD)
     args.fn(args)
     return 0
 
