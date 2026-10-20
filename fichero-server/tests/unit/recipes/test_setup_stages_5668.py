@@ -12,16 +12,19 @@ from fichero_server.recipes.stages import STAGES
 
 #: Section 7d's pipeline order (Daniel, 2026-10-11): Find Regions before Find Lines; Normalise apart from Translate.
 ORDER = ["prepare-images", "find-regions", "find-lines", "read", "normalise", "translate", "organise", "names",
-         "statements", "dates", "passages", "structured-data", "search"]
+         "statements", "dates", "structured-data", "search"]
+#: Passages waits for its job (`source.job.pull-out-passages`): the stage exists, but Set Up does not offer it.
+WAITING = ["passages"]
 
 
-def test_the_thirteen_stages_in_pipeline_order_each_job_registered_and_each_need_a_stage(client):
+def test_the_offered_stages_in_pipeline_order_each_job_registered_and_each_need_a_stage(client):
     """`source.onboard.stages.stages-list-from-the-engine` and `needs-are-ticked`."""
     r = client.get("/api/recipes/stages")
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert [s["id"] for s in items] == ORDER and r.json()["count"] == 13
+    assert [s["id"] for s in items] == ORDER and r.json()["count"] == len(ORDER)
     ids = set(ORDER)
+    assert not set(WAITING) & {s["id"] for s in items}  # a stage no job runs is not asked about
     for stage in items:
         assert stage["title"] and stage["sentence"] and stage["example"]
         assert stage["jobs"] and all(get_job(j) is not None for j in stage["jobs"]), stage["jobs"]
@@ -71,3 +74,14 @@ def test_a_projects_recipe_and_answers_say_which_stages_are_on(client, with_mate
     assert not items["translate"]["on"] and not items["search"]["on"]
     kinds = next(q for q in items["names"]["questions"] if q["key"] == "entity_kinds")
     assert kinds["answer"] == ["people"]  # the project's answer, not the default
+
+
+def test_every_offered_stage_has_a_job_that_runs_or_a_way_by_hand_and_a_waiting_stage_has_none(client):
+    """Passages asked its question and Start then said 'nothing in Fichero does this yet' (spec review 2026-10-20)."""
+    from fichero_server.recipes.stages import offered
+    from fichero_server.recipes.start import BY_HAND_FIX, start_runs
+
+    for stage in STAGES:
+        runs = any(start_runs(j) or j in BY_HAND_FIX for j in stage.jobs)
+        assert offered(stage) is runs
+        assert (stage.id in WAITING) is (not runs), stage.id

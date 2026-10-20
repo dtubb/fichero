@@ -2752,8 +2752,8 @@ Projects
   section; no separate settings window exists.
 - `source.project.stays-local` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** Start refuses a cloud step, naming it, when setup's answers keep pages on this Mac; workflow runs started by hand do not check it yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. a project whose pages may not leave this machine
   refuses every cloud step in it, naming the step and the rule.
-- `source.project.record-rule` — **[GAP]** (#4951) a project is strict or relaxed about what counts
-  as the record; a new project is strict; a recipe's profile can set either.
+- `source.project.record-rule` — **[PARTIAL]** (#4951; built 2026-10-20: the project's saved recipe's `defaults.record_rule` is read, `strict` or `relaxed`, anything else strict; not built: no Set Up screen offers it, so only a recipe file that carries it sets it)  a project is strict or relaxed about what counts
+  as the record; a new project is strict; a recipe's profile can set either. *Test:* `fichero-server/tests/unit/recipes/test_record_rule_is_read_from_the_saved_recipe_2026_10_20.py`.
 - `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes
   what counts as the record, never who made it: a machine's reading, pass or claim is stored and
   shown as a machine's in every project (the engine sets this; see → #4868, → #4869).
@@ -2962,7 +2962,7 @@ Profiles (the defaults section of a recipe)
   defaults from its profile and offers to download the models its steps name, with sizes and
   licences.
 
-Purposes and layers
+Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block only `record_rule` is read (`source.project.record-rule`); direction, line position, guideline, normalisation, fonts and views are stored and not applied, and no Set Up screen writes or offers them, so nothing claims they work.
 - `source.onboard.purpose-first` — **[PARTIAL]** (#4951, #5478) **Built 2026-10-05 (engine):** the saved answers hold `purposes` as a list (a project saved with one `purpose` reads as a list of one, nothing lost; none ticked is `not-sure`), and `GET /api/recipes/purposes` offers the five new purposes; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** What it is for lists the engine's purposes as checkboxes (`RecipePurposeFields`), none ticked says Not sure yet, and the answers are saved and sent as `purposes` (a saved `purpose` reads as a list of one); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift` and `RecipeSetupStoreTests.swift`. *Not built: shown in the project's Inspector.* *Built 2026-10-03 (app + engine), as a single choice (replaced 2026-10-05): first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. Ruled 2026-10-05 (#5478): checkboxes, not a single choice.* setup's first question after where the project lives asks
   what it is for, as **checkboxes** over the purposes of section 7b (screen 2), any combination;
   none ticked is "Not sure yet"; the purposes are saved on the project as a list
@@ -3725,7 +3725,7 @@ The recipe and its format
   applies (which segment kinds), a model, settings and a prompt; the recipe is checked before it
   runs, so a step uses only what an earlier step or the source gives.
 - `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a
-  different model (main text, marginal gloss, table, drawing).
+  different model (main text, marginal gloss, table, drawing). *Spec review 2026-10-20:* the plan marks `route_by: region` for mixed material, and nothing reads it at run time; the layout question that sets it says it is not used yet (`read_by_a_step` false, #5802), so it is not offered as working.
 - `source.recipe.names-models-and-where` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py` and `test_yolo_pin_is_a_known_form.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4950) a recipe names the model for each step,
   pinned (Hugging Face repository and revision, Zenodo DOI, package and version, Kraken built-in
   and version, or a cloud provider's model id with the date measured) or a role default, and where
@@ -3826,7 +3826,7 @@ The recipe and its format
   `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. Not built: the spreadsheet export
   with a source per cell (`structured.export.csv-source-per-field`).*
 - `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
-  each with its source and place, into a note or collection.
+  each with its source and place, into a note or collection. **Until the job exists, Set Up does not offer the Passages stage** (spec review 2026-10-20, owner: less is more): `GET /api/recipes/stages` lists only a stage with a job Start runs by itself or a way to do it by hand (`recipes.stages.offered`), so it never asks "Which kinds of passages?" for a job Start then refuses ("nothing in Fichero does this yet"). The stage, its words and its example stay defined for when the job exists. *Test:* `fichero-server/tests/unit/recipes/test_setup_stages_5668.py` (`test_every_offered_stage_has_a_job_that_runs_or_a_way_by_hand_and_a_waiting_stage_has_none`).
 - `source.recipe.embedder-by-language` — **[PARTIAL]** (#4948, #4951, #5574) **Built 2026-10-03 (engine):** the smallest local embedder covering the languages, in `assemble()`; since 2026-10-07 the engine's own search embedder first where its card covers them (a library searches one embedding space, so a step naming another is skipped with its fix); the search A/B is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. **Built 2026-10-11 (#5681):** the finder ranks the search step's candidates the same way (`assemble.rank_key`: the engine's space first, so another embedder is never rank 1 without the explicit migration), and an embedder already in this Mac's FastEmbed store reads "On this Mac", not "Downloads when first used" (`local_models.embedding_model_installed`); pinned by `fichero-server/tests/unit/recipes/test_embedder_keeps_the_search_space_5681.py`. the embedder is the smallest local
   model whose card covers all the project's languages and scripts and that this Mac holds; its A/B
   is a side-by-side search on the person's own questions; changing it re-embeds as one job.
@@ -3838,7 +3838,7 @@ The recipe and its format
   kind is kept and re-routes the page.
 - `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
   library's, and a step's model can be overridden on a folder, resolved by the cascade; work in
-  that folder runs that recipe.
+  that folder runs that recipe. *Spec review 2026-10-20:* a folder-scoped Use This is stored (the engine keeps the override) but no run applies it, so neither the app nor the route offers "Use for a folder" until a run does (the route answers 422 "Use This applies to the whole project; per-folder choices aren't applied yet"); Use This is for the project.
 - `source.recipe.reaches-the-whole-model` — **[GAP]** (#4949, #5364) a recipe can name the knowledge
   and output jobs too: link to authorities, place in a gazetteer, enrich from linked data over
   SPARQL, work out dates, attribute hands, export and publish; each is owned by its own spec and

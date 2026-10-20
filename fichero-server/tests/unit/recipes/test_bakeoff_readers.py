@@ -278,13 +278,11 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     started, done = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
 
+    # per-folder is refused in words, through the route (MCP/CLI too): no run applies it, so no inert override is kept
     for_folder = client.post(url, json={"card": MEDIEVAL, "scope": "folder", "folder_id": folder.id})
-    assert for_folder.status_code == 200, for_folder.text
-    saved = for_folder.json()["recipe"]
-    (o,) = saved["overrides"]
-    assert (o["step"], o["scope"], o["folder_id"], o["card"]) == (step["id"], "folder", folder.id, MEDIEVAL)
-    assert o["model"] == {"zenodo": "10.5281/zenodo.12743230"} and o["from_bakeoff"] == started["id"]
-    assert next(s for s in saved["steps"] if s["id"] == step["id"])["model"] == step["model"]  # project unchanged
+    assert for_folder.status_code == 422
+    assert for_folder.json()["detail"] == "Use This applies to the whole project; per-folder choices aren't applied yet"
+    assert client.get("/api/recipes/project").json()["recipe"]["overrides"] == []
 
     for_project = client.post(url, json={"card": PPOCR, "scope": "project"})
     assert for_project.status_code == 200, for_project.text
@@ -292,21 +290,20 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     read = next(s for s in saved["steps"] if s["id"] == step["id"])
     assert read["model"] == {"zenodo": "10.5281/zenodo.21788410"} and read["card"]["id"] == PPOCR
     assert read["card"]["cer_measured_here"] == 0.0 and "bake-off" in read["reasons"][0]
-    assert [(o["scope"], o["card"]) for o in saved["overrides"]] == [("folder", MEDIEVAL), ("project", PPOCR)]
+    assert [(o["scope"], o["card"]) for o in saved["overrides"]] == [("project", PPOCR)]
 
     audits = [a for a in db.query(ActionAudit) if a.action_name == "project.save_setup"]
-    assert len(audits) == 3  # setup's save, then the two choices
+    assert len(audits) == 2  # setup's save, then the choice
     newest = max(audits, key=lambda a: a.created_at)
     assert client.post(f"/api/actions/audit/{newest.id}/undo").status_code == 200
     undone = client.get("/api/recipes/project").json()["recipe"]
-    assert [o["scope"] for o in undone["overrides"]] == ["folder"]
+    assert undone["overrides"] == []
 
     not_a_candidate = client.post(url, json={"card": "spacy:pkg/es_core_news_sm@bundled"})
     assert not_a_candidate.status_code == 422 and "not one of this bake-off's candidates" in not_a_candidate.json()["detail"]
     not_measured = client.post(url, json={"card": "mlx:hf/mlx-community/Qwen2.5-VL-7B-Instruct-4bit@unpinned"})
     assert not_measured.status_code == 422 and "was not measured in this bake-off" in not_measured.json()["detail"]
-    not_a_folder = client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": done["pages"][0]["document_id"]})
-    assert not_a_folder.status_code == 422
+
 
 
 def test_the_comparison_is_kept_and_readable_later(client, db, tmp_path, folder, readers, test_package, with_material):
