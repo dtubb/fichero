@@ -514,7 +514,7 @@ def candidate_installed(card: Card) -> bool | None:
         here = local_models.embedding_model_installed(str(card.pin["hf"]))
         if here is not None:
             return here
-    if card.pin.get("zenodo"):
+    if card.pin.get("zenodo") or card.pin.get("kraken_hf"):
         # A Kraken reader: downloaded (Settings, Set Up, or a run that fetched it) or not yet (#5660 item 3).
         from fichero_server.llm.kraken_runtime import is_recognition_model_installed
         from fichero_server.recipes.cards import kraken_reader_for
@@ -538,7 +538,7 @@ def candidate_download(card: Card) -> dict[str, Any] | None:
         runtime, model = "mlx", get_mlx_model_store().canonical_id(repo)
     elif "spacy" in card.pin:
         runtime, model = "spacy", str(card.pin["spacy"])
-    elif card.pin.get("zenodo"):
+    elif card.pin.get("zenodo") or card.pin.get("kraken_hf"):
         from fichero_server.recipes.cards import kraken_reader_for
 
         runtime, model = "kraken", str(kraken_reader_for(card.pin))
@@ -1080,6 +1080,28 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
     )
 
 
+def _kraken_on_hub(model: dict[str, Any]) -> bool:
+    """A Kraken reader hosted on Hugging Face (`library_name: kraken`, or the tag): Fichero ships Kraken, so it runs here."""
+    return "kraken" in (model.get("tags") or []) or model.get("library_name") == "kraken"
+
+
+def _kraken_hub_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card | None:
+    """A Hub Kraken reader's card: downloads from the repository and runs on this Mac with the Kraken Fichero ships
+    (`source.onboard.model-search-kraken-on-hub`). None when its name could not be made into a reader id."""
+    from dataclasses import replace
+
+    from fichero_server.llm.kraken_runtime import reader_id_for_hub
+
+    repo = str(model.get("modelId") or model.get("id"))
+    try:
+        reader_id_for_hub(repo)
+    except ValueError:
+        return None
+    card = _hf_card(model, what, "a Kraken reader on Hugging Face: downloads and runs on this Mac with the Kraken Fichero ships",
+                    wanted)
+    return replace(card, id=f"kraken:hf/{repo}@main", pin={"kraken_hf": repo})
+
+
 def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
     """A reader on the Hub this build cannot run (a TrOCR or other transformers model with no MLX build, or a GGUF
     build): listed so a person sees what exists for their material, never chosen by the rules (`runs_here` False,
@@ -1198,7 +1220,10 @@ async def search_hugging_face(languages: frozenset[str],
                 for m in listing:
                     models.setdefault(str(m.get("modelId") or m.get("id")), m)
                     what = reads_text(m)
-                    if mlx and _runs_on_mlx(m) and not _gguf_only(m):
+                    if not mlx and what is not None and _kraken_on_hub(m):
+                        if (card := _kraken_hub_card(m, what, languages)) is not None:
+                            found.setdefault(str(m.get("modelId") or m.get("id")), card)
+                    elif mlx and _runs_on_mlx(m) and not _gguf_only(m):
                         repo = str(m.get("modelId") or m.get("id"))
                         if what is None:
                             left_out.add(repo)
@@ -1220,6 +1245,10 @@ async def search_hugging_face(languages: frozenset[str],
         models.setdefault(repo, m)
         downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
         if what is None or repo in found:
+            return
+        if _kraken_on_hub(m):
+            if (card := _kraken_hub_card(m, what, languages)) is not None:
+                found.setdefault(repo, card)
             return
         if _remote_vlm(m) and not _catalogue_repo(repo):
             vlms[repo] = (m, what)
@@ -1294,7 +1323,7 @@ async def search_hugging_face(languages: frozenset[str],
         # A reader that lists the project's languages first (ruled 2026-10-11); then the one made for old hands and for these
         # languages and scripts over a general OCR model (`source.onboard.model-search-ranks-specialists`, #5970); downloads
         # only last, since a general reader has thousands of times a specialist's.
-        repo = str(card.pin.get("hf"))
+        repo = str(card.pin.get("hf") or card.pin.get("kraken_hf"))
         matches = bool(languages and card.languages and wanted_tags & set(card.languages))
         return (not matches, -min(specialist_score(models.get(repo, {}), languages), 6), -downloads.get(repo, 0), card.id)
 

@@ -316,6 +316,36 @@ def repository_listing() -> dict[str, dict[str, object]]:
     return get_listing()
 
 
+#: A Kraken reader hosted on Hugging Face (`library_name: kraken`): `kraken-hf-<owner>--<repo>`
+#: (`source.onboard.model-search-kraken-on-hub`).
+_HUB_READER = re.compile(r"^kraken-hf-([A-Za-z0-9_.-]+?)--([A-Za-z0-9_.-]+)$")
+
+
+def reader_id_for_hub(repo: str) -> str:
+    """The model id under which a Hugging Face Kraken repository is downloaded and run. A name holding `--` could not be
+    read back from its id, so it has none."""
+    owner, _, name = repo.partition("/")
+    if not owner or not name or "--" in owner or "--" in name or "/" in name:
+        raise ValueError(f"{repo!r} has no reader id (owner/name without '--')")
+    return f"kraken-hf-{owner}--{name}"
+
+
+def hub_files(repo: str) -> list[dict[str, object]]:
+    """The model file of a Kraken repository on Hugging Face, as [{url, size}] (one `.mlmodel` or `.safetensors`, found by
+    name; the download checks there is exactly one). Raises when the Hub says the repository is not a Kraken model. Network."""
+    from urllib.parse import quote
+
+    import requests
+
+    found = requests.get(f"https://huggingface.co/api/models/{repo}", params={"blobs": "true"}, timeout=60)
+    found.raise_for_status()
+    info = found.json()
+    if "kraken" not in (info.get("tags") or []) and info.get("library_name") != "kraken":
+        raise ValueError(f"{repo} is not a Kraken model on Hugging Face")
+    return [{"url": f"https://huggingface.co/{repo}/resolve/main/{quote(str(s['rfilename']))}", "size": s.get("size")}
+            for s in info.get("siblings") or [] if str(s["rfilename"]).endswith((".mlmodel", ".safetensors"))]
+
+
 def reader_id_for_doi(doi: str) -> str:
     """The model id under which a repository reader's DOI is downloaded and run."""
     return f"kraken-zenodo-{str(doi).rsplit('.', 1)[-1]}"
@@ -359,6 +389,9 @@ def recognition_spec(model_id: str | None) -> dict[str, object] | None:
     match = _ZENODO_READER.match(model_id or "")
     if match:
         return {"doi": f"10.5281/zenodo.{match.group(1)}"}
+    hub = _HUB_READER.match(model_id or "")
+    if hub:
+        return {"hf": f"{hub.group(1)}/{hub.group(2)}"}
     card = trained_reader_card(model_id)
     return {"trained": card} if card is not None else None
 
@@ -1392,6 +1425,9 @@ def recognition_display_name(model_id: str) -> str:
     if card and card.get("name"):
         return str(card["name"])
     match = _ZENODO_READER.match(model_id or "")
+    hub = _HUB_READER.match(model_id or "")
+    if hub:
+        return hub.group(2)  # the repository's own name, as the Hub shows it
     return f"the reader from Kraken's repository (record {match.group(1)})" if match else "the Kraken reader"
 
 
@@ -1421,7 +1457,7 @@ def download_recognition_model(
     if "trained" in spec:
         raise ValueError(f"{model_id} is a reader Fichero trained: it lands from its training job, "
                          "it is not downloaded")
-    if model_id not in KRAKEN_RECOGNITION_MODELS:
+    if model_id not in KRAKEN_RECOGNITION_MODELS and "hf" not in spec:
         # A repository reader: fetch it only if the repository says it IS a Kraken recognition model.
         from htrmopo import get_description
 
@@ -1442,7 +1478,7 @@ def download_recognition_model(
         from fichero_server.llm.model_downloads import fetch_file
 
         name = recognition_display_name(model_id)
-        files = record_files(str(spec["doi"]))
+        files = hub_files(str(spec["hf"])) if "hf" in spec else record_files(str(spec["doi"]))
         total = sum(int(f["size"] or 0) for f in files) or None
         done = 0
         for file in files:
@@ -1468,14 +1504,16 @@ def download_recognition_model(
     found = [p for p in data_home.rglob("*") if p.suffix in (".mlmodel", ".safetensors")]
     if len(found) != 1:
         raise RuntimeError(
-            f"model fetch for {model_id} (DOI {spec['doi']}) produced {len(found)} model files, "
+            f"model fetch for {model_id} ({'repository ' + str(spec['hf']) if 'hf' in spec else 'DOI ' + str(spec['doi'])}) "
+            f"produced {len(found)} model files, "
             "expected exactly one (.mlmodel or .safetensors)"
         )
     model_path = str(found[0])
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(
-        json.dumps({"doi": str(spec["doi"]), "model_path": model_path, "bytes": found[0].stat().st_size}),
+        json.dumps({**({"hf": str(spec["hf"])} if "hf" in spec else {"doi": str(spec["doi"])}),
+                    "model_path": model_path, "bytes": found[0].stat().st_size}),
         encoding="utf-8",
     )
 
