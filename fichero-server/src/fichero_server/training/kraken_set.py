@@ -41,7 +41,8 @@ FLAGS = ("empty", "null", "rejected")
 #: The one flag a person's set adds (`PERSON`): a line whose counting reading no person made.
 PERSON_FLAGS = (*FLAGS, "not_by_a_person")
 #: The teacher that means "the person": the lessons are the lines whose counting reading a person made (a correction,
-#: `source.reading.correct-a-line`), not a model's readings (#5700). Any other value is a model id.
+#: `source.reading.correct-a-line`) or chose among machine readings (`reading.choose`,
+#: `source.compare.pick-is-a-training-line`), not a model's readings (#5700). Any other value is a model id.
 PERSON = "person"
 
 
@@ -65,6 +66,11 @@ class TrainingSet:
     left_out_lines: list[dict[str, str]] = field(default_factory=list)
     #: Lines in scope with a check verdict on their reading; 0 means the check had not run on them.
     lines_with_a_verdict: int = 0
+    #: The person's set: kept lines a person typed and kept lines a person chose, counted apart.
+    lines_typed: int = 0
+    lines_chosen: int = 0
+    #: `training.line_key` of every kept line of the person's set, so a bake-off's staging can drop the same lines.
+    line_keys: set[str] = field(default_factory=set)
 
     @property
     def lines(self) -> int:
@@ -106,6 +112,8 @@ class TrainingSet:
             # set (`PERSON`): every line is one a person made.
             "lines_read_by_a_model": 0 if self.teacher == PERSON else self.lines,
             "lines_checked_by_a_person": self.lines if self.teacher == PERSON else 0,
+            "lines_typed_by_a_person": self.lines_typed,
+            "lines_chosen_by_a_person": self.lines_chosen,
             "lines_left_out": len(self.left_out_lines),
             "left_out": self.left_out(),
             "left_out_lines": self.left_out_lines,
@@ -163,21 +171,38 @@ def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
     return max((passes[pid] for pid in chosen), key=lambda p: p.created_at, default=None)
 
 
-def lines_not_by_a_person(db: Any, pass_row: Any) -> set[str]:
-    """The PAGE ids of the pass's lines whose counting transcription a person did not make. A pass a person made or
-    vouched for (`made_by_a_person`) is all theirs. One batched lookup for the whole pass (`counting_readings`), not a
-    query per line."""
+def line_makers(db: Any, pass_row: Any) -> dict[str, str | None]:
+    """For each line of the pass, by its PAGE id, who made the reading that counts: "typed" (a person made it, a
+    correction), "chosen" (a person chose it among machine readings, `reading.choose`), or None (no person: a model's
+    reading nobody picked). A pass a person made or vouched for (`made_by_a_person`) is all typed. One batched lookup
+    for the whole pass, not a query per line."""
     from fichero_server.api.routes.document.segment_readings import counting_readings
     from fichero_server.formats.harness import xml_id
     from fichero_server.models import Segment
+    from fichero_server.models.readings import ReadingChoice
     from fichero_server.models.segments import made_by_a_person
 
-    if made_by_a_person(pass_row):
-        return set()
     lines = [s for s in db.query(Segment, pass_id=pass_row.id) if s.kind == "line" and not s.deleted_at]
+    if made_by_a_person(pass_row):
+        return {xml_id(line.id): "typed" for line in lines}
     counted = counting_readings(db, lines)
-    return {xml_id(line.id) for line in lines
-            if (reading := counted.get(line.id)) is None or reading.provenance_kind.value != "human"}
+    chosen = {c.representation_id for c in db.query_in(ReadingChoice, "segment_id", [line.id for line in lines])
+              if c.superseded_at is None} if lines else set()
+    makers: dict[str, str | None] = {}
+    for line in lines:
+        reading = counted.get(line.id)
+        if reading is None:
+            makers[xml_id(line.id)] = None
+        elif reading.provenance_kind.value == "human":
+            makers[xml_id(line.id)] = "typed"
+        else:
+            makers[xml_id(line.id)] = "chosen" if reading.id in chosen else None
+    return makers
+
+
+def lines_not_by_a_person(db: Any, pass_row: Any) -> set[str]:
+    """The PAGE ids of the pass's lines whose counting transcription no person made or chose."""
+    return {line_id for line_id, who in line_makers(db, pass_row).items() if who is None}
 
 
 def person_pass(db: Any, document_id: str) -> tuple[Any, set[str]] | None:
@@ -339,6 +364,18 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
                 why = "its teacher pass has no read lines"
             result.missing.append({"document_id": page.id, "name": page.name, "why": why})
             continue
+        if teacher == PERSON:
+            from fichero_server.training.line_key import image_digest, line_key
+            from fichero_server.training.line_pairs import lines_with_ids
+
+            makers = line_makers(db, chosen)
+            digest = image_digest(source)
+            for line_id, polygon, _text in lines_with_ids(content):
+                if makers.get(line_id) == "chosen":
+                    result.lines_chosen += 1
+                else:
+                    result.lines_typed += 1
+                result.line_keys.add(line_key(digest, polygon))
         image_name = PurePosixPath(page.path).name
         stem = Path(image_name).stem
         if out is not None:
