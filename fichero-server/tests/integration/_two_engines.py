@@ -65,7 +65,6 @@ class Engine:
     spki_pin: str | None = None
     _clean: list[Path] = field(default_factory=list)
     env_for: Callable[[bool], dict[str, str]] | None = None  # sharing -> the env the app would give the engine
-    token: str = ""  # the engine's bootstrap token: the app's own credential, used only by turn_multiuser_on
     cert: Path | None = None  # the host's TLS certificate, which LAN calls are pinned to
     owner_id: str | None = None
     _multiuser: bool = False
@@ -155,15 +154,17 @@ class Engine:
         context.verify_flags &= ~ssl.VERIFY_X509_STRICT  # Python 3.13 rejects a self-signed leaf without the extensions strict mode wants (## 585)
         return context
 
-    def make_library(self, name: str = "Release bar", client: httpx.Client | None = None) -> dict[str, str]:
-        """A library on this engine, under its throwaway HOME (an allowed location), as the header every library route wants."""
+    def make_library(self, name: str = "Release bar") -> dict[str, str]:
+        """A library on this engine under its throwaway HOME (an allowed location), made on disk the way the engine opens one,
+        and the header every library route wants. Made offline: while Multi-user is off the library routes take no session, and
+        the owner's two steps (password, switch) still need a library to be audited in."""
         path = self.base / "home" / "Documents" / f"{name}.fichero"
-        if client is None:
-            with self.uds as local:
-                made = local.post("/api/library", json={"path": str(path)})
-        else:
-            made = client.post("/api/library", json={"path": str(path)})
-        made.raise_for_status()
+        env = _env(self.base, self.sock, "unused")
+        env.pop("FICHERO_MULTIUSER", None)
+        code = ("import sys\nfrom pathlib import Path\nfrom fichero_server.db.manager import db_manager\n"
+                "p = Path(sys.argv[1])\nfor sub in ('lance', 'storage', 'files'):\n    (p / sub).mkdir(parents=True, exist_ok=True)\n"
+                "db_manager.get_database(p)\ndb_manager.close_all()\n")
+        subprocess.run([sys.executable, "-c", code, str(path)], env=env, check=True, timeout=180)
         self.library = {"X-Fichero-Library-Path": quote(str(path), safe="/")}
         return self.library
 
@@ -250,39 +251,23 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
         return env
 
     engine = _spawn("host", env_for(sharing), base, sock, port=port, lan=lan, spki_pin=material.spki_pin,
-                    token=token, cert=Path(material.certificate_path))
+                    cert=Path(material.certificate_path))
     engine.env_for = env_for
     if multiuser:
         turn_multiuser_on(engine)
     return engine
 
 
-def set_owner_password(host: Engine, password: str) -> None:
-    """The product's own #5908 step: the owner chooses a password. While Multi-user is off the route takes only the app's start-up
-    credential (a session is not honoured until Multi-user is on), so this is the ONE named use of it in the tests
-    (`check_no_ambient_owner_in_tests.NAMED`, #5911)."""
-    bootstrap_token = host.token
-    with host._socket_client({"Authorization": f"Bearer {bootstrap_token}"}) as app:
-        chosen = app.patch(f"/api/auth/users/{host.owner_id}", json={"password": password})
-    assert chosen.status_code == 200, f"choosing the owner's password: {chosen.status_code} {chosen.text}"
-
-
 def turn_multiuser_on(host: Engine, password: str = "owner-password-for-the-test") -> None:
-    """The real path (#5908, #5914): the owner chooses a password through its route, then ONE PUT /api/pair/multiuser as the
-    SIGNED-IN owner (never the start-up key). If the engine refuses the owner's own session here, that is a product finding
-    (the app signs in the same way), reported as the failure below, not worked around."""
+    """The real path (#5908, #5914, `multiuser.owner-session-sets-the-switch`): the signed-in owner chooses a password through
+    its route, then ONE PUT /api/pair/multiuser. Never the start-up credential."""
     host.sign_in_owner()  # the owner exists (first run) and holds a key
-    set_owner_password(host, password)
-    try:
-        library = host.make_library()
-        with host.uds as owner:
-            on = owner.put("/api/pair/multiuser", json={"enabled": True}, headers=library)
-    except httpx.HTTPStatusError as exc:
-        pytest.fail(f"PRODUCT FINDING (#5908/#5914): the signed-in owner cannot create the library to turn Multi-user on: {exc}")
-    if on.status_code in (401, 403):
-        pytest.fail(f"PRODUCT FINDING (#5908/#5914): the signed-in owner's session is refused ({on.status_code}) while Multi-user is off, "
-                    f"so the app cannot turn it on either: {on.text}")
-    assert on.status_code == 200, f"turning Multi-user on: {on.status_code} {on.text}"
+    library = host.library or host.make_library()
+    with host.uds as owner:
+        chosen = owner.patch(f"/api/auth/users/{host.owner_id}", json={"password": password})
+        assert chosen.status_code == 200, f"choosing the owner's password: {chosen.status_code} {chosen.text}"
+        on = owner.put("/api/pair/multiuser", json={"enabled": True}, headers=library)
+        assert on.status_code == 200, f"turning Multi-user on: {on.status_code} {on.text}"
     host._multiuser = True
 
 
