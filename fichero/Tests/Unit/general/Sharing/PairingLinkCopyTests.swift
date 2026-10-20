@@ -13,12 +13,23 @@ import Foundation
 import Testing
 
 struct PairingLinkCopyTests {
-    /// #5898: a Mac that already has a synced copy is paired by the same one-time link; the host card says so.
-    @Test func theHostSaysTheSameLinkPairsAMacThatAlreadyHasACopy() {
-        #expect(ShareLibrarySheet.syncedCopyHint.contains("copy of this project"))
-        #expect(ShareLibrarySheet.syncedCopyHint.contains("Paste this link"))
-        #expect(!ShareLibrarySheet.syncedCopyHint.contains("fichero://"), "the hint never carries a link or code itself")
-        #expect(!ShareLibrarySheet.syncedCopyHint.lowercased().contains("code"), "the guest takes the link only, never a bare code (## 533)")
+    /// #5898 / ## 534: the Settings card tells a person their OWN other Mac is paired by the same link.
+    @Test func theHostSaysTheSameLinkPairsTheirOwnOtherMac() {
+        let hint = PairingLinkCopy.ownOtherMacHint
+        #expect(hint.contains("Your other Mac"))
+        #expect(hint.contains("Paste this link"))
+        #expect(!hint.contains("fichero://"), "the hint never carries a link or code itself")
+        #expect(!hint.lowercased().contains("code"), "the guest takes the link only, never a bare code (## 533)")
+    }
+
+    /// The share sheet hands a link to ANOTHER person: a link minted on the owner's host would pair their Mac as the owner,
+    /// so the sheet must never carry the own-Mac hint (## 534).
+    @Test func theShareSheetNeverShowsTheOwnOtherMacHint() throws {
+        let sheet = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Sidebar/Sharing/ShareLibrarySheet+ShareLink.swift")
+        let source = try String(contentsOf: sheet, encoding: .utf8)
+        #expect(!source.contains("ownOtherMacHint") && !source.contains("syncedCopyHint"))
     }
 
     @Test func withNoLinkTheCardSaysWhyInWords() {
