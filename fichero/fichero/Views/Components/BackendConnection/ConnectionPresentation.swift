@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import os
 import SwiftUI
 
 /// The ONE phase → presentation mapping every connection surface reads
@@ -276,7 +277,14 @@ enum ConnectionPresentation {
 
     /// Why the app last restarted its engine, one sentence, set by the heartbeat when it hands the engine to the supervisor
     /// and cleared when the engine answers again (`activity.engine.restart-says-why`).
-    static var lastRestartReason: String?
+    /// Read from the heartbeat (any isolation) and the views; held behind a lock so it is concurrency-safe without pinning
+    /// every caller of the pure presentation functions to the main actor.
+    static var lastRestartReason: String? {
+        get { restartReasonLock.withLock { $0 } }
+        set { restartReasonLock.withLock { $0 = newValue } }
+    }
+
+    private static let restartReasonLock = OSAllocatedUnfairLock<String?>(initialState: nil)
 
     /// The failure half of the mapping, split out so `status(…)` stays one
     /// bounded switch.
