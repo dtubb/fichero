@@ -223,7 +223,9 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
     - parallel_complete: Parallel file processing completed
     - complete: Workflow finished successfully
     - error: An error occurred
-    - systemic_error: Too many consecutive failures
+    - systemic_error: The run stopped because its failures are a fundamental problem, not a few bad scans: five
+      pages in a row failed on a batch of fewer than ten, or more than half the pages failed on a batch of ten or
+      more (a refusal that applies to every page stops at the first)
 
     Args:
         thread_id: The thread ID returned from /execute
