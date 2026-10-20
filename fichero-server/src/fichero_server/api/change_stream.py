@@ -338,7 +338,8 @@ class _ChangeHub:
                 subscriber.active = False  # nothing more is delivered to a revoked device
                 told += 1
             except Exception as exc:  # noqa: BLE001 - one stream failing never keeps the others open
-                logger.debug("change-hub: could not tell one revoked stream: %s", exc)
+                subscriber.active = False  # the last frame failed, but the revoked device still gets nothing more
+                logger.warning("change-hub: could not send one revoked stream its last frame; it is closed anyway: %s", exc)
         return told
 
     def subscriber_count(self, library_path: str) -> int:
