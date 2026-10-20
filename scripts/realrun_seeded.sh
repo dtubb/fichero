@@ -29,6 +29,7 @@ echo "code $(git rev-parse --short=9 HEAD)" > $O/status
 TOKEN="$(openssl rand -hex 24)"; mkdir -p "$D/token"  # this run's own credential, in its own token dir
 source ~/code/fichero/.venv/bin/activate; export PATH=/opt/homebrew/bin:$PATH HF_HUB_OFFLINE=1
 export PYTHONPATH=$PWD/fichero-server/src:$PWD/fichero-server:$PWD/fichero-cli/src:$PWD/fichero-mcp/src
+python -m fichero_server.security.real_data_guard "$D/state" || { echo REFUSED-REAL-DATA > $O/verdict; exit 5; }
 FICHERO_FEATURE_TIER=beta FICHERO_BASE_PATH="$D/state" FICHERO_UDS_PATH=$SOCK FICHERO_LIBRARY_ALLOWED_ROOTS="$D" FICHERO_TOKEN_DIR="$D/token" FICHERO_BOOTSTRAP_TOKEN="$TOKEN" nohup caffeinate -dis python -m fichero_server > "$O/engine.log" 2>&1 &
 EP=$!
 for i in $(seq 1 90); do [ -S $SOCK ] && break; sleep 1; done
