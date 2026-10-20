@@ -116,7 +116,7 @@ extension EmbeddedBackendService {
             // Waited for, never skipped (#5909): a caller that returns at once believes an engine is coming that
             // another caller's stop() may have killed. It still spawns nothing itself (#3108).
             logger.info("start() waits for the start/retry already in flight (#3108, #5909)")
-            while isStarting { try? await Task.sleep(for: .milliseconds(100)) }  // ponytail: a poll, a continuation if it ever shows
+            while isStarting { try await Task.sleep(for: .milliseconds(100)) }  // a cancelled waiter throws out, never spins (## 577); ponytail: a poll, a continuation if it ever shows
             return
         }
         isStarting = true
