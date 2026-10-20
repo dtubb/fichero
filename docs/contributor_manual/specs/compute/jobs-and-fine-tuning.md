@@ -772,6 +772,7 @@ needs them.
   Training and adoption run by themselves only if the person chose automatic training in setup
   (`source.recipe.train-never-automatic`). *Test:* a better tiny model yields a proposed recipe
   version pinning its card; a worse one yields none.
+- `compute.tune.loop-is-one-visible-cycle` — **[GAP]** (#5941; owner vision 2026-10-20; after `compute.tune.adopted-by-the-recipe` and the `distill.licence.*` gates) the fine-tuning loop is one visible cycle in the recipe: a step shows, in one section, its teacher (local, cloud or batch), the training set made from its reads (lines, checked trust level), where it trains (Hugging Face first, ACENet later), the card that came back with its scores on landing, and whether the recipe adopted it. It runs both ways: a model trained locally can go up to Hugging Face (published or served there) and a model trained there comes back to run here.
 - `compute.tune.adapter-always-returns` — **[PARTIAL]** (#5240) *Built (#5398): the adapter always returns and is kept beside the MLX model. The vision card also returns the merged model, because the MLX conversion needs it, and deletes it once converted; a choice to skip it is not built.* a `train-lora` job always returns the adapter. A
   merged model is returned only when asked for, because it is as large as the base. *Test:*
   result package contents for both choices.
