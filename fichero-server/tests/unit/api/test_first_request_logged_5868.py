@@ -27,3 +27,10 @@ def test_each_transport_is_named_once_and_only_by_name(caplog):
     assert lines == ["first request on uds after start", "first request on https after start"]
     assert not any(word in " ".join(lines) for word in ("bob", "SECRET", "8765", "127.0.0.1"))
 
+
+
+def test_a_plain_http_listener_is_named_http(caplog):
+    caplog.set_level(logging.INFO, logger=td.logger.name)
+    assert td.note_first_request({"server": ("0.0.0.0", 8765), "scheme": "http"}) == "http"
+    assert td.note_first_request({"server": ("0.0.0.0", 8765), "scheme": "http"}) is None
+    assert [r.getMessage() for r in caplog.records] == ["first request on http after start"]

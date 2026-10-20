@@ -1396,6 +1396,7 @@ and node, not by job); a retry action for failed pages.
   (`_release_kraken`, `local_inference.release_idle_engine_models`), waits for them all. `locked()` is true while ANY page reads, so
   a queued page's "is a page outside the queue reading" check is `_kraken_busy(queued)`, which does not count the lane's own other
   Kraken pages (same test file).
+- `activity.engine.first-request-logged` — **[PARTIAL]** (#5868) the engine logs `first request on <uds|https|http> after start` once per transport per engine life (`transport_diagnostics.note_first_request`, called by one middleware in `api/main.py`): the transport's name only, no path, address, header or token, so a repro can tell requests that never arrived from ones that arrived and failed. Uvicorn gives a Unix socket a `(path, None)` server and a TCP listener a port; the scheme names https against plain http (`fichero-server/tests/unit/api/test_first_request_logged_5868.py`, unrun).
 - `activity.reconnects-after-engine-restart` — **[PARTIAL]** (#5868) (owner, 2026-10-19 20:14, P1: Activity could not load after Sharing was
   turned on; `briefs/activity-after-sharing-restart-2026-10-19.md`) after the engine restarts, Activity loads again without the
   person doing anything: a jobs read that finds the engine not there (a `URLError`, or the socket layer's `NIOCore.IOError`,
@@ -1404,7 +1405,7 @@ and node, not by job); a retry action for failed pages.
   read again (`ActivityStore.jobsPollFailed` / `jobsPollSucceeded`, the window reloads on `refreshToken`); and each failed read re-resolves the endpoint (`FicheroClient.reconfigure(baseURL:transportMode:)` from `EngineConfig`: a changed socket path, or a move between the socket and the https listener, gets a new transport and pool instead of redialling the first connect's) (`fichero/fichero-api-client/Tests/FicheroAPIClientTests/TransportModeTests.swift`)
   (`fichero/Tests/Unit/general/Models/ActivityReconnectTests.swift`; needs compile). NOT shown to be the cause: why the
   requests never reached the engine at all (the log has none after the restart); this makes the app keep trying and say so, it does
-  not explain an `EPERM` on a stale or sandboxed dial. Engine side (#5868): the engine logs `first request on <uds|https|http> after start` once per transport per engine life (`transport_diagnostics.note_first_request`; the transport's name only: no path, address or token; `fichero-server/tests/unit/api/test_first_request_logged_5868.py`, unrun), so a repro can tell requests that never arrived from ones that arrived and failed. Open: should turning Sharing on restart the engine (its graceful shutdown
+  not explain an `EPERM` on a stale or sandboxed dial. Its engine-side log has its own entry, `activity.engine.first-request-logged`. Open: should turning Sharing on restart the engine (its graceful shutdown
   timed out and cancelled work in flight)? That is the owner's call. WHY THE ENDPOINT WAS STALE (read from the code, 2026-10-19; NOT reproduced): the two paths that rebind the clients when the host
   changes, `AppState.reconfigureGeneratedClientsForCurrentHost` and `LibraryManager`'s `reconfigureBackendHost`, passed only the
   base URL (`reconfigure(baseURL:)`), which returns early when the URL is unchanged and never rebuilds the transport. A change in HOW
