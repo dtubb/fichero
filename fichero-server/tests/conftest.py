@@ -29,6 +29,7 @@ import openai  # noqa: F401  (side effect: freeze real httpx base classes)
 
 # #5187: no test spawns the engine with the maintainer's real HOME -- every subprocess.Popen of
 # uvicorn/fichero_server is checked for a HOME inside a temp dir (tests/_engine_home_guard.py).
+from tests import _exit_after_torch  # noqa: E402
 from tests._engine_home_guard import install as _install_engine_home_guard  # noqa: E402
 
 _install_engine_home_guard()
@@ -1317,6 +1318,18 @@ def pytest_sessionfinish(session, exitstatus):
 # ---------------------------------------------------------------------------
 
 _SPEC_FAILURES_PATH = _Path(__file__).resolve().parent / "known_specification_failures.txt"
+
+
+@pytest.hookimpl(specname="pytest_sessionfinish", trylast=True)
+def _remember_final_exit_status(session, exitstatus):
+    """Save the exit status AFTER `pytest_sessionfinish` above (it can change it) for `_exit_after_torch` (#5903)."""
+    _exit_after_torch.remember(session)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    """Leave with `os._exit` once all databases are closed, when torch is loaded: its exit-time destructor segfaults (#5903)."""
+    _exit_after_torch.leave(config)
 
 
 def spec_failure_issues(text: str) -> list[str]:
