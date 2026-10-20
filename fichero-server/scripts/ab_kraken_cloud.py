@@ -56,6 +56,7 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 #: Where the owner may keep provider keys when they are not in the app's Settings (one KEY=value per line, mode 600).
 AB_ENV = Path("~/.config/fichero/ab.env")
 HOSTED_NOT_LOCAL = "hosted, not local"
+LINES_PER_CALL_FOR_ESTIMATE = 8  # `llm.line_reader.LINES_PER_CALL`
 #: The three cloud models of the 2026-10-20 live run, through OpenRouter (prices from the vendored registry, `resources/model_prices.json`):
 #: the cheapest current Claude vision model ($1 / $5 per M tokens), the cheapest current Gemini ($0.25 / $1.5, ai.google.dev/pricing/gemini-3),
 #: and a hosted Qwen VL ($0.21 / $0.63) standing in for the local MLX arm until the M4 has disk for it. The strongest of the three
@@ -300,6 +301,68 @@ def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=N
         return "the key file"
     raise SystemExit(f"no {provider} key: looked for it in the keychain (add it in Settings > AI providers), the environment "
                      f"and {variable} in {env_file or AB_ENV}")
+
+
+# ---------------------------------------------------------------- the estimate, before any spend
+
+
+PROMPT_TOKENS_PER_CALL = 400  # an assumption: the line reader's instructions, per call of up to LINES_PER_CALL lines
+
+
+def crop_tokens(spec: str, polygon: list) -> int:
+    """What one line's picture costs in input tokens, by the model's family: Gemini counts 258 per 768 px tile, Qwen VL one
+    per 28x28 px, the others one per 750 px (the harness's own rule); the crop is the teacher's cut (`line_cut.crop_line`)."""
+    import math
+
+    xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+    w, h = max(xs) - min(xs), max(ys) - min(ys)
+    w, h = min(1600.0, w + 2 * h / 3), h + 2 * h / 3
+    name = spec.lower()
+    if "gemini" in name:
+        return 258 * math.ceil(w / 768) * math.ceil(h / 768)
+    if "qwen" in name:
+        return max(1, int(w * h) // 784)
+    return max(1, int(w * h) // 750)
+
+
+def estimate_arms(lines_json: str | Path, arm_specs: dict[str, str], *, bar: float = 0.6, cap: float = 1.0) -> list[dict]:
+    """The cost of each cloud arm on the lines in a free run's `lines.json` (the harness's own output: Kraken's lines with their
+    polygons, certainty and a reading), from the registry price: input = the line pictures + a prompt per call, output =
+    ~chars/3.5 + 6 tokens a line (a JSON string each). `arm_specs`: arm name -> provider:model; an arm called "reference" or
+    "B..." reads every line, "A..." only the lines under the bar (and sends their text too). Nothing is called."""
+    data = json.loads(Path(lines_json).read_text(encoding="utf-8"))
+    rows = data["lines"]
+    chars = [max(len(str(r.get(k) or "")) for k in ("kraken", "vision", "reference")) for r in rows]
+    out = []
+    for arm, spec in arm_specs.items():
+        provider, _, model = spec.partition(":")
+        sent = [(r, c) for r, c in zip(rows, chars) if variant_of(arm) != "A" or r["confidence"] is None or r["confidence"] < bar]
+        calls = -(-len(sent) // LINES_PER_CALL_FOR_ESTIMATE) if sent else 0
+        tokens_in = sum(crop_tokens(spec, r["polygon"]) + (c // 4 if variant_of(arm) == "A" else 0) for r, c in sent) \
+            + PROMPT_TOKENS_PER_CALL * calls
+        tokens_out = sum(int(c / 3.5) + 6 for _r, c in sent)
+        cost = cost_of(provider, model, tokens_in, tokens_out)
+        worst = cost_of(provider, model, tokens_in // max(1, calls) , 192 * LINES_PER_CALL_FOR_ESTIMATE + 32) if calls else 0.0
+        out.append({"arm": arm, "spec": spec, "lines": len(sent), "calls": calls, "tokens_in": tokens_in, "tokens_out": tokens_out,
+                    "usd": cost, "worst_call_reserved": worst})
+    total = sum(e["usd"] or 0.0 for e in out)
+    for e in out:
+        e["cap"], e["total"], e["over_cap"] = cap, total, total > cap
+    return out
+
+
+def estimate_markdown(rows: list[dict]) -> str:
+    lines = ["| arm | model | lines | calls | tokens in | tokens out | est. US$ | held per call |", "|---|---|---|---|---|---|---|---|"]
+    for e in rows:
+        usd = "NO PRICE" if e["usd"] is None else f"{e['usd']:.4f}"
+        lines.append(f"| {e['arm']} | {e['spec']} | {e['lines']} | {e['calls']} | {e['tokens_in']} | {e['tokens_out']} | {usd} | "
+                     f"{(e['worst_call_reserved'] or 0):.4f} |")
+    total = rows[0]["total"] if rows else 0.0
+    cap = rows[0]["cap"] if rows else 1.0
+    lines.append(f"\n**Total ${total:.4f} of the ${cap:.2f} cap** ({'OVER: drop an arm' if total > cap else 'fits'}). Estimates, not bills: "
+                 f"pictures by each family's own rule, {PROMPT_TOKENS_PER_CALL} prompt tokens a call. 'Held per call' is what the cap "
+                 "reserves while one call is under way (its whole output ceiling), so the run can stop a little before the total.")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- the three readings of a page
@@ -813,11 +876,19 @@ def main(argv: list[str] | None = None) -> int:
                     "B:openrouter:anthropic/claude-haiku-4.5)")
     ap.add_argument("--env-file", type=Path, default=AB_ENV, help="where provider keys are looked for when the keychain has none "
                     "(KEY=value lines, mode 600); the keychain, then the environment, are asked first")
+    ap.add_argument("--estimate-from", type=Path, help="a free run's lines.json: print each cloud arm's estimated cost on its "
+                    "lines (from --arms and --reference-model) and exit; nothing is called, nothing is spent")
     ap.add_argument("--fake-arms", action="store_true", help="free arms answer stub text: the dry run on any machine")
     ap.add_argument("--reference-arm", help="an arm to be the reference when no cloud model is (default: the strongest "
                     "free arm present, mlx then vision)")
     args = ap.parse_args(argv)
     arms = parse_arms(args.arms)
+    if args.estimate_from:
+        specs = {a: cloud_spec(a, args.model) for a in arms if variant_of(a)}
+        if args.reference_model:
+            specs["reference"] = args.reference_model
+        print(estimate_markdown(estimate_arms(args.estimate_from, specs, bar=args.bar, cap=args.cap)))
+        return 0
     reader = args.reader
     if reader is None:
         from fichero_server.recipes.cards import kraken_reader_for
