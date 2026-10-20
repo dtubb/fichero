@@ -60,6 +60,21 @@ struct ActivityGroupsView: View {
             }
         }
         .accessibilityIdentifier("activity.groups")
+        // Selection-based, so a single click selects at once (a per-row double-tap gesture can hold it back) and a
+        // double-click opens the run.
+        .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
+            let rows = allShown.filter { ids.contains($0.id) }
+            if rows.count == 1, let row = rows.first {
+                if row.controls.contains(.stop) { ActivityStopMenuItem(target: stopTarget(row)) }
+                Button("Show Details") { open(row) }
+            }
+            let targets = deletable(rows)
+            if !targets.isEmpty {
+                Button(targets.count > 1 ? "Delete \(targets.count) Runs" : "Delete", role: .destructive) { delete(targets) }
+            }
+        } primaryAction: { ids in
+            if ids.count == 1, let row = allShown.first(where: { ids.contains($0.id) }) { open(row) }
+        }
         #if os(macOS)
         .onDeleteCommand { delete(deletable(allShown.filter { selection.contains($0.id) })) }
         #endif
@@ -87,16 +102,6 @@ struct ActivityGroupsView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { open(row) }
-        .contextMenu {
-            if row.controls.contains(.stop) { ActivityStopMenuItem(target: stopTarget(row)) }
-            Button("Show Details") { open(row) }
-            // On the whole selection when the clicked row is in it, else on the row alone.
-            let targets = deletable(selection.contains(row.id) ? allShown.filter { selection.contains($0.id) } : [row])
-            if !targets.isEmpty {
-                Button(targets.count > 1 ? "Delete \(targets.count) Runs" : "Delete", role: .destructive) { delete(targets) }
-            }
-        }
         .task(id: row.id) { await appeared(row) }
         .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id)")
     }
