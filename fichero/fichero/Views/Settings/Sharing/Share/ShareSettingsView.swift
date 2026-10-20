@@ -46,7 +46,6 @@ struct ShareSettingsView: View {
     @State var didBootstrap = false
     @State var copiedInvite = false
     @State var copyNote: String?
-    @State var triedPinRepair = false
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
@@ -166,14 +165,6 @@ struct ShareSettingsView: View {
             multiuserEnabled = appState.identityStore.multiuserEnabled
             if hostingEnabled && publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 publicBaseURL = Self.autoLocalBaseURL
-                await applySharing()
-            } else if PairingPinRepair.needed(
-                hostingEnabled: hostingEnabled, backendRunning: appState.isBackendRunning,
-                externalEngine: backendService.isUsingExternalBackend, address: validatedPublicURL,
-                pin: spkiPin, alreadyTried: triedPinRepair) {
-                // Sharing is on but no pin is filed for this address: derive it by restarting the engine, as turning
-                // sharing on does, instead of leaving the link blocked (#5891).
-                triedPinRepair = true
                 await applySharing()
             } else if hostingEnabled, appState.isBackendRunning {
                 await refreshDevices()
