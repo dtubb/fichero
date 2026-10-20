@@ -7,7 +7,8 @@ extension ActivityMonitorRow {
     static func run(_ run: ActivityRun, tree: ActivityJobNode?) -> ActivityMonitorRow {
         let library = run.libraryId?.uuidString ?? ""
         let steps = tree?.children.map { node($0, run: run, library: library) } ?? []
-        let phase = Phase(run.status)
+        // A run seen only as a node of the job tree says what the engine said (waiting is waiting, not Running; #5958).
+        let phase = run.engineState.map { Phase(engineState: $0) } ?? Phase(run.status)
         return ActivityMonitorRow(
             id: run.id,
             kind: .run,
@@ -31,7 +32,8 @@ extension ActivityMonitorRow {
             isLive: run.isLive && phase == .running,
             children: steps.isEmpty ? nil : steps,
             account: tree?.account,
-            engineKind: "workflow"
+            engineKind: "workflow",
+            unknownState: phase == .unknown ? run.engineState : nil
         )
     }
 
@@ -65,7 +67,8 @@ extension ActivityMonitorRow {
             children: nil,
             engineKind: job.taskType,
             ownJobId: job.id,
-            offer: job.offer
+            offer: job.offer,
+            unknownState: Phase(job.state) == .unknown ? job.state.otherName : nil
         )
     }
 
@@ -94,7 +97,8 @@ extension ActivityMonitorRow {
             model: models(node),
             isLive: false,
             children: children.isEmpty ? nil : children,
-            engineKind: node.kind
+            engineKind: node.kind,
+            unknownState: Phase(engineState: node.state) == .unknown ? node.state : nil
         )
     }
 

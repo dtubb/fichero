@@ -82,6 +82,7 @@ struct ActivityDetailsStageCards: View {
         case .notRun: "minus.circle"
         case .skipped: "arrow.uturn.right.circle"
         case .failed: "exclamationmark.triangle.fill"
+        case .unknown: "questionmark.circle"
         }
     }
 
@@ -91,7 +92,7 @@ struct ActivityDetailsStageCards: View {
         case .running: .accentColor
         case .failed: .red
         case .partial: .orange
-        case .waiting, .notRun, .skipped: .secondary
+        case .waiting, .notRun, .skipped, .unknown: .secondary
         }
     }
 }

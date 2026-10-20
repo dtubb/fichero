@@ -42,7 +42,7 @@ enum SetupStages {
 
 /// Where a stage of a recipe run got to (#5670).
 enum ActivityStageCardState: Equatable {
-    case done, partial, running, waiting, notRun, skipped, failed
+    case done, partial, running, waiting, notRun, skipped, failed, unknown
 }
 
 extension ActivityDetails {
@@ -74,6 +74,7 @@ extension ActivityDetails {
             case .notRun: "Not run"
             case .skipped: "Skipped"
             case .failed: "Failed"
+            case .unknown: "Unknown"
             }
         }
     }
@@ -119,7 +120,9 @@ extension ActivityDetails {
         // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
         if states.contains("partial") { return .partial }
         if states.contains(where: { $0 == "not run" || $0 == "cancelled" }) { return .notRun }
-        return .done
+        if states.contains("interrupted") { return .failed }
+        if states.allSatisfy({ ["done", "completed", "complete", "finished"].contains($0) }) { return .done }
+        return .unknown  // a state nobody here knows is never Done (#5957)
     }
 
     /// What a stage made, from the run's summary (the engine counts; this only words it).

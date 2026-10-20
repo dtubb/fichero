@@ -58,6 +58,8 @@ struct ActivityStateCell: View {
         case .paused, .cancelled: .orange
         case .failed: .red
         case .done: .green
+        case .partial, .interrupted: .orange
+        case .notRun, .unknown: .secondary
         }
     }
 }

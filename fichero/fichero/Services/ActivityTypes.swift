@@ -214,6 +214,12 @@ struct ActivityJob: Identifiable, Equatable {
 
         var isFailed: Bool { self == .failed }
 
+        /// The engine's own name for a state this app does not know (#5957).
+        var otherName: String? {
+            if case .other(let name) = self { return name }
+            return nil
+        }
+
         /// Still consuming compute — counts toward the toolbar badge. A failed
         /// or completed job is surfaced but is not "active work".
         var isActive: Bool {
