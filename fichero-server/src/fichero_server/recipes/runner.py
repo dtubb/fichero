@@ -1165,11 +1165,20 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
         none_done, pages_failed, lost = _did_no_page(db, card, child, scratch)
-        if state == "done" and pages_failed and step["state"] == "done":
-            # Some pages were lost: the step is PARTIAL, never done, and says which and why.
+        if state == "done":
+            step["pages_tried"] = step.get("pages_tried", 0) + len(documents)  # clean batches count too
+        if state == "done" and pages_failed and step["state"] in ("done", "partial"):
+            # Some pages were lost: the step is PARTIAL, never done, and says which and why. Every batch adds its own
+            # pages to the step's list and counts, so a run over many folders reports all of them.
             step["state"] = "partial"
-            step["why"] = why = _partial_words(max(0, len(documents) - pages_failed), lost, pages_failed)
-            step["failed_pages"] = [{"page": f.page, "reason": f.reason} for f in lost]
+            step["failed_pages"] = [*(step.get("failed_pages") or []),
+                                    *({"page": f.page, "reason": f.reason} for f in lost)]
+            step["pages_lost"] = step.get("pages_lost", 0) + pages_failed
+            from fichero_server.workflows.run_account import PageFailure
+
+            step["why"] = why = _partial_words(
+                max(0, step["pages_tried"] - step["pages_lost"]),
+                [PageFailure(page=f["page"], reason=f["reason"]) for f in step["failed_pages"]], step["pages_lost"])
         outright = state == "failed" and none_done
         step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
         if state == "failed" or pages_failed:
