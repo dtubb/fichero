@@ -564,7 +564,7 @@ def write_outputs(out: Path, rows: list[dict], report: dict, images: list[Path])
             if box[2] > box[0] and box[3] > box[1]:
                 im.convert("RGB").crop(box).save(crops / f"{n:02}.png")
         row["crop"] = f"crops/{n:02}.png"
-    (out / "lines.json").write_text(json.dumps({"label": report["label"], "lines": [
+    (out / "lines.json").write_text(json.dumps({"label": report["label"], "arms": report["arms"], "lines": [
         {k: v for k, v in r.items() if k != "box"} for r in rows]}, indent=1), encoding="utf-8")
     (out / "report.md").write_text(_report_md(report), encoding="utf-8")
     (out / "sheet.html").write_text(_sheet_html(shown, report), encoding="utf-8")
