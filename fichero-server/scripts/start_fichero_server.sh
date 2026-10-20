@@ -21,6 +21,9 @@ else
   PYTHON_BIN="python3"
 fi
 
+# A dev engine never takes the owner's real libraries for its state (runtime.dev-engine-refuses-real-data).
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m fichero_server.security.real_data_guard "${FICHERO_BASE_PATH:-}" || exit 1
+
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
 RELOAD=false

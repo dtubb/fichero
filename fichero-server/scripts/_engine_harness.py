@@ -52,6 +52,9 @@ def _child_env(*, base_path: str, token: str, uds_path: str | None = None) -> di
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{src}:{existing}" if existing else src
     env["FICHERO_MULTIUSER"] = "0"
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(base_path)  # a probe engine never writes into the owner's real libraries
     env["FICHERO_BASE_PATH"] = base_path
     # The model stores follow the base path unless told otherwise (#5530); a probe engine keeps
     # using the models this Mac already has, as it did before.
