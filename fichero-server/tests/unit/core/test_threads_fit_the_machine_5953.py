@@ -16,9 +16,9 @@ from fichero_server.core import cores
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
     monkeypatch.delenv("SLURM_CPUS_PER_TASK", raising=False)
-    monkeypatch.setattr(cores, "CGROUP_V2", Path("/nonexistent/cpu.max"))
-    monkeypatch.setattr(cores, "CGROUP_V1_QUOTA", Path("/nonexistent/quota"))
-    monkeypatch.setattr(cores, "CGROUP_V1_PERIOD", Path("/nonexistent/period"))
+    # cgroup_cores binds its paths as default arguments when it is defined, so patching the module's path constants changes
+    # nothing: fake the source itself, never read this machine's cgroup (a Mac has none, a container host has one).
+    monkeypatch.setattr(cores, "cgroup_cores", lambda: None)
     monkeypatch.setattr(cores, "sysctl_int", lambda name: None)
 
 
@@ -43,12 +43,10 @@ def test_a_macs_cores_are_its_performance_cores_else_half_the_physical_ones(monk
     assert cores.mac_performance_cores() == expected
 
 
-def test_the_source_order_is_slurm_then_the_container_then_the_mac_then_the_allowed_cpus(monkeypatch, tmp_path):
+def test_the_source_order_is_slurm_then_the_container_then_the_mac_then_the_allowed_cpus(monkeypatch):
     _sysctl(monkeypatch, **{"hw.perflevel0.physicalcpu": 4, "hw.physicalcpu": 8})
     assert cores.cores_available() == (4, "mac-performance-cores")
-    quota = tmp_path / "cpu.max"
-    quota.write_text("200000 100000\n")
-    monkeypatch.setattr(cores, "CGROUP_V2", quota)
+    monkeypatch.setattr(cores, "cgroup_cores", lambda: 2)
     assert cores.cores_available() == (2, "cgroup")
     monkeypatch.setenv("SLURM_CPUS_PER_TASK", "6")
     assert cores.cores_available() == (6, "slurm")
