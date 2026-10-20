@@ -178,6 +178,9 @@ class TestExecuteChain:
             r = client.post(f"/api/chains/{created.json()['id']}/execute", json={"inputs": {}, "input_files": []},
                             headers=LIB_HEADER)
             assert r.status_code == 422 and "does not apply" in r.json()["detail"], r.text
+            sibling = client.post(f"/api/chains/{created.json()['id']}/execute-steps", json={"inputs": {}},
+                                  headers=LIB_HEADER)  # /execute-steps starts the same way: refused the same way
+            assert sibling.status_code == 422 and "does not apply" in sibling.json()["detail"], sibling.text
 
     def test_execute_missing_chain_returns_404(self, client):
         r = client.post(
@@ -214,6 +217,11 @@ class TestExecuteChain:
             assert cancel.status_code == 200 and cancel.json()["cancelled"] is True
             release.set()
             final = _wait_terminal(client, execution_id)
+            for _ in range(250):  # the chain reads cancelled at once; the step settles when its run returns
+                final = client.get(f"/api/chains/executions/{execution_id}").json()
+                if final["step_results"][0]["status"] != "running":
+                    break
+                time.sleep(0.02)
         assert final["status"] == "cancelled"
         # Stopped is not failed: the step is cancelled with no error, and the chain row carries no failure reason.
         assert [(sr["status"], sr["error"]) for sr in final["step_results"]][0] == ("cancelled", None)

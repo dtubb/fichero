@@ -236,6 +236,12 @@ in both, and whichever window undoes it first removes it from the other
 
 ### Naming
 
+- `undo.settings-are-not-undone` — **[OK]** (manager ruling 2026-10-20) a settings switch does not go on the undo
+  stack: System Settings and the app's Settings do not do it either. Switching it back is its undo, the change is
+  still audited, and undo per window covers edits to project content. So a mutating route that only sets an app or
+  Settings switch (where models may run, `PUT /api/recipes/places`) is listed in the undo guard's known gaps as "not
+  undoable by design", with this reason. `fichero-server/tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py`
+  (`check_undo_coverage.py`).
 - `undo.naming` — **[PARTIAL]** (#5658) the step is named with the action's words, the way a
   person would say it: "Undo Move", "Undo Rename", "Undo Delete Note", and never a dotted
   action id. The words come from ONE place, so the Edit menu, the history list, the command

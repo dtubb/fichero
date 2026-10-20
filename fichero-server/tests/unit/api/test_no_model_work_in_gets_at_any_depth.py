@@ -71,7 +71,7 @@ def test_the_embedder_and_the_lane_refuse_inside_a_get_and_not_outside():
 def test_the_mark_does_not_leak_past_the_request():
     with no_model_in_get.marked_get("/a"):
         pass
-    forbid_in_get("a read")
+    assert forbid_in_get("a read") is None  # outside the GET, model work is allowed again
 
 
 def test_work_that_outlives_the_get_is_not_the_get():
