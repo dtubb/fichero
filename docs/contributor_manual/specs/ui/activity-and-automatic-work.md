@@ -1376,7 +1376,7 @@ and node, not by job); a retry action for failed pages.
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
   an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
-- `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
+- `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (#5863) (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
   own lane and they run at once: Kraken on the CPU, Apple Vision on the Neural Engine, MLX on the GPU, hosted readers on the
   network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
   against Kraken's memory fan-out (`kraken_runtime.page_fan_out`), and never waits for a Kraken page; its own gate
@@ -1385,7 +1385,7 @@ and node, not by job); a retry action for failed pages.
   `VNRecognizeTextRequest` per page carries the lines and the words (a per-line Apple read is a different feature, and gap
   escalation adds a request only for a band Vision missed)
   (`fichero-server/tests/unit/workflows/test_apple_vision_runs_beside_kraken.py`; the job lane already runs a Vision page beside a Kraken page, `tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py`).
-- `activity.lane.same-model-pages-together` — **[PARTIAL]** (speed round 2 (b); r1's measurement: two Kraken pages at once with five
+- `activity.lane.same-model-pages-together` — **[PARTIAL]** (#5846) (speed round 2 (b); r1's measurement: two Kraken pages at once with five
   threads each took 6.3 s a page against 9.7-10.2 s one after the other) built in two halves, merged together; not yet run on the
   M4. The lane: `_Lane.may_start` admits a second page of the SAME model on the model lane when a person started its run
   (`person_waits_on`) and `kraken_runtime.pages_at_once(True)` (fast priority, cores, memory for both) says two; never while
@@ -1395,7 +1395,7 @@ and node, not by job); a retry action for failed pages.
   (`_release_kraken`, `local_inference.release_idle_engine_models`), waits for them all. `locked()` is true while ANY page reads, so
   a queued page's "is a page outside the queue reading" check is `_kraken_busy(queued)`, which does not count the lane's own other
   Kraken pages (same test file).
-- `activity.reconnects-after-engine-restart` — **[PARTIAL]** (owner, 2026-10-19 20:14, P1: Activity could not load after Sharing was
+- `activity.reconnects-after-engine-restart` — **[PARTIAL]** (#5868) (owner, 2026-10-19 20:14, P1: Activity could not load after Sharing was
   turned on; `briefs/activity-after-sharing-restart-2026-10-19.md`) after the engine restarts, Activity loads again without the
   person doing anything: a jobs read that finds the engine not there (a `URLError`, or the socket layer's `NIOCore.IOError`,
   "error 1") says so in the footer in words ("Couldn't load activity: the engine could not be reached"), never the raw socket
@@ -1413,7 +1413,7 @@ and node, not by job); a retry action for failed pages.
   sandbox connect with EPERM, and the engine log showed the same socket path), which needs the M4 repro: turn Sharing on with
   Activity open, then read the app log for `endpoint re-resolved … (was …)`, which now names the old and the new mode.
 
-- `activity.read.page-read-once` — **[PARTIAL]** (owner, 2026-10-19 20:29, `briefs/kraken-slow-respawn-2026-10-19.md`) a page is read ONCE. A
+- `activity.read.page-read-once` — **[PARTIAL]** (#5846) (owner, 2026-10-19 20:29, `briefs/kraken-slow-respawn-2026-10-19.md`) a page is read ONCE. A
   GET never runs a model: `GET /api/segments/document/{id}/text` (`document_text`) only derives the text from the passes the page
   already has, so opening a page's text while a run reads it starts no recognise (`fichero-server/tests/unit/api/test_document_text_never_reads.py`).
   The 20:24 dumps show ONE recognise (the lane's job, `jobs._work` -> `recognize_to_geometry`; the second `recognize_to_geometry`
@@ -1422,7 +1422,7 @@ and node, not by job); a retry action for failed pages.
   writes) ON the event loop; it runs on a worker thread now, one derivation at a time, and callers asking for the same page's text at once share one (`single_flight`): three GETs beside a Kraken read starved the GIL (blla is mostly single-threaded; r1's profile). Same test file, with the loop's longest stall measured beside the call. NOT built: the owner's "the view shows the page as
   waiting or reading in that run, and a page nothing covers queues one de-duplicated job on the model lane". The text view has no
   such state today (a page with no pass answers an empty text); it needs the product shape first.
-- `activity.read.get-runs-no-model` — **[PARTIAL]** (manager ruling, 2026-10-19) a GET never runs a model, at any depth: it never starts a
+- `activity.read.get-runs-no-model` — **[PARTIAL]** (#5843) (manager ruling, 2026-10-19) a GET never runs a model, at any depth: it never starts a
   read, an embedding or any derivation that loads one. It returns what is stored, or says it isn't ready (503, in words). Two
   guards. The scan: it fails when a GET handler's own body calls a model entry point (`recognize_*`, `segment_to_geometry`,
   `apple_vision_ocr*`, `_embed_text*`, `get_embedder`, `run_on_lane`, a model's `.encode(`)
@@ -1438,7 +1438,7 @@ and node, not by job); a retry action for failed pages.
   are spawned with a fresh context (`spawn_free`) and run their model call. Pinned by
   `test_what_the_request_awaits_keeps_the_mark_and_the_known_spawn_sites_run_free` and
   `test_on_background_loop_is_spawned_free`.
-- `activity.read.get-embeds-its-own-query` — **[PARTIAL]** (manager ruling on review 361, 2026-10-19) a GET may embed its OWN
+- `activity.read.get-embeds-its-own-query` — **[PARTIAL]** (#5899) (manager ruling on review 361, 2026-10-19) a GET may embed its OWN
   query text, one short vector, and nothing else: `GET /api/kg/claim-search?q=`, `GET /api/kg/entities/semantic?q=` (and
   `/api/search`) answer with a query embedding. The embed is bounded (`QUERY_EMBED_SECONDS`, 5 s): if the embedder is busy
   or cold past the bound the GET answers 503 in words ("The search model is busy …, try again"), never hangs; the late embed
@@ -1448,13 +1448,13 @@ and node, not by job); a retry action for failed pages.
   b busy answers in words within the bound, c the loaded heavy model is still loaded).
 - `activity.read.get-keeps-kraken-and-lane-refused` — **[OK]** Kraken, recognise and `run_on_lane` stay refused in every GET
   (`fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py`: a GET reaching Kraken through a helper thread, `::test_a_get_recognising_lines_is_refused_too` for recognising lines, the embedder and the lane refuse inside a GET and not outside).
-- `activity.read.claims-backfill-is-a-lane-job` — **[PARTIAL]** a GET never embeds the claims that lack a vector. It
+- `activity.read.claims-backfill-is-a-lane-job` — **[PARTIAL]** (#5899) a GET never embeds the claims that lack a vector. It
   searches the vectors that exist, says how many claims are not embedded yet (`not_embedded` on the response, absent when
   none), and queues ONE background job (kind `embed-knowledge`, subject `claims` or `entities`, the embed lane, so the throttle applies); a second GET while
   that job waits or runs queues nothing. An auto-embed that finds no event loop inside a GET (a `to_thread`) queues the same job for the
   kind it was asked to embed (claims or entities), so no vectors are lost. Pinned by `test_a_get_with_unembedded_claims_queues_the_backfill_once` and `test_auto_embed_with_no_loop_inside_a_get_queues_the_backfill_instead_of_losing_the_vectors` (claims and entities). NOTE:
   no GET embedded claims before this (the reindex action is a POST), so this is the count and the queue, not a move.
-- `activity.engine.restart-says-why` — **[PARTIAL]** (overnight P1, 2026-10-19) when the app restarts its engine because its
+- `activity.engine.restart-says-why` — **[PARTIAL]** (#5843) (overnight P1, 2026-10-19) when the app restarts its engine because its
   health checks went unanswered, the connection detail says why in words: how many seconds were missed, and that an import was
   running, then "Reconnecting…" (`AppState.restartSentence`, `ConnectionPresentation.lastRestartReason`, cleared when the
   engine answers). Pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift` (needs compile). LIMIT: it says
@@ -1478,7 +1478,7 @@ and node, not by job); a retry action for failed pages.
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
   hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
   reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
-- `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card does not know `partial` yet) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
+- `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (#5758) (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card does not know `partial` yet) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
 - `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
   #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
   runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;
