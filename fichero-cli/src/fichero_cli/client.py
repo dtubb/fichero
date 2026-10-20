@@ -698,6 +698,13 @@ class FicheroClient:
             except httpx.HTTPError as exc:
                 raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
+        if response.status_code == 401 and not self.token and not self._uds_path and _is_loopback_base_url(self.base_url) is False:
+            # This Mac's own app key is never sent to another host (review 585): say how to get a credential.
+            raise FicheroError(
+                f"{self.base_url} asked who this is, and this CLI holds no credential for it. Pair first: "
+                "`fichero devices pair --link-file <file holding the host's pairing link>`.",
+                status_code=401,
+            )
         if response.status_code >= 400:
             raise FicheroError(
                 f"{method} {path} -> {response.status_code}: {response.text}",
