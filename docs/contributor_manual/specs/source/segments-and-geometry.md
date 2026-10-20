@@ -1019,7 +1019,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
 - `source.convert.results-live-as-passes` — **[OK]** (→ #5222) results always live as passes: old
   ones convert when their library opens (the behaviours below), and every tool that finds boxes
   writes its result as its own pass (the next three behaviours, built 2026-09-30).
-- `source.convert.a-new-result-is-a-pass-at-once` — **[OK]** (→ #5222 part 2; ruled 2026-09-28: "bring Every outcome is one engine-log line naming the page ("A new result on page P: converted|skipped|failed"), so a page that shows text with no boxes can be answered from the log (test: `fichero-server/tests/unit/maintenance/test_new_result_outcome_is_logged_2026_10_19.py`).
+- `source.convert.a-new-result-is-a-pass-at-once` — **[OK]** (→ #5222 part 2; ruled 2026-09-28: "bring
   them over when they're generated from now on") a result with boxes becomes its own pass in the
   same run that made it, not at the next open: Apple Vision OCR, a VLM's layout or transcription, a
   PDF's text layer at import, detect regions, Kraken, merged geometry, and a transcript aligned to
@@ -1037,7 +1037,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   importer's text layer. Pinned by `fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py`
   (`::test_a_tools_result_with_boxes_is_its_own_pass_when_the_run_saves_it`, a rerun adds a pass
   beside the first, no boxes make no pass, the aligned transcript) and
-  `test_merge_geometry_tool.py::TestMergeGeometry::test_the_merged_result_becomes_its_pass_in_this_run`.
+  `test_merge_geometry_tool.py::TestMergeGeometry::test_the_merged_result_becomes_its_pass_in_this_run`. Every outcome is one engine-log line naming the page ("A new result on page P: converted|skipped|failed"), so a page that shows text with no boxes can be answered from the log (test: `fichero-server/tests/unit/maintenance/test_new_result_outcome_is_logged_2026_10_19.py`).
 - `source.convert.a-result-that-cannot-convert-is-kept` — **[OK]** (→ #5222) when the new result's
   conversion fails, the result is still saved and the run still succeeds: the page reads it from
   its stored boxes exactly as before this was built, the failure is logged as an error naming the
