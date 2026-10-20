@@ -89,6 +89,9 @@ struct FirstRunWindow: View {
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
         }
+        // The project's services, for every way in: Set Up… is given its project, a new project is made inside this
+        // window (Your project), and a sheet hangs above the library tree that injects them (review 365, 360).
+        .modifier(SetUpSheetEnvironment(appState: appState, library: project))
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
         #if os(macOS)
