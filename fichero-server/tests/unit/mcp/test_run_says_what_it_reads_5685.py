@@ -44,6 +44,8 @@ def test_a_reading_run_says_which_step_reads_and_how_many_pages(agent, client, d
         return stub(image_path, model_path, **kw)
 
     monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", recognize)
+    # One page at a time, so holding the second leaves exactly one read: the fan-out follows the Mac's free memory (#5758).
+    monkeypatch.setattr(kraken_runtime, "page_fan_out", lambda cap: 1)
     seed_default_workflows(db)
     folder = Document(name="Box", doc_type=DocType.folder)
     db.save(folder)
