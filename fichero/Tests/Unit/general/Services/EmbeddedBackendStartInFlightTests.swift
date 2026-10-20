@@ -33,4 +33,17 @@ struct EmbeddedBackendStartInFlightTests {
         #expect(service.startAttemptsPassedGuard == 1)
         #expect(service.isStarting == false)
     }
+
+    @Test("a cancelled waiter leaves at once instead of spinning on the main actor")
+    func aCancelledWaiterThrowsOut() async {
+        let service = EmbeddedBackendService()
+        service.isStarting = true  // a start is in flight and never ends in this test
+        defer { service.isStarting = false }
+        let waiter = Task { @MainActor in try await service.start() }
+        waiter.cancel()
+        let outcome = await waiter.result
+        guard case .failure(let error) = outcome else { Issue.record("the cancelled waiter returned normally"); return }
+        #expect(error is CancellationError)
+        #expect(service.startAttemptsPassedGuard == 0, "a waiter never counts as a spawn attempt")
+    }
 }
