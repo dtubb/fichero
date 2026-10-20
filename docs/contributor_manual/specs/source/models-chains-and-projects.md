@@ -3676,7 +3676,7 @@ Setup
   its card states). The candidate list labels each row with its tier in words ("Specialist line reader", "Small
   vision model, on this Mac", "General model") and groups by it in Set Up's model sheet; a person's choice and a
   measured result still override the tier. The order by tier is not built. **Swift half (needs regen and compile):** the finder groups the reading candidates under the tier's words, in the order specialist, small vision model, general, keeping the engine's order inside a group; the person's chosen reader and any measured on their pages head the list ungrouped, whatever their tier (`ModelFinderTiers`, `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift`).
-- `source.recipe.reader-tiers.frontier-on-the-try-pages` — **[GAP]** (#5922; owner ruling 2026-10-20) Set Up's
+- `source.recipe.reader-tiers.frontier-on-the-try-pages` — **[PARTIAL]** (#5922; owner ruling 2026-10-20; the recommendation is built, unrun until an M4 pass: `bakeoff.recommend`, answered as `recommendation` on the bake-off result (API field, HELD for the regen), tests `fichero-server/tests/unit/recipes/test_reader_tiers_recommendation_5922.py`; the Try-page candidates and variant A are NOT built) Set Up's
   recommendation weighs frontier models (Claude, Gemini) as well as local ones. On the project's own Try pages the
   candidates include the frontier vision models unless the project said its pages may not leave this Mac (`places.may_leave_to`, `source.onboard.pages-may-leave`), and
   the combination "Kraken reads, then a cloud model re-reads only the unsure lines" (variant A, `correct` with
@@ -3686,7 +3686,7 @@ Setup
   of the best, that one is recommended and the reason is said in words; when several are within the band, the cheapest for the whole set wins, and at equal cost the one on this Mac (for example "reads within the noise band of
   Claude for $0 per page, on this Mac"). Cloud candidates still need the project's permission before any page leaves
   (`source.onboard.pages-may-leave`). The first evidence is the bake-off on the owner's Test 2 copies (#5910 work
-  queue; reference reads are labelled as a model reference, never ground truth). Not built.
+  queue; reference reads are labelled as a model reference, never ground truth). Built: the recommendation over the measured rows of a bake-off (the same rows the table ranks): the best reader by more than the project's noise band (`read_noise_band`, one point until measured), or the cheapest local-first one within the band of the best with the reason in words, and its cost per page and for the whole set (an unpriced one says "price not known", never a guess); only measured readers are weighed. *Not built: frontier models among the Try candidates on the project's own pages (the Try takes three candidates and a bake-off already carries the person's cloud readers, not the shipped frontier cards); variant A as a candidate (needs the `correct` step run as a Try arm); the same sentence on the Try result; the first-evidence bake-off on the Test 2 copies (blocked on an M4 app build that listens off loopback).*
 - `source.recipe.no-other-style-substitute` — **[OK]** (#4951) a reader made for another style of
   the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
   model" and the gap is named. *Built: `assemble._refusal` refuses a reader whose card does not state the
