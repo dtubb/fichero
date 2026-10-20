@@ -617,6 +617,8 @@ def redeem_invite(
     user = app_db.get_user_by_username(invite.username)
     if user is not None and user.active:
         raise HTTPException(status_code=409, detail="username already exists")
+    if user is None and app_db.username_taken(invite.username):  # 'dave' after 'DAVE' exists would be a look-alike
+        raise HTTPException(status_code=409, detail="username already exists")
 
     # A key and no password: the person gets an unusable password and signs in by challenge.
     password_hash = accounts.hash_password(body.new_password or secrets.token_urlsafe(32))
