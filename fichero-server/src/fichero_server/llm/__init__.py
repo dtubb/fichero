@@ -420,6 +420,16 @@ def model_fallback_summary(entries: list[dict[str, Any]]) -> str | None:
     )
 
 
+def _priced_usd(provider: str, model: str, input_tokens: int | None, output_tokens: int | None,
+                cache_read_tokens: int, place: str | None) -> float | None:
+    """What one answered call cost by the listed prices (None when it cannot be priced), for the project's spend cap."""
+    from fichero_server.llm.usage import price_call
+
+    priced = price_call({"provider": provider, "model": model, "input_tokens": input_tokens,
+                         "output_tokens": output_tokens, "cache_read_tokens": cache_read_tokens, "place": place})
+    return priced.cost_usd if priced.priced else None
+
+
 def _record_usage(
     provider: str,
     model: str,
@@ -437,6 +447,9 @@ def _record_usage(
     INFO. Centralizes the logging shape so chat / chat_structured /
     apple_chat / apple_structured all emit identically formatted lines
     that downstream consumers can parse uniformly."""
+    from fichero_server.llm import spend
+
+    spend.note_actual(_priced_usd(provider, model, input_tokens, output_tokens, cache_read_tokens, place))
     bucket = _usage_collector.get()
     if bucket is not None:
         entry: dict[str, Any] = {
@@ -1435,6 +1448,21 @@ def _get_remote_llm_semaphore() -> asyncio.Semaphore:
 @contextlib.asynccontextmanager
 async def model_call_slot(config: LLMConfig, *, library: str | None = None,
                           subject: str | None = None) -> AsyncIterator[None]:
+    """Every model call's slot. First the project's cloud spend cap (`ai.where.cloud-spend-cap`, #5943): the call's worst
+    case is reserved before it waits for anything, so a call over the cap is refused having queued nowhere and sent
+    nothing; the reservation is released, and the real cost booked, when the call ends. Then the lane slot
+    (`_model_call_slot`)."""
+    from fichero_server.llm import spend
+    from fichero_server.llm.egress import current_library
+
+    async with spend.holding(config, library or current_library()):
+        async with _model_call_slot(config, library=library, subject=subject):
+            yield
+
+
+@contextlib.asynccontextmanager
+async def _model_call_slot(config: LLMConfig, *, library: str | None = None,
+                           subject: str | None = None) -> AsyncIterator[None]:
     """One model call's slot: its lane (`_lane_call_slot`), then, for a model this engine serves on
     this Mac, one of the reads the server may be asked at once (#5537): as many as the model's need
     and this Mac's memory allow (`local_inference.local_reads_at_once`; one at a time for a 3B on

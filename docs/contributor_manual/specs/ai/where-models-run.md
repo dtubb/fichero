@@ -457,6 +457,19 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   jobs' attempts; LangChain's ten retries still run inside the slot (`llm/__init__.py:4568-4573`).
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).
+- `ai.where.cloud-spend-cap` — **[PARTIAL]** (#5943; Fable's cloud review 2026-10-20) a project caps what its cloud calls may
+  spend a month, beside `source.onboard.spend-cap`, which caps Hugging Face Jobs only. Each call's worst case (its
+  input, 30,000 tokens unless its caller says, and the full output the config allows, at the listed prices) is reserved
+  before the call waits for anything; when the call ends the reservation is released and the cost the provider reported is
+  booked (a failed call books what it reported, an answer that reported no priced usage books its worst case, never
+  free). A call whose worst case does not fit what is booked and held is refused in words
+  (`CloudSpendRefusedError`) and sends nothing; a model with no listed price cannot be held to a cap and is refused
+  while a cap is set. No answer is no cap; $0 is a project that spends nothing in the cloud. *Built, unrun until an M4
+  pass:* `llm/spend.py`, held in `llm.model_call_slot` (the one slot every model call takes); the answer is
+  `cloud_spend_cap_usd` in the project's setup answers, booked spend in `recipe/cloud-spend.json` (UTC month).
+  *Not built:* Set Up asking the cap and the API field for it (today it is written by hand), Ready and Activity
+  showing booked against cap, the batch place's reservation (`ai.where.batch-api-is-a-place` is a gap), and a caller
+  passing its real input size (the default is generous). *Test:* `fichero-server/tests/unit/llm/test_cloud_spend_cap_5943.py`.
 - `ai.where.row-names-the-place` — **[PARTIAL]** (#5582) every call row and the run account name the
   place, and pages sent per place. Built: each usage entry carries `place` (`_record_usage`, and the job row's
   `note_usage`; pinned by `fichero-server/tests/unit/llm/test_where_models_run.py`, `usage[0]["place"] == OWN_MACHINE`);
