@@ -105,6 +105,17 @@ struct ShareSettingsView: View {
                 }
             }
 
+            #if canImport(AppKit)
+            // Client side of pairing — connect THIS Mac to another Fichero library
+            // (consolidated here so all connection/pairing lives in Library Access). Right under the Sharing switch,
+            // not last: a guest Mac needs it first and the pane is long (#5893).
+            MacRemoteClientPairingSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
+            #endif
+
             if hostingEnabled {
                 Section("Connected Devices") {
                     if let note = RemoteAccessConfig.thisNetworkOffNote(
@@ -141,16 +152,6 @@ struct ShareSettingsView: View {
             }
 
             advancedSection
-
-            #if canImport(AppKit)
-            // Client side of pairing — connect THIS Mac to another Fichero library
-            // (consolidated here so all connection/pairing lives in Library Access).
-            MacRemoteClientPairingSection(
-                appState: appState,
-                backendService: backendService,
-                libraryManager: libraryManager
-            )
-            #endif
         }
         .formStyle(.grouped)
         .task {

@@ -9,6 +9,12 @@ struct MacRemoteClientPairingSection: View {
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var clientInvite = ""
+    // The Macs nearby (#5892): Bonjour browsing, this Mac left out; picking one starts pairing with it.
+    @State private var nearby = NearbyHosts()
+    @State private var chosen: HostChoices.Found?
+    @State private var pairCode = ""
+    // This Mac's own `.ts.net` address, from its own engine; a host in another tailnet always asks for its invite.
+    @State private var ownTailnetURL: String?
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
@@ -28,14 +34,28 @@ struct MacRemoteClientPairingSection: View {
 
     var body: some View {
         Section("Connect This Mac to Another Fichero") {
-            Text("Paste the invite link from the host Mac.")
+            nearbyList
+
+            Text(chosenNeedsCodeOnly
+                 ? "Type the pairing code shown on \(chosen?.name ?? "the host Mac")."
+                 : "Paste the invite link from the host Mac.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 12) {
-                TextField("Invite link", text: $clientInvite, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
+                if chosenNeedsCodeOnly {
+                    // What the code will be sent to, in full, before it is sent.
+                    if let address = chosen?.publicURL {
+                        Text("Connects to \(address)").font(.caption).foregroundStyle(.secondary)
+                    }
+                    TextField("Pairing code", text: $pairCode)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                } else {
+                    TextField("Invite link", text: $clientInvite, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                }
 
                 if let host = inviteHost {
                     Text("Connects to \(host)")
@@ -64,7 +84,8 @@ struct MacRemoteClientPairingSection: View {
                         Task { await connectThisMacAsRemoteClient() }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isClientPairing || clientInvite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isClientPairing || (chosenNeedsCodeOnly ? pairCode : clientInvite)
+                        .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             // A tapped fichero:// link lands here (#3788): prefill it so the
@@ -77,6 +98,10 @@ struct MacRemoteClientPairingSection: View {
                 appState.pendingPairingInvite = nil
             }
             .task {
+                nearby.start()
+                if EngineConfig.engineIsLocal {
+                    ownTailnetURL = try? await PairingService(apiRoot: EngineConfig.host).detectedTailnetURL()
+                }
                 // The link may have arrived BEFORE this view existed (the app was
                 // launched by the link). onChange would never fire for that.
                 if let invite = appState.pendingPairingInvite, !invite.isEmpty {
@@ -91,6 +116,46 @@ struct MacRemoteClientPairingSection: View {
                     .foregroundStyle(.orange)
             }
         }
+    }
+
+    /// The Fichero Macs nearby, this Mac left out; picking one starts pairing with it (#5892).
+    @ViewBuilder private var nearbyList: some View {
+        let hosts = HostChoices.offered(
+            nearby.found, ownName: HostChoices.ownServiceName(hostName: ProcessInfo.processInfo.hostName),
+            ownTailnetURL: ownTailnetURL)
+        if hosts.isEmpty {
+            Text("No other Fichero found nearby. Paste an invite link from the host Mac below.")
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
+            ForEach(hosts, id: \.publicURL) { host in
+                Button {
+                    chosen = host
+                    clientPairingError = nil
+                } label: {
+                    Label(host.name, systemImage: chosen == host ? "checkmark.circle.fill" : "desktopcomputer")
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// A picked host certified by a public authority is paired with from its code alone; any other needs its invite
+    /// (the invite carries the key to pin, which Bonjour never does).
+    private var chosenNeedsCodeOnly: Bool {
+        chosen.map { !HostChoices.needsInvite($0, ownTailnetURL: ownTailnetURL) } ?? false
+    }
+
+    /// What Connect pairs with: the picked host and its typed code, or the pasted invite (which must be for the host
+    /// that was picked, if one was).
+    private func fieldsToPair() throws -> RemoteClientPairingFields {
+        if let chosen, chosenNeedsCodeOnly, let url = chosen.publicURL {
+            return RemoteClientPairingFields(remoteURL: url, pairCode: pairCode, spkiPin: nil, libraryPath: "")
+        }
+        let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
+        if let chosen, !HostChoices.invite(fields.remoteURL, isFor: chosen) {
+            throw APIError.badRequest("That invite is for another Mac than \(chosen.name). Paste the one shown on \(chosen.name).")
+        }
+        return fields
     }
 
     /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
@@ -113,7 +178,7 @@ struct MacRemoteClientPairingSection: View {
 
         let previousHost = engineHost
         do {
-            let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
+            let pairingFields = try fieldsToPair()
             let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
