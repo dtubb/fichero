@@ -1279,6 +1279,8 @@ async def process_text(
     custom_metadata: dict | None = None,
     # Long-input chunking (from BASE_CONFIG_SCHEMA)
     chunk_size_chars: int | None = None,
+    # A catalogue entry: held to the 200-word cap and the ban on analysis at write time (#5968).
+    catalogue_entry: bool = False,
 ) -> dict[str, Any]:
     """Shared text processing for all LLM text tools."""
     from fichero_server.llm import chat
@@ -1385,6 +1387,16 @@ async def process_text(
                 config=effective_config,
                 system=instructions,
             )
+
+        if catalogue_entry:
+            from fichero_server.llm.catalogue_lint import enforce
+
+            async def again(note: str) -> str:
+                return await chat(text, config=effective_config, system=f"{instructions}\n\n{note}")
+
+            response, flags = await enforce(response, again)
+            if flags:
+                custom_metadata = {**(custom_metadata or {}), "lint_flags": flags}
 
         # Parse output
         parsed = parse_output(response, output_format, output_options)
