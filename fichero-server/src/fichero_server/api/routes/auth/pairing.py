@@ -125,7 +125,9 @@ def _tailnet_serve_command() -> str | None:
 
     if not tailscale_serve.tailnet_url():
         return None
-    port = int(os.environ.get("FICHERO_TCP_PORT") or "8765")
+    from fichero_server.security.bind_host import listen_port
+
+    port = listen_port()
     cli = tailscale_serve.tailscale_cli()
     want = tailscale_serve.wanted_target(port)
     try:

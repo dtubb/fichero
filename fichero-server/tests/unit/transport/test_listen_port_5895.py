@@ -15,20 +15,21 @@ def test_the_shipped_port_is_8765():
     assert listen_port({"FICHERO_ENV": "production"}) == 8765
 
 
-@pytest.mark.parametrize("env", [{}, {"FICHERO_ENV": "development"}, {"FICHERO_ENV": "test"}])
-def test_a_dev_or_test_engine_may_choose_its_port(env):
-    assert listen_port({**env, "FICHERO_TCP_PORT": "18765"}) == 18765
-
-
-def test_a_shipped_engine_ignores_the_variable():
+def test_the_variable_alone_changes_nothing_a_release_app_that_sets_nothing_keeps_8765():
+    assert listen_port({"FICHERO_TCP_PORT": "18765"}) == 8765
     assert listen_port({"FICHERO_ENV": "production", "FICHERO_TCP_PORT": "18765"}) == 8765
-    assert listen_port({"FICHERO_ENV": " Production ", "FICHERO_TCP_PORT": "18765"}) == 8765
+    assert listen_port({"FICHERO_ENV": "staging", "FICHERO_TCP_PORT": "18765"}) == 8765
+
+
+@pytest.mark.parametrize("env", ["development", "test", " Test "])
+def test_only_an_environment_that_says_dev_or_test_explicitly_may_choose_its_port(env):
+    assert listen_port({"FICHERO_ENV": env, "FICHERO_TCP_PORT": "18765"}) == 18765
 
 
 @pytest.mark.parametrize("raw", ["abc", "0", "70000", "-5", "87 65"])
 def test_a_value_that_is_not_a_port_refuses_in_words(raw):
     with pytest.raises(SystemExit, match="FICHERO_TCP_PORT"):
-        listen_port({"FICHERO_TCP_PORT": raw})
+        listen_port({"FICHERO_ENV": "test", "FICHERO_TCP_PORT": raw})
 
 
 def test_the_bonjour_advert_follows_the_one_port():
