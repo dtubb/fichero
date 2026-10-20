@@ -962,6 +962,17 @@ def come_back_after(db: "Database", job_id: str, seconds: float) -> None:
     db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [utc_now() + timedelta(seconds=seconds), job_id])
 
 
+def say_pausing(db: "Database", job_id: str) -> None:
+    """A running job asked to pause says so until it does (#5933)."""
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [PAUSING, job_id])
+
+
+def wake_lane(db: "Database") -> None:
+    """Look at the lane again once this transaction commits (a job let go of its pause is picked soon)."""
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+
+
 def say_stopping(db: "Database", job_id: str) -> None:
     """A running job asked to stop says so until it does (#5609)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
@@ -1675,6 +1686,11 @@ def pause_job(db: "Database", job_id: str, paused: bool) -> str:
         return registered.pause(db, job_id, paused)
     if _is_attached(kind):
         raise ValueError("This page belongs to a workflow run that is waiting for it: pause the run instead")
+    return pause_stored(db, job_id, paused, state)
+
+
+def pause_stored(db: "Database", job_id: str, paused: bool, state: str) -> str:
+    """The plain pause of a stored row: a waiting one is held, a paused one is let go. Its state after."""
     if paused and state == "waiting":
         db.execute("UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ? AND state = 'waiting'",
                    [job_id])

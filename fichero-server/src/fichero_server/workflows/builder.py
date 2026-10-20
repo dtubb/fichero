@@ -557,9 +557,24 @@ def _should_recompute(
 #: run still has pages reading, so the pause is raised by the fan-out and no page is cancelled mid-read (#5932).
 _PAGES_READING: dict[str, int] = {}
 
+#: The run the runner is driving, set by the runner before it streams. A sub-workflow's fan-out keys its pages by the CHILD's
+#: task id, so they are counted under this one instead: a Pause during a child's fan-out does not cut them either (#5933).
+TOP_RUN: ContextVar[str | None] = ContextVar("fichero_top_run", default=None)
+
 
 def pages_reading(run_id: str) -> int:
     return _PAGES_READING.get(run_id, 0)
+
+
+def _count_page_reading(run_id: str, delta: int) -> str:
+    """Count a page in or out under the top run (else its own run); returns the key it was counted under."""
+    key = TOP_RUN.get() or run_id or ""
+    left = _PAGES_READING.get(key, 0) + delta
+    if left > 0:
+        _PAGES_READING[key] = left
+    else:
+        _PAGES_READING.pop(key, None)
+    return key
 
 
 def build_graph(
@@ -1749,8 +1764,7 @@ def _make_parallel_node_function(
         again. Held until the readers are done, their results are kept with the checkpoint and only undone pages are read
         on Resume (`activity.durable.paused-stays-paused`, `nothing-twice`; #5919)."""
         reading["active"] += 1
-        run_key = state.get("task_id", "") or ""
-        _PAGES_READING[run_key] = _PAGES_READING.get(run_key, 0) + 1
+        run_key = _count_page_reading(state.get("task_id", "") or "", +1)
         parked = False
         try:
             try:
@@ -1767,9 +1781,7 @@ def _make_parallel_node_function(
                 raise
         finally:
             reading["active"] -= 1
-            _PAGES_READING[run_key] = _PAGES_READING.get(run_key, 1) - 1
-            if _PAGES_READING[run_key] <= 0:
-                _PAGES_READING.pop(run_key, None)
+            _count_page_reading(run_key, -1)
             if parked:
                 reading["parked"] -= 1
 
