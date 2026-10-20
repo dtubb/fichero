@@ -864,8 +864,10 @@ class _PageGate:
 
 _INFERENCE_LOCK = _PageGate()
 
-#: Held at two until #5929 (threads segfault at exit) closes and an M4 run at N=4 is clean; then delete this and the
-#: `min` below, and N is the performance cores as the owner ruled (#5931, `source.read.pages-at-once-scales`).
+#: Held at two until #5929 closes and an M4 run at N=4 is clean. #5929 is torch's MPS destructor faulting when a process
+#: EXITS, after every row has printed (the M4 crash reports), not a fault in threads; whether N may rise on the bench
+#: evidence alone or waits for the exit fix is the manager's call. Then delete this and the `min` below, and N is the
+#: performance cores as the owner ruled (#5931, `source.read.pages-at-once-scales`).
 PAGES_AT_ONCE_GATE_5929 = 2
 
 
