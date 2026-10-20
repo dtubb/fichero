@@ -51,22 +51,32 @@ def _quota_exc() -> ProviderQuotaError:
 # ---------------------------------------------------------------------------
 
 
-def test_classify_provider_quota_error_is_retryable():
-    assert classify_provider_error(_quota_exc()) == "retryable"
+def test_classify_provider_quota_error_is_a_slow_down():
+    assert classify_provider_error(_quota_exc()) == "slow-down"
 
 
-def test_classify_429_runtimeerror_is_retryable():
+def test_classify_429_runtimeerror_is_a_slow_down():
     exc = RuntimeError("HTTP 429: too many requests, rate limit exceeded")
-    assert classify_provider_error(exc) == "retryable"
+    assert classify_provider_error(exc) == "slow-down"
 
 
-def test_classify_auth_error_is_terminal():
-    exc = RuntimeError("401 Unauthorized: invalid api key")
-    assert classify_provider_error(exc) == "terminal"
+def test_classify_auth_and_no_credit_are_fatal():
+    """A refused key or no credit: this provider will not answer this run (#5944)."""
+    assert classify_provider_error(RuntimeError("401 Unauthorized: invalid api key")) == "fatal"
+    assert classify_provider_error(RuntimeError("Provider returned 402: out of credits")) == "fatal"
+    assert classify_provider_error(RuntimeError("Error 429: insufficient_quota")) == "fatal"
+
+
+def test_classify_5xx_and_dropped_connections_are_transient():
+    exc = type("APIConnectionError", (Exception,), {})("Connection error.")
+    assert classify_provider_error(exc) == "transient"
+    exc = type("ServerError", (Exception,), {"status_code": 503})("overloaded")
+    assert classify_provider_error(exc) == "transient"
 
 
 def test_classify_generic_error_is_terminal():
     assert classify_provider_error(ValueError("bad image format")) == "terminal"
+    assert classify_provider_error(RuntimeError("400 bad request: image too large")) == "terminal"
 
 
 # ---------------------------------------------------------------------------
@@ -125,9 +135,9 @@ async def test_terminal_error_does_not_retry(no_sleep):
 
     async def make_coro():
         calls["n"] += 1
-        raise RuntimeError("401 unauthorized: invalid api key")
+        raise RuntimeError("400 bad request: image too large")
 
-    with pytest.raises(RuntimeError, match="401"):
+    with pytest.raises(RuntimeError, match="400"):
         await call_with_breaker(
             lambda: make_coro(),
             provider="openai",
