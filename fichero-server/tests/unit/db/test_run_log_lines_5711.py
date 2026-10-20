@@ -94,10 +94,15 @@ def _tidy(db, monkeypatch, *, chunk: int, why=lambda **_: None) -> dict:
     return run_log_tidy.run(db, run_log_tidy.SUBJECT)
 
 
-def test_opening_a_library_with_10k_runs_from_before_moves_nothing_and_queues_the_tidy(tmp_path):
+def test_opening_a_library_with_10k_runs_from_before_moves_nothing_and_queues_the_tidy(tmp_path, monkeypatch):
     """The open does nothing that grows with the history: the logs stay values, read as before, and one background
     job is queued to move them (#5711: moving them at open took tens of seconds on a big library)."""
     from fichero_server.db.manager import db_manager
+    from fichero_server.execution import jobs
+
+    # A lane an earlier test left running would claim the queued job before this reads it ("waiting"): hold the queue (P0 red,
+    # passed alone). `_flag_cache` is what every claim reads; monkeypatch puts it back.
+    monkeypatch.setitem(jobs._flag_cache, jobs.PAUSE_SETTING_KEY, True)
 
     package = tmp_path / "Big.fichero"
     package.mkdir()
