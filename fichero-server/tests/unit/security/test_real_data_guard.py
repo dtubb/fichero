@@ -137,9 +137,23 @@ def test_the_list_of_exceptions_holds_no_stale_entry_and_no_guarded_launcher() -
         assert not calls_the_guard((REPO / name).read_text(encoding="utf-8"))
 
 
+def sets_the_switch(text: str) -> bool:
+    """True when a line other than a comment or an `echo` (the --help text) names the owner's switch at all: an
+    export, an env prefix, os.environ["..."] = "1", setdefault, an env={...} dict or a --env flag all name it."""
+    return any(guard.ALLOW_REAL_STATE_ENV in line for line in text.splitlines()
+               if not line.lstrip().startswith(("#", "echo ")))
+
+
+def test_the_switch_check_sees_every_way_to_set_it() -> None:
+    for line in ('export FICHERO_ALLOW_REAL_STATE=1', 'FICHERO_ALLOW_REAL_STATE=1 python x.py',
+                 'os.environ["FICHERO_ALLOW_REAL_STATE"] = "1"', 'os.environ.setdefault("FICHERO_ALLOW_REAL_STATE", "1")',
+                 'env = {"FICHERO_ALLOW_REAL_STATE": "1"}', 'subprocess.run(cmd, env={**os.environ, "FICHERO_ALLOW_REAL_STATE": "1"})'):
+        assert sets_the_switch(line), line
+    assert not sets_the_switch('# FICHERO_ALLOW_REAL_STATE=1 is the owner\'s\n  echo "FICHERO_ALLOW_REAL_STATE=1 set by hand."')
+
+
 def test_no_script_sets_the_owners_switch() -> None:
     for folder in ("scripts", "fichero-server/scripts", "fichero-server/bin"):
         for path in (REPO / folder).rglob("*"):
-            if path.is_file() and path.suffix in {".sh", ".py"} and path.name != "test_real_data_guard.py":
-                lines = [x for x in path.read_text(encoding="utf-8", errors="ignore").splitlines() if "echo" not in x]
-                assert not re.search(r"FICHERO_ALLOW_REAL_STATE\s*=\s*[\"']?1", "\n".join(lines)), f"{path} sets the switch"
+            if path.is_file() and path.suffix in {".sh", ".py"} and "__pycache__" not in path.parts:
+                assert not sets_the_switch(path.read_text(encoding="utf-8", errors="ignore")), f"{path} names the switch"
