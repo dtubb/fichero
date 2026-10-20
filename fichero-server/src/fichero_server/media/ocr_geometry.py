@@ -42,9 +42,10 @@ class OCRGeometryLevel(StrEnum):
 class OCRCloudProviderBlocked(RuntimeError):
     """Raised when cloud OCR would violate local-only/no-cloud policy."""
 
-    def __init__(self, provider: str) -> None:
+    def __init__(self, provider: str, because: str | None = None) -> None:
         super().__init__(
-            f"OCR provider '{provider}' would upload content to a cloud service; "
+            because
+            or f"OCR provider '{provider}' would upload content to a cloud service; "
             "disable local-only mode or choose a local/on-device OCR provider."
         )
         self.provider = provider
@@ -144,11 +145,23 @@ _CLOUD_OCR_PROVIDERS = {
 }
 
 
-def enforce_ocr_provider_policy(provider: str, *, local_only: bool) -> None:
-    """Reject cloud OCR providers when local-only/no-cloud mode is active."""
+def enforce_ocr_provider_policy(provider: str, *, local_only: bool | None = None) -> None:
+    """Reject cloud OCR providers when local-only/no-cloud mode is active. With `local_only` left out, the SHARED egress
+    check decides (`source.egress.every-call-site`): the Set Up places answer and the local-only setting, the same one
+    every model call meets. Call it where a cloud OCR client is built."""
 
     normalized = _provider_key(provider)
-    if local_only and normalized in _CLOUD_OCR_PROVIDERS:
+    if normalized not in _CLOUD_OCR_PROVIDERS:
+        return
+    if local_only is None:
+        from fichero_server.llm import is_local_only
+        from fichero_server.recipes.places import refusal
+
+        because = refusal("cloud")
+        if because:
+            raise OCRCloudProviderBlocked(provider, because)
+        local_only = is_local_only()
+    if local_only:
         raise OCRCloudProviderBlocked(provider)
 
 
