@@ -53,6 +53,8 @@ def _own_model_stores(tmp_path, monkeypatch):
     """The cards (where scores live) and Kraken's install markers in this test's own folders."""
     monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "models"))
     monkeypatch.setenv("FICHERO_KRAKEN_DATA_DIR", str(tmp_path / "kraken"))
+    # Hold the queue: a lane an earlier test left running would claim a queued tie before the test reads it as waiting.
+    monkeypatch.setitem(jobs._flag_cache, jobs.PAUSE_SETTING_KEY, True)
 
 
 def _install(model: str) -> None:
