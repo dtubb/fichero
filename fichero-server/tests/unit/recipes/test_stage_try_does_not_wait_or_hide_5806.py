@@ -25,6 +25,9 @@ def test_a_try_waiting_on_a_download_says_what_for_with_its_progress(db, monkeyp
     try_id = jobs.enqueue(db, samples.TRY_KIND, "read:aaaaaaaa", started_by="test", watched=True,
                           detail=json.dumps({"stage": "read", "pages": []}))
     download = jobs.enqueue(db, "download-model", "omlx:qwen2.5-vl-7b", started_by="test")
+    # The try is the job whose body is running (`current_job_id`), so it is marked running: left queued, a lane a
+    # earlier test registered the kind on would run its real body here and overwrite the reason with its own error.
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [try_id])
     db.execute("UPDATE jobs SET state = 'running', reason = ? WHERE id = ?",
                ["Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB", download])
     monkeypatch.setattr(jobs, "current_job_id", lambda: try_id)
