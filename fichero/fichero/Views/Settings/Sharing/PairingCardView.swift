@@ -73,9 +73,8 @@ enum PairingBlocker: Equatable {
         case .addressInvalid(let reason):
             return reason
         case .pinNotDerived:
-            return "Fichero mints the certificate for this address automatically when sharing "
-                + "starts — the QR appears as soon as it's ready. Turning sharing off and on "
-                + "again re-mints it if needed."
+            return "Fichero has no certificate pin filed for this address yet. Making the link restarts "
+                + "sharing, which mints it; any work running in the engine is stopped, so do it when nothing is running."
         }
     }
 
@@ -86,13 +85,40 @@ enum PairingBlocker: Equatable {
         switch self {
         case .engineNotRunning: return "Start Server"
         case .sharingNotStarted: return "Turn On Sharing"
-        // No "Prepare Certificate" button: turning sharing on mints the certificate
-        // itself, so this is a transient "preparing" state, never a step the user
-        // must trigger (#3811). If minting genuinely fails it stays an honest message
-        // and toggling sharing off/on re-runs the mint — not a dead control.
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerived:
+        // The pin is normally minted when sharing turns on; when it is missing anyway the cure restarts the
+        // engine, which stops work in flight, so it is a button the person presses, never automatic (#5891).
+        case .pinNotDerived: return "Make a Pairing Link"
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
             return nil
         }
+    }
+}
+
+/// Copy Pairing Link, as a value (#5891, `sharing.pairing.copy-link-says-why`): the link is copied and the clipboard is
+/// read back, or the person is told in words why not. It used to do nothing, silently, when there was no link (no
+/// pin derived for this address yet) and the card printed "use the pairing link below" over nothing.
+enum PairingLinkCopy {
+    enum Outcome: Equatable {
+        case copied
+        /// Nothing was copied; the sentence says why.
+        case notCopied(String)
+    }
+
+    /// Why there is no link, in words: the blocker's own headline and cure when the card has one, else the general case.
+    static func noLinkReason(blocker: PairingBlocker?) -> String {
+        if let blocker { return "\(blocker.headline). \(blocker.detail)" }
+        return "The pairing link isn't ready: this Mac has no address and certificate pin to put in it yet. "
+            + "Turning sharing off and on prepares them."
+    }
+
+    static func attempt(link: String?, blocker: PairingBlocker?, write: (String) -> Void,
+                        read: () -> String?) -> Outcome {
+        guard let link else { return .notCopied(noLinkReason(blocker: blocker)) }
+        write(link)
+        guard read() == link else {
+            return .notCopied("Fichero couldn't copy the link to the clipboard. Select the pairing link above and copy it by hand.")
+        }
+        return .copied
     }
 }
 
@@ -130,6 +156,8 @@ struct PairingCardView: View {
     let onResolve: (PairingBlocker) -> Void
     let copiedInvite: Bool
     let onCopyInvite: () -> Void
+    /// What the last Copy said when it copied nothing, in words (#5891).
+    var copyNote: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -170,7 +198,9 @@ struct PairingCardView: View {
                 // The QR encoder can fail even when everything else is ready. Say so
                 // rather than printing "Scan this" beside nothing (#3769).
                 Label(
-                    "Fichero couldn't draw the QR code. Use the pairing link below — it carries the same invite.",
+                    inviteLink == nil
+                        ? "Fichero couldn't draw the QR code, and there is no pairing link yet."
+                        : "Fichero couldn't draw the QR code. Use the pairing link below — it carries the same invite.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -187,6 +217,24 @@ struct PairingCardView: View {
 
             if let inviteLink {
                 inviteLinkBlock(inviteLink)
+            } else {
+                // Never a card with a code and neither a link nor a reason (#5891).
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(PairingLinkCopy.noLinkReason(blocker: blocker), systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    if let actionTitle = blocker?.actionTitle, let blocker {
+                        Button(isResolving ? "Working…" : actionTitle) { onResolve(blocker) }
+                            .buttonStyle(.bordered)
+                            .disabled(isResolving)
+                    }
+                }
+            }
+            if let copyNote {
+                Label(copyNote, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("sharing.pairing.copyNote")
             }
 
             Text("Expires \(pairingCode.expiresAt.formatted(date: .omitted, time: .shortened))")

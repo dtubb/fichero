@@ -13,7 +13,7 @@ extension ShareSettingsView {
     /// a publicly-trusted one (#5041).
     var hasValidSPKIPin: Bool {
         guard let url = validatedPublicURL else { return false }
-        return (try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: url)) != nil
+        return RemoteClientPairing.invitePin(spkiPin, for: url) != .missing
     }
 
     var validatedPublicURL: URL? {
@@ -27,9 +27,12 @@ extension ShareSettingsView {
 
     var pairingQRPayload: PairingQRCodePayload? {
         guard let pairingCode, let advertisedPairingRoot else { return nil }
-        guard let advertisedPin = try? RemoteClientPairing.advertisableSPKIPin(
-            spkiPin, for: advertisedPairingRoot
-        ) else { return nil }
+        let advertisedPin: String?
+        switch RemoteClientPairing.invitePin(spkiPin, for: advertisedPairingRoot) {
+        case .missing: return nil
+        case .notNeeded: advertisedPin = nil  // a publicly-trusted host: the link carries no pin (#5891)
+        case .pin(let pin): advertisedPin = pin
+        }
         return PairingService.buildQRCodePayload(
             apiRoot: advertisedPairingRoot,
             from: pairingCode,
@@ -57,12 +60,20 @@ extension ShareSettingsView {
     }
 
     func copyInvite() {
-        guard let inviteLinkString else { return }
-        PlatformPasteboard.writeString(inviteLinkString)
-        copiedInvite = true
-        Task {
-            try? await Task.sleep(for: .seconds(2))
+        let outcome = PairingLinkCopy.attempt(
+            link: inviteLinkString, blocker: pairingBlocker,
+            write: PlatformPasteboard.writeString, read: PlatformPasteboard.string)
+        switch outcome {
+        case .copied:
+            copyNote = nil
+            copiedInvite = true
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                copiedInvite = false
+            }
+        case .notCopied(let reason):
             copiedInvite = false
+            copyNote = reason
         }
     }
 }
