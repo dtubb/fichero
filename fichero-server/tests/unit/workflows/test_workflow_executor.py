@@ -909,7 +909,7 @@ class TestErrorDetection:
 
         assert exc_info.value.error_count == 5
         assert exc_info.value.total_count == 7
-        assert "consecutive failures" in str(exc_info.value)
+        assert "5 pages in a row failed" in str(exc_info.value)  # the rule that fired (7 pages: a small batch)
 
     @pytest.mark.asyncio
     async def test_scattered_errors_no_abort(self):
