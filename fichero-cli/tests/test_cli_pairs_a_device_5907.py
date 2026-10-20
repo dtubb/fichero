@@ -1,4 +1,4 @@
-"""`sharing.cli-pairs-a-device` (#5898 thread): `fichero devices pair <link>` pairs the CLI as a revocable device.
+"""`sharing.cli-pairs-a-device` (#5907): `fichero devices pair <link>` pairs the CLI as a revocable device.
 
 WHY (owner 2026-10-20): no key copying. A CLI on another Mac reaches a host the way a phone does: it redeems the host's
 pairing link, keeps the device token for that host, and the host can revoke it."""
@@ -177,3 +177,40 @@ def test_the_command_never_prints_the_token_and_reads_the_link_from_a_file(monke
 def test_the_command_needs_exactly_one_of_link_or_file():
     out = CliRunner(mix_stderr=False).invoke(cli.app, ["devices", "pair"])
     assert out.exit_code == 2
+
+
+def test_a_signed_in_persons_session_beats_the_device_token(monkeypatch, tmp_path):
+    """Review 583: actions by a signed-in person are theirs, not the device's."""
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    key = client_module.engine_key(LOCAL, None)
+    run(monkeypatch, Host([GOOD]), link())
+    assert client_module._read_token(base_url=LOCAL, engine=key) == TOKEN, "no session: the device speaks"
+    cli._write_cli_session("alice-session", {"username": "alice"}, engine=key)
+    assert client_module._read_token(base_url=LOCAL, engine=key) == "alice-session"
+
+
+def test_the_owners_own_key_on_their_mac_beats_the_device_token(monkeypatch):
+    key = client_module.engine_key(LOCAL, None)
+    run(monkeypatch, Host([GOOD]), link())
+    monkeypatch.setenv("FICHERO_API_KEY", "owner-bootstrap")
+    assert client_module._read_token(base_url=LOCAL, engine=key) == "owner-bootstrap"
+
+
+def test_a_link_on_argv_is_warned_about_without_echoing_it(monkeypatch):
+    monkeypatch.setattr(pairing, "_open_client", Host([GOOD]).client)
+    monkeypatch.setattr(pairing, "served_spki_der", lambda h, p: DER)
+    text = link()
+    out = CliRunner(mix_stderr=False).invoke(cli.app, ["devices", "pair", text])
+    assert "shell history" in out.stderr and text not in out.stdout + out.stderr
+
+
+def test_a_file_in_the_wrong_mode_does_not_wipe_other_engines_and_is_rewritten_0600(monkeypatch, tmp_path):
+    run(monkeypatch, Host([GOOD]), link())
+    path = tmp_path / "paired-devices.json"
+    path.chmod(0o644)
+    assert pairing.device_token(client_module.engine_key(LOCAL, None)) is None, "a loose file hands out nothing"
+    run(monkeypatch, Host([GOOD]), link(api_url=TAILNET, spki=None))
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert pairing.device_token(client_module.engine_key(LOCAL, None)) == TOKEN, "the first engine's entry survived"
+    assert not (tmp_path / "paired-devices.json.tmp").exists()

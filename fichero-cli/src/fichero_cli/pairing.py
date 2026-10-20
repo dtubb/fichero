@@ -107,9 +107,11 @@ def check_trust(api_url: str, spki: str | None, *, fetch_der: Callable[[str, int
 
 
 # -- the per-engine device store -------------------------------------------
-def _read_store() -> dict:
+def _read_store(*, strict: bool = True) -> dict:
+    """The store. `strict` (reads that hand out a token) refuses a file that is not owner-only; a writer reads it
+    anyway so one wrong mode never wipes the other engines' entries (it rewrites the file 0600)."""
     try:
-        if (DEVICES_PATH.stat().st_mode & 0o777) != 0o600:
+        if strict and (DEVICES_PATH.stat().st_mode & 0o777) != 0o600:
             return {}
         data = json.loads(DEVICES_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -119,10 +121,12 @@ def _read_store() -> dict:
 
 def _write_store(store: dict) -> None:
     DEVICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(DEVICES_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    tmp = DEVICES_PATH.with_name(DEVICES_PATH.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(store))
-    os.chmod(DEVICES_PATH, 0o600)  # an older file keeps its mode through O_CREAT
+    os.chmod(tmp, 0o600)  # a stale tmp keeps its mode through O_CREAT
+    os.replace(tmp, DEVICES_PATH)  # atomic: a crash leaves the old file, never half a token
 
 
 def device_token(engine: str | None) -> str | None:
@@ -134,7 +138,7 @@ def device_token(engine: str | None) -> str | None:
 
 def forget(host: str) -> int:
     """Drop the local token(s) for `host` (a name, `name:port` or the engine key). Returns how many were dropped."""
-    store = _read_store()
+    store = _read_store(strict=False)
     gone = [key for key, entry in store.items()
             if host in (key, urlparse(key).hostname, (entry or {}).get("host"))]
     for key in gone:
@@ -164,6 +168,9 @@ def trust_served(base_url: str, spki: str) -> ssl.SSLContext:
         raise FicheroError(f"{url.hostname} does not match the pin it was paired with. Refusing to connect.")
     context = ssl.create_default_context(cadata=pem)
     context.check_hostname = False  # the pin, not the name, is the identity of a self-signed host
+    # Python 3.13 turns VERIFY_X509_STRICT on, which can refuse a self-signed leaf used as its own anchor; the pin
+    # already decided identity above. VERIFY on the M4 run (Python version there).
+    context.verify_flags &= ~ssl.VERIFY_X509_STRICT
     return context
 
 
@@ -213,7 +220,7 @@ def pair(
         raise FicheroError(f"{host} refused the pairing ({reply.status_code}): {detail}", status_code=reply.status_code)
     data = reply.json()
     key = engine_key(None, uds) if uds else engine_key(link.api_url, None)
-    store = _read_store()
+    store = _read_store(strict=False)
     store[key] = {
         "device_token": data["device_token"],
         "device_id": data["device_id"],
