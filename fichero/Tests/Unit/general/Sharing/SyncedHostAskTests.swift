@@ -38,9 +38,25 @@ struct SyncedHostAskTests {
     @Test func dismissedIsPerProject() throws {
         let defaults = try #require(UserDefaults(suiteName: "SyncedHostAskTests"))
         defaults.removePersistentDomain(forName: "SyncedHostAskTests")
-        let a = URL(fileURLWithPath: "/tmp/A.fichero"), b = URL(fileURLWithPath: "/tmp/B.fichero")
+        let a = "/tmp/A.fichero", b = "/tmp/B.fichero"
         SyncedHostAsk.dismiss(a, defaults: defaults)
         #expect(SyncedHostAsk.isDismissed(a, defaults: defaults))
         #expect(!SyncedHostAsk.isDismissed(b, defaults: defaults))
+    }
+
+    /// Review 539: Connect stores the pin and the expiry too, so a `.local` host works and the token renews.
+    @MainActor
+    @Test func connectKeepsTokenPinAndExpiry() throws {
+        let root = URL(string: "https://creds-test.invalid:8765")!
+        defer {
+            AuthTokenMiddleware.clearRemoteToken(hostString: root.absoluteString)
+            DeviceTokenRenewal.clearExpiry(host: root.absoluteString)
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: root.absoluteString)
+        }
+        let expiry = Date(timeIntervalSince1970: 2_000_000_000)
+        let result = PairingExchangeResult(apiRoot: root, deviceToken: "tok", expiresAt: expiry)
+        try RemoteClientPairing.persistHostCredentials(result, expectedSPKIPin: nil)
+        #expect(AuthTokenMiddleware.readRemoteTokenForHost(root.absoluteString) == "tok")
+        #expect(DeviceTokenRenewal.storedExpiry(host: root.absoluteString) == expiry)
     }
 }

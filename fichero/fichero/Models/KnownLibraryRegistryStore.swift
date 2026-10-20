@@ -98,11 +98,20 @@ final class KnownLibraryRegistryStore {
     /// failed, so nothing is reconciled against a stale answer.
     private(set) var openPaths: [String]?
 
+    /// The host each open project's synced copy names, by project path, as the engine validated it (#5898).
+    private(set) var syncedHosts: [String: SyncedHostRecord] = [:]
+
     private func refreshOpenPaths() async {
         do {
             let response = try await apiClient.api.listOpenLibrariesApiRegistryOpenGet(.init())
             if case .ok(let okResponse) = response {
-                openPaths = try okResponse.body.json.libraries.map(\.path)
+                let handles = try okResponse.body.json.libraries
+                openPaths = handles.map(\.path)
+                syncedHosts = Dictionary(uniqueKeysWithValues: handles.compactMap { handle in
+                    handle.syncedHost.map {
+                        (handle.path, SyncedHostRecord(hostURL: $0.hostURL, hostName: $0.hostName, person: $0.person))
+                    }
+                })
             } else {
                 openPaths = nil
             }
