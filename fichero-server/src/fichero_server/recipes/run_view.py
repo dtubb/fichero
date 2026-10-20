@@ -366,10 +366,10 @@ def download_failures(awaited: list[dict[str, Any]], states: dict[str, dict[str,
 
 
 def pages_read_nothing(db: Any, pages: list[str]) -> int:
-    """The pages whose reader returned empty for every line: failed reads, read again by a second Start."""
-    from fichero_server.recipes.done import NOTHING_FOR_PAGE, unread_reasons
+    """The pages whose reader returned empty for every line, or most (the rate rule): failed reads, read again by a second Start."""
+    from fichero_server.recipes.done import failed_reads
 
-    return sum(1 for p in pages if (r := set(unread_reasons(db, p).values())) and r == {NOTHING_FOR_PAGE})
+    return len(failed_reads(db, pages))
 
 
 def pages_fully_read(db: Any, pages: list[str]) -> list[str]:

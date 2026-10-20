@@ -508,6 +508,8 @@ def segment_from_box(
         elif box.metadata.get("page_read_nothing"):
             # Every line of the page came back empty: a failed read, not 'no writing'. Unread, with why.
             metadata["unread_reason"] = "every line came back empty: the reader may not suit this hand"
+        elif box.metadata.get("page_read_mostly_nothing"):
+            metadata["unread_reason"] = "most lines came back empty: the reader may not suit this hand"
     # The box this one sits inside, by its place in the same result (#5487: Kraken's line in its region).
     parent_index = box.metadata.get("parent_box_index")
     if isinstance(parent_index, int) and parent_index != box_index:

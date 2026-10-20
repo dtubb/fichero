@@ -4860,10 +4860,13 @@ async def process_vision(
                             "confidence": getattr(_text, "confidence", None)}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
-                    if _blank and len(_blank) == len(geometry.boxes):
+                    from fichero_server.llm.working_lines import reads_mostly_nothing as _mostly_nothing
+
+                    if _blank and _mostly_nothing(len(_blank), len(geometry.boxes)):
                         # Every line came back empty: a failed read, not 'no writing' (review 64). Unmarked, so
                         # the lines stay unread and a second Start reads the page again.
-                        logger.warning("kraken reader: every one of %d lines on %s came back empty", len(_blank), image_path)
+                        logger.warning("kraken reader: %d of %d lines on %s came back empty: a failed read, they stay unread",
+                                       len(_blank), len(geometry.boxes), image_path)
                         _blank = []
                     elif _blank:
                         logger.info("kraken reader: %d of %d lines on %s left without a reading",
