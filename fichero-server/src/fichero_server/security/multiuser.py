@@ -55,3 +55,21 @@ def _persisted_multiuser_enabled() -> bool | None:
     if normalized in FALSE_VALUES:
         return False
     return None
+
+
+OWNER_PASSWORD_SET_KEY = "account.owner_password_set"
+OWNER_PASSWORD_REFUSAL = ("Multi-user needs the owner's account to have a password first: set one, then turn it on")
+
+
+def note_owner_password_set(app_db) -> None:
+    """Record that a person chose the owner's password (the random one `first-run` makes is never recorded)."""
+    app_db.set_setting(OWNER_PASSWORD_SET_KEY, "true")
+
+
+def owner_password_gap(app_db) -> str | None:
+    """Why Multi-user cannot be switched on yet (`multiuser.turning-on-needs-an-owner-password`, #5908), else None:
+    no active owner account, or its password was never chosen by a person (first-run gives the owner a key and a
+    random password), so nobody could sign in with a password."""
+    if not any(user.is_owner and user.active for user in app_db.list_users()):
+        return OWNER_PASSWORD_REFUSAL
+    return None if (app_db.get_setting(OWNER_PASSWORD_SET_KEY) or "") == "true" else OWNER_PASSWORD_REFUSAL

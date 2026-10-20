@@ -130,3 +130,32 @@ def note_first_request(scope: dict) -> str | None:
     _FIRST_SEEN.add(transport)
     logger.info("first request on %s after start", transport)
     return transport
+
+
+_BOUND_TCP: list[str] | None = None
+
+
+def note_tcp_listeners(addresses: list[str]) -> None:
+    """The TCP addresses this engine really bound (empty: UDS only). Called once at start by `__main__`."""
+    global _BOUND_TCP
+    _BOUND_TCP = list(addresses)
+
+
+def tcp_listeners() -> list[str] | None:
+    """What `note_tcp_listeners` recorded, or None when this engine did not say (a dev or test engine started another way)."""
+    return None if _BOUND_TCP is None else list(_BOUND_TCP)
+
+
+def network_listener_gap(public_base_url: str, bound: list[str] | None) -> str | None:
+    """Why a pairing link for `public_base_url` would name an address nothing listens on, in words, else None
+    (`sharing.link-names-a-listener`). A `.ts.net` address is served by Tailscale to the loopback port, so loopback is
+    enough there; anything else needs a non-loopback listener. An engine that recorded nothing is not judged."""
+    from urllib.parse import urlparse
+
+    host = (urlparse(public_base_url).hostname or "").lower() if public_base_url else ""
+    if not host or bound is None or host.endswith(".ts.net"):
+        return None
+    if any(not (a.startswith("127.") or a in ("::1", "localhost")) for a in bound):
+        return None
+    return (f"Sharing is on at {host}, but this Mac is not listening there yet: 'This network' is off, so no device "
+            "could connect. Turn it on, or share over Tailscale.")

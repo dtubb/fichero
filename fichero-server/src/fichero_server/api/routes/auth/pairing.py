@@ -553,6 +553,11 @@ def create_pairing_code(
     """Mint a short-lived one-time pairing code for the authenticated caller."""
     _require_secure_pairing_transport(request)
     user = _pairing_user(request, app_db)
+    from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
+
+    # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
+    if gap := network_listener_gap(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "", tcp_listeners()):
+        raise HTTPException(status_code=409, detail=gap)
     now = utc_now()
     _prune_pairing_codes(now)
     code = _new_pairing_code()
