@@ -31,12 +31,13 @@ PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/
 # the default socket IS the container path the scheme dials (#4222), so no env
 # var is needed. Check `pgrep -fl "Fichero Server"` first: an engine already on
 # that socket is a Dev Embedded app's own — quit that app.
-./fichero-server/scripts/start_fichero_server.sh --uds
+FICHERO_BASE_PATH="$HOME/Fichero Dev Test/state" ./fichero-server/scripts/start_fichero_server.sh --uds
 # CLI / MCP need the HTTPS engine instead (app quit, or a scratch library):
-bash fichero-server/scripts/start_fichero_server.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
+FICHERO_BASE_PATH="$HOME/Fichero Dev Test/state" bash fichero-server/scripts/start_fichero_server.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
 # Both launchers REFUSE to start without FICHERO_BASE_PATH set to a scratch folder (never ~/Fichero, ~/Fichero Projects,
 # the app's state dir or an app container, #5924). Only the owner, on purpose, by hand: FICHERO_ALLOW_REAL_STATE=1
-# ./fichero-server/scripts/start_fichero_server.sh --uds  (no script or agent ever sets it).
+# ./fichero-server/scripts/start_fichero_server.sh --uds  (no script or agent ever sets it). It lifts only the
+# unset-base and default-state-dir refusals: ~/Fichero*, ~/Fichero Projects and the app containers stay refused.
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/
@@ -572,7 +573,7 @@ The ones that cost hours, and that no test catches for you:
 - **`HOST NEVER STARTED` / `Assertion failed: childPID > 0` means LaunchServices, not your code.** Every build product, DMG staging dir, gate snapshot, deleted agent worktree and mounted `.dmg` registers ANOTHER `Fichero.app` under the SAME bundle id. Once dozens accumulate — most pointing at paths that no longer exist — `IDELaunchServicesLauncher` can resolve the id to a dead path and the test host never launches. The CLI gate reports only `HOST NEVER STARTED`, which reads like a broken test. Diagnose, don't retry: `lsregister -dump | grep -i 'path:.*Fichero\.app'`, then check which of those directories still exist. `lsregister -kill` NO LONGER EXISTS on current macOS; purge dead entries individually with `lsregister -u <path>`, and delete stale build products so they stop re-registering. Running tests through the `xcode` MCP sidesteps the whole thing.
 - **New `.swift` files just work — never run `add-swift-file.rb` on the app target.** It's a synchronized folder; explicit registration DUPLICATES the build file. Never hand-edit `project.pbxproj`.
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is editable-installed against your MAIN checkout, not this worktree — without it, a worktree gates the *stale* tree.
-- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_fichero_server.sh`.
+- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_fichero_server.sh` with `FICHERO_BASE_PATH` set to a scratch dir (e.g. `~/Fichero Dev Test/state`); it refuses to start without one (#5924). Only the owner, by hand, sets `FICHERO_ALLOW_REAL_STATE=1` to run on the real app state.
 - **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide endpoints — health, providers/catalog, settings — skip it).
 - **A `pytest -k` subset skips the architecture guardrails.** Anything touching a persisted DB, a route, or a Swift service needs the full run.
 - **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "<page>.md"` has no `docs/<page>.md` substring to grep — moving a file breaks it silently.
