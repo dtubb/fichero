@@ -113,9 +113,10 @@ def ceiling(args) -> None:
                 folder = Path(scratch) / str(i)
                 folder.mkdir()
                 inputs: list[str] = []
-                for page in shard:
-                    (folder / page.name).symlink_to(page.resolve())
-                    inputs += ["-I", str(folder / page.name)]
+                for k, page in enumerate(shard):  # --repeat lists a page more than once: one link name per read
+                    link = folder / f"r{k:03}_{page.name}"
+                    link.symlink_to(page.resolve())
+                    inputs += ["-I", str(link)]
                 procs.append(subprocess.Popen([kraken, "-f", "image", *inputs, "-o", ".gilproof.txt", "segment", "-bl",
                                                "ocr", "-m", str(args.model)], env={**os.environ, **ONE_THREAD},
                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
