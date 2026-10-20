@@ -31,6 +31,14 @@ struct StageTryProgressTests {
         #expect(bare.underWayWords == "Working on it.")
     }
 
+    /// A try with no compared candidates carries its progress on the result itself.
+    @Test func aTryWithNoCandidatesShowsItsOwnProgress() throws {
+        let r = try result(#"{"state":"running","progress":{"state":"running","done":1,"total":5,"step":"finding lines"}}"#)
+        #expect(r.progressLines == ["Page 2 of 5, finding lines"])
+        let done = try result(#"{"state":"done","progress":{"state":"done","done":5,"total":5}}"#)
+        #expect(done.progressLines.isEmpty)
+    }
+
     @Test func aFinishedModelShowsNoProgressLine() throws {
         let r = try result(#"{"state":"done","candidates":[{"card":"k","name":"Kraken","progress":{"state":"done","done":5,"total":5}}]}"#)
         #expect(r.progressLines.isEmpty)

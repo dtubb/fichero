@@ -187,6 +187,8 @@ struct SetupStageTryResult: Decodable, Equatable {
     let waitingFor: String?
     /// The try's job in Activity, for Stop.
     let jobId: String?
+    /// Where a try with no compared candidates is, on the result itself (`try-progress-in-place`).
+    let progress: StageCandidate.Progress?
 
     struct Comparison: Decodable, Equatable {
         let state: String?
@@ -194,7 +196,7 @@ struct SetupStageTryResult: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison
+        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison, progress
         case perPage = "per_page"
         case waitingFor = "waiting_for"
         case jobId = "job_id"
@@ -225,7 +227,11 @@ struct SetupStageTryResult: Decodable, Equatable {
 
     /// "Kraken: page 2 of 5, finding lines" for each candidate under way, in the order compared.
     var progressLines: [String] {
-        (candidates ?? []).compactMap { $0.progressWords }
+        let each = (candidates ?? []).compactMap { $0.progressWords }
+        if !each.isEmpty || !(candidates ?? []).isEmpty { return each }
+        // No candidates compared: the try's own progress, with no model's name in front of it.
+        guard let progress, progress.state == "running" || progress.state == "waiting", progress.total > 0 else { return [] }
+        return ["Page \(min(progress.done + 1, progress.total)) of \(progress.total)" + (progress.step.map { ", \($0)" } ?? "")]
     }
 
     /// "Kraken: 27 lines, 3 regions · Apple Vision: 25 lines" for one page: each model's counts side by side

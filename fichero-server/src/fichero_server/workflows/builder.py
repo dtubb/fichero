@@ -1724,6 +1724,10 @@ def _make_parallel_node_function(
     skip_cache = workflow_config.get("skip_cache", False) if workflow_config else False
     is_cacheable = node_def.tool in CACHEABLE_TOOLS
 
+    # Set by the first page whose failure holds for every page (`page_retry.is_refusal_for_every_page`): the pages
+    # not yet read do not start, and the node fails on it at once instead of trying page after page.
+    refused_for_all: list[str] = []
+
     async def parallel_node_function(state: State) -> dict:
         """Process a single file in parallel."""
         node_id = node_def.id
@@ -2083,6 +2087,9 @@ def _make_parallel_node_function(
             tries_left = 1
             while True:
                 caught: Exception | None = None
+                if refused_for_all:  # an earlier page's refusal holds for this page too: it does not try
+                    result, error_msg = None, refused_for_all[0]
+                    break
                 async with vision_slot(remote=_is_remote_model(node_llm_config), neural=_is_neural_model(node_llm_config)):
                     # #4317: branches queued behind the semaphore re-check after
                     # acquiring it, so a cancel stops the queue within one file
@@ -2111,6 +2118,10 @@ def _make_parallel_node_function(
                         for r in result.get("results", []):
                             if isinstance(r, dict) and r.get("error"):
                                 error_msg = r["error"]
+                                # A refusal of the run's own language holds for every page; one of this page's own
+                                # language holds for this page only (`VisionLocaleRefused.source`).
+                                if (r.get("refusal") or {}).get("source") == "run" and not refused_for_all:
+                                    refused_for_all.append(str(error_msg))
                                 break
                 cause = str(caught) if caught is not None else error_msg
                 if (
@@ -2173,6 +2184,7 @@ def _make_parallel_node_function(
                                 "total": total,  # Include total for SSE
                                 "error": error_msg,
                                 "success": False,
+                                "refused_for_all": bool(refused_for_all) and error_msg == refused_for_all[0],
                             }
                         ]
                     },
@@ -2396,6 +2408,8 @@ def _make_aggregation_function(node_id: str):
             else:
                 consecutive_errors += 1
                 max_consecutive_errors = max(max_consecutive_errors, consecutive_errors)
+                if item.get("refused_for_all"):
+                    max_consecutive_errors = MAX_CONSECUTIVE_ERRORS  # the same for every page: stop at the first
                 errors.append(
                     {
                         "file": item.get("file"),

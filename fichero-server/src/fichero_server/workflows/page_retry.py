@@ -34,3 +34,4 @@ def is_passing_cause(cause: object) -> bool:
     """True when a page's failure names a cause that passes by itself."""
     text = str(cause or "")
     return bool(text) and bool(_PASSING.search(text)) and not _LASTING.search(text)
+
