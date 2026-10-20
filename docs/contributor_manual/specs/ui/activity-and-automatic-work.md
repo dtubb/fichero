@@ -1592,6 +1592,7 @@ and node, not by job); a retry action for failed pages.
   going slower"). Leaving the hold resumes. This supersedes the "input in the last 30 s" hold below
   (`fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`, `test_one_throttle_rule_5819.py`,
   `test_kraken_never_waits_on_use_or_build_5819.py`). Low Power Mode reads as "on battery" (`throttle.battery_or_low_power`, `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py`).
+  - *Amended 2026-10-20 (owner ruling).* An import's AUTOMATIC Kraken reading, while the Mac is used or a build runs, goes at the middle priority (utility QoS) and keeps the same few threads, not at the lowest class; the lowest class was far too slow for the one job an import always starts (the old measurement was about 18 times slower for Kraken, `fichero-server/scripts/bench_priority_qos.py` re-measures it). All other automatic work stays at the lowest class. Built (engine): `kraken_runtime.set_page_priority` lifts only a page that would have run at background and was not started by a person, via `compute_preferences.apply_to_this_thread(lift_to_utility=True)`; the page's log line prints the class it really got (pinned by `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py`).
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
