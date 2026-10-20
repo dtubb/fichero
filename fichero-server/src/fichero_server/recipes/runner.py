@@ -449,7 +449,16 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         awaited = _awaited_child(db, job_id)
         try:
             awaited_state = jobs._job_row(db, awaited)[1] if awaited is not None else None
-        except KeyError:  # the step run's row is gone: say so, and the recipe starts that step again
+        except KeyError:  # the job row is gone; the run may not be (pay-twice risk): the retake adopts it from its own state
+            from fichero_server.execution.runner import _get_workflow_state
+
+            run = _get_workflow_state(awaited)
+            if run is not None:  # keep 'awaiting': adopting reads the run's own outcome, nothing is read again
+                if run.get("status") == "paused":
+                    _resume_step_run(db, awaited, job_id)
+                db.execute("UPDATE jobs SET run_after = NULL, reason = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+                jobs.wake_lane(db)
+                return jobs._job_row(db, job_id)[1]
             row = jobs.read_job(db, job_id)
             detail = json.loads(row["detail"] or "{}")
             detail.pop("awaiting", None)
