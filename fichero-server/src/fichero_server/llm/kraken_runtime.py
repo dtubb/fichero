@@ -872,6 +872,19 @@ def quiet_coreml_warning() -> None:
 _QOS = {"fast": "user-initiated", "balanced": "utility", "background": "background"}
 
 
+def set_page_priority(person: bool) -> tuple[str, str, int]:
+    """Set this thread's priority for one page: (priority, the QoS class it got, the cores to use). Automatic Kraken
+    reading, which the throttle would put at the lowest class while the Mac is used or a build runs, goes at utility QoS
+    with the same few threads (owner ruling 2026-10-20, `activity.throttle.use-means-slower`); every other priority
+    and all other automatic work are untouched."""
+    from fichero_server.core.compute_preferences import apply_to_this_thread, priority_for
+
+    priority = priority_for(person)
+    lifted = priority == "background" and not person
+    cores = apply_to_this_thread(priority, lift_to_utility=lifted)
+    return priority, "utility" if lifted else _QOS.get(priority, "?"), cores
+
+
 def _log_page(total: float) -> None:
     """One INFO line per page: what each stage took and the priority it ran at (the speed review, 2026-10-19)."""
     def secs(name: str) -> str:
@@ -880,7 +893,7 @@ def _log_page(total: float) -> None:
     priority = str(_PAGE.get("priority", "?"))
     logger.info("kraken page %s: load %s segment %s recognise %s total %.1fs | priority=%s qos=%s threads=%s "
                 "person=%s throttle=%s", _PAGE.get("name", "?"), secs("load"), secs("segment"), secs("recognise"),
-                total, priority, _QOS.get(priority, "?"), _PAGE.get("threads", "?"),
+                total, priority, str(_PAGE.get("qos") or _QOS.get(priority, "?")), _PAGE.get("threads", "?"),
                 "yes" if _PAGE.get("person") else "no", _PAGE.get("throttle", "?"))
 
 
@@ -928,16 +941,12 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # is UTILITY, not background, because someone is waiting for this page (measured:
             # 23 s at utility against 426 s at background for one page, #4959); fast drops the
             # throttle; background yields to everything.
-            from fichero_server.core.compute_preferences import apply_to_this_thread
-
-            from fichero_server.core.compute_preferences import priority_for
-
             from fichero_server.execution.throttle import decide
 
-            priority = priority_for(person)
+            priority, qos, cores = set_page_priority(person)
             # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
-            threads = max(1, apply_to_this_thread(priority) // max(1, _INFERENCE_LOCK.pages_inside()))
-            _PAGE.update(priority=priority, threads=threads, person=person, throttle=decide(person).action)
+            threads = max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+            _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)

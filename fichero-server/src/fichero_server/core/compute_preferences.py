@@ -78,8 +78,12 @@ def save_preferences(priority: str, device: str) -> dict[str, str]:
     return {"priority": priority, "device": device}
 
 
-def apply_to_this_thread(priority: str) -> int:
-    """Set the calling thread's priority for model work; returns the torch thread count to use."""
+def apply_to_this_thread(priority: str, *, lift_to_utility: bool = False) -> int:
+    """Set the calling thread's priority for model work; returns the torch thread count to use.
+
+    `lift_to_utility`: background's few threads, but at utility QoS, not the lowest class (an import's own automatic
+    Kraken reading, `activity.throttle.use-means-slower`, owner ruling 2026-10-20); it changes nothing for any other
+    priority."""
     from fichero_server.core.background_compute import (
         cpu_count,
         embed_threads,
@@ -92,7 +96,7 @@ def apply_to_this_thread(priority: str) -> int:
         set_fast_qos()
         return cpu_count()
     if priority == "background":
-        set_background_qos()
+        set_utility_qos() if lift_to_utility else set_background_qos()
         return max(1, embed_threads() // 2)
     set_utility_qos()
     return max(1, embed_threads())
