@@ -157,6 +157,11 @@ class RemoteEmbedder:
                     self._conn.send(list(texts))
                     if not self._conn.poll(self._embed_timeout):
                         self.close()
+                        from fichero_server.execution.throttle import MemoryShortError, memory_is_busy
+
+                        if memory_is_busy():  # slow because the Mac is short of memory: try again, do not fail the job (#23)
+                            raise MemoryShortError(
+                                "Waiting: memory is tight, so embedding for search was slow; it will try again.")
                         raise EmbedderUnavailable(
                             f"Embedding for search took more than {self._embed_timeout / 60:g} minutes, so it was stopped.")
                     kind, payload = self._conn.recv()

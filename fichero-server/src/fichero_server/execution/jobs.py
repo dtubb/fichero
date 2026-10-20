@@ -1057,6 +1057,7 @@ def _open_library(library_path: str | None) -> "Database | None":
 
 
 #: How often a page waiting for the lane looks at its run's Stop flag.
+STOP_POLL_MAX_SECONDS = 1.0
 STOP_POLL_SECONDS = 0.25
 
 
@@ -1087,8 +1088,12 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
     """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
     stopped while the job is still waiting for the lane, or `JobCancelled` if its project closes
     (#5608: it waited for good, a lane never looks at a closed project)."""
+    polls = 0
     while True:
-        done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
+        # A page that has waited a while looks less often (Fable review #18: 500 waiting pages woke 2,000 times a second):
+        # 0.25 s, 0.5 s, then `STOP_POLL_MAX_SECONDS`. A Stop is felt within that.
+        done, _ = await asyncio.wait({signal}, timeout=min(STOP_POLL_MAX_SECONDS, STOP_POLL_SECONDS * 2 ** min(polls, 6)))
+        polls += 1
         if done:
             if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
                 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
@@ -3003,7 +3008,14 @@ class _Scheduler:
                 if fits:
                     logger.info("model-lane: keep %s loaded beside %s (%s)", _family(lane.loaded_model), _family(model), why)
                 else:
-                    _RELEASE[_family(lane.loaded_model)](f"memory: {why}; the lane switches to {_family(model)} for job {job_id}")
+                    # The reason FIRST, then the release: it takes the family's own lock, which a model call in flight may
+                    # hold, and the row must not sit silent behind it (Fable review #19).
+                    wait_on(db, job_id, f"Waiting for {_family(lane.loaded_model)} to let go of its models")
+                    try:
+                        _RELEASE[_family(lane.loaded_model)](
+                            f"memory: {why}; the lane switches to {_family(model)} for job {job_id}")
+                    finally:
+                        wait_over(db, job_id)
             if model is not None and not is_light(model):
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
