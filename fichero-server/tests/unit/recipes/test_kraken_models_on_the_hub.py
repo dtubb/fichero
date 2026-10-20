@@ -39,7 +39,7 @@ def test_the_card_pin_names_the_reader_the_download_job_fetches():
 def test_a_hub_reader_downloads_its_one_model_file_into_its_own_folder(data_home, monkeypatch):
     monkeypatch.setattr(kr, "require_installed", lambda: None)
     monkeypatch.setattr(kr, "hub_files", lambda repo: [
-        {"url": f"https://huggingface.co/{repo}/resolve/main/small.safetensors", "size": 7}])
+        {"url": f"https://huggingface.co/{repo}/resolve/main/small.safetensors", "size": 7, "revision": "main"}])
     fetched = []
 
     def fetch(url, dest, *, name, size=None, should_stop=lambda: False, on_bytes=None, **kw):
@@ -66,27 +66,49 @@ def test_a_repository_with_two_model_files_is_refused_in_words(data_home, monkey
     assert not kr.is_recognition_model_installed(READER)
 
 
-def test_the_hub_lists_files_of_a_kraken_repository_only(monkeypatch):
-    class Response:
-        def __init__(self, body):
-            self.body = body
+def _hub(monkeypatch, body):
+    import requests
 
+    class Response:
         def raise_for_status(self):
             pass
 
         def json(self):
-            return self.body
+            return body
 
-    import requests
+    monkeypatch.setattr(requests, "get", lambda url, **kw: Response())
 
-    body = {"tags": ["kraken"], "library_name": "kraken", "siblings": [
-        {"rfilename": "README.md", "size": 9}, {"rfilename": "small.safetensors", "size": 7}]}
-    monkeypatch.setattr(requests, "get", lambda url, **kw: Response(body))
-    assert kr.hub_files(REPO) == [{"url": f"https://huggingface.co/{REPO}/resolve/main/small.safetensors", "size": 7}]
-    body2 = {"tags": ["transformers"], "library_name": "transformers", "siblings": []}
-    monkeypatch.setattr(requests, "get", lambda url, **kw: Response(body2))
+
+def test_the_hub_lists_the_one_model_file_pinned_to_the_commit_it_answered_with(monkeypatch):
+    _hub(monkeypatch, {"tags": ["kraken"], "library_name": "kraken", "sha": "a" * 40, "siblings": [
+        {"rfilename": "README.md", "size": 9}, {"rfilename": "small.safetensors", "size": 7}]})
+    assert kr.hub_files(REPO) == [{"url": f"https://huggingface.co/{REPO}/resolve/{'a' * 40}/small.safetensors",
+                                   "size": 7, "revision": "a" * 40}]
+
+
+def test_a_repository_that_is_not_kraken_or_holds_two_model_files_is_refused_before_anything_downloads(monkeypatch):
+    _hub(monkeypatch, {"tags": ["transformers"], "library_name": "transformers", "siblings": []})
     with pytest.raises(ValueError, match="not a Kraken"):
         kr.hub_files(REPO)
+    _hub(monkeypatch, {"tags": ["kraken"], "sha": "b" * 40, "siblings": [
+        {"rfilename": "a.safetensors", "size": 1}, {"rfilename": "b.mlmodel", "size": 1}]})
+    with pytest.raises(ValueError, match="2 model files"):
+        kr.hub_files(REPO)
+    _hub(monkeypatch, {"tags": ["kraken"], "sha": "b" * 40, "siblings": [{"rfilename": "README.md", "size": 1}]})
+    with pytest.raises(ValueError, match="0 model files"):
+        kr.hub_files(REPO)
+
+
+def test_the_installed_record_keeps_the_commit_it_was_fetched_at(data_home, monkeypatch):
+    import json
+
+    monkeypatch.setattr(kr, "require_installed", lambda: None)
+    monkeypatch.setattr(kr, "hub_files", lambda repo: [
+        {"url": f"https://huggingface.co/{repo}/resolve/{'c' * 40}/small.safetensors", "size": 7, "revision": "c" * 40}])
+    monkeypatch.setattr("fichero_server.llm.model_downloads.fetch_file",
+                        lambda url, dest, **kw: (dest.parent.mkdir(parents=True, exist_ok=True), dest.write_bytes(b"x" * 7)))
+    kr.download_recognition_model(READER)
+    assert json.loads(kr._marker_path(READER).read_text())["revision"] == "c" * 40
 
 
 def test_the_search_makes_a_kraken_card_that_runs_on_this_mac_and_downloads(monkeypatch):

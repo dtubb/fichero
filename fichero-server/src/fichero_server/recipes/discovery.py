@@ -1099,7 +1099,26 @@ def _kraken_hub_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -
         return None
     card = _hf_card(model, what, "a Kraken reader on Hugging Face: downloads and runs on this Mac with the Kraken Fichero ships",
                     wanted)
-    return replace(card, id=f"kraken:hf/{repo}@main", pin={"kraken_hf": repo})
+    sha = str(model.get("sha") or "")  # the commit the listing was read at, kept in the pin when the Hub gave one
+    return replace(card, id=f"kraken:hf/{repo}@main", pin={"kraken_hf": repo, **({"revision": sha} if sha else {})})
+
+
+def _trocr_on_hub(model: dict[str, Any]) -> bool:
+    """A TrOCR-family model on the Hub (a VisionEncoderDecoder with safetensors): the bundled torch and transformers run it."""
+    words = _words(model)
+    return (bool(words & {"trocr", "vision-encoder-decoder"}) and "safetensors" in (model.get("tags") or [])
+            and not _gguf_only(model))
+
+
+def _trocr_hub_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
+    """A Hub TrOCR model's card: it reads the lines Kraken found, here, and downloads when first used
+    (`source.onboard.model-search-trocr-runs-here`, #5981)."""
+    from dataclasses import replace
+
+    repo = str(model.get("modelId") or model.get("id"))
+    card = _hf_card(model, what, "a TrOCR model: it reads the lines Kraken finds, on this Mac with the torch and transformers "
+                    "Fichero ships, and downloads when first used", wanted)
+    return replace(card, id=f"trocr:hf/{repo}@main", pin={"trocr": repo}, jobs=frozenset({"read-a-line"}))
 
 
 def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
@@ -1249,6 +1268,15 @@ async def search_hugging_face(languages: frozenset[str],
         if _kraken_on_hub(m):
             if (card := _kraken_hub_card(m, what, languages)) is not None:
                 found.setdefault(repo, card)
+            return
+        if _trocr_on_hub(m) and not _runs_on_mlx(m):
+            try:
+                from fichero_server.llm.trocr_runtime import reader_id_for_trocr
+
+                reader_id_for_trocr(repo)
+                found.setdefault(repo, _trocr_hub_card(m, what, languages))
+            except ValueError:
+                not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
             return
         if _remote_vlm(m) and not _catalogue_repo(repo):
             vlms[repo] = (m, what)

@@ -146,7 +146,11 @@ def _load_trocr(model_id: str) -> tuple[Any, Any, str]:
         ) from exc
     from fichero_server.db.paths import hf_hub_dir
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
+
+    # The CPU unless the person chose the GPU: a process that used MPS faults at exit on macOS 27 (#5929), and the GPU
+    # keeps a compiled graph for every new line shape (`torch_accelerator`).
+    device = torch_accelerator(compute_preferences()["device"])
     # Into Fichero's store, never ~/.cache (`runtime.models-in-the-store`: 4.2 GB of tridis was found there).
     store = str(hf_hub_dir())
     processor = TrOCRProcessor.from_pretrained(model_id, cache_dir=store)

@@ -75,3 +75,15 @@ def test_the_candidate_list_carries_the_options():
     from fichero_server.api.routes.system.recipes import ModelCandidate
 
     assert "places" in ModelCandidate.model_fields
+
+
+def test_no_option_says_a_size_or_memory_is_not_stated():
+    """The owner's ruling: a figure the card does not have is left out, not printed as 'not stated'."""
+    cards_with_no_figures = [
+        card(pin={"kraken_hf": "a/b"}),
+        card(pin={"hf": "mlx-community/x", "revision": "main"}),
+        card(pin={"hf": "o/vlm", "revision": "main"}, runs_on=discovery.REMOTE_RUNS_ON),
+    ]
+    for c in cards_with_no_figures:
+        for o in places_it_can_run(c, this_mac_gb=16, hf_ready=True, clusters=["acenet"]):
+            assert "not stated" not in o["needs"] + o["why"], o

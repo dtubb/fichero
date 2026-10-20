@@ -331,8 +331,10 @@ def reader_id_for_hub(repo: str) -> str:
 
 
 def hub_files(repo: str) -> list[dict[str, object]]:
-    """The model file of a Kraken repository on Hugging Face, as [{url, size}] (one `.mlmodel` or `.safetensors`, found by
-    name; the download checks there is exactly one). Raises when the Hub says the repository is not a Kraken model. Network."""
+    """The one model file of a Kraken repository on Hugging Face, as [{url, size, revision}]: the URL is pinned to the commit
+    the Hub answered with (`revision`), never `main`, so the file that was read is the file that downloads. Raises, before
+    anything downloads, when the Hub says the repository is not a Kraken model or holds other than one `.mlmodel` or
+    `.safetensors` file. Network."""
     from urllib.parse import quote
 
     import requests
@@ -342,8 +344,14 @@ def hub_files(repo: str) -> list[dict[str, object]]:
     info = found.json()
     if "kraken" not in (info.get("tags") or []) and info.get("library_name") != "kraken":
         raise ValueError(f"{repo} is not a Kraken model on Hugging Face")
-    return [{"url": f"https://huggingface.co/{repo}/resolve/main/{quote(str(s['rfilename']))}", "size": s.get("size")}
-            for s in info.get("siblings") or [] if str(s["rfilename"]).endswith((".mlmodel", ".safetensors"))]
+    revision = str(info.get("sha") or "main")
+    files = [{"url": f"https://huggingface.co/{repo}/resolve/{revision}/{quote(str(s['rfilename']))}", "size": s.get("size"),
+              "revision": revision}
+             for s in info.get("siblings") or [] if str(s["rfilename"]).endswith((".mlmodel", ".safetensors"))]
+    if len(files) != 1:
+        raise ValueError(f"{repo} holds {len(files)} model files; Fichero reads a repository with exactly one "
+                         "(.mlmodel or .safetensors), and downloads nothing from this one")
+    return files
 
 
 def reader_id_for_doi(doi: str) -> str:
@@ -1471,6 +1479,8 @@ def download_recognition_model(
     data_home = recognition_data_home(home) / model_id
     data_home.mkdir(parents=True, exist_ok=True)
 
+    pinned: dict[str, str] = {}  # the commit a Hub reader was fetched at, for its record
+
     def _fetch() -> object:
         # Each file resumed after a broken connection and checked against the record's size (#5660 item 12).
         from urllib.parse import urlsplit
@@ -1479,6 +1489,8 @@ def download_recognition_model(
 
         name = recognition_display_name(model_id)
         files = hub_files(str(spec["hf"])) if "hf" in spec else record_files(str(spec["doi"]))
+        if "hf" in spec:
+            pinned["revision"] = str(files[0].get("revision") or "")
         total = sum(int(f["size"] or 0) for f in files) or None
         done = 0
         for file in files:
@@ -1512,7 +1524,7 @@ def download_recognition_model(
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(
-        json.dumps({**({"hf": str(spec["hf"])} if "hf" in spec else {"doi": str(spec["doi"])}),
+        json.dumps({**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
                     "model_path": model_path, "bytes": found[0].stat().st_size}),
         encoding="utf-8",
     )

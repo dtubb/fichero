@@ -880,7 +880,7 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             size_mb = (int(size_bytes) // 1_000_000 or None) if size_bytes else spec.get("size_mb")
             if not size_mb and seed is not None and seed.size_gb:  # its card states it (#5801: "size not stated")
                 size_mb = round(seed.size_gb * 1000) or None
-            label = f"the Kraken reader {spec.get('display_name') or _seed_name(spec.get('doi')) or record.get('summary') or name}"
+            label = f"the Kraken reader {spec.get('display_name') or _seed_name(spec.get('doi')) or record.get('summary') or spec.get('hf') or name}"
         else:
             continue
         entry = out.setdefault(name, {"runtime": runtime, "model": name, "name": label, "steps": [],
