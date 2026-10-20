@@ -775,6 +775,10 @@ def create_user(
         is_owner=is_owner,
         active=True,
     )
+    if is_owner:
+        from fichero_server.security.multiuser import note_owner_password_set
+
+        note_owner_password_set(app_db)  # a person chose this password
     return _to_public_user(user)
 
 
@@ -798,10 +802,16 @@ def update_user(
     body: UpdateUserRequest,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> UserResponse:
-    _multiuser_disabled()
+    user = app_db.get_user(user_id)
+    if not _use_multiuser_auth():
+        # While Multi-user is off the only change allowed is the owner's password, by the app's own credential, so
+        # it can be set BEFORE the switch is turned on (`multiuser.turning-on-needs-an-owner-password`, #5908).
+        if not getattr(request.state, "bootstrap_auth", False):
+            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+        if user is None or not user.is_owner or set(body.model_fields_set) - {"password"} or body.password is None:
+            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
     _require_owner_or_bootstrap(request)
 
-    user = app_db.get_user(user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
 
@@ -820,6 +830,10 @@ def update_user(
     if body.password is not None:
         app_db.set_password(user_id, accounts.hash_password(body.password))
         app_db.revoke_all_for_user(user_id)
+        if user.is_owner:
+            from fichero_server.security.multiuser import note_owner_password_set
+
+            note_owner_password_set(app_db)
     if body.active is not None:
         if not body.active:
             app_db.revoke_all_for_user(user_id)

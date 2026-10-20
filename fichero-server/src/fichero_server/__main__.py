@@ -491,6 +491,9 @@ def main(argv: list[str] | None = None):
                     tcp_port,
                     exc,
                 )
+            from fichero_server.api.transport_diagnostics import note_tcp_listeners
+
+            note_tcp_listeners([s.getsockname()[0] for s in tcp_sockets])  # what a pairing link may name (#5736)
             if tcp_sockets:
                 tcp_kwargs = dict(
                     app="fichero_server.api.tcp_transport:app",

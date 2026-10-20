@@ -10,6 +10,14 @@ from __future__ import annotations
 from tests.unit.transport.test_two_macs_end_to_end_to_spec import _bearer, two_macs  # noqa: F401
 
 
+def _an_owner_with_a_chosen_password(app_db):
+    """Turning Multi-user on needs an owner whose password a person chose (#5908)."""
+    from fichero_server.security import accounts, multiuser
+
+    app_db.create_user(username="owner-5908", display_name="Owner", password_hash=accounts.hash_password("chosen"), is_owner=True)
+    multiuser.note_owner_password_set(app_db)
+
+
 def _owner(a):
     s = a.post("/api/auth/login", json={"username": "owner", "password": "password"}).json()["session_token"]
     return _bearer(s)
@@ -35,6 +43,7 @@ def test_the_multiuser_switch_is_an_audited_undoable_action(test_package, app_db
     from fichero_server.db import db_manager
 
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    _an_owner_with_a_chosen_password(app_db)
     library_db = db_manager.get_database(test_package)
     ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
     result = registry.invoke(library_db, "sharing.set_multiuser", {"enabled": True}, ctx)
@@ -105,6 +114,7 @@ def test_the_multiuser_answer_names_the_audit_row_for_undo(test_package, app_db,
     from fichero_server.db import db_manager
 
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    _an_owner_with_a_chosen_password(app_db)
     monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
     ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
     answer = pairing.set_multiuser(SimpleNamespace(), pairing.MultiuserRequest(enabled=True), app_db,
