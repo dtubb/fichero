@@ -66,8 +66,17 @@ enum AccountsAddSheetModel {
     /// A new account's password rule, the same the invite redeem applies.
     static let minimumPasswordLength = 8
 
-    /// The invite choice is there only while Multi-user is on: an invite is meaningless without it.
-    static func offersInvite(multiUserOn: Bool) -> Bool { multiUserOn }
+    /// Send Invite Link waits for the person-bound invite (viewer, 7 days, the person sets a password) and the OpenAPI regen:
+    /// today's invite route mints a 15-minute link with no role, which must not be offered (## 757). Flip when it lands.
+    static let inviteLinkBuilt = false
+
+    /// The invite choice is there only while Multi-user is on (an invite is meaningless without it) and once it is built.
+    static func offersInvite(multiUserOn: Bool) -> Bool { multiUserOn && inviteLinkBuilt }
+
+    /// The one grey line that says why the choice is not there, while Multi-user is on and the invite is not built yet.
+    static func inviteNote(multiUserOn: Bool) -> String? {
+        multiUserOn && !inviteLinkBuilt ? "Invite links come with the next update. For now, give the person a password." : nil
+    }
 
     /// Owner is for an account made with a password; an invited person starts as a viewer and sets their own password.
     static func asksOwner(way: Way) -> Bool { way == .password }

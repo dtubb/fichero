@@ -41,7 +41,9 @@ struct AccountsPaneModelTests {
 
     @Test("the invite choice is there only while Multi-user is on, and Owner only with a password")
     func choices() {
-        #expect(Sheet.offersInvite(multiUserOn: true) && !Sheet.offersInvite(multiUserOn: false))
+        // Not built until r1's person-bound invite and the regen (## 757): today's 15-minute role-less link is never offered.
+        #expect(!Sheet.offersInvite(multiUserOn: true) && !Sheet.offersInvite(multiUserOn: false))
+        #expect(Sheet.inviteNote(multiUserOn: true) != nil && Sheet.inviteNote(multiUserOn: false) == nil)
         #expect(Sheet.asksOwner(way: .password) && !Sheet.asksOwner(way: .invite))
     }
 
