@@ -37,3 +37,11 @@ def test_the_bonjour_advert_follows_the_one_port():
 
     assert build_bonjour_config({"FICHERO_TCP_PORT": "18765", "FICHERO_ENV": "test"}, host="192.0.2.1").port == 18765
     assert build_bonjour_config({"FICHERO_TCP_PORT": "18765", "FICHERO_ENV": "production"}, host="192.0.2.1").port == 8765
+
+
+def test_the_bonjour_ports_own_variable_is_gated_like_the_listeners():
+    from fichero_server.security.discovery import build_bonjour_config
+
+    assert build_bonjour_config({"FICHERO_BONJOUR_PORT": "19999"}, host="192.0.2.1").port == 8765
+    assert build_bonjour_config({"FICHERO_ENV": "production", "FICHERO_BONJOUR_PORT": "19999"}, host="192.0.2.1").port == 8765
+    assert build_bonjour_config({"FICHERO_ENV": "test", "FICHERO_BONJOUR_PORT": "19999"}, host="192.0.2.1").port == 19999
