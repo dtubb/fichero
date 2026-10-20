@@ -111,3 +111,45 @@ def test_when_nothing_is_found_the_words_say_what_a_person_can_do():
     said = discovery.nothing_found_words(frozenset({"lzh"}))
     assert said.startswith("No model that reads ") and "train one from about a hundred lines you correct" in said
     assert "cloud reader" in said
+
+
+def test_slavonic_hanzi_and_guji_are_searched_for_the_languages_that_models_name_that_way():
+    assert "slavonic" in discovery.search_words(frozenset({"cu"}))  # the ISO name is Church Slavic
+    assert {"hanzi", "guji"} <= set(discovery.search_words(frozenset({"lzh"})))
+    assert "aramaic" in discovery.search_words(frozenset({"syc"}))
+
+
+def test_a_qualifier_in_a_language_name_is_not_a_search_word():
+    words = discovery.search_words(frozenset({"zh", "ota", "cu"}))
+    assert not {"official", "literary", "dialect", "regional"} & set(words)
+
+
+def test_the_step_search_asks_for_the_aliases_too(monkeypatch):
+    asked = []
+
+    async def fetch(task=None, search=None, sort="downloads", limit=20, offset=0, library=None, tags=None):
+        asked.append(list(tags or []))
+        return []
+
+    monkeypatch.setattr("fichero_server.api.routes.ai.models._fetch_hf_models", fetch)
+    job = next(iter(discovery.STEP_SEARCHES))
+    asyncio.run(discovery.search_hugging_face_for_step(job, frozenset({"ota"})))
+    assert any("ott" in tags for tags in asked) and any("ota" in tags for tags in asked)
+
+
+def test_the_cards_are_fetched_together_and_a_card_is_capped(hub, monkeypatch):
+    import time
+
+    started = []
+
+    async def slow(repo):
+        started.append(time.monotonic())
+        await asyncio.sleep(0.2)
+        return "x" * 10
+
+    monkeypatch.setattr(discovery, "_fetch_card_text", slow)
+    began = time.monotonic()
+    asyncio.run(discovery.search_hugging_face(frozenset({"ar"})))
+    assert len(started) == 2 and max(started) - min(started) < 0.15, "fetched one after another"
+    assert time.monotonic() - began < 0.38, "two 0.2 s fetches took as long as in a row"
+    assert discovery.CARD_BYTES <= 100_000
