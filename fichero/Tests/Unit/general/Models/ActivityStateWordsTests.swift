@@ -71,6 +71,18 @@ struct ActivityStateWordsTests {
         #expect(!built.isLive)
     }
 
+    @Test("a run part-way through Stop, Pause, Resume or Retry says so, not Running (## 697)")
+    func transientStatesHaveTheirOwnWords() throws {
+        let words = ["stopping": "Stopping", "pausing": "Pausing", "resuming": "Resuming", "retrying": "Retrying"]
+        for (state, word) in words {
+            let run = ActivityRun(node: try jobNode(state: state), libraryId: nil, libraryName: nil)
+            let row = ActivityMonitorRow.run(run, tree: nil)
+            #expect(row.phase == .running && row.stateText == word, "\(state)")
+        }
+        let plain = ActivityRun(node: try jobNode(state: "running"), libraryId: nil, libraryName: nil)
+        #expect(ActivityMonitorRow.run(plain, tree: nil).stateText == "Running")
+    }
+
     private func jobNode(state: String) throws -> ActivityJobNode {
         let json = """
         {"id":"run-1","kind":"workflow","name":"Transcribe","subject":"run-1","state":"\(state)","done":0,"total":0}

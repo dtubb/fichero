@@ -73,6 +73,17 @@ struct ActivityMonitorRow: Identifiable, Equatable {
             }
         }
 
+        /// The words for a state the engine is passing through, or nil for any other.
+        static func transientWord(_ engineState: String?) -> String? {
+            switch engineState?.lowercased() {
+            case "stopping": "Stopping"
+            case "pausing": "Pausing"
+            case "resuming": "Resuming"
+            case "retrying": "Retrying"
+            default: nil
+            }
+        }
+
         var isLive: Bool { self == .running || self == .waiting || self == .paused }
 
         /// The state as an SF Symbol (#5560).
@@ -166,6 +177,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var queuePosition: Int?
     /// The engine's own name for a state this app does not know, said as "unknown state <name>" (#5957).
     var unknownState: String?
+    /// "Stopping", "Pausing", "Resuming" or "Retrying" while the engine is part-way through that: a run just Stopped
+    /// does not read "Running" (## 697, #5957). The phase stays running (it is still live, and sorts so).
+    var transientState: String?
 
     // MARK: - Waiting looks like waiting (#5839)
 
@@ -233,6 +247,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         if let account, account.interrupted, let why = account.reason ?? reason {
             return why
         }
+        if phase == .running, let transientState { return transientState }
         // A running run whose page waits (for memory, #5537) says what for.
         if phase == .running, let waiting = account?.waitingReason, !waiting.isEmpty {
             return waiting.hasPrefix("Waiting") ? waiting : "Waiting: \(waiting)"

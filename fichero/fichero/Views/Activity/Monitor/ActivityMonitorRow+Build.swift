@@ -33,7 +33,8 @@ extension ActivityMonitorRow {
             children: steps.isEmpty ? nil : steps,
             account: tree?.account,
             engineKind: "workflow",
-            unknownState: phase == .unknown ? run.engineState : nil
+            unknownState: phase == .unknown ? run.engineState : nil,
+            transientState: Phase.transientWord(run.engineState)
         )
     }
 
@@ -68,7 +69,8 @@ extension ActivityMonitorRow {
             engineKind: job.taskType,
             ownJobId: job.id,
             offer: job.offer,
-            unknownState: Phase(job.state) == .unknown ? job.state.otherName : nil
+            unknownState: Phase(job.state) == .unknown ? job.state.otherName : nil,
+            transientState: Phase.transientWord(job.state.otherName)
         )
     }
 
@@ -98,7 +100,8 @@ extension ActivityMonitorRow {
             isLive: false,
             children: children.isEmpty ? nil : children,
             engineKind: node.kind,
-            unknownState: Phase(engineState: node.state) == .unknown ? node.state : nil
+            unknownState: Phase(engineState: node.state) == .unknown ? node.state : nil,
+            transientState: Phase.transientWord(node.state)
         )
     }
 
