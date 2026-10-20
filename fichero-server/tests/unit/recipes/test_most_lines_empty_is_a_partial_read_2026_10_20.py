@@ -16,7 +16,7 @@ LINE = {"polygon": [[0, 0], [90, 0], [90, 20], [0, 20]], "baseline": [[0, 15], [
 
 @pytest.mark.parametrize("empty, found, mostly", [
     (0, 0, False), (3, 3, True), (1, 2, False), (2, 4, False), (3, 4, False),  # under 5 lines: all or nothing
-    (2, 5, False), (3, 5, True), (20, 25, True), (12, 25, True), (12, 24, False), (13, 25, True), (1, 30, False)])
+    (2, 5, False), (3, 5, True), (20, 25, True), (12, 25, False), (12, 24, False), (13, 25, True), (1, 30, False)])
 def test_a_page_is_mostly_empty_when_more_than_half_of_at_least_five_lines_are(empty, found, mostly):
     assert reads_mostly_nothing(empty, found) is mostly
 
