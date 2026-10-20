@@ -116,16 +116,16 @@ def test_the_redeem_is_audited_with_the_person_the_minter_and_the_device(harness
 
 
 def test_the_bound_device_has_that_persons_role_never_the_owners(harness, monkeypatch):
+    """bob is a viewer (reads, cannot write); alice is an editor (writes). Neither is the owner."""
     users = _multiuser_on(harness, monkeypatch)
-    token = _redeem(harness, _invite(harness, "bob").json()["code"]).json()["device_token"]
-    assert harness.app_db.get_user(harness.app_db.get_device(
-        _redeem_device_id(harness, token)).user_id).is_owner is False
-    refused = harness.remote().post("/api/notes", json={"body": "viewer write"}, headers=_bearer(token))
-    assert refused.status_code == 403, "bob is a viewer: reads, cannot write"
-
-
-def _redeem_device_id(harness, token):
-    return next(d.id for d in harness.app_db.list_devices() if not d.revoked)
+    for name, may_write in (("bob", False), ("alice", True)):
+        paired = _redeem(harness, _invite(harness, name).json()["code"]).json()
+        device = harness.app_db.get_device(paired["device_id"])
+        assert device.user_id == users[name].id
+        assert harness.app_db.get_user(device.user_id).is_owner is False
+        wrote = harness.remote().post("/api/notes", json={"body": f"{name} writes"},
+                                      headers=_bearer(paired["device_token"]))
+        assert (wrote.status_code < 300) is may_write, f"{name}: {wrote.status_code} {wrote.text}"
 
 
 def test_a_redeem_after_multi_user_was_turned_off_is_refused_like_a_bad_code_and_spends_nothing(harness, monkeypatch):
