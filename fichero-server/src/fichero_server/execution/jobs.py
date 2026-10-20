@@ -2788,7 +2788,15 @@ class _Scheduler:
                 if held:
                     self._say_why_background_waits(lane, held)
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
-            while (picked := self._next(lane, background=held is None)) is not None:
+            while True:
+                before = (lane.loaded_model, frozenset(lane.running))
+                picked = self._next(lane, background=held is None)
+                if picked is None:
+                    break
+                if (lane.loaded_model, frozenset(lane.running)) != before:
+                    # The lane moved while this scan ran (a job finished and its model became the loaded one): the choice was
+                    # made for a lane that no longer exists, so it is made again (#5920, `activity.lane.one-model-at-a-time`).
+                    continue
                 key, db, row = picked
                 if not lane.may_start(row[1], row[3], lambda: person_waits_on(db, row[0])):
                     return None  # the lane is full: its running job's thread picks this when it ends
