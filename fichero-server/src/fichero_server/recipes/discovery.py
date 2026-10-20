@@ -836,7 +836,13 @@ _SCRIPT_SEARCH_WORDS = {"Hant": "chinese", "Hans": "chinese", "Hani": "chinese",
                         "Cans": "syllabics", "Syrc": "syriac", "Deva": "devanagari"}
 #: Words in a language's name that say nothing about it.
 _NAME_NOISE = frozenset({"language", "languages", "old", "middle", "modern", "classical", "ancient", "early", "late", "standard",
-                         "north", "south", "east", "west", "central"})
+                         "north", "south", "east", "west", "central", "official", "regional", "dialect", "spoken", "written",
+                         "literary", "colloquial"})
+#: Names models of a language or script go by that its ISO name does not say: Church Slavic is "Church Slavonic" on the Hub,
+#: Han text is "hanzi" and old Chinese books "guji" (the search audit, #5970). Added to the words searched.
+_LANGUAGE_EXTRA_WORDS = {"cu": ("slavonic",), "chu": ("slavonic",), "lzh": ("hanzi", "guji", "chinese"), "zh": ("hanzi",),
+                         "arc": ("aramaic", "syriac"), "syc": ("syriac", "aramaic"), "syr": ("syriac", "aramaic")}
+_SCRIPT_EXTRA_WORDS = {"Hant": ("hanzi", "guji"), "Hans": ("hanzi",), "Hani": ("hanzi",)}
 #: What marks a reader made for old hands and manuscripts, beside the words of OCR_WORDS (the specialist signal of the rank).
 SPECIALIST_WORDS = frozenset({"htr", "handwriting", "handwritten", "handwriting-recognition", "manuscript", "manuscripts",
                               "catmus", "palaeography", "paleography", "medieval", "historical", "incunabula", "kurrent"})
@@ -871,6 +877,8 @@ def search_words(languages: frozenset[str]) -> list[str]:
     for tag in sorted(languages):
         primary = tag.split("-")[0].lower()
         add(_LANGUAGE_WORDS.get(primary))
+        for word in _LANGUAGE_EXTRA_WORDS.get(primary, ()):
+            add(word)
         name = language_name(tag)
         if name != tag:
             for word in re.findall(r"[a-z]+", name.lower().split("(")[0]):
@@ -878,6 +886,8 @@ def search_words(languages: frozenset[str]) -> list[str]:
         code = usual_script(tag)
         if code and code not in _NOT_SCRIPT_WORDS:
             add(_SCRIPT_SEARCH_WORDS.get(code))
+            for word in _SCRIPT_EXTRA_WORDS.get(code, ()):
+                add(word)
             sname = script_name(code).lower()
             if re.fullmatch(r"[a-z]{4,}", sname):
                 add(sname)
@@ -954,8 +964,11 @@ def card_words(read: dict[str, Any] | None) -> str:
     return f"CER {read['cer'] * 100:.1f}% on its own material"
 
 
-#: How many of the best-ranked candidates have their card read (one fetch each).
+#: How many of the best-ranked candidates have their card read (one fetch each, together).
 CARDS_READ = 5
+#: How much of a card is read: the front matter and the first pages state the licence and the numbers; a card is never
+#: downloaded whole (some hold megabytes of tables).
+CARD_BYTES = 64_000
 
 
 async def _fetch_card_text(repo: str) -> str | None:
@@ -964,8 +977,16 @@ async def _fetch_card_text(repo: str) -> str | None:
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"https://huggingface.co/{repo}/raw/main/README.md", timeout=20.0, follow_redirects=True)
-            return response.text if response.status_code == 200 else None
+            async with client.stream("GET", f"https://huggingface.co/{repo}/raw/main/README.md", timeout=20.0,
+                                     follow_redirects=True) as response:
+                if response.status_code != 200:
+                    return None
+                body = b""
+                async for chunk in response.aiter_bytes():
+                    body += chunk
+                    if len(body) >= CARD_BYTES:
+                        break
+                return body[:CARD_BYTES].decode("utf-8", errors="replace")
     except httpx.HTTPError:
         return None
 
@@ -1282,10 +1303,12 @@ async def search_hugging_face(languages: frozenset[str],
     # (`source.onboard.model-search-reads-the-card`). One fetch each; a card that cannot be fetched says so.
     from dataclasses import replace
 
-    for n, card in enumerate(ranked[:CARDS_READ]):
-        repo = str(card.pin.get("hf"))
-        progress(f"Reading the card of {repo}")
-        text = await _fetch_card_text(repo)
+    import asyncio
+
+    top = ranked[:CARDS_READ]
+    progress(f"Reading the cards of {len(top)} models")
+    texts = await asyncio.gather(*(_fetch_card_text(str(card.pin.get("hf"))) for card in top))
+    for n, (card, text) in enumerate(zip(top, texts)):
         read = parse_card_text(text) if text else None
         ranked[n] = replace(card, offered_because="; ".join([card.offered_because, card_words(read)]),
                             cer_published=(read or {}).get("cer") if card.cer_published is None else card.cer_published,
@@ -1464,7 +1487,7 @@ async def search_hugging_face_for_step(job: str, languages: frozenset[str],
     a repository. Network: call only behind the egress check. Raises the Hub fetch's error."""
     from fichero_server.api.routes.ai.models import _fetch_hf_models
 
-    langs = sorted({t.split("-")[0] for t in languages})
+    langs = language_tags(languages)
     asks = [(task, list(tags)) for task, tags in STEP_SEARCHES[job]]
     asks += [(task, [*tags, lang]) for task, tags in STEP_SEARCHES[job] for lang in langs]
     rows: dict[str, dict[str, Any]] = {}
