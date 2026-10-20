@@ -319,6 +319,11 @@ def profile(args) -> None:
     import io
     import pstats
 
+    # The engine's path below resolves its stores from FICHERO_BASE_PATH; unset, that is the real app state. Never.
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))
+
     import torch
     from kraken import blla
     from kraken.configs import RecognitionInferenceConfig
@@ -338,8 +343,12 @@ def profile(args) -> None:
         seg_s = time.perf_counter() - began
         lines = list(segmentation.lines)
         widths = sorted(_line_width(line) for line in lines)
+        if not widths:  # a page with no lines has nothing to read: said, and skipped
+            print(f"| page={path.name} | lines=0 | segment_s={seg_s:.2f} | NO LINES, nothing to read |", flush=True)
+            continue
         print(f"| page={path.name} | lines={len(lines)} | segment_s={seg_s:.2f} | width_px min/median/max="
               f"{widths[0]:.0f}/{widths[len(widths) // 2]:.0f}/{widths[-1]:.0f} |", flush=True)
+        stopped: set[tuple[str, str]] = set()  # (device, order) whose larger batches stop after a failure or a slow one
         # Kraken's OWN defaults (what the plain `kraken` command runs: its batch size and a pool of line workers), against
         # the engine's config (device=1, num_line_workers=0 for the app sandbox, batch_size 1): the difference we feed it.
         try:
@@ -353,6 +362,10 @@ def profile(args) -> None:
         for device in devices:
             for batch in args.batches:
                 for order in ("page", "by-width"):
+                    if (device, order) in stopped:
+                        print(f"| device={device} batch={batch} order={order}: SKIPPED, a smaller batch failed or took over "
+                              f"{args.slow_s:.0f} s |", flush=True)
+                        continue
                     free = free_ram_gb()
                     if free is not None and free < 3.0:  # a big padded batch is the memory risk (#5854: 16 took 43 s)
                         print(f"| device={device} batch={batch} order={order}: SKIPPED, only {free:.1f} GB free |", flush=True)
@@ -371,7 +384,10 @@ def profile(args) -> None:
                         wall = time.perf_counter() - began
                     except Exception as exc:  # noqa: BLE001 -- a device or batch that fails is a result
                         print(f"| device={device} batch={batch} order={order}: FAILED {type(exc).__name__}: {exc} |", flush=True)
+                        stopped.add((device, order))
                         continue
+                    if wall > args.slow_s:  # #5854: 16 took 43 s; a bigger batch will only be worse and may starve the Mac
+                        stopped.add((device, order))
                     print(f"| device={device} | batch={batch} | order={order} | predict_s={wall:.2f} | lines={count} | "
                           f"ms_per_line={1000 * wall / max(1, count):.0f} |", flush=True)
     # The engine's own path on the first page: what runs around Kraken (image open, crops, conversion, bookkeeping).
@@ -459,6 +475,7 @@ def main() -> int:
     p.add_argument("--batches", type=lambda s: [int(x) for x in s.split(",")], default=[1, 4, 8, 16, 32])
     p.add_argument("--mps", action="store_true", help="also read on the GPU (torch MPS): one more device")
     p.add_argument("--torch-threads", type=int, default=1)
+    p.add_argument("--slow-s", type=float, default=60.0, help="a batch slower than this ends the larger ones")
     p.set_defaults(fn=profile)
     p = sub.add_parser("spy-top")
     p.add_argument("file", type=Path)
