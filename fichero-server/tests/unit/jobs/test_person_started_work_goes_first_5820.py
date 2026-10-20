@@ -212,12 +212,11 @@ def test_a_kind_is_one_activity_row_with_the_total_running_only_while_one_is_goi
     rows = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
     assert [(r["state"], r["count"]) for r in rows] == [("waiting", 3)]  # nothing is going: waiting
 
-    lane.release.set()
-    jobs.set_paused(False)
+    jobs.set_paused(False)  # the first job starts and HOLDS the one slot (the lane's fixture): the other two wait
     assert _wait_for(lambda: len(lane.started) >= 1)
-    jobs.set_paused(True)
     rows = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
     assert len(rows) == 1 and rows[0]["count"] == 3  # one row, the total
+    lane.release.set()
 
 
 def test_a_waiting_on_job_does_not_make_the_kinds_row_running(db, lane):
