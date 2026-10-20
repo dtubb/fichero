@@ -161,7 +161,7 @@ async def test_a_download_reports_its_bytes_as_they_arrive(tmp_path, monkeypatch
             break
     assert job.current == 1_000_000
     assert 0 < job.percent < 1
-    assert "1 MB of 3.1 GB" in job.message
+    assert "1 MB of 2.9 GB" in job.message  # sizes are GiB from one helper (#5833): 3.09e9 bytes
 
     finish.set()
     await store._job_tasks[job.job_id]
