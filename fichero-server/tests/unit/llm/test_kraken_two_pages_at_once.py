@@ -342,3 +342,41 @@ def test_both_read_paths_take_their_reader_from_the_pool():
 
     assert "_own_reader(" in inspect.getsource(kr._recognize_raw) and "_own_reader(" in inspect.getsource(kr._read_given_raw)
     assert "deepcopy" not in inspect.getsource(kr._recognize_raw) + inspect.getsource(kr._read_given_raw)
+
+
+# -- every name the engine takes from kraken_runtime exists (review 692: a rewrite once deleted ~290 live lines) -----------
+def test_every_name_the_engine_takes_from_kraken_runtime_exists():
+    """Guard: scan the engine's source for `kraken_runtime.<name>` and `from ...kraken_runtime import <name>` and require each
+    to exist, and the seam's own entry points besides. A file rewritten over its neighbours' callers fails here, at once."""
+    import ast
+    from pathlib import Path
+
+    src = Path(kr.__file__).parent.parent
+    wanted: dict[str, set[str]] = {}
+    for path in src.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        aliases = {"kraken_runtime"}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.endswith("kraken_runtime"):
+                for a in node.names:
+                    wanted.setdefault(a.name, set()).add(f"{path.relative_to(src)}:{node.lineno}")
+            elif isinstance(node, ast.ImportFrom) and any(a.name == "kraken_runtime" for a in node.names):
+                aliases.update(a.asname or a.name for a in node.names if a.name == "kraken_runtime")
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in aliases | {"kr"}:
+                wanted.setdefault(node.attr, set()).add(f"{path.relative_to(src)}:{node.lineno}")
+    missing = {name: sorted(where) for name, where in wanted.items() if not hasattr(kr, name)}
+    assert missing == {}, f"names used but not in kraken_runtime: {missing}"
+    for name in ("is_installed", "runtime_status", "require_installed", "assert_memory_available_for_kraken", "_PageGate",
+                 "_INFERENCE_LOCK", "pages_at_once", "page_fan_out", "_kraken_call", "release_resident_models",
+                 "_memory_free_percent", "_physical_memory_bytes", "_sysctl_int"):
+        assert hasattr(kr, name), name
+
+
+def test_the_memory_guards_sysctl_still_takes_a_byte_name_and_is_not_shadowed():
+    """`_sysctl_int(b"kern.memorystatus_level")` is the memory guard's: a second `_sysctl_int` taking a str once shadowed it
+    and made every memory reading None."""
+    import inspect
+
+    params = list(inspect.signature(kr._sysctl_int).parameters)
+    assert params == ["name", "ctype"] and kr.__dict__["_sysctl_int"].__code__.co_argcount == 2

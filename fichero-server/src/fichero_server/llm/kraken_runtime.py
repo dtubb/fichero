@@ -602,6 +602,268 @@ def _available_memory_bytes(
     return max(readings) if readings else None
 
 
+def _sysctl_int(name: bytes, ctype: Any = ctypes.c_int) -> int | None:
+    """One integer sysctl, read in-process (no subprocess); None when it cannot be read."""
+    try:
+        libc = ctypes.CDLL("libc.dylib")
+        value = ctype(0)
+        size = ctypes.c_size_t(ctypes.sizeof(value))
+        if libc.sysctlbyname(name, ctypes.byref(value), ctypes.byref(size), None, 0) != 0:
+            return None
+    except Exception:  # noqa: BLE001 — a missing sysctl must degrade, not crash
+        return None
+    return int(value.value)
+
+
+def _memory_free_percent() -> int | None:
+    """`kern.memorystatus_level`: macOS's own free percentage (what `memory_pressure` prints)."""
+    return _sysctl_int(b"kern.memorystatus_level")
+
+
+def _physical_memory_bytes() -> int | None:
+    """`hw.memsize`: this Mac's physical memory."""
+    return _sysctl_int(b"hw.memsize", ctypes.c_uint64)
+
+
+def _mach_reclaimable_bytes() -> int | None:
+    """Free + inactive + speculative pages: memory macOS can hand out without compressing anything.
+
+    #4987 follow-up: `psutil` is NOT in the shipped bundle's dependency
+    closure. Checked directly (`pip show psutil` against the dev venv,
+    2026-09-20): its only `Required-by` are `briefcase` (the BUILD tool,
+    never bundled) and `flufl.lock` (itself unused anywhere in this
+    project's own source) — no runtime package this engine ships pulls it
+    in. Using it here would make this exact guard raise
+    `ModuleNotFoundError` in the one build it exists to protect.
+
+    In-process only — NO subprocess (`vm_stat` was tried and rejected: this
+    module has its own hard, tested rule against ever shelling out or
+    provisioning a runtime, `test_kraken_runtime_never_shells_out_or_
+    provisions_a_runtime`, for the same sandboxing reasons #4555 already
+    forced this module in-process in the first place). Calls the public
+    Mach host API directly via ctypes — `host_statistics64`, the same
+    mechanism `psutil` itself uses on macOS, and the same
+    `ctypes.CDLL(ctypes.util.find_library("System"))` technique this
+    project's own `kraken_timing.py` measurement script already uses for
+    QoS. Cross-checked live against `psutil.virtual_memory().available`,
+    2026-09-20: within ~1.3% (`(free + inactive + speculative) pages`,
+    reading slightly LOW — the safer direction for a refuse-below-threshold
+    guard).
+
+    Sysctl names alone (`vm.page_free_count` etc., no `host_statistics64`)
+    were tried first and rejected: macOS keeps almost nothing in `free` and
+    parks most reclaimable memory in `inactive`, which has no equivalent
+    sysctl — a free+speculative-only reading came in at ~117 MB against
+    psutil's ~3.7 GB on the same machine at the same moment, ~97% low —
+    unusably conservative, not just "safer".
+
+    Returns ``None`` on any failure (non-macOS, the Mach call itself
+    failing) — callers must decide what "unknown" means; this never
+    guesses a number.
+    """
+    try:
+        libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
+    except OSError:
+        return None
+    try:
+        host_port = libsystem.mach_host_self()
+        page_size = ctypes.c_uint64(0)
+        if libsystem.host_page_size(host_port, ctypes.byref(page_size)) != 0:
+            return None
+        vm_stat = _VMStatistics64()
+        count = ctypes.c_uint32(_HOST_VM_INFO64_COUNT)
+        kr = libsystem.host_statistics64(
+            host_port, _HOST_VM_INFO64, ctypes.byref(vm_stat), ctypes.byref(count)
+        )
+        if kr != 0:
+            return None
+    except Exception:  # noqa: BLE001 — a platform surprise here must degrade, not crash
+        return None
+    free_pages = vm_stat.free_count + vm_stat.inactive_count + vm_stat.speculative_count
+    return free_pages * page_size.value
+
+
+def _memory_pressure_level() -> int | None:
+    """macOS ``kern.memorystatus_vm_pressure_level`` via one sysctl read
+    (no subprocess — a single syscall through ctypes, not "shelling out on
+    every call", per #4987). 1=normal, 2=warn, 4=critical. ``None`` if
+    unavailable (non-macOS, or the sysctl name doesn't resolve)."""
+    try:
+        libc = ctypes.CDLL("libc.dylib")
+    except OSError:
+        return None
+    value = ctypes.c_int(0)
+    size = ctypes.c_size_t(ctypes.sizeof(value))
+    try:
+        ret = libc.sysctlbyname(
+            b"kern.memorystatus_vm_pressure_level",
+            ctypes.byref(value),
+            ctypes.byref(size),
+            None,
+            0,
+        )
+    except Exception:  # noqa: BLE001 — a missing/renamed sysctl must degrade, not crash
+        return None
+    return value.value if ret == 0 else None
+
+
+def assert_memory_available_for_kraken(
+    *,
+    available_bytes: Callable[[], int | None] | None = None,
+    pressure_level: Callable[[], int | None] | None = None,
+) -> None:
+    """Refuse BEFORE any kraken/torch import if this machine cannot safely
+    run one Kraken call right now (#4987).
+
+    Checked on EVERY call, not once at startup: the moment a queued page is
+    about to run is what counts, not when it was queued.
+
+    The decision is `throttle.memory_short`, the SAME function and number the
+    job lane's throttle uses before it hands out a job (#5524): the two checks
+    used to differ (pressure at warn there, 2.5 GB free here), so the throttle
+    released a job this guard then failed at 2.3 GB free.
+
+    ``available_bytes``/``pressure_level`` are injectable so a test never
+    depends on the real machine's memory or pressure — pass a lambda
+    returning a fixed number instead of the real macOS reader.
+    """
+    from fichero_server.execution.throttle import memory_short
+
+    reason = memory_short(available_bytes=available_bytes or _available_memory_bytes,
+                          pressure_level=pressure_level or _memory_pressure_level, need_bytes=kraken_need_bytes())
+    if reason is not None:
+        raise KrakenMemoryUnavailableError(
+            f"{reason}. Close other apps, or wait for other work to finish; a queued job waits on its own.")
+
+
+def is_installed() -> bool:
+    """Whether Kraken can actually segment: is it importable at all.
+
+    #4959: there is nothing left to "install" at runtime -- Kraken ships in
+    the bundle or it does not. `find_spec` (not a real import) so checking
+    status never pays torch/lightning's import cost.
+    """
+    return importlib.util.find_spec("kraken") is not None
+
+
+#: The native library Kraken's segmenter loads first (blla's scipy.ndimage, with numpy): importing it says whether
+#: Kraken can run here, without paying torch's import (#5684: scipy's dylib would not load and status said available).
+_NATIVE_PROBE = "scipy.ndimage"
+CANNOT_LOAD = ("Kraken's maths library would not load on this Mac, so lines and regions cannot be found. "
+               "Restart Fichero, or reinstall.")
+
+
+@functools.lru_cache(maxsize=1)
+def _libraries_load() -> bool:
+    """Whether the native libraries Kraken needs load in this process; the technical text goes to the log."""
+    try:
+        importlib.import_module(_NATIVE_PROBE)
+    except (ImportError, OSError) as exc:
+        logger.warning("Kraken cannot load %s here: %s", _NATIVE_PROBE, exc)
+        return False
+    return True
+
+
+def runtime_status() -> dict[str, object]:
+    installed = is_installed()
+    version: str | None = None
+    if installed:
+        try:
+            version = importlib.metadata.version("kraken")
+        except importlib.metadata.PackageNotFoundError:
+            version = None
+    loads = installed and _libraries_load()
+    return {
+        "installed": installed,
+        "loads": loads,
+        "kraken_version": version,
+        "reason": None
+        if loads
+        else CANNOT_LOAD
+        if installed
+        else (
+            "Kraken is not bundled in this build — this is a packaging problem, "
+            "not something to install from Settings."
+        ),
+    }
+
+
+def require_installed() -> None:
+    if not is_installed():
+        raise KrakenRuntimeMissingError(str(runtime_status()["reason"]))
+
+
+# =============================================================================
+# THE SEAM (#4959) — every actual Kraken call passes through here, and only
+# here. See the module docstring for why in-process, not a subprocess.
+# =============================================================================
+
+class _PageGate:
+    """The seam's gate (`source.read.two-pages-at-once`): `page(n)` lets up to `n` pages in at once; taking it whole
+    (`acquire`, `with gate:`; the model lane unloading Kraken, `local_inference`) waits for every page and holds new
+    ones off. `locked()` is True while any page runs or it is held whole. Named `_INFERENCE_LOCK`, which it replaces."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._active = 0
+        self._whole = False
+        self._wanting_whole = 0
+
+    @contextlib.contextmanager
+    def page(self, allowed: int = 1):
+        with self._cond:
+            while self._whole or self._wanting_whole or self._active >= max(1, allowed):
+                self._cond.wait()
+            self._active += 1
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._active -= 1
+                self._cond.notify_all()
+
+    def acquire(self, blocking: bool = True) -> bool:
+        with self._cond:
+            if not blocking and (self._whole or self._active):
+                return False
+            self._wanting_whole += 1
+            try:
+                while self._whole or self._active:
+                    self._cond.wait()
+            finally:
+                self._wanting_whole -= 1
+            self._whole = True
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            self._whole = False
+            self._cond.notify_all()
+
+    def pages_inside(self) -> int:
+        with self._cond:
+            return self._active
+
+    def locked(self) -> bool:
+        with self._cond:
+            return self._whole or self._active > 0
+
+    def held_beside(self, queued: int) -> bool:
+        """Held whole, or by more pages than the `queued` ones the job queue itself is running (the model lane's own
+        pages must not read as a page outside the queue)."""
+        with self._cond:
+            return self._whole or self._active > queued
+
+    def __enter__(self) -> "_PageGate":
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.release()
+
+
+_INFERENCE_LOCK = _PageGate()
+
 #: Held at two until #5929 (threads segfault at exit) closes and an M4 run at N=4 is clean; then delete this and the
 #: `min` below, and N is the performance cores as the owner ruled (#5931, `source.read.pages-at-once-scales`).
 PAGES_AT_ONCE_GATE_5929 = 2
