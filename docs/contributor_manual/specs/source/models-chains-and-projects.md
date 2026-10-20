@@ -3656,7 +3656,7 @@ Setup
   material and the rest as now; within a tier by coverage (how much of the project's script, language and period
   its card states). The candidate list labels each row with its tier in words ("Specialist line reader", "Small
   vision model, on this Mac", "General model") and groups by it in Set Up's model sheet; a person's choice and a
-  measured result still override the tier. The order by tier is not built; the label and grouping are the Swift half (a separate commit).
+  measured result still override the tier. The order by tier is not built. **Swift half (needs regen and compile):** the finder groups the reading candidates under the tier's words, in the order specialist, small vision model, general, keeping the engine's order inside a group (`ModelFinderTiers`, `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift`).
 - `source.recipe.no-other-style-substitute` — **[OK]** (#4951) a reader made for another style of
   the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
   model" and the gap is named. *Built: `assemble._refusal` refuses a reader whose card does not state the
