@@ -68,3 +68,10 @@ def test_main_exits_non_zero_when_it_refuses_and_says_why(tmp_path, capsys):
     home_like = Path.home() / "Fichero"
     code = audit.main([str(home_like / "nope.duckdb")])
     assert code == 2 and "REFUSED" in capsys.readouterr().out
+
+
+def test_a_different_case_of_a_live_root_is_refused_too(tmp_path):
+    home = tmp_path / "home"
+    lib = _library(home / "Fichero" / "lib.duckdb")
+    shouted = str(lib).replace("/Fichero/", "/FICHERO/")
+    assert "live Fichero location" in audit.refusal(shouted, home=home)[0]

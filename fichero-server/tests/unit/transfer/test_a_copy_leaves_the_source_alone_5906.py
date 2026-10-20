@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fichero_server.api.main import app
 from fichero_server.db.manager import db_manager
-from fichero_server.models import Artifact, Document, ReadingChoice, Segment, SegmentPass
+from fichero_server.models import Artifact, ContentRepresentation, Document, ReadingChoice, Segment, SegmentPass
 
 from tests.unit.transfer._two_projects import build_box, header_decides, open_source, table_counts
 
@@ -23,7 +23,7 @@ def _documents(db) -> dict[str, dict]:
 def _derived(db) -> dict[str, dict]:
     """What a person made on the pages, whole: passes, lines, readings, artifacts (a copy must not rewrite them either)."""
     return {f"{model.__name__}:{row.id}": row.model_dump(mode="json")
-            for model in (SegmentPass, Segment, ReadingChoice, Artifact) for row in db.all(model)}
+            for model in (SegmentPass, Segment, ReadingChoice, Artifact, ContentRepresentation) for row in db.all(model)}
 
 
 def test_a_transfer_leaves_every_source_page_identical(client, db, tmp_path):
