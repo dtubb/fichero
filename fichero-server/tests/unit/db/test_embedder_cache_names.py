@@ -25,6 +25,7 @@ def test_a_folder_without_snapshots_is_not_a_cached_model(tmp_path):
 
 
 @pytest.mark.parametrize("sibling", [
+    "models--intfloat--multilingual-e5-large",  # intfloat's own format: fastembed cannot load it
     "models--intfloat--multilingual-e5-large-instruct",
     "models--qdrant--multilingual-e5-large-instruct-onnx",
     "models--BAAI--bge-m3-unsupervised",
