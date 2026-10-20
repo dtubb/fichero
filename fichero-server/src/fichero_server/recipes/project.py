@@ -133,3 +133,26 @@ def write_noise_band(library: Path, value: float, *, pages: int, model: str) -> 
     _write_yaml(Path(library) / FOLDER / "noise-band.yaml", {
         "value": round(float(value), 6),
         "basis": f"CER spread over 3 held-out splits of {pages} pages read by {model}"})
+
+
+#: The recipe file's `defaults.record_rule`, by file and modified time: the rule is asked on every page's working pass, so
+#: the file is read again only when it changes (`source.project.record-rule`).
+_RECORD_RULES: dict[str, tuple[int, str]] = {}
+
+
+def saved_record_rule(library: Path) -> str:
+    """The saved recipe's `defaults.record_rule` as a lowercase word, "" when there is none."""
+    path = _path(library, "recipe")
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return ""
+    kept = _RECORD_RULES.get(str(path))
+    if kept is not None and kept[0] == stamp:
+        return kept[1]
+    import yaml
+
+    recipe = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    value = str(((recipe.get("defaults") or {}) if isinstance(recipe, dict) else {}).get("record_rule") or "").strip().lower()
+    _RECORD_RULES[str(path)] = (stamp, value)
+    return value
