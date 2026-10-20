@@ -21,7 +21,7 @@ import faulthandler
 import tracemalloc
 import warnings
 
-from fichero_server.security.bind_host import resolve_bind_host
+from fichero_server.security.bind_host import listen_port, resolve_bind_host
 from fichero_server.security.bind_host import resolve_lan_bind_host
 from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
@@ -433,9 +433,8 @@ def main(argv: list[str] | None = None):
                 )
             tcp_bind_host = resolve_bind_host()
             tcp_hosts = _listener_hosts(tcp_bind_host, _app_db_for_listener())
-            # 8765 is the product port; the env override exists for tests,
-            # which cannot assume it is free on a developer machine.
-            tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
+            # 8765 is the product port; a dev or test engine may choose another (#5895).
+            tcp_port = listen_port()
             tcp_sockets = []
             try:
                 for h in tcp_hosts:
@@ -485,10 +484,11 @@ def main(argv: list[str] | None = None):
                     sock.close()
                 tcp_sockets = []
                 logger.error(
-                    "Sharing listener could NOT bind %s:8765 (%s) — running "
+                    "Sharing listener could NOT bind %s:%d (%s) — running "
                     "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
                     "port is free and the engine restarts.",
                     tcp_bind_host,
+                    tcp_port,
                     exc,
                 )
             if tcp_sockets:
@@ -546,10 +546,11 @@ def main(argv: list[str] | None = None):
     bind_host = resolve_bind_host()
     listener_hosts = _listener_hosts(bind_host, _app_db_for_listener())
 
+    port = listen_port()
     uvicorn_kwargs = dict(
         app="fichero_server.api.tcp_transport:app",
         host=bind_host,
-        port=8765,
+        port=port,
         workers=1,
         log_level="info",
         # Python 3.14 + uvloop can crash in asyncgen finalization paths.
@@ -574,9 +575,9 @@ def main(argv: list[str] | None = None):
 
     scheme = "https" if "ssl_certfile" in uvicorn_kwargs else "http"
     logger.info("Starting Fichero Backend (Briefcase bundle)")
-    logger.info("Server will listen on %s://%s:8765", scheme, bind_host)
+    logger.info("Server will listen on %s://%s:%d", scheme, bind_host, port)
     if len(listener_hosts) > 1:
-        logger.info("LAN TLS listener enabled on %s://%s:8765", scheme, listener_hosts[1])
+        logger.info("LAN TLS listener enabled on %s://%s:%d", scheme, listener_hosts[1], port)
     logger.info(
         "Hot-reload: %s",
         "ENABLED (dev mode)" if reload_enabled else "DISABLED (production mode)",
@@ -586,9 +587,10 @@ def main(argv: list[str] | None = None):
     socket_family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
     with socket.socket(socket_family, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if sock.connect_ex((bind_host, 8765)) == 0:
+        if sock.connect_ex((bind_host, port)) == 0:
             logger.error(
-                "Port 8765 is already in use on %s. Stop the existing backend process and retry.",
+                "Port %d is already in use on %s. Stop the existing backend process and retry.",
+                port,
                 bind_host,
             )
             return
@@ -603,7 +605,7 @@ def main(argv: list[str] | None = None):
             raise
         return
 
-    sockets = [_bind_listener_socket(host, 8765) for host in listener_hosts]
+    sockets = [_bind_listener_socket(host, port) for host in listener_hosts]
     server = uvicorn.Server(uvicorn.Config(**uvicorn_kwargs))
     try:
         server.run(sockets=sockets)
