@@ -43,7 +43,7 @@ from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.models.knowledge import Annotation, KnowledgeEntity, Note
 from fichero_server.db.library_paths import nfc_path
-from fichero_server.security.synced_host import read_synced_host
+from fichero_server.security.synced_host import host_to_ask
 from fichero_server.security.path_security import (
     OwnerFolderGrantRefused,
     forget_owner_opened_package,
@@ -1059,7 +1059,7 @@ def list_open_libraries() -> OpenLibraryHandlesResponse:
     snapshot of the handles currently held by ``DatabaseManager``.
     """
     libraries = [
-        OpenLibraryHandle(id=path, path=path, synced_host=read_synced_host(Path(path)))
+        OpenLibraryHandle(id=path, path=path, synced_host=host_to_ask(Path(path)))
         for path in db_manager.open_library_paths()
     ]
     return OpenLibraryHandlesResponse(libraries=libraries, count=len(libraries))
