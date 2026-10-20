@@ -32,7 +32,7 @@ def _find_lines(monkeypatch, tmp_path, person: bool, pages: int = 3, stop_after_
     monkeypatch.setattr(jobs, "person_waits_on", lambda _db, _id: person)
     said = []
     db = SimpleNamespace(path=tmp_path / "lib" / "x.duckdb",
-                         get=lambda *_a: SimpleNamespace(path=str(tmp_path / "no-such-image.jpg"), id="d", name="n"))
+                         get=lambda *_a: SimpleNamespace(path=str(tmp_path / "no-such-image.jpg"), id="d", name="n", metadata={}))  # a Document has metadata; the path lookup reads it
     account = regions.find_regions(db, [f"d{i}" for i in range(pages)], "run", "m", provider="yolo", say=said.append)
     return account, said
 

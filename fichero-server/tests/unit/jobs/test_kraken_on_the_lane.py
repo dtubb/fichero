@@ -126,8 +126,10 @@ class TestAWorkflowsKrakenPageIsAJob:
             ("find-lines", "kraken:blla", "done"), ("find-lines", "kraken:blla", "done")]
 
 
-def _blocked_lane(db):
-    """Hold the lane with one job so the next ones queue up together, as a folder's pages do."""
+def _blocked_lane(db, model="kraken:blla"):
+    """Hold the lane with one job so the next ones queue up together, as a folder's pages do. A person's page of the SAME
+    model joins a running one when memory allows (`activity.lane.same-model-pages-together`), so a test of a page that must
+    WAIT holds the lane with another reader's job."""
     gate = threading.Event()
     started = threading.Event()
 
@@ -135,7 +137,7 @@ def _blocked_lane(db):
         started.set()
         gate.wait(10)
 
-    first = jobs.submit(db, "find-lines", "first", model="kraken:blla", fn=hold)
+    first = jobs.submit(db, "find-lines", "first", model=model, fn=hold)
     assert started.wait(10)
     return gate, first
 
@@ -312,7 +314,7 @@ class TestStopReachesAPageWaitingForTheLane:
         ran = []
         monkeypatch.setattr(kraken_runtime, "segment_to_geometry",
                             lambda image_path, rendition_id=None: ran.append(1) or _geometry(""))
-        gate, first = _blocked_lane(db)
+        gate, first = _blocked_lane(db, model="kraken:another-reader")
         try:
             step = asyncio.ensure_future(_transcribe(library, doc, {}, task_id="run-stop"))
             for _ in range(1500):  # until the page is queued behind the held job (a cold import is slow on the M4)

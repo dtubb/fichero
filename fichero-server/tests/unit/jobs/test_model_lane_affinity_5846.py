@@ -17,7 +17,8 @@ def test_a_queued_kraken_page_holds_other_models_off(db, monkeypatch):
 
     jobs.set_paused(True)  # queued, not run
     try:
-        jobs.enqueue(db, "find-lines", "page-1", model="kraken:blla")
+        db.execute("INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
+                   "VALUES ('q1', 'find-lines', 'page-1', 'kraken:blla', 'waiting', 0, 'automatic', ?)", [jobs.utc_now()])
         key = str(db.path)
         monkeypatch.setattr(db_manager, "open_database", lambda k: db)
         assert jobs._loaded_work_queued([key], _lane()) is True
@@ -92,7 +93,8 @@ def test_an_embed_waits_while_kraken_pages_are_in_flight_even_after_the_quiet_sp
 
     order = []
     monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 0.0)  # the spell is over
-    monkeypatch.setitem(jobs.KINDS, "t-embed", jobs.Kind(run=lambda d, s: order.append("embed"), model="embedder"))
+    # A heavy model (a served one): the embedder is light now (`jobs.is_light`, cf6fbab84) and runs beside Kraken.
+    monkeypatch.setitem(jobs.KINDS, "t-embed", jobs.Kind(run=lambda d, s: order.append("embed"), model="omlx:heavy"))
     monkeypatch.setitem(jobs.KINDS, "t-light", jobs.Kind(run=lambda d, s: order.append("light"), model=None))
 
     jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None).result(30)
