@@ -14,6 +14,9 @@ Pro. Every mode prints one markdown table row per N, and with --out appends the 
   engine    the engine's own seam (kraken_runtime._kraken_call) with N pages at once, the cap lifted to N, run twice
             (--threads one: 1 torch thread a page; --threads default: the engine's own split). Per stage seconds, wall,
             CPU%, and the wait at each lock the seam takes (the page gate, the memory guard).
+  profile   ONE process: per page, the lines found, segment time and the reader's predict time at batch 1/4/8/16/32
+            (page order and sorted by line width, CPU and --mps), then a cProfile of the engine's own recognize_lines.
+            Answers "does the engine read row by row?" (it makes one predict call a page; the batch is inside Kraken).
   spy-top   summarise py-spy output (see the run brief): the top 10 functions and the share of samples holding the GIL.
 
   python fichero-server/scripts/gil_proof.py ceiling --images DIR --model reader.safetensors --pages 20 --n 1,2,4,8,10
@@ -299,6 +302,85 @@ def engine(args) -> None:
             {"torch_threads": args.threads, "stage_mean_s": stage, "lock_waits": lock, "therm": [before, therm()]}, args.out)
 
 
+# -- profile: where one page's 8.4 s goes, and does batching the lines help ----------------------------------------------
+def _line_width(line) -> float:
+    base = getattr(line, "baseline", None) or (line.get("baseline") if isinstance(line, dict) else None) or [(0, 0)]
+    xs = [pt[0] for pt in base]
+    return max(xs) - min(xs)
+
+
+def profile(args) -> None:
+    """One process, one page at a time (memory-safe). For each page: segment time and line count; the reader's ONE
+    predict call (it is one call a page: the lines are batched inside Kraken) at each batch size, lines in page order and
+    sorted by width (less padding), on the CPU and, with --mps, on the GPU; then a cProfile of the engine's own
+    recognize_lines on the same page: the top functions by cumulative time, i.e. what runs OUTSIDE Kraken's predict."""
+    import cProfile
+    import dataclasses
+    import io
+    import pstats
+
+    import torch
+    from kraken import blla
+    from kraken.configs import RecognitionInferenceConfig
+    from kraken.tasks import RecognitionTaskModel
+    from PIL import Image
+
+    torch.set_num_threads(args.torch_threads)
+    seg_model = _load_blla()
+    net = RecognitionTaskModel.load_model(str(args.model))
+    files = pages_in(args.images, args.pages)
+    devices = ["cpu"] + (["mps"] if args.mps and torch.backends.mps.is_available() else [])
+    for path in files:
+        with Image.open(path) as im:
+            image = im.convert("RGB")
+        began = time.perf_counter()
+        segmentation = blla.segment(image, model=seg_model)
+        seg_s = time.perf_counter() - began
+        lines = list(segmentation.lines)
+        widths = sorted(_line_width(line) for line in lines)
+        print(f"| page={path.name} | lines={len(lines)} | segment_s={seg_s:.2f} | width_px min/median/max="
+              f"{widths[0]:.0f}/{widths[len(widths) // 2]:.0f}/{widths[-1]:.0f} |", flush=True)
+        for device in devices:
+            for batch in args.batches:
+                for order in ("page", "by-width"):
+                    free = free_ram_gb()
+                    if free is not None and free < 3.0:  # a big padded batch is the memory risk (#5854: 16 took 43 s)
+                        print(f"| device={device} batch={batch} order={order}: SKIPPED, only {free:.1f} GB free |", flush=True)
+                        continue
+                    seg = segmentation
+                    if order == "by-width":
+                        try:
+                            seg = dataclasses.replace(segmentation, lines=sorted(lines, key=_line_width))
+                        except TypeError:
+                            print(f"| device={device} batch={batch} by-width: segmentation cannot be reordered |")
+                            continue
+                    config = RecognitionInferenceConfig(accelerator=device, device=1, num_line_workers=0, batch_size=batch)
+                    try:
+                        began = time.perf_counter()
+                        count = sum(1 for _ in net.predict(image, seg, config))
+                        wall = time.perf_counter() - began
+                    except Exception as exc:  # noqa: BLE001 -- a device or batch that fails is a result
+                        print(f"| device={device} batch={batch} order={order}: FAILED {type(exc).__name__}: {exc} |", flush=True)
+                        continue
+                    print(f"| device={device} | batch={batch} | order={order} | predict_s={wall:.2f} | lines={count} | "
+                          f"ms_per_line={1000 * wall / max(1, count):.0f} |", flush=True)
+    # The engine's own path on the first page: what runs around Kraken (image open, crops, conversion, bookkeeping).
+    from fichero_server.execution import jobs
+    from fichero_server.llm import kraken_runtime
+
+    jobs._current.person = True
+    kraken_runtime.recognize_lines(str(files[0]), str(args.model))  # warm: models resident
+    prof = cProfile.Profile()
+    prof.enable()
+    began = time.perf_counter()
+    kraken_runtime.recognize_lines(str(files[0]), str(args.model))
+    wall = time.perf_counter() - began
+    prof.disable()
+    out = io.StringIO()
+    pstats.Stats(prof, stream=out).sort_stats("cumulative").print_stats(30)
+    print(f"\nengine recognize_lines on {files[0].name}: {wall:.2f} s wall; top 30 by cumulative time:\n{out.getvalue()}")
+
+
 # -- spy-top: py-spy's folded output ------------------------------------------------------------------------------------
 def _folded(path: Path) -> collections.Counter:
     """(stack -> samples) from py-spy `--format raw` (one `a;b;c count` per line)."""
@@ -360,6 +442,14 @@ def main() -> int:
         if name == "engine":
             p.add_argument("--threads", choices=("one", "default"), default="one")
         p.set_defaults(fn=fn)
+    p = sub.add_parser("profile")
+    p.add_argument("--images", type=Path, required=True)
+    p.add_argument("--model", type=Path, required=True)
+    p.add_argument("--pages", type=int, default=3)
+    p.add_argument("--batches", type=lambda s: [int(x) for x in s.split(",")], default=[1, 4, 8, 16, 32])
+    p.add_argument("--mps", action="store_true", help="also read on the GPU (torch MPS): one more device")
+    p.add_argument("--torch-threads", type=int, default=1)
+    p.set_defaults(fn=profile)
     p = sub.add_parser("spy-top")
     p.add_argument("file", type=Path)
     p.add_argument("--all", type=Path)
