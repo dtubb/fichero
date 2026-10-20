@@ -1338,7 +1338,7 @@ and node, not by job); a retry action for failed pages.
   lane runs a folder's pages for one reader together (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: batching, and
   the other runtimes.
 - `activity.lane.group-by-model` — **[PARTIAL]** (#5358) the local ML lane runs ready work grouped by the model it
-  needs, switching models only between groups and unloading the old one first. Built: queued jobs
+  needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
   Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
@@ -1494,7 +1494,7 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py` (vision work and an embed during a Kraken run
   unload nothing; a VLM and Kraken that both fit stay loaded; when they do not, ten interleaved pages cause at most two
   swaps; embed, Kraken and a VLM interleaved load each heavy model once; a person's job for another model goes at the
-  next page boundary and its pages follow it).
+  next page boundary and its pages follow it). Find Regions' Kraken segmenter is a lane job too (`find-regions` for `kraken:blla`, one per page, hanging under the recipe run's own row so the run's tree, its starter and its Stop are the page's: an automatic run's segmenter pages do not rank or hold as a person's; a job already running on the lane runs such a call in place), not work on the recipes lane's own thread beside whatever the lane has loaded (Fable runner review #5, 2026-10-19; `test_the_segmenter_runs_through_the_model_lane_not_beside_it` in `fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`). The bookkeeping half of #5 (loaded model set only by heavy families, a switch releasing only on memory need) was ALREADY on the chain: see this entry.
 - `activity.lane.memory-look-again-follows-the-throttle` — **[OK]** (speed review 3c) a page held for memory goes on the
   moment the throttle's one decision (`decide`) lets it, asked again every quarter second inside the look-again time, not
   after a fixed five seconds; a resident model's page, sized by its small working need, does not wait at all, and one
