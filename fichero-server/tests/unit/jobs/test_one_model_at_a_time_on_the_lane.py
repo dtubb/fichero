@@ -113,6 +113,23 @@ def test_embed_kraken_and_vlm_interleaved_load_each_heavy_model_once(db, lane, m
 
 def test_a_person_job_for_another_model_goes_at_the_next_page_boundary_and_its_pages_follow_it(db, lane, monkeypatch):
     _memory(monkeypatch, free_gib=3, need_gib=8)
+    picks: list[str] = []  # every scan: which thread, what was loaded, whether the loaded model's pages were seen queued, what it picked
+    real_next, real_queued = jobs._Scheduler._next, jobs._loaded_work_queued
+
+    def queued(keys, lane_):
+        seen = real_queued(keys, lane_)
+        picks.append(f"queued? loaded={lane_.loaded_model} keys={len(keys)} -> {seen}")
+        return seen
+
+    def spy(self, lane_, **kw):
+        found = real_next(self, lane_, **kw)
+        if lane_.name == "local-ml":
+            subject = found[1].execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [found[2][0]])[0] if found else None
+            picks.append(f"{threading.current_thread().name} loaded={lane_.loaded_model} running={list(lane_.running)} -> {subject}")
+        return found
+
+    monkeypatch.setattr(jobs, "_loaded_work_queued", queued)
+    monkeypatch.setattr(jobs._Scheduler, "_next", spy)
     jobs.enqueue(db, KRAKEN, "a1-hold")
     assert _wait_for(lambda: "a1-hold" in lane.ran)
     jobs.enqueue(db, KRAKEN, "a2")
@@ -124,5 +141,5 @@ def test_a_person_job_for_another_model_goes_at_the_next_page_boundary_and_its_p
     assert _wait_for(lambda: len(lane.ran) == 6)
     # What the lane had loaded as each page started, and what it released, say WHY if the order is wrong (#5357 flake, M4 2026-10-20:
     # A,A then B means the lane handed back to A while b1/b2 were queued; this prints whether `loaded_model` was B at that pick).
-    why = f"ran={lane.ran} loaded_at_run={lane.loaded_at_run} swaps={lane.swaps}"
+    why = f"ran={lane.ran} loaded_at_run={lane.loaded_at_run} swaps={lane.swaps} picks={picks}"
     assert lane.ran == ["a1-hold", "person-b", "b1", "b2", "a2", "a3"], why  # the person's, B's queued pages, back to A
