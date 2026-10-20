@@ -703,6 +703,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   drops its entry, and a read begun before it never stores its old answer; at startup only the providers the person has set up (the
   app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
+- `activity.engine.embedder-model-missing-says-so` — **[PARTIAL]** (P2; test `fichero-server/tests/unit/db/test_embedder_model_missing_says_so.py`, not yet run on the M4) when the search model is not in the cache and cannot be fetched, the embed job fails with "Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet connection; it tries again later" as its reason in Activity, never fastembed's "Could not find the model tar.gz". GAP: the engine does not download the weights itself through the in-app models path (`everything the app needs ships inside`: only weights download, in-app); fastembed fetches on first load when online. A models-path download with a progress row is the follow-up.
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
 - `activity.engine.auth-never-hangs` — **[PARTIAL]** (owner, 2026-10-19 18:11: the engine stopped answering and was respawned; review 317:
