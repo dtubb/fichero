@@ -92,3 +92,21 @@ def test_a_cached_model_queues_no_download(db, monkeypatch):
     monkeypatch.setattr(embed_process, "_cached", lambda *a: True)
     derivatives._fetch_the_search_model(db)
     assert db.execute_fetchall("SELECT 1 FROM jobs WHERE kind = ?", [local_models.DOWNLOAD_KIND]) == []
+
+
+def test_a_database_error_while_queueing_the_download_still_defers_the_embed(db, monkeypatch):
+    """467 MED: the queue step runs before the deferral; an error in it must not turn the deferral into a failure."""
+    import duckdb
+
+    from tests.unit.jobs.test_runs_are_jobs import _wait_for
+
+    doc = Document(name="p", page_content="some words")
+    db.save(doc)
+    jobs.load_kinds()
+    words = "Search can't index yet: its model isn't downloaded."
+    monkeypatch.setattr(db, "embed", lambda target: (_ for _ in ()).throw(embed_process.EmbedderUnavailable(words)))
+    monkeypatch.setattr(embed_process, "_cached", lambda *a: False)
+    monkeypatch.setattr(jobs, "is_queued_or_running", lambda *a: (_ for _ in ()).throw(duckdb.Error("table locked")))
+    job_id = jobs.enqueue(db, derivatives.EMBED_KIND, doc.id)
+    assert _wait_for(lambda: jobs.read_job(db, job_id)["reason"] == words, 60), jobs.read_job(db, job_id)
+    assert jobs.read_job(db, job_id)["state"] == "waiting"
