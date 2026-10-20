@@ -434,6 +434,51 @@ def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
 _WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print); cloud vision models cannot find lines yet"}
 
 
+def choose_try_candidates(own: Any, fits: list[Any], frontier: list[Any], *, limit: int) -> tuple[list[Any], list[Any]]:
+    """The Try's default candidates, at most `limit`: the step's own card, then the best frontier reader (from the
+    person's provider rows, when pages may leave), then the finder's next local ones, then any more frontier ones.
+    (chosen, the frontier readers left out for the limit): the limit stays three, and the recommendation says who was
+    left out (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922)."""
+    seen: set[str] = set()
+    ordered: list[Any] = []
+
+    def add(cards: list[Any]) -> None:
+        for c in cards:
+            if c is not None and c.id not in seen:
+                seen.add(c.id)
+                ordered.append(c)
+
+    add([own])
+    add(frontier[:1])
+    add(fits)
+    add(frontier[1:])
+    chosen = ordered[:limit]
+    taken = {c.id for c in chosen}
+    left_out = [c for c in dict(((f.id, f) for f in frontier)).values() if c.id not in taken]
+    return chosen, left_out
+
+
+def left_out_sentence(left_out: list[Any]) -> str | None:
+    """The sentence that names a frontier reader the Try's limit of three left out (None when none was)."""
+    if not left_out:
+        return None
+    names = [str(c.note).strip().rstrip(".") or c.id for c in left_out]
+    who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    verb, them = ("was", "it") if len(names) == 1 else ("were", "them")
+    return f"{who} {verb} not tried: a Try compares three readers. Name {them} to try {them}."
+
+
+def _frontier_cards(a: Any, job: str) -> list[Any]:
+    """The frontier readers the person's provider rows offer for this step's job: only when pages may leave
+    (`answers.cloud_allowed`), only those that can run, in the rows' order."""
+    from fichero_server.recipes.assemble import _refusal
+    from fichero_server.recipes.discovery import remote_reader_cards
+
+    if not a.cloud_allowed:
+        return []
+    return [c for c in remote_reader_cards() if job in c.jobs and c.runs_here and _refusal(job, c, a, a.material) is None]
+
+
 def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | None) -> list[Any]:
     """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
@@ -460,9 +505,7 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
         own = next((c.id for c in found if dict(c.pin) == step.get("model")), None)
     fits = sorted((c for c in found if job in c.jobs and c.runs_here and not c.offered_only
                    and _refusal(job, c, a, a.material) is None), key=lambda c: _rank_key(c, a.material, a))
-    out = [by_id[own]] if own in by_id else []
-    out += [c for c in fits if c.id != own]
-    return out[:COMPARED]
+    return choose_try_candidates(by_id.get(own), [c for c in fits if c.id != own], _frontier_cards(a, job), limit=COMPARED)[0]
 
 
 def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) -> dict[str, Any]:
