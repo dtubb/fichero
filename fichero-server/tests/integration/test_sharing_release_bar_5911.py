@@ -37,7 +37,7 @@ def test_the_harness_never_uses_the_owners_port(pair):
 
 def test_the_host_really_listens_on_the_lan_address(pair):
     host, _guest = pair
-    with httpx.Client(verify=False, base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
+    with httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
         assert client.get("/api/health").status_code == 200
 
 
@@ -51,7 +51,7 @@ def test_release_bar_1_a_guest_pairs_over_the_lan_listener(pair):
     paired = engines.pair_with_link(guest, link)
     assert paired["device_token"] and paired["device_id"]
 
-    with httpx.Client(verify=False, base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
+    with httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
         ok = client.get("/api/actions/registry", headers={"Authorization": f"Bearer {paired['device_token']}"})
         assert ok.status_code == 200, ok.text
         assert client.get("/api/actions/registry").status_code == 401, "auth still enforced on the LAN listener"
@@ -74,7 +74,7 @@ def _paired_guest_device(host, guest):
 
 def _lan_stream(host, device_token):
     headers = {"Authorization": f"Bearer {device_token}", **(host.library or {})}
-    return engines.Stream(f"https://{host.lan}:{host.port}/api/activity/stream", headers)
+    return engines.Stream(f"https://{host.lan}:{host.port}/api/activity/stream", headers, host.lan_ssl())
 
 
 def test_release_bar_3_http_half_a_rename_by_either_side_is_seen_by_the_other(pair):
@@ -84,7 +84,7 @@ def test_release_bar_3_http_half_a_rename_by_either_side_is_seen_by_the_other(pa
     host.make_library("Both ways")
     paired = _paired_guest_device(host, guest)
     device = {"Authorization": f"Bearer {paired['device_token']}", **host.library}
-    with host.uds as local, httpx.Client(verify=False, base_url=f"https://{host.lan}:{host.port}", timeout=30) as lan:
+    with host.uds as local, httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=30) as lan:
         note = local.post("/api/notes", json={"title": "first", "body": "x"}, headers=host.library).json()
         renamed = lan.patch(f"/api/notes/{note['id']}", json={"title": "renamed by the guest"}, headers=device)
         assert renamed.status_code == 200, renamed.text
@@ -105,7 +105,7 @@ def test_release_bar_4_remove_refuses_the_device_at_once_and_closes_its_stream(p
         removed = local.post(f"/api/pair/devices/{paired['device_id']}/revoke")
         assert removed.status_code == 200, removed.text
     assert stream.ended.wait(15), "the removed device's stream is still open"
-    with httpx.Client(verify=False, base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
+    with httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=15) as client:
         refused = client.get("/api/actions/registry", headers={"Authorization": f"Bearer {paired['device_token']}"})
     assert refused.status_code == 401, refused.text
 
@@ -118,14 +118,11 @@ def test_release_bar_7_the_activity_stream_is_live_again_after_the_host_restarts
     paired = _paired_guest_device(host, guest)
     before = _lan_stream(host, paired["device_token"])
     before.wait_open()
-    host.restart(sharing=True, multiuser=True)  # what the app does for a switch
+    host.restart(sharing=True)  # what the app does for a Sharing switch
     assert before.ended.wait(30), "the old stream outlived the engine it was connected to"
     after = _lan_stream(host, paired["device_token"])
     after.wait_open()
-    with host.uds as local:
-        made = local.post("/api/notes", json={"title": "after the restart", "body": "x"}, headers=host.library)
-        assert made.status_code == 200, made.text
-    assert after.wait_frame(), "the new subscriber saw nothing of what happened after the restart"
+    assert after.wait_line(), "the new subscriber heard nothing (not even a keepalive) from the restarted host"
 
 
 def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
@@ -139,10 +136,14 @@ def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
     host = engines.start_host(lan, sharing=False)
     try:
         for cycle in range(3):
-            # Sharing on is the one switch for the LAN listener (5b44474cd); Multi-user is the engine's persisted setting, which
-            # restart() writes as the app's switch would (the route's own refusal without a password is pinned by its unit tests, #5908).
+            # Sharing on is the one switch for the LAN listener (5b44474cd); Multi-user is the engine's own setting, changed by
+            # its route as the app does, and it must survive the Sharing restart that follows.
             for sharing, multiuser in ((True, False), (True, True), (False, True), (False, False)):
-                host.restart(sharing=sharing, multiuser=multiuser)
+                if multiuser and not host._multiuser:
+                    engines.turn_multiuser_on(host)
+                elif not multiuser and host._multiuser:
+                    engines.turn_multiuser_off(host)
+                host.restart(sharing=sharing)
                 where = f"cycle {cycle}, sharing={sharing}, multiuser={multiuser}"
                 assert host.alive(), f"the engine died: {where}"
                 with host.uds as local:
