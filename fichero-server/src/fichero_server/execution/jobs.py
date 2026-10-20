@@ -1306,16 +1306,18 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
         except Exception as exc:  # noqa: BLE001 -- the caller's loop is gone: so is the caller
             raise JobCancelled("Its run had ended before this page started") from exc
         waited = 0.0
-        while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited)):
+        # A live call keeps its slot past the limit: freeing the lane under it would let another heavy job start beside the model
+        # (or unload it). Only the words change; the call's own timeout or a Stop ends it (#5938).
+        while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited) if waited < HOLD_LIMIT_SECONDS else SLOW_CALL_SECONDS):
             waited += SLOW_CALL_SECONDS
-            if job_ref:  # in words, so a model server that stopped answering is not a silent 15 minutes
-                db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
-                           [f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
-                            else f"Waiting for the model to answer ({waited:g} s so far)", job_ref[0]])
-            if waited >= HOLD_LIMIT_SECONDS:
-                if outcome["result"] is None:  # the call is still live: say what happened, not that its run ended (#5938)
-                    raise JobCancelled(f"The model had not answered after {HOLD_LIMIT_SECONDS / 60:g} minutes; its place in the queue was given up")
+            if loop.is_closed():  # the caller's loop is gone, so its finally never runs: let the slot go
                 break
+            if job_ref:  # in words, so a model server that stopped answering is not a silent 15 minutes
+                words = (f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
+                         else f"Waiting for the model to answer ({waited:g} s so far)")
+                if waited >= HOLD_LIMIT_SECONDS:
+                    words += "; it keeps its place until the call ends or is stopped"
+                db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [words, job_ref[0]])
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
         if outcome["result"] == STOPPED_BY_YOU:
