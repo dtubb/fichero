@@ -1463,7 +1463,7 @@ and node, not by job); a retry action for failed pages.
   watchdog thread writes the last stall (`<N>s`, `module:function` only: no paths, arguments or locals) atomically to
   `previous_stall.json` under `$FICHERO_BASE_PATH`, never on the event loop; the NEXT engine reads it once at start, reports
   `GET /api/health` `dependencies['previous_stall']` = `'<N>s in <module:function>'` and deletes the file, so it shows for one
-  engine life only. Only a stall the engine DIED in survives: the watcher deletes the file when the loop answers again and on a clean stop. A corrupt, path-bearing or missing file is ignored (logged). Pinned by
+  engine life only. While the hold lasts the record is rewritten every 2 s (seconds and the frame the loop is in now). Only a stall the engine DIED in survives: the watcher deletes the file when the loop answers again and on a clean stop. A corrupt, path-bearing or missing file is ignored (logged). Pinned by
   `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). NOT built: the app saying it in the restart
   sentence (Swift, HELD).
 - `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the

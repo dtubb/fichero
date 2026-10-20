@@ -38,7 +38,7 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
 
     # start the watcher from inside the loop thread, as the lifespan does
     async def boot():
-        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, dump_file=open("/dev/null", "w"))
+        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, record_seconds=0.1, dump_file=open("/dev/null", "w"))
 
     def run():
         asyncio.set_event_loop(loop)
@@ -53,6 +53,9 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
     deadline = time.monotonic() + 5
     while not path.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
+    first = json.loads(path.read_text())["seconds"]
+    time.sleep(2.2)  # held on: the record keeps up (seconds are whole, so it takes over 1 s to show)
+    assert json.loads(path.read_text())["seconds"] > first, "the record stayed at the first figure while the hold lasted"
     record = json.loads(path.read_text())  # killed mid-stall: this is what the next engine finds
     assert record["frame"].endswith(":hold"), record
     release.set()
