@@ -202,7 +202,22 @@ def unread_on(db: Any, doc_id: str) -> int:
 
 
 NOTHING_FOR_PAGE = "every line came back empty: the reader may not suit this hand"
+#: The reason a Kraken page with MOST lines empty gives its unread lines (`models.segments.segment_from_box`).
+MOSTLY_NOTHING_FOR_PAGE = "most lines came back empty: the reader may not suit this hand"
+#: The reasons that make a page a FAILED read: the reader gave no text for every line, or for most of them.
+FAILED_READ_REASONS = frozenset({NOTHING_FOR_PAGE, MOSTLY_NOTHING_FOR_PAGE})
 NOT_ANSWERED = "no reader has answered for the line: the read step did not reach it, or ended before it did"
+
+
+def failed_reads(db: Any, pages: list[str]) -> list[tuple[str, str]]:
+    """(page id, why) for each of these pages the reader failed: every unread line of it carries a failed-read reason
+    (the reader gave no text for all of its lines, or for most). Such a page is a lost page of its step, not a read one."""
+    out = []
+    for page in pages:
+        reasons = set(unread_reasons(db, page).values())
+        if reasons and reasons <= FAILED_READ_REASONS:
+            out.append((page, MOSTLY_NOTHING_FOR_PAGE if MOSTLY_NOTHING_FOR_PAGE in reasons else NOTHING_FOR_PAGE))
+    return out
 
 
 def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
