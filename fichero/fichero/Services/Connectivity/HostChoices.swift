@@ -20,7 +20,7 @@ enum HostChoices {
     static func tailnet(of urlString: String?) -> String? {
         guard let host = urlString.flatMap({ URL(string: $0)?.host?.lowercased() }), host.hasSuffix(".ts.net") else { return nil }
         let labels = host.split(separator: ".")
-        return labels.count >= 3 ? labels.dropFirst().joined(separator: ".") : nil
+        return labels.count >= 4 ? labels.suffix(3).joined(separator: ".") : nil  // machine.tailnet.ts.net
     }
 
     /// Whether pairing with this host needs its invite link. Bonjour carries no key to pin and nothing that binds a
