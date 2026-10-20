@@ -37550,7 +37550,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KGGraphListResponse"
+                  "$ref": "#/components/schemas/KGClaimSearchResponse"
                 }
               }
             }
@@ -69913,6 +69913,31 @@
         ],
         "title": "JsonlExportResponse"
       },
+      "KGClaimSearchResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "not_embedded": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Not Embedded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "KGClaimSearchResponse",
+        "description": "Claim search by meaning: the envelope plus how many claims cannot be found yet."
+      },
       "KGEntityGroup": {
         "properties": {
           "kind": {
@@ -70014,11 +70039,6 @@
           "count": {
             "type": "integer",
             "title": "Count"
-          },
-          "not_embedded": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Not Embedded"
           }
         },
         "type": "object",

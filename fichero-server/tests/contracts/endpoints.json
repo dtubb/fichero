@@ -6087,7 +6087,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "KGGraphListResponse"
+        "response_model": "KGClaimSearchResponse"
       },
       {
         "method": "POST",
