@@ -48,9 +48,70 @@ def test_calibration_says_whether_the_bad_lines_are_the_unsure_ones():
 def test_the_ledger_refuses_a_call_that_would_pass_the_cap_before_it_is_made():
     ledger = ab.Ledger(cap=1.0)
     ledger.add(0.95)
-    ledger.check(0.05)
+    ledger.reserve(0.05)
     with pytest.raises(ab.CapReached):
-        ledger.check(0.06)
+        ledger.reserve(0.01)  # the held 0.05 counts: spent + held + this > cap
+    ledger.settle(0.05, 0.02)
+    assert ledger.spent == pytest.approx(0.97) and ledger.reserved == 0
+
+
+def test_four_calls_at_once_at_a_cap_that_fits_two_make_only_two(monkeypatch):
+    """Review 485: each passed the check before any settled; the worst case is now reserved at check time."""
+    import asyncio
+
+    from fichero_server import llm
+    from fichero_server.llm import model_types
+
+    monkeypatch.setattr(model_types, "estimate_cost", lambda model, i, o: (i + o) * 2e-4)
+    made = []
+
+    async def real(images, prompt, config, **kw):
+        made.append(1)
+        await asyncio.sleep(0.05)  # every call is under way before any ends
+        return "[]"
+
+    monkeypatch.setattr(llm, "vision", real)
+    ledger = ab.Ledger(cap=1.0)
+    config = ab.install_model("anthropic:cheap", ledger)
+    config.max_tokens = 1000  # worst case: (1000 prompt tokens + 1000 answer) * 2e-4 = 0.40
+
+    async def four():
+        return await asyncio.gather(*(llm.vision(images=[], prompt="x" * 4000, config=config) for _ in range(4)),
+                                    return_exceptions=True)
+
+    results = asyncio.run(four())
+    assert sum(isinstance(r, ab.CapReached) for r in results) == 2 and len(made) == 2, results
+    assert ledger.reserved == 0 and ledger.spent <= 1.0
+
+
+def test_the_real_cost_is_the_calls_reported_tokens_when_it_reports_any(monkeypatch):
+    import asyncio
+
+    from fichero_server import llm
+    from fichero_server.llm import model_types
+
+    monkeypatch.setattr(model_types, "estimate_cost", lambda model, i, o: (i + o) * 1e-3)
+
+    async def real(images, prompt, config, **kw):
+        llm._usage_collector.get().append({"input_tokens": 100, "output_tokens": 50})
+        return "[]"
+
+    monkeypatch.setattr(llm, "vision", real)
+    ledger = ab.Ledger(cap=10.0)
+    config = ab.install_model("anthropic:cheap", ledger)
+    asyncio.run(llm.vision(images=[], prompt="x" * 4000, config=config))
+    assert ledger.spent == pytest.approx(0.15), "100 + 50 reported tokens, not the 1000-token estimate"
+
+
+def test_it_refuses_to_run_without_a_scratch_state_dir_or_inside_the_apps_own(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
+    with pytest.raises(SystemExit, match="FICHERO_BASE_PATH"):
+        ab.require_scratch_state()
+    monkeypatch.setenv("FICHERO_BASE_PATH", str(Path.home() / "Library" / "Application Support" / "Fichero"))
+    with pytest.raises(SystemExit, match="Library"):
+        ab.require_scratch_state()
+    monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+    ab.require_scratch_state()
 
 
 def test_a_model_with_no_price_is_refused_because_a_cap_cannot_be_kept(monkeypatch):
