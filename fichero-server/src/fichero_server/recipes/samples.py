@@ -720,7 +720,6 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     """One run of the stage's own steps on a fresh copy of the pages: what it made, in the project's page ids, and
     for comparing, each page's whole reading, its shapes and the items it found."""
     from fichero_server.db.manager import db_manager
-    from fichero_server.execution import jobs
     from fichero_server.models import DocType, Document
     from fichero_server.models.transfer import TransferMode
     from fichero_server.recipes import runner
