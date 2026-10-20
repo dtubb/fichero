@@ -467,7 +467,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             settings[setting] = given
         bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
         if bar not in (None, "", WHOLE_PAGE) and "only_below_confidence" not in settings:
-            settings["only_below_confidence"] = float(bar)  # variant A: only the lines under the bar go to the model
+            try:
+                number = float(bar)
+                if isinstance(bar, bool) or not 0 < number <= 1:
+                    raise ValueError(bar)
+            except (TypeError, ValueError):
+                skip(sid, f"{label}: the certainty under which a line goes to the second model is {bar!r}, not a number "
+                          "above 0 and up to 1", "answer \"Send the second model only the lines Kraken is unsure of?\" "
+                                                 "again in the project's setup")
+                continue
+            settings["only_below_confidence"] = number  # variant A: only the lines under the bar go to the model
         runs_on = step.get("runs_on") or "this-mac"
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder
@@ -1219,8 +1228,8 @@ def use_place_instead(recipe: dict[str, Any] | None, elsewhere: list[dict[str, A
     return apply_project_overrides(out, cards)
 
 
-#: Variant A's price before Kraken has read anything (`source.recipe.kraken-then-cloud-unsure-lines`): at most this many
-#: lines a page (a measured 33-line page on the M4), each sent as a crop with a short prompt and answered with a line.
+#: Variant A's price for pages Kraken has not found lines on yet (`source.recipe.kraken-then-cloud-unsure-lines`): an
+#: ASSUMED about this many lines a page (a measured 33-line page on the M4), each sent as a crop with a short prompt.
 ASSUMED_LINES_PER_PAGE = 33
 LINE_TOKENS_IN = 700
 LINE_TOKENS_OUT = 40
@@ -1244,7 +1253,24 @@ def _priced_lines(run: dict[str, Any], lines: int) -> float | None:
     return 0.0 if runs_on in ("this-mac", "") else None
 
 
-def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
+def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple[int, str, str]:
+    """(how many lines variant A will send, whether that is `exact`, `at-most` or an `estimate`, in words). Exact when
+    every page is segmented and every line has its stated certainty; an upper bound when every page is segmented but
+    the certainty is not all known; otherwise an ESTIMATE that says what it assumes."""
+    seg, lines = (known or {}).get("segmented", 0), (known or {}).get("lines", 0)
+    if known and pages and seg == pages:
+        if known.get("under_bar") is not None:
+            return known["under_bar"], "exact", f"{known['under_bar']} of {lines} lines are under {bar:g} sure now"
+        return lines, "at-most", (f"at most {lines} lines: every line Kraken found; how many are under {bar:g} sure "
+                                  "is known once they are read")
+    guessed = (pages - seg) * ASSUMED_LINES_PER_PAGE
+    return lines + guessed, "estimate", (
+        f"about {lines + guessed} lines, assuming about {ASSUMED_LINES_PER_PAGE} a page for the {pages - seg} "
+        f"pages Kraken has not found lines on yet; only those under {bar:g} sure are sent, and the run reports the "
+        "lines and the cost it really had")
+
+
+def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`).
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
@@ -1260,8 +1286,8 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
         # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
         calls = review_passes(w["workflow"], w.get("lenses")) if review else 1
         bar = certainty_bar(w) if review else None
-        lines_at_most = pages * ASSUMED_LINES_PER_PAGE if bar is not None else None
-        cost = (_priced_lines(w, lines_at_most) if lines_at_most is not None
+        to_send, send_kind, send_basis = lines_to_send(bar, pages, lines_known) if bar is not None else (None, None, None)
+        cost = (_priced_lines(w, to_send) if to_send is not None
                 else _priced(w, pages * calls) if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
@@ -1270,10 +1296,8 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
                   for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
-                     "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_at_most": lines_at_most,
-                     "lines_basis": None if bar is None else (
-                         f"at most {lines_at_most} lines are sent: only the ones Kraken is under {bar:g} sure of, "
-                         "which is known once Kraken has read the pages; the run reports the lines and the cost it really had")})
+                     "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_to_send": to_send,
+                     "lines_to_send_kind": send_kind, "lines_basis": send_basis})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 
