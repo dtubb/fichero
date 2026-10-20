@@ -764,7 +764,8 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                 from fichero_server.recipes.regions import find_regions
 
                 jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
-                find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo")
+                find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo",
+                             person=True)  # a try is one a person presses and watches
                 ran.append({"steps": card["steps"], "state": "done", "why": None})
                 continue
             if card.get("card") != "workflow":
