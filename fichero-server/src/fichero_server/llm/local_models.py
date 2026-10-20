@@ -594,7 +594,15 @@ class LocalModelManager:
 
         cache_dir = str(self.embeddings_path)
         logger.info(f"Downloading embeddings model '{model_id}' to {cache_dir}")
-        TextEmbedding(model_name=model_id, cache_dir=cache_dir)
+        # The search models are custom fastembed registrations (bge-m3, the pinned e5): register first, and fetch
+        # under the name search loads them by, so the files land where it looks.
+        from fichero_server.db import embeddings as search_embeddings
+
+        space = search_embeddings.SUPPORTED_EMBEDDING_SPACES.get(model_id.lower())
+        if space is not None:
+            search_embeddings._register_fastembed_model_for_space(space)
+        TextEmbedding(model_name=space.fastembed_model_name if space else model_id, cache_dir=cache_dir)
+        search_embeddings.forget_load_failures()  # the model is here: search tries it afresh, not after its back-off
         logger.info(f"Embeddings model '{model_id}' downloaded successfully")
 
     def delete_embeddings_model(self, model_id: str) -> int:
@@ -885,6 +893,7 @@ def _run_download(subject: str, db=None) -> None:
     from fichero_server.llm.model_downloads import (
         DownloadInterrupted,
         DownloadStopped,
+        looks_offline,
         progress_words,
         with_retries,
     )
@@ -895,12 +904,13 @@ def _run_download(subject: str, db=None) -> None:
         return _stop_asked(db)
 
     said = {"at": 0.0}
+    began = time.monotonic()
 
     def on_bytes(have: int, total: int | None) -> None:
         now = time.monotonic()
-        if now - said["at"] >= PROGRESS_EVERY_SECONDS:
+        if now - said["at"] >= PROGRESS_EVERY_SECONDS or not have:
             said["at"] = now
-            _say_progress(db, progress_words(person, have, total))
+            _say_progress(db, progress_words(person, have, total, now - began))
 
     try:
         if runtime == "mlx":
@@ -925,6 +935,8 @@ def _run_download(subject: str, db=None) -> None:
     except DownloadStopped as stopped:
         raise jobs.JobCancelled(str(stopped)) from stopped
     except DownloadInterrupted as broken:
+        if looks_offline(broken):
+            broken = DownloadInterrupted(person, broken.cause, offline=True)
         job_id, detail = _job_detail(db)
         if job_id is None:
             raise

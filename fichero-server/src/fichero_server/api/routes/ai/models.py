@@ -23,6 +23,14 @@ _cache: dict[str, tuple[datetime, list]] = {}
 CACHE_TTL = timedelta(minutes=15)
 
 
+def hf_error_words(exc: BaseException) -> str:
+    """One sentence for a failed Hugging Face call; `str(exc)` is empty for a timeout or a dropped connection."""
+    reason = str(exc).strip() or type(exc).__name__
+    if any("Timeout" in cls.__name__ for cls in type(exc).__mro__):  # httpx is imported lazily (#3985)
+        reason = "it did not answer in time"
+    return f"Could not reach Hugging Face: {reason}."
+
+
 # =============================================================================
 # Response Models
 # =============================================================================
@@ -127,9 +135,9 @@ async def _fetch_hf_models(
             _set_cache(cache_key, data)
             return data
         except httpx.HTTPError as e:
-            logger.error(f"HuggingFace API error: {e}")
+            logger.error("HuggingFace API error: %s", hf_error_words(e))
             raise HTTPException(
-                status_code=502, detail=f"HuggingFace API error: {str(e)}"
+                status_code=502, detail=hf_error_words(e)
             )
 
 
@@ -154,9 +162,9 @@ async def _fetch_hf_tasks() -> list[dict]:
             _set_cache(cache_key, tasks)
             return tasks
         except httpx.HTTPError as e:
-            logger.error(f"HuggingFace API error: {e}")
+            logger.error("HuggingFace API error: %s", hf_error_words(e))
             raise HTTPException(
-                status_code=502, detail=f"HuggingFace API error: {str(e)}"
+                status_code=502, detail=hf_error_words(e)
             )
 
 
@@ -251,9 +259,9 @@ async def get_hf_model(model_id: str) -> HFModelInfo:
                 cached = [response.json()]
                 _set_cache(cache_key, cached)
             except httpx.HTTPError as e:
-                logger.error(f"HuggingFace API error: {e}")
+                logger.error("HuggingFace API error: %s", hf_error_words(e))
                 raise HTTPException(
-                    status_code=502, detail=f"HuggingFace API error: {str(e)}"
+                    status_code=502, detail=hf_error_words(e)
                 )
 
     m = cached[0]
