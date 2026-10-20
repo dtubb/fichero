@@ -13,7 +13,7 @@ struct ActivityLiveSection: View {
         summaries.flatMap { $0.live ?? [] }.map(ActivityPopoverSummary.block)
     }
 
-    var background: [ActivityPopoverSummary.BackgroundLine] {
+    var background: [ActivityPopoverSummary.BackgroundRow] {
         summaries.flatMap { $0.background ?? [] }.map(ActivityPopoverSummary.backgroundLine)
     }
 
