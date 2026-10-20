@@ -1192,6 +1192,11 @@ def doing_words(card: dict[str, Any]) -> str:
     return f"{said} with {reader}" if reader else said
 
 
+#: The cards whose run makes a job of its own under the run: a step that makes none (regions, prepare, embed, table, publish)
+#: must not borrow the run's newest unfinished row, which is a download or an earlier step winding down (Fable review #12).
+_CARDS_WITH_A_JOB = ("workflow", "check", "find-documents", "entries")
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
     has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
@@ -1205,7 +1210,8 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
     for step in steps:
-        if step["state"] == "running" and not step.get("child_id") and row["state"] == "running":
+        if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
+                and step.get("card") in _CARDS_WITH_A_JOB):
             # The step learns its job's id only when the job returns: while it runs, its job is the run's
             # newest job not yet ended, so the status points at it (#5654).
             step["child_id"] = jobs.running_child(db, job_id)

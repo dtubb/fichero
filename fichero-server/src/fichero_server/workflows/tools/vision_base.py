@@ -2492,16 +2492,30 @@ def warm_supported_locales() -> None:
 
 def supported_locales_are_known() -> bool:
     """Whether `_supported_vision_locales` has been answered, so reading it again costs nothing."""
-    return _supported_vision_locales.cache_info().currsize > 0
+    return _locales_asked is not None
 
 
-@lru_cache(maxsize=1)
+#: The locales Vision answered with, once it answered with some (an empty or failed answer is never kept: it would make
+#: `validate_vision_language` pass any string through for the whole session).
+_locales_asked: frozenset[str] | None = None
+
+
 def _supported_vision_locales() -> frozenset[str]:
     """The recognition locales THIS machine's Vision text recognizer accepts.
 
-    Asked once per process and cached: the answer is a property of the
-    installed macOS, not of the page being read.
+    Asked until it answers, then kept for the process: the answer is a property of the installed macOS, not of the
+    page being read. A failed or empty answer is asked again next time, never cached (Fable review #17).
     """
+    global _locales_asked
+    if _locales_asked is None:
+        asked = _ask_vision_locales()
+        if asked:
+            _locales_asked = asked
+        return asked
+    return _locales_asked
+
+
+def _ask_vision_locales() -> frozenset[str]:
     try:
         import Vision  # noqa: PLC0415
 
