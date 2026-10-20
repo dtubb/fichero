@@ -131,10 +131,26 @@ class Engine:
         socket, with the new settings in its environment. Raises if the new engine does not come up."""
         assert self.env_for is not None, "only a host restarts"
         self._end_process()
+        self.persist_multiuser(multiuser)
         self.proc = _popen(self.env_for(sharing, multiuser), self.launch_secret)
         self.wait_ready()
         if self.lan_expected(sharing):  # the LAN listener binds a moment after the socket answers: wait for it, never race it
             self.wait_lan()
+
+    def persist_multiuser(self, on: bool) -> None:
+        """What the app's Multi-user switch leaves in the library (#5914: the engine owns the switch, the app no longer passes
+        FICHERO_MULTIUSER): the persisted setting, plus the owner's chosen password when it goes on. Written to the throwaway
+        app database while the engine is stopped, since the route that does this needs the app's own credential (the bootstrap
+        token the ## 582 ratchet keeps out of tests)."""
+        assert self._key is not None or not on, "sign the owner in (first run) before turning Multi-user on"
+        code = ("from fichero_server.db.app import get_app_db\n"
+                "from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY, note_owner_password_set\n"
+                "db = get_app_db()\n"
+                f"db.set_setting(MULTIUSER_SETTING_KEY, {'true' if on else 'false'!r})\n"
+                + ("note_owner_password_set(db)\n" if on else ""))
+        env = _env(self.base, self.sock, "unused")
+        env.pop("FICHERO_MULTIUSER", None)
+        subprocess.run([sys.executable, "-c", code], env=env, check=True, timeout=120)
 
     def lan_expected(self, sharing: bool) -> bool:
         return sharing and self.port is not None
@@ -168,7 +184,7 @@ def _env(base: Path, sock: Path, token: str) -> dict[str, str]:
         HOME=str(home), FICHERO_MODEL_STORE_ROOT=str(_share_real_model_cache(home)), FICHERO_BASE_PATH=str(base),
         FICHERO_BOOTSTRAP_TOKEN=token, FICHERO_TOKEN_DIR=str(base / "token"), FICHERO_UDS_PATH=str(sock),
         FICHERO_LAUNCH_SECRET_STDIN="1",
-        FICHERO_MULTIUSER="0", FICHERO_FEATURE_TIER="dev", FICHERO_SKIP_DEFAULT_WORKFLOWS="1", FICHERO_ENV="test",
+        FICHERO_FEATURE_TIER="dev", FICHERO_SKIP_DEFAULT_WORKFLOWS="1", FICHERO_ENV="test",
         PYTHONPATH=str(ENGINE_SRC))
     return env
 
@@ -208,15 +224,17 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
 
     def env_for(sharing_on: bool, multiuser_on: bool) -> dict[str, str]:
         env = _env(base, sock, token)
-        env["FICHERO_MULTIUSER"] = "1" if multiuser_on else "0"  # the app sets this from its switch, every spawn
         if sharing_on:
             env.update(FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
                        FICHERO_TLS_CERTFILE=str(material.certificate_path), FICHERO_TLS_KEYFILE=str(material.key_path),
                        FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
         return env
 
-    engine = _spawn("host", env_for(sharing, multiuser), base, sock, port=port, lan=lan, spki_pin=material.spki_pin)
+    engine = _spawn("host", env_for(sharing, False), base, sock, port=port, lan=lan, spki_pin=material.spki_pin)
     engine.env_for = env_for
+    if multiuser:  # as a person does: the owner exists and chose a password first, then the switch goes on and the engine restarts
+        engine.sign_in_owner()
+        engine.restart(sharing=sharing, multiuser=True)
     return engine
 
 
