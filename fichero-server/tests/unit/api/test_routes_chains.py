@@ -140,61 +140,28 @@ class TestDeleteChain:
 
 
 class TestExecuteChain:
-    def test_execute_chain_returns_execution_id_and_status(self, client):
-        created = client.post("/api/chains", json=_chain_payload("Runnable")).json()
-
-        fake_result = ChainExecutionResult(
-            chain_id=created["id"],
-            execution_id="exec-fixed",
-            status=ChainStepStatus.COMPLETED,
-            step_results=[
-                ChainStepResult(
-                    step_id="step-1",
-                    workflow_id="wf-abc",
-                    status=ChainStepStatus.COMPLETED,
-                    outputs={"text": "ok"},
-                    output_files=["/tmp/out.txt"],
-                )
-            ],
-            final_outputs={"text": "ok"},
-            final_files=["/tmp/out.txt"],
-        )
-
-        with patch(
-            "fichero_server.api.routes.workflow.chains.ChainExecutor.execute",
-            new_callable=AsyncMock,
-        ) as mock_execute:
-            mock_execute.return_value = fake_result
+    def test_execute_chain_returns_execution_id_and_runs_the_steps_through_the_runner(self, client):
+        """`activity.run.one-way-to-run`: /execute starts the same real step runs as /execute-steps."""
+        created = client.post("/api/chains", json=_steps_payload("Runnable")).json()
+        seams = _steps_seams([("completed", None), ("completed", None)])
+        with seams["db"], seams["load"], seams["validate"], seams["record"], \
+                seams["run"] as run_mock, seams["outcome"]:
             r = client.post(
                 f"/api/chains/{created['id']}/execute",
-                json={
-                    "inputs": {
-                        "k": "v",
-                        "library_path": "/tmp/other-library.fichero",
-                    },
-                    "input_files": ["/tmp/in.txt"],
-                },
-                headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
+                json={"inputs": {"k": "v"}, "input_files": ["/tmp/in.txt"]},
+                headers=LIB_HEADER,
             )
-
-        assert r.status_code == 200
-        payload = r.json()
-        assert payload["chain_id"] == created["id"]
-        assert payload["status"] == "running"
-        assert payload["execution_id"]
-
-        status = client.get(f"/api/chains/executions/{payload['execution_id']}")
-        assert status.status_code == 200
-        body = status.json()
-        assert body["status"] == "completed"
-        assert body["final_outputs"] == {"text": "ok"}
-        assert body["final_files"] == ["/tmp/out.txt"]
-        assert len(body["step_results"]) == 1
-        assert body["step_results"][0]["step_id"] == "step-1"
-        mock_execute.assert_awaited_once()
-        initial_inputs = mock_execute.await_args.kwargs["initial_inputs"]
-        assert initial_inputs["k"] == "v"
-        assert initial_inputs["library_path"] == "/tmp/test.fichero"
+            assert r.status_code == 200
+            payload = r.json()
+            assert payload["chain_id"] == created["id"]
+            assert payload["status"] == "running"
+            assert payload["execution_id"]
+            final = _wait_terminal(client, payload["execution_id"])
+        assert final["status"] == "completed"
+        assert [sr["step_id"] for sr in final["step_results"]] == ["s1", "s2"]
+        assert run_mock.await_count == 2  # each step a real run of the runner, not the old executor
+        ran = run_mock.await_args_list[0].kwargs["request"]
+        assert ran.inputs["k"] == "v" and ran.inputs["input_files"] == ["/tmp/in.txt"]
 
     def test_execute_missing_chain_returns_404(self, client):
         r = client.post(
@@ -204,30 +171,35 @@ class TestExecuteChain:
         )
         assert r.status_code == 404
 
-    def test_cancel_execution(self, client):
-        created = client.post("/api/chains", json=_chain_payload("Runnable")).json()
-        pending_result = ChainExecutionResult(
-            chain_id=created["id"],
-            execution_id="exec-pending",
-            status=ChainStepStatus.PENDING,
-        )
+    def test_cancel_execution_reaches_the_step_run_in_flight(self, client):
+        """Stop on a chain reaches the run in flight, not only the steps not yet started."""
+        import asyncio
+        import threading
 
-        with patch(
-            "fichero_server.api.routes.workflow.chains.ChainExecutor.execute",
-            new_callable=AsyncMock,
-        ) as mock_execute:
-            mock_execute.return_value = pending_result
-            r = client.post(
-                f"/api/chains/{created['id']}/execute",
-                json={"inputs": {}, "input_files": []},
-                headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
-            )
+        created = client.post("/api/chains", json=_steps_payload("Runnable")).json()
+        seams = _steps_seams([("cancelled", None)])
+        started, release = threading.Event(), threading.Event()
 
-        assert r.status_code == 200
-        execution_id = r.json()["execution_id"]
-        cancel = client.delete(f"/api/chains/executions/{execution_id}")
-        assert cancel.status_code == 200
-        assert cancel.json()["execution_id"] == execution_id
+        async def hang(**kwargs):
+            started.set()
+            while not release.is_set():
+                await asyncio.sleep(0.01)
+
+        seams["run"].new.side_effect = hang
+        with seams["db"], seams["load"], seams["validate"], seams["record"], seams["run"], seams["outcome"], \
+                patch("fichero_server.execution.cancellation.request_cancellation") as asked:
+            r = client.post(f"/api/chains/{created['id']}/execute", json={"inputs": {}, "input_files": []},
+                            headers=LIB_HEADER)
+            assert r.status_code == 200
+            execution_id = r.json()["execution_id"]
+            assert started.wait(5)
+            cancel = client.delete(f"/api/chains/executions/{execution_id}")
+            assert cancel.status_code == 200 and cancel.json()["cancelled"] is True
+            release.set()
+            final = _wait_terminal(client, execution_id)
+        assert final["status"] == "cancelled"
+        thread_ids = [call.args[0] for call in asked.call_args_list]
+        assert thread_ids and thread_ids[0].startswith("thread-")  # the in-flight step's run was asked to stop
 
     def test_cancel_execution_signals_running_executor(self, client):
         executor = MagicMock()
