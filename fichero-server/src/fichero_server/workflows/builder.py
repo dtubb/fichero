@@ -2098,6 +2098,9 @@ def _make_parallel_node_function(
                         return _with_chaining(
                             _cancelled_result(), failed=True, error="cancelled"
                         )
+                    if refused_for_all:  # refused while this page waited for its slot: it does not try (M4: all 26 tried)
+                        result, error_msg = None, refused_for_all[0]
+                        break
                     try:
                         result = await tool_fn(
                             inputs=tool_inputs,
