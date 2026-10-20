@@ -434,7 +434,8 @@ def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
 _WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print); cloud vision models cannot find lines yet"}
 
 
-#: Variant A's candidate id prefix and the sureness under which the cloud model re-reads a line.
+#: Variant A's candidate id prefix, and the sureness under which the cloud model re-reads a line when the project's
+#: own `correct` step does not set `only_below_confidence` (a setting of that step; setup is where it is changed).
 VARIANT_A = "variant-a:"
 UNSURE_BELOW = 0.8  # ponytail: a knob; the Try's own measures (bad lines under the bar) tune it
 
@@ -545,11 +546,19 @@ def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) ->
         from fichero_server.recipes.jobs import get_job
 
         steps = (changed["recipe"] or {}).setdefault("steps", [])
-        fix = {"id": "correct", "job": "correct", "layer": get_job("correct").layer, "model": dict(card.pin),
-               "runs_on": card.runs_on, "card": {"id": card.id, "note": card.note}, "uses_cloud": True,
+        who = {"model": dict(card.pin), "runs_on": card.runs_on, "card": {"id": card.id, "note": card.note},
+               "uses_cloud": True}
+        have = next((x for x in steps if x.get("job") == "correct"), None)
+        if have is not None:  # the project's own correction stays (like for like): the cloud model takes its place
+            have.update(who)
+            have["settings"] = {**(have.get("settings") or {}), "only_below_confidence": (have.get("settings") or {})
+                                .get("only_below_confidence", UNSURE_BELOW)}
+            have.pop("problem", None)
+            have.pop("gap", None)
+            return changed
+        fix = {"id": "correct", "job": "correct", "layer": get_job("correct").layer, **who,
                "settings": {"only_below_confidence": UNSURE_BELOW}}
-        steps[:] = [s for s in steps if s.get("job") != "correct"]
-        steps.insert(next(i for i, s in enumerate(steps) if s.get("id") == step.get("id")) + 1, fix)
+        steps.insert(next(i for i, x in enumerate(steps) if x.get("id") == step.get("id")) + 1, fix)
         return changed
     for s in (changed["recipe"] or {}).get("steps") or []:
         if s.get("id") == step.get("id"):
@@ -573,11 +582,44 @@ def _column(card: Any, plan: dict[str, Any]) -> dict[str, Any]:
     return {"card": card.id, "name": reader_name(card), "link": model_link(card), "pin": dict(card.pin),
             "runs_on": card.runs_on,
             "local": bool(card.local and local),
-            "cost_usd": (_figure(0.0, "measured", "runs on this Mac") if local else
-                         _figure(cost if isinstance(cost, (int, float)) else None, "estimate",
-                                 "the price list, on these pages")),
+            "cost_usd": cost_figure(card, cost, local, None),
             "seconds": None, "cer": None, "agreement": None, "measures": None,
             "why": "; ".join(plan["refusals"]) or None, "state": "waiting" if not plan["refusals"] else "not run"}
+
+
+def cost_figure(card: Any, estimate: Any, local: bool, spent: dict[str, Any] | None) -> dict[str, Any]:
+    """A candidate's cost on the Try's pages. On this Mac, nothing. After the run, what it REALLY cost (the provider's
+    usage; variant A re-reads only the unsure lines, so only those are billed). Before it, the price list; for variant A
+    that is the most it can cost (every line re-read), said as \"up to\" and never ranked as its price."""
+    from fichero_server.recipes.bakeoff import _figure
+
+    if local:
+        return _figure(0.0, "measured", "runs on this Mac")
+    if spent and spent.get("cost_usd") is not None:
+        return _figure(spent["cost_usd"], "measured", f"what the run cost on these pages ({spent['model_calls']} model calls)")
+    value = estimate if isinstance(estimate, (int, float)) else None
+    if card is not None and str(card.id).startswith(VARIANT_A):
+        return _figure(value, "upper bound", "up to this: it re-reads only the unsure lines, so it costs less")
+    return _figure(value, "estimate", "the price list, on these pages")
+
+
+def recommendation_rows(columns: list[dict[str, Any]], *, pages: int, volume: int) -> list[dict[str, Any]]:
+    """The Try's columns as `bakeoff.recommend`'s rows: a MEASURED cost on the Try's pages becomes the cost of the whole
+    set (scaled by the pages), so a variant that sent few lines is ranked by that, not by its upper bound. A column that
+    was not run to the end, or has only a price-list figure, is not a measured row."""
+    rows = []
+    for c in columns:
+        cost = c.get("cost_usd") or {}
+        done = c.get("state") == "done" and c.get("cer") is not None
+        if c.get("local"):
+            value = 0.0
+        elif cost.get("basis") == "measured" and pages:
+            value = cost["value"] * volume / pages
+        else:
+            value = None
+        rows.append({**c, "measured": done and (c.get("local") or value is not None),
+                     "cost_usd": {**cost, "value": value}})
+    return rows
 
 
 def _similar(a: str, b: str, why: list[str]) -> float | None:
@@ -743,12 +785,15 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     if own.get("error"):
         result["error"] = own["error"]
     by_card = {card.id: run for card, run in zip(cards, runs)}
+    by_card_cards = {card.id: card for card in cards}
     for column, measures in zip([c for c in columns if c["card"] in by_card], _measure(db, stage_id, runs)):
         run = by_card[column["card"]]
         column.update(progress=finished_progress(run["state"], run["made"]["per_page"], total, stage_id),
                       state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
                       names=run["made"]["names"], measures=measures, agreement=measures["agreement"],
-                      cer=measures["cer"], why=run.get("error"))
+                      cer=measures["cer"], why=run.get("error"),
+                      cost_usd=cost_figure(by_card_cards[column["card"]], column["cost_usd"]["value"], column["local"],
+                                           run.get("spent")))
     result["candidates"] = columns
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
@@ -872,7 +917,9 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             _thread, state, why = runner._run_workflow(copy, card, run_on, job_id) if run_on else (None, "done", None)
             if uncertain:
                 why = "; ".join(filter(None, [why, *(f"{e['page']}: {e['why']}" for e in uncertain)]))
-            ran.append({"steps": card["steps"], "workflow": card["workflow"], "state": state, "why": why})
+            ran.append({"steps": card["steps"], "workflow": card["workflow"], "state": state, "why": why,
+                        "thread": _thread})
+        spent = _spent(copy, [r["thread"] for r in ran if r.get("thread")])  # the copy (and its records) goes at the end
         stop.set()
         if watcher is not None:
             watcher.join()  # no late publish may land after the final result is written (review 323)
@@ -881,7 +928,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         made = _collect(copy, before, back)
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)
         out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
-                   made={**made, **extra}, texts=texts, boxes=boxes, items=items)
+                   made={**made, **extra}, texts=texts, boxes=boxes, items=items, spent=spent)
         failed = [_sentence(r["why"]) or "the run stopped before it finished" for r in ran if r["state"] == "failed"]
         if failed:
             out["error"] = "; ".join(failed)  # a failure always says why in words, never a blank
@@ -895,6 +942,32 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         db_manager.close_database(scratch)
         shutil.rmtree(scratch, ignore_errors=True)
     return out
+
+
+def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
+    """What a run's steps really spent: the provider's own usage, summed over the steps' runs (`llm.usage`): model
+    calls, tokens and the priced cost. `cost_usd` is None when any call could not be priced (never a $0 for it); None
+    altogether when no step called a model or the records cannot be read."""
+    import asyncio
+
+    from fichero_server.workflows.activity import get_activity_tracker
+
+    store = get_activity_tracker(str(copy.path)).store
+    calls = tokens = 0
+    cost: float | None = 0.0
+    try:
+        for thread in threads:
+            run = asyncio.run(store.get_workflow_run(thread))
+            usage = run.run_usage if run is not None else None
+            if not usage or not usage.get("model_calls"):
+                continue
+            calls += int(usage["model_calls"])
+            tokens += int(usage.get("total_tokens") or 0)
+            cost = None if cost is None or usage.get("cost_usd") is None or not usage.get("priced") \
+                else cost + float(usage["cost_usd"])
+    except Exception:  # noqa: BLE001 -- a measure is a courtesy; the estimate stays and says it is one
+        return None
+    return {"model_calls": calls, "total_tokens": tokens, "cost_usd": cost} if calls else None
 
 
 def _organise(copy: Any, card: dict[str, Any], pages: list[str],
