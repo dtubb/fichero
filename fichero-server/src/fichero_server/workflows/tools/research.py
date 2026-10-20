@@ -208,6 +208,8 @@ async def research_web_search(
     Returns:
         Dict with results (list), count (int), query_out (str), execution_time_ms (int).
     """
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     query = inputs.get("query", "").strip()
     if len(query) < 2:
         return {
@@ -398,6 +400,8 @@ async def research_browser_navigate(
     Returns:
         Dict with url, title, html_content, extracted_links, execution_time_ms.
     """
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     url = inputs.get("url", "").strip()
     if not url:
         return {
@@ -633,6 +637,8 @@ async def research_document_fetch(
     Returns:
         Dict with url, title, content, content_type, source_id, success, error.
     """
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     url = inputs.get("url", "").strip()
     project_id = inputs.get("project_id", "").strip()
 

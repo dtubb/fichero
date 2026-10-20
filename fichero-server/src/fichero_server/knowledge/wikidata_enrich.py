@@ -229,6 +229,8 @@ async def fetch_statements_sparql(
 async def _sparql_json(
     endpoint: str, query: str, *, client_factory: Callable[..., Any] | None = None
 ) -> dict[str, Any]:
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the entity to look up", to="Wikidata")
     import httpx
 
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=15.0))
@@ -246,6 +248,8 @@ async def fetch_statements_jsonld(
     qid: str, *, client_factory: Callable[..., Any] | None = None
 ) -> list[WikidataStatement]:
     """Fetch + parse ``Special:EntityData/<QID>.jsonld`` (endpoint-independent)."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the entity to look up", to="Wikidata")
     import httpx
 
     safe_qid = _require_qid(qid)

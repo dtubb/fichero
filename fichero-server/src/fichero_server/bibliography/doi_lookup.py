@@ -60,6 +60,13 @@ async def resolve_doi(doi: str, timeout: float = 10.0) -> dict[str, Any]:
     doi = _normalize_doi(doi)
     if not doi:
         return {}
+    from fichero_server.core.egress import EgressRefused, check_egress  # noqa: PLC0415
+
+    try:
+        check_egress("cloud", what="the DOI", to="Crossref")
+    except EgressRefused as exc:  # no metadata, said in the log: the person's places do not let it leave
+        logger.warning("DOI lookup skipped: %s", exc)
+        return {}
     cache_key = f"doi:{doi}"
     if cache_key in _cache:
         return _cache[cache_key]
@@ -140,6 +147,13 @@ async def resolve_isbn(isbn: str, timeout: float = 10.0) -> dict[str, Any]:
     """Resolve an ISBN via Open Library → SourceMetadata-shaped dict."""
     isbn = _normalize_isbn(isbn)
     if not isbn:
+        return {}
+    from fichero_server.core.egress import EgressRefused, check_egress  # noqa: PLC0415
+
+    try:
+        check_egress("cloud", what="the ISBN", to="Open Library")
+    except EgressRefused as exc:  # no metadata, said in the log: the person's places do not let it leave
+        logger.warning("ISBN lookup skipped: %s", exc)
         return {}
     cache_key = f"isbn:{isbn}"
     if cache_key in _cache:

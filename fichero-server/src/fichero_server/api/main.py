@@ -1355,6 +1355,9 @@ from fichero_server.core import no_model_in_get as _no_model_in_get  # noqa: E40
 
 app.add_middleware(_no_model_in_get.NoModelWorkInGet)
 _no_model_in_get.install_handler(app)
+from fichero_server.core import egress as _egress  # noqa: E402
+
+_egress.install_handler(app)
 
 app.add_middleware(
     CORSMiddleware,

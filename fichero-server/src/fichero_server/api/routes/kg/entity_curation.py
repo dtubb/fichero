@@ -156,6 +156,8 @@ async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySna
 
 async def _authority_json(name: str, url: str, params: dict[str, Any]) -> dict[str, Any]:
     """Bounded JSON request shared by the explicit authority refreshers."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the name to look up", to="the authority service")
     import httpx
 
     try:
