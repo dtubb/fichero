@@ -1443,6 +1443,14 @@ and node, not by job); a retry action for failed pages.
   running, then "Reconnecting…" (`AppState.restartSentence`, `ConnectionPresentation.lastRestartReason`, cleared when the
   engine answers). Pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift` (needs compile). LIMIT: it says
   the engine did not answer, not what held the loop (the engine log's `loop_lag` dump names that).
+- `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
+  event loop. Already so on the chain head: the app-DB flag reads are cached (`is_paused`, `is_started`, the settings), auth waits off the
+  loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Added: the per-row reads (`name_and_pages`,
+  `_remote_row`), the process-tree walk (`ps`) and the machine readings run on threads too, and a battery reading taken on an event loop
+  serves the last value and refreshes on a thread, so `pmset` is never waited for there. Pinned by
+  `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py` (an AST check that no blocking reading is called in the
+  handler's own body; a slow-`pmset` loop test). NOT covered: `_recipe_state` (async, reads the run's tree) and the one DuckDB read inside
+  `run_account`; a measured loop stall under a 50-row queue is the M4 bench.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a

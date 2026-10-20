@@ -722,7 +722,7 @@ async def list_background_jobs(
                 logger.warning("list_background_jobs: no status for recipe run %s: %s", row["id"], exc)
                 reason = f"{reason or state}; its stages could not be read: {exc}"
             # Named by its recipe, with the pages it runs over (#5615), never its kind's id.
-            name, pages = recipe_runner.name_and_pages(db, row["id"])
+            name, pages = await asyncio.to_thread(recipe_runner.name_and_pages, db, row["id"])  # a database read
             total = pages if pages is not None else 0
         jobs.append(
             BackgroundJob(
@@ -741,11 +741,12 @@ async def list_background_jobs(
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 started_by=row.get("started_by"),
-                remote=_remote_row(db, row),
+                remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
             )
         )
 
-    usage = process_tree_rusage()  # once per poll, shared by memory and energy (#5358)
+    # Off the loop (Fable review #2): the tree walk and the machine readings run subprocesses (ps, pmset).
+    usage = await asyncio.to_thread(process_tree_rusage)  # once per poll, shared by memory and energy (#5358)
     jobs = order_for_activity(jobs)
     return BackgroundJobsResponse(
         jobs=jobs,
@@ -756,7 +757,7 @@ async def list_background_jobs(
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),
-        machine=MachineState(**throttle.machine_state()),
+        machine=MachineState(**await asyncio.to_thread(throttle.machine_state)),
         summary=await asyncio.to_thread(_queue_summary, db, listed),
         activity=await activity_summary(db, jobs, recipe_statuses),
     )
