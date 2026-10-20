@@ -17,11 +17,20 @@ enum ModelFinderTiers {
     /// The order the tiers are shown in.
     static let order = ["specialist", "small-vlm", "general"]
 
+    /// The person's choice and a result measured on their pages override the tier (`source.recipe.reader-tiers`): those
+    /// rows head the list ungrouped, in the engine's order, whatever tier they are in.
+    static func headsTheList(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        candidate.chosen == true || candidate.cerMeasuredHere != nil
+    }
+
     static func groups(_ candidates: [Components.Schemas.ModelCandidate]) -> [Group] {
         guard candidates.contains(where: { $0.tier != nil }) else {
             return candidates.isEmpty ? [] : [Group(title: nil, candidates: candidates)]
         }
         var out: [Group] = []
+        let heads = candidates.filter(headsTheList)
+        if !heads.isEmpty { out.append(Group(title: nil, candidates: heads)) }
+        let candidates = candidates.filter { !headsTheList($0) }
         for tier in order {
             let inTier = candidates.filter { $0.tier == tier }
             if let first = inTier.first {
