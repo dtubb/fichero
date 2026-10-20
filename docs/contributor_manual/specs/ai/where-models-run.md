@@ -402,12 +402,21 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   leaves this Mac (by its address, `llm/places.py`) is refused when the engine-wide switch is on, and refused when the
   project it runs under has not said yes to cloud models (Set Up's `cloud_allowed`, read from the project's
   `recipe/setup.yaml` when it changes, `llm/egress.py`; no setup, an unreadable file or any answer but a yes is a no),
-  with `EgressRefusedError` saying in words that nothing was sent and where to say yes. The project is the library the
+  with `EgressRefusedError` naming the project and saying that nothing left this Mac. The project is the library the
   call runs under: the API sets it for every request that names a library (so the chat and the MCP, which reach the
-  engine over HTTP), the workflow executor and the jobs set it for theirs. *Not built:* a call under no library meets
-  only the engine-wide switch (nothing to ask); a thread started without the caller's context has no library; the
-  recipe's start-time check and the packages' `pages_may_leave` still read the answer themselves rather than call
-  the gate. *Test:* `fichero-server/tests/unit/llm/test_one_egress_gate_5368.py`.
+  engine over HTTP), the workflow executor sets it for its nodes, and **every stored job runs under its own project**
+  (`jobs._run`), so a bake-off, a reasons run or an NLP helper meets the same rule. **It fails closed:** a call under no
+  project is refused ("No project is open for this call"). *Named exemptions:* none is built, because none is needed:
+  the chat requires a library, and the provider key test and the model lists reach a provider with a key, never a page,
+  and meet no gate (a test pins that neither module calls a model). A global chat with no library would be the first
+  exemption, and is added by name. *Existing projects (provisional, pending the owner):* a project saved before this
+  gate has no `cloud_allowed` answer and so refuses cloud: **nothing is migrated silently.** The refusal offers one
+  click, the audited action `project.allow_cloud` (`POST /api/recipes/project/allow-cloud`: who, when, which project in
+  the audit row; undoable; Set Up's `cloud_allowed` takes it back); a one-time migration is the alternative the owner may
+  rule. *Not built:* the app's button on the refusal (Swift; the typed failure `egress_refused` carries the action's
+  words), the recipe's start-time check and the packages' request flag reading the gate itself rather than beside
+  it (a package sent to Hugging Face or a cluster needs the request's `pages_may_leave` AND the project's yes, built).
+  *Test:* `fichero-server/tests/unit/llm/test_one_egress_gate_5368.py`, `fichero-server/tests/unit/jobs/test_egress_fails_closed_5368.py`.
 - `ai.where.egress-at-every-call` — **[PARTIAL]** (#5368) every model call meets the gate, from a
   workflow, chat, MCP or the command line. *Built, unrun:* the gate is the first act of `llm.get_langchain_model`, the
   one place a provider's client is built, so `chat_with_tools`, `structured_output`, chat, vision and every workflow
@@ -417,8 +426,9 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   second provider client or a second path to a host appears. *Not built:* the command line's own calls (it reaches the
   engine over HTTP, so it is covered when it sends the library header).
 - `ai.where.batch-sends-ask-the-project` — **[PARTIAL]** (#5239) a training or reading package is
-  sent only when the project's rule allows that place; today a per-request `pages_may_leave`
-  suffices (`training/job.py:90-92`, `remote_read/job.py:99-101`).
+  sent only when the project's rule allows that place. *Built, unrun (#5368, review 672):* a training or read-at-scale
+  package to Hugging Face or a cluster needs the request's `pages_may_leave` AND the project's own yes
+  (`_project_must_agree` in `training/job.py` and `remote_read/job.py`); test `fichero-server/tests/unit/jobs/test_egress_fails_closed_5368.py`.
 - `ai.where.no-first-provider-fallback` — **[OK]** (#5368) a node with no model refuses,
   naming what to set (the step, or the category default in Settings > AI > Defaults); it no longer
   takes the first enabled provider with a model, which may be a cloud one. *Test:*

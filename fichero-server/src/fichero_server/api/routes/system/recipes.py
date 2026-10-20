@@ -1793,6 +1793,43 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
                              emit_type="project.setup_saved")
 
 
+class AllowCloudResult(BaseModel):
+    project: str = Field(description="the project (its library folder's name) whose pages may now go to a cloud model")
+    cloud_allowed: bool
+
+
+@router.post("/project/allow-cloud", response_model=AllowCloudResult)
+async def allow_cloud(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> AllowCloudResult:
+    """The one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud
+    models. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`
+    answer). Nothing else in the project's setup changes."""
+    result = registry.invoke(db, "project.allow_cloud", {}, ctx)
+    return AllowCloudResult(**result.result)
+
+
+class AllowCloudParams(BaseModel):
+    restore: Optional[dict] = Field(default=None, description="an undo restores the setup as it was")
+
+
+def _invert_allow_cloud(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("project.save_setup", before or {"answers": None, "recipe": None})
+
+
+@action("project.allow_cloud", AllowCloudParams, domains=["project"], undoable=True, invert=_invert_allow_cloud)
+def _action_allow_cloud(db: Database, params: AllowCloudParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    library = _library(db)
+    before = read_project_setup(library)
+    answers = dict(before.get("answers") or {})
+    answers["cloud_allowed"] = True
+    write_project_setup(library, answers, before.get("recipe"))
+    after = read_project_setup(library)
+    return ({"project": library.stem, "cloud_allowed": True},
+            ChangeSpec(domains=["project"], target_ids=[], before=before, after=after, emit_type="project.setup_saved"))
+
+
 # =============================================================================
 # Start: the project's first yes (#4951). `source.project.automatic-after-first-yes`.
 # =============================================================================
