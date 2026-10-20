@@ -16,14 +16,18 @@ struct ActivityWindowGroupsTests {
 
     private let today = Date(timeIntervalSince1970: 1_792_000_000)
 
+    /// `started` and `ended` are nil unless a test gives them: a helper that dated every row today would hide the rows
+    /// the engine sends with no start (a job of its own) or one that began yesterday (## 745).
     private func row(_ id: String, _ phase: Phase, kind: ActivityMonitorRow.Kind = .run, started: Date? = nil,
-                     queue: Int? = nil, jobId: String? = "job") -> ActivityMonitorRow {
+                     ended: Date? = nil, queue: Int? = nil, jobId: String? = "job",
+                     reason: String? = nil) -> ActivityMonitorRow {
         var row = ActivityMonitorRow(
             id: id, kind: kind, libraryId: nil, runRowID: nil, runThreadId: nil, jobId: jobId, name: id, projectName: nil,
-            phase: phase, reason: nil, workingOn: nil, done: 0, total: 0, started: started ?? today, seconds: nil, costUsd: nil,
+            phase: phase, reason: reason, workingOn: nil, done: 0, total: 0, started: started, seconds: nil, costUsd: nil,
             tokens: 0, errors: 0, model: nil, isLive: phase.isLive, children: nil, account: nil
         )
         row.queuePosition = queue
+        row.ended = ended
         return row
     }
 
@@ -31,7 +35,7 @@ struct ActivityWindowGroupsTests {
     func threeGroups() {
         let groups = ActivityWindowGroups(rows: [
             row("late", .waiting, queue: 2), row("run", .running), row("early", .waiting, queue: 1), row("held", .paused),
-            row("old", .done, started: today.addingTimeInterval(-60)), row("new", .partial, started: today.addingTimeInterval(-10)),
+            row("old", .done, ended: today.addingTimeInterval(-60)), row("new", .partial, ended: today.addingTimeInterval(-10)),
         ], now: today)
         #expect(groups.now.map(\.id) == ["run", "held"])
         #expect(groups.upNext.map(\.id) == ["early", "late"])
@@ -47,8 +51,34 @@ struct ActivityWindowGroupsTests {
     @Test("what ended on another day is not DONE TODAY, and nothing at all is empty")
     func onlyToday() {
         let yesterday = today.addingTimeInterval(-3 * 86_400)
-        #expect(ActivityWindowGroups(rows: [row("old", .done, started: yesterday)], now: today).isEmpty)
+        #expect(ActivityWindowGroups(rows: [row("old", .done, started: yesterday, ended: yesterday)], now: today).isEmpty)
         #expect(ActivityWindowGroups(rows: [], now: today).isEmpty)
+    }
+
+    @Test("a job of its own with no start or end time is listed, not lost; an overnight run that ended today is DONE TODAY")
+    func endTimeNotStartTime() {
+        let yesterday = today.addingTimeInterval(-86_400)
+        let groups = ActivityWindowGroups(rows: [
+            row("job", .done, kind: .job), row("overnight", .done, started: yesterday, ended: today.addingTimeInterval(-300)),
+            row("ended-yesterday", .done, started: yesterday, ended: yesterday),
+        ], now: today)
+        #expect(groups.doneToday.map(\.id) == ["overnight", "job"])  // the unknown end last
+    }
+
+    @Test("a run and the job row of the same work are one row: the run")
+    func runAndItsOwnJobAreOne() {
+        let groups = ActivityWindowGroups(rows: [
+            row("run", .running, jobId: "j1"), row("job", .running, kind: .job, jobId: "j1"),
+            row("other", .running, kind: .job, jobId: "j2"),
+        ], now: today)
+        #expect(groups.now.map(\.id) == ["run", "other"])
+    }
+
+    @Test("a not-run row settled today stays in DONE TODAY with its reason shown")
+    func notRunKeepsItsReason() {
+        let skipped = row("skipped", .notRun, ended: today.addingTimeInterval(-5), reason: "no model for it")
+        #expect(ActivityWindowGroups(rows: [skipped], now: today).doneToday.map(\.id) == ["skipped"])
+        #expect(skipped.stateText.contains("no model for it"))
     }
 
     @Test("a row has one button, or none: pause, resume, retry or show; a waiting row has none")

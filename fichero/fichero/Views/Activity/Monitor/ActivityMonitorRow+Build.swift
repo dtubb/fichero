@@ -3,6 +3,11 @@ import Foundation
 // MARK: - Building rows
 
 extension ActivityMonitorRow {
+    static func endFromStart(_ start: Date?, seconds: Double?) -> Date? {
+        guard let start, let seconds else { return nil }
+        return start.addingTimeInterval(seconds)
+    }
+
     /// A run's row, with its tree under it when the engine has one.
     static func run(_ run: ActivityRun, tree: ActivityJobNode?) -> ActivityMonitorRow {
         let library = run.libraryId?.uuidString ?? ""
@@ -34,7 +39,8 @@ extension ActivityMonitorRow {
             account: tree?.account,
             engineKind: "workflow",
             unknownState: phase == .unknown ? run.engineState : nil,
-            transientState: Phase.transientWord(run.engineState)
+            transientState: Phase.transientWord(run.engineState),
+            ended: tree?.finishedAt ?? Self.endFromStart(run.timestamp, seconds: tree?.seconds)
         )
     }
 
@@ -70,7 +76,8 @@ extension ActivityMonitorRow {
             ownJobId: job.id,
             offer: job.offer,
             unknownState: Phase(job.state) == .unknown ? job.state.otherName : nil,
-            transientState: Phase.transientWord(job.state.otherName)
+            transientState: Phase.transientWord(job.state.otherName),
+            ended: job.failedAt
         )
     }
 

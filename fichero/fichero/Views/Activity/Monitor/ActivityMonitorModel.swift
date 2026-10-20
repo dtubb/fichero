@@ -180,6 +180,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// "Stopping", "Pausing", "Resuming" or "Retrying" while the engine is part-way through that: a run just Stopped
     /// does not read "Running" (## 697, #5957). The phase stays running (it is still live, and sorts so).
     var transientState: String?
+    /// When it ended: the engine's finished time if it sent one, else the failure time, else start plus duration; nil
+    /// when none is known (DONE TODAY then lists it rather than lose it; `activity.window.done-today`).
+    var ended: Date?
 
     // MARK: - Waiting looks like waiting (#5839)
 
