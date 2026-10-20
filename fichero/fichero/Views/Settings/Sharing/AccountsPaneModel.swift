@@ -59,12 +59,19 @@ enum AccountsPaneModel {
     }
 }
 
+/// The rule for a password a person chooses for an account, the engine's own (create, redeem, change; the owner's chosen
+/// password included, `multiuser.turning-on-needs-an-owner-password`): ONE place for the number and the hint every such field shows.
+enum NewPasswordRule {
+    static let minimumLength = 8
+    static let hint = "At least \(minimumLength) characters"
+}
+
 /// The `+` sheet: Full name, Username, then Password or Send invite link, and Owner (off).
 enum AccountsAddSheetModel {
     enum Way: CaseIterable, Equatable { case password, invite }
 
     /// A new account's password rule, the same the invite redeem applies.
-    static let minimumPasswordLength = 8
+    static let minimumPasswordLength = NewPasswordRule.minimumLength
 
     /// Send Invite Link waits for the person-bound invite (viewer, 7 days, the person sets a password) and the OpenAPI regen:
     /// today's invite route mints a 15-minute link with no role, which must not be offered (## 757). Flip when it lands.
