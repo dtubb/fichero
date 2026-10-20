@@ -774,11 +774,13 @@ def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
 
 
 def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> tuple[str | None, str, str | None]:
-    """Search: the embed job (`make-a-vector`, the one that follows every correction) queued for each page, as a
-    child of the recipe's row, and waited for (#5574). A page already waiting to be embedded keeps its job."""
-    from fichero_server.actions.page_text_cache import REEMBED_KIND
+    """Search: the embed job (`make-a-vector`, the one that follows every correction) queued for the pages in batches, as
+    children of the recipe's row, and waited for (#5574, #5954)."""
+    from fichero_server.actions.page_text_cache import queue_reembed_batches
 
-    children = [jobs.enqueue(db, REEMBED_KIND, doc_id, started_by=started_by) for doc_id in documents]
+    # Pages in batches of 64, one job each (one forward pass and one append per batch, `runtime.embed.once-per-text-version`
+    # #5954); a page already embedded from its current text is left alone inside the job.
+    children = queue_reembed_batches(db, documents, started_by=started_by)
     for child in children:
         jobs.set_parent(db, child, parent)
     while True:
@@ -789,7 +791,7 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
             failed = [r for r in rows if r["state"] != "done"]
             if not failed:
                 return None, "done", None
-            return None, "failed", (f"{len(failed)} of {len(rows)} pages were not embedded: "
+            return None, "failed", (f"{len(failed)} of {len(rows)} batches of pages were not embedded: "
                                     f"{failed[0]['reason'] or failed[0]['state']}")
         time.sleep(_CHECK_POLL_SECONDS)
 

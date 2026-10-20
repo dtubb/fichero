@@ -59,7 +59,12 @@ def embedded(monkeypatch):
         seen.append(doc.id)
         return EmbedOutcome(embedded=True, document_id=doc.id)
 
+    def embed_batch(self, docs):  # the embed card now embeds a batch of pages in one call (#5954)
+        seen.extend(d.id for d in docs)
+        return 0, len(docs), len(docs)
+
     monkeypatch.setattr(Database, "embed", embed)
+    monkeypatch.setattr(Database, "embed_many_unless_current", embed_batch)
     return seen
 
 
