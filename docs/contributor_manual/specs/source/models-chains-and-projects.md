@@ -2786,7 +2786,7 @@ Projects
   account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
   ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
   M4 PASS 2026-10-20 c979508a5: test_recipe_batches_to_spec.py, test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py (12 passed). (Red at 9707dcc83 for a stale test, not the engine: two batch tests assumed creation order; a run reads in Finder order with pages in no folder first (#5849, f51a53535).)
-- `source.recipe.folder-scoped-start` — **[OK]** (#5540; built 2026-10-10: `folder_id` on `GET|POST
+- `source.recipe.folder-scoped-start` — **[PARTIAL]** (#5540; the engine is done and tested, the app is not yet seen in a build and Set Up… shows the whole project's plan, not the folder's; built 2026-10-10: `folder_id` on `GET|POST
   /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
   tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before
   it, can be given one folder node (`folder_id`): the plan, its estimate and each step's "already done on N of M
@@ -2915,7 +2915,7 @@ Profiles (the defaults section of a recipe)
   answers its question yes and has the engine propose the plan again (`RecipeLeftOffRows`,
   `RecipeSetupStore.turnOn(job:)`). Set Up now sends the stage questions' answers with every proposal
   (`job_answers`), so a yes on the Read page reaches the rule. Tested in `RecipeLeftOffTests`.
-- `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
+- `source.recipe.missing-model-offered` — **[PARTIAL]** (#5367, #5664; the offer, the queued downloads and Ready's one-line sentence are built and tested; what is missing is a recorded licence acceptance; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed
   2026-10-11 (#5664, ruled: Set Up never downloads):** Start is no longer refused for it. Pressing Start queues
@@ -2932,9 +2932,7 @@ Profiles (the defaults section of a recipe)
   finds the runtime missing sets it up first instead of failing. No sentence names an API route or a file path
   (it said "Call POST /api/local-inference/runtime/provision" and the interpreter's path; where it looked goes to
   the engine's log). `start.runtime_to_set_up`, `MLXRuntime.provision_now`/`ensure_provisioned`;
-  `fichero-server/tests/unit/recipes/test_start_sets_up_local_models.py`. *Not built: Ready's Swift (B); a
-  licence acceptance asked before Start (no acceptance is recorded: the rules never pin a model whose licence is
-  not open, and a person's own choice of one is its acceptance).*
+  `fichero-server/tests/unit/recipes/test_start_sets_up_local_models.py`. *Built since: Ready's Swift (`RecipeSetupModelRows`, tested in `RecipeSetupStoreTests`) and the licence review sheet (`LicenceReviewSheet`). Not built: a licence acceptance RECORDED with the choice (no acceptance is stored: the rules never pin a model whose licence is not open, and a person's own choice of one is its acceptance, unrecorded).*
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a
   page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
   with a pass that has lines; reading lines, on a page with a pass read by the step's own model; reading a page, on
@@ -3057,7 +3055,7 @@ Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block on
   a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
-- `source.recipe.steps-name-layers` — **[OK]** (#4950) every step names a layer; the resolved
+- `source.recipe.steps-name-layers` — **[PARTIAL]** (#4950; the engine names the layers and returns `automatic`, tested; missing: the app does not show the section) every step names a layer; the resolved
   recipe's `automatic` section lists the steps whose layer the purpose (or an added layer) turns
   on, with whether each may use the cloud, and is never written by hand. *Built 2026-10-18 (engine):* `assemble` sets each
   step's `layer` from its job and returns `automatic` (`id`, `layer`, `uses_cloud`, in step order; a step ticked by hand on top
@@ -3512,7 +3510,7 @@ Setup
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
-- `source.onboard.five-ways-in` — **[OK]** (#5788; built 2026-10-18 (app, unbuilt): `ProjectIntakeChoice`, `SetupWayIn.setupChoices`) *Superseded 2026-10-18 by the owner's ruling: setup offers three ways in, not five.* **Copy** (default; Fichero makes its own copy in the project, the originals are never touched), **Leave in place** (the engine's Link mode; Fichero reads the files where they are and never changes them) and **Move** (the files move into the project; the originals are removed, said plainly). **Index** and **Keep arranged** are not asked in setup: they are set on a synced folder in the Inspector (`source.onboard.index-ties-the-folder`, `source.onboard.keep-arranged`). The choice is saved with the project (`answers.ingest_mode`: `copy`, `link`, `move`) and used by Add a Folder… and later imports; a project saved earlier as `index` or `keep-arranged` still reads back (its folder keeps its mode in the Inspector) and setup shows it as Leave in place. With Copy, the line after an add says what the copy takes and the room left (`CopySpaceTests`). *Test:* `SetupWayIn.setupChoices` is Copy, Leave in place, Move in that order and Copy is the default (`SetupThreeWaysInTests`).
+- `source.onboard.five-ways-in` — **[PARTIAL]** (#5788; the project saves `answers.ingest_mode`; the app side is written and unit-tested but has not been seen in a build, so what is missing is the on-screen check of the three choices in setup; built 2026-10-18 (app, unbuilt): `ProjectIntakeChoice`, `SetupWayIn.setupChoices`) *Superseded 2026-10-18 by the owner's ruling: setup offers three ways in, not five.* **Copy** (default; Fichero makes its own copy in the project, the originals are never touched), **Leave in place** (the engine's Link mode; Fichero reads the files where they are and never changes them) and **Move** (the files move into the project; the originals are removed, said plainly). **Index** and **Keep arranged** are not asked in setup: they are set on a synced folder in the Inspector (`source.onboard.index-ties-the-folder`, `source.onboard.keep-arranged`). The choice is saved with the project (`answers.ingest_mode`: `copy`, `link`, `move`) and used by Add a Folder… and later imports; a project saved earlier as `index` or `keep-arranged` still reads back (its folder keeps its mode in the Inspector) and setup shows it as Leave in place. With Copy, the line after an add says what the copy takes and the room left (`CopySpaceTests`). *Test:* `SetupWayIn.setupChoices` is Copy, Leave in place, Move in that order and Copy is the default (`SetupThreeWaysInTests`).
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
