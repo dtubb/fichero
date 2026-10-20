@@ -18,6 +18,8 @@ from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest
 from fichero_server.training.model_nodes import belongs_to, project_of
 from tests.unit.training.test_kraken_training_set import TEACHER, _page
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 NOTEBOOK_FLAVOR = "t4-small"
 
 

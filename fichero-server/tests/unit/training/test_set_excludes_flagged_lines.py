@@ -21,6 +21,8 @@ from fichero_server.execution import jobs
 from fichero_server.models import DocType, Document, Segment
 from tests.unit.training.test_kraken_training_set import PAGE, TEACHER, _page
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 CHECKER = "anthropic/claude-fable"
 SIZE = (274, 396)
 

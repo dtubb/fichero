@@ -19,6 +19,8 @@ from fichero_server.models import DocType, Document, FileType, Status
 from fichero_server.training.kraken_set import build_training_set
 from tests.unit.training.test_kraken_training_set import TEACHER, _page
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 
 def _copied(db, tmp_path, folder: Document) -> Document:
     """A page as a copy-import stores it: its photograph inside the package, its path relative to it."""

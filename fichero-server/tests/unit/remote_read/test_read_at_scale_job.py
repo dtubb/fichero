@@ -20,6 +20,8 @@ from fichero_server.remote_read import runner
 from fichero_server.remote_read.job import PagesMayNotLeave, ReadAtScaleRequest
 from fichero_server.training.hf_jobs import FarStatus
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 HOST = "https://iiif.archive.example"
 CANVAS = (4000, 6000)
 FETCHED = (1000, 1500)  # what the IIIF server gives at the reader's size

@@ -16,6 +16,8 @@ from fichero_server.llm import kraken_runtime as kr
 from fichero_server.training import job as training_job
 from tests.unit.training.test_training_job import _request, _subject, isolated, notebook  # noqa: F401
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 RUNS = "project/def-lab/u/fichero/runs"
 
 

@@ -34,6 +34,8 @@ from tests.unit.training.test_training_job import (  # noqa: F401  (fixtures)
     notebook,
 )
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
