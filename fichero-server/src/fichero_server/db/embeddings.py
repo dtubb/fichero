@@ -1627,6 +1627,8 @@ class DatabaseEmbeddingMixin:
                 except Exception as exc:
                     logger.warning("Failed to auto-embed %s in background: %s", label, exc)
 
-        task = loop.create_task(_runner())
+        from fichero_server.core.no_model_in_get import spawn_free
+
+        task = spawn_free(loop.create_task, _runner())  # the GET that saved is not this embed
         bg_tasks.add(task)
         task.add_done_callback(bg_tasks.discard)

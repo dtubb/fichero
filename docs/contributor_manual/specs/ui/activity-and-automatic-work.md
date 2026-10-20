@@ -1417,9 +1417,11 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py`). Built: `GET /api/claims/{id}/similar` reads the
   claim's stored vector. The mark ends when the response's last byte is sent, so a `BackgroundTasks` function or a task the GET left running runs free after it (work awaited inside the request, `asyncio.to_thread` included, is the GET). LIMITS: a thread started with `run_in_executor` or `threading.Thread` does not inherit the mark (the
   scan and review cover those); Apple Vision and the MLX servers are not guarded yet; the bench (GETs firing during a read, on
-  the M4, `briefs/tester-gets-bench-2026-10-19.md`) is pending. A task a GET spawns (`create_task`, the auto-embed, the activity
-  tracker's recovery, work started at a library open) is not the GET: it runs its model call (a task factory clears the mark in
-  tasks created by code outside the web framework). Pinned by `test_a_task_spawned_during_a_get_runs_its_model_call_even_while_the_get_is_still_answering`.
+  the M4, `briefs/tester-gets-bench-2026-10-19.md`) is pending. What the request awaits (its tasks, a `single_flight` flight, a `gather` branch, `asyncio.to_thread`) keeps the mark; the three
+  fire-and-forget sites (the auto-embed `create_task`, the activity tracker's recovery, `on_background_loop` at a library open)
+  are spawned with a fresh context (`spawn_free`) and run their model call. Pinned by
+  `test_what_the_request_awaits_keeps_the_mark_and_the_known_spawn_sites_run_free` and
+  `test_on_background_loop_is_spawned_free`.
 - `activity.read.get-embeds-its-own-query` — **[PARTIAL]** (manager ruling on review 361, 2026-10-19) a GET may embed its OWN
   query text, one short vector, and nothing else: `GET /api/kg/claim-search?q=`, `GET /api/kg/entities/semantic?q=` (and
   `/api/search`) answer with a query embedding. The embed is bounded (`QUERY_EMBED_SECONDS`, 5 s): if the embedder is busy

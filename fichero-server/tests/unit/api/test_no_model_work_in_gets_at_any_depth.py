@@ -121,9 +121,11 @@ def test_work_that_outlives_the_get_is_not_the_get():
     assert outcomes["spawned"] == "allowed", "a task left running past the response is not the GET"
 
 
-def test_a_task_spawned_during_a_get_runs_its_model_call_even_while_the_get_is_still_answering():
-    """Review 361 MED 2: the auto-embed, the activity tracker's recovery, work started at a library open are spawned by a
-    GET and run while it is still going. Only the request's own task and its to_thread are refused."""
+def test_what_the_request_awaits_keeps_the_mark_and_the_known_spawn_sites_run_free():
+    """Reviews 361/363: a `single_flight` flight and a `gather` branch ARE the request (the text GET), so a model call there is
+    still refused; the fire-and-forget sites are spawned with a fresh context and run their model call."""
+    from fichero_server.core.single_flight import single_flight
+
     app = FastAPI()
     app.add_middleware(NoModelWorkInGet)
     no_model_in_get.install_handler(app)
@@ -136,28 +138,50 @@ def test_a_task_spawned_during_a_get_runs_its_model_call_even_while_the_get_is_s
         except ModelWorkInGet:
             seen[name] = "refused"
 
-    async def spawned():
-        attempt("spawned task")
-        await asyncio.to_thread(attempt, "its to_thread")
+    @single_flight
+    async def flight(key: str):
+        attempt("single_flight")
 
-    @app.get("/spawns")
-    async def spawns():
-        await asyncio.ensure_future(spawned())  # awaited, so the GET is still answering while it runs
-        await asyncio.create_task(asyncio.sleep(0))
-        await asyncio.to_thread(attempt, "the request's to_thread")
-        attempt("the request")
+    async def branch(name: str):
+        attempt(name)
+
+    async def spawned(name: str):
+        attempt(name)
+        await asyncio.to_thread(attempt, name + " to_thread")
+
+    @app.get("/awaits")
+    async def awaits():
+        await flight("k")
+        await asyncio.gather(branch("gather a"), branch("gather b"))
+        await no_model_in_get.spawn_free(asyncio.get_running_loop().create_task, spawned("spawn_free"))
+        await asyncio.ensure_future(spawned("plain ensure_future"))
         return {"ok": True}
-
-    @app.middleware("http")
-    async def a_base_http_middleware(request, call_next):  # the framework's child task keeps the request's mark
-        return await call_next(request)
 
     async def go():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as client:
-            assert (await client.get("/spawns")).status_code == 200
+            assert (await client.get("/awaits")).status_code == 200
 
     asyncio.run(go())
     assert seen == {
-        "spawned task": "allowed", "its to_thread": "allowed",
-        "the request's to_thread": "refused", "the request": "refused",
+        "single_flight": "refused", "gather a": "refused", "gather b": "refused",
+        "spawn_free": "allowed", "spawn_free to_thread": "allowed",
+        "plain ensure_future": "refused", "plain ensure_future to_thread": "refused",
     }
+
+
+def test_on_background_loop_is_spawned_free():
+    """`on_background_loop` (library open) runs its coroutine without the GET's mark."""
+    from fichero_server.execution.runner import on_background_loop
+
+    seen: list[str] = []
+
+    async def probe():
+        try:
+            forbid_in_get("a read")
+            seen.append("allowed")
+        except ModelWorkInGet:
+            seen.append("refused")
+
+    with no_model_in_get.marked_get("/api/library/open"):
+        on_background_loop(probe()).result(10)
+    assert seen == ["allowed"]
