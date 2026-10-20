@@ -26,13 +26,8 @@ def _marked_exit(code):
     _real_exit(code)
 _exit_after_torch.os._exit = _marked_exit
 
-@pytest.hookimpl(specname="pytest_sessionfinish", trylast=True)
-def _remember(session, exitstatus):
-    _exit_after_torch.remember(session)
-
-@pytest.hookimpl(trylast=True)
-def pytest_unconfigure(config):
-    _exit_after_torch.leave(config)
+def pytest_configure(config):
+    _exit_after_torch.register(config)
 '''
 
 

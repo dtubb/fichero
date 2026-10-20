@@ -1320,16 +1320,9 @@ def pytest_sessionfinish(session, exitstatus):
 _SPEC_FAILURES_PATH = _Path(__file__).resolve().parent / "known_specification_failures.txt"
 
 
-@pytest.hookimpl(specname="pytest_sessionfinish", trylast=True)
-def _remember_final_exit_status(session, exitstatus):
-    """Save the exit status AFTER `pytest_sessionfinish` above (it can change it) for `_exit_after_torch` (#5903)."""
-    _exit_after_torch.remember(session)
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_unconfigure(config):
-    """Leave with `os._exit` once all databases are closed, when torch is loaded: its exit-time destructor segfaults (#5903)."""
-    _exit_after_torch.leave(config)
+def pytest_configure(config):
+    """Register the exit-after-torch plugin (#5903): its hooks run last, so pytest's final status is the one it exits with."""
+    _exit_after_torch.register(config)
 
 
 def spec_failure_issues(text: str) -> list[str]:
