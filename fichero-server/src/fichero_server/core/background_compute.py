@@ -35,6 +35,16 @@ _QOS_CLASS_USER_INITIATED = 0x19
 
 
 def cpu_count() -> int:
+    """The cores a run may use: a Mac's performance cores, Slurm's cpus per task, a container's quota
+    (`core.cores.cores_available`), never the host's (`source.read.threads-fit-the-machine`, #5953). Every thread count
+    here (`embed_threads`, `compute_preferences.apply_to_this_thread`) is built from it."""
+    from fichero_server.core.cores import cores_available
+
+    return cores_available()[0]
+
+
+def host_cpu_count() -> int:
+    """The HOST's cores, for display only (Activity's machine figures). Never a thread count."""
     return os.cpu_count() or 4
 
 
