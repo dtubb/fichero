@@ -143,6 +143,26 @@ def test_the_egress_question_says_what_is_sent_to_whom_how_many_pages_and_the_es
     assert assemble(for_print, [c for c in CARDS if c.id != "gemini-flash"])["cloud_offer"] == []
 
 
+def test_the_estimate_comes_from_the_price_list_not_from_a_price_set_on_the_card():
+    """Review 379: the shipped cards never set `cost_per_page` (it is 0.0), so an offer priced from it said "cannot work out"
+    for everyone, and `min()` picked an unpriced card. The price is the vendored list's, through the pin's provider/model."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.assemble import cloud_offer
+
+    real = next(c for c in CARDS if c.id == "gemini-flash")
+    priced = replace(real, cost_per_page=0.0)  # as shipped: no price on the card
+    assert priced.pin["cloud"] and priced.pin["model"]
+    unpriced = replace(real, id="unlisted", cost_per_page=0.0, pin={"cloud": "google", "model": "no-such-model-xyz"})
+    a = Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=1000, cloud_allowed=True,
+                job_answers=YES_CORRECT)
+    offer = cloud_offer(["correct"], [unpriced, priced], a)[0]
+    assert offer["cost_usd"] is not None and offer["cost_usd"] > 0, offer["sentence"]
+    assert f"${offer['cost_usd']:.2f}" in offer["sentence"]
+    only_unpriced = cloud_offer(["correct"], [unpriced], a)[0]
+    assert only_unpriced["cost_usd"] is None and "cannot work out" in only_unpriced["sentence"]
+
+
 def test_a_picture_step_says_the_page_pictures_are_sent():
     from fichero_server.recipes.assemble import cloud_offer
 
