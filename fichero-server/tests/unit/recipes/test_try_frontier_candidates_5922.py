@@ -104,8 +104,8 @@ def _column(card_id, cost, cer, *, local=False, state="done"):
 
 def test_before_the_try_variant_a_says_up_to_and_other_cloud_readers_say_estimate():
     a = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
-    assert samples.cost_figure(a, 0.05, False, None) == {
-        "value": 0.05, "basis": "upper bound", "from": "up to this: it re-reads only the unsure lines, so it costs less"}
+    figure = samples.cost_figure(a, 0.05, False, None)
+    assert (figure["value"], figure["basis"], figure["measured"], figure["why"]) == (0.05, "upper bound", False, None)
     assert samples.cost_figure(CLAUDE, 0.05, False, None)["basis"] == "estimate"
 
 
@@ -121,8 +121,8 @@ def test_a_variant_that_sent_few_lines_wins_on_cost_when_it_reads_as_well():
     from fichero_server.recipes import bakeoff
 
     columns = [
-        _column("anthropic:claude@x", {"value": 0.05, "basis": "measured", "from": "run"}, 0.020),
-        _column("variant-a:anthropic:claude@x", {"value": 0.002, "basis": "measured", "from": "run"}, 0.021),
+        _column("anthropic:claude@x", {"value": 0.05, "basis": "measured", "measured": True, "from": "run"}, 0.020),
+        _column("variant-a:anthropic:claude@x", {"value": 0.002, "basis": "measured", "measured": True, "from": "run"}, 0.021),
     ]
     rows = samples.recommendation_rows(columns, pages=10, volume=100)
     assert rows[1]["cost_usd"]["value"] == pytest.approx(0.02)  # 0.002 on 10 pages is $0.02 for 100
@@ -177,3 +177,29 @@ def test_spent_reads_no_usage_as_a_reason_never_silence(monkeypatch, caplog):
 def test_cards_for_reports_the_frontier_readers_the_limit_left_out():
     chosen, left_out = samples.choose_try_candidates(OWN, [KRAKEN], [CLAUDE, GEMINI], limit=3)
     assert len(chosen) == 3 and samples.left_out_sentence(left_out).startswith("Gemini was not tried")
+
+
+# -- review 630: the contract is `measured` and `why`, typed; English is never the contract --------------------------
+def test_measured_is_the_flag_a_client_reads_not_the_wording():
+    a = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
+    assert samples.cost_figure(a, 0.05, False, {"model_calls": 3, "total_tokens": 9, "cost_usd": 0.002})["measured"] is True
+    assert samples.cost_figure(a, 0.05, True, None)["measured"] is True  # free on this Mac
+    lost = samples.cost_figure(a, 0.05, False, {"not_measured": "cost not measured: no record"})
+    assert lost["measured"] is False and lost["why"] == "cost not measured: no record"
+
+
+def test_the_try_result_is_a_typed_answer_that_keeps_what_it_does_not_name():
+    from fichero_server.api.routes.system.recipes import StageTryResult
+
+    answer = StageTryResult.model_validate({
+        "state": "done", "stage": "read", "pages": ["p1"], "left_out": "Gemini was not tried: …",
+        "per_page_extra": {"kept": 1},
+        "candidates": [{"card": "variant-a:x", "local": False, "per_page": [{"id": "p1"}],
+                        "cost_usd": {"value": 0.05, "basis": "upper bound", "from": "up to this", "measured": False,
+                                     "why": "cost not measured: no record"}}],
+        "recommendation": {"card": "c", "name": "n", "cer": 0.02, "local": True, "sentence": "s"}})
+    dumped = answer.model_dump(by_alias=True)
+    assert dumped["candidates"][0]["cost_usd"]["from"] == "up to this"
+    assert dumped["candidates"][0]["cost_usd"]["measured"] is False
+    assert dumped["candidates"][0]["per_page"] == [{"id": "p1"}] and dumped["per_page_extra"] == {"kept": 1}
+    assert answer.recommendation.sentence == "s" and answer.left_out.startswith("Gemini")

@@ -108,10 +108,12 @@ struct StageShowcasePicturesTests {
             try JSONDecoder().decode(StageCandidate.self, from: Data(
                 #"{"card":"variant-a:x","local":false,"cost_usd":\#(cost)}"#.utf8)).measureWords
         }
-        #expect(try words(#"{"value":0.05,"basis":"upper bound","from":"up to this"}"#) == ["up to $0.05"])
-        #expect(try words(#"{"value":0.05,"basis":"upper bound","from":"cost not measured: a call could not be priced"}"#)
-                == ["up to $0.05", "cost not measured: a call could not be priced"])
-        #expect(try words(#"{"value":0.002,"basis":"measured","from":"run"}"#) == ["$0.00"])
+        #expect(try words(#"{"value":0.05,"basis":"upper bound","measured":false,"from":"up to this"}"#) == ["up to $0.05"])
+        #expect(try words(#"{"value":0.05,"basis":"upper bound","measured":false,"why":"no usage record","from":"x"}"#)
+                == ["up to $0.05", "no usage record"], "typed flag and reason, not parsed English")
+        #expect(try words(#"{"value":0.002,"basis":"measured","measured":true,"from":"run"}"#) == ["< $0.01"],
+                "under a cent is not $0.00")
+        #expect(try words(#"{"value":0.04,"basis":"measured","measured":true,"from":"run"}"#) == ["$0.04"])
     }
 
     /// A figure the engine could not work out says why in its words, never 0% or nothing (review 351); the names

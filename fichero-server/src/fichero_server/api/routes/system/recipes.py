@@ -570,6 +570,69 @@ class TryStageRequest(BaseModel):
         "the stage's step's own model and the per-step finder's next ones, up to three"))
 
 
+class BakeoffRecommendation(BaseModel):
+    """What Set Up recommends from the measured rows (#5922): the reader that reads best by more than the project's
+    noise band, or a local or cheaper one within the band of the best, with the reason in words."""
+
+    card: str
+    name: str
+    cer: float
+    local: bool
+    runs_on: Optional[str] = None
+    cost_per_page_usd: Optional[float] = Field(default=None, description="none when the price is not known")
+    cost_set_usd: Optional[float] = Field(default=None, description="for the project's whole page count")
+    within_noise_band_of: Optional[str] = Field(default=None, description="the best reader's card, when this one is "
+                                                "recommended because it reads within the band of it")
+    sentence: str
+
+
+class TryCost(BaseModel):
+    """A candidate's cost on the Try's pages (#5922). `measured` is the contract; `why` is words for a person."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    value: Optional[float] = Field(default=None, description="US dollars on the Try's pages; none when not known")
+    basis: Literal["measured", "estimate", "upper bound", "unknown"] = Field(description=(
+        "measured: the provider's own usage (or free, on this Mac); estimate: the price list; upper bound: the most it "
+        "can cost (variant A re-reads only the unsure lines, so it costs less); unknown: no price"))
+    measured: bool = Field(default=False, description="true when `value` is what the run really cost")
+    why: Optional[str] = Field(default=None, description="when `measured` is false for a run that called a model: why")
+    source: Optional[str] = Field(default=None, alias="from", description="where the figure comes from, in words")
+
+
+class TryCandidate(BaseModel):
+    """One column of a Try (the bake-off row's fields; the rest pass through untyped)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    card: str
+    name: Optional[str] = None
+    runs_on: Optional[str] = None
+    local: Optional[bool] = None
+    state: Optional[str] = None
+    cer: Optional[float] = None
+    cost_usd: Optional[TryCost] = None
+
+
+class StageTryResult(BaseModel):
+    """A stage's sample result as its try left it; the per-page pictures and the like pass through untyped."""
+
+    model_config = ConfigDict(extra="allow")
+
+    state: str = Field(description="waiting, running, done or failed")
+    stage: Optional[str] = None
+    pages: list[str] = Field(default_factory=list)
+    how: Optional[str] = None
+    error: Optional[str] = None
+    job_id: Optional[str] = None
+    bakeoff: Optional[str] = None
+    candidates: list[TryCandidate] = Field(default_factory=list)
+    left_out: Optional[str] = Field(default=None, description=(
+        "the sentence naming a frontier reader the Try's limit of three left out"))
+    recommendation: Optional[BakeoffRecommendation] = Field(default=None, description=(
+        "once the Try has finished: what Set Up recommends, ranked by what each candidate really cost"))
+
+
 @router.get("/samples", response_model=SamplePages)
 async def get_samples(stage: Optional[str] = None, db: Database = Depends(get_library_database)) -> SamplePages:
     """The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the
@@ -592,7 +655,7 @@ async def choose_samples(body: ChooseSamples, db: Database = Depends(get_library
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.post("/stages/{stage}/try")
+@router.post("/stages/{stage}/try", response_model=StageTryResult)
 async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
                     db: Database = Depends(get_library_database_for_write),
                     ctx: ActionContext = Depends(action_context)) -> dict[str, Any]:
@@ -621,7 +684,7 @@ async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.get("/stages/{stage}/try")
+@router.get("/stages/{stage}/try", response_model=StageTryResult)
 async def stage_try_result(stage: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
     """The stage's sample result, as its last try left it (the bake-off's table for Read and Find Lines); 404 when
     it has not been tried, or is no longer chosen (a stage unticked clears it)."""
@@ -2656,22 +2719,6 @@ class BakeoffRow(BaseModel):
     lines_per_request: Optional[int] = Field(default=None, description="its card's limit on lines in one request")
     lines_checked: Optional[int] = Field(default=None, description="a line finder: the checked lines on the pages")
     extra_lines: Optional[int] = Field(default=None, description="a line finder: its lines that match no checked one")
-
-
-class BakeoffRecommendation(BaseModel):
-    """What Set Up recommends from the measured rows (#5922): the reader that reads best by more than the project's
-    noise band, or a local or cheaper one within the band of the best, with the reason in words."""
-
-    card: str
-    name: str
-    cer: float
-    local: bool
-    runs_on: Optional[str] = None
-    cost_per_page_usd: Optional[float] = Field(default=None, description="none when the price is not known")
-    cost_set_usd: Optional[float] = Field(default=None, description="for the project's whole page count")
-    within_noise_band_of: Optional[str] = Field(default=None, description="the best reader's card, when this one is "
-                                                "recommended because it reads within the band of it")
-    sentence: str
 
 
 class BakeoffResult(BaseModel):
