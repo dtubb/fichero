@@ -72,6 +72,7 @@ class _PairingCode:
     used: bool = False
     paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
     ambient: bool = False  # minted by the host app (no signed-in person): the device must say who it is
+    person: str | None = None  # the username this code was minted FOR (multiuser.person-bound-invite)
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -91,8 +92,14 @@ _PAIRING_WORKER_WARNING_EMITTED = False
 _LOCAL_PAIRING_CLIENT_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
 
 
+class PairCodeRequest(BaseModel):
+    # Mint the code FOR this person: the device that redeems it is bound to them, no password (multiuser.person-bound-invite).
+    username: str | None = None
+
+
 class PairCodeResponse(BaseModel):
     code: str
+    person: str | None = None
     expires_at: datetime
     tailnet_url: str | None = None
     spki_pin: str | None = None
@@ -265,6 +272,25 @@ def _pairing_user(request: Request, app_db: AppDatabase) -> AccountUser:
     if user is None or not user.active:
         raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
     return user
+
+
+def _invited_person(request: Request, app_db: AppDatabase, username: str | None) -> AccountUser | None:
+    """The person a code is minted for, when one is named: only the host app or an owner may name one (multiuser.person-bound-invite)."""
+    if not (username or "").strip():
+        return None
+    if not _use_multiuser_auth():
+        raise HTTPException(status_code=422, detail="inviting a person needs Multi-user on")
+    session_user = _current_session_user(request)
+    if not (session_user is None and getattr(request.state, "bootstrap_auth", False)) and not (
+        session_user and session_user.is_owner
+    ):
+        raise HTTPException(status_code=403, detail="only the host or an owner can invite a person")
+    person = app_db.get_user_by_username(username.strip())
+    if person is None:
+        raise HTTPException(status_code=404, detail="no such person")
+    if not person.active:
+        raise HTTPException(status_code=403, detail="that person is disabled")
+    return person
 
 
 def _can_manage_device(request: Request, device: Device) -> bool:
@@ -559,11 +585,13 @@ def detected_tailnet(
 @router.post("/code", response_model=PairCodeResponse)
 def create_pairing_code(
     request: Request,
+    body: PairCodeRequest | None = None,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairCodeResponse:
     """Mint a short-lived one-time pairing code for the authenticated caller."""
     _require_secure_pairing_transport(request)
     user = _pairing_user(request, app_db)
+    invited = _invited_person(request, app_db, body.username if body else None)
     from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
 
     # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
@@ -575,10 +603,11 @@ def create_pairing_code(
     expires_at = now + PAIRING_CODE_TTL
     _PAIRING_CODES[code] = _PairingCode(
         code=code,
-        user_id=user.id,
+        user_id=(invited or user).id,
         expires_at=expires_at,
         paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
-        ambient=_use_multiuser_auth() and _current_session_user(request) is None,
+        ambient=invited is None and _use_multiuser_auth() and _current_session_user(request) is None,
+        person=invited.username if invited else None,
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -591,6 +620,7 @@ def create_pairing_code(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return PairCodeResponse(
         code=code,
+        person=invited.username if invited else None,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
         # By the sharing address the guest uses, not by whether Tailscale is up: .ts.net is system
@@ -623,7 +653,16 @@ def pair_device(
 
         user_id = record.user_id
         chosen = None
-        if body.username is not None:
+        if record.person:
+            # The code was minted for this person: the device is theirs, with no password, and no one else's.
+            if body.username is not None and body.username.strip() != record.person:
+                raise HTTPException(status_code=403, detail="this invitation is for another person")
+            chosen = app_db.get_user_by_username(record.person)
+            if chosen is None or not chosen.active:
+                _PAIRING_CODES.pop(code, None)
+                raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+            user_id = chosen.id
+        elif body.username is not None:
             if not _use_multiuser_auth():
                 raise HTTPException(status_code=422, detail="choosing a person needs Multi-user on")
             chosen = app_db.get_user_by_username(body.username.strip())
