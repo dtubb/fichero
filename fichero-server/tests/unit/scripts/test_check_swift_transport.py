@@ -203,3 +203,31 @@ def test_transport_known_violations_are_not_stale() -> None:
     assert not stale, (
         f"Stale KNOWN_VIOLATIONS entries (site fixed — remove them): {stale}"
     )
+
+
+def test_flags_a_client_built_from_a_base_url_alone(tmp_path: Path) -> None:
+    """#4224: pairing built FicheroClient(baseURL:) and dialled https://127.0.0.1:8765 over a UDS app."""
+    _write(tmp_path, "Services/PairingTypes.swift", "self.client = FicheroClient(baseURL: apiRoot)\n")
+    assert any("ignores the app's transport" in why for why in scan(tmp_path).values())
+
+
+def test_flags_a_multiline_client_with_only_a_base_url(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", "let c = FicheroClient(\n    baseURL: host,\n    libraryPath: nil\n)\n")
+    assert scan(tmp_path)
+
+
+def test_allows_a_client_that_names_its_transport(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", "let c = FicheroClient(baseURL: host, transportMode: EngineConfig.transportMode)\n")
+    _write(tmp_path, "Models/M.swift", "let c = FicheroClient(baseURL: host.url, libraryPath: p, session: session)\n")
+    _write(tmp_path, "Services/P.swift", "let c = try FicheroClient(baseURL: root, expectedSPKIPin: pin)\n")
+    assert not scan(tmp_path)
+
+
+def test_a_client_without_a_base_url_is_the_apps_default_and_allowed(tmp_path: Path) -> None:
+    _write(tmp_path, "Views/V.swift", "let c = FicheroClient(libraryPath: nil)\n")
+    assert not scan(tmp_path)
+
+
+def test_the_failover_probe_is_the_one_sanctioned_own_client(tmp_path: Path) -> None:
+    _write(tmp_path, "App/AppState/AppState+Heartbeat.swift", "let p = FicheroClient(baseURL: candidate.url)\n")
+    assert not scan(tmp_path)
