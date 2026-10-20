@@ -5,7 +5,7 @@ import Foundation
 /// candidates shows it: Set Up's stage pages, the model finder and the step's own card. The engine decides (the rule
 /// the load applies) and words the reason; the app only shows the word, the reason, and the smaller build of the same
 /// model as one press when the same list has it. Pure, so each surface says the same and a test can check it.
-struct CandidateFit: Equatable {
+nonisolated struct CandidateFit: Equatable {  // pure: read from nonisolated canTick
     enum Word: String, Equatable {
         case fits
         case tight
