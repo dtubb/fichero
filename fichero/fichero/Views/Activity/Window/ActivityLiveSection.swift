@@ -10,11 +10,11 @@ struct ActivityLiveSection: View {
     let summaries: [Components.Schemas.ActivitySummary]
 
     var blocks: [ActivityPopoverSummary.Block] {
-        summaries.flatMap(\.live).map(ActivityPopoverSummary.block)
+        summaries.flatMap { $0.live ?? [] }.map(ActivityPopoverSummary.block)
     }
 
     var background: [ActivityPopoverSummary.BackgroundLine] {
-        summaries.flatMap(\.background).map(ActivityPopoverSummary.backgroundLine)
+        summaries.flatMap { $0.background ?? [] }.map(ActivityPopoverSummary.backgroundLine)
     }
 
     var body: some View {
