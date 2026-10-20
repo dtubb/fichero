@@ -115,6 +115,8 @@ HEAVY_LANES = ("local-ml", "images")
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
 #: "local-ml"), and it is held by the same signals.
+#: A held reason already written to the waiting rows is written again only after this long (Fable review #11).
+SAY_WHY_AGAIN_SECONDS = 30.0
 THROTTLED_LANES = ("local-ml", "embed")
 #: What a row held so says, before what runs.
 ONE_HEAVY_REASON = "Waiting: memory is busy, so heavy work runs one job at a time"
@@ -1186,6 +1188,8 @@ THROTTLE_LOOK_AGAIN_SECONDS = 5.0
 #: Longest the lane is held for one model call before it carries on regardless (a caller that
 #: vanished without letting go must not wedge the lane for good).
 HOLD_LIMIT_SECONDS = 900.0
+#: A held model call that has not finished after this long says so on its row, and again at each multiple (Fable review #16).
+SLOW_CALL_SECONDS = 60.0
 
 
 async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
@@ -1214,19 +1218,29 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
     #: What the caller's work came to, so the row says it: None (the caller went away), "done", or
     #: the error in words.
     outcome: dict[str, str | None] = {"result": None}
+    job_ref: list[str] = []  # the slot's own row, for the words a slow call earns
 
     def hold() -> None:
         try:
             loop.call_soon_threadsafe(lambda: granted.done() or granted.set_result(None))
         except Exception as exc:  # noqa: BLE001 -- the caller's loop is gone: so is the caller
             raise JobCancelled("Its run had ended before this page started") from exc
-        release.wait(HOLD_LIMIT_SECONDS)
+        waited = 0.0
+        while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited)):
+            waited += SLOW_CALL_SECONDS
+            if job_ref:  # in words, so a model server that stopped answering is not a silent 15 minutes
+                db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+                           [f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
+                            else f"Waiting for the model to answer ({waited:g} s so far)", job_ref[0]])
+            if waited >= HOLD_LIMIT_SECONDS:
+                break
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
         if outcome["result"] != "done":
             raise RuntimeError(outcome["result"])
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
+    job_ref.append(future.job_id)
     token = None
     waiting_job = _waiting_job.get()
     echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
@@ -1358,12 +1372,21 @@ def resume(db: "Database") -> None:
     # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
-    attached = [name for name in KINDS if _is_attached(name)]
+    # A page's work, handed in by a caller that is gone. NOT a run's or a batch's own row: those are not pages, and a
+    # page's words on them read wrong (Fable review #7). The runs are settled by `mark_interrupted_runs` on open; a batch
+    # row left running by a killed engine is settled here, in its own words.
+    attached = [name for name in KINDS if _is_attached(name) and name not in RUN_KINDS]
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
         f"reason = 'Its workflow run stopped before this page was done' "
         f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)}){not_live}",
         [utc_now(), *attached, *live],
+    )
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
+        f"reason = 'The engine stopped before this batch finished' "
+        f"WHERE state IN ('waiting', 'running') AND kind = 'batch'{not_live}",
+        [utc_now(), *live],
     )
     # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
     # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
@@ -1870,7 +1893,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each group,
     # and the few rows that stand for it. A "queue" group is a kind's running and waiting jobs as ONE row (#5839: a
     # recipe run or a try is a thing of its own, so each keeps its row); a (waiting|paused, kind) group is the rest.
-    runs = "kind NOT IN ('workflow', 'workflow-step')"
+    runs = f"kind NOT IN ({', '.join(repr(k) for k in RUN_KINDS)})"  # a batch's record is its own row: listed once (#20)
     own = ", ".join(f"'{k}'" for k in sorted(_OWN_ROW_KINDS))
     queued = f"(parent_id IS NULL AND kind NOT IN ({own}))"
     really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
@@ -2538,6 +2561,8 @@ class _Scheduler:
             except Exception as exc:
                 if lane.name == "local-ml":
                     self._fail_attached(exc)
+                # This thread ends; the jobs still waiting must not sit until the next enqueue (Fable review #21).
+                threading.Timer(0.5, self.wake, args=(None,)).start()
                 raise
             if self._retire(lane):
                 return
@@ -2612,6 +2637,11 @@ class _Scheduler:
         # The flags a claim reads come from the app database on their first read only: warm them HERE, never while
         # `_heavy_pick` is held (a stuck app-DB call under it stalled every heavy lane, owner 18:11).
         is_paused(), is_started()
+        # The battery reading runs `pmset` (up to 5 s, every 10 s): take it HERE, so the pick under the lock reads a fresh cache
+        # (Fable review #11: thumbnails waited on `_heavy_pick` for the whole subprocess).
+        from fichero_server.execution.throttle import battery_or_low_power
+
+        battery_or_low_power()
         with self._heavy_pick:
             if memory_is_busy() and self.heavy_running() is not None:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
@@ -2717,6 +2747,15 @@ class _Scheduler:
         stored = [name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
         with self._lock:
             keys = list(lane.libraries)
+        # Said once per change, not once per scan (every 5 s while held, one write per open project): the list recomputes
+        # the reason itself (`waiting_reason`); this write is for the tree. Again after `SAY_WHY_AGAIN_SECONDS`, for rows
+        # that joined the queue since.
+        said = (reason, tuple(sorted(keys)))
+        now = time.monotonic()
+        last = getattr(lane, "_said_held", None)
+        if last is not None and last[0] == said and now - last[1] < SAY_WHY_AGAIN_SECONDS:
+            return
+        lane._said_held = (said, now)  # type: ignore[attr-defined]
         for key in keys:
             db = db_manager.open_database(key)
             if db is not None and stored:
@@ -3004,9 +3043,10 @@ class _Scheduler:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
-            if db_manager.open_database(key) is db:
-                db.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?",
-                           [state, reason, job_id])
+            current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
+            if current is not None:
+                current.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
+                                [state, reason, job_id])
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found
@@ -3016,9 +3056,10 @@ class _Scheduler:
                     lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
-        if db_manager.open_database(key) is db:
-            db.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(db)} WHERE id = ?",
-                       [state, reason, utc_now(), job_id])
+        current = db_manager.open_database(key)
+        if current is not None:  # the same project, reopened while it ran: the row is written on the connection it has now
+            current.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
+                            [state, reason, utc_now(), job_id])
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
