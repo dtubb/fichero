@@ -2372,18 +2372,6 @@ def _family(model: str | None) -> str | None:
     return model
 
 
-def is_hosted(model: str | None) -> bool:
-    """A page read by a hosted provider (`openai:gpt-...`): no weights on this Mac, only a request over the network.
-    Fail-closed: only a provider the registry knows and does not call local or built-in is hosted; an unknown one
-    (Kraken, YOLO, Whisper, a name nobody registered) counts as LOCAL."""
-    from fichero_server.llm.model_profiles import provider_is_local_or_builtin
-    from fichero_server.llm.providers import get_provider_info
-
-    provider, sep, _ = (model or "").partition(":")
-    provider = provider.strip().lower()
-    return bool(sep) and get_provider_info(provider) is not None and not provider_is_local_or_builtin(provider)
-
-
 def _keep_local_model_server(_reason: str = "") -> None:
     # Not stopped on a switch: its server takes 30-300 s to start again. It does NOT free its own
     # memory (an idle `mlx_vlm.server` held 5.7 GB, #5529): the engine stops it after
@@ -2512,13 +2500,6 @@ class _Lane:
         model server joining the calls to the same model already running, up to its reads at once."""
         running = dict(self.running)
         if len(running) < self.slots:
-            return True
-        if (self.name == "local-ml" and is_hosted(model) and is_person()
-                and sum(1 for m in running.values() if is_hosted(m)) < LANES["network"]):
-            # A hosted reader's page needs no model memory, so it runs beside whatever is running, for a person's run
-            # (`activity.lane.each-unit-its-own-lane`, #5863). ponytail: no production kind puts a hosted model on this lane today
-            # (`llm.model_call_slot` sends a hosted `ask-a-model` call to the network lane, already beside a local page); this keeps
-            # the lane right if one ever does.
             return True
         if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
                 and set(running.values()) == {model}):
@@ -3091,7 +3072,7 @@ class _Scheduler:
         if lane.name == "local-ml":
             queued = sum(1 for other, m in list(lane.running.items())
                          if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX))
-            if not is_hosted(model) and _kraken_busy(queued):  # a Kraken page outside the queue: no second heavy model beside it
+            if _kraken_busy(queued):  # a Kraken page outside the queue: no second heavy model beside it
                 wait_on(db, job_id, "Waiting for Kraken (another page is using it)")
                 while _kraken_busy(queued):
                     time.sleep(self.KRAKEN_POLL_SECONDS)
@@ -3109,7 +3090,7 @@ class _Scheduler:
                             f"memory: {why}; the lane switches to {_family(model)} for job {job_id}")
                     finally:
                         wait_over(db, job_id)
-            if model is not None and not is_light(model) and not is_hosted(model):  # nothing loads for a hosted page
+            if model is not None and not is_light(model):
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
             watched = handed_in is None and db.execute_fetchone(
