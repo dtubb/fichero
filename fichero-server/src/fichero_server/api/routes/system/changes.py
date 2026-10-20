@@ -14,13 +14,14 @@ import asyncio
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import _is_loopback_request
 from fichero_server.api.change_stream import ChangeEvent, _change_hub, format_change_sse, sse_shutdown_event
 from fichero_server.api.main import assert_library_read_authorized
+from fichero_server.security import revocation
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,10 @@ async def stream_library_changes(
         device_id=getattr(getattr(request.state, "device", None), "id", None),
     )
     queue = subscription.queue
+    device_id = getattr(getattr(request.state, "device", None), "id", None)
+    if device_id and revocation.is_revoked(device_id):  # revoked in the moment it connected: after subscribing, so none slips through (#5913)
+        _change_hub.unsubscribe(x_fichero_library_path, queue)
+        raise HTTPException(status_code=401, detail="this device was removed")
 
     async def event_generator() -> AsyncGenerator[str, None]:
         shutdown_event = sse_shutdown_event()

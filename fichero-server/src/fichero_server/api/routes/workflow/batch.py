@@ -13,12 +13,13 @@ import logging
 import threading
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
+from fichero_server.security.revocation import end_on_revoke
 from fichero_server.execution.batch import (
     BatchEvent,
     BatchExecution,
@@ -252,7 +253,7 @@ class BatchEventResponse(BaseModel):
 # API Endpoints
 
 
-def _run_off_the_request(batch_id: str, events: Any) -> StreamingResponse:
+def _run_off_the_request(http_request: Request, batch_id: str, events: Any) -> StreamingResponse:
     """Run a batch on a worker thread of its own, off the API's event loop, and stream its events
     to whoever is listening (`activity.run.batch-off-the-request`, #5374): a client that
     disconnects stops listening, not the batch. A thread-safe hub (the runs' own) fans the events
@@ -290,7 +291,7 @@ def _run_off_the_request(batch_id: str, events: Any) -> StreamingResponse:
             subscriber.put(None)
 
     return StreamingResponse(
-        stream(),
+        end_on_revoke(http_request, stream()),  # a revoked guest's stream ends; the batch goes on (#5913)
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -366,7 +367,7 @@ async def get_batch_progress(batch_id: str, db: Database = Depends(get_library_d
 
 
 @router.post("/{batch_id}/execute")
-async def execute_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
+async def execute_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
     """
     Execute a batch with Server-Sent Events progress streaming.
 
@@ -379,7 +380,7 @@ async def execute_batch(batch_id: str, db: Database = Depends(get_library_databa
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    return _run_off_the_request(batch_id, lambda: manager.execute_batch(batch_id, store))
+    return _run_off_the_request(http_request, batch_id, lambda: manager.execute_batch(batch_id, store))
 
 
 @router.post("/{batch_id}/pause", response_model=BatchResponse)
@@ -395,7 +396,7 @@ async def pause_batch(batch_id: str, db: Database = Depends(get_library_database
 
 
 @router.post("/{batch_id}/resume")
-async def resume_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
+async def resume_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
     """
     Resume a paused batch with SSE progress streaming.
 
@@ -408,7 +409,7 @@ async def resume_batch(batch_id: str, db: Database = Depends(get_library_databas
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    return _run_off_the_request(batch_id, lambda: manager.resume_batch(batch_id, store))
+    return _run_off_the_request(http_request, batch_id, lambda: manager.resume_batch(batch_id, store))
 
 
 @router.post("/{batch_id}/cancel", response_model=BatchResponse)
@@ -424,7 +425,7 @@ async def cancel_batch(batch_id: str, db: Database = Depends(get_library_databas
 
 
 @router.post("/{batch_id}/retry")
-async def retry_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
+async def retry_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
     """
     Retry failed items in a batch with SSE progress streaming.
 
@@ -437,7 +438,7 @@ async def retry_batch(batch_id: str, db: Database = Depends(get_library_database
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    return _run_off_the_request(batch_id, lambda: manager.retry_failed_items(batch_id, store))
+    return _run_off_the_request(http_request, batch_id, lambda: manager.retry_failed_items(batch_id, store))
 
 
 @router.delete("/{batch_id}")

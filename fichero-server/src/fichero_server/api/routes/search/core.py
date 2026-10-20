@@ -8,6 +8,7 @@ import asyncio
 import logging
 from dataclasses import asdict
 from fichero_server.core.timeutil import utc_now
+from fichero_server.security.revocation import end_on_revoke
 
 from fichero_server.retrieval.query_compiler import (
     CompiledQuery,
@@ -1555,6 +1556,7 @@ async def enhanced_search(
 @router.post("/stream")
 async def streaming_search(
     request: SearchRequest,
+    http_request: Request,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> StreamingResponse:
@@ -1610,7 +1612,7 @@ async def streaming_search(
         except Exception as exc:  # noqa: BLE001 — the stream must SAY it failed
             yield _line({"type": "error", "detail": str(exc)})
 
-    return StreamingResponse(generate(), media_type="application/x-ndjson")
+    return StreamingResponse(end_on_revoke(http_request, generate()), media_type="application/x-ndjson")
 
 
 @router.get("/stats", response_model=EmbeddingStatsResponse)
