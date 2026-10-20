@@ -268,6 +268,22 @@ def read_env_file(path: Path, *, log=print) -> dict[str, str]:
     return found
 
 
+#: Other names a provider's key goes by in the environment or the key file.
+KEY_ALIASES = {"huggingface": ("HF_TOKEN",)}
+
+
+def scrub(text: str, environ=None) -> str:
+    """`text` with every secret in it replaced: the value of any *_API_KEY / *_TOKEN variable in the environment, and anything shaped
+    like a provider key (sk-..., hf_...). Failures are written to report.md; a key must never reach it."""
+    import re
+
+    environ = os.environ if environ is None else environ
+    for name, value in environ.items():
+        if value and len(value) >= 8 and (name.endswith("_API_KEY") or name.endswith("_TOKEN") or name == "HF_TOKEN"):
+            text = text.replace(value, "<key>")
+    return re.sub(r"\b(?:sk-[A-Za-z0-9_-]{8,}|hf_[A-Za-z0-9]{8,})", "<key>", text)
+
+
 def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=None, environ=None, log=print) -> str:
     """Make `provider`'s key available to the engine's own lookup (`llm.get_api_key`: app-supplied, then the keychain, then the
     environment) and say where it came from, in words. The keychain is asked through the engine's `lookup_api_key`, never a
@@ -288,16 +304,18 @@ def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=N
         log(f"{provider}: the keychain holds a key but this process cannot read it ({answer.detail or 'no detail'}): "
             "it is locked, or over SSH there is no session to unlock it, or the item belongs to the app and a plain python "
             "process is not trusted by it. Looking in the key file instead.")
-    if environ.get(variable):
-        log(f"{provider}: key found in the environment ({variable})")
+    names = (variable, *KEY_ALIASES.get(provider, ()))
+    if (hit := next((n for n in names if environ.get(n)), None)):
+        environ[variable] = environ[hit]
+        log(f"{provider}: key found in the environment ({hit})")
         return "environment"
     found = read_env_file(env_file or AB_ENV, log=log)
-    if found.get(variable):
-        environ[variable] = found[variable]
+    if (hit := next((n for n in names if found.get(n)), None)):
+        environ[variable] = found[hit]
         from fichero_server.llm import clear_api_key_cache
 
         clear_api_key_cache(provider)
-        log(f"{provider}: key found in the key file ({variable})")
+        log(f"{provider}: key found in the key file ({hit})")
         return "the key file"
     raise SystemExit(f"no {provider} key: looked for it in the keychain (add it in Settings > AI providers), the environment "
                      f"and {variable} in {env_file or AB_ENV}")
@@ -607,7 +625,7 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
         except CapReached:
             raise
         except Exception as exc:  # noqa: BLE001 -- an arm that fails leaves its cells empty with a reason; the rest go on
-            failures.append({"arm": name, "page": ledger.page, "why": f"{type(exc).__name__}: {exc}"[:240]})
+            failures.append({"arm": name, "page": ledger.page, "why": scrub(f"{type(exc).__name__}: {exc}")[:240]})
             return {}
         finally:
             seconds.setdefault(name, []).append(time.perf_counter() - began)
