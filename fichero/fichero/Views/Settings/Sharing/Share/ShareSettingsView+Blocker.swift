@@ -27,7 +27,9 @@ extension ShareSettingsView {
         // back nil the card used to go blank, which is the very disease #3769 is
         // about. The app CAN fix this itself: restarting the engine mints the TLS
         // material and re-derives the pin.
-        guard hasValidSPKIPin else { return .pinNotDerived }
+        guard hasValidSPKIPin else {
+            return backendService.isUsingExternalBackend ? .pinNotDerivedOnExternalEngine : .pinNotDerived
+        }
         return nil
     }
 
@@ -55,7 +57,7 @@ extension ShareSettingsView {
             await applySharing()
         case .pinNotDerived:
             await applySharing()  // restarts the engine, which mints and files the pin; only on the person's press (#5891)
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine:
             break  // no button offered — see PairingBlocker.actionTitle
         }
     }

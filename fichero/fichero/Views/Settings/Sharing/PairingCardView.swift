@@ -44,6 +44,8 @@ enum PairingBlocker: Equatable {
     /// not typed, and the derivation is optional — a nil used to blank the card.
     /// Restarting the engine mints the TLS material and derives it.
     case pinNotDerived
+    /// The same, on an engine this app did not start (Dev Local): restarting sharing cannot mint a pin there (#5891).
+    case pinNotDerivedOnExternalEngine
 
     /// The headline. Each cause names ITSELF.
     var headline: String {
@@ -55,6 +57,7 @@ enum PairingBlocker: Equatable {
         case .addressInsecure: return "Sharing needs HTTPS"
         case .addressInvalid: return "That address doesn't work"
         case .pinNotDerived: return "Preparing the security certificate"
+        case .pinNotDerivedOnExternalEngine: return "No security certificate for this address"
         }
     }
 
@@ -72,6 +75,9 @@ enum PairingBlocker: Equatable {
             return "Devices pair over HTTPS so the connection can be pinned. Restore the automatic address under Advanced."
         case .addressInvalid(let reason):
             return reason
+        case .pinNotDerivedOnExternalEngine:
+            return "This engine was started outside Fichero, so Fichero can't make its certificate pin; "
+                + "restarting sharing here would change nothing. Start the engine from Fichero, or give it the pin."
         case .pinNotDerived:
             return "Fichero has no certificate pin filed for this address yet. Making the link restarts "
                 + "sharing, which mints it; any work running in the engine is stopped, so do it when nothing is running."
@@ -88,7 +94,7 @@ enum PairingBlocker: Equatable {
         // The pin is normally minted when sharing turns on; when it is missing anyway the cure restarts the
         // engine, which stops work in flight, so it is a button the person presses, never automatic (#5891).
         case .pinNotDerived: return "Make a Pairing Link"
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine:
             return nil
         }
     }

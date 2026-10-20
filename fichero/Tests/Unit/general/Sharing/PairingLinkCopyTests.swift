@@ -76,4 +76,10 @@ struct PairingInvitePinTests {
         #expect(PairingBlocker.pinNotDerived.actionTitle != nil)
         #expect(PairingBlocker.pinNotDerived.detail.contains("restarts sharing"))
     }
+
+    @Test func anEngineStartedOutsideFicheroOffersNoRestartButSaysWhy() {
+        let blocker = PairingBlocker.pinNotDerivedOnExternalEngine
+        #expect(blocker.actionTitle == nil)
+        #expect(blocker.detail.contains("started outside Fichero"))
+    }
 }
