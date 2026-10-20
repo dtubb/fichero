@@ -68,7 +68,11 @@ def test_two_heavy_lanes_run_one_job_between_them_while_memory_is_busy(db, clien
     assert running == ["thumb-1"]
     rows = {j["task_type"]: j for j in client.get("/api/activity/jobs").json()["jobs"] if j["state"] == "waiting"}
     assert rows["t-model"]["reason"].startswith(jobs.ONE_HEAVY_REASON)
-    assert rows["t-image"]["reason"].startswith(jobs.ONE_HEAVY_REASON)
+    # One row per kind (`activity.window.one-row-per-kind`): thumb-1 is running, so the t-image row reads Running and the
+    # waiting thumbnail is a line in the row's pages (`activity.window.expands-to-pages`).
+    [(waiting_id, created)] = db.execute_fetchall(
+        "SELECT id, created_at FROM jobs WHERE subject = 'thumb-2' AND state = 'waiting'")
+    assert jobs.waiting_reason(db, waiting_id, "t-image", created_at=created).startswith(jobs.ONE_HEAVY_REASON)
     release.set()
     assert _wait_for(lambda: db.execute_fetchone(
         "SELECT count(*) FROM jobs WHERE state = 'done'")[0] == 3)

@@ -51,6 +51,28 @@ def pages(db, tmp_path):
 
 
 @pytest.fixture
+def page_sets(db, tmp_path):
+    """A new set of three pages on every call: a page is read by one live run at a time (#5848,
+    `activity.run.one-live-read-per-page`), so runs that must each make their calls need pages of their own."""
+    from fichero_server.models import DocType, Document, FileType
+
+    made = []
+
+    def new():
+        tag = len(made)
+        docs = []
+        for i in range(3):
+            doc = Document(name=f"s{tag}-{i}.png", doc_type=DocType.file, file_type=FileType.image,
+                           path=str(_png(tmp_path / f"s{tag}-{i}.png")))
+            db.save(doc)
+            docs.append(doc)
+        made.append(docs)
+        return docs
+
+    return new
+
+
+@pytest.fixture
 def workflow(db):
     """Files in, one cloud-model transcription step."""
     from fichero_server.models import Workflow
@@ -159,7 +181,7 @@ def test_activity_jobs_are_a_tree__a_run_is_a_job_with_its_steps_and_pages(clien
 
 
 def test_activity_run_lane_cap_per_mac__two_runs_share_one_cap_on_cloud_calls(
-        client, db, workflow, pages, cloud, monkeypatch):
+        client, db, workflow, page_sets, cloud, monkeypatch):
     """Behaviour `activity.run.lane-cap-per-mac`: "the cap on concurrent model calls is one per Mac,
     shared by every run. Today it is per run ... three runs measured 12 calls at once against a cap
     of 4." Two runs of three pages each, with the network lane two wide, never make more than two
@@ -167,7 +189,7 @@ def test_activity_run_lane_cap_per_mac__two_runs_share_one_cap_on_cloud_calls(
     monkeypatch.setitem(jobs.LANES, "network", 2)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     cloud.seconds = 0.2
-    first, second = _execute(client, workflow, pages), _execute(client, workflow, pages)
+    first, second = _execute(client, workflow, page_sets()), _execute(client, workflow, page_sets())
     assert _wait_for(lambda: _status(client, first) == "completed" and _status(client, second) == "completed")
     assert cloud.calls == 6
     assert cloud.peak <= 2

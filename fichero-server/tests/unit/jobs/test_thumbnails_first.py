@@ -173,7 +173,7 @@ def test_a_thumbnail_finishing_mid_look_does_not_strand_the_work_it_held(test_pa
 
     monkeypatch.setattr(db, "execute_fetchone", thumbnail_finishes_right_after_the_pick)
     scheduler = jobs._Scheduler()  # a scheduler of its own, with no threads: only its look is tested
-    lane = scheduler.lanes["local-ml"]
+    lane = scheduler.lanes["embed"]  # the embedder's own lane since #5847 (it waits for the thumbnails like the model lane)
     key = jobs._key(db)
     lane.libraries.add(key)
 

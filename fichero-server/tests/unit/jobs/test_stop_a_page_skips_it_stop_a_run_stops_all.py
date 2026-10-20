@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from concurrent.futures import Future
 
 import pytest
@@ -80,10 +81,12 @@ def test_stop_on_a_page_mid_read_drops_its_result_and_the_next_page_runs(db, mon
 
     saved: list[str] = []
     outcomes: dict[str, str] = {}
+    # The lane opens a project by its package folder; `db.path` can be the database file inside it.
+    library = str(db.path if Path(db.path).is_dir() else Path(db.path).parent)
 
     async def page(name):
         try:
-            saved.append(await jobs.run_on_lane(str(db.path), "read-a-page", name, model="kraken:blla", fn=read(name)))
+            saved.append(await jobs.run_on_lane(library, "read-a-page", name, model="kraken:blla", fn=read(name)))
             outcomes[name] = "done"
         except jobs.PageStopped:
             outcomes[name] = "stopped"
