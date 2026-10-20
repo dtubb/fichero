@@ -31,30 +31,34 @@ def pytest_configure(config):
 '''
 
 
-def _run(tmp_path: Path, test_source: str) -> tuple[int, Path]:
+def _say(proc) -> str:
+    return f"\n--- inner pytest stdout ---\n{proc.stdout[-3000:]}\n--- stderr ---\n{proc.stderr[-3000:]}"
+
+
+def _run(tmp_path: Path, test_source: str) -> tuple[int, Path, str]:
     marker = tmp_path / "fast-exit-marker"
     (tmp_path / "conftest.py").write_text(CONFTEST.format(tests_parent=str(ENGINE_ROOT), marker=str(marker)))
     (tmp_path / "test_inner.py").write_text(textwrap.dedent(test_source))
     env = {**os.environ, "FICHERO_BASE_PATH": str(tmp_path / "state"), "PYTHONDONTWRITEBYTECODE": "1"}
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(tmp_path),
                            str(tmp_path / "test_inner.py")], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300)
-    return proc.returncode, marker
+    return proc.returncode, marker, _say(proc)
 
 
 def test_a_failing_inner_run_still_exits_non_zero(tmp_path):
-    code, marker = _run(tmp_path, "def test_fails():\n    assert False\n")
-    assert code == 1, "pytest's own status (1 = tests failed), never 0"
-    assert marker.read_text() == "1", "the fast exit was taken, with that status"
+    code, marker, said = _run(tmp_path, "def test_fails():\n    assert False\n")
+    assert code == 1, "pytest's own status (1 = tests failed), never 0" + said
+    assert marker.exists() and marker.read_text() == "1", "the fast exit was taken, with that status" + said
 
 
 def test_a_passing_inner_run_exits_zero_by_the_fast_path(tmp_path):
-    code, marker = _run(tmp_path, "def test_ok():\n    assert True\n")
-    assert code == 0 and marker.read_text() == "0"
+    code, marker, said = _run(tmp_path, "def test_ok():\n    assert True\n")
+    assert code == 0 and marker.exists() and marker.read_text() == "0", said
 
 
 def test_a_library_written_in_the_run_reopens_with_no_wal_to_replay(tmp_path):
     package = tmp_path / "lib.fichero"
-    code, marker = _run(tmp_path, f'''
+    code, marker, said = _run(tmp_path, f'''
         from pathlib import Path
         from fichero_server.db.manager import db_manager
 
@@ -66,7 +70,7 @@ def test_a_library_written_in_the_run_reopens_with_no_wal_to_replay(tmp_path):
             db.execute("CREATE TABLE IF NOT EXISTS t5903 (x INTEGER)")
             db.execute("INSERT INTO t5903 VALUES (1), (2), (3)")
     ''')
-    assert code == 0 and marker.read_text() == "0", "the fast exit was taken"
+    assert code == 0 and marker.exists() and marker.read_text() == "0", "the fast exit was taken" + said
     db_file = next(package.glob("*.duckdb"))
     assert not Path(str(db_file) + ".wal").exists(), "a WAL left behind would replay at the next open (the index hazard)"
     con = duckdb.connect(str(db_file), read_only=True)
