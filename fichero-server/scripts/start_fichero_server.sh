@@ -42,6 +42,8 @@ for arg in "$@"; do
     --help|-h)
       echo "Usage: $0 [--no-sync] [--fast] [--reload] [--uds[=/path]]"
       echo
+      echo "Refuses to start without FICHERO_BASE_PATH (a scratch folder). The owner alone runs on the real app"
+      echo "state on purpose, with FICHERO_ALLOW_REAL_STATE=1 set by hand."
       echo "Default starts uvicorn without reload so the real app DuckDB is opened"
       echo "by one process only. Use --reload only with an isolated/test database."
       echo "--uds serves the engine on a Unix-domain socket (dev fast loop)."
