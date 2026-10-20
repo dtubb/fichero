@@ -13,7 +13,7 @@ import threading
 from typing import Any, Callable
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
-from fichero_server.llm.local_model_facts import GIB, gib
+from fichero_server.llm.local_model_facts import gib
 from fichero_server.db.paths import model_store_root
 from fichero_server.llm.providers import ProviderType
 
@@ -60,7 +60,9 @@ DOWNLOAD_PROGRESS_POLL_SECONDS = 1.0
 
 
 def _format_bytes(count: int) -> str:
-    return f"{gib(count):.1f} GB" if count >= GIB / 10 else f"{count / 1024**2:.0f} MB"
+    """A file's size as macOS shows it (`ByteCountFormatter .file`: powers of 1000), so the row matches Finder.
+    A Mac's MEMORY stays in the GB the Mac says (powers of 1024, `local_model_facts.gib`, #5833)."""
+    return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
 
 
 @dataclass
