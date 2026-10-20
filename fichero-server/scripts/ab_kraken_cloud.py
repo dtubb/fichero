@@ -3,23 +3,28 @@
 the lines, the model reads every line), on a folder of page images (#5894; spec `source.recipe.reader-variants-measured`).
 
 A script only: no app change, no engine, no token. It runs in the engine's venv (kraken, torch), as `bench_reading.py`
-does, on the test Mac (the M4), and calls the same code the recipe steps call: `kraken_runtime` for Kraken,
-`llm.re_ask_lines.re_ask` for A (what `correct` with `only_below_confidence` asks the model), `llm.line_reader.read_lines`
-for B (what a vision model reading Kraken's lines asks).
+does, on the test Mac (the M4), and measures the MODEL CALL of each variant, not the recipe step around it: it calls
+`kraken_runtime` for Kraken, `llm.re_ask_lines.re_ask` for A with the step's own lines per request
+(`lines_per_request_for`) and the step's own `sanitize_transcription` on each answer, and `llm.line_reader.read_lines` for B.
+What the step adds (the database, the pass, the skip of lines already answered) is not exercised here.
 
   python fichero-server/scripts/ab_kraken_cloud.py --pages DIR --out DIR [--model fake] [--bar 0.6] [--cap 1.00]
   python fichero-server/scripts/ab_kraken_cloud.py --pages DIR --out DIR --model anthropic:claude-haiku-5-5 \\
          --reference-model anthropic:<the strongest> --bar 0.6          (later: each model of Claude and Gemini)
 
 --model fake is the dry run: a stub that answers a fixed text, no network, no key, cost 0. Nothing here reads a key from
-anywhere; a real model needs its provider key in the environment, as the engine's own calls do.
+anywhere; a real model needs its provider key in the environment, as the engine's own calls do. It refuses to run unless
+FICHERO_BASE_PATH is set to a scratch directory (never the app's own state under ~/Library): the Kraken reader is read
+from there, and nothing of the owner's can be reached.
 
 THE REFERENCE is a read made by the strongest model on every line. It is LABELLED "model reference, not ground truth" in
 every report: a CER against it measures agreement with a model, and says nothing of the page when the model is wrong.
 
-COST is estimated from the registry's per-token price (`llm.model_types.estimate_cost`) and the tokens of the images
-(pixels / 750), the prompt and the answer (characters / 4), and is checked BEFORE each call: a call that could take the
-total past `--cap` (US$1 by default) is not made and the run stops there, reporting what it has. A model with no price in
+COST is the registry's per-token price (`llm.model_types.estimate_cost`) times the tokens the call reported
+(`llm.collect_usage`) when there are any, else an estimate (images: pixels / 750; prompt and answer: characters / 4). Before
+each call its worst case (the images, the prompt and the whole `max_tokens`) is RESERVED against `--cap` (US$1 by default),
+so calls running at once cannot together pass it; the reservation is replaced by the real cost when the call ends. A call
+that cannot be reserved is not made and the run stops there, reporting what it has. A model with no price in
 the registry is refused (a cap cannot be kept without one).
 
 Writes to --out: report.md (the numbers), sheet.html (ten lines per variant side by side, with each line's picture, for
@@ -56,15 +61,29 @@ class Ledger:
 
     cap: float
     spent: float = 0.0
+    reserved: float = 0.0
     calls: int = 0
     by_stage: dict[str, float] = field(default_factory=dict)
     by_page: dict[str, float] = field(default_factory=dict)
     stage: str = ""
     page: str = ""
 
-    def check(self, upcoming: float) -> None:
-        if self.spent + upcoming > self.cap:
-            raise CapReached(f"the next call could cost ${upcoming:.4f}; ${self.spent:.4f} of ${self.cap:.2f} is spent")
+    def reserve(self, upcoming: float) -> float:
+        """Keep `upcoming` (a call's worst case) against the cap, or refuse. No await sits between the check and the
+        reservation, so calls running at once on one loop cannot both pass a cap that fits one."""
+        if self.spent + self.reserved + upcoming > self.cap:
+            raise CapReached(f"the next call could cost ${upcoming:.4f}; ${self.spent:.4f} of ${self.cap:.2f} is spent "
+                             f"and ${self.reserved:.4f} is held by calls under way")
+        self.reserved += upcoming
+        return upcoming
+
+    def release(self, held: float) -> None:
+        self.reserved = max(0.0, self.reserved - held)
+
+    def settle(self, held: float, actual: float) -> None:
+        """A call ended: its reservation gives way to what it cost."""
+        self.release(held)
+        self.add(actual)
 
     def add(self, cost: float) -> None:
         self.spent += cost
@@ -172,9 +191,17 @@ def install_model(spec: str, ledger: Ledger):
 
     async def priced(images, prompt, config, **kw):
         tokens_in = sum(_image_tokens(i) for i in images) + len(prompt) // 4
-        ledger.check(estimate_cost(config.model, tokens_in, config.max_tokens) or 0.0)  # the worst case, before the call
-        raw = await real(images=images, prompt=prompt, config=config, **kw)
-        ledger.add(estimate_cost(config.model, tokens_in, max(1, len(str(raw)) // 4)) or 0.0)
+        held = ledger.reserve(estimate_cost(config.model, tokens_in, config.max_tokens) or 0.0)
+        try:
+            with llm.collect_usage() as used:
+                raw = await real(images=images, prompt=prompt, config=config, **kw)
+        except BaseException:
+            ledger.release(held)  # a failed call is not billed here; the provider's own bill is the last word
+            raise
+        # The tokens the call reported, when it reported any; the estimate only when it did not.
+        got_in = sum(int(u.get("input_tokens") or 0) for u in used)
+        got_out = sum(int(u.get("output_tokens") or 0) for u in used)
+        ledger.settle(held, estimate_cost(config.model, got_in or tokens_in, got_out or max(1, len(str(raw)) // 4)) or 0.0)
         return raw
 
     llm.vision = priced
@@ -230,7 +257,17 @@ async def reading_unsure(image: Path, lines: list[dict], config, language: str |
               for line in lines if line["confidence"] is None or line["confidence"] < bar]
     if not unsure:
         return {}, 0
-    answers, _left = await re_ask(str(image), unsure, "", config, language=language)
+    from fichero_server.llm.line_reader import LINES_PER_CALL
+    from fichero_server.recipes.cards import lines_per_request_for
+    from fichero_server.workflows.tools.transcription_output import sanitize_transcription
+
+    answers, _left = await re_ask(str(image), unsure, "", config,
+                                  batch=lines_per_request_for(str(config.model)) or LINES_PER_CALL, language=language)
+    for line_id in list(answers):  # the step's guard: commentary is not a line (#4496)
+        try:
+            answers[line_id] = sanitize_transcription(answers[line_id])
+        except Exception:  # noqa: BLE001 -- the step keeps the first reader's text for such a line, so does this
+            del answers[line_id]
     return answers, len(unsure)
 
 
@@ -355,6 +392,18 @@ def _sheet_html(shown: list[dict], r: dict) -> str:
             f"{body}</table>")
 
 
+def require_scratch_state() -> None:
+    """Refuse to run unless FICHERO_BASE_PATH names a scratch directory, never the app's own state."""
+    import os
+
+    base = os.environ.get("FICHERO_BASE_PATH", "").strip()
+    if not base:
+        raise SystemExit("set FICHERO_BASE_PATH to a scratch directory holding kraken-models (a copy of the seeded reader)")
+    resolved = Path(base).expanduser().resolve()
+    if (Path.home() / "Library") in (resolved, *resolved.parents):
+        raise SystemExit(f"FICHERO_BASE_PATH={base} is under ~/Library, where the app keeps its own state: use a scratch directory")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pages", type=Path, required=True)
@@ -366,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--reader", default=None, help="the Kraken reader (a catalogue id or a .mlmodel path)")
     ap.add_argument("--language", default="es")
     args = ap.parse_args(argv)
+    require_scratch_state()
     reader = args.reader
     if reader is None:
         from fichero_server.recipes.cards import kraken_reader_for
