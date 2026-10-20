@@ -140,6 +140,8 @@ TESTS_BARE_RGLOB_ALLOWED = {
     "test_manifest_link_from_the_cli.py": "asserts no image was copied into the tmp test library",
     "test_mcp_ingest_folder.py": "asserts no photo was copied into the tmp test library",
     "test_training_job.py": "lists the files a fake Hugging Face upload was handed from tmp_path",
+    "test_try_progress_in_place_5855.py": "asserts no find-lines file was invented under tmp_path",
+    "test_token_dir_isolation.py": "asserts nothing was written under the fake Library in tmp_path",
 }
 
 
