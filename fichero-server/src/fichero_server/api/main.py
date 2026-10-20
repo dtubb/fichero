@@ -1378,6 +1378,15 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def _note_first_request(request: Request, call_next):
+    """One log line per transport, the first time a request arrives on it (#5868)."""
+    from fichero_server.api import transport_diagnostics
+
+    transport_diagnostics.note_first_request(request.scope)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Every response declares nosniff (#4383).
 
