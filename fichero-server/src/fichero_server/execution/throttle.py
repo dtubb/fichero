@@ -377,11 +377,47 @@ def a_build_is_running() -> str | None:
 _battery: tuple[float, bool] | None = None
 
 
+def _on_an_event_loop() -> bool:
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
+_battery_refreshing = False
+
+
+def _refresh_battery_in_background() -> None:
+    global _battery_refreshing
+    if _battery_refreshing:
+        return
+    _battery_refreshing = True
+
+    def read() -> None:
+        global _battery_refreshing
+        try:
+            battery_or_low_power()  # on this thread, not a loop: reads and stores
+        finally:
+            _battery_refreshing = False
+
+    import threading
+
+    threading.Thread(target=read, name="battery-reading", daemon=True).start()
+
+
 def battery_or_low_power() -> bool:
     """On battery power or in Low Power Mode; read at most every `BATTERY_READING_SECONDS`."""
     global _battery
     now = time.monotonic()
     if _battery is None or now - _battery[0] > BATTERY_READING_SECONDS:
+        if _on_an_event_loop():
+            # The loop never waits for `pmset` (Fable review #2): serve the last reading (none yet: not on battery, as an
+            # unreadable one is) and refresh it on a thread.
+            _refresh_battery_in_background()
+            return _battery[1] if _battery else False
         try:
             from Foundation import NSProcessInfo
 
