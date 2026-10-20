@@ -65,7 +65,7 @@ def record_stall(frame_name: str, seconds: float) -> None:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(json.dumps({"frame": frame_name, "seconds": round(seconds)}))
         os.replace(tmp, path)
-    except Exception:
+    except OSError:  # file IO only; anything else is a bug and should surface (#4420 seam)
         logger.warning("could not record the loop stall", exc_info=True)
 
 
@@ -73,7 +73,7 @@ def clear_stall() -> None:
     """The loop answered again, or the engine is stopping cleanly: only a stall the engine died in stays on disk."""
     try:
         _stall_path().unlink(missing_ok=True)
-    except Exception:
+    except OSError:  # file IO only (#4420 seam)
         logger.warning("could not clear the loop stall record", exc_info=True)
 
 
