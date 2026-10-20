@@ -1391,7 +1391,7 @@ and node, not by job); a retry action for failed pages.
   M4. The lane: `_Lane.may_start` admits a second page of the SAME model on the model lane when a person started its run
   (`person_waits_on`) and `kraken_runtime.pages_at_once(True)` (fast priority, cores, memory for both) says two; never while
   memory is busy (`one-heavy-when-memory-tight` stands); a third page waits, a different model waits, background stays at one
-  (`fichero-server/tests/unit/jobs/test_same_model_pages_together.py`, work faked). The gate (r1, `source.read.two-pages-at-once`):
+  (`fichero-server/tests/unit/jobs/test_same_model_pages_together.py`, work faked). The page waiting on that cap says so in words, "Waiting: two pages of this model are already reading" (`jobs.PAGES_AT_CAP_REASON`, the existing reason field; the same test file). The bench that turns this [PARTIAL] into [OK]: `fichero-server/scripts/bench_same_model_pages.py` (1 against 2 pages at once through the real lane and gate; M4, owed). The gate (r1, `source.read.two-pages-at-once`):
   `kraken_runtime._INFERENCE_LOCK` is a page gate that lets `pages_at_once` pages read together and, taken whole
   (`_release_kraken`, `local_inference.release_idle_engine_models`), waits for them all. `locked()` is true while ANY page reads, so
   a queued page's "is a page outside the queue reading" check is `_kraken_busy(queued)`, which does not count the lane's own other
