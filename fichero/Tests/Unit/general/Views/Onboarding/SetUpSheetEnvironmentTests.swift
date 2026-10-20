@@ -33,4 +33,31 @@ final class SetUpSheetEnvironmentTests: XCTestCase {
         XCTAssertTrue(seen.storage === library.storageService, "Set Up's pictures are drawn from the project's storage")
         XCTAssertTrue(seen.appState === appState)
     }
+
+    /// A new project is made INSIDE the window (Your project), so the services follow the window's own `project`: none
+    /// before it exists (no crash, no placeholder service), the project's once it does.
+    func testTheServicesFollowTheProjectTheWindowMakes() {
+        final class Seen { var storage: StorageService? }
+        struct Probe: View {
+            let seen: Seen
+            @Environment(StorageService.self) private var storage: StorageService?
+            var body: some View {
+                seen.storage = storage
+                return Color.clear
+            }
+        }
+        let seen = Seen()
+        let appState = AppState()
+        let before = NSHostingView(rootView: Probe(seen: seen)
+            .modifier(SetUpSheetEnvironment(appState: appState, library: nil)))
+        before.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
+        before.layoutSubtreeIfNeeded()
+        XCTAssertNil(seen.storage, "no project yet: nothing to draw from, and nothing crashes")
+        let library = LibraryPreviewFixtures.library
+        let after = NSHostingView(rootView: Probe(seen: seen)
+            .modifier(SetUpSheetEnvironment(appState: appState, library: library)))
+        after.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
+        after.layoutSubtreeIfNeeded()
+        XCTAssertTrue(seen.storage === library.storageService, "a project made in the window gets its own services")
+    }
 }
