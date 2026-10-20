@@ -813,6 +813,8 @@ def devices_pair(
             typer.echo("No engine socket answered on this Mac; run this on the host, with the app open.", err=True)
             raise typer.Exit(1)
     try:
+        if link:
+            typer.echo("Warning: a link on the command line stays in your shell history; use --link-file next time.", err=True)
         text = link_file.read_text(encoding="utf-8") if link_file else link
         done = pairing.pair(text, device_name=name, uds=uds)
     except (FicheroError, OSError) as exc:

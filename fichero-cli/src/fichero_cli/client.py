@@ -219,6 +219,24 @@ def _read_token(
     refused: frozenset[str] = frozenset(),
     engine: str | None = None,
 ) -> str | None:
+    """The credential to send: a person's session first, then the engine's other credentials, and only then the
+    device this CLI was paired as (`fichero devices pair`), so a signed-in person is never attributed to the device
+    and the owner's own key still wins on the owner's Mac (review 583)."""
+    token = _read_token_without_device(base_url, as_user, prefer_container, refused, engine)
+    if token or as_user:
+        return token
+    from fichero_cli.pairing import device_token
+
+    return device_token(engine)
+
+
+def _read_token_without_device(
+    base_url: str | None = None,
+    as_user: str | None = None,
+    prefer_container: bool = False,
+    refused: frozenset[str] = frozenset(),
+    engine: str | None = None,
+) -> str | None:
     """Read the selected auth token, scoped to the actual backend host."""
     # An explicitly selected account must never fall back to the loopback
     # bootstrap credential: that would attribute an agent MCP action to owner.
@@ -230,13 +248,6 @@ def _read_token(
     env = os.environ.get("FICHERO_SESSION_TOKEN")
     if env:
         return env.strip()
-
-    # A device this CLI was paired as (`fichero devices pair`) speaks for its engine, on any transport.
-    from fichero_cli.pairing import device_token
-
-    paired = device_token(engine)
-    if paired:
-        return paired
 
     loopback = _is_loopback_base_url(base_url)
     if loopback is False:
