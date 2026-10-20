@@ -3,6 +3,8 @@ frontier readers from the person's provider rows when pages may leave; the limit
 left out for it is said."""
 from types import SimpleNamespace as Card
 
+import pytest
+
 from fichero_server.recipes import samples
 
 
@@ -92,3 +94,60 @@ def test_variant_a_keeps_the_reader_and_adds_a_cloud_correction_of_the_unsure_li
     assert fix["model"] == {"model": "anthropic:claude@x"} and fix["runs_on"] == "cloud:anthropic"
     assert changed["recipe"]["steps"][0]["model"] == {"model": "kraken"}
     assert [s["id"] for s in setup["recipe"]["steps"]] == ["read-a-line", "names"]  # the project's setup is untouched
+
+
+# -- review 623: variant A is priced by what it sends, not by every line ------------------------------------------------
+def _column(card_id, cost, cer, *, local=False, state="done"):
+    return {"card": card_id, "name": card_id, "local": local, "runs_on": "cloud:x", "cer": cer, "state": state,
+            "cost_usd": cost}
+
+
+def test_before_the_try_variant_a_says_up_to_and_other_cloud_readers_say_estimate():
+    a = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
+    assert samples.cost_figure(a, 0.05, False, None) == {
+        "value": 0.05, "basis": "upper bound", "from": "up to this: it re-reads only the unsure lines, so it costs less"}
+    assert samples.cost_figure(CLAUDE, 0.05, False, None)["basis"] == "estimate"
+
+
+def test_after_the_try_the_measured_usage_replaces_the_estimate():
+    a = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
+    figure = samples.cost_figure(a, 0.05, False, {"model_calls": 3, "total_tokens": 900, "cost_usd": 0.002})
+    assert (figure["value"], figure["basis"]) == (0.002, "measured")
+    unpriced = samples.cost_figure(a, 0.05, False, {"model_calls": 3, "total_tokens": 900, "cost_usd": None})
+    assert unpriced["basis"] == "upper bound"  # a call nobody could price is never read as $0
+
+
+def test_a_variant_that_sent_few_lines_wins_on_cost_when_it_reads_as_well():
+    from fichero_server.recipes import bakeoff
+
+    columns = [
+        _column("anthropic:claude@x", {"value": 0.05, "basis": "measured", "from": "run"}, 0.020),
+        _column("variant-a:anthropic:claude@x", {"value": 0.002, "basis": "measured", "from": "run"}, 0.021),
+    ]
+    rows = samples.recommendation_rows(columns, pages=10, volume=100)
+    assert rows[1]["cost_usd"]["value"] == pytest.approx(0.02)  # 0.002 on 10 pages is $0.02 for 100
+
+    chosen = bakeoff.recommend(rows, volume=100, noise_band=0.01)
+
+    assert chosen["card"] == "variant-a:anthropic:claude@x"
+    assert chosen["cost_set_usd"] == pytest.approx(0.02)
+
+
+def test_a_price_list_figure_is_not_a_measured_row():
+    rows = samples.recommendation_rows(
+        [_column("variant-a:x", {"value": 0.05, "basis": "upper bound", "from": "p"}, 0.02)], pages=10, volume=100)
+    assert rows[0]["measured"] is False
+
+
+def test_variant_a_keeps_the_projects_own_correction_and_its_bar():
+    setup = {"recipe": {"steps": [
+        {"id": "read-a-line", "job": "read-a-line", "model": {"model": "kraken"}},
+        {"id": "correct", "job": "correct", "model": {"model": "mlx"}, "settings": {"only_below_confidence": 0.6,
+                                                                                   "lenses": ["names"]}}]}}
+    card = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
+
+    steps = samples._with_card(setup, setup["recipe"]["steps"][0], card)["recipe"]["steps"]
+
+    assert [s["id"] for s in steps] == ["read-a-line", "correct"]
+    assert steps[1]["settings"] == {"only_below_confidence": 0.6, "lenses": ["names"]}
+    assert steps[1]["model"] == {"model": "anthropic:claude@x"}
