@@ -107,4 +107,20 @@ struct HostChoicesTests {
         #expect(!RemoteCertificatePinning.usesPublicCertificateAuthority(url: local))
         #expect(throws: (any Error).self) { try RemoteClientPairing.resolvedSPKIPin(nil, for: local) }
     }
+
+    // sharing.ios.nearby-tap-pairs-with-that-mac (#5918)
+    @Test func aCodeForTheMacThatWasPickedIsNotRefused() {
+        let picked = host("Studio", "https://studio.local:8443")
+        #expect(HostChoices.refusal(forInviteAt: "https://studio.local:8443", picked: picked) == nil)
+    }
+
+    @Test func aCodeForAnotherMacIsRefusedNamingThePickedOne() {
+        let picked = host("Studio", "https://studio.local:8443")
+        let sentence = HostChoices.refusal(forInviteAt: "https://other.local:8443", picked: picked)
+        #expect(sentence == "That code is for another Mac than Studio. Scan the one shown on Studio.")
+    }
+
+    @Test func aPickedMacWithNoAddressCannotBeCrossCheckedAndIsNotRefused() {
+        #expect(HostChoices.refusal(forInviteAt: "https://anything.local", picked: host("Studio", nil)) == nil)
+    }
 }
