@@ -1981,7 +1981,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             params += [kind, kind]
         elif g in ("waiting", "paused"):
             first = f"{_PERSON_RANK_SQL} DESC, " if g == "waiting" else ""
-            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? AND NOT {queued} "
+            # A paused job is never in a "queue" group (that holds waiting and running ones), so every paused job of
+            # the kind stands for the kind's paused row; only waiting ones of a kind with its own rows are left here.
+            own_only = f"AND NOT {queued} " if g == "waiting" else ""
+            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}"
                          f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
             params += [g, kind]
     parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")
