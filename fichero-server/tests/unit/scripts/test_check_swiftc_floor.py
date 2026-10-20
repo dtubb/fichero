@@ -44,3 +44,17 @@ def test_a_swiftc_that_names_the_floor_passes_even_across_lines(tmp_path: Path) 
 def test_looking_for_swiftc_is_not_building_with_it(tmp_path: Path) -> None:
     root = _tree(tmp_path, "build.sh", 'if ! command -v swiftc >/dev/null 2>&1; then echo "no fm-bridge"; fi\n# swiftc fm-bridge\n')
     assert _mod.scan(root) == []
+
+
+def test_any_helper_not_only_the_bridge_is_caught(tmp_path: Path) -> None:
+    assert len(_mod.scan(_tree(tmp_path, "build.sh", "swiftc -O -o out/other Other.swift\n"))) == 1
+
+
+def test_xcrun_and_chained_commands_are_caught(tmp_path: Path) -> None:
+    root = _tree(tmp_path, "build.sh", "cd out && xcrun swiftc -O -o a A.swift\nmake; clang -o b b.c\n")
+    assert len(_mod.scan(root)) == 2
+
+
+def test_a_chained_command_with_the_floor_passes(tmp_path: Path) -> None:
+    root = _tree(tmp_path, "build.sh", "cd out && xcrun swiftc -target arm64-apple-macos26.0 -o a A.swift\n")
+    assert _mod.scan(root) == []
