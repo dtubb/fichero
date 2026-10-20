@@ -207,11 +207,20 @@ def pair(
     name = (device_name or f"{socket.gethostname()} (fichero CLI)").strip()
     pin = None if _is_public_ca(host) else link.spki
     body: dict[str, str] = {"code": link.code, "device_name": name}
-    with _open_client(link.api_url, uds, pin) as http:
-        reply = http.post("/api/pair", json=body)
-        if reply.status_code == 401 and "person required" in reply.text:
-            username, password = ask_person()
-            reply = http.post("/api/pair", json={**body, "username": username, "password": password})
+    try:
+        with _open_client(link.api_url, uds, pin) as http:
+            reply = http.post("/api/pair", json=body)
+            if reply.status_code == 401 and "person required" in reply.text:
+                username, password = ask_person()
+                reply = http.post("/api/pair", json={**body, "username": username, "password": password})
+    except httpx.ConnectError as exc:
+        text = f"{exc} {exc.__cause__ or ''}".lower()
+        if "certificate" in text or "ssl" in text:
+            raise FicheroError(
+                f"{host}'s certificate was refused (expired or replaced) though its key matched the link. "
+                "Ask the host for a new pairing link."
+            ) from exc
+        raise FicheroError(f"Cannot connect to {host}: {exc}") from exc
     if reply.status_code != 200:
         try:
             detail = reply.json().get("detail", "")
