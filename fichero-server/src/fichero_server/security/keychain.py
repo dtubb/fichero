@@ -140,8 +140,10 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
 
 
 #: A found or absent answer is kept this long: every read spawns a `security` subprocess (2.5 s on the loop in the owner's
-#: Dev Embedded run). A refusal (UNREADABLE) is never kept: the person may fix it. A save or delete drops the entry.
-_LOOKUP_SECONDS = 300.0
+#: Dev Embedded run). A refusal (UNREADABLE) is never kept, and drops the answer it replaces: the person may fix it. A
+#: save or delete drops the entry. A key deleted OUTSIDE the engine (Keychain Access) reads as found for at most this
+#: long (a stale answer is served once, then re-read on a thread), so it is short (#4534).
+_LOOKUP_SECONDS = 30.0
 _LOOKUPS: dict[str, tuple[float, "KeychainLookup"]] = {}
 _LOOKUPS_LOCK = threading.Lock()
 
@@ -161,6 +163,9 @@ _GENERATION: dict[str, int] = {}
 
 def _store(provider: str, found: "KeychainLookup", generation: int) -> None:
     if found.state is ProviderKeyState.UNREADABLE:
+        with _LOOKUPS_LOCK:  # the old FOUND must not be served as if the keychain still gave it (#4534)
+            if _GENERATION.get(provider, 0) == generation:
+                _LOOKUPS.pop(provider, None)
         return
     with _LOOKUPS_LOCK:
         if _GENERATION.get(provider, 0) == generation:
