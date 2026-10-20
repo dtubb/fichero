@@ -408,6 +408,28 @@ final class ActivityDetailsTests: XCTestCase {
         XCTAssertEqual(store.queueKey(forRowId: "waiting:derivatives"), "waiting:derivatives", "no row yet: the id alone")
     }
 
+    func testQueuedKindRow_moreCountsThePagesStillToGoNotTheDoneOnes() {
+        // WHY (## 492): a kind row's total is done + queued; 12 done and 3 left, 2 listed, is 1 more, not 13.
+        let store = Self.storeWithMockTransport()
+        store.backgroundJobs = [ActivityJob(id: "waiting:derivatives", taskType: "derivatives", name: "Thumbnails",
+                                            current: 12, total: 15, state: .waiting)]
+        XCTAssertEqual(store.queuedPagesNotListed(rowId: "waiting:derivatives", listed: 2), 1)
+        XCTAssertEqual(store.queuedPagesNotListed(rowId: "waiting:derivatives", listed: 3), 0)
+        XCTAssertEqual(store.queuedPagesNotListed(rowId: "waiting:none", listed: 0), 0)
+    }
+
+    func testQueuedKindRow_aCountChangeChangesTheKeyThePagesAreReadOn() {
+        // The list is re-read when the key changes: a page done moves the row's count, and so the key.
+        let store = Self.storeWithMockTransport()
+        func key(_ done: Int) -> String {
+            store.backgroundJobs = [ActivityJob(id: "waiting:derivatives", taskType: "derivatives", name: "Thumbnails",
+                                                current: done, total: 15, state: .waiting)]
+            return store.queueKey(forRowId: "waiting:derivatives")
+        }
+        XCTAssertNotEqual(key(12), key(13))
+        XCTAssertEqual(key(13), key(13), "unchanged row, unchanged key: no needless re-read")
+    }
+
     func testQueuedKind_onlyAWaitingOrPausedKindRowHasPages() {
         XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "waiting:ask-a-model"), "ask-a-model")
         XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "paused:derivatives"), "derivatives")

@@ -252,9 +252,11 @@ extension ActivityStore {
         return [id, "\(job.current)", "\(job.total)", String(describing: job.state), job.reason ?? ""].joined(separator: "|")
     }
 
-    /// How many more pages the row stands for than the list holds (the row's own total less what was read).
+    /// How many more queued pages the row stands for than the list holds. A kind row's total is done plus queued, so
+    /// the ones still to go are `total - current`, less what the list already shows (## 492).
     func queuedPagesNotListed(rowId id: String, listed: Int) -> Int {
-        max(0, (backgroundJobs.first(where: { $0.id == id })?.total ?? 0) - listed)
+        guard let job = backgroundJobs.first(where: { $0.id == id }) else { return 0 }
+        return max(0, (job.total - job.current) - listed)
     }
 
     /// Read the pages queued behind a kind's row; the details call it when the row's count changes. A failed read
