@@ -351,6 +351,7 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
                 run = await get_activity_tracker(str(db.path)).store.get_workflow_run(running["child_id"])
             except Exception as exc:  # noqa: BLE001 -- said in the log
                 logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
+                run = None  # the block stands without its workflow's name
         blocks.append(recipe_block(job, status, run.workflow_name if run else None))
     blocks += [workflow_block(j) for j in jobs
                if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned]
