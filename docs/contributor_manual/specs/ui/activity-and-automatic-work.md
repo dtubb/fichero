@@ -1396,7 +1396,15 @@ and node, not by job); a retry action for failed pages.
   (`fichero/Tests/Unit/general/Models/ActivityReconnectTests.swift`; needs compile). NOT shown to be the cause: why the
   requests never reached the engine at all (the log has none after the restart); this makes the app keep trying and say so, it does
   not explain an `EPERM` on a stale or sandboxed dial. Open: should turning Sharing on restart the engine (its graceful shutdown
-  timed out and cancelled work in flight)? That is the owner's call.
+  timed out and cancelled work in flight)? That is the owner's call. WHY THE ENDPOINT WAS STALE (read from the code, 2026-10-19; NOT reproduced): the two paths that rebind the clients when the host
+  changes, `AppState.reconfigureGeneratedClientsForCurrentHost` and `LibraryManager`'s `reconfigureBackendHost`, passed only the
+  base URL (`reconfigure(baseURL:)`), which returns early when the URL is unchanged and never rebuilds the transport. A change in HOW
+  the engine is dialled (its socket path, or the socket against its https listener, as turning Sharing on does) was therefore
+  never applied to the clients built at the first connect; Activity kept the old one while a store built afterwards got the new
+  one. Fixed: both paths now pass `EngineConfig.transportMode` too. Not proven: that this is the EPERM (macOS answers a refused
+  sandbox connect with EPERM, and the engine log showed the same socket path), which needs the M4 repro: turn Sharing on with
+  Activity open, then read the app log for `endpoint re-resolved … (was …)`, which now names the old and the new mode.
+
 - `activity.read.page-read-once` — **[PARTIAL]** (owner, 2026-10-19 20:29, `briefs/kraken-slow-respawn-2026-10-19.md`) a page is read ONCE. A
   GET never runs a model: `GET /api/segments/document/{id}/text` (`document_text`) only derives the text from the passes the page
   already has, so opening a page's text while a run reads it starts no recognise (`fichero-server/tests/unit/api/test_document_text_never_reads.py`).
