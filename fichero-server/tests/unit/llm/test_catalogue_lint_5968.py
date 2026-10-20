@@ -131,3 +131,34 @@ def test_the_live_narrative_uses_the_registered_prompt_not_an_inline_150_300():
     from fichero_server.workflows.tools import catalogue
 
     assert "150-300" not in inspect.getsource(catalogue)
+
+
+def test_a_quoted_banned_word_is_the_records_only_if_verbatim_in_the_source():
+    record = "The margin note reads: this debt is important to the heirs."
+    own = 'The letter states "this debt is important to the heirs" in the margin. ' + words(160)
+    framed = 'The letter calls the debt "a grave matter, and important" to its writer. ' + words(160)
+    assert lint.check(own, source=record)[0] == []
+    assert lint.check(framed, source=record)[0]  # the model's own framing in quote marks is still its analysis
+    assert lint.check(framed)[0] == []  # no source to compare with: every quotation is taken as the record's
+
+
+def test_a_chunked_retry_resends_the_synthesis_not_the_whole_text(monkeypatch):
+    import asyncio as aio
+
+    import fichero_server.llm as llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools import llm_base
+
+    sent: list[str] = []
+
+    async def fake_chat(prompt, *, config, system):
+        sent.append(prompt)
+        return "The file reveals much. " + sentences(170) if prompt.startswith("Section 1 notes") else "note"
+
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    big = "x" * 300
+    aio.run(llm_base.process_text(
+        big, "PROMPT", LLMConfig(provider="p", model="m"), "", None, llm_base.LLMToolConfig(artifact_type="t"),
+        chunk_size_chars=100, save_to_db=False, catalogue_entry=True))
+    finals = [p for p in sent if p.startswith("Section 1 notes")]
+    assert len(finals) == 2 and finals[0] == finals[1] and big not in sent[-1]

@@ -1347,7 +1347,8 @@ def _strip_narrative_header(text: str) -> str:
     return cleaned.strip()
 
 
-async def _enforced(text: str, config: LLMConfig, instructions: str, flag_sink: list[str] | None, *, ask) -> str:
+async def _enforced(text: str, config: LLMConfig, instructions: str, flag_sink: list[str] | None, *, ask,
+                    source: str | None = None) -> str:
     """The model's entry, held to the cap and the ban at write time (`catalogue.model-entry-is-concise`, #5968)."""
     from fichero_server.llm.catalogue_lint import enforce
 
@@ -1356,7 +1357,7 @@ async def _enforced(text: str, config: LLMConfig, instructions: str, flag_sink: 
             await ask(text, config=config, system=instructions + ("\n\n" + note if note else ""),
                       permissive_guardrails=True))
 
-    entry, flags = await enforce(await call(), call)
+    entry, flags = await enforce(await call(), call, source=source if source is not None else text)
     if flag_sink is not None:
         flag_sink.extend(flags)
     return entry
@@ -1486,7 +1487,8 @@ async def _generate_resumen(
     try:
         # Final synthesis: reasoning ON (#859 — same as single-shot above).
         response = await _enforced(
-            combined_summaries, synthesis_config, final_instructions, flag_sink, ask=chat_with_fallback)
+            combined_summaries, synthesis_config, final_instructions, flag_sink, ask=chat_with_fallback,
+            source=text)
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
         return "", chunk_summaries
