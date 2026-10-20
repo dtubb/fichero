@@ -1463,7 +1463,47 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
                      "detail": TRANSKRIBUS_NOT_SEARCHED}, _htr_united_source(a)]
-    return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+    return [*shipped, *installed, *repo_cards, *hf_cards, *remote, *_print_baselines(seed, job, a)], sources
+
+
+#: A local vision model up to this size is a small one; a larger one is a general model (`source.recipe.reader-tiers`).
+SMALL_VLM_GB = 8.0
+
+TIER_WORDS = {"specialist": "Specialist line reader", "small-vlm": "Small vision model, on this Mac",
+              "general": "General model"}
+
+
+def reader_tier(card: Card, job: str) -> str | None:
+    """Which tier a reader is in, for the reading job only (`source.recipe.reader-tiers`): `specialist` (a line
+    recogniser made for a script: Kraken's, PP-OCR, Tesseract), `small-vlm` (a vision-language model that runs on
+    this Mac and is small), `general` (a large or cloud or built-in page reader). None for any other job."""
+    if job != "read-a-line":
+        return None
+    pin = card.pin
+    if any(k in pin for k in ("kraken", "zenodo", "tesseract")):
+        return "specialist"
+    if "hf" in pin and card.runs_on in ("this-mac", ""):
+        if not card.size_gb:
+            return None  # its size is not stated: no tier is invented for it
+        return "small-vlm" if card.size_gb <= SMALL_VLM_GB else "general"
+    return "general"  # a cloud or remote model, Apple Vision (built in, one reader for every script)
+
+
+def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
+    """Tesseract's data, named for a project that reads print or typescript and for no other: a card Fichero cannot run
+    yet, listed so a person sees the fast local baseline exists (`source.recipe.reader-tiers`). Never for handwriting."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.bakeoff import TESSERACT_MATERIALS, _tesseract_has_the_language
+
+    if not any(m in TESSERACT_MATERIALS for m in a.materials):
+        return []
+    # Only a project whose language and script the data covers (Spanish data is no reader for German in Fraktur).
+    return [replace(c, offered_because="the fast local baseline for print and typescript",
+                    cannot_run_because="Tesseract is not in this build yet")
+            for c in seed if not c.runs_here and "tesseract" in c.pin and job in c.jobs
+            and any(m in TESSERACT_MATERIALS for m in c.material) and _tesseract_has_the_language(c, a)
+            and (c.scripts is None or bool(a.scripts & set(c.scripts)))]
 
 
 def _htr_united_source(a: Answers) -> dict[str, Any]:
