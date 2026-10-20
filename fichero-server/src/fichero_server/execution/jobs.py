@@ -2169,7 +2169,9 @@ def _holder_words(db: "Database", job_id: str) -> str:
 
 
 #: A page's reason when the model lane is reading as many pages of its model as it may at once (`activity.lane.same-model-pages-together`).
-PAGES_AT_CAP_REASON = "Waiting: two pages of this model are already reading"
+def pages_at_cap_reason(count: int) -> str:
+    words = {2: "two", 3: "three", 4: "four"}.get(count, str(count))
+    return f"Waiting: {words} pages of this model are already reading"
 
 
 def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None = None,
@@ -2199,7 +2201,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
             found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
             same = {lane.running.get(r) for r in running}
             if found and (found[0] or "").startswith(KRAKEN_MODEL_PREFIX) and same == {found[0]}:
-                return PAGES_AT_CAP_REASON
+                return pages_at_cap_reason(len(running))
         return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if lane_name in HEAVY_LANES:
         from fichero_server.execution.throttle import memory_is_busy

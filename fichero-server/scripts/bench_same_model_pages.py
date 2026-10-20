@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -97,4 +98,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        code = main()
+    finally:  # only what this run made: its own mkdtemp state dir
+        from fichero_server.db.manager import db_manager
+
+        db_manager.close_all()
+        shutil.rmtree(SCRATCH, ignore_errors=True)
+    sys.exit(code)
