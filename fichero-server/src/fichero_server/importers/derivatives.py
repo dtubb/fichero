@@ -909,7 +909,7 @@ def _fetch_the_search_model(db) -> None:
         if jobs.failed_since(db, DOWNLOAD_KIND, subject, since):
             return
         enqueue_download(db, "embeddings", model, started_by="automatic")
-    except Exception as exc:  # the row still waits with its sentence; the download can also be started by hand
+    except (ValueError, ImportError, OSError) as exc:  # a model this build cannot fetch, or no cache folder: the row still waits with its sentence
         logger.warning("could not queue the search model's download: %s", exc)
 
 
