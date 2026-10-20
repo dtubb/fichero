@@ -51298,6 +51298,14 @@
             "title": "Cloud Options",
             "description": "jobs a cloud model would also fit if pages could leave this Mac; setup asks the egress question only when this is not empty"
           },
+          "cloud_offer": {
+            "items": {
+              "$ref": "#/components/schemas/CloudOffer"
+            },
+            "type": "array",
+            "title": "Cloud Offer",
+            "description": "per job in cloud_options: what setup shows under the egress question"
+          },
           "problems": {
             "items": {
               "type": "string"
@@ -57466,6 +57474,55 @@
           "transport"
         ],
         "title": "ClientPresenceEntry"
+      },
+      "CloudOffer": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sends": {
+            "type": "string",
+            "title": "Sends",
+            "description": "what would be sent: the page pictures, or the text of the pages"
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "the provider that would receive it"
+          },
+          "pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages",
+            "description": "how many pages; null while they are uncounted"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "the estimate; null when it cannot be worked out"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "the above in one sentence, as setup shows it under the question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "title",
+          "sends",
+          "to",
+          "sentence"
+        ],
+        "title": "CloudOffer",
+        "description": "What one step would send to a cloud model, for the egress question (`source.onboard.egress-asked-once`)."
       },
       "ColumnAnnotation": {
         "properties": {
@@ -89587,6 +89644,12 @@
               "workflow"
             ],
             "title": "Tried By"
+          },
+          "not_tried": {
+            "type": "string",
+            "nullable": true,
+            "title": "Not Tried",
+            "description": "when it cannot be tried on the sample pages yet, one plain sentence saying so (`source.try.every-job`); null when it can"
           }
         },
         "type": "object",
@@ -91710,6 +91773,14 @@
             "title": "Train Offers",
             "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
           },
+          "train_ahead": {
+            "items": {
+              "$ref": "#/components/schemas/TrainAhead"
+            },
+            "type": "array",
+            "title": "Train Ahead",
+            "description": "for each trainable step not ready yet, one sentence saying how many corrected lines training a model of your own will need and how many the project has; not an offer (`source.onboard.train-path`)"
+          },
           "hf_spend": {
             "$ref": "#/components/schemas/HfSpend",
             "nullable": true,
@@ -93702,6 +93773,30 @@
           "count"
         ],
         "title": "TopicListResponse"
+      },
+      "TrainAhead": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "job",
+          "sentence"
+        ],
+        "title": "TrainAhead",
+        "description": "One sentence on a trainable step that is not ready: how many corrected lines training needs (`source.onboard.train-path`)."
       },
       "TrainKrakenHereRequest": {
         "properties": {
