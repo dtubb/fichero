@@ -1687,7 +1687,8 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   nothing a model wrote is changed. Only a person may pick (as `reading.choose`: 403 for a model; a model has its own
   readings and cannot check them). The compare-and-set of the correction applies: when another reading counts than the one
   the view showed, the pick is refused (409, naming it) and nothing is written. A reading the person types is the existing
-  correction (`segments correct-line`), unchanged. A pick on a line a person already picked replaces that pick as a new
+  correction (`segments correct-line`), unchanged. A pick is per line only, never per word: a line that needs one reader's word in another's
+  reading is made by picking the closest line and then correcting it in place with that same action, saved as the person's reading. A pick on a line a person already picked replaces that pick as a new
   reading (the earlier stays in the line's history). There is **no pick-all and no accept-what-agrees**: unanimous lines
   are marked agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* `fichero-server/tests/unit/api/test_compare_pick_5900.py`:
   the text is the reader's own and as written; a model is refused (403); a stale view is refused (409) and writes nothing;
