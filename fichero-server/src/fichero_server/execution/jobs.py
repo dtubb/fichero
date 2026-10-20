@@ -2508,6 +2508,26 @@ def _stop_local_model_server(reason: str = "") -> bool:
     return True if module is None else module.release_served_models(reason)  # False: a call still reads from it, nothing freed
 
 
+#: The order the lane takes model groups when it has a choice (`activity.lane.model-order`, #5939): Kraken's block first,
+#: then the local language model (MLX), then spaCy, then the embedder. The loaded model still goes first of all.
+MODEL_ORDER = ("kraken", "local-model", "spacy", "embedder")
+
+
+def _model_rank(model: str | None) -> int:
+    family = _family(model)
+    return MODEL_ORDER.index(family) if family in MODEL_ORDER else MODEL_ORDER.index("local-model")
+
+
+def _model_rank_sql() -> str:
+    """`_model_rank` as SQL over the `model` column, so a library's own pick follows the same order."""
+    local = " OR ".join(f"model LIKE '{p}:%'" for p in sorted(LOCAL_MODEL_SERVERS))
+    whens = [f"WHEN model LIKE '{KRAKEN_MODEL_PREFIX}%' THEN {MODEL_ORDER.index('kraken')}"]
+    if local:
+        whens.append(f"WHEN {local} THEN {MODEL_ORDER.index('local-model')}")
+    whens += [f"WHEN model = 'spacy' THEN {MODEL_ORDER.index('spacy')}", f"WHEN model = 'embedder' THEN {MODEL_ORDER.index('embedder')}"]
+    return f"CASE {' '.join(whens)} ELSE {MODEL_ORDER.index('local-model')} END"
+
+
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
 #: model`: a switch unloads the old model first). A light one (spaCy) stays loaded beside them.
 _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
@@ -3130,7 +3150,7 @@ class _Scheduler:
                     f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL} FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
                     f"ORDER BY {attached_first}{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
-                    f"created_at, rowid LIMIT 1",
+                    f"{_model_rank_sql()}, created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
 
@@ -3181,8 +3201,8 @@ class _Scheduler:
         if not candidates:
             return None
         # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
-        # person's own), then the loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, -c[2][6], c[2][3] != lane.loaded_model, c[2][4]))
+        # person's own), then the loaded model, then the model order (Kraken, MLX, spaCy, embed), then the oldest.
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, -c[2][6], c[2][3] != lane.loaded_model, _model_rank(c[2][3]), c[2][4]))
         return candidates[0][:3]
 
     def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:

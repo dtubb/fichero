@@ -1362,6 +1362,7 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: stopping a local model server on a switch (its restart costs
   30-300 s). A text model served on this Mac holds the lane like a page, called in a run
   (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`) or by chat (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`).
+- `activity.lane.model-order` — **[PARTIAL]** (#5939, owner efficiency ruling 2026-10-20) when the model lane has a choice between groups of waiting work, it takes them in the order Kraken's block, the local language model (MLX), spaCy, then the embedder, so a run's stages follow the order the models fit in memory; the loaded model still goes first, and work a person waits for goes before all of it. Built (unrun): `jobs.MODEL_ORDER`, `_model_rank` (across libraries) and `_model_rank_sql` (inside one library's pick). Not built: the same order *within one batch's pages* is `_run_batch`'s step-major question (#5939, the owner's). Tests (unrun, M4): `fichero-server/tests/unit/jobs/test_model_order_5939.py`.
 - `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
