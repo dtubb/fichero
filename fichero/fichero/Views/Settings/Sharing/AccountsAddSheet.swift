@@ -42,7 +42,7 @@ struct AccountsAddSheet: View {
                     Text(note).font(.caption).foregroundStyle(.secondary)
                 }
                 if way == .password {
-                    SecureField("Password", text: $password)
+                    SecureField("Password", text: $password, prompt: Text(NewPasswordRule.hint))
                         .textContentType(.newPassword)
                 }
                 if AccountsAddSheetModel.asksOwner(way: way) {

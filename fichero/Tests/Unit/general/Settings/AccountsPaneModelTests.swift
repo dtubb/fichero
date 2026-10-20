@@ -71,6 +71,12 @@ struct AccountsPaneModelTests {
         #expect(Sheet.problem(name: "A", username: "a", way: .invite, password: "short") == nil)
     }
 
+    @Test("one rule and one hint for every password field: the engine's 8 characters")
+    func rule() {
+        #expect(NewPasswordRule.minimumLength == 8 && NewPasswordRule.hint == "At least 8 characters")
+        #expect(Sheet.minimumPasswordLength == NewPasswordRule.minimumLength)
+    }
+
     @Test("the engine's words, one line; a taken username is said plainly")
     func failureWords() {
         #expect(Sheet.failureWords("username already exists") == "That username is taken")
