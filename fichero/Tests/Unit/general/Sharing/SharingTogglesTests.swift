@@ -30,4 +30,12 @@ struct SharingTogglesTests {
     @Test func thereAreExactlyTwoSwitchesAndNoThird() {
         #expect(SharingToggles.all.map(\.id) == [.sharing, .multiUser])
     }
+
+    // sharing.people-tab-names-the-multiuser-switch (#5917)
+    @Test func theMultiUserOffHintNamesTheSwitchWhereItIs() {
+        let hint = SharingToggles.multiUserOffHint
+        #expect(hint.contains("Settings → Sharing → Devices"))
+        #expect(hint.contains(SharingToggles.all[1].label))
+        #expect(!hint.contains("Engine"))
+    }
 }
