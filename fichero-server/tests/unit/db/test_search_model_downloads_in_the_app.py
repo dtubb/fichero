@@ -40,3 +40,26 @@ def test_an_offline_mac_is_said_in_words():
     assert model_downloads.looks_offline(broken)
     assert "offline" in str(model_downloads.DownloadInterrupted("search", broken.cause, offline=True))
     assert not model_downloads.looks_offline(model_downloads.DownloadInterrupted("search", ConnectionResetError()))
+
+
+def test_a_refused_embed_is_done_once_the_model_arrives(db, monkeypatch):
+    from tests.unit.jobs.test_runs_are_jobs import _wait_for
+
+    doc = Document(name="p", page_content="some words")
+    db.save(doc)
+    jobs.load_kinds()
+    arrived = []
+
+    def embed(target):
+        if not arrived:
+            raise embed_process.EmbedderUnavailable("Search can't index yet: its model isn't downloaded.")
+        return {}
+
+    monkeypatch.setattr(db, "embed", embed)
+    monkeypatch.setattr(local_models, "enqueue_download", lambda *a, **k: None)
+    monkeypatch.setattr(derivatives, "EMBED_RETRY_SECONDS", 0.2)
+    job_id = jobs.enqueue(db, derivatives.EMBED_KIND, doc.id)
+    assert _wait_for(lambda: jobs.read_job(db, job_id)["state"] == "waiting", 60), jobs.read_job(db, job_id)
+    arrived.append(1)  # the download finished
+    embeddings.forget_load_failures()
+    assert _wait_for(lambda: jobs.read_job(db, job_id)["state"] == "done", 60), jobs.read_job(db, job_id)
