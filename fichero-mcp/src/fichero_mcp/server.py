@@ -112,6 +112,8 @@ KEPT_SINGLE_ROUTE: dict[str, str] = {
     "fichero_docs_list": "answers lean summaries; the route's full rows made a 92-file listing 186 KB",
     "fichero_workflow_list": "answers lean summaries; the route's node/edge dump made the listing 450 KB",
     "fichero_page_import": "uploads the file from the MCP host with the YOLO dataset file found beside it",
+    "fichero_devices_pair": "reads the pairing link from a file, checks the host's pin and stores the device token "
+    "owner-only, never returning it; the generated tool takes a bare code, skips the pin and returns the token",
 }
 
 
