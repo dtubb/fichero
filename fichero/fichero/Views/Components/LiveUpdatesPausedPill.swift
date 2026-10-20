@@ -12,7 +12,7 @@ import SwiftUI
 struct LiveUpdatesPausedPill: View {
     /// Headline text. Defaults to the dropped-stream wording; an access-denied
     /// surface passes its own (#2479).
-    var message: String = "Live updates paused"
+    var message: String = "Reconnecting to the engine…"
     /// Leading SF Symbol. Defaults to the dropped-stream bolt.
     var systemImage: String = "bolt.horizontal.circle"
     /// Force an immediate reconnect. Nil hides the button (the stream auto-retries
