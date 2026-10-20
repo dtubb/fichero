@@ -22,12 +22,14 @@ enum MultiuserMigration {
         return "Multi-user was on before this update and could not be carried over: \(reason)"
     }
 
-    /// Only an answer from the engine (success or a refusal) spends the one try; a transport error is tried again next launch.
+    /// Only an answer from the engine (success or a refusal) spends the one try; a transport error is tried again next launch,
+    /// and so is a 401: the engine did not hear the owner (its credential was not accepted), it did not say no.
     static func engineAnswered(_ error: Error) -> Bool {
         guard let api = error as? APIError else { return false }
         switch api {
         case .invalidResponse, .connectionFailed: return false
-        case .badRequest, .notFound, .serverError, .httpError: return true
+        case .httpError(let code, _): return code != 401
+        case .badRequest, .notFound, .serverError: return true
         }
     }
 

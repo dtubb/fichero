@@ -15,6 +15,11 @@ final class MultiuserMigrationTests: XCTestCase {
         statusCode: 409, message: "Multi-user needs the owner's account to have a password first")
     private struct Unreachable: Error {}
 
+    func testA401IsNotAnAnswerAndDoesNotSpendTheTry() {
+        XCTAssertFalse(MultiuserMigration.engineAnswered(APIError.httpError(statusCode: 401, message: "missing or invalid Authorization header")))
+        XCTAssertTrue(MultiuserMigration.engineAnswered(refused))
+    }
+
     func testOnlyAnOldAppOnWithTheEngineOffIsPushed() {
         XCTAssertTrue(MultiuserMigration.shouldPush(localOn: true, engineOn: false, alreadyTried: false, engineIsLocal: true))
         XCTAssertFalse(MultiuserMigration.shouldPush(localOn: false, engineOn: false, alreadyTried: false, engineIsLocal: true))
