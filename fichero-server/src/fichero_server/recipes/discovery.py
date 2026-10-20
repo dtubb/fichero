@@ -1481,9 +1481,11 @@ def reader_tier(card: Card, job: str) -> str | None:
     pin = card.pin
     if any(k in pin for k in ("kraken", "zenodo", "tesseract")):
         return "specialist"
-    if "hf" in pin and card.runs_on in ("this-mac", "") and (card.size_gb or 0) <= SMALL_VLM_GB:
-        return "small-vlm"
-    return "general"
+    if "hf" in pin and card.runs_on in ("this-mac", ""):
+        if not card.size_gb:
+            return None  # its size is not stated: no tier is invented for it
+        return "small-vlm" if card.size_gb <= SMALL_VLM_GB else "general"
+    return "general"  # a cloud or remote model, Apple Vision (built in, one reader for every script)
 
 
 def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
@@ -1500,7 +1502,7 @@ def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
                     cannot_run_because="Tesseract is not in this build yet")
             for c in seed if not c.runs_here and "tesseract" in c.pin and job in c.jobs
             and any(m in TESSERACT_MATERIALS for m in c.material) and _tesseract_has_the_language(c, a)
-            and (c.scripts is None or c.scripts == "any" or bool(a.scripts & set(c.scripts)))]
+            and (c.scripts is None or bool(a.scripts & set(c.scripts)))]
 
 
 def _htr_united_source(a: Answers) -> dict[str, Any]:
