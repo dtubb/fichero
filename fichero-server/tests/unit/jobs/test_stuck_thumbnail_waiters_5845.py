@@ -62,6 +62,15 @@ def test_stopping_a_set_aside_job_works_through_the_route_the_app_calls(client, 
     assert _state(db, job_id) == "cancelled"
 
 
+def test_a_cancelled_set_aside_job_offers_nothing(client, db):
+    jobs._ensure(db)
+    job_id = jobs._insert(db, "stuck-5845", "page-017", None, "automatic")
+    db.execute("UPDATE jobs SET state = 'failed', finished_at = now(), reason = ? WHERE id = ?",
+               [jobs.set_aside_reason(3), job_id])
+    assert client.post(f"/api/activity/jobs/{job_id}/cancel").json()["state"] == "cancelled"
+    assert jobs.offer_for("stuck-5845", "cancelled", "Stopped by you") is None
+
+
 def test_stopping_a_waiting_job_works_through_the_route_the_app_calls(client, db):
     jobs._ensure(db)
     job_id = jobs._insert(db, "stuck-5845", "page-028", None, "automatic")
