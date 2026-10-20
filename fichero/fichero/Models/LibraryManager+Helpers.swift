@@ -291,7 +291,9 @@ extension LibraryManager {
         let local = openLibraries.filter { $0.id == Self.globalLibraryId || $0.id == currentLibraryId }
         let ids = Set(local.map(\.id))
         openLibraries.removeAll { ids.contains($0.id) }
-        currentLibraryId = openLibraries.first?.id
+        // Never fall to another LOCAL library (a guest Mac has several): only a library of the host, else none.
+        let hosts = openLibraries.filter { $0.url.path == RemoteAccessConfig.pairedLibraryPath }.map(\.id)
+        currentLibraryId = GuestLibraryChoice.current(after: currentLibraryId, dropped: ids, hostLibraries: hosts)
     }
 
     private func adoptRemoteLibrary(at path: String) {

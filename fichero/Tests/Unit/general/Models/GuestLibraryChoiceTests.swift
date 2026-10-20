@@ -6,6 +6,7 @@
 //
 
 @testable import Fichero
+import Foundation
 import Testing
 
 @Suite("Guest library choice")
@@ -47,5 +48,16 @@ extension GuestLibraryChoiceTests {
         #expect(GuestLibraryChoice.problemWords(for: APIError.httpError(statusCode: 404, message: "")).contains("newer Fichero"))
         #expect(GuestLibraryChoice.problemWords(for: APIError.notFound("x")).contains("newer Fichero"))
         #expect(GuestLibraryChoice.problemWords(for: URLError(.cannotConnectToHost)).contains("cannot be reached"))
+    }
+}
+
+extension GuestLibraryChoiceTests {
+    @Test("after the local libraries are dropped the guest never falls to another local one")
+    func currentAfterDrop() {
+        let local = UUID(), other = UUID(), host = UUID()
+        #expect(GuestLibraryChoice.current(after: local, dropped: [local], hostLibraries: []) == nil)
+        #expect(GuestLibraryChoice.current(after: local, dropped: [local], hostLibraries: [host]) == host)
+        #expect(GuestLibraryChoice.current(after: host, dropped: [local], hostLibraries: [host]) == host)
+        #expect(GuestLibraryChoice.current(after: other, dropped: [local], hostLibraries: []) == nil)
     }
 }

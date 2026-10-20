@@ -30,6 +30,13 @@ enum GuestLibraryChoice {
         return "The Mac you are connected to cannot be reached right now."
     }
 
+    /// The current library once the guest's local ones are dropped: it keeps a library of the HOST it already had, else takes
+    /// one of the host's, else none (never another local library; ## 689).
+    static func current(after current: UUID?, dropped: Set<UUID>, hostLibraries: [UUID]) -> UUID? {
+        if let current, !dropped.contains(current), hostLibraries.contains(current) { return current }
+        return hostLibraries.first
+    }
+
     /// The pairing's library path if it carried one; else, from the libraries the host says this credential may open (the
     /// engine lists them most recently used first): the only one, else the host's global one, else the first.
     static func choose(paired: String, accessible: [String]) -> Choice {
