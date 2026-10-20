@@ -854,6 +854,56 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
+#: The jobs that send a page's PICTURE to a model; the others send the text read from it.
+PICTURE_JOBS = frozenset({"find-the-script", "find-regions", "find-lines", "refine-shapes", "find-signs",
+                          "find-a-tables-cells", "read-a-line", "read-a-page"})
+
+
+def _page_price(card: Card) -> float | None:
+    """What a cloud card costs a page, from the vendored price list (the pin names provider and model). The card's own
+    `cost_per_page` is only a fallback: the shipped cards never set it, so reading it alone priced nothing (review 379)."""
+    from fichero_server.recipes.routes import _cloud_cost
+
+    if card.pin.get("cloud") and card.pin.get("model"):
+        price = _cloud_cost(f"{card.pin['cloud']}/{card.pin['model']}", 1)
+        if price:
+            return price
+    return card.cost_per_page or None
+
+
+def cloud_offer(jobs: list[str], cards: list[Card], with_cloud: Answers) -> list[dict[str, Any]]:
+    """What the egress question is about (`source.onboard.egress-asked-once`): per step a cloud model would fit, what would
+    be sent, to whom, for how many pages and at about what cost, in one sentence. The cheapest PRICED fitting card is the one
+    named; a card with no known price is named only when none has one, and then the price is said unknown."""
+    from fichero_server.recipes.jobs import get_job
+
+    pages = with_cloud.pages if with_cloud.pages > 0 else None
+    offers = []
+    for job in jobs:
+        fits = [c for c in cards if job in c.jobs and c.runs_on.startswith("cloud")
+                and _hard_constraints(job, c, with_cloud) is None]
+        if not fits:
+            continue
+        priced = [(price, c) for c in fits if (price := _page_price(c))]
+        per_page, card = min(priced, key=lambda pc: pc[0]) if priced else (None, fits[0])
+        calls = 1
+        if job == CORRECT and per_page:  # the review makes one call a pass (#5723)
+            from fichero_server.recipes.review_profiles import REVIEW_PRESET, review_passes
+
+            calls = review_passes(REVIEW_PRESET, (with_cloud.job_answers or {}).get("review_lenses"))
+        to = card.runs_on.split(":", 1)[-1]
+        sends = "the page pictures" if job in PICTURE_JOBS else "the text of the pages"
+        cost = round(per_page * calls * pages, 2) if pages and per_page else None
+        known = get_job(job)
+        title = known.name if known else job
+        count = f"{pages:,} {'page' if pages == 1 else 'pages'}" if pages else "every page"
+        price = (f"about ${cost:.2f}" if cost is not None
+                 else "at a price Fichero cannot work out yet" if pages else "priced once the pages are counted")
+        offers.append({"job": job, "title": title, "sends": sends, "to": to, "pages": pages, "cost_usd": cost,
+                       "sentence": f"{title}: would send {sends} of {count} to {to}, {price}."})
+    return offers
+
+
 def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
     """The plan without the steps the person took out (#5627), in step order. A step a step left in needs stays
     (it carries `needed_by`); a removed job the plan no longer has is ignored. Returns the plan and what was taken
@@ -1005,6 +1055,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         "left_off": left_off,
         "gaps": notes,
         "cloud_options": cloud_options,
+        "cloud_offer": cloud_offer(cloud_options, cards, with_cloud),
         # What Ready says when there is nothing to read (#5553).
         **({"already_text": "The material is already text: nothing to read"
                             + (f"; the plan starts at {_topic(jobs_in_order[0]).get('title', jobs_in_order[0])}."
