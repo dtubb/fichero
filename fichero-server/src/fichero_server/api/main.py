@@ -886,7 +886,7 @@ def _warm_configured_provider_keys() -> None:
         keychain.warm_api_keys([t for t in types if (info := get_provider_info(t)) is not None and not info.is_local])
     except Exception as exc:  # noqa: BLE001 -- a warm-up that fails leaves the lookups to read on demand
         logger.warning("Keychain warm-up skipped: %s", exc)
-        startup_warnings.note("keychain-warm-up", f"{type(exc).__name__}: {exc}")  # health says it (#4420)
+        startup_warnings.note("keychain-warm-up", type(exc).__name__)  # health says which kind; the text is logged above (#4420)
 
 
 @asynccontextmanager
@@ -2080,9 +2080,10 @@ def _reset_dependency_report() -> None:
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
-    from fichero_server import startup_warnings
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
+    from fichero_server import startup_warnings
+
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
     response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}
