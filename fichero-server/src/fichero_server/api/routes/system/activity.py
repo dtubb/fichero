@@ -17,6 +17,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import utc_now
+from fichero_server.security.revocation import end_on_revoke
 from fichero_server.core.single_flight import single_flight
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -27,6 +28,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Request,
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -1283,6 +1285,7 @@ async def get_activity_stats(
 
 @router.get("/stream")
 async def stream_activities(
+    http_request: Request,
     db: Database = Depends(get_library_database),
     types: Optional[str] = Query(None, description="Comma-separated activity types"),
     levels: Optional[str] = Query(None, description="Comma-separated levels"),
@@ -1389,7 +1392,7 @@ async def stream_activities(
             _change_hub.unsubscribe(library_path, change_subscription.queue)
 
     return StreamingResponse(
-        event_generator(),
+        end_on_revoke(http_request, event_generator()),  # a revoked guest's stream ends (#5913)
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

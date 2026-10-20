@@ -23,6 +23,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from fichero_server.db import Database
+from fichero_server.security.revocation import end_on_revoke
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
@@ -207,7 +208,7 @@ def _validate_workflow_for_execution(
 
 
 @router.get("/stream/{thread_id}")
-async def stream_workflow_events(thread_id: str) -> StreamingResponse:
+async def stream_workflow_events(thread_id: str, http_request: Request) -> StreamingResponse:
     """
     Subscribe to SSE events for a running workflow.
 
@@ -276,7 +277,7 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
             hub.unsubscribe(subscriber)
 
     return StreamingResponse(
-        event_generator(),
+        end_on_revoke(http_request, event_generator()),  # a revoked guest's stream ends (#5913)
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
