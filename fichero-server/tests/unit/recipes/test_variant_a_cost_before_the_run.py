@@ -30,14 +30,14 @@ def test_pages_with_no_lines_yet_are_an_estimate_that_says_what_it_assumes():
 
 
 def test_some_pages_segmented_adds_their_real_lines_to_the_guess_for_the_rest():
-    known = {"pages": 10, "segmented": 4, "lines": 120, "under_bar": None}
+    known = {"pages": 10, "segmented": 4, "lines": 120, "sures": [0.9] * 120}
     [row] = estimate([A], 10, known)["runs"]
     assert row["lines_to_send"] == 120 + 6 * ASSUMED_LINES_PER_PAGE and row["lines_to_send_kind"] == "estimate"
     assert "for the 6 pages Kraken has not found lines on yet" in row["lines_basis"]
 
 
 def test_every_page_segmented_but_not_every_certainty_stated_is_a_true_bound():
-    known = {"pages": 10, "segmented": 10, "lines": 300, "under_bar": None}
+    known = {"pages": 10, "segmented": 10, "lines": 300, "sures": [None] + [0.9] * 299}
     [row] = estimate([A], 10, known)["runs"]
     assert (row["lines_to_send"], row["lines_to_send_kind"]) == (300, "at-most")
     assert row["lines_basis"].startswith("at most 300 lines: every line Kraken found")
@@ -45,7 +45,7 @@ def test_every_page_segmented_but_not_every_certainty_stated_is_a_true_bound():
 
 
 def test_every_page_segmented_and_every_certainty_stated_is_exact():
-    known = {"pages": 10, "segmented": 10, "lines": 300, "under_bar": 42}
+    known = {"pages": 10, "segmented": 10, "lines": 300, "sures": [0.1] * 42 + [0.9] * 258}
     [row] = estimate([A], 10, known)["runs"]
     assert (row["lines_to_send"], row["lines_to_send_kind"]) == (42, "exact")
     assert row["lines_basis"] == "42 of 300 lines are under 0.6 sure now"
@@ -72,9 +72,44 @@ def test_the_project_scan_counts_real_lines_and_is_exact_only_when_each_has_its_
     from fichero_server.recipes.done import kraken_lines_known
 
     stated, bare = _page_with(db, (0.95, 0.30, 0.50, 0.99)), _page_with(db, ())
-    assert kraken_lines_known(db, [stated, bare], 0.6) == {"pages": 2, "segmented": 1, "lines": 4, "under_bar": 2}
+    got = kraken_lines_known(db, [stated, bare])
+    assert (got["pages"], got["segmented"], got["lines"]) == (2, 1, 4) and sorted(got["sures"]) == [0.3, 0.5, 0.95, 0.99]
     mixed = _page_with(db, (0.95, None))
-    assert kraken_lines_known(db, [stated, mixed], 0.6)["under_bar"] is None, "one unstated certainty: not known"
+    assert None in kraken_lines_known(db, [stated, mixed])["sures"], "one unstated certainty: the count is not known"
+
+
+def test_each_run_counts_the_lines_under_its_own_bar():
+    known = {"pages": 2, "segmented": 2, "lines": 4, "sures": [0.95, 0.30, 0.50, 0.99]}
+    low, high = ({**A, "tool_config": {"transcribe_review": {"only_below_confidence": b}}} for b in (0.4, 0.97))
+    rows = estimate([low, high], 2, known)["runs"]
+    assert [(r["lines_to_send"], r["lines_to_send_kind"]) for r in rows] == [(1, "exact"), (3, "exact")]
+    assert "under 0.4 sure" in rows[0]["lines_basis"] and "under 0.97 sure" in rows[1]["lines_basis"]
+
+
+def test_the_scan_is_one_read_for_all_the_pages(db, monkeypatch):
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import kraken_lines_known
+
+    pages = [_page_with(db, (0.5, 0.7)) for _ in range(3)]
+    asked = []
+    real = type(db).query_in
+    monkeypatch.setattr(type(db), "query_in", lambda self, model, col, vals: (asked.append(model), real(self, model, col, vals))[1])
+    kraken_lines_known(db, pages)
+    assert asked.count(Segment) == 1, "one grouped read of the lines, not one a page"
+
+
+def test_the_start_plan_route_builds_the_plan_off_the_event_loop(monkeypatch):
+    import asyncio
+    import threading
+
+    from fichero_server.api.routes.system import recipes as route
+
+    seen = []
+    monkeypatch.setattr(route, "_cluster_names", lambda http: [])
+    monkeypatch.setattr(route, "_start_plan", lambda db, folder, clusters=(): seen.append(threading.get_ident()) or {})
+    monkeypatch.setattr(route, "StartPlan", lambda **kw: kw)
+    asyncio.run(route.get_start_plan(None, None, None))
+    assert seen and seen[0] != threading.get_ident()
 
 
 def test_a_bad_bar_in_a_non_strict_answer_skips_the_step_in_words_instead_of_raising(mac):

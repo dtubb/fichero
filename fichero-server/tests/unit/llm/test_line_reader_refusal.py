@@ -81,11 +81,27 @@ def test_the_page_rides_once_per_request_reduced_beside_the_batch_of_lines(monke
     assert call["prompt"].startswith("Before the 3 line images comes one more, first: the whole page")
 
 
-def test_no_page_beside_a_reader_trained_on_one_picture_or_when_asked_not_to(monkeypatch, tmp_path):
-    [local] = _calls(monkeypatch, tmp_path, ["a", "b"], provider="omlx")
-    assert len(local["images"]) == 2 and not local["prompt"].startswith("Before")
+def test_no_page_beside_a_reader_that_runs_on_this_mac_or_when_asked_not_to(monkeypatch, tmp_path):
+    for provider in ("omlx", "ollama", "lmstudio"):  # decided by the provider being local, not by its name in a list
+        [local] = _calls(monkeypatch, tmp_path, ["a", "b"], provider=provider)
+        assert len(local["images"]) == 2 and not local["prompt"].startswith("Before"), provider
     [off] = _calls(monkeypatch, tmp_path, ["a", "b"], page_context=False)
     assert len(off["images"]) == 2
+
+
+def test_a_line_asked_again_on_its_own_does_not_carry_the_page(monkeypatch, tmp_path):
+    seen = []
+
+    async def fake_vision(**kw):
+        seen.append(kw)
+        return "not an array" if len(seen) == 1 else '["t"]'  # the batch is unreadable; each line's retry answers
+
+    monkeypatch.setattr(llm, "vision", fake_vision)
+    path, geometry = _geometry(tmp_path, ["a", "b"])
+    asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x")))
+    batch, *retries = seen
+    assert len(batch["images"]) == 3 and len(retries) == 2
+    assert all(len(r["images"]) == 1 and not r["prompt"].startswith("Before") for r in retries)
 
 
 def test_the_line_says_why_it_is_unread_after_the_page_is_written(db):

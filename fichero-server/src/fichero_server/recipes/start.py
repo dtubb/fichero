@@ -1259,8 +1259,10 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
     the certainty is not all known; otherwise an ESTIMATE that says what it assumes."""
     seg, lines = (known or {}).get("segmented", 0), (known or {}).get("lines", 0)
     if known and pages and seg == pages:
-        if known.get("under_bar") is not None:
-            return known["under_bar"], "exact", f"{known['under_bar']} of {lines} lines are under {bar:g} sure now"
+        sures = known.get("sures", [])
+        if sures and None not in sures:  # a line with no stated certainty is sent as unsure, so this is not known then
+            under = sum(1 for x in sures if x < bar)
+            return under, "exact", f"{under} of {lines} lines are under {bar:g} sure now"
         return lines, "at-most", (f"at most {lines} lines: every line Kraken found; how many are under {bar:g} sure "
                                   "is known once they are read")
     guessed = (pages - seg) * ASSUMED_LINES_PER_PAGE
