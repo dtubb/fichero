@@ -95,7 +95,7 @@ struct ActivityDetailsView: View {
                     RemoteRunInspector(jobId: jobId, service: appState.remoteRunService)
                 }
                 if let kind = ActivityStore.queuedKind(ofRowId: details.jobId) {
-                    ActivityDetailsQueuedPages(store: store, kind: kind, rowId: details.jobId, refreshKey: details.logKey)
+                    ActivityDetailsQueuedPages(store: store, kind: kind, rowId: details.jobId)
                 }
                 ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey)
                 if !details.resources.isEmpty {
@@ -280,7 +280,6 @@ private struct ActivityDetailsQueuedPages: View {
     let store: ActivityStore
     let kind: String
     let rowId: String
-    let refreshKey: String
     private static let shown = 50
 
     var body: some View {
@@ -295,12 +294,13 @@ private struct ActivityDetailsQueuedPages: View {
                     }
                     .font(.callout)
                 }
-                if items.count == Self.shown {
-                    Text("and perhaps more").font(.callout).foregroundStyle(.secondary)
+                let more = store.queuedPagesNotListed(rowId: rowId, listed: items.count)
+                if more > 0 {
+                    Text("and \(more) more").font(.callout).foregroundStyle(.secondary)
                 }
             }
         }
-        .task(id: refreshKey) { await store.loadQueuedItems(rowId: rowId, limit: Self.shown) }
+        .task(id: store.queueKey(forRowId: rowId)) { await store.loadQueuedItems(rowId: rowId, limit: Self.shown) }
         .accessibilityIdentifier("activity.details.queuedPages")
     }
 }
