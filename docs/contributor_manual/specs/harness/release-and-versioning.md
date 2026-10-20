@@ -239,6 +239,24 @@ evidence backs.
   release is about to publish to — `create-github-release.sh` already does this one; folding it
   into the same script keeps every update-readiness check in one place.
 
+## Release bar: sharing (owner ruling 2026-10-20, #5910)
+
+The next release ships only when sharing works solidly. Every item below needs all three before it
+is ticked: (1) a spec line in the sharing specs, (2) an automated test with two engines (a host on a
+test listen port and a guest, both on throwaway libraries; the harness is #5911, not built yet), and
+(3) one live two-Mac try by the owner, recorded with its date. The release lane refuses to publish
+while any box is open.
+
+- `release.bar.sharing` — **[GAP]** (#5910; harness #5911)
+  - [ ] Own Mac pairs over `.local` (spec: `sharing.mac-pairs`, `sharing.listener`, #5049, #5736, #5897)
+  - [ ] Own Mac pairs over Tailscale (spec: `sharing.tailscale-serve`, #5902)
+  - [ ] The M4 connects and renames sync both ways (spec: `sharing.two-macs-end-to-end`, `sharing.edits-both-ways`, #5049)
+  - [ ] Remove works: a removed device is refused at once (spec: `sharing.revoke`, `sharing.revoke-cascades`, #5351)
+  - [ ] Turning Multi-user on asks for the owner's password first (spec: `multiuser.turning-on-needs-an-owner-password`, lands with m-bugs-pairing-proper; #5908)
+  - [ ] Two named people pair as themselves through person-bound invites (spec: `sharing.invite`, `multiuser.invite-registers-public-key`, #2403)
+  - [ ] Activity reconnects after a Sharing switch (spec: `sharing.toggle-restarts-engine`, #5912)
+  - [ ] No engine death on any Sharing or Multi-user switch (spec: `sharing.toggle-restarts-engine`, #5909)
+
 ## Open questions
 
 1. Which build was "the last release" the maintainer means — the one that shipped and then
