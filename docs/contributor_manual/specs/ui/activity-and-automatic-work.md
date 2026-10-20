@@ -1468,7 +1468,7 @@ and node, not by job); a retry action for failed pages.
   engine life only. While the hold lasts the record is rewritten every 2 s (seconds and the frame the loop is in now). Only a stall the engine DIED in survives: the watcher deletes the file when the loop answers again and on a clean stop. A corrupt, path-bearing or missing file is ignored (logged). Pinned by
   `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). NOT built: the app saying it in the restart
   sentence (Swift, HELD).
-- `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
+- `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (#5860; Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
   event loop. Already so on the chain head: the app-DB flag reads are cached (`is_paused`, `is_started`, the settings), auth waits off the
   loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Added: the per-row reads (`name_and_pages`,
   `_remote_row`), the process-tree walk (`ps`) and the machine readings run on threads too, and a battery reading taken on an event loop
@@ -1476,19 +1476,19 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py` (an AST check that no blocking reading is called in the
   handler's own body; a slow-`pmset` loop test). NOT covered: `_recipe_state` (async, reads the run's tree) and the one DuckDB read inside
   `run_account`; a measured loop stall under a 50-row queue is the M4 bench.
-- `activity.lane.pick-holds-no-lock-across-slow-probes` — **[PARTIAL]** (Fable runner review #11, 2026-10-19; the lock-P1 family) a heavy
+- `activity.lane.pick-holds-no-lock-across-slow-probes` — **[PARTIAL]** (#5869; Fable runner review #11, 2026-10-19; the lock-P1 family) a heavy
   lane's pick holds neither `_heavy_pick` nor its own lock across a slow probe. The flags (`is_paused`, `is_started`) were already
   read before the lock; the battery reading (`pmset`, up to 5 s) is now taken there too, so the pick reads a fresh cache; and the
   held reason is written to the waiting rows once per change (again after 30 s), not once per scan per open project. Pinned by
   `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py`. NOT done: the held-reason write still happens
   inside the lane's pick when it does happen, and the thermal and memory probes are read in place (cheap sysctls).
-- `activity.lane.hung-call-says-so` — **[PARTIAL]** (Fable runner review #16) a model call that holds the lane's slot and does not
+- `activity.lane.hung-call-says-so` — **[PARTIAL]** (#5874; Fable runner review #16) a model call that holds the lane's slot and does not
   answer says so on its row after 60 s and at each minute after ("Waiting for the model to answer (2 min so far)"), instead of the last
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
   hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
   reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
 - `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (#5758) (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card does not know `partial` yet) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
-- `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
+- `activity.runner.review-p2-p3` — **[PARTIAL]** (#5865 #5866 #5868 #5872 #5873 #5876 #5877 #5878 #5879 #5881, the Fable runner review's items #7 #8 #10 #14 #15 #18 #19 #20 #21 #23 in that order; 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
   #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
   runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;
   #21 a lane thread that dies on an error wakes the lane again after half a second, so waiting jobs do not sit until the next
