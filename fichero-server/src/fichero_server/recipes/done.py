@@ -145,30 +145,18 @@ def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
             "sentence": sentence}
 
 
-def kraken_lines_known(db: Any, page_ids: list[str], bar: float) -> dict[str, Any]:
+def kraken_lines_known(db: Any, page_ids: list[str]) -> dict[str, Any]:
     """What the project already holds of Kraken's lines on these pages, for the price of variant A before it runs
-    (`source.recipe.kraken-then-cloud-unsure-lines`): the pages with lines found, those lines, and, when EVERY line
-    of every such page has a stated certainty, exactly how many are under `bar` (a line with none counts as unsure,
-    as the step sends it); None otherwise, because it is then not known."""
+    (`source.recipe.kraken-then-cloud-unsure-lines`): the pages with lines found, those lines, and every line's stated
+    certainty in `sures` (None where it states none), so each run counts the lines under ITS OWN bar. Two queries for
+    all the pages, not two a page; the caller runs this off the event loop."""
     from fichero_server.api.routes.document.segment_readings import counting_readings
     from fichero_server.models.segments import Segment
 
-    segmented = lines = under = 0
-    all_stated = True
-    for page in page_ids:
-        rows = [x for x in db.query(Segment, document_id=page) if x.kind == "line" and x.deleted_at is None]
-        if not rows:
-            continue
-        segmented, lines = segmented + 1, lines + len(rows)
-        read = counting_readings(db, rows)
-        for row in rows:
-            sure = read[row.id].machine_confidence if row.id in read else None
-            if sure is None:
-                all_stated = False
-            if sure is None or sure < bar:
-                under += 1
-    return {"pages": len(page_ids), "segmented": segmented, "lines": lines,
-            "under_bar": under if all_stated and segmented else None}
+    rows = [x for x in db.query_in(Segment, "document_id", page_ids) if x.kind == "line" and x.deleted_at is None]
+    read = counting_readings(db, rows)
+    return {"pages": len(page_ids), "segmented": len({x.document_id for x in rows}), "lines": len(rows),
+            "sures": [read[x.id].machine_confidence if x.id in read else None for x in rows]}
 
 
 def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:

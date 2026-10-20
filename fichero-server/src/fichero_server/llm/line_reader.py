@@ -51,8 +51,6 @@ PAGE_CONTEXT = ("Before the {n} line images comes one more, first: the whole pag
                 "what the page is. It is for context only: do not read it, and do not count it in your answer. ")
 #: The page beside a batch is cut to this long side: enough to see the hand and the layout, cheap to send.
 PAGE_CONTEXT_SIDE = 768
-#: Providers that read one line picture at a time as trained, or are not generative: no page beside the lines.
-NO_PAGE_CONTEXT = ("omlx", "apple", "kraken")
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
@@ -137,6 +135,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops)."""
     from fichero_server.llm import LLMConfig, vision
+    from fichero_server.llm.model_profiles import provider_is_local_or_builtin
 
     if apple:
         config = LLMConfig(provider="apple", model="apple-vision")
@@ -151,14 +150,17 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     crops = [_crop(page, b) for b in found]
     # Variant B (`source.recipe.kraken-lines-cloud-reads`): a generative model gets the page ONCE per request, reduced,
     # beside the batch of lines; never once a line, and never for a reader trained on one picture or Apple's.
-    context = (not apple and getattr(config, "provider", "") not in NO_PAGE_CONTEXT) if page_context is None else page_context
+    # A reader that runs on this Mac (any local provider) reads a line as trained: the page costs its memory, not money.
+    context = (not apple and not provider_is_local_or_builtin(getattr(config, "provider", ""))
+               ) if page_context is None else page_context
     page_uri = _page_context_uri(page) if context and crops else None
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
-    async def ask(indices: list[int]) -> list[str | None] | None:
+    async def ask(indices: list[int], with_page: bool = True) -> list[str | None] | None:
+        rides = bool(page_uri) and with_page  # a retry of one line is a single picture: the page is not sent again
         async with gate:
-            raw = await vision(images=([page_uri] if page_uri else []) + [crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language, page_context=page_uri is not None),
+            raw = await vision(images=([page_uri] if rides else []) + [crops[i] for i in indices],
+                               prompt=prompt_for(len(indices), language, page_context=rides),
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:
@@ -178,7 +180,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading
-            singles = await asyncio.gather(*(ask([i]) for i in indices))
+            singles = await asyncio.gather(*(ask([i], with_page=False) for i in indices))
             answer = [s[0] if s else None for s in singles]
             looked.update(i for i, s in zip(indices, singles) if s is not None)
         elif answer is not None:

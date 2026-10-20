@@ -523,8 +523,8 @@ def _lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) 
     from fichero_server.recipes.done import kraken_lines_known
     from fichero_server.recipes.start import certainty_bar
 
-    bars = [b for b in (certainty_bar(w) for w in workflows if w.get("job") == "correct") if b is not None]
-    return kraken_lines_known(db, page_ids, min(bars)) if bars else None
+    has_bar = any(certainty_bar(w) is not None for w in workflows if w.get("job") == "correct")
+    return kraken_lines_known(db, page_ids) if has_bar else None
 
 
 def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
@@ -2338,7 +2338,8 @@ async def get_start_plan(
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
-        return StartPlan(**_start_plan(db, folder_id, clusters=_cluster_names(http)))
+        # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
+        return StartPlan(**await asyncio.to_thread(_start_plan, db, folder_id, clusters=_cluster_names(http)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
