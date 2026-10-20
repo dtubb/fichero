@@ -29,8 +29,11 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
     ready = threading.Event()
     release = threading.Event()
 
-    def hold():  # a blocking call on the loop thread, named so the record can be checked
-        release.wait(60)  # the test releases it; a ceiling this far off cannot expire under a loaded machine
+    # A blocking call made from an engine module: the record names the innermost fichero_server frame (a call made
+    # from this test module would be named by its innermost frame, the stdlib's `threading:wait`).
+    scope = {"__name__": "fichero_server.held", "release": release}
+    exec("def hold():\n    release.wait(60)  # the test releases it; this ceiling cannot expire under a loaded machine", scope)
+    hold = scope["hold"]
 
     async def blocker():
         ready.set()
@@ -59,7 +62,7 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
         time.sleep(0.1)
     assert json.loads(path.read_text())["seconds"] > first, "the record stayed at the first figure while the hold lasted"
     record = json.loads(path.read_text())  # killed mid-stall: this is what the next engine finds
-    assert record["frame"].endswith(":hold"), record
+    assert record["frame"] == "fichero_server.held:hold", record
     release.set()
     t.join(30)
     deadline = time.monotonic() + 30
@@ -93,3 +96,12 @@ def test_a_corrupt_or_path_bearing_file_is_ignored(tmp_path):
     path.write_text(json.dumps({"frame": "/Users/bob/x.py:load", "seconds": 3}))
     assert loop_lag.take_previous_stall() is None, "a value with a path never reaches health"
     assert not path.exists()
+
+
+def test_a_stall_with_no_engine_frame_is_named_by_its_innermost_frame():
+    import sys
+
+    def outer():
+        return loop_lag.culprit(sys._getframe())
+
+    assert outer() == f"{__name__}:outer"
