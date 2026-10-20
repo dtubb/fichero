@@ -29,6 +29,9 @@ PING_SECONDS = 0.5
 SLOW_SECONDS = 1.0
 #: A loop that has not run its heartbeat for this long gets every thread's stack dumped, again every this long (#5847).
 DUMP_SECONDS = 30.0
+#: While a hold lasts, its record is rewritten this often (seconds held, the frame the loop is in now), so an engine killed
+#: after a long hold leaves the long figure, not the first one (## 517).
+RECORD_SECONDS = 2.0
 
 
 STALL_FILE = "previous_stall.json"
@@ -104,7 +107,7 @@ def _arm_dump(seconds: float, file) -> None:
 
 
 def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS,
-          slow_seconds: float = SLOW_SECONDS, dump_seconds: float = DUMP_SECONDS,
+          slow_seconds: float = SLOW_SECONDS, dump_seconds: float = DUMP_SECONDS, record_seconds: float = RECORD_SECONDS,
           dump_file=None) -> threading.Event:
     """Watch `loop` from a daemon thread until the returned event is set. The loop's thread is the one calling this."""
     stop = threading.Event()
@@ -142,7 +145,9 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
             where = "".join(traceback.format_stack(frame))[-1500:]
             name = culprit(frame)
             record_stall(name, time.monotonic() - asked)  # now: the app may kill this engine before the loop is free
-            answered.wait()
+            while not answered.wait(record_seconds):
+                name = culprit(sys._current_frames().get(loop_thread))
+                record_stall(name, time.monotonic() - asked)
             clear_stall()  # recovered: a normal relaunch must not report it
             logger.warning("the event loop was held for %.1f s (health answers late); it was in:\n%s",
                            time.monotonic() - asked, where)
