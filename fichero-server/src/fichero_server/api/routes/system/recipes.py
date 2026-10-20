@@ -517,6 +517,16 @@ def _where_facts(request: Request) -> tuple[float, bool, list[str]]:
     return mac, bool(remote_compute(price=False)["available"]), _cluster_names(request)
 
 
+def _lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) -> dict[str, Any] | None:
+    """What the project already holds of Kraken's lines, for pricing a run that sends only the unsure ones (variant A);
+    None when no run has a bar, so no plan pays for the scan."""
+    from fichero_server.recipes.done import kraken_lines_known
+    from fichero_server.recipes.start import certainty_bar
+
+    bars = [b for b in (certainty_bar(w) for w in workflows if w.get("job") == "correct") if b is not None]
+    return kraken_lines_known(db, page_ids, min(bars)) if bars else None
+
+
 def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
     """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
     None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
@@ -1871,10 +1881,13 @@ class StartEstimateRun(BaseModel):
     certainty_bar: Optional[float] = Field(default=None, description=(
         "Kraken, then a model for the unsure lines (`source.recipe.kraken-then-cloud-unsure-lines`): the bar X, below "
         "which Kraken's lines go to the model; null for any other run"))
-    lines_at_most: Optional[int] = Field(default=None, description=(
-        "with a bar: the most lines the model can be sent (every line of the pages), the figure `cost_usd` is priced "
-        "from before Kraken has read anything; null for any other run"))
-    lines_basis: Optional[str] = Field(default=None, description="with a bar: that figure in words")
+    lines_to_send: Optional[int] = Field(default=None, description=(
+        "with a bar: how many lines the model will be sent, the figure `cost_usd` is priced from; null for any other run"))
+    lines_to_send_kind: Optional[str] = Field(default=None, description=(
+        "how known `lines_to_send` is: `exact` (every page has its lines and each line its certainty), `at-most` (every "
+        "page has its lines; how many are under the bar is not yet known) or `estimate` (some pages have no lines yet: "
+        "an assumed number a page)"))
+    lines_basis: Optional[str] = Field(default=None, description="with a bar: that figure in words, assumption included")
     lenses: list[StartLensCost] = Field(default_factory=list, description=(
         "the review's lenses, on or off, each with what it costs a page, so turning one on or off is priced before "
         "Start (#5723); empty for any other run"))
@@ -2212,7 +2225,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
-    plan["estimate"] = estimate(plan["workflows"], pages["pages"])
+    plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
