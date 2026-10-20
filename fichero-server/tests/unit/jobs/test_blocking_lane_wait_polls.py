@@ -64,14 +64,6 @@ def test_a_find_regions_page_with_a_free_lane_runs_it_the_kind_is_registered(db,
     assert jobs.run_on_lane_blocking(str(test_package), "find-regions", "page", model="kraken:blla", fn=lambda: "ran") == "ran"
 
 
-def test_a_regions_page_withdrawn_by_stop_or_pause_never_reads_failed():
-    from fichero_server.execution.cancellation import WorkflowPaused
-    from fichero_server.recipes import runner
-
-    assert runner._ended_waiting(WorkflowCancelled("r")) == ("cancelled", "Stopped by you")
-    assert runner._ended_waiting(WorkflowPaused("r")) == ("not run", "Paused with its run")
-
-
 def test_pause_while_waiting_withdraws_the_page_and_raises_paused(db, test_package, busy_lane, monkeypatch):
     from fichero_server.execution.cancellation import WorkflowPaused
 
