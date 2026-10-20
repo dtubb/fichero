@@ -1678,28 +1678,30 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   its view. The Try's pages are copies, so a Try's compare view has **no pick**: it offers the existing Use This One for a
   model and says, in a sentence, that the lines are a try's and not yet the project's. *Tests:* the shape in
   `test_compare_readers_5900.py`; the matching of a Read stage's lines and of lines found by two finders.
-- `source.compare.pick` — **[GAP]** (#5900) a pick is the person's reading of a line, taken from one of the readers:
-  `POST /api/segments/{segment_id}/compare-pick` `{reader_id, expected_counting_id?}` (action `reading.pick`; CLI
-  `fichero segments pick-reading <segment_id> --reader <id>`; MCP `fichero_segments_pick_reading`). The engine looks the
-  text up itself from the named reader (the text is not sent: a pick is always something a reader said, as written) and
-  records it as ONE `representation.create`, the action every correction is, with the person as author, so it is audited
-  and one undo takes it back (`source.reading.correct-a-line`, `source.reading.set`); the reading it replaces stays, and
-  nothing a model wrote is changed. Only a person may pick (as `reading.choose`: 403 for a model; a model has its own
-  readings and cannot check them). The compare-and-set of the correction applies: when another reading counts than the one
-  the view showed, the pick is refused (409, naming it) and nothing is written. A reading the person types is the existing
-  correction (`segments correct-line`), unchanged. A pick is per line only, never per word: a line that needs one reader's word in another's
-  reading is made by picking the closest line and then correcting it in place with that same action, saved as the person's reading. A pick on a line a person already picked replaces that pick as a new
-  reading (the earlier stays in the line's history). There is **no pick-all and no accept-what-agrees**: unanimous lines
-  are marked agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* `fichero-server/tests/unit/api/test_compare_pick_5900.py`:
-  the text is the reader's own and as written; a model is refused (403); a stale view is refused (409) and writes nothing;
-  one undo; a typed reading and a pick both count as a person's.
-- `source.compare.pick-is-a-training-line` — **[GAP]** (#5900) a pick is a line that a person checked, so it is a training
-  line with `checked_by_person` true: the Kraken set made from the person's own readings (teacher `person`,
-  `training/kraken_set.py` `PERSON`; the lines whose counting reading a person made) takes it with no other step, and the
-  set's manifest counts it with the person's lines, never with a model's (`compute.tune.bootstrapped-data-is-marked`). The
-  bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`) are the other source and stay marked as a
-  model's reading; a line that is both picked and in the bake-off's set is counted once, as the person's. *Test:*
-  `test_compare_pick_5900.py::test_a_pick_is_in_the_persons_training_set_and_a_model_reading_is_not`.
+- `source.compare.pick` — **[GAP]** (#5900) a pick is the EXISTING choice of which reading counts, not a new action: the view calls
+  `reading.choose` (`POST /api/segments/{segment_id}/readings/choice` `{kind, representation_id}`, CLI `segments choose-reading`, MCP
+  `fichero_segments_choose_reading`) with the `representation_id` of the reading the person clicked. The answer of
+  `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
+  under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
+  reading count and this is it (`reading.choose`: audited, one undo, only a person: 403 for a model; a model has its own readings and
+  cannot check them). Where `reading.choose` lacks it, it is extended here, never copied: an optional `expected_counting_id` (when
+  another reading counts than the one the view showed, 409 naming it and nothing written, as `segments correct-line` has).
+  A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
+  a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
+  that same action, saved as the person's reading. There is **no pick-all and no accept-what-agrees**: unanimous lines are marked
+  agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* `fichero-server/tests/unit/api/test_compare_pick_5900.py`:
+  the pick calls `reading.choose` with the reading's id (and no second action exists); a model is refused (403); a stale view is
+  refused (409) and writes nothing; one undo; a typed correction and a choice both give `picked_by_person`.
+- `source.compare.pick-is-a-training-line` — **[GAP]** (#5900) a line whose counting reading a person chose or typed is a line a person
+  checked, so it is a training line with `checked_by_person` true. The Kraken set made from the person's own readings (teacher `person`,
+  `training/kraken_set.py` `PERSON`) takes it with no other step, which EXTENDS that teacher: today it takes the lines whose counting
+  reading a person *made*; it also takes those whose counting reading a person *chose* among machine readings (the choice record,
+  `source.reading.choose`), and its manifest counts chosen and typed separately, both as the person's and never with a model's
+  (`compute.tune.bootstrapped-data-is-marked`). The bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`)
+  are the other source and stay marked as a model's reading. **Dedupe:** both carry a `line_key`, the SHA-256 of the page image's
+  bytes and the line's polygon rounded to whole pixels; when a line is in both, the person's is kept and the bake-off row is dropped
+  before staging, and the count says how many were dropped. *Test:*
+  `test_compare_pick_5900.py::test_a_pick_is_in_the_persons_training_set_and_a_model_reading_is_not` and `::test_a_line_in_both_sets_is_counted_once_as_the_persons`.
 - `source.compare.segments-mode` — **[GAP]** (#5900; the app, after the engine and the tool) the Segments pane has a Compare
   mode beside its existing modes (a toggle in the pane's toolbar, remembered with the pane's state): a list of the page's
   lines, each row the line's picture (from the answer's `picture`), then one column per reader with that reader's text, the
