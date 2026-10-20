@@ -1635,7 +1635,7 @@ def _search_when_known(db: Database, answers: Optional[dict]) -> None:
     if not languages or not (answers or {}).get("scripts") or not discovery.egress_allowed():
         return
     try:
-        discovery.search(db, languages)
+        discovery.search(db, languages, by_itself=True)
     except Exception:  # noqa: BLE001 -- a search that cannot be queued is the Search Online button's to say, not the save's
         logger.warning("the automatic model search could not be queued", exc_info=True)
 
