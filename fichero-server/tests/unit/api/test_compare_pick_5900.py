@@ -65,3 +65,21 @@ def test_a_line_in_both_sets_is_counted_once_as_the_persons(client, db, tmp_path
 
     assert [line.line_id for line in kept.lines] == ["1"]
     assert kept.left_out["also_a_persons_line"] == 1
+
+
+def test_staging_drops_the_lines_a_person_already_checked_and_says_so(tmp_path):
+    """The caller of the dedupe is `stage_dataset` itself: with the person's keys it stages the rest and counts the drop."""
+    from fichero_server.training.line_key import image_digest, line_key
+    from tests.unit.training.test_bakeoff_dataset_5894 import _lines_json, _pages
+
+    pages = _pages(tmp_path)
+    winning = bl.winning_lines(_lines_json(tmp_path), winner="mlx:m")
+    assert [w.line_id for w in winning.lines] == ["0"]
+    keys = {line_key(image_digest(pages / "p0.png"), winning.lines[0].polygon)}
+
+    staged = bl.stage_dataset(winning, pages, tmp_path / "out", person_keys=keys)
+
+    assert staged.count == 0
+    assert '"also_a_persons_line": 1' in (tmp_path / "out" / "README.md").read_text(encoding="utf-8")
+    kept = bl.stage_dataset(winning, pages, tmp_path / "out2", person_keys={"not-this-line"})
+    assert kept.count == 1
