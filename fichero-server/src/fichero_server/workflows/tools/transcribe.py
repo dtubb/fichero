@@ -147,6 +147,19 @@ def _project_language(state: Any) -> str | None:
         return None
 
 
+def _language_source_of(resolution: LanguageResolution, requested: str | None, project_language: str | None) -> str:
+    """"page" only when this page decided its own language AND it differs from the run's (the node's request, else the
+    project's); a refusal of the run's language holds for every page, a refusal of a page's own for that page alone
+    (review 359, 362). A page stating the project's language counts as the run's."""
+    asked = str(requested or "").strip()
+    if asked.lower() in ("", "auto", "unknown", "und"):
+        asked = ""
+    if asked or resolution.level == LEVEL_PROJECT or not resolution.language:
+        return "run"
+    run = normalize_vision_language(project_language) if project_language else None
+    return "page" if normalize_vision_language(resolution.language) != run else "run"
+
+
 def _resolve_transcribe_language(
     requested: str | None,
     documents: list[Any] | None,
@@ -395,7 +408,8 @@ async def transcribe(
     # i.e. English unless the node said otherwise, with the library's language
     # policy never consulted. Now the node value is a REQUEST that the policy
     # resolves; an explicit locale on the node still wins.
-    resolution = _resolve_transcribe_language(inputs.get("language"), documents, _project_language(state))
+    project_language = _project_language(state)
+    resolution = _resolve_transcribe_language(inputs.get("language"), documents, project_language)
     language = resolution.language or UNKNOWN
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)
@@ -491,10 +505,7 @@ async def transcribe(
         # instruct a model to read Spanish as English.
         language=normalize_vision_language(resolution.language),
         # The page's own language can be refused for that page alone; the project's or the node's holds for every page.
-        language_source=(
-            "run" if resolution.level == LEVEL_PROJECT
-            or str(inputs.get("language") or "").strip().lower() not in ("", "auto", "unknown", "und")
-            else "page"),
+        language_source=_language_source_of(resolution, inputs.get("language"), project_language),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         force_ocr=force_ocr,
         # Inherited from BASE_CONFIG
