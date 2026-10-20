@@ -304,41 +304,43 @@ def extract(db: Any, documents: list[str], *, prototype: str, provider: str, mod
             spans[doc_id] = line_spans(db, doc_id, text)
         return spans[doc_id]
 
-    from fichero_server.workflows.tools._together import extract_width
+    from fichero_server.workflows.tools._together import ahead, extract_width
 
     width = extract_width(config)  # the step's cloud width for a hosted model, 3 for one served here
-    # Units in waves of `width`: one event loop for the wave, its questions asked together (a new loop for each unit and one
-    # call after another before: `runtime.cloud-extractors.pages-together`, #5955); the answers are landed one by one, in
-    # unit order, as before. A stop is looked for between waves.
-    waves = [todo[at:at + width] for at in range(0, len(todo), width)]
-    for wave in waves:
+    # The units' questions are asked ahead, up to `width` in flight in one event loop (a new loop for each unit and one call
+    # after another before: `runtime.cloud-extractors.pages-together`, #5955); the answers are landed one by one, in unit
+    # order, as before. A call looks for the stop as it starts, so a stop sends at most the calls already in flight.
+    stopped = object()
+
+    async def ask(unit: Any) -> Any:
         if stop is not None and stop():
-            break
-        texts = [_text(db, unit) for unit in wave]
-        answers = iter(asyncio.run(_ask_together(fields, schema, config, [t for t in texts if t])))
-        for unit, text in zip(wave, texts):
-            if not text:
+            return stopped
+        text = _text(db, unit)
+        if not text:
+            return None
+        try:
+            return await chat_structured_with_fallback(prompt(fields, text), schema, config, system=_SYSTEM,
+                                                       use_case="extract_to_a_table")
+        except Exception as exc:  # noqa: BLE001 -- the model's failure, in its words, on the account
+            return exc
+
+    async def land_all() -> None:
+        async for unit, answer in ahead(todo, ask, width):
+            if answer is stopped:
+                return
+            if answer is None:
                 account["without_text"] += 1
                 continue
             account["asked"] += 1
-            answer = next(answers)
-            if isinstance(answer, BaseException):
-                if not isinstance(answer, Exception):
-                    raise answer
-                account["failed"] += 1  # the model's failure, in its words, on the account
+            if isinstance(answer, Exception):
+                account["failed"] += 1
                 account["errors"].append(f"{unit.name}: {answer}")
                 continue
             _land(db, unit, answer, fields=fields, account=account, spans_for=spans_for, step=step, run_id=run_id,
                   provider=provider, model=model)
+
+    asyncio.run(land_all())
     return account
-
-
-async def _ask_together(fields: dict[str, Any], schema: Any, config: Any, texts: list[str]) -> list[Any]:
-    """The answers (or the exceptions) to these texts' questions, asked together, in order."""
-    return list(await asyncio.gather(
-        *(chat_structured_with_fallback(prompt(fields, text), schema, config, system=_SYSTEM,
-                                        use_case="extract_to_a_table") for text in texts),
-        return_exceptions=True))
 
 
 def _land(db: Any, unit: Any, answer: Any, *, fields: dict[str, Any], account: dict[str, Any], spans_for: Callable[..., list],
