@@ -57,8 +57,8 @@ def test_only_the_empty_lines_are_probed_and_the_real_word_ones_are_told_from_fr
 
 
 def test_a_variant_that_rescues_a_quarter_of_the_real_words_is_named_in_the_verdict(tmp_path):
-    rows = [{"page": "p.png", "id": str(i), "polygon": _poly(100, 100, 500, 140), "kraken": "Carlos", "vision": ""}
-            for i in range(4)]
+    rows = [{"page": "p.png", "id": str(i), "polygon": _poly(100, 100, 500, 160), "kraken": "Carlos", "vision": ""}
+            for i in range(4)]  # 60 px high: today's crop is ~100 px, doubled ~200 (the stub reads from 150)
     seen = {"n": 0}
 
     def ocr(img):  # only the upscaled white picture of the first line reads
@@ -67,6 +67,7 @@ def test_a_variant_that_rescues_a_quarter_of_the_real_words_is_named_in_the_verd
 
     result = vp.probe(rows, _page(tmp_path), ocr=ocr)
     assert result["rescued_real_word"]["up2_white"] == 1 and result["decision"]["up2_white"] is True
+    assert result["gain_over_today"] == {"white": 0, "up2": 0, "up2_white": 1}
     assert result["decision"]["white"] is False
     assert "up2_white" in vp.report_md(result) and "specify a crop change for Apple Vision only" in vp.report_md(result)
 
@@ -117,3 +118,16 @@ def test_a_today_variant_that_reads_many_of_the_empties_warns_that_vision_differ
     assert "A re-run of Vision differs by itself" in vp.report_md(result)
     quiet = vp.probe(rows, pages, ocr=lambda img: "")
     assert quiet["today_rereads"] is False and "re-run of Vision" not in vp.report_md(quiet)
+
+
+def test_a_variant_is_judged_against_today_not_against_zero(tmp_path):
+    """The first M4 probe: today re-read 10 of 19 real words with the crop unchanged and no variant beat that."""
+    rows = [{"page": "p.png", "id": str(i), "polygon": _poly(100, 100, 500, 160), "kraken": "Carlos", "vision": ""}
+            for i in range(4)]
+    pages = _page(tmp_path)
+    result = vp.probe(rows, pages, ocr=lambda img: "reads")  # every variant reads every line, today included
+    assert result["rescued_real_word"] == dict.fromkeys(vp.VARIANTS, 4)
+    assert result["gain_over_today"] == {"white": 0, "up2": 0, "up2_white": 0}
+    assert not any(result["decision"].values()), "reading as much as today is not a rescue"
+    md = vp.report_md(result)
+    assert "leave `crop_line` as it is" in md and "Vision varying between runs" in md and "beyond `today`" in md
