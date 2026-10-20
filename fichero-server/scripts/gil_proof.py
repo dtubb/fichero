@@ -259,6 +259,9 @@ class Waits:
 
 
 def engine(args) -> None:
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))  # the seam resolves its stores from the base: never the real one
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import bench_reading
     from fichero_server.core import compute_preferences
