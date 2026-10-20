@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.execution import jobs
+from fichero_server.execution.cancellation import WorkflowCancelled
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
 KIND = "run-a-recipe"
@@ -1075,6 +1076,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by)
         except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):
             raise  # the queue's own: stopped, to come back later, out of reach
+        except WorkflowCancelled:  # a page waiting for the lane was withdrawn by this run's Stop: stopped, not failed
+            child, state, why = None, "cancelled", "Stopped by you"
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
             logger.exception("recipe step %s could not start", named)
             child, state, why = None, "failed", could_not_start(card, exc)
