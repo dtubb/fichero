@@ -28,12 +28,25 @@ PROMPT = (
 )
 
 
-def _prompt(texts: list[str], page_answer: str) -> str:
+#: The same for lines asked on their own, with no page answer beside them (Kraken's text is what the model corrects).
+PROMPT_LINES_ONLY = (
+    "Each of the {n} images is one line cut from a photographed page{language}. Under each is the text a first "
+    "reader gave it: {given}. For each image, in order, write the line as it is written, correcting the given text "
+    "where the writing differs; keep spelling, abbreviations and punctuation as written; answer null for a line "
+    "you cannot read. Reply with only a JSON array of {n} strings or nulls, nothing else."
+)
+
+
+def _prompt(texts: list[str], page_answer: str, language: str | None = None) -> str:
     given = "; ".join(f"{i + 1}. {t!r}" for i, t in enumerate(texts))
+    if not page_answer:
+        hint = f" (in {language})" if language and language not in ("und", "unknown", "auto") else ""
+        return PROMPT_LINES_ONLY.format(n=len(texts), given=given, language=hint)
     return PROMPT.format(n=len(texts), given=given, page=" ".join((page_answer or "").split())[:1500])
 
 
-async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str, config, batch: int = 8) -> tuple[dict[str, str], list[str]]:
+async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str, config, batch: int = 8,
+                 language: str | None = None) -> tuple[dict[str, str], list[str]]:
     """`lines`: {'id', 'text', 'polygon'} (pixels) for the lines to ask again. Returns ({id: text} for every
     line answered, [ids still unanswered])."""
     from fichero_server import llm
@@ -45,7 +58,7 @@ async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str,
     async def ask(group: list[dict[str, Any]]) -> list[str | None] | None:
         async with gate:
             raw = await llm.vision(images=[_crop_data_uri(page, g["polygon"]) for g in group],
-                                   prompt=_prompt([g["text"] for g in group], page_answer),
+                                   prompt=_prompt([g["text"] for g in group], page_answer, language),
                                    config=line_call_config(config, len(group)))
         return parse_answer(raw, len(group))
 
