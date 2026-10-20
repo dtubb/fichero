@@ -43,6 +43,7 @@ def test_resume_on_the_recipe_row_lets_it_go_on_and_resumes_the_step_run(db, mon
     resumed: list[str] = []
     monkeypatch.setattr(runner, "_resume_step_run", lambda database, thread: resumed.append(thread))
     jobs.pause_job(db, recipe, True)
+    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [child])  # the step's run has reached its pause
     state = jobs.pause_job(db, recipe, False)
     assert state == "running"
     assert not pause_requested(recipe), "the recipe's pause is cleared"

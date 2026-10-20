@@ -2018,6 +2018,9 @@ async def _run_workflow_body(
             end_usage_collection,
         )
 
+        from fichero_server.workflows.builder import TOP_RUN
+
+        TOP_RUN.set(thread_id)  # this run's task; a sub-workflow's pages count under it (#5933)
         _, usage_token = begin_usage_collection(usage_bucket)
         _, fallback_token = begin_fallback_collection(fallback_bucket)
         usage_cursor = 0

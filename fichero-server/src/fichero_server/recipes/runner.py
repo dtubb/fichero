@@ -332,13 +332,74 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     _closed_stops_the_recipe(db, thread_id, parent)
     if dead is not None:  # the run's row ended and the run never came back: its row says how
         return thread_id, ("done" if dead["state"] == "done" else "failed"), dead["reason"] or dead["state"]
-    status, error = _step_run_outcome(thread_id)
+    status, error = _settled_outcome(thread_id, parent)
     error = None if status == "completed" else outcome_why(status, error)
     if status == "completed" and live:  # the pages the live run reads: this step is done when that run is
         joined = _join_live_run(live[0], parent)
         if joined[1] != "done":
             return joined
     return thread_id, ("done" if status == "completed" else "failed"), error
+
+
+def _settled_outcome(thread_id: str, parent: str) -> tuple[str, str | None]:
+    """A step run's outcome once it is no longer paused. A run paused (by the recipe's Pause, or by a person on that run's own
+    row) is WAITING for its Resume, never failed and never moved on from (#5933); a Stop on the recipe ends the wait."""
+    from fichero_server.api.routes.workflow.chains import _step_run_outcome
+
+    status, error = _step_run_outcome(thread_id)
+    while status == "paused" and not _stop_asked(parent):
+        time.sleep(_CHECK_POLL_SECONDS)
+        status, error = _step_run_outcome(thread_id)
+    return status, error
+
+
+def _wait_out_a_pause(db: Any, job_id: str) -> None:
+    """The recipe's Pause lands between steps: the next step does not start until Resume; a Stop ends the wait."""
+    from fichero_server.execution.cancellation import pause_requested
+
+    while pause_requested(job_id) and not _stop_asked(job_id):
+        time.sleep(_CHECK_POLL_SECONDS)
+
+
+def _resume_step_run(db: Any, thread_id: str) -> None:
+    """Resume a step's paused run from its checkpoint, on the engine's background loop."""
+    from fichero_server.api.routes.workflow_execution import core
+    from fichero_server.execution.runner import on_background_loop
+
+    on_background_loop(core.resume_workflow(thread_id, None, db=db)).result(60)
+
+
+def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
+    """Pause or Resume on a recipe run's row (`activity.recipe-run.pause-reaches-its-step`, #5933). Held for lack of this, Pause on a
+    running recipe answered `running` and nothing happened. A running recipe is asked to pause at its next step and its step's run
+    in flight is paused; the row says so. Resume lets it go on and resumes that run from its checkpoint. A waiting or paused row is
+    the plain pause of a stored job. Returns the row's state."""
+    from fichero_server.execution.cancellation import clear_pause, pause_requested, request_pause
+
+    state = jobs._job_row(db, job_id)[1]
+    if paused:
+        if state != "running":
+            return jobs.pause_stored(db, job_id, True, state)
+        request_pause(job_id)
+        child = jobs.running_child(db, job_id)
+        if child is not None:
+            try:
+                jobs.pause_job(db, child, True)
+            except (ValueError, KeyError):  # a step that is not a run has nothing to pause here; the recipe's flag holds it
+                pass
+        jobs.say_pausing(db, job_id)
+        return "running"
+    if not pause_requested(job_id):
+        return jobs.pause_stored(db, job_id, False, state)
+    clear_pause(job_id)
+    child = jobs.running_child(db, job_id)
+    if child is not None:
+        clear_pause(child)  # still winding down to its pause: let it go on
+        if jobs._job_row(db, child)[1] == "paused":
+            _resume_step_run(db, child)
+    db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND reason = ?", [job_id, jobs.PAUSING])
+    jobs.wake_lane(db)
+    return jobs._job_row(db, job_id)[1]
 
 
 def outcome_why(status: str, error: str | None) -> str:
@@ -359,7 +420,7 @@ def _join_live_run(live: str, parent: str) -> tuple[str, str, str | None]:
     from fichero_server.api.routes.workflow.chains import _step_run_outcome
     from fichero_server.execution.runner import LIVE_RUN_STATUSES, _get_workflow_state
 
-    while _step_run_outcome(live)[0] in LIVE_RUN_STATUSES:
+    while _step_run_outcome(live)[0] in (*LIVE_RUN_STATUSES, "paused"):  # a paused run is waited for, not failed (#5933)
         if _stop_asked(parent):
             break
         time.sleep(_CHECK_POLL_SECONDS)
@@ -1089,6 +1150,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 step.update(state="done", child_id=None, why="already done on every page")
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
+        _wait_out_a_pause(db, job_id)  # Pause between steps holds the next step until Resume or Stop (#5933)
         # Running on this batch: its state is its own until this batch's job ends, not an earlier batch's job's.
         before, before_child = step["state"], step.get("child_id")
         step.update(state="running", child_id=None)
@@ -1334,7 +1396,7 @@ def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="recipes",
                            qos=set_utility_qos, name="Run the recipe",
-                           cancel=request_cancel)
+                           cancel=request_cancel, pause=pause_recipe)
 
 
 #: What a page image gives: a job that takes only these reads page images, so a recording is no input for it.
