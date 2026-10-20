@@ -394,14 +394,28 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 
 ### D. Egress
 
-- `ai.where.one-egress-gate` — **[BROKEN]** (#4949, #5368) one gate decides whether pages may go to
+- `ai.where.one-egress-gate` — **[PARTIAL]** (#4949, #5368) one gate decides whether pages may go to
   a place, from the project's rule and the place's egress class; the engine-wide switch, the
   start-time `cloud_allowed` check and the per-request `pages_may_leave` (1.3) become callers of
   it. Same rule as `source.egress.one-gate`, which owns it; this line owns that places, not
-  providers, are what it judges.
-- `ai.where.egress-at-every-call` — **[BROKEN]** (#5368) every model call meets the gate, from a
-  workflow, chat, MCP or the command line; today `chat_with_tools` and `structured_output` skip
-  it (`llm/__init__.py:3127-3173,3223-3255`) and workflow runs never read the project's rule.
+  providers, are what it judges. *Built, unrun until an M4 pass:* `llm._enforce_local_only_provider` is the gate: a call that
+  leaves this Mac (by its address, `llm/places.py`) is refused when the engine-wide switch is on, and refused when the
+  project it runs under has not said yes to cloud models (Set Up's `cloud_allowed`, read from the project's
+  `recipe/setup.yaml` when it changes, `llm/egress.py`; no setup, an unreadable file or any answer but a yes is a no),
+  with `EgressRefusedError` saying in words that nothing was sent and where to say yes. The project is the library the
+  call runs under: the API sets it for every request that names a library (so the chat and the MCP, which reach the
+  engine over HTTP), the workflow executor and the jobs set it for theirs. *Not built:* a call under no library meets
+  only the engine-wide switch (nothing to ask); a thread started without the caller's context has no library; the
+  recipe's start-time check and the packages' `pages_may_leave` still read the answer themselves rather than call
+  the gate. *Test:* `fichero-server/tests/unit/llm/test_one_egress_gate_5368.py`.
+- `ai.where.egress-at-every-call` — **[PARTIAL]** (#5368) every model call meets the gate, from a
+  workflow, chat, MCP or the command line. *Built, unrun:* the gate is the first act of `llm.get_langchain_model`, the
+  one place a provider's client is built, so `chat_with_tools`, `structured_output`, chat, vision and every workflow
+  call meet it; the two calls that build no model (the Hub's inference API, audio) enforce it themselves. *Sweep
+  (#5368):* a provider's SDK is imported only in `llm/__init__.py` and no other module reaches a provider's host with content (the key and
+  model-list checks in `api/routes/ai/` send a key, not a page); both are pinned by the test above, which fails when a
+  second provider client or a second path to a host appears. *Not built:* the command line's own calls (it reaches the
+  engine over HTTP, so it is covered when it sends the library header).
 - `ai.where.batch-sends-ask-the-project` — **[PARTIAL]** (#5239) a training or reading package is
   sent only when the project's rule allows that place; today a per-request `pages_may_leave`
   suffices (`training/job.py:90-92`, `remote_read/job.py:99-101`).

@@ -1465,7 +1465,23 @@ async def validate_library_path_header(request: Request, call_next):
         from fastapi.responses import JSONResponse
 
         return JSONResponse(status_code=403, content=_rejected_library_path_payload(library_path))
-    return await call_next(request)
+    if not library_path:
+        return await call_next(request)
+    # The library this request names is the project every model call under it belongs to, so chat and MCP calls meet
+    # the project's egress rule (`ai.where.one-egress-gate`, #5368).
+    from fichero_server.observability.episodes import set_library
+
+    token = set_library(library_path)
+    try:
+        return await call_next(request)
+    finally:
+        _reset_library(token)
+
+
+def _reset_library(token) -> None:
+    from fichero_server.observability.episodes import _episode_library_path
+
+    _episode_library_path.reset(token)
 
 
 def _is_allowed_library_path(library_path: str) -> bool:
