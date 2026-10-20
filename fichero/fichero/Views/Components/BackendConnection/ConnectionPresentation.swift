@@ -295,6 +295,28 @@ enum ConnectionPresentation {
 
     private static let previousStallLock = OSAllocatedUnfairLock<String?>(initialState: nil)
 
+    /// Reads the kept stall and clears it in ONE step, so a health read landing between a get and a set cannot be lost.
+    static func takePreviousStall() -> String? {
+        previousStallLock.withLock { stall in
+            defer { stall = nil }
+            return stall
+        }
+    }
+
+    private static let lastSeenStallLock = OSAllocatedUnfairLock<String?>(initialState: nil)
+
+    /// A health read reports the previous engine's stall for this engine's whole life. Keeps it (for the next restart sentence)
+    /// only when it is new; returns whether it was, so the caller logs it once, not at every Settings re-read.
+    @discardableResult
+    static func notePreviousStall(_ stall: String) -> Bool {
+        let isNew = lastSeenStallLock.withLock { seen -> Bool in
+            defer { seen = stall }
+            return seen != stall
+        }
+        if isNew { lastPreviousStall = stall }
+        return isNew
+    }
+
     /// The failure half of the mapping, split out so `status(…)` stays one
     /// bounded switch.
     private static func failureStatus(

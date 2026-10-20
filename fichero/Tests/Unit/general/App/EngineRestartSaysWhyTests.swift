@@ -50,4 +50,15 @@ struct EngineRestartSaysWhyTests {
         #expect(ConnectionPresentation.lastPreviousStall == nil)
         #expect(!AppState.takeRestartSentence(failures: 2, busyWithImport: false).contains("stuck"))
     }
+
+    @Test("a health re-read of the same stall is not logged or kept again; a new stall is")
+    func sameStallIsNoteOnce() {
+        defer { ConnectionPresentation.lastPreviousStall = nil }
+        #expect(ConnectionPresentation.notePreviousStall("12s in fichero_server.a:one"))
+        #expect(ConnectionPresentation.takePreviousStall() == "12s in fichero_server.a:one")
+        #expect(!ConnectionPresentation.notePreviousStall("12s in fichero_server.a:one"), "a Settings re-read of the same stall")
+        #expect(ConnectionPresentation.takePreviousStall() == nil, "and it is not kept again for the next restart sentence")
+        #expect(ConnectionPresentation.notePreviousStall("40s in fichero_server.b:two"))
+        #expect(ConnectionPresentation.takePreviousStall() == "40s in fichero_server.b:two")
+    }
 }
