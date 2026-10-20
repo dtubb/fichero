@@ -19,7 +19,5 @@ def test_this_mac_memory_is_in_gib(monkeypatch):
     assert "16 GB" in places.this_mac_line(train_offers.this_mac_memory_gb())
 
 
-def test_a_download_size_is_decimal_like_finder():
-    """A file's size reads as macOS shows files (powers of 1000); only memory is in GiB-as-GB."""
-    assert _format_bytes(3_090_000_000) == "3.1 GB"
-    assert _format_bytes(1_000_000) == "1 MB"
+def test_a_model_size_is_in_gib():
+    assert _format_bytes(SIXTEEN) == "16.0 GB"
