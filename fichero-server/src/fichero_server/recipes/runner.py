@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.execution import jobs
-from fichero_server.execution.cancellation import WorkflowCancelled
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
 KIND = "run-a-recipe"
@@ -829,6 +829,14 @@ def _card_pages(db: Any, card: dict[str, Any], units: list[str], tree: _Tree) ->
 _WORSE = {"done": 0, "cancelled": 1, "not run": 2, "failed": 3}
 
 
+def _ended_waiting(withdrawn: BaseException) -> tuple[str, str]:
+    """How a step reads when its page, waiting for the lane, was withdrawn by its run's Stop or Pause: stopped, or not run
+    yet (paused with its run); never failed."""
+    if isinstance(withdrawn, WorkflowPaused):
+        return "not run", "Paused with its run"
+    return "cancelled", "Stopped by you"
+
+
 def _settle(step: dict[str, Any], state: str, child: str | None, why: str | None) -> None:
     """A step's end on one batch, added to its end over the run: a worse end before stands. A step not run on a
     batch names no job (its state is its own, not an earlier batch's job's, `status`)."""
@@ -1076,8 +1084,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by)
         except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):
             raise  # the queue's own: stopped, to come back later, out of reach
-        except WorkflowCancelled:  # a page waiting for the lane was withdrawn by this run's Stop: stopped, not failed
-            child, state, why = None, "cancelled", "Stopped by you"
+        except (WorkflowCancelled, WorkflowPaused) as withdrawn:  # a page waiting for the lane was withdrawn: neither failed
+            child, (state, why) = None, _ended_waiting(withdrawn)
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
             logger.exception("recipe step %s could not start", named)
             child, state, why = None, "failed", could_not_start(card, exc)
