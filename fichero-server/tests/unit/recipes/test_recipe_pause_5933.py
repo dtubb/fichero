@@ -164,3 +164,15 @@ def test_the_between_steps_pause_says_so_660(db):
             runner._wait_out_a_pause(db, recipe)
     finally:
         clear_pause(recipe)
+
+
+def test_resume_on_a_parked_recipe_whose_step_run_is_gone_says_so_and_does_not_500_663(db):
+    import json
+
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "resume-gone")
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps({"awaiting": {"card": "read", "child": "no-such-run"}}), recipe])
+    jobs.pause_job(db, recipe, False)  # must not raise
+    row = jobs.read_job(db, recipe)
+    assert "awaiting" not in json.loads(row["detail"])
+    assert "step run is gone" in row["reason"]
