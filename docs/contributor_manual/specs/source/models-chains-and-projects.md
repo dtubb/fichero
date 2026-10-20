@@ -2742,6 +2742,7 @@ Projects
   The route's description says so. An agent onboarding a project saved its recipe alone and lost
   the answers it had saved a step before. Through MCP a part is sent only when given (the generated tool
   drops an argument left None), so the tool keeps what it is not given and cannot remove a part.
+  M4 PASS 2026-10-20 9707dcc83: test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py. M4 RED 2026-10-20 9707dcc83: test_setup_through_mcp_edges.py::test_source_recipe_done_is_not_redone__correcting_and_finding_names_can_tell (names count (0, 3) where (0, 2) is expected); the other 9 pass. Open finding, tag not moved.
 - `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a
   folder in the one cascade; a folder can override them; a shown value says which level it came from.
 - `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the
@@ -2774,6 +2775,7 @@ Projects
   each shipped workflow by the preset's stable key, never by a display name, and no ordering prefix
   ("2 · ") is part of a shipped workflow's name. Start's answer is the run it started: its `runs` and
   `workflows` are that run's, as `started.workflows` is.
+  M4 RED 2026-10-20 9707dcc83: test_recipe_execution_to_spec.py::test_source_recipe_start_runs_the_steps (the pages read begin with 'material.png', one more than ['p0.png', 'p1.png']) and ::test_source_project_automatic_after_first_yes (4 == 3); test_recipe_runs_to_spec.py and test_step_that_cannot_start_5684.py pass (11 of 13). Open finding, tag not moved.
 - `source.recipe.failed-step-offered-again` — **[OK]** (#5498; built: `runner.unfinished_steps`, the plan's
   `last_run`/`last_why`; tested in `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`) a step the
   project's last finished run did not do (failed, or not run) stays in the Start plan, even beside a layer's
@@ -2783,6 +2785,7 @@ Projects
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
   account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
   ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
+  M4 RED 2026-10-20 9707dcc83: test_recipe_batches_to_spec.py::test_every_step_finishes_a_batch_before_the_next_batch (batches ran in another order) and ::test_a_page_failing_in_one_batch_does_not_stop_the_next (the reason names 'pages in no folder' where 'A' is expected); test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py passes (10 of 12). Open finding, tag not moved.
 - `source.recipe.folder-scoped-start` — **[OK]** (#5540; built 2026-10-10: `folder_id` on `GET|POST
   /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
   tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before
@@ -2846,11 +2849,13 @@ Projects
   Finder order: by the full path from the project's root (at each level the order a person set, else the name read
   naturally), then the page's own place (`IMG_2` before `IMG_10`), not the order the files were imported; its Activity
   rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`.
+  M4 PASS 2026-10-20 9707dcc83: test_pages_in_finder_order_5849.py and test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (7 passed).
 - `activity.run.systemic-error-rule` — **[OK]** (Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
   systemic failure, once its pages have run (there is no early abort when the first few fail, except a refusal that holds for every page, which stops the pages not yet started), when five pages in a row fail on a batch under ten
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
   folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
   names the files. `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`.
+  M4 PASS 2026-10-20 9707dcc83: test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (4 passed).
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
   it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
