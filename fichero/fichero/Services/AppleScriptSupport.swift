@@ -103,7 +103,7 @@ class AppleScriptBridge {
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.client.reconfigure(baseURL: EngineConfig.host)
+                self?.client.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
             }
         }
     }

@@ -39,7 +39,7 @@ final class KnownLibraryRegistryStore {
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.apiClient.reconfigure(baseURL: EngineConfig.host)
+                self?.apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
             }
         }
     }
