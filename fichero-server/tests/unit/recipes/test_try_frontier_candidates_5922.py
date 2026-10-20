@@ -14,7 +14,7 @@ OWN, KRAKEN, VISION = card("kraken:own"), card("kraken:other"), card("apple:visi
 CLAUDE, GEMINI = card("anthropic:claude@x", "Claude"), card("gemini:flash@y", "Gemini")
 
 
-def test_a_frontier_reader_takes_a_place_beside_the_steps_own_and_the_best_local_one():
+def test_the_first_frontier_reader_listed_takes_a_place_beside_the_steps_own_and_the_best_local_one():
     chosen, left_out = samples.choose_try_candidates(OWN, [KRAKEN, VISION], [CLAUDE], limit=3)
 
     assert [c.id for c in chosen] == ["kraken:own", "anthropic:claude@x", "kraken:other"]
@@ -47,7 +47,7 @@ def test_a_card_is_never_listed_twice():
 
 def test_the_wording_says_who_was_left_out_and_why():
     assert samples.left_out_sentence([GEMINI]) == (
-        "Gemini was not tried: a Try compares three readers. Name it to try it.")
+        "Gemini was not tried: a Try compares three readers. Tick it under Models for your pages to try it.")
     assert samples.left_out_sentence([CLAUDE, GEMINI]) == (
-        "Claude and Gemini were not tried: a Try compares three readers. Name them to try them.")
+        "Claude and Gemini were not tried: a Try compares three readers. Tick them under Models for your pages to try them.")
     assert samples.left_out_sentence([]) is None
