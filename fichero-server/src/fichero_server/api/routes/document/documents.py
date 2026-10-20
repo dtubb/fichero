@@ -925,7 +925,8 @@ def _invert_copy_into_project(before: dict | None, after: dict | None, ctx: "Act
 @action("document.copy_into_project", CopyIntoProjectParams, domains=["document"], undoable=True,
         invert=_invert_copy_into_project, atomic=False)  # files first, then one transaction for the pages
 def _action_copy_into_project(db: Database, params: CopyIntoProjectParams, ctx: "ActionContext"):
-    """Copy pages' linked originals into the project (#5669): each brought down from iCloud first, bounded."""
+    """Bring this project's own pages' linked originals into its package (#5669), each brought down from iCloud first,
+    bounded; the same pages then point at their copy. Not a copy between projects (that is `document.transfer`)."""
     from fichero_server.importers.keep_a_copy import copy_into_project
 
     done = copy_into_project(db, params.ids)
@@ -970,10 +971,13 @@ async def copy_pages_into_project(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> CopiedIntoProject:
-    """Copy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud
-    again (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then
-    copied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their
-    originals and removes the copies. A page that did not come down is not copied, and says why."""
+    """Bring THIS project's own pages' linked originals into this project's package (#5669, ruled: the primary answer to
+    pages in iCloud). It is NOT a copy between projects: it acts only on pages of the project the call is made on (the
+    library header), copies each page's linked original FILE into that project's package (brought down from iCloud
+    first, bounded), and repoints those same pages at their copy, so the project never depends on iCloud or the original
+    folder again. A page id of another project is answered "no such page in this project" and nothing is written. To copy
+    pages into another project, use `document.transfer` (`POST /api/documents/transfer`). Audited; undo puts the pages
+    back on their originals and removes the copies. A page that did not come down is not copied, and says why."""
     invoked = await asyncio.to_thread(registry.invoke, db, "document.copy_into_project", body.model_dump(), ctx)
     return CopiedIntoProject(**invoked.result)
 
