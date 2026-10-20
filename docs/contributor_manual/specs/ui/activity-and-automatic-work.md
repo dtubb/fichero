@@ -1454,6 +1454,14 @@ and node, not by job); a retry action for failed pages.
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
   hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
   reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
+- `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
+  #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
+  runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;
+  #21 a lane thread that dies on an error wakes the lane again after half a second, so waiting jobs do not sit until the next
+  enqueue; #8 and #14 a job ends, or is deferred, on the connection its project has NOW, so a reopen no longer leaves a phantom
+  `running` row or counts a deferral as an attempt; #15 the stale-run sweep runs on the engine's background loop, not on whichever
+  loop made the tracker, and is no longer skipped when none runs. NOT done in this entry: #18 (`_wait_for_lane` polling), #19 (the
+  lane's reason before Kraken's lock), #23 (an embed timeout kills a healthy child), #10 (Swift, its own entry).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a

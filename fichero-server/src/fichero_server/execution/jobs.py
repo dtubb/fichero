@@ -1368,12 +1368,21 @@ def resume(db: "Database") -> None:
     # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
-    attached = [name for name in KINDS if _is_attached(name)]
+    # A page's work, handed in by a caller that is gone. NOT a run's or a batch's own row: those are not pages, and a
+    # page's words on them read wrong (Fable review #7). The runs are settled by `mark_interrupted_runs` on open; a batch
+    # row left running by a killed engine is settled here, in its own words.
+    attached = [name for name in KINDS if _is_attached(name) and name not in RUN_KINDS]
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
         f"reason = 'Its workflow run stopped before this page was done' "
         f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)}){not_live}",
         [utc_now(), *attached, *live],
+    )
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
+        f"reason = 'The engine stopped before this batch finished' "
+        f"WHERE state IN ('waiting', 'running') AND kind = 'batch'{not_live}",
+        [utc_now(), *live],
     )
     # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
     # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
@@ -1880,7 +1889,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each group,
     # and the few rows that stand for it. A "queue" group is a kind's running and waiting jobs as ONE row (#5839: a
     # recipe run or a try is a thing of its own, so each keeps its row); a (waiting|paused, kind) group is the rest.
-    runs = "kind NOT IN ('workflow', 'workflow-step')"
+    runs = f"kind NOT IN ({', '.join(repr(k) for k in RUN_KINDS)})"  # a batch's record is its own row: listed once (#20)
     own = ", ".join(f"'{k}'" for k in sorted(_OWN_ROW_KINDS))
     queued = f"(parent_id IS NULL AND kind NOT IN ({own}))"
     really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
@@ -2548,6 +2557,8 @@ class _Scheduler:
             except Exception as exc:
                 if lane.name == "local-ml":
                     self._fail_attached(exc)
+                # This thread ends; the jobs still waiting must not sit until the next enqueue (Fable review #21).
+                threading.Timer(0.5, self.wake, args=(None,)).start()
                 raise
             if self._retire(lane):
                 return
@@ -3028,9 +3039,10 @@ class _Scheduler:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
-            if db_manager.open_database(key) is db:
-                db.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?",
-                           [state, reason, job_id])
+            current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
+            if current is not None:
+                current.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
+                                [state, reason, job_id])
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found
@@ -3040,9 +3052,10 @@ class _Scheduler:
                     lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
-        if db_manager.open_database(key) is db:
-            db.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(db)} WHERE id = ?",
-                       [state, reason, utc_now(), job_id])
+        current = db_manager.open_database(key)
+        if current is not None:  # the same project, reopened while it ran: the row is written on the connection it has now
+            current.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
+                            [state, reason, utc_now(), job_id])
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
