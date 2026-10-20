@@ -1324,8 +1324,9 @@ def export_word_docx(
     documents: list[Document] | None = None,
     title: str | None = None,
     text_for: Callable[[Document], str] | None = None,
+    skipped: list[tuple[str, str]] | None = None,
 ) -> WordExportResult:
-    """Export documents as a minimal Word .docx file.
+    """Export documents as a minimal Word .docx file. `skipped` collects (page, why) for each image left out (#5966).
 
     This intentionally avoids optional dependencies. It writes a valid Office
     Open XML package with text content and, for image documents, a simple
@@ -1357,6 +1358,8 @@ def export_word_docx(
             image_source = _docx_image_source(db, doc, package)
         except ExportImageUnavailable as unavailable:
             logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
+            if skipped is not None:
+                skipped.append((doc.name, unavailable.why))
             image_source = None
             text = f"[Image not included: {unavailable.why}]\n\n{text}"
         if image_source:
@@ -1985,12 +1988,16 @@ class ExportImageUnavailable(ValueError):
         self.why = why
 
 
-def _why_image_unavailable(doc: Document) -> str:
-    """In words: no recorded file, not at its recorded place, not readable by this engine, or outside what it may open."""
+def _why_image_unavailable(doc: Document, package_path: Path | None = None) -> str:
+    """In words: no recorded file, not at its recorded place, not readable by this engine, or outside what it may open. A
+    package-relative path ("files/…") is looked for under the package, not the process's directory."""
     if not doc.path:
         return "no recorded file for this page"
+    recorded = Path(doc.path).expanduser()
+    if not recorded.is_absolute() and package_path is not None:
+        recorded = package_path / recorded
     try:
-        os.stat(doc.path)
+        os.stat(recorded)
     except FileNotFoundError:
         return "not found at its recorded place (moved or deleted)"
     except PermissionError:
@@ -2004,7 +2011,7 @@ def _require_image_source(db: Database, doc: Document, package_path: Path | None
     source = resolve_edited_source(doc, db)
     if source is not None and source.exists() and source.is_file():
         return source
-    error = ExportImageUnavailable(doc, _why_image_unavailable(doc))
+    error = ExportImageUnavailable(doc, _why_image_unavailable(doc, package_path or db.path.parent))
     logger.error(str(error))
     raise error
 

@@ -3276,6 +3276,7 @@ class _Scheduler:
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
         _current.lane = lane.name
+        _current.done_note = None
         _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         # The job's project is the project its model calls belong to (the egress gate, #5368): a worker thread does not
         # carry the caller's context, and a stored job has none.
@@ -3291,6 +3292,7 @@ class _Scheduler:
             if stopping:  # a person stopped this page while it ran: what it made is dropped, and its run goes on
                 result = None
                 raise PageStopped(stopped_by(job_id))
+            reason = getattr(_current, "done_note", None)  # a job that finished with something to say (`note_done`)
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except WorkflowPaused as exc:  # its run was paused while the page waited (an MLX memory wait): paused, not failed
@@ -3366,6 +3368,11 @@ def stop(key: str | None, timeout: float = STOP_TIMEOUT_SECONDS) -> list[threadi
         logger.warning("%d job thread(s) still finishing a job after %.1fs: %s", len(left), timeout,
                        ", ".join(t.name for t in left))
     return left
+
+
+def note_done(words: str) -> None:
+    """The running job, when it finishes `done`, keeps these words as its reason ("2 image(s) left out"); a no-op outside a job."""
+    _current.done_note = words
 
 
 def is_queued_or_running(db, kind: str, subject: str) -> bool:
