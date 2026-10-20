@@ -129,6 +129,17 @@ class InviteRedeemClient(BaseModel):
     host: str = Field(default="", max_length=120)
 
 
+#: A new account's password (made by an owner or chosen at an invite) is at least this long (`sharing.settings.accounts-add-sheet`).
+MIN_NEW_PASSWORD_LENGTH = 8
+
+
+def _require_new_password_length(password: str | None) -> None:
+    """422 in words when a NEW account's password is too short; no schema change, so no OpenAPI regen."""
+    if password is not None and len(password) < MIN_NEW_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=422, detail=f"Use at least {MIN_NEW_PASSWORD_LENGTH} characters for the password")
+
+
 class InviteRedeemRequest(BaseModel):
     """Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).
 
@@ -598,6 +609,7 @@ def redeem_invite(
     _multiuser_disabled()
     if body.public_key_pem is None and body.new_password is None:
         raise HTTPException(status_code=422, detail="a password or a public key is required")
+    _require_new_password_length(body.new_password)
     if body.public_key_pem is not None and (body.client is None or not _is_p256_public_key(body.public_key_pem)):
         raise HTTPException(status_code=422, detail="a P-256 public_key_pem needs a client")
 
@@ -765,6 +777,7 @@ def create_user(
     display_name = body.display_name.strip()
     if not username or not display_name:
         raise HTTPException(status_code=422, detail="username and display_name are required")
+    _require_new_password_length(body.password)
 
     if app_db.username_taken(username):  # case-folded: 'CAROL' beside 'carol' is the same name taken
         raise HTTPException(status_code=409, detail="username already exists")
