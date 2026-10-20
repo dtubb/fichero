@@ -630,6 +630,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/launch_secret.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/multiuser.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/path_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/provider_keys.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/real_data_guard.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_access_tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_backend.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/revocation.py
