@@ -2307,13 +2307,14 @@ def _make_parallel_node_function(
 
 
 def is_systemic(total: int, error_count: int, max_consecutive: int, refused_all: bool = False) -> bool:
-    """Whether a run of failures is a fundamental problem rather than a few bad scans. Five in a row (blank versos, a
-    damaged folder) abort a small batch, but on a batch of MIN_FILES_FOR_ERROR_RATE or more only when most of it failed
-    too, so the verdict does not depend on the page order (`activity.run.systemic-error-rule`)."""
+    """Whether a run of failures is a fundamental problem rather than a few bad scans (`activity.run.systemic-error-rule`):
+    five in a row (blank versos, a damaged folder) on a batch under MIN_FILES_FOR_ERROR_RATE, OR more than half of a batch
+    of that many or more. A large batch is judged by its rate alone, so the verdict does not depend on the page order."""
     if refused_all:  # the same for every page: stop at the first
         return True
-    rate = error_count / total if total else 0
-    return max_consecutive >= MAX_CONSECUTIVE_ERRORS and (total < MIN_FILES_FOR_ERROR_RATE or rate > ERROR_RATE_THRESHOLD)
+    if total < MIN_FILES_FOR_ERROR_RATE:
+        return max_consecutive >= MAX_CONSECUTIVE_ERRORS
+    return error_count / total > ERROR_RATE_THRESHOLD
 
 
 def _make_aggregation_function(node_id: str):

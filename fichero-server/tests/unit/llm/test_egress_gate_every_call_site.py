@@ -172,12 +172,15 @@ def _network_functions() -> set[str]:
     for path in scan_files.scan_rglob(SRC, "*.py"):
         for fn in ast.walk(ast.parse(path.read_text())):
             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                gated = any(g in ast.unparse(fn) for g in _GATES)
+                # The gate must be CALLED before the function's first network call (review 456: a gate after the call, or
+                # a name that only appears in a string, gated nothing).
+                gate_lines = [n.lineno for n in ast.walk(fn) if isinstance(n, ast.Call)
+                              and getattr(n.func, "id", getattr(n.func, "attr", "")) in _GATES]
                 for n in ast.walk(fn):
                     if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                             and isinstance(n.func.value, (ast.Name, ast.Attribute))):
                         base = n.func.value.id if isinstance(n.func.value, ast.Name) else n.func.value.attr
-                        if (base, n.func.attr) in _NET and not gated:
+                        if (base, n.func.attr) in _NET and not (gate_lines and min(gate_lines) < n.lineno):
                             found.add(f"{path.relative_to(SRC)}::{fn.name}")
     return found
 
@@ -192,13 +195,14 @@ def test_every_function_that_opens_a_connection_is_gated_or_listed_with_its_reas
 @pytest.mark.parametrize("place, call", [
     ("cloud", lambda: __import__("fichero_server.media.geo", fromlist=["x"])._geocode_online("Quito", timeout=1)),
     ("cloud", lambda: asyncio.run(__import__("fichero_server.bibliography.doi_lookup", fromlist=["x"]).resolve_doi("10.1/x"))),
+    ("cloud", lambda: asyncio.run(__import__("fichero_server.bibliography.doi_lookup", fromlist=["x"]).resolve_isbn("9780140449136"))),
 ])
 def test_a_lookup_that_degrades_returns_nothing_instead_of_sending_when_the_cloud_is_not_allowed(
         client, app_db, monkeypatch, place, call):
     import httpx
 
     monkeypatch.setattr(httpx, "get", lambda *a, **k: pytest.fail("a place name left the Mac"))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: pytest.fail("a DOI left the Mac"))
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: pytest.fail("a DOI or an ISBN left the Mac"))
     client.put("/api/recipes/places", json={"places": []})
     assert not call()
 
