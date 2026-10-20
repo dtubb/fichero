@@ -68,6 +68,15 @@ extension AppState {
         return "Fichero's engine didn't answer its health check for about \(seconds) seconds\(busy), so the app is restarting it.\(why)"
     }
 
+    /// The sentence for a restart now, taking the kept previous stall with it: a stall is said once, so a second restart
+    /// without a new stall from the engine says nothing about it.
+    static func takeRestartSentence(failures: Int, busyWithImport: Bool) -> String {
+        let sentence = restartSentence(failures: failures, busyWithImport: busyWithImport,
+                                       previousStall: ConnectionPresentation.lastPreviousStall)
+        ConnectionPresentation.lastPreviousStall = nil
+        return sentence
+    }
+
     func noteHeartbeatFailure(reason: String) async {
         heartbeatFailureCount += 1
         // A BUSY engine is not a dead engine (2026-08-09): heavy ingest
@@ -110,9 +119,8 @@ extension AppState {
         switch Self.supervisedDropOutcome(for: EngineConfig.engineProvisioningStrategy()) {
         case .autoRestart:
             if let onDropped = onSupervisedBackendDropped {
-                ConnectionPresentation.lastRestartReason = Self.restartSentence(
-                    failures: heartbeatFailureCount, busyWithImport: importsRunning,
-                    previousStall: ConnectionPresentation.lastPreviousStall)
+                ConnectionPresentation.lastRestartReason = Self.takeRestartSentence(
+                    failures: heartbeatFailureCount, busyWithImport: importsRunning)
                 logger.warning(
                     """
                     Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures \
