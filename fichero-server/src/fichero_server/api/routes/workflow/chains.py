@@ -667,7 +667,6 @@ async def execute_chain(
     chain_id: str,
     request: ExecuteChainRequest,
     http_request: Request,
-    background_tasks: BackgroundTasks,
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> ChainExecutionResponse:
     """Execute a workflow chain.
@@ -681,54 +680,16 @@ async def execute_chain(
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     assert_library_read_authorized(http_request, x_fichero_library_path)
+    if not chain.steps:
+        raise HTTPException(status_code=400, detail="Chain has no steps to run")
 
-    # Create workflow loader for this library
-    workflow_loader = _create_workflow_loader(x_fichero_library_path)
-
-    # Create executor
-    executor = ChainExecutor(
-        workflow_loader=workflow_loader,
-        event_callback=_on_chain_event,
-    )
-
-    # Generate execution ID
-    execution_id = str(uuid.uuid4())
-
-    # Initialize tracking with eviction
-    _execution_order.append(execution_id)
-    _evict_old_executions()
-    _execution_events[execution_id] = []
-    _running_executions[execution_id] = ChainExecutionResult(
-        chain_id=chain_id,
-        execution_id=execution_id,
-        status=ChainStepStatus.PENDING,
-    )
-    _running_executors[execution_id] = executor
-
-    # Define background task
-    async def run_chain():
-        try:
-            initial_inputs = dict(request.inputs)
-            initial_inputs["library_path"] = x_fichero_library_path
-            result = await executor.execute(
-                chain=chain,
-                initial_inputs=initial_inputs,
-                initial_files=request.input_files,
-            )
-            _running_executions[execution_id] = result
-        except Exception as e:
-            logger.exception(f"Chain execution failed: {e}")
-            _running_executions[execution_id] = ChainExecutionResult(
-                chain_id=chain_id,
-                execution_id=execution_id,
-                status=ChainStepStatus.FAILED,
-            )
-        finally:
-            _running_executors.pop(execution_id, None)
-
-    # Start in background
-    background_tasks.add_task(run_chain)
-
+    # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
+    # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
+    # entry_step and output mappings are the old executor's graph semantics and are not applied here.
+    inputs = dict(request.inputs)
+    if request.input_files:
+        inputs.setdefault("input_files", request.input_files)
+    execution_id, _step_threads = _start_chain(chain, inputs, x_fichero_library_path)
     return ChainExecutionResponse(
         execution_id=execution_id,
         chain_id=chain_id,
@@ -844,6 +805,16 @@ class _ChainStepsCanceller:
     @property
     def cancelled(self) -> bool:
         return self._cancelled
+
+
+def _note_chain(db: Any, what: str, *args: Any, **kwargs: Any) -> None:
+    """A chain's row in Activity (`jobs.record_chain` / `jobs.set_parent`): the run goes on if the row cannot be written."""
+    from fichero_server.execution import jobs  # noqa: PLC0415
+
+    try:
+        getattr(jobs, what)(db, *args, **kwargs)
+    except Exception:  # noqa: BLE001 -- Activity's row is the account of the run, never its gate
+        logger.warning("could not write the chain's %s row", what, exc_info=True)
 
 
 def stop_chain(execution_id: str) -> None:
@@ -995,10 +966,8 @@ async def _run_chain_steps(
         message=f"Starting chain '{chain.name}' with {len(chain.steps)} steps",
     )
 
-    from fichero_server.execution import jobs  # noqa: PLC0415
-
     db = _acquire_chain_db(library_path)
-    jobs.record_chain(db, execution_id, status="running", name=chain.name)
+    _note_chain(db, "record_chain", execution_id, status="running", name=chain.name)
     for index, (step, thread_id) in enumerate(step_threads):
         if failed or canceller.cancelled:
             # Later chips stay visibly un-run: the rail shows exactly where
@@ -1041,7 +1010,7 @@ async def _run_chain_steps(
             try:
                 canceller.current_thread = thread_id
                 await _record_step_run_accepted(db, thread_id, workflow, exec_request)
-                jobs.set_parent(db, thread_id, execution_id)  # the step's run shows under the chain in Activity
+                _note_chain(db, "set_parent", thread_id, execution_id)  # the step's run shows under the chain in Activity
                 await _run_step_workflow(
                     thread_id=thread_id,
                     workflow=workflow,
@@ -1096,8 +1065,8 @@ async def _run_chain_steps(
         result.total_duration_ms = (
             result.completed_at - result.started_at
         ).total_seconds() * 1000
-    jobs.record_chain(db, execution_id, status=result.status.value, name=chain.name,
-                      reason=next((r.error for r in result.step_results if r.error), None))
+    _note_chain(db, "record_chain", execution_id, status=result.status.value, name=chain.name,
+                reason=next((r.error for r in result.step_results if r.error), None))
 
 
 def _chain_steps_thread_main(
@@ -1133,8 +1102,6 @@ def _start_chain(chain: WorkflowChain, inputs: dict[str, Any], library_path: str
     """Start a chain's steps as real, sequential runs of the one runner on their own thread, under a chain row in
     Activity (`activity.run.one-way-to-run`); returns the execution id and each step's pre-assigned thread id. Both
     `/execute` and `/execute-steps` start here."""
-    from fichero_server.execution import jobs  # noqa: PLC0415
-
     # Register per-step workflow state UP FRONT (light import — dict writes
     # and a hub), so a client can attach to a step's SSE stream before the
     # step starts and the stream endpoint recognizes the thread.
@@ -1199,7 +1166,7 @@ def _start_chain(chain: WorkflowChain, inputs: dict[str, Any], library_path: str
         daemon=True,
     )
     _running_step_threads[execution_id] = runner
-    jobs.record_chain(_acquire_chain_db(library_path), execution_id, status="pending", name=chain.name)
+    _note_chain(_acquire_chain_db(library_path), "record_chain", execution_id, status="pending", name=chain.name)
     runner.start()
     return execution_id, step_threads
 
