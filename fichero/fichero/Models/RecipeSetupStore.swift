@@ -147,6 +147,12 @@ final class RecipeSetupStore {
         cloudAllowed || !(recipe?.cloudOptions ?? []).isEmpty
     }
 
+    /// What each step a cloud model would fit would send, to whom, for how many pages, at what cost: the engine's own
+    /// sentences (`source.onboard.egress-asked-once`), shown under the question.
+    var cloudOfferSentences: [String] {
+        (recipe?.cloudOffer ?? []).map(\.sentence)
+    }
+
     /// The purposes, once, in the engine's order.
     func loadPurposes() async {
         guard purposeOptions.isEmpty else { return }
