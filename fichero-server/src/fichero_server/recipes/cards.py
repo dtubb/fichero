@@ -70,6 +70,10 @@ def kraken_reader_for(pin: dict) -> str | None:
 
     if pin.get("trained"):  # a reader Fichero trained and adopted for this project (#5700)
         return str(pin["trained"])
+    if pin.get("trocr"):  # a TrOCR model from Hugging Face, reading the lines Kraken found (#5981)
+        from fichero_server.llm.trocr_runtime import reader_id_for_trocr
+
+        return reader_id_for_trocr(str(pin["trocr"]))
     if pin.get("kraken_hf"):  # a Kraken reader hosted on Hugging Face
         from fichero_server.llm.kraken_runtime import reader_id_for_hub
 

@@ -4840,14 +4840,20 @@ async def process_vision(
                             granularity=read_granularity,
                         )
                     from fichero_server.llm import kraken_runtime as _kr
+                    from fichero_server.llm import trocr_runtime as _tr
 
-                    _model_path, _model_id = _kr.resolve_recognition_model(kraken_recognition_model)
-                    _stamp = _model_id or _model_path
-                    geometry = _wl.as_geometry(found, _w, _h, provider="kraken", model=_stamp)
+                    _trocr_repo = _tr.repo_of(kraken_recognition_model)
+                    if _trocr_repo:  # a TrOCR model reads the lines Kraken found (`.model-search-trocr-runs-here`, #5981)
+                        _stamp, _provider = _trocr_repo, "trocr"
+                    else:
+                        _model_path, _model_id = _kr.resolve_recognition_model(kraken_recognition_model)
+                        _stamp, _provider = _model_id or _model_path, "kraken"
+                    geometry = _wl.as_geometry(found, _w, _h, provider=_provider, model=_stamp)
                     _px = [_wl.in_pixels(row, _w, _h) for row in found.lines]
                     _texts = await run_on_lane(
-                        library_path, "read-a-line", subject, model=f"kraken:{_stamp}", run_id=task_id,
-                        fn=lambda: _kr.read_given_lines(image_path, _model_path, _px),
+                        library_path, "read-a-line", subject, model=f"{_provider}:{_stamp}", run_id=task_id,
+                        fn=(lambda: _tr.read_lines(image_path, _trocr_repo, _px)) if _trocr_repo
+                        else (lambda: _kr.read_given_lines(image_path, _model_path, _px)),
                     )
                     _boxes, _joined, _cursor, _blank = [], [], 0, []
                     for _box, _text in zip(geometry.boxes, _texts):

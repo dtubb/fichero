@@ -507,18 +507,13 @@ async def list_stages(request: Request) -> SetupStageList:
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
 
-def _where_facts(request: Request) -> tuple[float | None, bool, list[str]]:
+def _where_facts(request: Request) -> tuple[float, bool, list[str]]:
     """(this Mac's memory in GB, whether a Hugging Face account is set up, the clusters set up here this caller may see),
-    for the places each candidate lists (#5976). Never the network; a fact that cannot be read is None / False / none."""
+    for the places each candidate lists (#5976). Never the network."""
     from fichero_server.recipes.discovery import remote_compute
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
 
-    try:
-        from fichero_server.llm.kraken_runtime import _physical_memory_bytes
-
-        total = _physical_memory_bytes()
-        mac = round(total / 1024**3, 1) if total else None
-    except Exception:  # noqa: BLE001 -- unknown memory: no option is refused for it
-        mac = None
+    mac = this_mac_memory_gb()
     return mac, bool(remote_compute(price=False)["available"]), _cluster_names(request)
 
 

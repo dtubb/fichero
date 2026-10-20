@@ -35,6 +35,8 @@ def _kind(card: Card) -> str:
     if card.runs_on == REMOTE_RUNS_ON:
         return "vlm"
     pin = card.pin
+    if pin.get("trocr"):
+        return "trocr"
     if set(pin) & {"zenodo", "kraken_hf", "trained", "kraken_version", "builtin"}:
         return "kraken"
     if pin.get("hf"):
@@ -53,21 +55,26 @@ def places_it_can_run(card: Card, *, this_mac_gb: float | None, hf_ready: bool,
     if kind == "cloud":
         provider = card.runs_on.split(":", 1)[1]
         return [_option(PROVIDER, provider, True, needs="an account and key at the provider; the pages leave this Mac")]
-    size = f"about {_gb(card.size_gb)} to download" if card.size_gb else "size not stated"
+    size = f"about {_gb(card.size_gb)} to download" if card.size_gb else ""
     if kind == "kraken":
-        return [_option(THIS_MAC, "this Mac", True, needs=f"Kraken, which ships with Fichero; {size}"),
+        return [_option(THIS_MAC, "this Mac", True, needs="; ".join(filter(None, ["Kraken, which ships with Fichero", size]))),
                 _option(HF_JOBS, HF_NAME, hf_ready, needs="a Hugging Face account; Kraken runs in the Job",
                         why="" if hf_ready else NO_HF),
                 *[_option(CLUSTER, c, True, needs="Kraken installed in the job's environment; a login to the cluster",
                           blocked=CLUSTER_BLOCKED) for c in clusters]]
+    if kind == "trocr":
+        why = "no TrOCR reader runs there yet: the remote reader loads vision-language models and Kraken readers only"
+        return [_option(THIS_MAC, "this Mac", True, needs="; ".join(filter(None, ["torch and transformers, which ship with Fichero", size,
+                                                       "weights download when first used"]))),
+                _option(HF_JOBS, HF_NAME, False, why=why), *[_option(CLUSTER, c, False, why=why) for c in clusters]]
     if kind == "vlm":
-        needs = f"a GPU with room for about {_gb(card.size_gb)} of weights" if card.size_gb else "a GPU; size not stated"
+        needs = f"a GPU with room for about {_gb(card.size_gb)} of weights" if card.size_gb else "a GPU"
         return [_option(THIS_MAC, "this Mac", False, why="it has no MLX build, and this Mac runs MLX builds"),
                 _option(HF_JOBS, HF_NAME, hf_ready, needs=needs, why="" if hf_ready else NO_HF),
                 *[_option(CLUSTER, c, True, needs=needs + "; transformers or vLLM", blocked=CLUSTER_BLOCKED)
                   for c in clusters]]
     if kind == "mlx":
-        needs = f"{_gb(card.memory_gb)} of unified memory" if card.memory_gb else "memory not stated"
+        needs = f"{_gb(card.memory_gb)} of unified memory" if card.memory_gb else ""
         fits = not (card.memory_gb and this_mac_gb is not None and card.memory_gb > this_mac_gb)
         why = "" if fits else f"needs {_gb(card.memory_gb)}; this Mac has {_gb(this_mac_gb or 0)}"
         mlx_only = "an MLX build runs only on a Mac"
