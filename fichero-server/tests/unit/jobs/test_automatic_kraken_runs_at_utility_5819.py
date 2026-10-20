@@ -50,3 +50,11 @@ def test_other_automatic_work_in_the_same_state_still_picks_background(qos):
 def test_a_persons_kraken_page_is_still_fast(qos):
     assert kraken_runtime.set_page_priority(person=True) == ("fast", "user-initiated", 8)
     assert qos == ["fast"]
+
+
+def test_a_persons_own_background_setting_with_the_mac_idle_stays_background(qos, monkeypatch):
+    monkeypatch.setattr(throttle, "seconds_since_input", lambda: 600.0)  # idle: the throttle chose balanced, not background
+    monkeypatch.setattr("fichero_server.core.compute_preferences.stored_preferences",
+                        lambda: {"priority": "background", "device": "auto"})
+    assert kraken_runtime.set_page_priority(person=False) == ("background", "background", 2)
+    assert qos == ["background"]

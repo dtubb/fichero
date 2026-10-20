@@ -874,13 +874,14 @@ _QOS = {"fast": "user-initiated", "balanced": "utility", "background": "backgrou
 
 def set_page_priority(person: bool) -> tuple[str, str, int]:
     """Set this thread's priority for one page: (priority, the QoS class it got, the cores to use). Automatic Kraken
-    reading, which the throttle would put at the lowest class while the Mac is used or a build runs, goes at utility QoS
-    with the same few threads (owner ruling 2026-10-20, `activity.throttle.use-means-slower`); every other priority
-    and all other automatic work are untouched."""
+    reading that the THROTTLE put at the lowest class (the Mac is used or a build runs) goes at utility QoS with the
+    same few threads (owner ruling 2026-10-20, `activity.throttle.use-means-slower`). A person's own Settings choice of
+    background, every other priority and all other automatic work are untouched."""
     from fichero_server.core.compute_preferences import apply_to_this_thread, priority_for
+    from fichero_server.execution.throttle import decide
 
     priority = priority_for(person)
-    lifted = priority == "background" and not person
+    lifted = priority == "background" and not person and decide(person).priority == "background"
     cores = apply_to_this_thread(priority, lift_to_utility=lifted)
     return priority, "utility" if lifted else _QOS.get(priority, "?"), cores
 
