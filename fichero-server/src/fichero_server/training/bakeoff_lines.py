@@ -99,6 +99,26 @@ def winning_lines(lines_json: str | Path, *, winner: str) -> Winning:
     return Winning(kept, dict(left))
 
 
+def drop_lines_a_person_checked(winning: Winning, pages_dir: str | Path, person_keys: set[str]) -> Winning:
+    """The bake-off's staged lines without those a person already chose or typed (`source.compare.pick-is-a-training-line`):
+    a line in both sets is the person's, kept once. Matched by `line_key` (page picture bytes and the line's polygon in
+    whole pixels). The count of lines dropped is in `left_out["also_a_persons_line"]`."""
+    from fichero_server.training.line_key import image_digest, line_key
+
+    digests: dict[str, str] = {}
+    kept: list[WinningLine] = []
+    for line in winning.lines:
+        if line.page not in digests:
+            digests[line.page] = image_digest(Path(pages_dir) / line.page)
+        if line_key(digests[line.page], line.polygon) not in person_keys:
+            kept.append(line)
+    dropped = len(winning.lines) - len(kept)
+    left = dict(winning.left_out)
+    if dropped:
+        left["also_a_persons_line"] = left.get("also_a_persons_line", 0) + dropped
+    return Winning(kept, left)
+
+
 def _git_work_tree_above(path: Path) -> Path | None:
     """The nearest folder at or above `path` that is a git work tree (it has a .git, a folder or a worktree's file)."""
     for parent in (path, *path.parents):

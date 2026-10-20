@@ -1692,7 +1692,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* test, when built: `test_compare_pick_5900`:
   the pick calls `reading.choose` with the reading's id (and no second action exists); a model is refused (403); a stale view is
   refused (409) and writes nothing; one undo; a typed correction and a choice both give `picked_by_person`.
-- `source.compare.pick-is-a-training-line` — **[GAP]** (#5900) a line whose counting reading a person chose or typed is a line a person
+- `source.compare.pick-is-a-training-line` — **[OK]** (#5900; built, engine only, no API change; `training/kraken_set.py` `line_makers`, `training/line_key.py`, `bakeoff_lines.drop_lines_a_person_checked`; the manifest's `lines_typed_by_a_person` / `lines_chosen_by_a_person`; the dropped count is the bake-off's `left_out["also_a_persons_line"]`) a line whose counting reading a person chose or typed is a line a person
   checked, so it is a training line with `checked_by_person` true. The Kraken set made from the person's own readings (teacher `person`,
   `training/kraken_set.py` `PERSON`) takes it with no other step, which EXTENDS that teacher: today it takes the lines whose counting
   reading a person *made*; it also takes those whose counting reading a person *chose* among machine readings (the choice record,
@@ -1700,7 +1700,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   (`compute.tune.bootstrapped-data-is-marked`). The bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`)
   are the other source and stay marked as a model's reading. **Dedupe:** both carry a `line_key`, the SHA-256 of the page image's
   bytes and the line's polygon rounded to whole pixels; when a line is in both, the person's is kept and the bake-off row is dropped
-  before staging, and the count says how many were dropped. *Test:*
+  before staging, and the count says how many were dropped. *Test (green on the M4):*
   `test_compare_pick_5900.py::test_a_pick_is_in_the_persons_training_set_and_a_model_reading_is_not` and `::test_a_line_in_both_sets_is_counted_once_as_the_persons`.
 - `source.compare.segments-mode` — **[GAP]** (#5900; the app, after the engine and the tool) the Segments pane has a Compare
   mode beside its existing modes (a toggle in the pane's toolbar, remembered with the pane's state): a list of the page's
