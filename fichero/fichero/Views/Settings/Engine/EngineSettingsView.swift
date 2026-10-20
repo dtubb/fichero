@@ -1,73 +1,81 @@
 #if canImport(AppKit)
 import SwiftUI
 
+/// Settings › Server (`sharing.settings.three-panes`, #5928): the engine's status with its one button, its storage, and a
+/// collapsed Advanced for a hand-run engine's address and who has connected. Nothing else.
 struct EngineSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(EmbeddedBackendService.self) var backendService
     @Environment(LibraryManager.self) var libraryManager
+    @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var storageStats: StorageStats?
-    @State private var isLoadingStats = false
     @State private var isRestarting = false
     @State private var restartError: String?
+    @State private var advanced = ServerAdvancedModel()
+    @State private var clients: [String] = []
 
     var body: some View {
         Form {
             Section {
                 LabeledContent("Status") {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Circle()
                             .fill(appState.isBackendRunning ? Color.green : Color.red)
                             .frame(width: 8, height: 8)
-                        Text(appState.isBackendRunning ? "Running" : "Stopped")
-                    }
-                }
-
-                LabeledContent("Project") {
-                    HStack {
-                        Text(libraryDescription)
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                        Text(ServerSettingsText.status(running: appState.isBackendRunning))
                         Button(isRestarting ? "Restarting…" : "Restart") {
                             Task { await restartEngine() }
                         }
-                        .disabled(isRestarting || !EngineConfig.engineIsLocal)
+                        .disabled(!ServerSettingsText.canRestart(isRestarting: isRestarting, engineIsLocal: EngineConfig.engineIsLocal))
                     }
                 }
-
-                if isLoadingStats {
-                    LabeledContent("Storage") {
-                        ProgressView().controlSize(.small)
-                    }
-                } else if let stats = storageStats {
+                if let stats = storageStats {
                     LabeledContent("Storage") {
                         Text(ByteCountFormatter.string(fromByteCount: stats.totalSize, countStyle: .file))
                             .foregroundStyle(.secondary)
                     }
                 }
-            } footer: {
                 if let restartError {
                     Text(restartError).foregroundStyle(.red).font(.caption)
-                } else {
-                    Text("Fichero's server indexes, searches, transcribes, and runs workflows for this project.")
-                        .font(.caption)
+                }
+            }
+            Section {
+                DisclosureGroup("Advanced") {
+                    TextField("Server URL", text: $advanced.draft, prompt: Text("Built-in"))
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .onSubmit { Task { await applyServerURL() } }
+                    if let problem = advanced.problem {
+                        Text(problem).font(.caption).foregroundStyle(.red)
+                    } else if let error = advanced.error {
+                        Text(error).font(.caption).foregroundStyle(.red)
+                    }
+                    if let line = ServerSettingsText.clientsLine(clients) {
+                        LabeledContent("Clients") { Text(line).foregroundStyle(.secondary) }
+                    }
                 }
             }
         }
         .formStyle(.grouped)
+        .onAppear { advanced.sync(stored: engineHost) }
+        .onChange(of: engineHost) { _, stored in advanced.sync(stored: stored) }
         .task {
-            // Refresh the engine's real multi-user state (single source of truth,
-            // #3331) and align the desired toggle to it so the control reflects
-            // reality on open; an explicit toggle afterward is a pending change.
             await appState.identityStore.load()
             await loadStorageStats()
+            await loadClients()
         }
     }
 
-    private var libraryDescription: String {
-        EngineConfig.requiresExternalBackendConnection
-            ? "Connected to a shared Fichero project."
-            : "Local engine for this Mac."
+    /// Return commits: the same stop, write, repoint, start, check and roll-back as Connect to Another Mac (#5916).
+    private func applyServerURL() async {
+        await advanced.commit(stored: engineHost) { from, to, notResponding in
+            try await EngineHostSwitch.standard(
+                appState: appState, backendService: backendService, libraryManager: libraryManager,
+                setHost: { engineHost = $0 }
+            ).run(from: from, to: to, notResponding: notResponding)
+        }
+        advanced.sync(stored: engineHost)
     }
 
     private func restartEngine() async {
@@ -80,8 +88,6 @@ struct EngineSettingsView: View {
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
-            // Re-read the engine's real multi-user state so the status line and the
-            // toggle reflect what the restarted engine is actually enforcing (#3331).
             await appState.identityStore.load()
         } catch {
             restartError = error.localizedDescription
@@ -89,10 +95,13 @@ struct EngineSettingsView: View {
     }
 
     private func loadStorageStats() async {
-        isLoadingStats = true
-        defer { isLoadingStats = false }
         guard let storageService = libraryManager.globalLibrary?.storageService else { return }
         storageStats = try? await storageService.getStats()
+    }
+
+    private func loadClients() async {
+        let records = (try? await PairingService(apiRoot: EngineConfig.host).connectedClients()) ?? []
+        clients = records.map(\.client)
     }
 }
 #endif

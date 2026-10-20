@@ -37,41 +37,15 @@ private struct SettingsGroupContainer<Section: SettingsGroupSection, Content: Vi
     }
 }
 
-private enum EngineGroupSection: String, CaseIterable, SettingsGroupSection {
-    case engine = "Server"
-    case backend = "Backend"
-    var id: String { rawValue }
-    var label: String { rawValue }
-}
-
-/// Engine tab (#3396): folds the former Backend tab in as a sub-section. Reuses
-/// EngineSettingsView + BackendSettingsView unchanged.
+/// Server tab (`sharing.settings.three-panes`, #5928): one pane, no sub-picker. The former Backend tab (a second status, seven
+/// statistics rows, a second path to the engine host) is gone; its Advanced field lives in `EngineSettingsView`.
 struct EngineGroupSettingsView: View {
-    @State private var selection: EngineGroupSection = .engine
-
-    private var availableSections: [EngineGroupSection] {
-        // Engine + Backend are real capabilities; their existence no longer hangs
-        // off per-feature migration flags (#3811/#3776). The sidebar row gate
-        // (`SettingsView.showsTesterSettingsPane`) decides reachability per build.
-        var sections: [EngineGroupSection] = []
-        #if canImport(AppKit)
-        sections.append(.engine)
-        #endif
-        sections.append(.backend)
-        return sections
-    }
-
     var body: some View {
-        SettingsGroupContainer(sections: availableSections, rawSelection: $selection) { section in
-            switch section {
-            case .engine:
-                #if canImport(AppKit)
-                EngineSettingsView()
-                #endif
-            case .backend:
-                BackendSettingsView()
-            }
-        }
+        #if canImport(AppKit)
+        EngineSettingsView()
+        #else
+        EmptyView()
+        #endif
     }
 }
 
