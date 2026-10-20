@@ -491,9 +491,45 @@ def _rank(rows: list[dict[str, Any]], material: str, volume: int) -> list[dict[s
     return ranked
 
 
+def recommend(rows: list[dict[str, Any]], *, volume: int, noise_band: float) -> dict[str, Any] | None:
+    """What Set Up recommends from the measured rows (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922):
+    the reader that reads best by more than the project's noise band; when a local or cheaper reader is within the
+    band of the best, that one, and the reason is said in words. Cost is shown per page and for the whole set. Only
+    measured rows are weighed; none measured, no recommendation."""
+    measured = [r for r in rows if r.get("measured") and r.get("cer") is not None]
+    if not measured:
+        return None
+    best = min(measured, key=lambda r: r["cer"])
+    within = [r for r in measured if r["cer"] - best["cer"] <= noise_band + 1e-12]
+
+    def price(r: dict[str, Any]) -> float:
+        value = (r.get("cost_usd") or {}).get("value")
+        return math.inf if value is None else value
+
+    # Within the band the cheaper wins (a reader on this Mac costs nothing); an unpriced one is last.
+    chosen = min(within, key=lambda r: (not r.get("local"), price(r), r["cer"]))
+    set_cost = (chosen.get("cost_usd") or {}).get("value")
+    per_page = None if set_cost is None or not volume else round(set_cost / volume, 4)
+    name = chosen.get("name") or "this reader"
+    where = "on this Mac" if chosen.get("local") else f"at {chosen.get('runs_on') or 'a remote service'}"
+    if per_page is None:
+        cost = "price not known"
+    else:
+        cost = f"${per_page:.2f} per page, ${set_cost:.2f} for the {volume} pages"
+    if chosen is best:
+        sentence = (f"{name} reads best by more than the noise band: {cost}, {where}." if len(within) == 1
+                    else f"{name} reads best: {cost}, {where}.")
+    else:
+        sentence = (f"{name} reads within the noise band of {best.get('name') or 'the best reader'} for {cost}, {where}.")
+    return {"card": chosen["card"], "name": name, "cer": chosen["cer"], "local": bool(chosen.get("local")),
+            "runs_on": chosen.get("runs_on"), "cost_per_page_usd": per_page, "cost_set_usd": set_cost,
+            "within_noise_band_of": None if chosen is best else best["card"], "sentence": sentence}
+
+
 def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
     """The comparison: the record, the job's state and the ranked table, read from the cards."""
     from fichero_server.execution import jobs
+    from fichero_server.recipes.project import read_noise_band
     from fichero_server.training.evaluation import model_evaluations, no_winner_why
 
     record = read_record(library, bakeoff_id)
@@ -531,7 +567,9 @@ def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
     return {**{k: record[k] for k in ("id", "job_id", "step", "started_at", "pages", "left_out", "lines")},
             "state": state, "reason": job["reason"] if job else None, "rows": ranked,
             "winner": winning["card"] if winning else None,
-            "winner_granularity": winning["granularity"] if winning else None, "no_winner_why": no_winner}
+            "winner_granularity": winning["granularity"] if winning else None, "no_winner_why": no_winner,
+            "recommendation": None if waiting or no_winner is not None else recommend(
+                compared, volume=int(record.get("volume") or 0), noise_band=read_noise_band(library)["value"])}
 
 
 # --- Use This --------------------------------------------------------------------------------------------
