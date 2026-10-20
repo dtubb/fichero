@@ -245,6 +245,18 @@ extension ActivityStore {
         return nil
     }
 
+    /// What the pages list is re-read on: the kind row's own count, state and reason, so it follows the queue as it
+    /// drains (the details' `logKey` has no node for a kind row, so it only changes with the row's phase).
+    func queueKey(forRowId id: String) -> String {
+        guard let job = backgroundJobs.first(where: { $0.id == id }) else { return id }
+        return [id, "\(job.current)", "\(job.total)", String(describing: job.state), job.reason ?? ""].joined(separator: "|")
+    }
+
+    /// How many more pages the row stands for than the list holds (the row's own total less what was read).
+    func queuedPagesNotListed(rowId id: String, listed: Int) -> Int {
+        max(0, (backgroundJobs.first(where: { $0.id == id })?.total ?? 0) - listed)
+    }
+
     /// Read the pages queued behind a kind's row; the details call it when the row's count changes. A failed read
     /// keeps the pages already shown.
     func loadQueuedItems(rowId: String, limit: Int = 50) async {
