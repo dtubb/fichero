@@ -17,7 +17,27 @@ BANNED = (
 )
 
 
-def check(text: str, *, long_item: bool = True) -> tuple[list[str], list[str]]:
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+_QUOTE = re.compile(r'"([^"]*)"|\u201c([^\u201d]*)\u201d|\u00ab([^\u00bb]*)\u00bb')
+
+
+def _outside_the_records_words(text: str, source: str | None) -> str:
+    """The text with the quotations that are the record's own taken out. With `source`, a quotation counts as the record's
+    only if it is verbatim in it; the model's own framing in quote marks stays in and is checked. Without `source` every
+    quotation is taken as the record's (nothing to compare with)."""
+    haystack = _squash(source) if source is not None else None
+
+    def keep(match: re.Match) -> str:
+        quoted = next(g for g in match.groups() if g is not None)
+        return " " if haystack is None or _squash(quoted) in haystack else match.group(0)
+
+    return _QUOTE.sub(keep, text)
+
+
+def check(text: str, *, long_item: bool = True, source: str | None = None) -> tuple[list[str], list[str]]:
     """Return (errors, warnings). `long_item` is False for a short formulaic record, which may be shorter."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -27,7 +47,7 @@ def check(text: str, *, long_item: bool = True) -> tuple[list[str], list[str]]:
     elif long_item and words < AIM_MIN_WORDS:
         warnings.append(f"{words} words: under the {AIM_MIN_WORDS}-word aim for a long file or folder")
     # A banned word inside a quotation is the record's own (`catalogue.model-entry-is-concise`): not the model's analysis.
-    lowered = re.sub(r'"[^"]*"|\u201c[^\u201d]*\u201d|\u00ab[^\u00bb]*\u00bb', " ", text).lower()
+    lowered = _outside_the_records_words(text, source).lower()
     for phrase in BANNED:
         if re.search(rf"\b{re.escape(phrase)}\b", lowered):
             errors.append(f"banned analysis word: {phrase!r}")
@@ -52,18 +72,18 @@ def cut_to_cap(text: str) -> str:
     return " ".join(kept) if kept else " ".join(text.split()[:MAX_WORDS])
 
 
-async def enforce(text: str, ask: Callable[[str], Awaitable[str]], *, long_item: bool = True) -> tuple[str, list[str]]:
+async def enforce(text: str, ask: Callable[[str], Awaitable[str]], *, long_item: bool = True, source: str | None = None) -> tuple[str, list[str]]:
     """The entry to store, and the flags it carries. Enforced at write time (#5968), in this order: a finding is sent
     back to the model once (`ask(note)` returns the new answer); an entry still over the cap is cut at a sentence end;
     a banned word that remains is FLAGGED (returned, and logged), never dropped silently. Under 150 only warns."""
-    errors, _ = check(text, long_item=long_item)
+    errors, _ = check(text, long_item=long_item, source=source)
     if errors:
         try:
             text = await ask("Your last answer broke the rules: " + "; ".join(errors) + ". Write it again within them.")
         except Exception as exc:  # the first answer stands; the cut and the flag below still apply
             logger.warning("catalogue entry retry failed (%s)", exc)
     text = cut_to_cap(text)
-    flags = [e for e in check(text, long_item=long_item)[0]]
+    flags = check(text, long_item=long_item, source=source)[0]
     if flags:
         logger.warning("catalogue entry stored FLAGGED: %s", "; ".join(flags))
     return text, flags
