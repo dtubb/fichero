@@ -184,7 +184,8 @@ struct ShareSettingsView: View {
         .task(id: pairingCode?.code) {
             guard didBootstrap, let expiresAt = pairingCode?.expiresAt else { return }
             do { try await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt)) } catch { return }  // the code changed or the card went away
-            guard pairingBlocker == nil else { return }
+            // Sharing was turned off while the code was up: an expired code must not linger on the card.
+            guard pairingBlocker == nil else { pairingCode = nil; return }
             // The old code stays on screen until the new one lands: clearing it first would change this task's key
             // and cancel the renewal itself (review 597).
             switch await PairingCodeRenewal.renew(mint: { try await PairingService(apiRoot: EngineConfig.host).createPairingCode() }) {
