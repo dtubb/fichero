@@ -117,6 +117,9 @@ def _probe_rows(empties, pages, cache, ocr, results) -> None:
 def _summary(arm: str, results: list[dict]) -> dict:
     real = [r for r in results if r["real_word"]]
     count = lambda group, name: sum(1 for r in group if r["read"][name])  # noqa: E731
+    # Per line: read by the variant and NOT by today. A difference of totals would count a line today read and the variant
+    # missed as cancelling one the variant read and today missed.
+    gain = {n: sum(1 for r in real if r["read"][n] and not r["read"]["today"]) for n in VARIANTS if n != "today"}
     errored = {n: sum(1 for r in results if n in r["errors"]) for n in VARIANTS}
     today_share = (count(results, "today") / len(results)) if results else 0.0
     return {"arm": arm, "empties": len(results), "real_word_empties": len(real), "errors": errored,
@@ -125,9 +128,7 @@ def _summary(arm: str, results: list[dict]) -> dict:
             "bar": RESCUE_SHARE,
             # Against `today`, not against zero: Vision reads some of these on a plain re-run (the first probe: 10 of 19
             # real words with the crop unchanged), so only what a variant reads BEYOND today's own re-read is the crop's.
-            "gain_over_today": {n: count(real, n) - count(real, "today") for n in VARIANTS if n != "today"},
-            "decision": {n: bool(real) and (count(real, n) - count(real, "today")) / len(real) >= RESCUE_SHARE
-                         for n in VARIANTS if n != "today"},
+            "gain_over_today": gain, "decision": {n: bool(real) and gain[n] / len(real) >= RESCUE_SHARE for n in gain},
             "lines": results}
 
 
