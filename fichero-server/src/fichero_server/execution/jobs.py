@@ -1018,7 +1018,8 @@ def _insert(db: "Database", kind: str, subject: str, model: str | None, started_
 
 
 def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[[], Any],
-           started_by: str = "workflow", lane: str = "local-ml", run_id: str | None = None) -> Future:
+           started_by: str = "workflow", lane: str = "local-ml", run_id: str | None = None,
+           parent_id: str | None = None) -> Future:
     """Hand the local-model lane one piece of work a caller is WAITING for (a workflow step's
     Kraken page) and return a future for its result.
 
@@ -1039,6 +1040,8 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
         _ensure_step_row(db, parent)
         db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent, job_id])
+    elif parent_id:  # a page of a RECIPE step: it has no workflow node context, so its caller names the row it hangs under
+        db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
     future.job_id = job_id  # type: ignore[attr-defined] -- what `withdraw` cancels
     _scheduler.attach(job_id, fn, future, lane, run_id)
     key = _key(db)
@@ -1309,15 +1312,19 @@ def offer_for(kind: str, state: str, reason: str | None) -> str | None:
 
 
 def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
-                         fn: Callable[[], Any]) -> Any:
-    """`run_on_lane` for a synchronous caller."""
+                         fn: Callable[[], Any], parent_id: str | None = None, run_id: str | None = None) -> Any:
+    """`run_on_lane` for a synchronous caller. `parent_id` is the row the page hangs under when the caller is not a workflow
+    node (a recipe step names its run's row): its tree, its starter (`person_waits_on`) and its Stop are then the run's own.
+
+    Called from a thread that is itself running a job on the model lane, it runs `fn` in place: waiting for a slot of the lane
+    it holds would never end."""
     from fichero_server.core.no_model_in_get import forbid_in_get
 
     forbid_in_get("model work")
     db = _open_library(library_path)
-    if db is None:
+    if db is None or getattr(_current, "lane", None) == "local-ml":
         return fn()
-    return submit(db, kind, subject, model=model, fn=fn).result()
+    return submit(db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id).result()
 
 
 def settle_made_thumbnails(db: "Database") -> int:
@@ -2974,6 +2981,7 @@ class _Scheduler:
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
+        _current.lane = lane.name
         _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
@@ -2993,6 +3001,7 @@ class _Scheduler:
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
         finally:
             _current.job_id = None
+            _current.lane = None
             _current.person = False
             with self._lock:
                 self._stopping.discard(job_id)
