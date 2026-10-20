@@ -67,15 +67,24 @@ class LeftOutPage(BaseModel):
     why: str = Field(description="why it was left out, in words: 'a blank page: its image holds almost no ink'")
 
 
+class FailedPage(BaseModel):
+    """A page a step lost, and why."""
+
+    page: str = Field(description="The page's file name.")
+    reason: str
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
     steps: list[str]
     card: str
     job: Optional[str] = Field(default=None, description="the stage's last job (read-a-line, find-names-tag-words)")
-    state: str = Field(description="waiting, running, done, failed or not run")
+    state: str = Field(description="waiting, running, done, partial (some pages lost; `why` and `failed_pages` say which), failed or not run")
     child_id: Optional[str] = Field(default=None, description="the step's own job: a workflow run or a check run")
     why: Optional[str] = None
+    failed_pages: Optional[list[FailedPage]] = Field(default=None, description=(
+        "a partial step: the pages it lost, each with why (`activity.run.step-honest-about-lost-pages`); null otherwise"))
     account: Optional[RunAccount] = Field(default=None, description=(
         "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its "
         "pages wait for; null for a stage that has not started or is not a workflow run"))
@@ -577,7 +586,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
-        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled")],
+        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled", "partial")],
     )
     seen: set[str] = set()
     for step in status["steps"]:  # each page once, though both a lining and a reading stage left it out

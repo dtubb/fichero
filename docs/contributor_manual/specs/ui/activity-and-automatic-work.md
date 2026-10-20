@@ -1475,6 +1475,7 @@ and node, not by job); a retry action for failed pages.
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
   hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
   reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
+- `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card does not know `partial` yet) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
 - `activity.runner.review-p2-p3` — **[PARTIAL]** (Fable runner review, 2026-10-19; each pinned in `fichero-server/tests/unit/jobs/test_fable_runner_p2.py`)
   #7 reopening a project no longer words a killed batch's row like a page (it reads "The engine stopped before this batch finished";
   runs are settled by `mark_interrupted_runs`); #20 `snapshot` lists a batch once (its own record), as it already did a workflow run;

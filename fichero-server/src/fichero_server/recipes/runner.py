@@ -826,7 +826,7 @@ def _card_pages(db: Any, card: dict[str, Any], units: list[str], tree: _Tree) ->
 
 
 #: How bad a step's end on a batch is: over the batches, the worst end is the step's.
-_WORSE = {"done": 0, "cancelled": 1, "not run": 2, "failed": 3}
+_WORSE = {"done": 0, "partial": 1, "cancelled": 2, "not run": 3, "failed": 4}
 
 
 def _ended_waiting(withdrawn: BaseException) -> tuple[str, str]:
@@ -901,7 +901,7 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running the recipe: {_folders_words(detail)}")
         if halted:  # a step that did nothing on batch after batch: its model is broken, not a page (#5540)
             break
-    finished = sum(1 for s in steps if s["state"] == "done")
+    finished = sum(1 for s in steps if s["state"] in ("done", "partial"))
     total = detail["folders_total"]
     folders = f"; {_folders_words(detail)}" if total else ""
     if _stop_asked(job_id):  # the row ends cancelled, saying who stopped it and what was done (#5609)
@@ -937,21 +937,32 @@ def _note_batch(step: dict[str, Any], batch: dict[str, Any], state: str, child: 
         {"folder": batch["folder"], "state": state, "child_id": child, "why": why})
 
 
-def _did_no_page(db: Any, card: dict[str, Any], child: str | None, scratch: dict[str, Any]) -> tuple[bool, int]:
-    """(whether the step did none of the batch's pages, the pages it failed) from its workflow runs' own accounts
-    (#5555); a run with no account never reached a page. A step that is not a workflow cannot say which pages it
-    did, so it did none."""
+def _did_no_page(db: Any, card: dict[str, Any], child: str | None, scratch: dict[str, Any]
+                 ) -> tuple[bool, int, list[Any]]:
+    """(whether the step did none of the batch's pages, the pages it failed, those pages with why) from its workflow
+    runs' own accounts (#5555); a run with no account never reached a page. A step that is not a workflow cannot say
+    which pages it did, so it did none."""
     if card["card"] != "workflow":
-        return True, 0
+        return True, 0, []
     from fichero_server.workflows import run_account as accounts
 
     children = [r["child_id"] for r in scratch.get("readers") or [] if r.get("child_id")] or [child]
     done = failed = 0
+    lost: list[Any] = []
     for thread_id in children:
         account = asyncio.run(accounts.run_account(db, thread_id)) if thread_id else None
         if account is not None:
             done, failed = done + account.pages_done, failed + account.pages_failed
-    return done == 0, failed
+            lost += account.failures
+    return done == 0, failed, lost
+
+
+def _partial_words(done_pages: int, lost: list[Any], failed: int) -> str:
+    """"2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...": a step that lost pages says which
+    and why (`activity.run.step-honest-about-lost-pages`); the first few named, the rest counted."""
+    named = "; ".join(f"{f.page}: {f.reason}" for f in lost[:3])
+    more = f"; and {failed - 3} more" if failed > 3 else ""
+    return f"{done_pages} of {done_pages + failed} pages done; {failed} failed: {named}{more}"
 
 
 def _halted(cards: list[dict[str, Any]], steps: list[dict[str, Any]]) -> str | None:
@@ -1153,13 +1164,18 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
     if state in ("done", "failed"):
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
-        none_done, pages_failed = _did_no_page(db, card, child, scratch)
+        none_done, pages_failed, lost = _did_no_page(db, card, child, scratch)
+        if state == "done" and pages_failed and step["state"] == "done":
+            # Some pages were lost: the step is PARTIAL, never done, and says which and why.
+            step["state"] = "partial"
+            step["why"] = why = _partial_words(max(0, len(documents) - pages_failed), lost, pages_failed)
+            step["failed_pages"] = [{"page": f.page, "reason": f.reason} for f in lost]
         outright = state == "failed" and none_done
         step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
         if state == "failed" or pages_failed:
             _note_batch(step, batch, state, child, why or (f"{pages_failed} pages failed" if pages_failed else None))
-    if state not in ("done", "cancelled"):
-        problems.append(f"step {named} {state}: {why or 'no reason given'}")
+    if state not in ("done", "cancelled") or step["state"] == "partial":
+        problems.append(f"step {named} {step['state'] if step['state'] == 'partial' else state}: {why or 'no reason given'}")
 
 
 def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> str | None:
@@ -1170,12 +1186,12 @@ def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: in
     card = cards[index]
     before = list(zip(cards[:index], steps[:index]))
     if "takes" not in card:
-        unfinished = [", ".join(c["steps"]) for c, s in before if s["state"] != "done"]
+        unfinished = [", ".join(c["steps"]) for c, s in before if s["state"] not in ("done", "partial")]
         return f"step {unfinished[0]} did not finish, and this step comes after it" if unfinished else None
     for take in card["takes"]:
         kinds = set(take.split("|"))
         givers = [(c, s) for c, s in before if kinds.intersection(c.get("gives") or ())]
-        if givers and all(s["state"] != "done" for _c, s in givers):
+        if givers and all(s["state"] not in ("done", "partial") for _c, s in givers):
             which = "; ".join(f"step {', '.join(c['steps'])} {s['state']}" for c, s in givers)
             needs = " or ".join(sorted(kinds)).replace("_", " ")
             return f"it needs {needs}, which no earlier step gave ({which})"
