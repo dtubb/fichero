@@ -2457,7 +2457,7 @@ Jobs and chains
   (2026-10-16): the preset's wording is Spanish colonial whatever the project says, and the node's language is
   "auto". *Test:* an English secretary-hand project is never sent "carta de poder" or "ç/c/z"; a Spanish colonial one
   is.
-- `source.job.review-is-segment-native` — **[OK]** (#5724) done: the review asks for `<segment id> | <flag> | <text>` and a line flagged unreadable is left as read and counted (`test_a_line_the_review_flags_unreadable_is_left_as_read_and_says_so_5724`); a person's line is untouched (`test_a_line_a_person_read_keeps_the_persons_reading`). the review is shown each line's machine confidence (`test_the_review_is_shown_each_lines_confidence_5724`); an uncertain line that is changed keeps the machine's confidence, never made surer (`test_an_uncertain_line_keeps_the_machines_confidence_5724`); a corrected line's reading names the review artifact, which records the lens the step ran through, the `lens` config (`test_a_corrected_line_records_the_lens_that_changed_it_5724`); a short note after a line (`<id> | <flag> | <text> | note: <note>`) is kept on the review artifact under the line's id (`line_notes`) and never read as the line's text, even with the flag dropped; only the id and flag are split off, so a `|` in diplomatic text stays in it (`working_lines.answer_line`; a bare `<id> | unreadable` is a line the model could not read, listed on the review as `unreadable_lines` and never its text, `test_a_bare_unreadable_answer_is_a_line_the_model_could_not_read_never_its_text_5724`; `test_a_lines_short_note_is_kept_with_the_review_and_never_read_as_its_text_5724`, `test_a_bar_inside_a_lines_text_stays_in_its_text_5724`, `test_a_note_without_a_flag_is_never_the_lines_text_5724`). The lens names come from #5723. The review is given the page's lines as `<segment id> |
+- `source.job.review-is-segment-native` — **[OK]** (#5724; every test below is in `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py`) done: the review asks for `<segment id> | <flag> | <text>` and a line flagged unreadable is left as read and counted (`test_a_line_the_review_flags_unreadable_is_left_as_read_and_says_so_5724`); a person's line is untouched (`test_a_line_a_person_read_keeps_the_persons_reading`). the review is shown each line's machine confidence (`test_the_review_is_shown_each_lines_confidence_5724`); an uncertain line that is changed keeps the machine's confidence, never made surer (`test_an_uncertain_line_keeps_the_machines_confidence_5724`); a corrected line's reading names the review artifact, which records the lens the step ran through, the `lens` config (`test_a_corrected_line_records_the_lens_that_changed_it_5724`); a short note after a line (`<id> | <flag> | <text> | note: <note>`) is kept on the review artifact under the line's id (`line_notes`) and never read as the line's text, even with the flag dropped; only the id and flag are split off, so a `|` in diplomatic text stays in it (`working_lines.answer_line`; a bare `<id> | unreadable` is a line the model could not read, listed on the review as `unreadable_lines` and never its text, `test_a_bare_unreadable_answer_is_a_line_the_model_could_not_read_never_its_text_5724`; `test_a_lines_short_note_is_kept_with_the_review_and_never_read_as_its_text_5724`, `test_a_bar_inside_a_lines_text_stays_in_its_text_5724`, `test_a_note_without_a_flag_is_never_the_lines_text_5724`). The lens names come from #5723. The review is given the page's lines as `<segment id> |
   box | maker | confidence | text` and answers `<segment id> | <text>` with a flag per line (certain, uncertain,
   unreadable) and a short note; it never changes a line a person read; it leaves an uncertain line uncertain, keeping the
   machine's confidence (#5694), rather than inventing text; and a corrected line records which lens changed it. Builds
@@ -2781,12 +2781,12 @@ Projects
   project's last finished run did not do (failed, or not run) stays in the Start plan, even beside a layer's
   proposed steps, marked with how it ended and why ("failed last time …; runs again"), and Start runs it
   again without naming it to redo.
-- `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above; a running step points at the job it made only when its card makes one (workflow, check, find-documents, entries): Find Regions, prepare, embed and table never borrow a download's or an earlier step's row, Fable #12, `fichero-server/tests/unit/recipes/test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py`) a recipe
+- `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested in `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py::test_run_status_is_what_activity_shows`; a running step points at the job it made only when its card makes one (workflow, check, find-documents, entries): Find Regions, prepare, embed and table never borrow a download's or an earlier step's row, Fable #12, `fichero-server/tests/unit/recipes/test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py`) a recipe
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
   account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
   ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
   M4 PASS 2026-10-20 c979508a5: test_recipe_batches_to_spec.py, test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py (12 passed). (Red at 9707dcc83 for a stale test, not the engine: two batch tests assumed creation order; a run reads in Finder order with pages in no folder first (#5849, f51a53535).)
-- `source.recipe.folder-scoped-start` — **[OK]** (#5540; built 2026-10-10: `folder_id` on `GET|POST
+- `source.recipe.folder-scoped-start` — **[PARTIAL]** (#5540; the engine is done and tested, the app is not yet seen in a build and Set Up… shows the whole project's plan, not the folder's; built 2026-10-10: `folder_id` on `GET|POST
   /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
   tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before
   it, can be given one folder node (`folder_id`): the plan, its estimate and each step's "already done on N of M
@@ -2836,7 +2836,7 @@ Projects
   state over the run is its worst on any batch; its counts (already done, blank versos, by kind, what it made)
   add up over the batches.
 - `source.recipe.batch-checkpoint` — **[OK]** (#5540; built 2026-10-10: the run's `batches_done`,
-  `batch_states`, `folders_done`, `folders_total` in its row's detail; tested as above) every finished batch is a
+  `batch_states`, `folders_done`, `folders_total` in its row's detail; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`: `::test_a_resumed_run_redoes_nothing`) every finished batch is a
   checkpoint on the run's row: its `folders_done` of `folders_total`, the batches done, and, inside the batch
   being run, which steps finished on it. A quit or crash (the run is carried on when the project opens again)
   resumes at the next unfinished step of the unfinished batch, and within that step at its next unfinished page
@@ -2857,7 +2857,7 @@ Projects
   names the files. `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`.
   M4 PASS 2026-10-20 9707dcc83: test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (4 passed).
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
-  and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
+  and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py::test_the_run_says_how_many_folders_are_done`) a recipe run's row says how far
   it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
   runs, and a run that fails or is stopped says how many folders it finished; its status carries
   `folders_done` and `folders_total` (and `folder_id` for a folder's run). App **[OK]** (built 2026-10-10, not yet
@@ -2869,7 +2869,7 @@ Projects
   `folders_done` and `folders_total` (`GET /api/recipes/project/runs/{id}`), only when the run goes over more than
   one folder (a run over one folder, as an import's one batch, says nothing extra); the figure is read again each
   time the run's tree is, one run's entry replaced in place.
-- `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested as above) a step Start cannot run (no model, a
+- `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py::test_source_recipe_step_skipped_says_why`) a step Start cannot run (no model, a
   condition Start cannot honour yet, a cloud step in a project that keeps its pages on this Mac, a
   job no card runs yet) is skipped, and the plan and the recipe run name the step and why; the other
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
@@ -2915,7 +2915,7 @@ Profiles (the defaults section of a recipe)
   answers its question yes and has the engine propose the plan again (`RecipeLeftOffRows`,
   `RecipeSetupStore.turnOn(job:)`). Set Up now sends the stage questions' answers with every proposal
   (`job_answers`), so a yes on the Read page reaches the rule. Tested in `RecipeLeftOffTests`.
-- `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
+- `source.recipe.missing-model-offered` — **[PARTIAL]** (#5367, #5664; the offer, the queued downloads and Ready's one-line sentence are built and tested; what is missing is a recorded licence acceptance; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed
   2026-10-11 (#5664, ruled: Set Up never downloads):** Start is no longer refused for it. Pressing Start queues
@@ -2932,9 +2932,7 @@ Profiles (the defaults section of a recipe)
   finds the runtime missing sets it up first instead of failing. No sentence names an API route or a file path
   (it said "Call POST /api/local-inference/runtime/provision" and the interpreter's path; where it looked goes to
   the engine's log). `start.runtime_to_set_up`, `MLXRuntime.provision_now`/`ensure_provisioned`;
-  `fichero-server/tests/unit/recipes/test_start_sets_up_local_models.py`. *Not built: Ready's Swift (B); a
-  licence acceptance asked before Start (no acceptance is recorded: the rules never pin a model whose licence is
-  not open, and a person's own choice of one is its acceptance).*
+  `fichero-server/tests/unit/recipes/test_start_sets_up_local_models.py`. *Built since: Ready's Swift (`RecipeSetupModelRows`, tested in `RecipeSetupStoreTests`) and the licence review sheet (`LicenceReviewSheet`). Not built: a licence acceptance RECORDED with the choice (no acceptance is stored: the rules never pin a model whose licence is not open, and a person's own choice of one is its acceptance, unrecorded).*
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a
   page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
   with a pass that has lines; reading lines, on a page with a pass read by the step's own model; reading a page, on
@@ -3018,7 +3016,7 @@ Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block on
   and menus elsewhere do not yet reorder by purpose (none hide by purpose today). a purpose
   changes what is offered first and what runs by itself; every view and tool stays reachable in
   every project.
-- `source.onboard.just-do-it` — **[OK]** (#4951, #5390; built: an import after Start queues one recipe run over its pages (`importers/derivatives.queue_derivatives`)) on a "just do it" purpose, after Start, new
+- `source.onboard.just-do-it` — **[OK]** (#4951, #5390; built: an import after Start queues one recipe run over its pages (`importers/derivatives.queue_derivatives`); tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py::test_source_onboard_just_do_it`, which imports one page after Start and asserts one more run over that page only, with the earlier pages not read again) on a "just do it" purpose, after Start, new
   material runs through the recipe's automatic steps with no further question: each import is one
   `run-a-recipe` job over the pages it brought, and nothing runs for material already there.
 - `source.onboard.tools-not-automation` — **[PARTIAL]** (#4951; built: nothing runs at import on a tools purpose; offering its tools first is the app's) on a "tools" purpose (edit, decipher,
@@ -3057,7 +3055,7 @@ Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block on
   a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
-- `source.recipe.steps-name-layers` — **[OK]** (#4950) every step names a layer; the resolved
+- `source.recipe.steps-name-layers` — **[PARTIAL]** (#4950; the engine names the layers and returns `automatic`, tested; missing: the app does not show the section) every step names a layer; the resolved
   recipe's `automatic` section lists the steps whose layer the purpose (or an added layer) turns
   on, with whether each may use the cloud, and is never written by hand. *Built 2026-10-18 (engine):* `assemble` sets each
   step's `layer` from its job and returns `automatic` (`id`, `layer`, `uses_cloud`, in step order; a step ticked by hand on top
@@ -3512,7 +3510,7 @@ Setup
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
-- `source.onboard.five-ways-in` — **[OK]** (#5788; built 2026-10-18 (app, unbuilt): `ProjectIntakeChoice`, `SetupWayIn.setupChoices`) *Superseded 2026-10-18 by the owner's ruling: setup offers three ways in, not five.* **Copy** (default; Fichero makes its own copy in the project, the originals are never touched), **Leave in place** (the engine's Link mode; Fichero reads the files where they are and never changes them) and **Move** (the files move into the project; the originals are removed, said plainly). **Index** and **Keep arranged** are not asked in setup: they are set on a synced folder in the Inspector (`source.onboard.index-ties-the-folder`, `source.onboard.keep-arranged`). The choice is saved with the project (`answers.ingest_mode`: `copy`, `link`, `move`) and used by Add a Folder… and later imports; a project saved earlier as `index` or `keep-arranged` still reads back (its folder keeps its mode in the Inspector) and setup shows it as Leave in place. With Copy, the line after an add says what the copy takes and the room left (`CopySpaceTests`). *Test:* `SetupWayIn.setupChoices` is Copy, Leave in place, Move in that order and Copy is the default (`SetupThreeWaysInTests`).
+- `source.onboard.five-ways-in` — **[PARTIAL]** (#5788; the project saves `answers.ingest_mode`; the app side is written and unit-tested but has not been seen in a build, so what is missing is the on-screen check of the three choices in setup; built 2026-10-18 (app, unbuilt): `ProjectIntakeChoice`, `SetupWayIn.setupChoices`) *Superseded 2026-10-18 by the owner's ruling: setup offers three ways in, not five.* **Copy** (default; Fichero makes its own copy in the project, the originals are never touched), **Leave in place** (the engine's Link mode; Fichero reads the files where they are and never changes them) and **Move** (the files move into the project; the originals are removed, said plainly). **Index** and **Keep arranged** are not asked in setup: they are set on a synced folder in the Inspector (`source.onboard.index-ties-the-folder`, `source.onboard.keep-arranged`). The choice is saved with the project (`answers.ingest_mode`: `copy`, `link`, `move`) and used by Add a Folder… and later imports; a project saved earlier as `index` or `keep-arranged` still reads back (its folder keeps its mode in the Inspector) and setup shows it as Leave in place. With Copy, the line after an add says what the copy takes and the room left (`CopySpaceTests`). *Test:* `SetupWayIn.setupChoices` is Copy, Leave in place, Move in that order and Copy is the default (`SetupThreeWaysInTests`).
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
