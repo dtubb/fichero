@@ -96,3 +96,24 @@ def test_the_started_plan_says_a_redone_step_runs_again(db, tmp_path, monkeypatc
     assert annotate(db, {"runs": [dict(CARD)]})["runs"][0]["note"] == "already done on all 1 pages; nothing to run"
     said = annotate(db, {"runs": [dict(CARD)]}, redo={"regions"})["runs"][0]["note"]
     assert said == "runs again on all 1 pages, as asked (redo)"
+
+
+def test_the_segmenter_runs_through_the_model_lane_not_beside_it(db, tmp_path, monkeypatch):
+    """Fable review #5: Find Regions ran Kraken's segmenter on the recipes lane's own thread, unseen by the model lane's
+    one-heavy-model rule. Every page's segmentation is now a lane job for `kraken:blla`."""
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.regions import find_regions
+
+    seen = []
+
+    def through_the_lane(library_path, kind, subject, *, model, fn):
+        seen.append((kind, model, subject))
+        return fn()
+
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", through_the_lane)
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: PAYLOAD)
+    pages = _pages(db, tmp_path, 2)
+
+    find_regions(db, [p.id for p in pages], "run-1", "blla", provider="kraken")
+
+    assert seen == [("find-regions", "kraken:blla", p.id) for p in pages]
