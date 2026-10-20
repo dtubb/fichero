@@ -890,6 +890,8 @@ def _fetch_the_search_model(db) -> None:
     """Search's model is missing: queue its download in the app (a row in Activity). Not while one waits or runs, not
     within the window after one failed, and not when the files are already in the cache (the load failed for another
     reason, which the job's own sentence says). The finished download clears the embedder's back-off."""
+    import duckdb
+
     try:
         from datetime import timedelta
 
@@ -909,7 +911,7 @@ def _fetch_the_search_model(db) -> None:
         if jobs.failed_since(db, DOWNLOAD_KIND, subject, since):
             return
         enqueue_download(db, "embeddings", model, started_by="automatic")
-    except (ValueError, ImportError, OSError) as exc:  # a model this build cannot fetch, or no cache folder: the row still waits with its sentence
+    except (ValueError, ImportError, OSError, duckdb.Error) as exc:  # no such model here, no cache folder, an unreadable job table: the embed still defers with its sentence
         logger.warning("could not queue the search model's download: %s", exc)
 
 
