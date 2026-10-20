@@ -169,6 +169,22 @@ audit row, one ⌘Z, worked out by the engine.
   redraws that page only, never the whole Reader, on a document of any length. A budget for the
   save is open question 6.
 
+### Comparing readers: the diff lens (#5900)
+
+- `reader.compare.diff-lens` [MISSING] (#5900; the Reader half of `source.compare.*` in `segment-editor.md`, built after the
+  engine answer `source.compare.readers-answer` and the Segments pane's Compare mode) the Reader has a **diff lens**: the
+  lens menu's "Compare Passes" shows the page's passes (and runs) as readings of the same text: the person ticks two or
+  more, the first ticked is the baseline, and each other pass is shown as a word-level diff against it (insertions and
+  deletions marked in the annotation palette, never a new colour set). It is the existing "Where the Readers Disagree" lens
+  (`source.disagree.lens`) given a chosen baseline instead of the medoid, and it reads the same engine answer
+  (`GET /api/documents/{page_id}/compare-readers`), so the Reader and the Segments pane can never disagree about which
+  words differ. Clicking a differing word lists its variants (`source.disagree.popover`) and offers the pick of that line from
+  the reader that said it (`source.compare.pick`: `reading.choose`, the same audit and undo, a person only); the lens makes no
+  edit of its own and a pass is never edited in it (`reader.edit.not-a-reading-is-read-only`). The lens is per pane (two
+  Reader panes may hold different baselines: the pane-slot state remembers it) and is a lens, not a pane or window kind. With
+  fewer than two passes it says so in one line. *Tests:* the baseline choice, the diff marks and the pick call in `fichero/Tests/Unit/general/Reader/CompareLensTests.swift`; the
+  engine's answer is `fichero-server/tests/unit/api/test_compare_readers_5900.py`.
+
 ## Where the code and the specs disagree
 
 1. `source.textedit.an-edited-line-reads-from-itself` is tagged GAP (#5190) and is built and

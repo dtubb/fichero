@@ -1640,6 +1640,88 @@ trial's baseline update; readings load once; then a quiet-machine measurement of
 - `source.editor.one-input-seam` — **[GAP]** (#4941) pointer, touch and Pencil feed one input path; the same
   editor runs on Mac, iPad and iPhone.
 
+### Compare readers (#5900, owner 2026-10-20: the view for choosing between readers)
+
+One view, in the panes that exist, for looking at what several readers made of the same lines and choosing between
+them. It is built from parts that are already there, in this order: the engine's answer, the CLI and MCP tool, then the
+Segments pane's Compare mode, then the Reader's diff lens (`reader.compare.diff-lens`), then the two ways in (a Set Up
+Try, a page's Inspector). It is a *view*: it adds no pane kind and no window kind (the panes host compare, a diff lens
+shows the difference: the compare design of 2026-08-25). Nothing in it vouches for a reading: agreement is never a check
+(`source.disagree.agreement-not-accuracy`), so the only way a reading becomes a person's is a person's pick.
+
+- `source.compare.readers-answer` — **[GAP]** (#5900) `GET /api/documents/{page_id}/compare-readers` answers, read-only,
+  for one page: `{page_id, readers: [{id, label, kind}], image_width, image_height, lines: [{segment_id, order, bbox,
+  picture, readings: [{reader_id, text}], agreement, differs, words: [{text, char_start, char_end, agreement, variants:
+  [{text, readers}]}], counting_reader_id, picked_by_person}]}`. It reuses the disagreement answer
+  (`source.disagree.route`, `compare_readings.page_disagreement`: the same readers, the same medoid reference, the same
+  word alignment at the normalised-as-written convention) and adds what a choosing view needs that the lens did not:
+  every reader's own text **as written** for every line (agreement is worked out on the normalised text; what is shown
+  and what a pick keeps is as written), `differs` (the readers' texts are not all the same once normalised), the line's
+  `picture` (a storage reference to the line's cut, `GET /api/segments/{id}/picture`, never a local path), which reading
+  counts now (`counting_reader_id`, `source.reading.counting`) and whether a person made it (`picked_by_person`). A line
+  read by fewer than two is listed with its one reading and `differs` false, so the view shows the whole page, not only
+  the lines two readers read. `?readers=` narrows to the named readers (ids from the answer), `?only_differing=true`
+  leaves out the lines where the readers agree. An unknown page is 404; with fewer than two readers the answer is 200
+  with `lines` and no `differs`, and the view says so (`source.disagree.fewer-than-two`). *CLI:* `fichero documents
+  compare-readers <page_id> [--readers a,b] [--only-differing]`; *MCP:* `fichero_documents_compare_readers`; both before
+  any app work. *Tests (red first):* `fichero-server/tests/unit/api/test_compare_readers_5900.py` (the shape; as written
+  vs normalised; one reader; a person's reading shown as the counting one; the picture is a reference).
+- `source.compare.try-candidates-same-shape` — **[GAP]** (#5900) the Try candidates path feeds the same view and is not
+  rebuilt: a stage Try (`POST /api/recipes/stages/{stage}/try`, `GET /api/recipes/stages/{stage}/try`, `recipes/samples.py`
+  `start_try` and `read_result`; `source.onboard.stages.compares-candidates`) already runs 2 or 3 candidate readers on
+  its own copy of the sample pages and keeps each candidate's `per_page` readings and `shapes`
+  (`source.onboard.stages.compare-results-per-model`). The same answer is given for a Try with `GET
+  /api/recipes/stages/{stage}/try/compare-readers?page_id=...`: its `readers` are the candidates (id the card id, label its
+  model, `kind: "candidate"`), its `lines` are the candidates' lines matched one for one for the Read stage (the same lines
+  read by each) and by the box they cover (overlap of at least a half) otherwise, and every line has `picked_by_person`
+  false. Find Lines is not a text comparison: the existing `StageCompareWindow` (each candidate's boxes on the page) stays
+  its view. The Try's pages are copies, so a Try's compare view has **no pick**: it offers the existing Use This One for a
+  model and says, in a sentence, that the lines are a try's and not yet the project's. *Tests:* the shape in
+  `test_compare_readers_5900.py`; the matching of a Read stage's lines and of lines found by two finders.
+- `source.compare.pick` — **[GAP]** (#5900) a pick is the EXISTING choice of which reading counts, not a new action: the view calls
+  `reading.choose` (`POST /api/segments/{segment_id}/readings/choice` `{kind, representation_id}`, CLI `segments choose-reading`, MCP
+  `fichero_segments_choose_reading`) with the `representation_id` of the reading the person clicked. The answer of
+  `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
+  under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
+  reading count and this is it: `reading.choose`, described once, at `source.reading.chosen-is-worked-out` (audited, one undo, only a
+  person: 403 for a model; and its optional `expected_counting_id` (**[GAP]**, #5900, not built: to be added to `reading.choose`), which the view will send so a pick on a stale view is refused with
+  409 and writes nothing). Nothing is copied here.
+  A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
+  a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
+  that same action, saved as the person's reading. There is **no pick-all and no accept-what-agrees**: unanimous lines are marked
+  agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* `fichero-server/tests/unit/api/test_compare_pick_5900.py`:
+  the pick calls `reading.choose` with the reading's id (and no second action exists); a model is refused (403); a stale view is
+  refused (409) and writes nothing; one undo; a typed correction and a choice both give `picked_by_person`.
+- `source.compare.pick-is-a-training-line` — **[GAP]** (#5900) a line whose counting reading a person chose or typed is a line a person
+  checked, so it is a training line with `checked_by_person` true. The Kraken set made from the person's own readings (teacher `person`,
+  `training/kraken_set.py` `PERSON`) takes it with no other step, which EXTENDS that teacher: today it takes the lines whose counting
+  reading a person *made*; it also takes those whose counting reading a person *chose* among machine readings (the choice record,
+  `source.reading.chosen-is-worked-out`), and its manifest counts chosen and typed separately, both as the person's and never with a model's
+  (`compute.tune.bootstrapped-data-is-marked`). The bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`)
+  are the other source and stay marked as a model's reading. **Dedupe:** both carry a `line_key`, the SHA-256 of the page image's
+  bytes and the line's polygon rounded to whole pixels; when a line is in both, the person's is kept and the bake-off row is dropped
+  before staging, and the count says how many were dropped. *Test:*
+  `test_compare_pick_5900.py::test_a_pick_is_in_the_persons_training_set_and_a_model_reading_is_not` and `::test_a_line_in_both_sets_is_counted_once_as_the_persons`.
+- `source.compare.segments-mode` — **[GAP]** (#5900; the app, after the engine and the tool) the Segments pane has a Compare
+  mode beside its existing modes (a toggle in the pane's toolbar, remembered with the pane's state): a list of the page's
+  lines, each row the line's picture (from the answer's `picture`), then one column per reader with that reader's text, the
+  reader's label as the column head, and the line's pick. Where the readers agree the row is quiet (one tone, "agreed"); where
+  they differ the differing words are marked in each column, using the answer's `variants` (the same marks as the Reader's
+  disagreement lens, not a second palette), and the row is raised. Clicking a reader's text is the pick (the row then shows it as
+  the person's reading, with the pick's undo); a field at the end takes a typed reading (the existing correction). ↑/↓ move
+  between lines, ⌥↓ goes to the next line that differs, ⏎ confirms the highlighted reading and moves on, and a filter
+  shows only the lines that differ. A line one reader read shows its one column. The view reads the engine's answer and
+  holds no logic of its own (the architecture rule: logic in the engine; an observable store). Empty states say what is
+  missing in one sentence ("one reader: nothing to compare", "no readings on this page yet"). *Accessibility:* each cell is an
+  element reading "<reader>: <text>", a row announces "readers agree" or "readers differ", and the pick is a button
+  per reading. *Tests:* the store (rows from an answer, the filter, next-differing, a pick calling the route once) and
+  the identifiers, in `fichero/Tests/Unit/general/Segments/CompareReadersTests.swift`.
+- `source.compare.ways-in` — **[GAP]** (#5900) the same view opens from a page's Inspector (a "Compare Readers" button in
+  the page's Readings section, with the number of readers: absent with fewer than two) and from Set Up's Try (a page row of
+  a Read comparison opens it for the Try's candidates, `source.compare.try-candidates-same-shape`); both open the Segments
+  pane's Compare mode on that page (or the Reader's diff lens, when the person has the Reader open), never a new window kind.
+  The Try's door is read-only, as above. *Tests:* the door's availability rules in the Swift store test.
+
 ### Box colour and the segment hierarchy (ruled 2026-10-04, #5426, #5463)
 
 This section owns what a segment box's colour means and how a child shows as its parent's child,

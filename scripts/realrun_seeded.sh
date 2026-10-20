@@ -18,6 +18,12 @@ mkdir -p "$O" "$D/state"; rm -rf "$D/state" "$D/rr.fichero"; mkdir -p "$D/state"
 # The Kraken reader (PP-OCRv6 medium) is copied in, so the wall time measures reading, not the one-time download
 # (a fresh state dir spent 228 s of 268 on it, 2026-10-20). To re-seed: copy a finished run's state/kraken-models to reader-seed/.
 cp -R "$HOME/Fichero Dev Test/reader-seed/kraken-models" "$D/state/"
+# The seed's record names its model file by an ABSOLUTE path in the run dir it was made in (realrun-329f), which a later
+# run removes: in this COPY the record names it relative to itself, so the reader is whole wherever the state dir is.
+python3 - "$D/state/kraken-models/recognition/kraken-zenodo-21788410.installed" <<'PY'
+import json, sys
+p = sys.argv[1]; r = json.load(open(p)); r["model_path"] = "../htr-data/kraken-zenodo-21788410/medium.safetensors"; json.dump(r, open(p, "w"))
+PY
 cd ~/code/fichero-worktrees/check && git fetch -q ~/code/fichero-test.git "+refs/heads/*:refs/remotes/t/*" && git checkout -qf --detach $SHA || { echo CHECKOUT-FAILED > $O/verdict; exit 4; }
 echo "code $(git rev-parse --short=9 HEAD)" > $O/status
 TOKEN="$(openssl rand -hex 24)"; mkdir -p "$D/token"  # this run's own credential, in its own token dir
