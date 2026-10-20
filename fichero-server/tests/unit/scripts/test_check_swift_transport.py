@@ -208,7 +208,7 @@ def test_transport_known_violations_are_not_stale() -> None:
 def test_flags_a_client_built_from_a_base_url_alone(tmp_path: Path) -> None:
     """#4224: pairing built FicheroClient(baseURL:) and dialled https://127.0.0.1:8765 over a UDS app."""
     _write(tmp_path, "Services/PairingTypes.swift", "self.client = FicheroClient(baseURL: apiRoot)\n")
-    assert any("ignores the app's transport" in why for why in scan(tmp_path).values())
+    assert any("transport:/expectedSPKIPin:" in why for why in scan(tmp_path).values())
 
 
 def test_flags_a_multiline_client_with_only_a_base_url(tmp_path: Path) -> None:
@@ -231,3 +231,20 @@ def test_a_client_without_a_base_url_is_the_apps_default_and_allowed(tmp_path: P
 def test_the_failover_probe_is_the_one_sanctioned_own_client(tmp_path: Path) -> None:
     _write(tmp_path, "App/AppState/AppState+Heartbeat.swift", "let p = FicheroClient(baseURL: candidate.url)\n")
     assert not scan(tmp_path)
+
+
+def test_allows_a_multiline_client_that_names_its_transport(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift",
+           "let c = FicheroClient(\n    baseURL: host,\n    libraryPath: nil,\n    transportMode: EngineConfig.transportMode\n)\n")
+    assert not scan(tmp_path)
+
+
+def test_flags_the_explicit_init_spelling(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", "let c = FicheroClient.init(baseURL: host)\n")
+    assert scan(tmp_path)
+
+
+def test_the_sanctioned_file_is_exempt_for_exactly_one_call(tmp_path: Path) -> None:
+    _write(tmp_path, "App/AppState/AppState+Heartbeat.swift",
+           "let p = FicheroClient(baseURL: a.url)\nlet q = FicheroClient(baseURL: b.url)\n")
+    assert len(scan(tmp_path)) == 1
