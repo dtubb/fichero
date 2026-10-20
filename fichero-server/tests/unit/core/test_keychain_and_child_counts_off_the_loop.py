@@ -38,7 +38,12 @@ def test_a_found_key_is_read_from_the_keychain_once(monkeypatch):
     assert len(calls) == 1  # the second lookup spawned no `security` subprocess
 
 
-def test_an_absent_key_is_cached_too_but_an_unreadable_one_is_asked_again(monkeypatch):
+def test_an_absent_key_is_cached_too_and_an_unreadable_one_is_kept_5_seconds_then_asked_again_off_the_thread(monkeypatch):
+    """`activity.engine.keychain-cached` (435, reviewed 440): a refusal is kept `_UNREADABLE_SECONDS` (so a locked keychain
+    does not run `security` on the caller each time), and after that it is re-read on a thread of its own, the caller
+    getting the old answer at once."""
+    import time
+
     calls = _security(monkeypatch, [(44, "", "not found")])
     assert keychain.lookup_api_key("a").state is keychain.ProviderKeyState.ABSENT
     keychain.lookup_api_key("a")
@@ -46,7 +51,13 @@ def test_an_absent_key_is_cached_too_but_an_unreadable_one_is_asked_again(monkey
     calls2 = _security(monkeypatch, [(51, "", "refused")])
     assert keychain.lookup_api_key("b").state is keychain.ProviderKeyState.UNREADABLE
     keychain.lookup_api_key("b")
-    assert len(calls2) == 2  # a refusal may be fixed by the person: not remembered
+    assert len(calls2) == 1  # within the 5 s: kept, no second `security`
+    monkeypatch.setattr(keychain, "_UNREADABLE_SECONDS", 0.0)  # the 5 s are over
+    assert keychain.lookup_api_key("b").state is keychain.ProviderKeyState.UNREADABLE  # the old answer, at once
+    deadline = time.monotonic() + 5
+    while len(calls2) < 2 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert len(calls2) == 2  # asked again, on the refresh thread
 
 
 def test_saving_or_deleting_a_key_drops_the_cached_answer(monkeypatch):
