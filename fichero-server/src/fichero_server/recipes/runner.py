@@ -989,7 +989,7 @@ def _failures_words(db: Any, cards: list[dict[str, Any]], steps: list[dict[str, 
     causes: dict[tuple[str, str], dict[str, dict]] = {}
     for card, step in zip(cards, steps):
         named = ", ".join(card["steps"])
-        for state, verb in (("failed", "failed"), ("not run", "did not run")):
+        for state, verb in (("failed", "failed"), ("partial", "lost pages"), ("not run", "did not run")):
             for b in step.get("failed_batches") or []:
                 if b["state"] != state:
                     continue
@@ -1173,7 +1173,9 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
         outright = state == "failed" and none_done
         step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
         if state == "failed" or pages_failed:
-            _note_batch(step, batch, state, child, why or (f"{pages_failed} pages failed" if pages_failed else None))
+            # A batch that lost pages is noted "partial": the recipe's row then ends "Done with failures", never plain Done.
+            _note_batch(step, batch, "partial" if state == "done" else state, child,
+                        why or (f"{pages_failed} pages failed" if pages_failed else None))
     if state not in ("done", "cancelled") or step["state"] == "partial":
         problems.append(f"step {named} {step['state'] if step['state'] == 'partial' else state}: {why or 'no reason given'}")
 

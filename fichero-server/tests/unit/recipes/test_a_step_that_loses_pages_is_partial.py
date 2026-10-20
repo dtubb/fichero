@@ -40,3 +40,12 @@ def test_a_partial_step_is_worse_than_done_and_better_than_failed():
     assert step["state"] == "partial"
     runner._settle(step, "failed", None, "no model")
     assert step["state"] == "failed"
+
+
+def test_the_recipes_row_does_not_end_plain_done_when_a_step_lost_pages(db, monkeypatch):
+    """The Activity row of the run: "Done with failures: step read-a-line lost pages ..." (it was "Done: 1 steps run")."""
+    lost = [PageFailure(page="IMG_001", reason="Kraken could not read its lines")]
+    step, _ = _end(db, monkeypatch, lost, 1)
+    assert step["failed_batches"][0]["state"] == "partial"
+    words = runner._failures_words(db, [CARD], [step], 0)
+    assert "lost pages" in words and "IMG_001: Kraken could not read its lines" in words
