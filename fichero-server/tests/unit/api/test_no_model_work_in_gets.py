@@ -4,6 +4,14 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+import importlib.util
+
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location(
+    "_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 API = Path(__file__).resolve().parents[3] / "src" / "fichero_server" / "api"
 # A model entry point called by name: a read, an OCR, an embedding, a lane job.
@@ -14,7 +22,7 @@ MODEL_CALL = re.compile(
 
 
 def _get_handlers():
-    for path in sorted(API.rglob("*.py")):
+    for path in sorted(scan_files.scan_rglob(API, "*.py")):
         source = path.read_text()
         lines = source.splitlines()
         for node in ast.walk(ast.parse(source)):
