@@ -942,18 +942,22 @@ def resolve_drawn_pass(ranked: list[PassAnswer], passes_with_shapes: set[str]) -
 
 
 def project_record_rule(db: Any) -> ProjectRecordRule:
-    """This project's rule for what the record is.
+    """This project's rule for what the record is: the saved recipe's `defaults.record_rule` (`strict` or `relaxed`),
+    else strict. ONE call, so every caller follows (`source.project.record-rule`).
 
-    ONE call, so that when project settings gain a real home (slice 9 and the
-    projects work) exactly one function changes and every caller follows. Until
-    then it answers ``strict`` -- `source.reading.chosen-follows-project-rule`
-    says a new project is strict, and answering the cautious thing before the
-    setting exists is the honest default, not a placeholder to be sorry about.
-
-    ponytail: returns a constant. When project settings arrive this reads
-    them; the signature already takes the database so no caller changes.
+    A NEW PROJECT IS STRICT (`source.reading.chosen-follows-project-rule`): the cautious answer is the safe default
+    for an edition. Anything that is not exactly `relaxed` (no recipe, no value, a word nobody knows, a project folder
+    that cannot be read) is strict: a failure to read the rule never loosens it.
     """
-    return ProjectRecordRule.strict
+    try:
+        from pathlib import Path
+
+        from fichero_server.recipes.project import saved_record_rule
+
+        value = saved_record_rule(Path(db.path).parent)
+    except Exception:  # noqa: BLE001 -- unreadable means the cautious rule
+        return ProjectRecordRule.strict
+    return ProjectRecordRule.relaxed if value == ProjectRecordRule.relaxed.value else ProjectRecordRule.strict
 
 
 # ---------------------------------------------------------------------------
