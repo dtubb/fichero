@@ -79,7 +79,7 @@ def test_the_step_is_a_card_start_runs_after_reading_with_its_own_model(client, 
     assert skip["fix"] == "choose-model" and "no model" in skip["why"]
 
 
-def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_path, engine, splitter, with_material):
+def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_path, engine, splitter):
     """"Each page is split by the Diary Entries workflow's own splitter [...]: one `entry` child per dated entry, its
     date as the `date` attribute, in the page's order [...] The step's account in the run status (`entries`) says
     how many pages it split [...] and how many entries it made". Run again, it matches the entries it made rather
