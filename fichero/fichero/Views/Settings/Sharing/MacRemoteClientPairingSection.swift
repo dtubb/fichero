@@ -192,60 +192,23 @@ struct MacRemoteClientPairingSection: View {
                 expectedSPKIPin: pairingFields.spkiPin,
                 libraryPath: pairingFields.libraryPath
             )
-            backendService.stop()
-            engineHost = result.apiRoot.absoluteString
-            libraryManager.adoptPairedRemoteLibrary()
-            appState.reconfigureGeneratedClientsForCurrentHost()
-            libraryManager.reconfigureGeneratedClientsForCurrentHost()
-            do {
-                try await backendService.start()
-                await reconnectToConfiguredRemoteHost()
-                if !appState.isBackendRunning {
-                    throw APIError.badRequest("Paired successfully, but the verified remote host is not responding now.")
-                }
-            } catch {
-                RemoteClientPairing.rollbackFailedHostSwitch(
-                    previousHost: previousHost,
-                    attemptedHost: result.apiRoot
-                )
-                await restorePreviousHost(previousHost)
-                throw error
-            }
+            // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared
+            // with Settings › Engine › Advanced › Apply (#5916).
+            try await engineHostSwitch().run(
+                from: previousHost, to: result.apiRoot.absoluteString,
+                notResponding: "Paired successfully, but the verified remote host is not responding now.",
+                onFailure: { _ in
+                    RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: result.apiRoot)
+                })
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
             clientPairingError = error.localizedDescription
         }
     }
 
-    private func reconnectToConfiguredRemoteHost() async {
-        await appState.checkBackendHealth()
-        guard appState.isBackendRunning else {
-            backendService.status = .failed
-            backendService.errorMessage = appState.backendError
-            return
-        }
-
-        backendService.status = .running
-        backendService.errorMessage = nil
-        appState.startBackendHeartbeat()
-        await KnownLibraryRegistryStore.shared.refresh()
-        libraryManager.adoptPairedRemoteLibrary()
-        await libraryManager.backendDidBecomeReady()
-    }
-
-    private func restorePreviousHost(_ previousHost: String) async {
-        backendService.stop()
-        engineHost = previousHost
-        appState.reconfigureGeneratedClientsForCurrentHost()
-        libraryManager.reconfigureGeneratedClientsForCurrentHost()
-
-        do {
-            try await backendService.start()
-            await reconnectToConfiguredRemoteHost()
-        } catch {
-            backendService.status = .failed
-            backendService.errorMessage = error.localizedDescription
-        }
+    private func engineHostSwitch() -> EngineHostSwitch {
+        .standard(appState: appState, backendService: backendService, libraryManager: libraryManager,
+                  setHost: { engineHost = $0 })
     }
 }
 
