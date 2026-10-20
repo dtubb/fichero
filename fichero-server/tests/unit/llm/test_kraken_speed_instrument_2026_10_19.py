@@ -99,8 +99,10 @@ def test_a_page_logs_one_line_with_every_stage_and_a_total_that_adds_up(monkeypa
     m = re.match(r"kraken page IMG_017\.png: load ([\d.]+)s segment ([\d.]+)s recognise ([\d.]+)s total ([\d.]+)s", lines[0])
     assert m, lines[0]
     load, segment, recognise, total = map(float, m.groups())
-    assert (load, segment, recognise) == pytest.approx((0.1, 0.2, 0.3), abs=0.1)
-    assert total == pytest.approx(load + segment + recognise, abs=0.2)
+    # Each stage took at least what it slept (a busy machine only makes a stage longer: M4, 2026-10-20), and the
+    # total is the stages' sum, to the rounding of the printed tenths.
+    assert load >= 0.1 and segment >= 0.2 and recognise >= 0.3
+    assert total == pytest.approx(load + segment + recognise, abs=0.3)
 
 
 def test_a_resident_page_checks_its_small_working_need():

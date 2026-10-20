@@ -23,6 +23,8 @@ def pages(db, tmp_path, monkeypatch):
         db.save(doc)
         docs.append(doc.id)
     monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 40, "height": 60, "regions": [], "lines": []})
+    # The model lane is not under test (a unit test has no scheduler running it): the segmenter's call runs inline.
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", lambda library, kind, subject, *, fn, **kw: fn())
     monkeypatch.setattr(regions, "WAIT_POLL_SECONDS", 0)
     monkeypatch.setattr(regions, "SLOWER_YIELD_SECONDS", 0)
     monkeypatch.setattr(throttle, "_enabled", lambda: True)
