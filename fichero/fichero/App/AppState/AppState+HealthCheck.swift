@@ -86,8 +86,9 @@ extension AppState {
                 // Feeds the About box "Built on" list live dep versions (seam in AppState).
                 dependencyVersions = health.dependencies?.additionalProperties ?? [:]
                 if let stall = dependencyVersions["previous_stall"], !stall.isEmpty {  // #5843
-                    ConnectionPresentation.lastPreviousStall = stall
-                    logger.warning("Engine: the previous engine got stuck: \(stall, privacy: .public)")
+                    if ConnectionPresentation.notePreviousStall(stall) {  // once: every Settings re-read of health repeats it
+                        logger.warning("Engine: the previous engine got stuck: \(stall, privacy: .public)")
+                    }
                 }
                 let version = health.backendVersion ?? "unknown"
                 let count = health.activeLibraries ?? 0

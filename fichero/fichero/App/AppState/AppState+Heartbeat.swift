@@ -72,8 +72,7 @@ extension AppState {
     /// without a new stall from the engine says nothing about it.
     static func takeRestartSentence(failures: Int, busyWithImport: Bool) -> String {
         let sentence = restartSentence(failures: failures, busyWithImport: busyWithImport,
-                                       previousStall: ConnectionPresentation.lastPreviousStall)
-        ConnectionPresentation.lastPreviousStall = nil
+                                       previousStall: ConnectionPresentation.takePreviousStall())
         return sentence
     }
 
