@@ -15,7 +15,20 @@ enum MultiuserMigration {
     }
 
     static func note(for reason: String) -> String {
-        "Multi-user was on before this update and could not be carried over: \(reason)"
+        // Dev Local pins the variable: its refusal names the environment, which the person cannot act on.
+        if reason.contains("FICHERO_MULTIUSER") {
+            return "Multi-user was on before this update, but this engine was started with it fixed by its launcher, so it was not carried over."
+        }
+        return "Multi-user was on before this update and could not be carried over: \(reason)"
+    }
+
+    /// Only an answer from the engine (success or a refusal) spends the one try; a transport error is tried again next launch.
+    static func engineAnswered(_ error: Error) -> Bool {
+        guard let api = error as? APIError else { return false }
+        switch api {
+        case .invalidResponse, .connectionFailed: return false
+        case .badRequest, .notFound, .serverError, .httpError: return true
+        }
     }
 
     /// True when it asked the engine to turn Multi-user on (so the caller reads the engine's state again).
@@ -28,11 +41,13 @@ enum MultiuserMigration {
         guard shouldPush(
             localOn: local, engineOn: engineOn, alreadyTried: defaults.bool(forKey: triedKey), engineIsLocal: engineIsLocal
         ) else { return false }
-        defaults.set(true, forKey: triedKey)  // before the call: once, whatever happens
         do {
             try await turnOn()
+            defaults.set(true, forKey: triedKey)
             defaults.removeObject(forKey: noteKey)
         } catch {
+            guard engineAnswered(error) else { return false }  // nothing answered: not spent, tried again next launch
+            defaults.set(true, forKey: triedKey)  // the engine said no: once, never a loop
             defaults.set(note(for: error.localizedDescription), forKey: noteKey)
         }
         return true
