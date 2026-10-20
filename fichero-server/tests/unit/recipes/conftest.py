@@ -7,6 +7,23 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def the_model_lane_runs_inline(request, monkeypatch):
+    """A unit test has no scheduler thread to run what is handed to the model lane, so a page waiting for its slot waited
+    for good (M4, 14f3f1216: `-k regions` hung 300 s in `find_regions`). A recipe test runs the segmenter's call in place;
+    a test that asks for `real_model_lane` goes through the real lane and its scheduler."""
+    if "real_model_lane" in request.fixturenames:
+        return
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", lambda library, kind, subject, *, fn, **kw: fn())
+
+
+@pytest.fixture
+def real_model_lane():
+    """Ask for this to keep the real model lane (see `the_model_lane_runs_inline`)."""
+
+
+@pytest.fixture(autouse=True)
 def kraken_readers_on_this_mac(monkeypatch):
     from fichero_server.recipes import start
 
