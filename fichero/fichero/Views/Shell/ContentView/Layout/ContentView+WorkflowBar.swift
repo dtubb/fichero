@@ -141,13 +141,11 @@ extension ContentView {
         }
     }
 
-    /// FALLBACK: run the staged chain client-side, one step after another on
-    /// the same selection.
+    /// Run a DETACHED staged chain client-side, one step after another on the same selection.
     ///
-    /// The engine now owns chain execution (`runStagedChainViaEngine`,
-    /// 2026-08-30) — order, per-step overrides, stop-on-failure. This loop
-    /// remains for an older engine without the execute-steps route, feature-
-    /// detected by `runStagedChain` in ContentView+WorkflowChainEngine.
+    /// The engine owns the bar's own chain (`runStagedChainViaEngine`). This loop remains only for the concurrent
+    /// detached runs (`launchDetachedRun`), which the engine's single persisted "Workflow Bar" chain cannot carry; it
+    /// is to go (`activity.run.one-way-to-run`, #4949).
     ///
     /// Sequential, not fire-and-forget: step two should read what step one
     /// wrote (transcribe then clean up then catalogue), so each awaits the

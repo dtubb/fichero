@@ -9,9 +9,9 @@ private let engineChainLogger = Logger(
 // The staged chain rides the engine's ChainService (Daniel, 2026-08-30,
 // workflow-bar review ruling): persistence so the rail survives window
 // close/reopen and reads the same cross-window, and execution so the ENGINE
-// owns ordering, per-step model overrides and stop-on-failure. The client
-// loop in ContentView+WorkflowBar stays as the fallback for an engine
-// without the execute-steps route — feature-detected, never assumed.
+// owns ordering, per-step model overrides and stop-on-failure. The bar's own
+// chain has no client-loop fallback (`activity.run.one-way-to-run`); only
+// the concurrent DETACHED runs still use `runStagedChainClientSide`.
 extension ContentView {
 
     /// The per-library chain service, shared by every window on the library.
@@ -223,8 +223,7 @@ extension ContentView {
         stagedWorkflowChain = []
     }
 
-    /// Run the bar's OWN staged chain, attached: engine-side when this engine
-    /// can, the local loop when it cannot. The behavior contract (chip states,
+    /// Run the bar's OWN staged chain, attached, on the engine. The behavior contract (chip states,
     /// frozen scope, stop-on-failure, repeatable chain) is unchanged. This is
     /// the single-run path; concurrent runs go through `launchDetachedRun`.
     @MainActor
@@ -244,8 +243,8 @@ extension ContentView {
         // re-run on the unchanged chain (chainCostKey never moved, so the
         // structure-change reset did not fire) would keep last time's numbers.
         stagedChainActualCost = nil
-        if await runStagedChainViaEngine() { return }
-        await runStagedChainClientSide()
+        // One way to run (`activity.run.one-way-to-run`): the engine runs the chain; there is no client loop to fall back to.
+        _ = await runStagedChainViaEngine()
     }
 
     /// Stop a running chain (Daniel, 2026-09-06: "the workflow bar needs a stop
@@ -285,9 +284,8 @@ extension ContentView {
         runningStagedStepIndex = nil
     }
 
-    /// Returns false ONLY when the engine lacks step execution and the
-    /// client loop should take over; true means the run was handled here,
-    /// whatever its outcome.
+    /// Returns false only when this window has no chain service (no project open); true means the run was handled
+    /// here, whatever its outcome.
     @MainActor
     func runStagedChainViaEngine() async -> Bool {
         guard let service = workflowBarChainService else { return false }
@@ -341,10 +339,10 @@ extension ContentView {
             await persistStagedChain(resolvedWorkflowIds: resolved)
             return true
         } catch ChainServiceError.stepExecutionUnavailable {
-            // Older engine: no execute-steps route. The client loop still
-            // knows how to run this chain — feature-detect, don't break.
-            engineChainLogger.info("Engine lacks chain step execution; falling back")
-            return false
+            // An engine without the route is older than this app: said in words, never a second way to run the chain.
+            engineChainLogger.info("Engine lacks chain step execution")
+            importError = "This engine is too old to run a chain. Update Fichero and try again."
+            return true
         } catch {
             importError = "Chain failed to start: \(error.localizedDescription)"
             engineChainLogger.error("executeChainSteps failed: \(error.localizedDescription)")
