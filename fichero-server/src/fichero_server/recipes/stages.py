@@ -134,6 +134,10 @@ TRIED_BY_THE_BAKEOFF = frozenset({"find-lines", "read"})
 TRIED_ON_ITS_OWN = frozenset({"organise", "find-regions"})
 
 
+#: What a stage that cannot be tried on the sample pages says (`source.try.every-job`): plain, and no promise.
+NOT_TRIED = "This one can't be tried on your pages yet: it runs at Start, and you can check what it made then."
+
+
 def get_stage(stage_id: str) -> Stage | None:
     return next((s for s in STAGES if s.id == stage_id), None)
 
@@ -210,5 +214,6 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
                           for q in stage.questions],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",
+            "not_tried": None if sampleable(stage) else NOT_TRIED,
         })
     return out
