@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,7 @@ class Winning:
 class Staged:
     path: Path
     count: int
+    files: list[str] = field(default_factory=list)  # exactly what stage_dataset wrote, relative to `path`: all that is uploaded
 
 
 @dataclass
@@ -115,21 +117,24 @@ def stage_dataset(winning: Winning, pages_dir: str | Path, out_dir: str | Path) 
     out = Path(out_dir).expanduser().resolve()
     if (tree := _git_work_tree_above(out)) is not None:
         raise ValueError(f"{out} is inside the git work tree {tree}: stage the dataset outside every repository")
+    if out.exists() and any(out.iterdir()):
+        raise ValueError(f"{out} is not empty: stage into a new or empty folder, so only what was staged can be uploaded")
     (out / LINES_DIR).mkdir(parents=True, exist_ok=True)
-    pages: dict[str, Any] = {}
-    with (out / PAIRS).open("w", encoding="utf-8") as pairs:
+    written = [PAIRS, "README.md"]
+    with ExitStack() as stack, (out / PAIRS).open("w", encoding="utf-8") as pairs:
+        pages: dict[str, Any] = {}
         for line in winning.lines:
             if line.page not in pages:
-                pages[line.page] = Image.open(Path(pages_dir) / line.page)
-                pages[line.page].load()
+                pages[line.page] = stack.enter_context(Image.open(Path(pages_dir) / line.page))
             name = f"{LINES_DIR}/{Path(line.page).stem}_{line.line_id}.jpg"
             crop_line(pages[line.page], line.polygon).save(out / name, format="JPEG", quality=90)
+            written.append(name)
             pairs.write(json.dumps({"image": name, "text": line.text, "read_by": line.read_by, "agreed_by": line.agreed_by,
                                     "checked_by_person": line.checked_by_person}, ensure_ascii=False) + "\n")
     arms = sorted({a for line in winning.lines for a in line.agreed_by})
     (out / "README.md").write_text(CARD.format(count=len(winning.lines), winner=winning.lines[0].read_by if winning.lines else "?",
                                                arms=", ".join(arms) or "none", left=json.dumps(winning.left_out)), encoding="utf-8")
-    return Staged(out, len(winning.lines))
+    return Staged(out, len(winning.lines), written)
 
 
 def push_private_dataset(staged: Staged, repo_id: str, *, token: str, confirmed_lines: int | None,
@@ -167,5 +172,7 @@ def push_private_dataset(staged: Staged, repo_id: str, *, token: str, confirmed_
     api.create_repo(repo_id, repo_type="dataset", private=True, exist_ok=True, token=token)
     if api.dataset_info(repo_id, token=token).private is not True:
         raise PublicDatasetRefused(f"{repo_id} is not private after it was created: nothing was uploaded")
-    api.upload_folder(folder_path=str(staged.path), repo_id=repo_id, repo_type="dataset", token=token)
+    # Only the files stage_dataset wrote, by name: whatever else sits in the folder does not leave (review 509).
+    api.upload_folder(folder_path=str(staged.path), repo_id=repo_id, repo_type="dataset", token=token,
+                      allow_patterns=list(staged.files))
     return Pushed(repo_id, staged.count)
