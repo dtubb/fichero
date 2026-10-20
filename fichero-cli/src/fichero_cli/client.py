@@ -231,6 +231,13 @@ def _read_token(
     if env:
         return env.strip()
 
+    # A device this CLI was paired as (`fichero devices pair`) speaks for its engine, on any transport.
+    from fichero_cli.pairing import device_token
+
+    paired = device_token(engine)
+    if paired:
+        return paired
+
     loopback = _is_loopback_base_url(base_url)
     if loopback is False:
         payload = _read_cli_session_payload(as_user=as_user, engine=engine)
@@ -535,6 +542,10 @@ class FicheroClient:
                 self.base_url
             ):
                 verify = _loopback_trust(self.base_url)
+            elif not _is_loopback_base_url(self.base_url):
+                from fichero_cli.pairing import pinned_context
+
+                verify = pinned_context(self.base_url) or verify  # a host paired by its pin is trusted by it
         self._client = httpx.Client(
             base_url=self.base_url, timeout=timeout, transport=transport,
             verify=verify,
