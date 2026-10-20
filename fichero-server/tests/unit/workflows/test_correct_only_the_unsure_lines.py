@@ -21,8 +21,13 @@ from tests.unit.workflows.test_review_corrects_the_lines_5654 import (  # noqa: 
 
 
 def _kraken_was_sure(page, sure: list[float | None]) -> None:
+    """Store Kraken's certainty on each line's stored readings (the rows, `ContentRepresentation`). `_readings` returns the
+    API's `ReadingRead` copies: setting the value on those and saving them stored it nowhere, so every line looked
+    unstated and was sent, and the failed batch was asked again line by line (6 images for 3 lines)."""
+    from fichero_server.models import ContentRepresentation
+
     for row, value in zip(_lines(page), sure):
-        for reading in _readings(page, row):
+        for reading in page["db"].query(ContentRepresentation, segment_id=row.id):
             reading.machine_confidence = value
             page["db"].save(reading)
 
