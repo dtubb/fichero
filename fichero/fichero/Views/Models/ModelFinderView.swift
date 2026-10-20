@@ -47,7 +47,7 @@ struct ModelFinderView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(ModelFinderTiers.groups(store.candidates), id: \.title) { group in
+            ForEach(ModelFinderTiers.groups(store.candidates)) { group in
                 if let title = group.title {
                     Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
