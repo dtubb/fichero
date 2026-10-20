@@ -56,7 +56,7 @@ def _update(app_db, monkeypatch, user_id, **fields):
 
     monkeypatch.setattr(routes, "_use_multiuser_auth", lambda: False)
     bootstrap = fields.pop("bootstrap", True)
-    request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=bootstrap))
+    request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=bootstrap), headers={})
     return routes.update_user(request, user_id, routes.UpdateUserRequest(**fields), app_db)
 
 
