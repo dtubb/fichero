@@ -81,6 +81,8 @@ struct HostChoicesTests {
         #expect(HostChoices.needsInvite(host("Bare", "https://tail1234.ts.net"), ownTailnetURL: "https://tail1234.ts.net"))
         #expect(HostChoices.needsInvite(host("Same", "https://studio.tail1234.ts.net"), ownTailnetURL: nil))
         #expect(HostChoices.tailnet(of: "https://studio.tail1234.ts.net") == "tail1234.ts.net")
+        #expect(HostChoices.tailnet(of: "https://tail1234.ts.net") == nil)  // a bare tailnet name is no machine in it
+        #expect(HostChoices.tailnet(of: "https://a.b.tail1234.ts.net") == "tail1234.ts.net")
     }
 
     /// Review 474 HIGH (manager's rule): a `.ts.net` host is listed only in this Mac's own tailnet.
