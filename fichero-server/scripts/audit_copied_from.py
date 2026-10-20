@@ -23,8 +23,13 @@ def refusal(arg: str, home: Path | None = None) -> tuple[str, Path | None]:
     """(why this path is refused, else "") and the one library file it names. Pure, so each refusal is testable."""
     home = (home or Path.home()).resolve()
     path = Path(arg).expanduser().resolve()  # symlinks resolved first: a link into a live library is the live library
-    live = [home / "Fichero", home / "Fichero Projects", *sorted((home / "Library" / "Containers").glob("app.fichero.*"))]
-    if any(path == root or root in path.parents for root in live):
+    containers = home / "Library" / "Containers"
+    live = [home / "Fichero", home / "Fichero Projects", *sorted(containers.glob("app.fichero.*"))]
+    # APFS is case-insensitive: compare resolved, case-folded paths (a container glob is case-sensitive, so also match by name)
+    folded = [str(r.resolve()).casefold() for r in live]
+    mine = str(path).casefold()
+    in_container = containers.resolve() in path.parents and path.relative_to(containers.resolve()).parts[0].casefold().startswith("app.fichero.")
+    if in_container or any(mine == root or mine.startswith(root + "/") for root in folded):
         return f"{path} is under a live Fichero location; copy the library elsewhere and audit the copy.", None
     if path.is_dir():
         found = sorted(path.glob("*.duckdb"))  # directly in the folder only
