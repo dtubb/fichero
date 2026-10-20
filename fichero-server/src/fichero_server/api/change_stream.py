@@ -366,7 +366,7 @@ class _ChangeHub:
         subscriber: _Subscriber,
         event: ChangeEvent,
     ) -> None:
-        if not subscriber.active:
+        if not subscriber.active and event.type != "sharing.revoked":  # the revoked frame is the one that ends the stream (#5913)
             return
         try:
             subscriber.queue.put_nowait(event)
