@@ -53,6 +53,25 @@ final class ActivityStreamService {
         hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
     }
 
+    /// Called on every failed attempt: the engine may now be dialled another way (a restart for a Sharing switch), so
+    /// the owner of the client reads the endpoint again, as the jobs read does (#5912).
+    @ObservationIgnored var onDrop: (() -> Void)?
+    /// Called on the first successful connect AFTER a drop: events sent while the stream was away are not replayed, so
+    /// the run list is read again rather than assumed (#5912).
+    @ObservationIgnored var onReconnected: (() -> Void)?
+    @ObservationIgnored private var wasDown = false
+
+    func noteDrop() {
+        wasDown = true
+        onDrop?()
+    }
+
+    func noteConnected() {
+        guard wasDown else { return }
+        wasDown = false
+        onReconnected?()
+    }
+
     init(activityService: ActivityService) {
         self.activityService = activityService
     }
@@ -150,6 +169,7 @@ final class ActivityStreamService {
             } catch {
                 if !Task.isCancelled {
                     log.error("activity stream dropped: \(error.localizedDescription, privacy: .public)")
+                    noteDrop()
                     consecutiveUnavailableCycles += 1
                     // Surface the pill only for a drop AFTER a successful connect;
                     // during the initial connect window the app-level
@@ -189,6 +209,7 @@ final class ActivityStreamService {
         }
         accessDenied = false
         liveUpdatesUnavailable = false  // (re)connected — activity events flowing
+        noteConnected()
 
         for try await line in lines {
             guard !Task.isCancelled else { break }

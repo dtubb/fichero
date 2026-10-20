@@ -202,7 +202,17 @@ final class ActivityStore: ChangeEventConsumer {
         if let key { putAwayRunIds = Set(defaults.stringArray(forKey: key) ?? []) }
     }
 
+    /// The stream's two hooks (#5912): each failed attempt reads the endpoint again, and the first connect after a drop
+    /// reads the run list again. Separate from `start()` so a test can wire them without a live stream.
+    func wireStreamRecovery() {
+        streamService.onDrop = { [weak self] in self?.reresolveEndpoint() }
+        streamService.onReconnected = { [weak self] in self?.refreshToken += 1 }
+    }
+
+    var streamServiceForTesting: ActivityStreamService { streamService }
+
     func start() {
+        wireStreamRecovery()
         streamService.start { [weak self] activity in
             self?.applyActivityEvent(activity)
         }
