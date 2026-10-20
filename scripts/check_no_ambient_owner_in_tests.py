@@ -23,7 +23,9 @@ from _scan_files import scan_rglob
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "scripts" / "ambient_owner_in_tests_baseline.json"
-PATTERN = re.compile(r"Bearer \{[^}]*(bootstrap|initialize_token)|\.host\(\)")
+# `Bearer {self.token}` is an engine handle holding the bootstrap token (the two-engine harness, #5911). Other `Bearer {token}` /
+# `{raw}` sites are session or device tokens and are not the ambient owner, so this stays narrow.
+PATTERN = re.compile(r"Bearer \{[^}]*(bootstrap|initialize_token)|Bearer \{self\.token\}|\.host\(\)")
 
 
 # Tests allowed to act as the ambient owner, by id ("path relative to the repo::test name"): (allowed pattern lines,

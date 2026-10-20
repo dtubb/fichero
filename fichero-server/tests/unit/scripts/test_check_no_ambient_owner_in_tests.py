@@ -64,3 +64,13 @@ def test_a_named_test_cannot_grow_past_its_allowed_lines(tmp_path):
     # One unnamed slot is free (42), the named walk gains a second line: the total stays 44 but the walk is over.
     body = f"    app = harness{OWNER_CALL}\n    other = harness{OWNER_CALL}\n"
     assert "more lines" in (_verdict(_tree(tmp_path, 42, named_body=body)) or "")
+
+
+HANDLE = "Bearer " + "{self" + ".token}"  # spelled apart so this file is not itself an offender
+
+
+def test_a_bootstrap_token_held_in_an_engine_handle_is_caught(tmp_path):
+    """The two-engine harness minted with an f-string over its engine handle that the first pattern missed (## 582)."""
+    root = _tree(tmp_path, 0)
+    (root / "fichero-server" / "tests" / "test_handle.py").write_text(f'def test_h(self):\n    h = f"{HANDLE}"\n')
+    assert _mod.scan(root)[1] == 1
