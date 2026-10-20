@@ -75,8 +75,12 @@ requires = [
     "python-multipart>=0.0.31",
     "python-dotenv",
     "aiofiles",
-    # 3.14.1 closes 11 advisories (PYSEC-2026-237, 2104-2113).
-    "aiohttp>=3.14.1",
+    # 3.14.1 closes 11 advisories (PYSEC-2026-237, 2104-2113); 3.14.4 closes Dependabot #43-#45 (#5896).
+    "aiohttp>=3.14.4",
+    # Transitive floors so a lock refresh cannot slide back (#5896): PyJWT comes in through mcp[crypto] (2.15.0 closes
+    # the critical asymmetric-PEM bypass and 13 more), urllib3 through requests/httpx-adjacent clients.
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
     "httpx",
     "defusedxml",
     # 48.0.1 fixes GHSA-537c-gmf6-5ccf.
@@ -113,7 +117,7 @@ requires = [
     # `mcp.server.fastmcp`, which every fichero-mcp tool module imports — a
     # fresh unbounded install resolves 2.0 and the MCP product stops importing
     # at all. Lifting the cap is a migration to `mcp.server.mcpserver` (#4337).
-    "mcp>=1.28.1,<2",
+    "mcp>=1.30.0,<2",
     "langgraph",
     "langchain-ollama",
     "apscheduler",
@@ -382,7 +386,9 @@ dependencies = [
     "pypdfium2",
     "python-dotenv",
     "aiofiles",
-    "aiohttp>=3.14.1",  # PYSEC-2026-237, 2104-2113
+    "aiohttp>=3.14.4",  # PYSEC-2026-237, 2104-2113; Dependabot #43-#45 (#5896)
+    "pyjwt>=2.15.0",  # Dependabot #22-#32, #36, #37, #40 via mcp (#5896)
+    "urllib3>=2.8.0",  # Dependabot #33-#35 (#5896)
     "httpx",
     "defusedxml",
     "cryptography>=48.0.1",  # GHSA-537c-gmf6-5ccf
@@ -415,7 +421,7 @@ dependencies = [
     "langchain-mcp-adapters",
     # Floor: PYSEC-2026-3483. Ceiling: mcp 2.0 removed `mcp.server.fastmcp`,
     # which fichero-mcp imports everywhere — see the briefcase block comment.
-    "mcp>=1.28.1,<2",
+    "mcp>=1.30.0,<2",
     "langgraph",
     "langchain-ollama",
     "apscheduler",
