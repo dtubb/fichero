@@ -102,7 +102,10 @@ HEAVY_MODULES = [
 # 2026-10-18: raised to 820 (manager's OK). The api dir did not collect from 03:51 that day, so the count grew unseen
 # to 896; the MCP knowledge-route retirement brought it to 817. #5798 trims it back under 800 and restores 800.
 # 2026-10-19: raised to 821 (manager's OK). 1aae82b45 and 325561028 import the identical 821 modules: it was already over.
-MODULE_BUDGET = 821
+# 2026-10-20: raised to 823 (manager's OK). The app import gained exactly two modules since 9add4f3c7 (821), measured on the M4
+# with the module lists diffed: `core/egress.py` (the egress gate's 403 handler) and `core/no_model_in_get.py` (the GET-runs-no-model
+# middleware and its 503 handler). Both are installed on the app at build (api/main.py), so neither can load lazily.
+MODULE_BUDGET = 823
 
 
 def _run(code: str) -> str:
