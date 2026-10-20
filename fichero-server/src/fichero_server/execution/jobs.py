@@ -674,7 +674,12 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
                     units.setdefault(document, []).extend(entries)
                 for i in range(3):
                     extra[i] += child["_extra"][i]
-            node["done"] = extra[0] + sum(1 for e in units.values() if all(d for d, _ in e))
+            # A page is done only when it is done in every step that has not finished: a page missing from a FINISHED step was
+            # skipped there by design; missing from an unfinished one it has not been reached yet (## 682).
+            pending = [c for c in last.values() if c["kind"] in RUN_KINDS and c["state"] != "done"]
+            node["done"] = extra[0] + sum(
+                1 for document, e in units.items()
+                if all(d for d, _ in e) and all(document in c["_units"] for c in pending))
             node["total"] = extra[1] + len(units)
             failed += extra[2] + sum(1 for e in units.values() if any(f for _, f in e))
         node["_units"], node["_extra"] = units, extra
