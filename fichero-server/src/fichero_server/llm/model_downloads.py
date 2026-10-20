@@ -161,6 +161,8 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
         if size is not None and have > size:
             part.unlink()
             have = 0
+        if on_bytes is not None:
+            on_bytes(have, size)  # each try announces itself, so a silent server still shows the clock moving
         try:
             response = _open(url, have)
         except urllib.error.HTTPError as exc:
@@ -205,6 +207,9 @@ def megabytes(count: int | None) -> str:
     return "?" if count is None else f"{count / 1_000_000:.1f} MB"
 
 
-def progress_words(name: str, have: int, total: int | None) -> str:
-    """"Downloading PP-OCRv6 (medium): 8.8 MB of 63.0 MB"."""
-    return f"Downloading {name}: {megabytes(have)}" + (f" of {megabytes(total)}" if total else "")
+def progress_words(name: str, have: int, total: int | None, seconds_in: float | None = None) -> str:
+    """"Downloading PP-OCRv6 (medium): 8.8 MB of 63.0 MB, 12 s in"; before any byte: "Downloading X, 23 s in"."""
+    when = "" if seconds_in is None else f", {seconds_in:.0f} s in"
+    if not have:
+        return f"Downloading {name}{when}"
+    return f"Downloading {name}: {megabytes(have)}" + (f" of {megabytes(total)}" if total else "") + when

@@ -895,12 +895,13 @@ def _run_download(subject: str, db=None) -> None:
         return _stop_asked(db)
 
     said = {"at": 0.0}
+    began = time.monotonic()
 
     def on_bytes(have: int, total: int | None) -> None:
         now = time.monotonic()
-        if now - said["at"] >= PROGRESS_EVERY_SECONDS:
+        if now - said["at"] >= PROGRESS_EVERY_SECONDS or not have:
             said["at"] = now
-            _say_progress(db, progress_words(person, have, total))
+            _say_progress(db, progress_words(person, have, total, now - began))
 
     try:
         if runtime == "mlx":
