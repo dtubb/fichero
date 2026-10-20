@@ -1311,6 +1311,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
                            [f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
                             else f"Waiting for the model to answer ({waited:g} s so far)", job_ref[0]])
             if waited >= HOLD_LIMIT_SECONDS:
+                if outcome["result"] is None:  # the call is still live: say what happened, not that its run ended (#5938)
+                    raise JobCancelled(f"The model had not answered after {HOLD_LIMIT_SECONDS / 60:g} minutes; its place in the queue was given up")
                 break
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
