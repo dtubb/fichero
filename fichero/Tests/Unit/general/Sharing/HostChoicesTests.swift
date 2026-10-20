@@ -56,4 +56,18 @@ struct HostChoicesTests {
         #expect(!HostChoices.invite("https://other.local:8443", isFor: studio))
         #expect(!HostChoices.invite("not a url", isFor: studio))
     }
+
+    /// Manager's ruling 2026-10-20: a public-CA (.ts.net) host is paired with under normal TLS validation (no pin
+    /// recorded, so `resolveServerTrustChallenge` performs default handling: system trust and hostname match); http is
+    /// refused, and a look-alike name is not a public-CA host.
+    @Test func aTailnetHostIsHttpsOnlyAndALookAlikeNeedsItsInvite() async {
+        let tailnet = host("Studio", "https://studio.tail1234.ts.net")
+        #expect(!HostChoices.needsInvite(tailnet))
+        #expect(HostChoices.offered([host("Studio", "http://studio.tail1234.ts.net")], ownName: "me").isEmpty)
+        #expect(HostChoices.needsInvite(host("Evil", "https://studio.ts.net.evil.example")))
+        await #expect(throws: (any Error).self) {
+            _ = try await RemoteClientPairing.pairDevice(
+                remoteURL: "http://studio.tail1234.ts.net", pairCode: "ABC123", deviceName: "Guest", expectedSPKIPin: nil)
+        }
+    }
 }
