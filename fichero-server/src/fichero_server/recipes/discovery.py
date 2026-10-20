@@ -1465,6 +1465,27 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote, *_print_baselines(seed, job, a)], sources
 
 
+#: A local vision model up to this size is a small one; a larger one is a general model (`source.recipe.reader-tiers`).
+SMALL_VLM_GB = 8.0
+
+TIER_WORDS = {"specialist": "Specialist line reader", "small-vlm": "Small vision model, on this Mac",
+              "general": "General model"}
+
+
+def reader_tier(card: Card, job: str) -> str | None:
+    """Which tier a reader is in, for the reading job only (`source.recipe.reader-tiers`): `specialist` (a line
+    recogniser made for a script: Kraken's, PP-OCR, Tesseract), `small-vlm` (a vision-language model that runs on
+    this Mac and is small), `general` (a large or cloud or built-in page reader). None for any other job."""
+    if job != "read-a-line":
+        return None
+    pin = card.pin
+    if any(k in pin for k in ("kraken", "zenodo", "tesseract")):
+        return "specialist"
+    if "hf" in pin and card.runs_on in ("this-mac", "") and (card.size_gb or 0) <= SMALL_VLM_GB:
+        return "small-vlm"
+    return "general"
+
+
 def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
     """Tesseract's data, named for a project that reads print or typescript and for no other: a card Fichero cannot run
     yet, listed so a person sees the fast local baseline exists (`source.recipe.reader-tiers`). Never for handwriting."""

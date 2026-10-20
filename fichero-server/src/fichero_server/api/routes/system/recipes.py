@@ -1202,6 +1202,8 @@ class ModelCandidate(BaseModel):
 
     id: str = Field(description="<runtime>:<source>@<version>")
     name: str
+    tier: Optional[str] = Field(default=None, description="a reading candidate's tier: specialist, small-vlm or general (source.recipe.reader-tiers); null for another job")
+    tier_words: Optional[str] = Field(default=None, description="the tier in words for a row: Specialist line reader, Small vision model on this Mac, General model")
     short_name: str = Field(default="", description="the name a model row shows, short enough to read in a row; the whole `name` is the hover text (source.find.model-row-words)")
     source: CardSource
     offered_because: str = Field(description="why discovery offers it, in words")
@@ -1406,7 +1408,9 @@ async def model_candidates(
     from fichero_server.recipes.assemble import other_period
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
+        TIER_WORDS,
         candidate_availability,
+        reader_tier,
         short_name,
         model_link,
         step_candidates,
@@ -1508,7 +1512,8 @@ async def model_candidates(
 
     compared = await run_in_threadpool(_compared_by_default, library_path, step) if library_path and step else set()
     items = [ModelCandidate(
-        id=c.id, name=c.note.strip().rstrip(".") or c.id, short_name=short_name(c), source=c.source,
+        id=c.id, name=c.note.strip().rstrip(".") or c.id, tier=reader_tier(c, job),
+        tier_words=TIER_WORDS.get(reader_tier(c, job) or ""), short_name=short_name(c), source=c.source,
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
         jobs=sorted(c.jobs), scripts=sorted(c.scripts) if c.scripts is not None else None,
         languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,
