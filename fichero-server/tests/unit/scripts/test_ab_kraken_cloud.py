@@ -119,8 +119,7 @@ def test_it_refuses_to_run_without_a_scratch_state_dir_or_inside_the_owners_plac
 def test_a_symlink_dotdot_or_other_case_cannot_slip_past(monkeypatch, tmp_path):
     link = tmp_path / "innocent"
     link.symlink_to(Path.home() / "Fichero Projects")
-    sneaky = [str(link), str(tmp_path / ".." / ".." / ".." / "x"), str(Path.home() / "fichero projects")]
-    sneaky[1] = str(Path.home() / "Fichero" / ".." / "Fichero" / "sub")
+    sneaky = [str(link), str(Path.home() / "Fichero" / ".." / "Fichero" / "sub"), str(Path.home() / "fichero projects")]
     for value in sneaky:
         monkeypatch.setenv("FICHERO_BASE_PATH", value)
         with pytest.raises(SystemExit, match="scratch"):
