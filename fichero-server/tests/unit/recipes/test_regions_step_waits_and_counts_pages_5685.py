@@ -30,6 +30,10 @@ def test_it_waits_saying_why_then_counts_pages(db, tmp_path, monkeypatch):
     from fichero_server.llm import kraken_runtime
 
     monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 40, "height": 60, "regions": [], "lines": []})
+    from fichero_server.execution import jobs
+
+    # The model lane is not under test (a unit test has no scheduler running it): the segmenter's call runs inline.
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", lambda library, kind, subject, *, fn, **kw: fn())
     monkeypatch.setattr(regions, "WAIT_POLL_SECONDS", 0)
     said: list[str] = []
 
