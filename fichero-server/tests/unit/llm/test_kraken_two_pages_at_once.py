@@ -248,7 +248,7 @@ def test_two_pages_reading_found_lines_each_get_their_own_reader(tmp_path, monke
             return []
 
     shared = Reader()
-    monkeypatch.setattr(kr, "_resident", lambda kind, key, load: shared)
+    monkeypatch.setattr(kr, "_resident", lambda kind, key, load: shared if kind == "read" else load())  # the pool is its own resident
     monkeypatch.setattr(kr, "_reader_config", lambda cls: None)
     monkeypatch.setattr(kr, "_page_is", lambda p: None)
     [t.join() for t in _in_threads(2, lambda _i: kr._read_given_raw(path, "m", lines))]
@@ -263,3 +263,82 @@ def test_a_failed_read_of_found_lines_says_it_in_words_and_keeps_the_raw_error_i
         kr.read_given_lines(tmp_path / "p.png", "m", lines)
     assert "index out of range" not in str(caught.value) and "Kraken could not read this page's lines" in str(caught.value)
     assert "list index out of range" in caplog.text
+
+
+# -- the reader is copied once for each pipeline, not once for each page (`runtime.kraken.no-reader-copy-per-page`, #5952) --
+class _Reader:
+    """A stand-in reader that counts how often it is deep-copied."""
+
+    copies = 0
+
+    def __deepcopy__(self, memo):
+        type(self).copies += 1
+        return _Reader()
+
+
+@pytest.fixture
+def reader_world(monkeypatch):
+    _Reader.copies = 0
+    kr._RESIDENT.clear()
+    loads = []
+    template = _Reader()
+    monkeypatch.setattr(kr, "_stage", lambda name: __import__("contextlib").nullcontext())
+    yield types_ns(template=template, loads=loads, load=lambda: loads.append(1) or template)
+    kr._RESIDENT.clear()
+
+
+def types_ns(**kw):
+    import types
+
+    return types.SimpleNamespace(**kw)
+
+
+def test_reading_many_pages_one_after_another_makes_one_copy_not_one_a_page(reader_world):
+    seen = []
+    for _ in range(25):
+        with kr._own_reader("m.mlmodel", reader_world.load) as net:
+            seen.append(net)
+    assert _Reader.copies == 1 and len({id(n) for n in seen}) == 1  # the same copy, handed from page to page
+    assert reader_world.loads == [1]  # and the model was loaded once
+
+
+def test_pages_at_once_each_hold_a_copy_and_no_more_are_made_than_pages_at_once(reader_world):
+    first = kr._own_reader("m.mlmodel", reader_world.load)
+    second = kr._own_reader("m.mlmodel", reader_world.load)
+    a, b = first.__enter__(), second.__enter__()
+    assert a is not b and _Reader.copies == 2  # two pages in flight: two readers, never the same object
+    first.__exit__(None, None, None)
+    second.__exit__(None, None, None)
+    for _ in range(10):
+        with kr._own_reader("m.mlmodel", reader_world.load):
+            pass
+    assert _Reader.copies == 2  # still two: the idle ones were reused
+
+
+def test_a_reader_a_failed_page_held_is_dropped_not_reused(reader_world):
+    with pytest.raises(RuntimeError):
+        with kr._own_reader("m.mlmodel", reader_world.load):
+            raise RuntimeError("the page failed with Kraken's state half way")
+    with kr._own_reader("m.mlmodel", reader_world.load):
+        pass
+    assert _Reader.copies == 2  # a fresh copy, not the one whose state is unknown
+
+
+def test_the_copies_are_freed_with_the_model_and_a_different_model_gets_its_own(reader_world):
+    with kr._own_reader("m.mlmodel", reader_world.load):
+        pass
+    kr.release_resident_models("test")
+    assert "read-copies" not in kr._RESIDENT and "read" not in kr._RESIDENT
+    with kr._own_reader("m.mlmodel", reader_world.load):
+        pass
+    assert _Reader.copies == 2  # the pool went with the model
+    with kr._own_reader("other.mlmodel", reader_world.load):
+        pass
+    assert _Reader.copies == 3  # another model, another pool
+
+
+def test_both_read_paths_take_their_reader_from_the_pool():
+    import inspect
+
+    assert "_own_reader(" in inspect.getsource(kr._recognize_raw) and "_own_reader(" in inspect.getsource(kr._read_given_raw)
+    assert "deepcopy" not in inspect.getsource(kr._recognize_raw) + inspect.getsource(kr._read_given_raw)

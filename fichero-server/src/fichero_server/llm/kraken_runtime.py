@@ -1019,14 +1019,47 @@ def _line_confidence(record: object) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
-def _own_copy(task: object) -> object:
-    """This page's own reader (`source.read.two-pages-at-once`): Kraken keeps a page's state on the model object
-    (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber each
-    other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three). A deep copy is the
-    reader's 16M weights, about 60 MB, once a page."""
-    import copy
+class _ReaderPool:
+    """The readers pages read through (`runtime.kraken.no-reader-copy-per-page`, #5952). Kraken keeps a page's state on the
+    model object (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber
+    each other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three): each page in
+    flight needs a reader of its own. It used to be a fresh deep copy for every page (the reader's 16M weights, about 60 MB,
+    a page); now a copy is made once for each pipeline (at most as many as pages at once) and handed from page to page: a
+    page takes an idle copy, or makes one when none is idle, and gives it back when it ends well. A copy a failed page held is
+    dropped, not reused. The pool is a resident of its own (`_RESIDENT`), so it is freed with the model."""
 
-    return copy.deepcopy(task)
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._idle: list[object] = []
+        self._template: object | None = None
+        self.copies_made = 0
+
+    def checkout(self, template: object) -> object:
+        import copy
+
+        with self._lock:
+            if self._template is not template:  # the model it was copied from is gone
+                self._idle.clear()
+                self._template = template
+            if self._idle:
+                return self._idle.pop()
+            self.copies_made += 1
+        return copy.deepcopy(template)
+
+    def checkin(self, reader: object, template: object) -> None:
+        with self._lock:
+            if self._template is template:
+                self._idle.append(reader)
+
+
+@contextlib.contextmanager
+def _own_reader(model_path: str, load: Callable[[], object]):
+    """This page's own reader for `model_path`: an idle copy, or a new one only when every copy is in use."""
+    template = _resident("read", model_path, load)
+    pool = _resident("read-copies", model_path, _ReaderPool)
+    reader = pool.checkout(template)  # type: ignore[attr-defined]
+    yield reader
+    pool.checkin(reader, template)  # type: ignore[attr-defined]  # not reached when the page failed: that copy is dropped
 
 
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
@@ -1047,9 +1080,9 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
-        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
-        with _stage("recognise"):
-            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
+            with _stage("recognise"):
+                predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
     for index, line in enumerate(lines):
@@ -1126,11 +1159,9 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
             lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
                    for ln in usable],
             regions={}, line_orders=[])
-        # This page's own handle (`_own_copy`): two pages reading their found lines at once clobbered one reader's state
-        # ("list index out of range", M4 realrun 2026-10-20: the lines Find Regions keeps made Read take this path).
-        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
-        with _stage("recognise"):
-            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
+            with _stage("recognise"):
+                predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
                                      char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
                                      or None)
