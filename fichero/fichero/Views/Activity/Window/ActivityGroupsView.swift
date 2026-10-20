@@ -18,11 +18,16 @@ struct ActivityGroupsView: View {
     let clearFailed: () -> Void
     let clearFinished: () -> Void
     /// Delete is a context-menu item (`activity.window.one-button`); only a run deletes.
-    let delete: (ActivityMonitorRow) -> Void
+    let delete: ([ActivityMonitorRow]) -> Void
     @AppStorage("activity.doneTodayExpanded") private var doneExpanded = false
+    /// Finder-like: rows multi-select, and Delete (⌫ or the context menu) acts on all of them.
+    @State private var selection: Set<ActivityMonitorRow.ID> = []
+
+    private var allShown: [ActivityMonitorRow] { groups.now + groups.upNext + (doneExpanded ? groups.doneToday : []) }
+    private func deletable(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] { rows.filter { $0.kind == .run && !$0.phase.isLive } }
 
     var body: some View {
-        List {
+        List(selection: $selection) {
             if !groups.now.isEmpty {
                 Section("Now") { ForEach(groups.now) { rowView($0) } }
             }
@@ -55,6 +60,9 @@ struct ActivityGroupsView: View {
             }
         }
         .accessibilityIdentifier("activity.groups")
+        #if os(macOS)
+        .onDeleteCommand { delete(deletable(allShown.filter { selection.contains($0.id) })) }
+        #endif
     }
 
     private func rowView(_ row: ActivityMonitorRow) -> some View {
@@ -83,7 +91,11 @@ struct ActivityGroupsView: View {
         .contextMenu {
             if row.controls.contains(.stop) { ActivityStopMenuItem(target: stopTarget(row)) }
             Button("Show Details") { open(row) }
-            if row.kind == .run, !row.phase.isLive { Button("Delete", role: .destructive) { delete(row) } }
+            // On the whole selection when the clicked row is in it, else on the row alone.
+            let targets = deletable(selection.contains(row.id) ? allShown.filter { selection.contains($0.id) } : [row])
+            if !targets.isEmpty {
+                Button(targets.count > 1 ? "Delete \(targets.count) Runs" : "Delete", role: .destructive) { delete(targets) }
+            }
         }
         .task(id: row.id) { await appeared(row) }
         .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id)")

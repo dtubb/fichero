@@ -40,7 +40,8 @@ extension ActivityMonitorRow {
             engineKind: "workflow",
             unknownState: phase == .unknown ? run.engineState : nil,
             transientState: Phase.transientWord(run.engineState),
-            ended: tree?.finishedAt ?? Self.endFromStart(run.timestamp, seconds: tree?.seconds)
+            // The tree's end, else the runs table's, else (a finished run the engine gave no end) its start plus time.
+            ended: tree?.finishedAt ?? run.completedAt ?? Self.endFromStart(run.timestamp, seconds: tree?.seconds)
         )
     }
 

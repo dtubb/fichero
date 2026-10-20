@@ -28,6 +28,9 @@ struct ActivityRun: Identifiable {
     /// The engine's own state for a run seen only as a node of the job tree (waiting, partial, …): the row says what the
     /// engine said, not the nearest of the five statuses (#5958).
     var engineState: String?
+    /// When the run ended, as the runs table recorded it (`completed_at`); nil while it runs or when unreadable. DONE TODAY
+    /// goes by it, so a finished run shows without its tree being loaded (## 749).
+    var completedAt: Date?
 
     /// The details' selection for this run (#5561): its job (the thread id)
     /// and its project. Nothing else is copied: the details read the row.
