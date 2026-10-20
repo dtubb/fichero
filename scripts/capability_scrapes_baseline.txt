@@ -168,6 +168,8 @@ fichero/Tests/Unit/general/Views/Preview/RegionNamingAndEntryTests.swift
 # guardrail-scan, not a capability scrape: SelectionStyle must hard-code no colour (system colours only, #5020)
 fichero/Tests/Unit/general/Views/Preview/SelectionStyleTests.swift
 fichero/Tests/Unit/general/Views/Preview/SiblingSwipeGestureGuardTests.swift
+# #5842 kept by the manager's OK 2026-10-20: a shape test of the line text font, the same as the TranscriptionFontWiringShapeTests precedent
+fichero/Tests/Unit/general/Views/Reader/LineTextFontShapeTests.swift
 fichero/Tests/Unit/general/Views/Reader/MultiSelectionReaderTests.swift
 fichero/Tests/Unit/general/Views/Reader/ReaderFindScopeTests.swift
 fichero/Tests/Unit/general/Views/Reader/ReaderHeadShowsWhatItDisplaysTests.swift
