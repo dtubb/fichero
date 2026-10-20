@@ -25,6 +25,12 @@ def _limit(conn) -> int:
     return ds.parse_size(conn.execute("SELECT current_setting('memory_limit')").fetchone()[0].replace(" ", ""))
 
 
+def _near(got: int, want: float) -> bool:
+    """DuckDB prints a size to one decimal in its largest unit ("1.5 GiB" for 1638 MiB), so a limit of a GiB or more is
+    read back to within 0.11 GiB, and a MiB figure to within a MiB."""
+    return abs(got - want) <= (0.11 * GIB if max(got, want) >= GIB else 1024**2)
+
+
 def _open(tmp_path, name):
     return ds.connect_utc(str(tmp_path / f"{name}.duckdb"))
 
@@ -36,7 +42,7 @@ def test_four_open_databases_on_16_gib_stay_within_the_budget(tmp_path, monkeypa
     limits = [_limit(c) for c in conns]
     # DuckDB reports its own rounding (a MiB figure), so compare with a MiB of slack per instance.
     assert sum(limits) <= budget + 4 * 1024**2
-    assert all(abs(x - budget / 4) <= 1024**2 for x in limits)  # the first three were re-applied when the fourth opened
+    assert all(_near(x, budget / 4) for x in limits)  # the first three were re-applied when the fourth opened
     for c in conns:
         c.close()
 
@@ -47,14 +53,14 @@ def test_the_share_grows_back_when_an_instance_closes(tmp_path, monkeypatch):
     assert _limit(a) < 0.9 * 16 * GIB * ds.BUDGET_FRACTION  # half each
     b.close()
     ds.rebalance_memory_limits()
-    assert abs(_limit(a) - 16 * GIB * ds.BUDGET_FRACTION) <= 1024**2
+    assert _near(_limit(a), 16 * GIB * ds.BUDGET_FRACTION)
     a.close()
 
 
 def test_the_floor_wins_over_many_instances(tmp_path, monkeypatch):
     monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 8 * GIB)  # 0.8 GiB total, ten instances
     conns = [_open(tmp_path, f"db{i}") for i in range(10)]
-    assert all(abs(_limit(c) - ds.FLOOR_BYTES) <= 1024**2 for c in conns)
+    assert all(_near(_limit(c), ds.FLOOR_BYTES) for c in conns)
     for c in conns:
         c.close()
 
@@ -63,7 +69,7 @@ def test_the_env_value_is_the_total(tmp_path, monkeypatch):
     monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 16 * GIB)
     monkeypatch.setenv(ds.DUCKDB_MEMORY_LIMIT_ENV, "2GiB")
     a, b = _open(tmp_path, "a"), _open(tmp_path, "b")
-    assert abs(_limit(a) - GIB) <= 1024**2 and abs(_limit(b) - GIB) <= 1024**2
+    assert _near(_limit(a), GIB) and _near(_limit(b), GIB)
     a.close()
     b.close()
 
@@ -123,5 +129,5 @@ def test_a_file_closed_and_opened_again_gets_its_share_back(tmp_path, monkeypatc
     a = _open(tmp_path, "a")
     a.close()
     again = _open(tmp_path, "a")  # a new instance, back at DuckDB's default
-    assert abs(_limit(again) - 16 * GIB * ds.BUDGET_FRACTION) <= 1024**2
+    assert _near(_limit(again), 16 * GIB * ds.BUDGET_FRACTION)
     again.close()
