@@ -986,7 +986,7 @@ class EmbedOutcome:
     #: Reasons that mean the LIBRARY is broken rather than this document being
     #: unsuitable. A run seeing these should stop and say so, not continue
     #: producing an unembedded corpus.
-    INFRASTRUCTURE_REASONS = ("embedding_failed",)
+    INFRASTRUCTURE_REASONS = ("embedding_failed", "embedder_unavailable")
 
     @property
     def is_infrastructure_failure(self) -> bool:
@@ -6227,9 +6227,12 @@ class Database(DatabaseEmbeddingMixin):
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
             logger.warning("Failed to create embedding for %s: %s", doc.id, e)
+            from fichero_server.db.embed_process import EmbedderUnavailable
+
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,
-                reason="embedding_failed",
+                # The model could not be loaded or answer: the queue waits and says why, it does not count pages failed.
+                reason="embedder_unavailable" if isinstance(e, EmbedderUnavailable) else "embedding_failed",
                 document_id=doc.id,
                 error=str(e),
             )

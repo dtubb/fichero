@@ -244,6 +244,17 @@ def _release_when_idle() -> None:
                 return
 
 
+#: A model that failed to load is not tried again for this long: every page of a queue would otherwise start a child
+#: and a network fetch with its own timeout (eight identical errors in one real run, P2). model -> (when, the words).
+_LOAD_FAILURES: dict[str, tuple[float, str]] = {}
+LOAD_FAILURE_BACKOFF_SECONDS = 120.0
+
+
+def forget_load_failures() -> None:
+    """The model arrived (a download finished) or a person asked again: try loading it afresh."""
+    _LOAD_FAILURES.clear()
+
+
 def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
     """Return the process-global TextEmbedding for ``model_name``, loading once.
 
@@ -262,6 +273,9 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
             from fichero_server.core.background_compute import embed_threads
             from fichero_server.db import embed_process
 
+            failed = _LOAD_FAILURES.get(model_name)
+            if failed is not None and time.monotonic() - failed[0] < LOAD_FAILURE_BACKOFF_SECONDS:
+                raise embed_process.EmbedderUnavailable(failed[1])  # at once: the words, not another load
             # Cap ONNX intra-op parallelism so a bulk embed can't peg every core
             # and freeze the app ([[user-machine-always-useful]]). fastembed
             # otherwise defaults to all cores per call.
@@ -271,7 +285,11 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
 
                 embedder = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
             else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
-                embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
+                try:
+                    embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
+                except embed_process.EmbedderUnavailable as exc:
+                    _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
+                    raise
             _EMBEDDER_CACHE[model_name] = embedder
             logger.info(
                 "model-lane: load embedder %s (threads=%d)",

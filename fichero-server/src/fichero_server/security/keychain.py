@@ -140,8 +140,13 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
 
 
 #: A found or absent answer is kept this long: every read spawns a `security` subprocess (2.5 s on the loop in the owner's
-#: Dev Embedded run). A refusal (UNREADABLE) is never kept: the person may fix it. A save or delete drops the entry.
-_LOOKUP_SECONDS = 300.0
+#: Dev Embedded run). A refusal (UNREADABLE) is kept only briefly (`_UNREADABLE_SECONDS`) and replaces the answer before it. A
+#: save or delete drops the entry. A key deleted OUTSIDE the engine (Keychain Access) reads as found for at most this
+#: long (a stale answer is served once, then re-read on a thread), so it is short (#4534).
+_LOOKUP_SECONDS = 30.0
+#: A refusal (UNREADABLE) is kept this long, and then re-read on a thread like any stale answer: while the keychain is
+#: locked a lookup must not run `security` on the caller's thread each time (435; the loop was held 2.5 s a call).
+_UNREADABLE_SECONDS = 5.0
 _LOOKUPS: dict[str, tuple[float, "KeychainLookup"]] = {}
 _LOOKUPS_LOCK = threading.Lock()
 
@@ -160,9 +165,7 @@ _GENERATION: dict[str, int] = {}
 
 
 def _store(provider: str, found: "KeychainLookup", generation: int) -> None:
-    if found.state is ProviderKeyState.UNREADABLE:
-        return
-    with _LOOKUPS_LOCK:
+    with _LOOKUPS_LOCK:  # an UNREADABLE answer replaces the old FOUND (never served on, #4534), for a short while
         if _GENERATION.get(provider, 0) == generation:
             _LOOKUPS[provider] = (time.monotonic(), found)
 
@@ -187,7 +190,9 @@ def lookup_api_key(provider: str) -> KeychainLookup:
     (`warm_api_keys` makes that first read at startup, off the loop)."""
     with _LOOKUPS_LOCK:
         kept = _LOOKUPS.get(provider)
-        stale = kept is not None and time.monotonic() - kept[0] >= _LOOKUP_SECONDS
+        limit = _UNREADABLE_SECONDS if kept is not None and kept[1].state is ProviderKeyState.UNREADABLE \
+            else _LOOKUP_SECONDS
+        stale = kept is not None and time.monotonic() - kept[0] >= limit
         refresh = stale and provider not in _REFRESHING
         if refresh:
             _REFRESHING.add(provider)
