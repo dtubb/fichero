@@ -112,15 +112,19 @@ struct WhatFicheroRunsFields: View {
     let connect: (WhatFicheroRuns.Connect) -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+        // A native List (no hand-rolled row collection); the cards are content to read before choosing, so no separators.
+        List {
+            Group {
                 Text(WhatFicheroRuns.intro).fixedSize(horizontal: false, vertical: true)
                 Text(WhatFicheroRuns.question).font(.headline)
                 ForEach(WhatFicheroRuns.places, id: \.title) { card($0) }
                 Text(WhatFicheroRuns.footnote).foregroundStyle(.secondary)
             }
-            .frame(maxWidth: 560, alignment: .leading)
+            .listRowSeparator(.hidden)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .frame(maxWidth: 560, alignment: .leading)
         // Outside the scroll view, so a refused Continue is seen without scrolling.
         .safeAreaInset(edge: .bottom, alignment: .leading) {
             if let message = store.errorMessage {

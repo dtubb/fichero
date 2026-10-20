@@ -683,13 +683,6 @@ async def execute_chain(
     if not chain.steps:
         raise HTTPException(status_code=400, detail="Chain has no steps to run")
 
-    unapplied = [s.name or s.id for s in chain.steps if s.condition or s.input_mappings]
-    if unapplied or (chain.entry_step and chain.entry_step != chain.steps[0].id):
-        raise HTTPException(
-            status_code=422,
-            detail=("This chain uses a condition, an input mapping or an entry step "
-                    f"({', '.join(unapplied) or 'its entry step'}), which a run does not apply: its steps run in order, "
-                    "each on the same pages. Remove them to run it."))
     # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
     # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
     # entry_step and output mappings are the old executor's graph semantics and are not applied here.
@@ -814,13 +807,18 @@ class _ChainStepsCanceller:
         return self._cancelled
 
 
+#: Why a chain's Activity row could not be written, by the id it was written for (read by tests and diagnostics).
+_row_problems: dict[str, str] = {}
+
+
 def _note_chain(db: Any, what: str, *args: Any, **kwargs: Any) -> None:
     """A chain's row in Activity (`jobs.record_chain` / `jobs.set_parent`): the run goes on if the row cannot be written."""
     from fichero_server.execution import jobs  # noqa: PLC0415
 
     try:
         getattr(jobs, what)(db, *args, **kwargs)
-    except Exception:  # noqa: BLE001 -- Activity's row is the account of the run, never its gate
+    except Exception as exc:  # noqa: BLE001 -- Activity's row is the account of the run, never its gate
+        _row_problems[str(args[0]) if args else what] = f"{what}: {exc}"  # recorded, and said at warning
         logger.warning("could not write the chain's %s row", what, exc_info=True)
 
 
@@ -1114,6 +1112,13 @@ def _start_chain(chain: WorkflowChain, inputs: dict[str, Any], library_path: str
     """Start a chain's steps as real, sequential runs of the one runner on their own thread, under a chain row in
     Activity (`activity.run.one-way-to-run`); returns the execution id and each step's pre-assigned thread id. Both
     `/execute` and `/execute-steps` start here."""
+    unapplied = [s.name or s.id for s in chain.steps if s.condition or s.input_mappings]
+    if unapplied or (chain.entry_step and chain.entry_step != chain.steps[0].id):
+        raise HTTPException(
+            status_code=422,
+            detail=("This chain uses a condition, an input mapping or an entry step "
+                    f"({', '.join(unapplied) or 'its entry step'}), which a run does not apply: its steps run in order, "
+                    "each on the same pages. Remove them to run it."))
     # Register per-step workflow state UP FRONT (light import — dict writes
     # and a hub), so a client can attach to a step's SSE stream before the
     # step starts and the stream endpoint recognizes the thread.

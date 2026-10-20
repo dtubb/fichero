@@ -57,7 +57,8 @@ def test_publishing_a_candidates_progress_updates_only_its_column_and_keeps_the_
 
 
 def test_publishing_into_a_try_with_no_record_is_quietly_nothing(tmp_path):
-    samples.publish_progress(tmp_path, "find-lines", "b", {"state": "running"}, [])  # no error: the try may be gone
+    assert samples.publish_progress(tmp_path, "find-lines", "b", {"state": "running"}, []) is None  # no error: the try may be gone
+    assert not list(tmp_path.rglob("*find-lines*"))  # and nothing was invented for it
 
 
 # --- review 323 and the M4 TRYPROGRESS run -------------------------------------------------------------------------

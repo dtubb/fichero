@@ -42,3 +42,16 @@ struct ActivityLiveSection: View {
         }
     }
 }
+
+#Preview("A live run and background work") {
+    let json = """
+    [{"live":[{"id":"r1","recipe":"Transcribe the Mosquera box","stage":"Reading lines","workflow":"Kraken","state":"running",
+               "done":36,"failed":1,"left":55,"total":92,"folders_done":2,"folders_total":8}],
+      "background":[{"kind":"embed","name":"Embedding pages","state":"running","done":42,"total":100},
+                    {"kind":"thumbnails","name":"Thumbnails","state":"waiting","reason":"Waiting: memory is tight","total":12}],
+      "history":3}]
+    """
+    let summaries = (try? JSONDecoder().decode([Components.Schemas.ActivitySummary].self, from: Data(json.utf8))) ?? []
+    ActivityLiveSection(summaries: summaries)
+        .frame(width: 520)
+}
