@@ -1684,7 +1684,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
   under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
   reading count and this is it: `reading.choose`, described once, at `source.reading.chosen-is-worked-out` (audited, one undo, only a
-  person: 403 for a model; and its optional `expected_counting_id`, which the view sends so a pick on a stale view is refused with
+  person: 403 for a model; and its optional `expected_counting_id` (**[GAP]**, #5900, not built: to be added to `reading.choose`), which the view will send so a pick on a stale view is refused with
   409 and writes nothing). Nothing is copied here.
   A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
   a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
@@ -1696,7 +1696,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   checked, so it is a training line with `checked_by_person` true. The Kraken set made from the person's own readings (teacher `person`,
   `training/kraken_set.py` `PERSON`) takes it with no other step, which EXTENDS that teacher: today it takes the lines whose counting
   reading a person *made*; it also takes those whose counting reading a person *chose* among machine readings (the choice record,
-  `source.reading.choose`), and its manifest counts chosen and typed separately, both as the person's and never with a model's
+  `source.reading.chosen-is-worked-out`), and its manifest counts chosen and typed separately, both as the person's and never with a model's
   (`compute.tune.bootstrapped-data-is-marked`). The bake-off's staged lines (`compute.tune.bakeoff-reads-become-training-lines`)
   are the other source and stay marked as a model's reading. **Dedupe:** both carry a `line_key`, the SHA-256 of the page image's
   bytes and the line's polygon rounded to whole pixels; when a line is in both, the person's is kept and the bake-off row is dropped
