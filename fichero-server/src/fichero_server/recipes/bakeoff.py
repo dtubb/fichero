@@ -584,6 +584,25 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     return apply_project_overrides(out, [card])
 
 
+def keep_newer_overrides(stored: dict[str, Any] | None, sent: dict[str, Any]) -> dict[str, Any]:
+    """The recipe a client sends back, with the overrides the project already holds that the client did not have yet.
+    Use This (the bake-off's or a candidate's) writes an override straight to the saved recipe; Set Up then saves the
+    recipe it loaded earlier, whole, and dropped that newer choice. Per (step, scope, folder) the override with the
+    later `at` wins, and one only the stored recipe holds is kept; a project-scope one sets its step again. Changes
+    `sent` in place (`source.project.setup-saves-what-is-sent`, Fable review #6)."""
+    def key(o: dict[str, Any]) -> tuple:
+        return (o.get("step"), o.get("scope"), o.get("folder_id"))
+
+    merged = {key(o): o for o in sent.get("overrides") or []}
+    for old in (stored or {}).get("overrides") or []:
+        mine = merged.get(key(old))
+        if mine is None or str(old.get("at") or "") > str(mine.get("at") or ""):
+            merged[key(old)] = old
+    if merged:
+        sent["overrides"] = list(merged.values())
+    return sent
+
+
 def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[str, Any]:
     """Set each step a project-scope override names to that override's reader, as the step's own choice, so
     the recipe Start reads and the one setup proposes again both read with the reader the person chose
