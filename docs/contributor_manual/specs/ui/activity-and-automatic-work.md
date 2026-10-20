@@ -506,7 +506,7 @@ workflow by hand: a hand run is a job like any other.
   `cancelled`, so no child row reads running or waiting while the run says Stopped. Stop on a page that is
   mid-read answers `stopping` ("Stopping: what it reads is not kept"): the model cannot be interrupted midway, so
   the page finishes its call, its result is dropped (nothing is saved), its row ends `cancelled`, and the run goes
-  on to its next page; a page a lane thread is running when its RUN is stopped likewise settles its own row (`fichero-server/tests/unit/jobs/test_stop_a_page_skips_it_stop_a_run_stops_all.py`).
+  on to its next page; a page a lane thread is running when its RUN is stopped likewise settles its own row (`fichero-server/tests/unit/jobs/test_stop_a_page_skips_it_stop_a_run_stops_all.py`). A page stopped alone is never recorded as its file's error by a tool that reads a list of pages in one node (the vision reader's per-file handlers let the stop through, so the page is `cancelled` and does not count toward "all pages failed"; `fichero-server/tests/unit/workflows/test_a_stopped_page_is_not_a_failed_page_5935.py`, #5935).
 - `activity.recipe-run.stop-reaches-its-step` — **[OK]** (#5609) Stop on a recipe run's row
   (`POST /api/activity/jobs/{id}/cancel`) stops the run: a waiting one ends `cancelled` at once; a running one
   answers `stopping`, its row says "Stopping at its next step", the step it is running is stopped through that
