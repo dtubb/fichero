@@ -1101,7 +1101,7 @@ async def check(request: CheckRequest) -> CheckResponse:
 # =============================================================================
 
 CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face", "remote", "remote-endpoints",
-                     "remote-compute", "transkribus", "htr-united"]
+                     "remote-compute", "transkribus", "htr-united", "nothing-found"]
 
 
 class CandidateSource(BaseModel):
