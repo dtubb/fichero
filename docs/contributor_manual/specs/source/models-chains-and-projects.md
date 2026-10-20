@@ -3571,8 +3571,12 @@ Setup
 - `source.onboard.existing-library` — **[PARTIAL]** (#4951; built: setup on a library with pages takes its samples from them (`fichero-server/tests/unit/recipes/test_setup_samples_5668.py`) and the bake-off its ground truth from their corrected lines; saving the setup runs nothing, and Start, its own job, shows the plan with the page count and estimate before anything runs (`fichero-server/tests/unit/api/test_start_is_the_first_yes.py::test_the_plan_is_shown_before_anything_runs_with_the_page_count`) and never redoes what is done (`source.recipe.done-is-not-redone`); saving the setup again on a library already read leaves every page, segment and reading as it was (`fichero-server/tests/unit/recipes/test_setup_rewrites_nothing_on_a_read_library_4951.py`). Not built: an offer, worded as such, to run the recipe over the existing pages) setup on an existing library takes samples
   and ground truth from its pages, rewrites nothing, and offers running the recipe over its
   existing pages as a separate job with its page count and estimate.
-- `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once scripts, languages and period
-  are set, Fichero finds candidates for each step itself, without a manual search.
+- `source.onboard.search-triggered` — **[PARTIAL]** (#4948, #4951) once scripts, languages and period
+  are set, Fichero finds candidates for each step itself, without a manual search. **Built 2026-10-20:** saving
+  Set Up's answers with a language and a script queues the reader search (the project's own `find-models` job) by
+  itself; not without both, not when this engine works offline, and a search that cannot be queued never fails the
+  save; `fichero-server/tests/unit/recipes/test_search_starts_by_itself_2026_10_20.py`. Gap: the other steps'
+  own searches (`STEP_SEARCHES`) still wait for their page, and the period is not yet part of the trigger.
 - `source.onboard.proposes-chain` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the proposed recipe shows each step's model card (note, licence, size, error rate), reasons and gaps; estimates and samples are a gap; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. screen 4 shows the proposed recipe: a
   published one that fits (the flagship first where it fits) or a generated one, with each step's
   model, where it runs, download size, licence class and measurements.
