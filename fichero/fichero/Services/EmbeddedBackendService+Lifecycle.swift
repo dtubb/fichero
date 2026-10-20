@@ -74,6 +74,19 @@ struct TerminationDeadlinePolicy: Equatable {
 }
 
 extension EmbeddedBackendService {
+    enum StartDisposition: Equatable { case begin, awaitInFlight }
+
+    /// What `start()` does with a start already in flight: wait for it (one spawn under N rapid retries, #3108), never
+    /// return before it ends (#5909). Pure so the decision is unit-testable.
+    static func startDisposition(isStarting: Bool) -> StartDisposition { isStarting ? .awaitInFlight : .begin }
+
+    /// After a start that was waited for, whether the caller must start again: the engine another caller's stop() killed
+    /// is not running, and a switch that restarts the engine must end with one (#5909).
+    static func needsAnotherStart(status: BackendStatus) -> Bool {
+        if case .running = status { return false }
+        return true
+    }
+
     /// Whether a `connectBackend` trigger should ATTACH to the already-established
     /// app-level connection instead of re-running the connect+auth sequence
     /// (#3394/#3407). The main WindowGroup's `.task` fires once per window/tab, so
@@ -99,8 +112,11 @@ extension EmbeddedBackendService {
         // One spawn per host at a time (#3108): a retry fired while a start is
         // already in flight is a no-op, so N rapid retries never spawn a second
         // engine or race the first readiness probe.
-        guard !isStarting else {
-            logger.info("start() ignored — a start/retry is already in flight (#3108)")
+        if Self.startDisposition(isStarting: isStarting) == .awaitInFlight {
+            // Waited for, never skipped (#5909): a caller that returns at once believes an engine is coming that
+            // another caller's stop() may have killed. It still spawns nothing itself (#3108).
+            logger.info("start() waits for the start/retry already in flight (#3108, #5909)")
+            while isStarting { try? await Task.sleep(for: .milliseconds(100)) }  // ponytail: a poll, a continuation if it ever shows
             return
         }
         isStarting = true
