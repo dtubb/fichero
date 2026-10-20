@@ -2254,6 +2254,11 @@ def _make_parallel_node_function(
         except Exception as e:
             from fichero_server.execution.jobs import JobCancelled
 
+            if isinstance(e, WorkflowPaused):
+                # A page the run's Pause cut short is not a page that failed (#5919, `activity.durable.paused-stays-paused`):
+                # returned as an error result it is recorded as this task's outcome, and Resume re-runs only the tasks that
+                # have none, so the page was never read and the run "completed". Raised, the checkpoint keeps it undone.
+                raise
             if isinstance(e, (WorkflowCancelled, JobCancelled)) or _run_cancelled():
                 # The page was stopped (with its run, or alone: a person's Stop on the page; or its project closing,
                 # #5608) while it waited for the lane: not done, not a page that failed. A page stopped alone skips,
