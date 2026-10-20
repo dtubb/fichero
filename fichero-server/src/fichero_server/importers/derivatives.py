@@ -881,14 +881,34 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
 EMBED_RETRY_SECONDS = 120.0
 
 
-def _fetch_the_search_model(db) -> None:
-    """Search's model is missing: queue its download in the app (a row in Activity; one waiting job per model).
-    Weights are the only thing that downloads, in-app; the finished download clears the embedder's back-off."""
-    try:
-        from fichero_server.db.embeddings import search_embedder
-        from fichero_server.llm.local_models import enqueue_download
+#: A download that failed (offline for every round) is not queued again for this long, so the embed job's retry every
+#: EMBED_RETRY_SECONDS does not leave a stream of failed download rows overnight.
+DOWNLOAD_RETRY_WINDOW_SECONDS = 3600.0
 
-        enqueue_download(db, "embeddings", search_embedder(), started_by="automatic")
+
+def _fetch_the_search_model(db) -> None:
+    """Search's model is missing: queue its download in the app (a row in Activity). Not while one waits or runs, not
+    within the window after one failed, and not when the files are already in the cache (the load failed for another
+    reason, which the job's own sentence says). The finished download clears the embedder's back-off."""
+    try:
+        from datetime import timedelta
+
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.db import embed_process
+        from fichero_server.db.embeddings import search_embedder
+        from fichero_server.execution import jobs
+        from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
+
+        model = search_embedder()
+        subject = f"embeddings:{model}"
+        if embed_process._cached(model, str(MODELS_BASE / "embeddings")):
+            return
+        if jobs.is_queued_or_running(db, DOWNLOAD_KIND, subject):
+            return
+        since = utc_now() - timedelta(seconds=DOWNLOAD_RETRY_WINDOW_SECONDS)
+        if jobs.failed_since(db, DOWNLOAD_KIND, subject, since):
+            return
+        enqueue_download(db, "embeddings", model, started_by="automatic")
     except Exception as exc:  # the row still waits with its sentence; the download can also be started by hand
         logger.warning("could not queue the search model's download: %s", exc)
 

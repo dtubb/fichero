@@ -17,6 +17,7 @@ def test_a_missing_model_queues_its_download(db, monkeypatch):
     jobs.load_kinds()
     monkeypatch.setattr(db, "embed", lambda target: (_ for _ in ()).throw(embed_process.EmbedderUnavailable("x")))
     queued = []
+    monkeypatch.setattr(embed_process, "_cached", lambda *a: False)
     monkeypatch.setattr(local_models, "enqueue_download", lambda d, runtime, name, **k: queued.append((runtime, name)))
     derivatives._fetch_the_search_model(db)
     assert queued == [("embeddings", embeddings.search_embedder())]
@@ -63,3 +64,31 @@ def test_a_refused_embed_is_done_once_the_model_arrives(db, monkeypatch):
     arrived.append(1)  # the download finished
     embeddings.forget_load_failures()
     assert _wait_for(lambda: jobs.read_job(db, job_id)["state"] == "done", 60), jobs.read_job(db, job_id)
+
+
+def test_offline_three_retries_make_one_download_row(db, monkeypatch):
+    jobs.load_kinds()
+    monkeypatch.setattr(embed_process, "_cached", lambda *a: False)
+    for _ in range(3):  # three embed retries, 120 s apart, the Mac offline throughout
+        derivatives._fetch_the_search_model(db)
+    subject = f"embeddings:{embeddings.search_embedder()}"
+    rows = db.execute_fetchall("SELECT state FROM jobs WHERE kind = ? AND subject = ?", [local_models.DOWNLOAD_KIND, subject])
+    assert len(rows) == 1
+
+
+def test_no_new_row_within_the_window_after_one_failed(db, monkeypatch):
+    jobs.load_kinds()
+    monkeypatch.setattr(embed_process, "_cached", lambda *a: False)
+    derivatives._fetch_the_search_model(db)
+    db.execute("UPDATE jobs SET state = 'failed', finished_at = current_timestamp WHERE kind = ?",
+               [local_models.DOWNLOAD_KIND])
+    for _ in range(3):
+        derivatives._fetch_the_search_model(db)
+    assert len(db.execute_fetchall("SELECT 1 FROM jobs WHERE kind = ?", [local_models.DOWNLOAD_KIND])) == 1
+
+
+def test_a_cached_model_queues_no_download(db, monkeypatch):
+    jobs.load_kinds()
+    monkeypatch.setattr(embed_process, "_cached", lambda *a: True)
+    derivatives._fetch_the_search_model(db)
+    assert db.execute_fetchall("SELECT 1 FROM jobs WHERE kind = ?", [local_models.DOWNLOAD_KIND]) == []
