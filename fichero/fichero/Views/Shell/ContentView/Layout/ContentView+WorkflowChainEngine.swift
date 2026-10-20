@@ -244,7 +244,7 @@ extension ContentView {
         // structure-change reset did not fire) would keep last time's numbers.
         stagedChainActualCost = nil
         // One way to run (`activity.run.one-way-to-run`): the engine runs the chain; there is no client loop to fall back to.
-        _ = await runStagedChainViaEngine()
+        if !(await runStagedChainViaEngine()) { importError = ChainRunWords.noProject }
     }
 
     /// Stop a running chain (Daniel, 2026-09-06: "the workflow bar needs a stop
@@ -341,10 +341,10 @@ extension ContentView {
         } catch ChainServiceError.stepExecutionUnavailable {
             // An engine without the route is older than this app: said in words, never a second way to run the chain.
             engineChainLogger.info("Engine lacks chain step execution")
-            importError = "This engine is too old to run a chain. Update Fichero and try again."
+            importError = ChainRunWords.startFailure(ChainServiceError.stepExecutionUnavailable)
             return true
         } catch {
-            importError = "Chain failed to start: \(error.localizedDescription)"
+            importError = ChainRunWords.startFailure(error)
             engineChainLogger.error("executeChainSteps failed: \(error.localizedDescription)")
             return true
         }
