@@ -1126,6 +1126,11 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
     job_id = getattr(future, "job_id", None)
     found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
     said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+    if run_id and said == "Paused with its run":
+        # The run's pause flag is cleared once it has settled, which can be before this waiter wakes: the row's words
+        # still say why it was withdrawn. A paused page is not a failed one (it would be recorded as the page's error
+        # and never read on Resume: `activity.durable.paused-stays-paused`).
+        return WorkflowPaused(run_id)
     if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
         return JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
     return PageStopped(said)  # skip this page; the run goes on
