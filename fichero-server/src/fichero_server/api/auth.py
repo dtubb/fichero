@@ -28,6 +28,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 import secrets
 import stat
 from pathlib import Path
@@ -442,9 +443,12 @@ def _session_expiry_should_refresh(expires_at: datetime, now: datetime) -> bool:
     return expires_at - now <= refresh_window
 
 
+_USER_PATH = re.compile(r"/api/users/[^/]+")  # users_router: prefix /users under /api (main.py), not /api/auth
+
+
 def _owner_session_route_while_off(method: str, path: str) -> bool:
     """The routes an owner's key session may call while Multi-user is off: choose the owner's password, set the switch."""
-    return (method == "PUT" and path == "/api/pair/multiuser") or (method == "PATCH" and path.startswith("/api/auth/users/"))
+    return (method == "PUT" and path == "/api/pair/multiuser") or (method == "PATCH" and _USER_PATH.fullmatch(path) is not None)
 
 
 def _authenticate_session_token(token: str):

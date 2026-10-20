@@ -20,7 +20,7 @@ def test_the_owners_key_session_chooses_the_password_then_turns_multiuser_on(har
     who = signed_in_client(harness, owner)
     client = harness.client()
     assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers).status_code == 409, "no password chosen yet"
-    chosen = client.patch(f"/api/auth/users/{owner.id}", json={"password": "a chosen one"}, headers=who.headers)
+    chosen = client.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}, headers=who.headers)
     assert chosen.status_code == 200, chosen.text
     on = client.put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers)
     assert on.status_code == 200, on.text
@@ -30,8 +30,10 @@ def test_the_owners_key_session_chooses_the_password_then_turns_multiuser_on(har
 def test_the_start_up_key_is_refused_for_both_steps(harness, monkeypatch):
     owner, _ann = _people(harness, monkeypatch)
     app = harness.host()  # loopback plus the bootstrap token
-    assert app.patch(f"/api/auth/users/{owner.id}", json={"password": "p"}).status_code == 404
-    assert app.put("/api/pair/multiuser", json={"enabled": True}).status_code == 403
+    password = app.patch(f"/api/users/{owner.id}", json={"password": "p"})
+    assert (password.status_code, password.json()["detail"]) == (404, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
+    switch = app.put("/api/pair/multiuser", json={"enabled": True})
+    assert (switch.status_code, switch.json()["detail"]) == (403, "sign in as the owner to change Multi-user")
     assert harness.app_db.get_setting("multiuser.enabled") != "true"
 
 
@@ -39,9 +41,19 @@ def test_another_persons_session_is_refused_for_both_steps(harness, monkeypatch)
     owner, ann = _people(harness, monkeypatch)
     theirs = signed_in_client(harness, ann)
     client = harness.client()
-    assert client.patch(f"/api/auth/users/{owner.id}", json={"password": "p"}, headers=theirs.headers).status_code in (401, 403, 404)
-    assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=theirs.headers).status_code in (401, 403)
+    for refused in (client.patch(f"/api/users/{owner.id}", json={"password": "p"}, headers=theirs.headers),
+                    client.put("/api/pair/multiuser", json={"enabled": True}, headers=theirs.headers)):
+        assert (refused.status_code, refused.json()["detail"]) == (401, "missing or invalid Authorization header")
     assert harness.app_db.get_setting("multiuser.enabled") != "true"
+
+
+def test_the_allowlist_is_exactly_the_two_calls():
+    from fichero_server.api.auth import _owner_session_route_while_off as allowed
+
+    assert allowed("PATCH", "/api/users/abc") and allowed("PUT", "/api/pair/multiuser")
+    for method, path in (("GET", "/api/users/abc"), ("DELETE", "/api/users/abc"), ("PATCH", "/api/users"), ("PATCH", "/api/users/abc/x"),
+                         ("PATCH", "/api/auth/users/abc"), ("POST", "/api/pair/multiuser"), ("PUT", "/api/pair/multiuser/x")):
+        assert not allowed(method, path), (method, path)
 
 
 def test_the_owners_session_is_not_honoured_elsewhere_while_off(harness, monkeypatch):
