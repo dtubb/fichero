@@ -42,9 +42,25 @@ enum HostChoices {
 
     /// The sentence that refuses a code or link for another host than the Mac that was picked; nil when it is for the
     /// picked one, or when the picked Mac has no address Bonjour resolved to compare with (#5918).
+    ///
+    /// Hosts are compared by name, case-insensitively and without a trailing dot ("Studio.local." is "studio.local");
+    /// a `.local` name and the same Mac's IP address are different hosts and refuse (it fails closed), which the
+    /// sentence says.
     static func refusal(forInviteAt inviteURL: String, picked: Found) -> String? {
-        guard picked.publicURL != nil, !invite(inviteURL, isFor: picked) else { return nil }
-        return "That code is for another Mac than \(picked.name). Scan the one shown on \(picked.name)."
+        guard let pickedURL = picked.publicURL else { return nil }
+        guard sameHost(inviteURL, pickedURL) else {
+            return "That code is for another Mac than \(picked.name), or names it by a different address than the one found "
+                + "(a .local name and an IP address do not match). Scan the one shown on \(picked.name)."
+        }
+        return nil
+    }
+
+    private static func sameHost(_ a: String, _ b: String) -> Bool {
+        func host(_ raw: String) -> String? {
+            URL(string: raw)?.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        }
+        guard let left = host(a), let right = host(b) else { return false }
+        return left == right
     }
 
     /// Reachable, secure, not this Mac, one row per address, sorted by name. A `.ts.net` host is offered only in THIS
