@@ -37,3 +37,12 @@ def test_a_leaf_that_counts_nothing_is_one_page_as_before(db):
 
 def test_a_failed_run_that_recorded_no_error_still_says_why():
     assert runner.outcome_why("failed", None)
+
+
+def test_a_new_cards_words_keep_the_count_the_row_already_carries(db):
+    job_id = _try(db, state="running")
+    samples._count_on_the_row(db, job_id, "find-lines", {"done": 3, "total": 5})
+    samples._say_on_row(db, job_id, "find-lines", "Trying Find Lines: Kraken")
+    row = jobs.read_job(db, job_id)
+    assert row["reason"] == "Trying Find Lines: Kraken"
+    assert (jobs.tree(db, job_id)["done"], jobs.tree(db, job_id)["total"]) == (3, 5)
