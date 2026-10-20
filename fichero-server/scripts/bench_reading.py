@@ -137,6 +137,10 @@ def run(model: str, pages: int, images: Path | None, concurrency: int = 1, autom
     from fichero_server.execution import jobs
     from fichero_server.llm import kraken_runtime
 
+    if automatic:  # an import's own run while the Mac is used: the throttle's lowest class, which Kraken lifts
+        from fichero_server.execution import throttle
+
+        throttle.mac_is_in_use = lambda: "the Mac is in use"
     collect = _Collect()
     logging.getLogger().addHandler(collect)
     logging.getLogger().setLevel(logging.INFO)
