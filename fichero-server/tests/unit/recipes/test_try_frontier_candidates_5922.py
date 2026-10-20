@@ -151,3 +151,29 @@ def test_variant_a_keeps_the_projects_own_correction_and_its_bar():
     assert [s["id"] for s in steps] == ["read-a-line", "correct"]
     assert steps[1]["settings"] == {"only_below_confidence": 0.6, "lenses": ["names"]}
     assert steps[1]["model"] == {"model": "anthropic:claude@x"}
+
+
+# -- slice 4 and review 625: the sentences on the Try result; a cost that could not be measured says so --------------
+def test_a_cost_that_could_not_be_measured_says_why_and_keeps_the_figure_that_is_left():
+    a = samples.variant_a_card(_real("anthropic:claude@x", "Claude", "cloud:anthropic"))
+    figure = samples.cost_figure(a, 0.05, False, {"not_measured": "cost not measured: no record"})
+    assert (figure["value"], figure["basis"], figure["from"]) == (0.05, "upper bound", "cost not measured: no record")
+    unpriced = samples.cost_figure(CLAUDE, 0.05, False, {"model_calls": 2, "total_tokens": 9, "cost_usd": None})
+    assert unpriced["from"] == "cost not measured: a call could not be priced" and unpriced["basis"] == "estimate"
+
+
+def test_spent_reads_no_usage_as_a_reason_never_silence(monkeypatch, caplog):
+    import fichero_server.workflows.activity as activity
+
+    def boom(path):
+        raise RuntimeError("no activity store")
+
+    monkeypatch.setattr(activity, "get_activity_tracker", boom)
+    said = samples._spent(Card(path="x"), ["t1"])
+    assert said == {"not_measured": "cost not measured: no activity store"}
+    assert "could not be measured" in caplog.text
+
+
+def test_cards_for_reports_the_frontier_readers_the_limit_left_out():
+    chosen, left_out = samples.choose_try_candidates(OWN, [KRAKEN], [CLAUDE, GEMINI], limit=3)
+    assert len(chosen) == 3 and samples.left_out_sentence(left_out).startswith("Gemini was not tried")

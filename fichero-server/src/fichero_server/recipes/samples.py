@@ -331,7 +331,8 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
                          "first.")
     step = _main_step(recipe, stage)
-    cards = _cards_for(setup, step, candidates) if step is not None else []
+    left_out: list[Any] = []
+    cards = _cards_for(setup, step, candidates, left_out) if step is not None else []
     if candidates and len(cards) < len(set(candidates)):
         known = {c.id for c in cards}
         raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
@@ -357,7 +358,8 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
     # The result file is there before the job is queued: a job picked up at once reads it (#5806, the 07:51 failure).
     result.update(how="its own steps on a copy of these pages",
                   models=[{"steps": w["steps"], "model": w["model_override"], "where": w["runs_on"]}
-                          for w in own_plan["workflows"]], cost=own_plan["estimate"], candidates=columns)
+                          for w in own_plan["workflows"]], cost=own_plan["estimate"], candidates=columns,
+                  left_out=left_out_sentence(left_out))  # a frontier reader the limit of three left out, in words
     _write(library, stage_id, result)
     job_id = jobs.enqueue(db, TRY_KIND, f"{stage_id}:{uuid.uuid4().hex[:8]}", started_by=started_by, watched=True,
                           detail=json.dumps({"stage": stage_id, "pages": ids}))
@@ -497,7 +499,8 @@ def _frontier_cards(a: Any, job: str) -> list[Any]:
     return [c for c in remote_reader_cards() if job in c.jobs and c.runs_here and _refusal(job, c, a, a.material) is None]
 
 
-def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | None) -> list[Any]:
+def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | None,
+               left_out: list[Any] | None = None) -> list[Any]:
     """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
     from fichero_server.api.routes.system.recipes import _answers
@@ -531,8 +534,11 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     # Variant A needs a local first reader to re-read after, and a read step that has no correction after it yet.
     variant = (variant_a_card(frontier[0]) if frontier and own_card is not None and own_card.runs_on == "this-mac"
                and job in ("read-a-line", "read-a-page") else None)
-    return choose_try_candidates(own_card, [c for c in fits if c.id != own], frontier, limit=COMPARED,
-                                 variant_a=variant)[0]
+    chosen, left = choose_try_candidates(own_card, [c for c in fits if c.id != own], frontier, limit=COMPARED,
+                                         variant_a=variant)
+    if left_out is not None:
+        left_out.extend(left)
+    return chosen
 
 
 def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) -> dict[str, Any]:
@@ -598,9 +604,15 @@ def cost_figure(card: Any, estimate: Any, local: bool, spent: dict[str, Any] | N
     if spent and spent.get("cost_usd") is not None:
         return _figure(spent["cost_usd"], "measured", f"what the run cost on these pages ({spent['model_calls']} model calls)")
     value = estimate if isinstance(estimate, (int, float)) else None
+    if spent and spent.get("not_measured"):  # said in words, with the figure that is left (the estimate or the bound)
+        why = spent["not_measured"]
+    elif spent and spent.get("model_calls"):
+        why = "cost not measured: a call could not be priced"
+    else:
+        why = None
     if card is not None and str(card.id).startswith(VARIANT_A):
-        return _figure(value, "upper bound", "up to this: it re-reads only the unsure lines, so it costs less")
-    return _figure(value, "estimate", "the price list, on these pages")
+        return _figure(value, "upper bound", why or "up to this: it re-reads only the unsure lines, so it costs less")
+    return _figure(value, "estimate", why or "the price list, on these pages")
 
 
 def recommendation_rows(columns: list[dict[str, Any]], *, pages: int, volume: int) -> list[dict[str, Any]]:
@@ -795,9 +807,22 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
                       cost_usd=cost_figure(by_card_cards[column["card"]], column["cost_usd"]["value"], column["local"],
                                            run.get("spent")))
     result["candidates"] = columns
+    result["recommendation"] = _recommend(db, library, columns, total)
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
     return result
+
+
+def _recommend(db: Any, library: Path, columns: list[dict[str, Any]], pages: int) -> dict[str, Any] | None:
+    """What Set Up recommends from the finished columns, ranked by what each really cost (`bakeoff.recommend`, #5922
+    slice 4): only columns that read to the end with a measured error are weighed; None when none."""
+    from fichero_server.recipes import bakeoff
+    from fichero_server.recipes.project import read_noise_band
+    from fichero_server.recipes.start import count_pages
+
+    volume = count_pages(db) or pages
+    return bakeoff.recommend(recommendation_rows(columns, pages=pages, volume=volume), volume=volume,
+                             noise_band=read_noise_band(library)["value"])
 
 
 def _say_on_row(db: Any, job_id: str, stage_id: str, reason: str) -> None:
@@ -965,8 +990,9 @@ def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
             tokens += int(usage.get("total_tokens") or 0)
             cost = None if cost is None or usage.get("cost_usd") is None or not usage.get("priced") \
                 else cost + float(usage["cost_usd"])
-    except Exception:  # noqa: BLE001 -- a measure is a courtesy; the estimate stays and says it is one
-        return None
+    except Exception as exc:  # noqa: BLE001 -- a measure is a courtesy, but never a silent one (review 625)
+        logger.warning("the try's cost could not be measured from its runs' usage: %s", exc, exc_info=True)
+        return {"not_measured": f"cost not measured: {exc}"}
     return {"model_calls": calls, "total_tokens": tokens, "cost_usd": cost} if calls else None
 
 
