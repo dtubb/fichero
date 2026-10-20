@@ -91,12 +91,14 @@ async def test_detect_regions_kraken_persists_baseline_geometry(temp_library, tm
 
     seen = {}
 
-    def _fake_segment(image_path, rendition_id=None, home=None):
+    def _fake_segment(image_path, **_):
+        # The one segmenter seam the recipe's Find Regions loop also uses (`prep.regions.one-find-regions`, #5962).
         seen["path"] = image_path
-        return _kraken_geometry()
+        return {"width": 1000, "height": 1000, "regions": [], "lines": [
+            {"polygon": [[100, 280], [900, 280], [900, 320], [100, 320]], "baseline": [[100, 300], [900, 300]]}]}
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(kraken_runtime, "segment_to_geometry", _fake_segment)
+        mp.setattr(kraken_runtime, "segment_lines", _fake_segment)
         result = await detect_regions(
             inputs={
                 "files": src["files"],
@@ -116,8 +118,7 @@ async def test_detect_regions_kraken_persists_baseline_geometry(temp_library, tm
     assert geometry is not None, "kraken geometry was dropped"
     assert geometry.provider == "kraken"
     assert arts[0].provider == "kraken"
-    line = geometry.boxes[0]
-    assert line.level.value == "line"
+    line = next(b for b in geometry.boxes if b.level.value == "line")
     # The baseline is Kraken's alone — it must survive onto the record.
     assert line.metadata["baseline_px"] == [[100.0, 300.0], [900.0, 300.0]]
 
