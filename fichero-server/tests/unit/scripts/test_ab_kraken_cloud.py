@@ -18,9 +18,14 @@ sys.modules[_SPEC.name] = ab
 _SPEC.loader.exec_module(ab)  # type: ignore[attr-defined]
 
 
+_REAL_ENSURE_KEY = ab.ensure_provider_key
+
+
 @pytest.fixture(autouse=True)
 def _restore_vision(monkeypatch, tmp_path):
     from fichero_server import llm
+
+    monkeypatch.setattr(ab, "ensure_provider_key", lambda *a, **k: "test")  # the key tests below use the real one
 
     monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path / "state"))  # a scratch dir, as the guard demands
     real = llm.vision
@@ -375,3 +380,132 @@ def test_the_report_counts_each_arms_off_script_lines(tmp_path):
     report = _free_run(tmp_path, ["kraken", "vision", "mlx:m"], readers)
     assert {a: report["per_arm"][a]["off_script_lines"] for a in report["arms"]} == {"kraken": 0, "vision": 1, "mlx:m": 0}
     assert "off-script lines" in (tmp_path / "out" / "report.md").read_text()
+
+
+# --- cloud arms through OpenRouter: a model each, one cap, keys the engine's way (#5894) ----------------------------------
+
+OPENROUTER_MODELS = (ab.OPENROUTER_CLAUDE, ab.OPENROUTER_GEMINI, ab.OPENROUTER_QWEN)
+
+
+@pytest.mark.parametrize("model", OPENROUTER_MODELS)
+def test_each_openrouter_arm_is_priced_by_the_registry(model):
+    assert ab.cost_of("openrouter", model, 1000, 1000) is not None, f"{model} has no price: a cap cannot be kept"
+
+
+@pytest.mark.parametrize("variant", ["A", "B"])
+@pytest.mark.parametrize("model", OPENROUTER_MODELS)
+def test_an_openrouter_arm_builds_its_request_and_is_priced(tmp_path, monkeypatch, model, variant):
+    """The provider boundary is faked (no network): the harness must hand it an openrouter config for THIS arm's model,
+    the page's line pictures and a prompt, and book the call against the cap."""
+    from fichero_server import llm
+
+    seen = []
+
+    async def transport(images, prompt, config, **kw):
+        seen.append((config.provider, config.model, len(images), bool(prompt)))
+        return json.dumps(["texto"] * len(images))
+
+    monkeypatch.setattr(llm, "vision", transport)
+    arm = f"{variant}:openrouter:{model}"
+    report = ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+                    reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", arm],
+                    reference_arm=None, fake_arms=False) if False else ab.run(
+        _pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=f"openrouter:{model}", bar=0.6, cap=1.0,
+        reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", arm])
+    assert seen and all(p == "openrouter" and m == model and n >= 1 and has for p, m, n, has in seen)
+    assert 0 < report["cost"]["total"] <= 1.0 and report["cost"]["by_stage"].get(arm, 0) > 0
+    assert arm in report["arms"] and report["per_arm"][arm]["lines_read"] >= 1
+
+
+def test_the_cap_is_one_for_every_arm_together(tmp_path, monkeypatch):
+    from fichero_server import llm
+
+    async def transport(images, prompt, config, **kw):
+        return json.dumps(["texto"] * len(images))
+
+    monkeypatch.setattr(llm, "vision", transport)
+    arms = ["kraken", *(f"B:openrouter:{m}" for m in OPENROUTER_MODELS)]
+    report = ab.run(_pages(tmp_path, 3), tmp_path / "out", model="fake", reference_model="fake", bar=0.6, cap=0.0005,
+                    reader_ref="unused", language="es", kraken=_stub_kraken, arms=arms)
+    assert report["stopped"] and report["cost"]["total"] <= 0.0005, report["cost"]
+
+
+def test_the_hosted_qwen_arm_says_hosted_not_local_in_the_report_and_the_sheet(tmp_path, monkeypatch):
+    from fichero_server import llm
+
+    async def transport(images, prompt, config, **kw):
+        return json.dumps(["texto"] * len(images))
+
+    monkeypatch.setattr(llm, "vision", transport)
+    arms = ["kraken", f"B:openrouter:{ab.OPENROUTER_QWEN}", f"B:openrouter:{ab.OPENROUTER_CLAUDE}"]
+    ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+           reader_ref="unused", language="es", kraken=_stub_kraken, arms=arms, reference_arm=arms[2])
+    for name in ("report.md", "sheet.html"):
+        text = (tmp_path / "out" / name).read_text()
+        assert "hosted, not local" in text and "model reference" in text and "not ground truth" in text
+    assert (tmp_path / "out" / "report.md").read_text().count("hosted, not local") == 1, "only the Qwen arm"
+
+
+def test_arms_on_their_own_model_parse_and_a_bare_provider_is_refused():
+    assert ab.parse_arms(f"kraken,vision,B:openrouter:{ab.OPENROUTER_CLAUDE},A:openrouter:{ab.OPENROUTER_GEMINI}") == [
+        "kraken", "vision", f"B:openrouter:{ab.OPENROUTER_CLAUDE}", f"A:openrouter:{ab.OPENROUTER_GEMINI}"]
+    with pytest.raises(SystemExit):
+        ab.parse_arms("B:openrouter")
+
+
+def _lookup(state, key=None, detail=None):
+    from fichero_server.security.keychain import KeychainLookup
+
+    return lambda provider: KeychainLookup(state=state, key=key, detail=detail)
+
+
+def test_a_key_in_the_keychain_is_used_and_never_printed():
+    from fichero_server.security.keychain import ProviderKeyState
+
+    said = []
+    got = _REAL_ENSURE_KEY("openrouter", lookup=_lookup(ProviderKeyState.FOUND, key="sk-SECRET"), environ={}, log=said.append)
+    assert got == "keychain" and not any("sk-SECRET" in line for line in said)
+
+
+def test_a_locked_keychain_is_said_in_words_then_the_key_file_is_used(tmp_path):
+    from fichero_server.security.keychain import ProviderKeyState
+
+    env_file = tmp_path / "ab.env"
+    env_file.write_text("OPENROUTER_API_KEY=sk-FILESECRET\nHF_TOKEN=hf-OTHER\n")
+    env_file.chmod(0o600)
+    said, environ = [], {}
+    got = _REAL_ENSURE_KEY("openrouter", env_file=env_file, environ=environ, log=said.append,
+                           lookup=_lookup(ProviderKeyState.UNREADABLE, detail="exit 36: locked"))
+    text = "\n".join(said)
+    assert got == "the key file" and environ["OPENROUTER_API_KEY"] == "sk-FILESECRET"
+    assert "cannot read it" in text and "exit 36: locked" in text and "SSH" in text
+    assert "OPENROUTER_API_KEY" in text and "HF_TOKEN" in text, "names found are logged"
+    assert "sk-FILESECRET" not in text and "hf-OTHER" not in text, "never a value"
+
+
+def test_no_key_anywhere_is_refused_naming_the_key_it_looked_for(tmp_path):
+    from fichero_server.security.keychain import ProviderKeyState
+
+    with pytest.raises(SystemExit, match="OPENROUTER_API_KEY"):
+        _REAL_ENSURE_KEY("openrouter", env_file=tmp_path / "missing.env", environ={}, log=lambda _l: None,
+                         lookup=_lookup(ProviderKeyState.ABSENT))
+
+
+def test_a_key_file_others_can_read_is_refused_unread(tmp_path):
+    from fichero_server.security.keychain import ProviderKeyState
+
+    env_file = tmp_path / "ab.env"
+    env_file.write_text("OPENROUTER_API_KEY=sk-LOOSE\n")
+    env_file.chmod(0o644)
+    with pytest.raises(SystemExit, match="chmod 600") as refusal:
+        _REAL_ENSURE_KEY("openrouter", env_file=env_file, environ={}, log=lambda _l: None,
+                         lookup=_lookup(ProviderKeyState.ABSENT))
+    assert "sk-LOOSE" not in str(refusal.value)
+
+
+def test_the_environment_wins_over_the_file_without_reading_it(tmp_path):
+    from fichero_server.security.keychain import ProviderKeyState
+
+    got = _REAL_ENSURE_KEY("openrouter", env_file=tmp_path / "never-read.env", log=lambda _l: None,
+                           environ={"OPENROUTER_API_KEY": "sk-ENV"}, lookup=_lookup(ProviderKeyState.ABSENT))
+    assert got == "environment"

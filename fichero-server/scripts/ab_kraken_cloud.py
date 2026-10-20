@@ -38,6 +38,8 @@ import asyncio
 import base64
 import io
 import json
+import os
+import stat
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,6 +53,16 @@ WIDE_PX = 120  # a polygon narrower than this is a fragment (a mark, a stray str
 SCRIPT_OF = {"es": "LATIN", "en": "LATIN", "fr": "LATIN", "de": "LATIN", "it": "LATIN", "pt": "LATIN", "la": "LATIN"}
 ORDINALS = "ªº"  # Spanish No, 1o: letters by Unicode, but Latin writing
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+#: Where the owner may keep provider keys when they are not in the app's Settings (one KEY=value per line, mode 600).
+AB_ENV = Path("~/.config/fichero/ab.env")
+HOSTED_NOT_LOCAL = "hosted, not local"
+#: The three cloud models of the 2026-10-20 live run, through OpenRouter (prices from the vendored registry, `resources/model_prices.json`):
+#: the cheapest current Claude vision model ($1 / $5 per M tokens), the cheapest current Gemini ($0.25 / $1.5, ai.google.dev/pricing/gemini-3),
+#: and a hosted Qwen VL ($0.21 / $0.63) standing in for the local MLX arm until the M4 has disk for it. The strongest of the three
+#: (Claude) is the reference.
+OPENROUTER_CLAUDE = "anthropic/claude-haiku-4.5"
+OPENROUTER_GEMINI = "google/gemini-3.1-flash-lite-preview"
+OPENROUTER_QWEN = "qwen/qwen-vl-plus"
 
 
 class CapReached(RuntimeError):
@@ -165,6 +177,18 @@ def _real_vision():
     return _REAL_VISION
 
 
+def cost_of(provider: str, model: str, tokens_in: int, tokens_out: int) -> float | None:
+    """The registry's price for a call; for an aggregator its own entry first (`openrouter/anthropic/claude-haiku-4.5`), so a
+    model it lists under another price is not priced as the maker's."""
+    from fichero_server.llm.model_types import estimate_cost
+
+    for name in (f"{provider}/{model}", model):
+        got = estimate_cost(name, tokens_in, tokens_out)
+        if got is not None:
+            return got
+    return None
+
+
 def install_model(spec: str, ledger: Ledger):
     """Replace `fichero_server.llm.vision` with a counting, capping adapter and return the LLMConfig to call with.
     `fake`: a stub answering a fixed text for each image (a JSON array, as both callers expect). `provider:model`: the
@@ -185,15 +209,13 @@ def install_model(spec: str, ledger: Ledger):
     provider, _, model = spec.partition(":")
     if not model:
         raise SystemExit(f"--model {spec!r}: give 'fake' or 'provider:model' (anthropic, google)")
-    from fichero_server.llm.model_types import estimate_cost
-
-    if estimate_cost(model, 1, 1) is None:
-        raise SystemExit(f"no price for {model} in the registry: a cap cannot be kept without one")
+    if cost_of(provider, model, 1, 1) is None:
+        raise SystemExit(f"no price for {provider}:{model} in the registry: a cap cannot be kept without one")
     real = _real_vision()
 
     async def priced(images, prompt, config, **kw):
         tokens_in = sum(_image_tokens(i) for i in images) + len(prompt) // 4
-        held = ledger.reserve(estimate_cost(config.model, tokens_in, config.max_tokens) or 0.0)
+        held = ledger.reserve(cost_of(config.provider, config.model, tokens_in, config.max_tokens) or 0.0)
         try:
             with llm.collect_usage() as used:
                 raw = await real(images=images, prompt=prompt, config=config, **kw)
@@ -203,7 +225,8 @@ def install_model(spec: str, ledger: Ledger):
         # The tokens the call reported, when it reported any; the estimate only when it did not.
         got_in = sum(int(u.get("input_tokens") or 0) for u in used)
         got_out = sum(int(u.get("output_tokens") or 0) for u in used)
-        ledger.settle(held, estimate_cost(config.model, got_in or tokens_in, got_out or max(1, len(str(raw)) // 4)) or 0.0)
+        ledger.settle(held, cost_of(config.provider, config.model, got_in or tokens_in,
+                                    got_out or max(1, len(str(raw)) // 4)) or 0.0)
         return raw
 
     llm.vision = priced
@@ -218,6 +241,65 @@ def _image_tokens(data_uri: str) -> int:
             return max(1, im.width * im.height // 750)
     except Exception:  # noqa: BLE001 -- an image we cannot size is priced as a large one: the cap errs on the safe side
         return 1600
+
+
+# ---------------------------------------------------------------- provider keys, the engine's way
+
+
+def read_env_file(path: Path, *, log=print) -> dict[str, str]:
+    """The KEY=value lines of the owner's key file. Refused when group- or world-readable (a key must not be); the NAMES
+    found are logged, never a value."""
+    path = Path(path).expanduser()
+    if not path.exists():
+        return {}
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if mode & 0o077:
+        raise SystemExit(f"{path} is readable by others (mode {mode:o}): run `chmod 600 {path}` and try again; it was not read")
+    found: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#") and "=" in line:
+            name, _, value = line.partition("=")
+            value = value.strip().strip("'\"")
+            if name.strip().removeprefix("export ").strip() and value:
+                found[name.strip().removeprefix("export ").strip()] = value
+    log(f"{path}: found {', '.join(sorted(found)) or 'no keys'} (names only)")
+    return found
+
+
+def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=None, environ=None, log=print) -> str:
+    """Make `provider`'s key available to the engine's own lookup (`llm.get_api_key`: app-supplied, then the keychain, then the
+    environment) and say where it came from, in words. The keychain is asked through the engine's `lookup_api_key`, never a
+    copy of its logic. A locked or unreachable keychain (over SSH, or an item that belongs to the app) is SAID, then the key
+    file is read; a key found there is put in the process environment under the provider's own variable name. Returns the source
+    ("keychain", "environment", "the key file"). Never prints a value. SystemExit naming the key looked for when there is none."""
+    from fichero_server.llm.providers import get_provider_info
+    from fichero_server.security.keychain import ProviderKeyState, lookup_api_key
+
+    environ = os.environ if environ is None else environ
+    info = get_provider_info(provider)
+    variable = info.api_key_env if info and info.api_key_env else f"{provider.upper()}_API_KEY"
+    answer = (lookup or lookup_api_key)(provider)
+    if answer.state is ProviderKeyState.FOUND:
+        log(f"{provider}: key found in the keychain")
+        return "keychain"
+    if answer.state is ProviderKeyState.UNREADABLE:
+        log(f"{provider}: the keychain holds a key but this process cannot read it ({answer.detail or 'no detail'}): "
+            "it is locked, or over SSH there is no session to unlock it, or the item belongs to the app and a plain python "
+            "process is not trusted by it. Looking in the key file instead.")
+    if environ.get(variable):
+        log(f"{provider}: key found in the environment ({variable})")
+        return "environment"
+    found = read_env_file(env_file or AB_ENV, log=log)
+    if found.get(variable):
+        environ[variable] = found[variable]
+        from fichero_server.llm import clear_api_key_cache
+
+        clear_api_key_cache(provider)
+        log(f"{provider}: key found in the key file ({variable})")
+        return "the key file"
+    raise SystemExit(f"no {provider} key: looked for it in the keychain (add it in Settings > AI providers), the environment "
+                     f"and {variable} in {env_file or AB_ENV}")
 
 
 # ---------------------------------------------------------------- the three readings of a page
@@ -289,15 +371,27 @@ def kind_of(arm: str) -> str:
     return "mlx" if arm.startswith("mlx:") else arm
 
 
+def variant_of(arm: str) -> str | None:
+    """"A" or "B" for a cloud arm, bare (`A`: the --model) or on its own model (`B:openrouter:anthropic/claude-haiku-4.5`)."""
+    head = arm.split(":", 1)[0]
+    return head if head in ("A", "B") else None
+
+
+def cloud_spec(arm: str, default: str) -> str:
+    """The `provider:model` a cloud arm reads with: its own after the variant, else `--model`."""
+    return arm.split(":", 1)[1] if ":" in arm else default
+
+
 def parse_arms(text: str) -> list[str]:
     """`kraken,vision,mlx:auto,A,B` -> the arm names, in the order shown. kraken is always an arm: the lines are its."""
     arms = []
     for raw in (x.strip() for x in text.split(",")):
-        if raw in ("kraken", "A", "B", "vision") or (raw.startswith("mlx:") and len(raw) > 4):
+        cloud_on_its_own = raw[:2] in ("A:", "B:") and raw.count(":") >= 2
+        if raw in ("kraken", "A", "B", "vision") or cloud_on_its_own or (raw.startswith("mlx:") and len(raw) > 4):
             if raw not in arms:
                 arms.append(raw)
         elif raw:
-            raise SystemExit(f"--arms {raw!r}: one of kraken, vision, mlx:<model or auto>, A, B")
+            raise SystemExit(f"--arms {raw!r}: one of kraken, vision, mlx:<model or auto>, A, B, A:<provider:model>, B:<provider:model>")
     if "kraken" not in arms:
         arms.insert(0, "kraken")
     return arms
@@ -358,7 +452,7 @@ def reference_arm_for(arms: list[str], explicit: str | None, cloud_reference: bo
     """The arm whose read is the reference: the named one, else (no cloud model to be it) the strongest free arm present.
     None: the cloud reference model reads. A (the unsure lines only) is never one."""
     if explicit:
-        if explicit not in arms or explicit == "A":
+        if explicit not in arms or variant_of(explicit) == "A":
             raise SystemExit(f"--reference-arm {explicit!r}: not a full reading among --arms {','.join(arms)}")
         return explicit
     if cloud_reference:
@@ -380,7 +474,7 @@ def agreement(rows: list[dict], arms: list[str]) -> dict:
     """With three or more independent readers (A reads only some lines, so it is not one), per line: every reader that
     answered gave the same text (`all agree`: probably right) or they split (the lines to look at). Sets
     `row['agreement']` ('agree' | 'split' | None when fewer than two answered) and says the share."""
-    readers = [a for a in arms if a != "A"]
+    readers = [a for a in arms if variant_of(a) != "A"]
     if len(readers) < 3:
         return {"readers": readers, "scored": 0}
     agree = split = 0
@@ -403,7 +497,7 @@ def agreement(rows: list[dict], arms: list[str]) -> dict:
 def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar: float, cap: float,
         reader_ref: str, language: str | None, kraken=kraken_lines, arms: list[str] | None = None,
         reference_arm: str | None = None, readers: dict | None = None, mlx_choice: dict | None = None,
-        fake_arms: bool = False) -> dict:
+        fake_arms: bool = False, env_file: Path | None = None) -> dict:
     """`arms`: which readings to make, all on Kraken's own lines (default kraken, A, B). `readers`: an arm's async
     (image, lines) -> {line id: text}, for tests; a free arm without one gets the real reader, or a stub when
     `fake_arms` (`--fake-arms`, the dry run anywhere; `--model fake` is only the cloud models' stub). An arm that fails on a page leaves its cells empty and says why; the others go on."""
@@ -413,11 +507,12 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
     arms = arms or parse_arms(DEFAULT_ARMS)
     readers = dict(readers or {})
     mlx_choice = dict(mlx_choice or {})
-    cloud = "A" in arms or "B" in arms
+    cloud_arms = [a for a in arms if variant_of(a)]
+    cloud = bool(cloud_arms)
     ref_arm = reference_arm_for(arms, reference_arm, cloud or reference_model is not None)
     fake = fake_arms
     for arm in arms:  # the real free arms, made once, before any page: a refused model stops the run here
-        if arm in readers or arm in ("kraken", "A", "B"):
+        if arm in readers or arm == "kraken" or variant_of(arm):
             continue
         if kind_of(arm) == "mlx" and not fake:
             name, config, mlx_choice[arm] = pick_mlx(arm.split(":", 1)[1])
@@ -425,6 +520,13 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
         else:
             readers[arm] = free_reader(arm, fake=fake)
     ledger = Ledger(cap=cap)
+    # every cloud model priced and its key found before any page: a refusal stops the run here ('fake' has none)
+    for spec in dict.fromkeys([cloud_spec(a, model) for a in cloud_arms] + ([reference_model] if reference_model else [])):
+        provider, _, name = spec.partition(":")
+        if provider != "fake" and name:
+            if cost_of(provider, name, 1, 1) is None:
+                raise SystemExit(f"no price for {spec} in the registry: a cap cannot be kept without one")
+            ensure_provider_key(provider, env_file=env_file)
     images = sorted(p for p in pages.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
     if not images:
         raise SystemExit(f"no page images in {pages}")
@@ -468,25 +570,27 @@ def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar:
                 ref_config = install_model(ref_spec, ledger)
                 answers["reference"] = timed("reference", lambda: asyncio.run(
                     reading_by_model(image, lines, ref_config, language)))
-            if cloud:
-                a_config = install_model(model, ledger)
-                if "A" in arms:
-                    ledger.stage = "A"
-                    got = timed("A", lambda: _Counted(*asyncio.run(reading_unsure(image, lines, a_config, language, bar))))
-                    answers["A"], n = dict(got), getattr(got, "count", 0)
-                if "B" in arms:
-                    ledger.stage = "B"
-                    answers["B"] = timed("B", lambda: asyncio.run(reading_by_model(image, lines, a_config, language)))
+            for arm in cloud_arms:  # each cloud arm reads on its own model; one ledger, one cap, over all of them
+                config = install_model(cloud_spec(arm, model), ledger)
+                ledger.stage = arm
+                if variant_of(arm) == "A":
+                    got = timed(arm, lambda config=config: _Counted(*asyncio.run(reading_unsure(image, lines, config, language, bar))))
+                    answers[arm] = dict(got)
+                    n += getattr(got, "count", 0)
+                else:
+                    answers[arm] = timed(arm, lambda config=config: asyncio.run(reading_by_model(image, lines, config, language)))
         except CapReached as exc:
             stopped = f"{image.name}: {exc}"
             break
         sent, total = sent + n, total + len(lines)
         for line in lines:
             row = {"page": image.name, "id": line["id"], "confidence": line["confidence"], "polygon": line["polygon"],
-                   "kraken": line["text"], "sent_in_A": line["id"] in answers.get("A", {})}
+                   "kraken": line["text"],
+                   "sent_in_A": any(line["id"] in answers.get(a, {}) for a in cloud_arms if variant_of(a) == "A")}
             for arm in arms:
-                if arm == "A":
-                    row["A"] = answers["A"].get(line["id"], line["text"])
+                if variant_of(arm) == "A":
+                    row[arm] = answers.get(arm, {}).get(line["id"], line["text"])
+                    row[f"sent:{arm}"] = line["id"] in answers.get(arm, {})
                 elif arm != "kraken":
                     row[arm] = answers.get(arm, {}).get(line["id"], "")
             row["reference"] = (row.get(ref_arm) or "") if ref_arm else answers.get("reference", {}).get(line["id"], "")
@@ -557,7 +661,7 @@ def summarise(rows, ledger: Ledger, *, bar, sent, total, stopped, model, referen
         "mlx": mlx_choice or {},
         "cost": {"total": ledger.spent, "cap": ledger.cap, "calls": ledger.calls, "by_stage": ledger.by_stage,
                  "by_page": ledger.by_page, "per_page": (ledger.spent / pages) if pages else None,
-                 "estimated": model != "fake" and ("A" in arms or "B" in arms or ref_arm is None)},
+                 "estimated": model != "fake" and (any(variant_of(a) for a in arms) or ref_arm is None)},
         "stopped": stopped,
     }
 
@@ -599,6 +703,11 @@ def write_outputs(out: Path, rows: list[dict], report: dict, images: list[Path])
 
 
 def _arm_title(arm: str, r: dict) -> str:
+    if variant_of(arm) and ":" in arm:  # a cloud arm on its own model
+        what = {"A": "Kraken, then the model on unsure lines", "B": "the model reads every line"}[variant_of(arm)]
+        spec = arm.split(":", 1)[1]
+        hosted = f" ({HOSTED_NOT_LOCAL})" if "qwen" in spec.lower() else ""
+        return f"{variant_of(arm)} on {spec}: {what}{hosted}"
     return {"kraken": "Kraken alone", "vision": f"Apple Vision ({VISION_LANGUAGE})",
             "A": "A: Kraken, then the model on unsure lines", "B": "B: the model reads every line"
             }.get(arm, f"{arm} (local, MLX)" if arm.startswith("mlx:") else arm)
@@ -609,7 +718,7 @@ def _report_md(r: dict) -> str:
     lines = [f"# {', '.join(r['arms'])} on {r['pages_done']} of {r['pages_planned']} pages",
              f"\nAll CER and WER below are against a **{r['label']}** ({r['reference_model']}), over "
              f"{r['lines_with_reference']} of {r['lines']} lines. All arms read the same lines, Kraken's. Model for A and "
-             f"B: {r['model']}.\n",
+             f"B: {r['model']} (unless an arm names its own).\n",
              "| arm | CER | WER | s/page | $/page | lines read | off-script lines |", "|---|---|---|---|---|---|---|"]
     for arm in r["arms"]:
         m = r["per_arm"][arm]
@@ -627,7 +736,7 @@ def _report_md(r: dict) -> str:
         w = r["per_arm"][arm].get("wide")
         lines.append(f"| {_arm_title(arm, r)} | " + (f"{_pct(w['cer'])} | {_pct(w['wer'])} | {w['lines']} |" if w
                                                       else "the reference | the reference | |"))
-    if "A" in r["arms"]:
+    if any(variant_of(a) == "A" for a in r["arms"]):
         lines.append(f"\nVariant A sent {r['A_lines_sent']} of {r['A_lines_total']} lines ({_pct(r['A_share_sent'])}).")
     for arm, got in r["mlx"].items():
         lines.append(f"\nLocal model for `{arm}`: {got['repo']} ({got['model']}); {got['why']}; {got['reads_at_once']} reads at once.")
@@ -657,7 +766,7 @@ def _sheet_html(shown: list[dict], r: dict) -> str:
     arms = r["arms"]
     body = "".join(
         f"<tr><td><img src='{row.get('crop', '')}' style='max-width:420px'></td>"
-        + "".join(f"<td>{esc(row.get(a, ''))}{' (sent)' if a == 'A' and row['sent_in_A'] else ''}</td>" for a in arms)
+        + "".join(f"<td>{esc(row.get(a, ''))}{' (sent)' if variant_of(a) == 'A' and row.get('sent:' + a, row['sent_in_A']) else ''}</td>" for a in arms)
         + f"<td>{esc(row['reference'])}</td><td>{esc(row.get('agreement') or '')}</td></tr>" for row in shown)
     heads = "".join(f"<th>{esc(_arm_title(a, r))}</th>" for a in arms)
     return ("<!doctype html><meta charset=utf-8><title>Readers on Kraken's lines</title><style>body{font:14px system-ui;"
@@ -700,7 +809,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--language", default="es")
     ap.add_argument("--arms", default=DEFAULT_ARMS, help="comma list of readings, all on Kraken's lines: kraken, vision "
                     "(Apple Vision es-ES), mlx:<Qwen VL model id, or auto> (a local MLX model, installed, within the "
-                    "memory gate), A, B (the cloud --model)")
+                    "memory gate), A, B (the cloud --model), A:<provider:model> / B:<provider:model> (a cloud model of its own, e.g. "
+                    "B:openrouter:anthropic/claude-haiku-4.5)")
+    ap.add_argument("--env-file", type=Path, default=AB_ENV, help="where provider keys are looked for when the keychain has none "
+                    "(KEY=value lines, mode 600); the keychain, then the environment, are asked first")
     ap.add_argument("--fake-arms", action="store_true", help="free arms answer stub text: the dry run on any machine")
     ap.add_argument("--reference-arm", help="an arm to be the reference when no cloud model is (default: the strongest "
                     "free arm present, mlx then vision)")
@@ -713,7 +825,7 @@ def main(argv: list[str] | None = None) -> int:
         reader = kraken_reader_for({"zenodo": "10.5281/zenodo.21788410"})  # the seeded PP-OCRv6 medium
     report = run(args.pages, args.out, model=args.model, reference_model=args.reference_model, bar=args.bar,
                  cap=args.cap, reader_ref=reader, language=args.language, arms=arms,
-                 reference_arm=args.reference_arm, fake_arms=args.fake_arms)
+                 reference_arm=args.reference_arm, fake_arms=args.fake_arms, env_file=args.env_file)
     print((args.out / "report.md").read_text(encoding="utf-8"))
     return 0 if not report["stopped"] else 2
 
