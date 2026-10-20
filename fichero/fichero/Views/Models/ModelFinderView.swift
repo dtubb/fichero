@@ -47,8 +47,13 @@ struct ModelFinderView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(store.candidates, id: \.id) { candidate in
-                ModelFinderCard(candidate: candidate, store: store, step: step)
+            ForEach(ModelFinderTiers.groups(store.candidates)) { group in
+                if let title = group.title {
+                    Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                }
+                ForEach(group.candidates, id: \.id) { candidate in
+                    ModelFinderCard(candidate: candidate, store: store, step: step)
+                }
             }
         }
         .task(id: query) { await store.load(query) }
