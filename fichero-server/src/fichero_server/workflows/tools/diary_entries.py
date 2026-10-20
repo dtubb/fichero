@@ -47,6 +47,7 @@ from fichero_server.models.knowledge import (
     ClassificationValue,
 )
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools._together import ahead, extract_width
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -533,6 +534,18 @@ def with_texts_read_from_lines(db: Database, items: list[Document]) -> list[Docu
     return items
 
 
+async def _ask_for_split(page: Document, llm_config: LLMConfig, prompt: str | None) -> DiaryPageSplit:
+    """The model's split of one page's transcript into entries."""
+    transcript = (page.page_content or "").strip()
+    return await chat_structured(
+        (prompt or _PROMPT).format(transcript=transcript),
+        DiaryPageSplit,
+        llm_config,
+        system=_SYSTEM,
+        use_case="diary_entries",
+    )
+
+
 async def split_page_into_entries(
     db: Database,
     page: Document,
@@ -540,20 +553,16 @@ async def split_page_into_entries(
     *,
     prototype_key: str = DEFAULT_PROTOTYPE_KEY,
     prompt: str | None = None,
+    result: DiaryPageSplit | None = None,
 ) -> list[Document]:
-    """Extract, then persist one child node per entry under ``page``."""
+    """Extract, then persist one child node per entry under ``page``. ``result`` is the model's answer when the caller
+    already asked for it (`split_pages_into_entries` asks the next pages while this one is written)."""
     transcript = (page.page_content or "").strip()
     if not transcript:
         raise ValueError(f"page {page.id} has no transcript to split")
 
-    prompt_template = prompt or _PROMPT
-    result = await chat_structured(
-        prompt_template.format(transcript=transcript),
-        DiaryPageSplit,
-        llm_config,
-        system=_SYSTEM,
-        use_case="diary_entries",
-    )
+    if result is None:
+        result = await _ask_for_split(page, llm_config, prompt)
     entries = [entry for entry in result.entries if entry.text.strip()]
     if not entries:
         return []
@@ -731,13 +740,26 @@ async def split_pages_into_entries(
     lines: list[str] = []
     errors: list[str] = []
     totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
-    for done, page in enumerate(pages):
+    async def ask(page: Document) -> DiaryPageSplit | ValueError | None:
+        """The model's split of a page, asked while earlier pages are written (`runtime.cloud-extractors.pages-together`,
+        #5955); a page with no transcript asks nothing (its own error is raised in order below)."""
+        if not (page.page_content or "").strip():
+            return None
+        try:
+            return await _ask_for_split(page, llm_config, prompt)
+        except ValueError as exc:  # said for this page, in its turn, as when asked inline
+            return exc
+
+    async for (done, page), asked in ahead(enumerate(pages), ask, extract_width(llm_config)):
         if stop is not None and stop():
             totals["pages"] = done
             break
+        if isinstance(asked, ValueError):
+            errors.append(str(asked))
+            continue
         try:
             entries = await split_page_into_entries(
-                db, page, llm_config, prototype_key=prototype_key, prompt=prompt
+                db, page, llm_config, prototype_key=prototype_key, prompt=prompt, result=asked
             )
         except ValueError as exc:
             errors.append(str(exc))

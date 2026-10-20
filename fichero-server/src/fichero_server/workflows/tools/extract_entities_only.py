@@ -39,6 +39,7 @@ from fichero_server.workflows.tools.extract_all import (
 )
 from fichero_server.workflows.tools.extractors import _SECTIONS, name_spans, write_mentions
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
+from fichero_server.workflows.tools._together import ahead, extract_width
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
 from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
@@ -394,7 +395,7 @@ async def extract_entities_only(
     project_language = project_facts(db).language
 
     progress_callback = inputs.get("__progress_callback")
-    max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
+    max_in_flight = extract_width(llm_config)  # the step's cloud width for a hosted model, 3 for one served here
     extraction_sem = asyncio.Semaphore(max_in_flight)
     known_entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
 
@@ -423,19 +424,11 @@ async def extract_entities_only(
     total = len(documents)
     processed = 0
 
-    for index, record in enumerate(records):
-        processed += 1
-        doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
-        await emit_progress_event(
-            progress_callback,
-            "file_start",
-            "",
-            f"Extract Entities {doc_name}",
-            processed,
-            total,
-            message=f"Extracting step-2 entities for {doc_name}",
-        )
-
+    async def start(item: tuple[int, dict[str, Any]]) -> dict[str, Any]:
+        """What this page asks a model, started with the next pages' and awaited in page order
+        (`runtime.cloud-extractors.pages-together`, #5955): its language and instructions, and, for a model, its
+        call. The loop below writes what comes back."""
+        _index, record = item
         resolution = resolve_language(
             requested=inputs.get("output_language"),
             document=documents[record["index"]],
@@ -452,6 +445,33 @@ async def extract_entities_only(
             )
             instructions_by_language[instruction_key] = instructions
 
+        extraction = None
+        if not use_local_ner:
+            async with extraction_sem:
+                extraction = await chat_structured_with_fallback(
+                    prompt=record["text"],
+                    schema=_EntitiesOnly,
+                    config=llm_config,
+                    system=instructions,
+                    include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
+                    permissive_guardrails=True,
+                )
+        return {"resolution": resolution, "extraction": extraction}
+
+    async for (index, record), pre in ahead(enumerate(records), start, max_in_flight):
+        processed += 1
+        doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
+        await emit_progress_event(
+            progress_callback,
+            "file_start",
+            "",
+            f"Extract Entities {doc_name}",
+            processed,
+            total,
+            message=f"Extracting step-2 entities for {doc_name}",
+        )
+
+        resolution, extraction = pre["resolution"], pre["extraction"]
         # (canonical_name, entity_type, aliases) to upsert, from whichever
         # extractor this run selected. The upsert loop below is shared.
         # The fourth element is where the name is written in the text (#5488): the local NER model's own
@@ -482,15 +502,6 @@ async def extract_entities_only(
                     len(record["text"].strip()),
                 )
         else:
-            async with extraction_sem:
-                extraction = await chat_structured_with_fallback(
-                    prompt=record["text"],
-                    schema=_EntitiesOnly,
-                    config=llm_config,
-                    system=instructions,
-                    include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
-                    permissive_guardrails=True,
-                )
             if _entities_only_is_empty(extraction) and len(record["text"].strip()) > 200:
                 logger.warning(
                     "extract_entities_only: empty entity result for %s (%d chars)",

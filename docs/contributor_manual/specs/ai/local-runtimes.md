@@ -335,6 +335,31 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.mlx.idle-unload-and-loading-state` — **[GAP]** (#5370, #5358) a resident MLX model is
   released after the lane's idle time, and while it loads the step says "Loading <model>"; today the
   server child stays up with no idle release and a 30–300 s warm-up is a silent wait *(review)*.
+- `runtime.embed.once-per-text-version` — **[PARTIAL]** (#5954; Fable steps-efficiency review) a page is embedded once per
+  version of its text, however many doors ask for it (the import, after a read that saves text, the recipe's search step,
+  a correction), and the recipe's search step embeds pages in batches of 64 in one job each, one forward pass per batch,
+  not one job and one pass per page. A page is "current" when its stored passage vectors are the ones its text and the
+  present embedding model would give (the same passages, each unit's id and text, stamped with this model), read from the
+  vectors themselves, so no second record can go stale and a page embedded before this is judged on what is stored. *Built,
+  unrun until an M4 pass:* `Database.embedding_is_current`, `embed_unless_current` (the correction job, the import's
+  embed stage), `embed_many_unless_current` (the batch), `page_text_cache.queue_reembed_batches` and the batch job
+  (`make-a-vector` with a `batch:<id>` subject and its pages in the row's detail), the recipe's embed card waiting on the
+  batches. *Not built:* a batch shows in Activity under its `batch:` subject, not yet as "64 pages"; the import's resume
+  skip still trusts any stored vector (a page whose text changed while the import was interrupted is re-embedded by the
+  correction job, not by that resume); the measured saving on the M4 (50 pages read then Start: one embed per page in the
+  jobs table, `_embed_texts` once per batch). *Test:*
+  `fichero-server/tests/unit/db/test_embed_once_per_text_version_5954.py` (a page embedded after a read is "unchanged" for
+  the search step; changed text and another model embed again; a batch of six pages with one current runs one pass; 130
+  pages queue as 64, 64 and 2).
+- `runtime.cloud-extractors.pages-together` — **[PARTIAL]** (#5955; Fable steps-efficiency review) the cloud steps that read a
+  page's text with a model (names, claims, tables, diary entries) send their pages together and write in page order.
+  *Built:* `workflows/tools/_together.py` `ahead()` keeps up to the step's width of calls in flight (10 for a hosted model,
+  3 for a local one, `FICHERO_EXTRACT_MAX_IN_FLIGHT` overrides), reads the pages lazily and hands the answers back in page
+  order; the claims step asks its dates and claims calls together; the table step asks a wave of units in one event loop;
+  the diary step asks its pages' splits ahead. Writes stay sequential. *Not built:* a stop lands between table waves, and
+  up to one width of calls already sent may finish unread; the 40-page timing is built but unrun until an M4 pass.
+  *Test:* `tests/unit/workflows/test_cloud_extractors_pages_together_5955.py` (40 pages at 200 ms finish in under 2 s at
+  width 10; write order unchanged).
 - `runtime.embed.batched-at-utility-when-watched` — **[GAP]** (#5370, #5358) embedding passes an
   explicit batch size, and an embed a person is waiting on (search right after import) runs at
   utility QoS; the Core ML execution provider and an int8 bge-m3 are measured against fp32 CPU
