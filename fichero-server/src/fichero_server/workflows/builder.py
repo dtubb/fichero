@@ -2317,6 +2317,16 @@ def is_systemic(total: int, error_count: int, max_consecutive: int, refused_all:
     return error_count / total > ERROR_RATE_THRESHOLD
 
 
+def systemic_reason(total: int, error_count: int, max_consecutive: int, refused_all: bool = False) -> str:
+    """Which rule of `is_systemic` fired, in words for the stop message: a refusal that holds for every page, five in a row
+    on a small batch, or more than half of a large one."""
+    if refused_all:
+        return "the same refusal applies to every page"
+    if total < MIN_FILES_FOR_ERROR_RATE:
+        return f"{max(max_consecutive, 1)} pages in a row failed"
+    return f"{error_count} of {total} pages failed"
+
+
 def _make_aggregation_function(node_id: str):
     """Create a function that aggregates results from parallel processing.
 
@@ -2452,7 +2462,7 @@ def _make_aggregation_function(node_id: str):
             # files run through free on-device Apple Vision (2026-08-27).
             # The first underlying error is the classifiable content.
             error_msg = (
-                f"Systemic error detected: {max(max_consecutive_errors, 1)} consecutive failures"
+                f"Systemic error detected: {systemic_reason(total, error_count, max_consecutive_errors, refused_all)}"
                 f" ({', '.join(str(e['file']) for e in errors[:3])}). "
                 f"First error: {errors[0]['error'] if errors else 'unknown'}"
             )
