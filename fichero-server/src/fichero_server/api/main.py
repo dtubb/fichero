@@ -889,6 +889,18 @@ def _warm_configured_provider_keys() -> None:
         startup_warnings.note("keychain-warm-up", type(exc).__name__)  # health says which kind; the text is logged above (#4420)
 
 
+def _gate_multiuser_env() -> None:
+    """`multiuser.env-without-owner-password-starts-off` (#5908): never exits, says why through health."""
+    from fichero_server import startup_warnings
+    from fichero_server.security.multiuser import gate_env_at_start
+
+    try:
+        startup_warnings.set_multiuser_words(gate_env_at_start(get_app_db()))
+    except (OSError, RuntimeError) as exc:  # the app DB would not answer: the environment stands, and the log says so
+        logger.warning("could not check the owner's password before honouring FICHERO_MULTIUSER: %s", exc)
+        startup_warnings.note("multiuser-gate", type(exc).__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -995,6 +1007,7 @@ async def lifespan(app: FastAPI):
     _seed_builtin_providers()
     _collapse_duplicate_providers()
     _api_stamp("app db open + provider seed/collapse complete")
+    _gate_multiuser_env()
 
     # Pairing codes are process-local; warn if a non-standard launcher exposes
     # a detectable multi-worker configuration.
