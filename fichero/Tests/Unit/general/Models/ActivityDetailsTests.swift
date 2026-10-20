@@ -384,6 +384,30 @@ final class ActivityDetailsTests: XCTestCase {
         XCTAssertTrue(MockTransportURLProtocol.recorded().first?.url?.query?.contains("limit=50") == true)
     }
 
+    func testQueuedKindRow_aPageThatDrainedLeavesTheList() async throws {
+        // WHY (## 491): the list was re-read on the details' logKey, which a kind row's has no node for, so a done page
+        // stayed listed as queued. A re-read after the queue shrinks (the row's count is the key) replaces the list.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathSuffix: "/api/activity/jobs/kind/derivatives/items", method: "GET", status: 200, body: Data("""
+            [{"id": "j1", "subject": "page-001.png", "state": "running", "reason": null},
+             {"id": "j2", "subject": "page-002.png", "state": "waiting", "reason": null}]
+            """.utf8))
+        ])
+        await store.loadQueuedItems(rowId: "waiting:derivatives")
+        XCTAssertEqual(store.queuedItems["derivatives"]?.count, 2)
+
+        MockTransportURLProtocol.reset([
+            Stub(pathSuffix: "/api/activity/jobs/kind/derivatives/items", method: "GET", status: 200, body: Data("""
+            [{"id": "j2", "subject": "page-002.png", "state": "running", "reason": null}]
+            """.utf8))
+        ])
+        await store.loadQueuedItems(rowId: "waiting:derivatives")
+
+        XCTAssertEqual(store.queuedItems["derivatives"]?.map(\.subject), ["page-002.png"], "page-001 is done: gone")
+        XCTAssertEqual(store.queueKey(forRowId: "waiting:derivatives"), "waiting:derivatives", "no row yet: the id alone")
+    }
+
     func testQueuedKind_onlyAWaitingOrPausedKindRowHasPages() {
         XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "waiting:ask-a-model"), "ask-a-model")
         XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "paused:derivatives"), "derivatives")
