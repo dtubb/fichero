@@ -117,7 +117,7 @@ public final class FicheroClient: ObservableObject {
     /// Retained so `rebuildClient()` selects the same transport on every
     /// library-path / baseURL change. `internal` (not `private`) so the streaming
     /// extension can pick the matching server URL for `.uds` vs `.https`.
-    private(set) var transportMode: TransportMode
+    public private(set) var transportMode: TransportMode
     private var loggedUnchangedEndpoint = false
 
     /// The concrete `ClientTransport` the generated `Client` dials with
@@ -281,13 +281,9 @@ public final class FicheroClient: ObservableObject {
         )
     }
 
-    public func reconfigure(baseURL: URL) {
-        guard self.baseURL != baseURL else { return }
-        self.baseURL = baseURL
-        rebuildClient()
-    }
-
-    /// Re-resolve the endpoint: the host AND how to dial it. An engine that restarted under a new socket path (or
+    /// Re-resolve the endpoint: the host AND how to dial it. There is no host-only variant on purpose: a rebind that
+    /// passes only the URL cannot apply a changed dial mode, which is how Activity kept a stale endpoint after Sharing
+    /// (the compiler now finds every caller that forgets the mode). An engine that restarted under a new socket path (or
     /// moved between its socket and its https listener, as turning Sharing on does) is not reached by the transport
     /// built at the first connect; a changed mode gets new transports (and their connection pools), the same
     /// session, the same middlewares. Nothing changes when neither differs.

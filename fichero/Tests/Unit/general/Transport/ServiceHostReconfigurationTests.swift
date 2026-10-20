@@ -34,6 +34,8 @@ struct ServiceHostReconfigurationTests {
             await waitForHostUpdate(secondHost) { service.client.baseURL }
 
             #expect(service.client.baseURL == secondHost)
+            // The rebind re-reads HOW to dial too, not just the URL (a host-only rebind left Activity on a stale endpoint after Sharing).
+            #expect(service.client.transportMode == EngineConfig.transportMode)
         }
     }
 
@@ -53,6 +55,8 @@ struct ServiceHostReconfigurationTests {
             await waitForHostUpdate(secondHost) { service.client.baseURL }
 
             #expect(service.client.baseURL == secondHost)
+            // The rebind re-reads HOW to dial too, not just the URL (a host-only rebind left Activity on a stale endpoint after Sharing).
+            #expect(service.client.transportMode == EngineConfig.transportMode)
         }
     }
 
@@ -88,7 +92,7 @@ struct ServiceHostReconfigurationTests {
         #expect(apiClient.client.baseURL == first)
         #expect(apiClient.baseURL == first.appendingPathComponent("api"))
 
-        apiClient.reconfigure(baseURL: second)
+        apiClient.reconfigure(baseURL: second, transportMode: .https)
 
         // The wrapped client — the SAME reference every apiClient-based service
         // holds — now points at the new host, with no reconstruction.
@@ -103,7 +107,7 @@ struct ServiceHostReconfigurationTests {
             baseURL: URL(string: "https://first.tailnet.example")!,
             libraryPath: "/tmp/Lib.fichero"
         )
-        apiClient.reconfigure(baseURL: URL(string: "https://second.tailnet.example")!)
+        apiClient.reconfigure(baseURL: URL(string: "https://second.tailnet.example")!, transportMode: .https)
         // The library path must survive the host rebind — else the first request
         // to the new host would drop X-Fichero-Library-Path.
         #expect(apiClient.currentLibraryPath == "/tmp/Lib.fichero")
@@ -125,7 +129,7 @@ struct ServiceHostReconfigurationTests {
         let service = ImageEditingService(apiClient: apiClient)
         #expect(service.previewURL(documentId: "doc1", applyEdits: false).host == "first.tailnet.example")
 
-        apiClient.reconfigure(baseURL: second)
+        apiClient.reconfigure(baseURL: second, transportMode: .https)
 
         // Same service instance now resolves the preview against the new host —
         // no reconstruction, no stranded localhost.

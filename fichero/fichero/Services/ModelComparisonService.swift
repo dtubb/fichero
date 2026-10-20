@@ -54,7 +54,7 @@ final class ModelComparisonService {
     }
 
     func reconfigureBackendHost() {
-        client.reconfigure(baseURL: EngineConfig.host)
+        client.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
     }
 }
 

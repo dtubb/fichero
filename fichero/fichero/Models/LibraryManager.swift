@@ -608,12 +608,12 @@ class LibraryManager {
             // follows the Settings engine-host switch (unchanged behavior). When
             // a library is pinned to a SPECIFIC remote host (#2866 follow-up),
             // this will branch on that; today there are no such libraries.
-            ficheroClient.reconfigure(baseURL: EngineConfig.host)
+            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
             // Also rebind the legacy APIClient's separate FicheroClient (#2349):
             // DocumentStore + ChainService are built on `apiClient`, not the shared
             // `ficheroClient`, so without this they kept the old (localhost) host
             // after pairing while every generated service had already rebound.
-            apiClient.reconfigure(baseURL: EngineConfig.host)
+            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
             storageService.clearAll()
         }
     }

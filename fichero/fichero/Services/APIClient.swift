@@ -72,10 +72,6 @@ class APIClient {
     /// Without this, these legacy-`APIClient` paths stayed pinned to the old
     /// (localhost) base URL while the generated `ficheroClient` rebound — the
     /// exact silent-localhost gap #2349 closes.
-    func reconfigure(baseURL: URL) {
-        client.reconfigure(baseURL: baseURL)
-    }
-
     /// The host and how to dial it, read again (`activity.reconnects-after-engine-restart`).
     func reconfigure(baseURL: URL, transportMode: TransportMode) {
         client.reconfigure(baseURL: baseURL, transportMode: transportMode)
