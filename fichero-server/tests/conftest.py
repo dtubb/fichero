@@ -83,18 +83,22 @@ def _arm_credentials_tripwire() -> None:
 
     log_path = "/tmp/fichero_credentials_writer.log"
 
+    # Not only open(): the 2026-10-20 P0 full run found `credentials` in the tmp_path of three unrelated llm tests and no log,
+    # so the writer is not an open() for writing (a mkdir, a rename or a copy lands the same entry).
+    _made = {"os.mkdir": 0, "os.rename": 1, "os.symlink": 1, "os.link": 1, "shutil.copyfile": 1, "shutil.copymode": 1}
+
     def _hook(event: str, args: tuple) -> None:
-        if event != "open":
+        if event != "open" and event not in _made:
             return
         try:
-            path = str(args[0])
-            mode = args[1] if len(args) > 1 else ""
+            path = str(args[_made.get(event, 0)])
+            mode = args[1] if event == "open" and len(args) > 1 else "w"
         except Exception:
             return
         wants_write = any(c in str(mode) for c in ("w", "a", "x", "+"))
         if wants_write and (path.endswith("/credentials") or path == "credentials"):
             with open(log_path, "a") as f:  # log name doesn't match the trap
-                f.write(f"OPEN {path} mode={mode}\n")
+                f.write(f"{event.upper()} {path} mode={mode}\n")
                 _traceback.print_stack(file=f)
                 f.write("=" * 60 + "\n")
 
