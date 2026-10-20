@@ -118,6 +118,7 @@ extension ActivityDetails {
         case "running": "Running"
         case "done": "Done"
         case "waiting": "Waiting for the stage before it"
+        case "partial": "Partial: " + (stage.why ?? "some pages could not be read")
         case "failed": "Failed: " + (stage.why ?? "no reason given")
         case "not run": "Not run: " + (stage.why ?? "no reason given")
         case "cancelled": "Stopped"

@@ -49,3 +49,26 @@ def test_the_recipes_row_does_not_end_plain_done_when_a_step_lost_pages(db, monk
     assert step["failed_batches"][0]["state"] == "partial"
     words = runner._failures_words(db, [CARD], [step], 0)
     assert "lost pages" in words and "IMG_001: Kraken could not read its lines" in words
+
+
+def test_a_second_batch_that_loses_a_page_adds_it_and_the_totals_cover_both(db, monkeypatch):
+    """A recipe over many folders: every batch's lost pages are on the step (432), and the count is of both batches."""
+    step = {"state": "done", "child_id": "c", "why": None}
+    problems: list[str] = []
+    for lost_page, docs in ((PageFailure(page="IMG_001", reason="no lines"), ["a", "b", "c"]),
+                            (PageFailure(page="IMG_104", reason="out of memory"), ["d", "e", "f", "g"])):
+        monkeypatch.setattr(runner, "_did_no_page", lambda *a, _l=lost_page, **k: (False, 1, [_l]))
+        runner._after_the_step(db, CARD, step, {"folder": "f"}, docs, "done", "c", None, {}, problems, "read-a-line")
+    assert step["state"] == "partial"
+    assert [p["page"] for p in step["failed_pages"]] == ["IMG_001", "IMG_104"]
+    assert step["why"].startswith("5 of 7 pages done; 2 failed: IMG_001: no lines; IMG_104: out of memory")
+
+
+def test_a_clean_batch_after_a_lossy_one_keeps_the_step_partial_and_counts_its_pages(db, monkeypatch):
+    step = {"state": "done", "child_id": "c", "why": None}
+    problems: list[str] = []
+    monkeypatch.setattr(runner, "_did_no_page", lambda *a, **k: (False, 1, [PageFailure(page="IMG_001", reason="x")]))
+    runner._after_the_step(db, CARD, step, {"folder": "f"}, ["a", "b"], "done", "c", None, {}, problems, "r")
+    monkeypatch.setattr(runner, "_did_no_page", lambda *a, **k: (False, 0, []))
+    runner._after_the_step(db, CARD, step, {"folder": "g"}, ["c", "d", "e"], "done", "c", None, {}, problems, "r")
+    assert step["state"] == "partial" and step["pages_tried"] == 5 and step["pages_lost"] == 1
