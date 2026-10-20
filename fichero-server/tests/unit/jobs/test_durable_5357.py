@@ -42,13 +42,13 @@ def test_activity_durable_paused_stays_paused__a_paused_run_survives_a_relaunch_
     cloud.gate.set()
     assert _wait_for(lambda: _status(client, run) == "paused")
     time.sleep(0.5)
-    assert cloud.calls == 1
+    assert cloud.calls == 1, f"a page started after the pause: calls={cloud.calls}"
 
     db_manager.close_database(test_package)  # quit
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())  # a new engine process
     db_manager.get_database(test_package)  # relaunch: the project opens again
 
-    assert _status(client, run) == "paused"
+    assert _status(client, run) == "paused", f"the pause was lost over the relaunch: {_status(client, run)}"
     tree = _tree(client, run)
     assert tree["state"] == "paused", tree
     listed = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}
@@ -58,4 +58,4 @@ def test_activity_durable_paused_stays_paused__a_paused_run_survives_a_relaunch_
     assert r.status_code in (200, 202), r.text
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"))
     assert _status(client, run) == "completed"
-    assert cloud.calls == 3  # the page read before the pause is not read again
+    assert cloud.calls == 3, f"a page was dropped or re-read on resume: calls={cloud.calls}"  # the page read before the pause is not read again
