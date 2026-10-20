@@ -1470,14 +1470,16 @@ def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:
     yet, listed so a person sees the fast local baseline exists (`source.recipe.reader-tiers`). Never for handwriting."""
     from dataclasses import replace
 
-    from fichero_server.recipes.bakeoff import TESSERACT_MATERIALS
+    from fichero_server.recipes.bakeoff import TESSERACT_MATERIALS, _tesseract_has_the_language
 
     if not any(m in TESSERACT_MATERIALS for m in a.materials):
         return []
+    # Only a project whose language and script the data covers (Spanish data is no reader for German in Fraktur).
     return [replace(c, offered_because="the fast local baseline for print and typescript",
                     cannot_run_because="Tesseract is not in this build yet")
             for c in seed if not c.runs_here and "tesseract" in c.pin and job in c.jobs
-            and any(m in TESSERACT_MATERIALS for m in c.material)]
+            and any(m in TESSERACT_MATERIALS for m in c.material) and _tesseract_has_the_language(c, a)
+            and (c.scripts is None or c.scripts == "any" or bool(a.scripts & set(c.scripts)))]
 
 
 def _htr_united_source(a: Answers) -> dict[str, Any]:
