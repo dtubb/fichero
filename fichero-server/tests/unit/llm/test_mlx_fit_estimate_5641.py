@@ -98,8 +98,9 @@ def test_a_models_kv_cache_is_read_from_its_own_config():
 
 
 def test_the_finder_says_whether_each_mlx_model_fits_this_mac(client):
+    # An 8 GB Mac is 8 GiB (#5833): the 7B needs 6.45 GiB against a 6.0 GiB ceiling; 8.6 was a decimal-GB figure.
     answer = client.get("/api/recipes/candidates", params={"scripts": "Latn", "languages": "es",
-                                                           "job": "read-a-page", "mac_memory_gb": 8.6})
+                                                           "job": "read-a-page", "mac_memory_gb": 8.0})
     assert answer.status_code == 200, answer.text
     fits = {i["id"]: i["fit"] for i in answer.json()["items"]}
     seven = next(f for cid, f in fits.items() if "Qwen2.5-VL-7B-Instruct-4bit" in cid)
