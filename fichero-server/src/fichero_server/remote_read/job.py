@@ -103,12 +103,34 @@ def resolve_step(request: ReadAtScaleRequest, *, bucket: str | None) -> dict[str
         if not hf.get("merged") or hf.get("bucket") != bucket:
             raise NotSendable(f"{request.card} has no Hugging Face build in your bucket to read with off this Mac")
         model = f"{MOUNT}/{hf['merged']}"
-    adapter = None
+    adapter, pins = None, {}
     if request.base_model:  # the card is a PEFT adapter: the base is the model, the adapter goes on it (#5977)
         adapter, model = request.card, request.base_model
-    ReadStep(reader="vlm", card=request.card, model=model, adapter=adapter)  # the same refusals as the package
+        pins = _adapter_pins(adapter, model)
+    ReadStep(reader="vlm", card=request.card, model=model, adapter=adapter, **pins)  # the same refusals as the package
     return {"reader": "vlm", "card": request.card, "model": model, "prompt": prompt_for(1, request.language),
-            "lines_per_call": 1, "language": request.language, **({"adapter": adapter} if adapter else {})}
+            "lines_per_call": 1, "language": request.language, **({"adapter": adapter, **pins} if adapter else {})}
+
+
+def hub_info(repo: str) -> dict[str, Any]:
+    """The Hub's answer for a repository: its commit and files. Network; tests replace it."""
+    from fichero_server.llm.trocr_runtime import hub_info as ask
+
+    return ask(repo)
+
+
+def _adapter_pins(adapter: str, base: str) -> dict[str, str]:
+    """The commits of an adapter and its base, asked of the Hub here, so the Job loads exactly these and never `main`.
+    Refused in words without `adapter_model.safetensors` (an `adapter_model.bin` would be unpickled in the Job, which
+    holds the token and the pages) or when the Hub names no commit (review 767, #5977)."""
+    from fichero_server.remote_read.package import NotSendable
+
+    found, root = hub_info(adapter), hub_info(base)
+    if "adapter_model.safetensors" not in {str(f.get("rfilename")) for f in found.get("siblings") or []}:
+        raise NotSendable(f"{adapter} has no adapter_model.safetensors; a pickled adapter is never loaded in a Job")
+    if not found.get("sha") or not root.get("sha"):
+        raise NotSendable(f"the Hub named no commit for {adapter if not found.get('sha') else base}; it is not read at main")
+    return {"adapter_revision": str(found["sha"]), "model_revision": str(root["sha"])}
 
 
 def cluster_target(cluster_id: str) -> Callable[[], Any]:

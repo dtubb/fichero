@@ -60,6 +60,8 @@ class ReadStep:
     language: str | None = None
     engine: str | None = None  # vlm: `vllm` reads a page's lines in one batched call (offline, no server)
     adapter: str | None = None  # vlm: a PEFT adapter (Hub repo) the Job puts on `model`, the base (#5977)
+    adapter_revision: str | None = None  # the adapter's and the base's Hub commits: the Job loads these, never main
+    model_revision: str | None = None
 
     def describe(self) -> dict[str, Any]:
         out = {"reader": self.reader, "card": self.card, "lines_per_call": self.lines_per_call}
@@ -70,7 +72,7 @@ class ReadStep:
             if self.engine:
                 out["engine"] = self.engine
             if self.adapter:
-                out["adapter"] = self.adapter
+                out.update(adapter=self.adapter, adapter_revision=self.adapter_revision, model_revision=self.model_revision)
         return out
 
 

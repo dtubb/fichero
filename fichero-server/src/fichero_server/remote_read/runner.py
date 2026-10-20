@@ -111,12 +111,16 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
 
     segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
     processor = AutoProcessor.from_pretrained(step["model"])
-    model = AutoModelForImageTextToText.from_pretrained(step["model"], torch_dtype=torch.bfloat16, device_map=device,
-                                                                use_safetensors=True)  # never unpickle a repository (#5981 sweep)
+    model = AutoModelForImageTextToText.from_pretrained(step["model"], revision=step.get("model_revision"),
+                                                        torch_dtype=torch.bfloat16, device_map=device,
+                                                        use_safetensors=True)  # never unpickle a repository (#5981 sweep)
     if step.get("adapter"):  # a PEFT adapter on its base, merged so the read runs as a plain model (#5977)
+        from huggingface_hub import snapshot_download
         from peft import PeftModel
 
-        model = PeftModel.from_pretrained(model, step["adapter"]).merge_and_unload()
+        folder = snapshot_download(step["adapter"], revision=step["adapter_revision"],
+                                   allow_patterns=["*.safetensors", "*.json"])  # no pickle is fetched, so none can load
+        model = PeftModel.from_pretrained(model, folder).merge_and_unload()
     prompt = step["prompt"]
 
     def ask(picture: Any) -> str | None:

@@ -12,7 +12,7 @@ import pytest
 from fichero_server.recipes import discovery, where_it_runs
 from fichero_server.remote_read import job as read_job
 from fichero_server.remote_read import runner
-from fichero_server.remote_read.package import ReadStep
+from fichero_server.remote_read.package import NotSendable, ReadStep
 
 ADAPTER = "acme/qwen3-vl-ar-lora"
 BASE = "Qwen/Qwen3-VL-8B"
@@ -77,13 +77,32 @@ def test_the_places_name_the_base(hub):
     assert BASE in hf["needs"] and "adapter" in hf["needs"]
 
 
+def _hub(monkeypatch, files=("adapter_model.safetensors", "adapter_config.json")):
+    shas = {ADAPTER: "a" * 40, BASE: "b" * 40}
+    monkeypatch.setattr(read_job, "hub_info", lambda repo: {"sha": shas[repo], "siblings": [{"rfilename": f} for f in files]})
+
+
 def test_the_step_names_the_base_as_the_model_and_the_adapter_on_top(monkeypatch):
+    _hub(monkeypatch)
     request = read_job.ReadAtScaleRequest(scope_ids=["a"], reader="vlm", card=ADAPTER, base_model=BASE)
     step = read_job.resolve_step(request, bucket=None)
     assert step["model"] == BASE and step["adapter"] == ADAPTER
+    assert step["adapter_revision"] == "a" * 40 and step["model_revision"] == "b" * 40  # both pinned, never main
     assert ReadStep(**{k: v for k, v in step.items() if k in ReadStep.__dataclass_fields__}).describe()["adapter"] == ADAPTER
     plain = read_job.resolve_step(read_job.ReadAtScaleRequest(scope_ids=["a"], reader="vlm", card=BASE), bucket=None)
     assert "adapter" not in plain  # a complete model is loaded as it was
+
+
+def test_a_bin_only_adapter_is_refused_before_the_job_is_built(monkeypatch):
+    _hub(monkeypatch, files=("adapter_model.bin", "adapter_config.json"))
+    with pytest.raises(NotSendable, match="adapter_model.safetensors"):
+        read_job.resolve_step(read_job.ReadAtScaleRequest(scope_ids=["a"], reader="vlm", card=ADAPTER, base_model=BASE), bucket=None)
+
+
+def test_a_hub_that_names_no_commit_is_refused(monkeypatch):
+    monkeypatch.setattr(read_job, "hub_info", lambda repo: {"siblings": [{"rfilename": "adapter_model.safetensors"}]})
+    with pytest.raises(NotSendable, match="no commit"):
+        read_job.resolve_step(read_job.ReadAtScaleRequest(scope_ids=["a"], reader="vlm", card=ADAPTER, base_model=BASE), bucket=None)
 
 
 def test_the_job_installs_peft_only_for_a_step_with_an_adapter():
@@ -106,9 +125,11 @@ def test_the_runner_loads_the_base_then_the_adapter_and_merges_it(monkeypatch):
     transformers = types.SimpleNamespace(
         AutoProcessor=types.SimpleNamespace(from_pretrained=lambda name, **k: calls.append(("processor", name))),
         AutoModelForImageTextToText=types.SimpleNamespace(
-            from_pretrained=lambda name, **k: (calls.append(("base", name, k.get("use_safetensors"))), base)[1]))
+            from_pretrained=lambda name, **k: (calls.append(("base", name, k.get("revision"), k.get("use_safetensors"))), base)[1]))
     peft = types.SimpleNamespace(PeftModel=types.SimpleNamespace(
         from_pretrained=lambda model, name, **k: (calls.append(("adapter", name)), model)[1]))
+    hub = types.SimpleNamespace(snapshot_download=lambda repo, **k: (calls.append(("fetch", repo, k["revision"], k["allow_patterns"])), "/folder")[1])
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
     torch = types.SimpleNamespace(bfloat16="bf16")
     kraken = types.ModuleType("kraken")
     kraken.blla = types.SimpleNamespace()
@@ -120,5 +141,7 @@ def test_the_runner_loads_the_base_then_the_adapter_and_merges_it(monkeypatch):
     monkeypatch.setitem(sys.modules, "kraken", kraken)
     monkeypatch.setitem(sys.modules, "kraken.lib", lib)
     monkeypatch.setattr("importlib.resources.files", lambda pkg: types.SimpleNamespace(joinpath=lambda n: n))
-    runner.vlm_reader(None, {"model": BASE, "adapter": ADAPTER, "prompt": "p"}, "cpu")
-    assert calls == [("processor", BASE), ("base", BASE, True), ("adapter", ADAPTER), "merge"]
+    runner.vlm_reader(None, {"model": BASE, "adapter": ADAPTER, "prompt": "p",
+                                  "model_revision": "b" * 40, "adapter_revision": "a" * 40}, "cpu")
+    assert calls == [("processor", BASE), ("base", BASE, "b" * 40, True),
+                     ("fetch", ADAPTER, "a" * 40, ["*.safetensors", "*.json"]), ("adapter", "/folder"), "merge"]
