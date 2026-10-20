@@ -62,3 +62,70 @@ def test_the_stale_run_sweep_is_scheduled_on_the_background_loop(tmp_path, monke
     finally:
         activity._activity_trackers.pop(path, None)
     assert len(scheduled) == 1
+
+
+import asyncio
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_a_page_waiting_for_the_lane_looks_less_often_the_longer_it_waits(monkeypatch):
+    """#18: 500 waiting pages woke the run's loop 2,000 times a second."""
+    seen = []
+    real_wait = asyncio.wait
+
+    async def recording_wait(fs, timeout=None, **k):
+        seen.append(timeout)
+        if len(seen) >= 6:
+            raise RuntimeError("enough")
+        return await real_wait(fs, timeout=0, **k)
+
+    monkeypatch.setattr(jobs.asyncio, "wait", recording_wait)
+    monkeypatch.setattr(jobs, "_stop_requested", lambda run_id: False)
+    monkeypatch.setattr(jobs, "_still_open", lambda db: True)
+    monkeypatch.setattr(jobs, "_pause_requested", lambda run_id: False)
+    signal = asyncio.get_running_loop().create_future()
+    with pytest.raises(RuntimeError):
+        await jobs._wait_for_lane(None, None, signal, "run-x")
+    assert seen == [0.25, 0.5, 1.0, 1.0, 1.0, 1.0]
+
+
+def test_the_reason_is_written_before_the_lane_takes_a_familys_lock_to_release_it():
+    """#19: the release takes the family's own lock, which a call in flight can hold; the row must not sit silent behind it."""
+    run = next(n for n in ast.walk(ast.parse(JOBS_SOURCE)) if isinstance(n, ast.FunctionDef) and n.name == "_run")
+    text = ast.unparse(run)
+    assert text.index("let go of its models") < text.index("_RELEASE[_family(lane.loaded_model)]")
+
+
+def test_an_embed_batch_that_times_out_while_memory_is_tight_is_deferred_not_failed(monkeypatch):
+    """#23: a slow cold start under memory pressure failed the job and every queued page behind it."""
+    from fichero_server.db import embed_process
+    from fichero_server.execution import throttle
+
+    class Conn:
+        closed = False
+
+        def send(self, _):
+            pass
+
+        def poll(self, _timeout):
+            return False
+
+        def close(self):
+            self.closed = True
+
+    class Process:
+        def is_alive(self):
+            return True
+
+    embedder = embed_process.RemoteEmbedder.__new__(embed_process.RemoteEmbedder)
+    embedder._lock = __import__("threading").Lock()
+    embedder._conn, embedder._process, embedder._embed_timeout = Conn(), Process(), 0.0
+    embedder.close = lambda: None  # the child is stopped; not under test
+    monkeypatch.setattr(throttle, "memory_is_busy", lambda: True)
+    with pytest.raises(throttle.MemoryShortError):
+        embedder.embed(["a"])
+    monkeypatch.setattr(throttle, "memory_is_busy", lambda: False)
+    with pytest.raises(embed_process.EmbedderUnavailable):
+        embedder.embed(["a"])
