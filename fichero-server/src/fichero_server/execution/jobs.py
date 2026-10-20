@@ -3158,6 +3158,13 @@ def is_queued_or_running(db, kind: str, subject: str) -> bool:
     ) is not None
 
 
+def failed_since(db, kind: str, subject: str, since) -> bool:
+    """True when a job of this kind and subject failed at or after `since`."""
+    return db.execute_fetchone(
+        "SELECT 1 FROM jobs WHERE kind = ? AND subject = ? AND state = 'failed' AND finished_at >= ? LIMIT 1",
+        [kind, subject, since]) is not None
+
+
 def queue_state(db, own_kinds: list[str], since=None) -> str | None:
     """What the job table says about a queue made of `own_kinds`: "moving" while page work of ours on a model or
     image lane runs behind it (a workflow, batch or far-side row does not count); "over" when its jobs have all
