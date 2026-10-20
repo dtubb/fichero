@@ -1125,6 +1125,15 @@ def _trocr_hub_card(model: dict[str, Any], what: str, wanted: frozenset[str]) ->
     return replace(card, id=f"trocr:hf/{repo}@main", pin={"trocr": repo}, jobs=frozenset({"read-a-line"}))
 
 
+#: Why a PyLaia reader cannot run here or in a Job yet (`source.onboard.model-search-pylaia-is-remote-only`).
+PYLAIA_WHY = ("PyLaia 1.1.2 pins torch 1.13 and Python below 3.11, and Fichero ships torch 2 on a newer Python, so it "
+              "cannot be bundled; a Job would need an environment of its own")
+
+
+def _is_pylaia(model: dict[str, Any]) -> bool:
+    return model.get("library_name") == "pylaia" or "pylaia" in _words(model)
+
+
 def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
     """A reader on the Hub this build cannot run (a TrOCR or other transformers model with no MLX build, or a GGUF
     build): listed so a person sees what exists for their material, never chosen by the rules (`runs_here` False,
@@ -1132,14 +1141,16 @@ def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str])
     from dataclasses import replace
 
     words = _words(model)
-    if _gguf_only(model):
+    if _is_pylaia(model):
+        kind, how = "a PyLaia model", f"a PyLaia model: cannot run yet ({PYLAIA_WHY})"
+    elif _gguf_only(model):
         kind, how = "a GGUF build", "a GGUF build: cannot run yet (this build runs MLX builds)"
     else:
         kind = "a TrOCR model" if "trocr" in words or "vision-encoder-decoder" in words else "a transformers model"
         how = f"{kind}, transformers only: cannot run yet (no MLX build Fichero can run)"
     card = _hf_card(model, what, how, wanted)
     return replace(card, id=card.id.replace("mlx:hf/", "hf:hf/"), runs_here=False,
-                   cannot_run_because=f"{kind}, and this build runs MLX builds only")
+                   cannot_run_because=PYLAIA_WHY if _is_pylaia(model) else f"{kind}, and this build runs MLX builds only")
 
 
 #: Where a model too big for this Mac runs: the Hugging Face Jobs the engine already sends reading to
