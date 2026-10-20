@@ -172,32 +172,57 @@ struct ShareSettingsView: View {
         }
     }
 
-    /// Add Device: the QR, the code and the invite link on one sheet (`sharing.settings.add-device-sheet`).
+    /// Add Device: asks for nothing: the QR, the code, when it expires, Copy Link and Done (`sharing.settings.add-device-sheet`).
+    @ViewBuilder
     private var addDeviceSheet: some View {
+        let phase = AddDeviceSheetModel.phase(
+            blocker: pairingBlocker, hasCode: pairingCode != nil, hasLink: inviteLinkString != nil,
+            isWorking: isApplyingChange || isGeneratingCode)
         VStack(spacing: 12) {
-            PairingCardView(
-                pairingCode: pairingCode,
-                qrCodeImage: qrCodeImage,
-                publicURL: validatedPublicURL?.absoluteString,
-                inviteLink: inviteLinkString,
-                isGeneratingPairingCode: isGeneratingCode,
-                blocker: pairingBlocker,
-                errorMessage: shareError,
-                isResolving: isApplyingChange,
-                onResolve: { blocker in Task { await resolve(blocker) } },
-                copiedInvite: copiedInvite,
-                onCopyInvite: copyInvite,
-                copyNote: copyNote
-            )
-            .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
+            switch phase {
+            case .finishing:
+                ProgressView("Finishing setup…")
+            case .ready, .notReady:
+                if let image = qrCodeImage {
+                    Image(platformImage: image)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 220, height: 220)
+                        .accessibilityLabel("Pairing QR code")
+                }
+                if let code = pairingCode {
+                    Text(AddDeviceSheetModel.codeText(code.code))
+                        .font(.title2.monospacedDigit())
+                    Text(AddDeviceSheetModel.expiresText(expiresAt: code.expiresAt))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if phase == .notReady {
+                    Text("Not ready yet").font(.caption).foregroundStyle(.secondary)
+                }
+            case .finishSetup:
+                Button("Finish Setup") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
+                    .buttonStyle(.borderedProminent)
+            case .start:
+                Button("Start") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
+                    .buttonStyle(.borderedProminent)
+            case .failed(let line):
+                Text(line).foregroundStyle(.secondary)
+            }
+            if let note = copyNote {
+                Text(note).font(.caption).foregroundStyle(.red)
+            }
             HStack {
+                Button(copiedInvite ? "Link Copied" : "Copy Link", action: copyInvite)
+                    .disabled(phase != .ready)
                 Spacer()
                 Button("Done") { showAddDevice = false; Task { await refreshDevices() } }
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding()
-        .frame(minWidth: 420)
+        .frame(minWidth: 320)
+        .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
     }
 
     /// Connect to Another Mac: hosts the existing client pairing section on a sheet (`sharing.settings.connect-sheet`).
