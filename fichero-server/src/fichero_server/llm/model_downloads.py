@@ -35,8 +35,9 @@ _T = TypeVar("_T")
 #: The pauses between tries after a broken connection: four more tries, about a minute in all.
 BACKOFF_SECONDS: tuple[float, ...] = (2.0, 5.0, 15.0, 30.0)
 CHUNK_BYTES = 1 << 20
-#: How long a read waits for the server before the try counts as a broken connection.
-READ_TIMEOUT_SECONDS = 60.0
+#: How long the server may stay silent (connecting, answering, or between bytes) before the try counts as a
+#: broken connection. A server that took the request and sent nothing was a ~100 s stall at 60 s.
+READ_TIMEOUT_SECONDS = 20.0
 
 #: Exception class names that mean the connection broke, whichever library raised them.
 _TRANSIENT_NAMES = frozenset({
@@ -52,8 +53,8 @@ TRANSIENT_MARKERS: tuple[str, ...] = tuple(sorted(_TRANSIENT_NAMES)) + ("Connect
 class DownloadInterrupted(RuntimeError):
     """The connection broke on every try: the message is the one sentence a person reads."""
 
-    def __init__(self, name: str, cause: BaseException | None = None) -> None:
-        super().__init__(interrupted_sentence(name))
+    def __init__(self, name: str, cause: BaseException | None = None, *, offline: bool = False) -> None:
+        super().__init__(interrupted_sentence(name, offline=offline))
         self.name = name
         self.cause = cause
 
@@ -66,7 +67,24 @@ class DownloadStopped(RuntimeError):
         self.name = name
 
 
-def interrupted_sentence(name: str) -> str:
+def looks_offline(broken: DownloadInterrupted) -> bool:
+    """Whether the connection never came up at all (no DNS, no route): this Mac is offline, not the server flaky."""
+    import socket
+
+    current: BaseException | None = broken.cause
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, socket.gaierror) or "Name or service not known" in str(current) \
+                or "nodename nor servname" in str(current) or "offline" in str(current).lower():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def interrupted_sentence(name: str, *, offline: bool = False) -> str:
+    if offline:
+        return f"{name} can't be downloaded: this Mac looks offline. It tries again by itself when the internet is back."
     return f"The download of {name} stopped part-way; it will try again."
 
 
@@ -150,6 +168,9 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
     if dest.is_file() and (size is None or dest.stat().st_size == size):
         return dest
 
+    started = time.monotonic()
+    logger.info("download of %s starting: %s (size %s)", name, url, megabytes(size))
+
     def one_try() -> None:
         have = part.stat().st_size if part.is_file() else 0
         if size is not None and have == size:
@@ -157,6 +178,8 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
         if size is not None and have > size:
             part.unlink()
             have = 0
+        if on_bytes is not None:
+            on_bytes(have, size)  # each try announces itself, so a silent server still shows the clock moving
         try:
             response = _open(url, have)
         except urllib.error.HTTPError as exc:
@@ -193,6 +216,7 @@ def fetch_file(url: str, dest: Path, *, name: str, size: int | None = None,
     if size is not None and got != size:
         raise DownloadInterrupted(name)
     part.replace(dest)
+    logger.info("download of %s done: %s in %.0f s", name, megabytes(got), time.monotonic() - started)
     return dest
 
 
@@ -200,6 +224,9 @@ def megabytes(count: int | None) -> str:
     return "?" if count is None else f"{count / 1_000_000:.1f} MB"
 
 
-def progress_words(name: str, have: int, total: int | None) -> str:
-    """"Downloading PP-OCRv6 (medium): 8.8 MB of 63.0 MB"."""
-    return f"Downloading {name}: {megabytes(have)}" + (f" of {megabytes(total)}" if total else "")
+def progress_words(name: str, have: int, total: int | None, seconds_in: float | None = None) -> str:
+    """"Downloading PP-OCRv6 (medium): 8.8 MB of 63.0 MB, 12 s in"; before any byte: "Downloading X, 23 s in"."""
+    when = "" if seconds_in is None else f", {seconds_in:.0f} s in"
+    if not have:
+        return f"Downloading {name}{when}"
+    return f"Downloading {name}: {megabytes(have)}" + (f" of {megabytes(total)}" if total else "") + when

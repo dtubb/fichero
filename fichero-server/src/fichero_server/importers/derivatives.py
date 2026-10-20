@@ -881,6 +881,18 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
 EMBED_RETRY_SECONDS = 120.0
 
 
+def _fetch_the_search_model(db) -> None:
+    """Search's model is missing: queue its download in the app (a row in Activity; one waiting job per model).
+    Weights are the only thing that downloads, in-app; the finished download clears the embedder's back-off."""
+    try:
+        from fichero_server.db.embeddings import search_embedder
+        from fichero_server.llm.local_models import enqueue_download
+
+        enqueue_download(db, "embeddings", search_embedder(), started_by="automatic")
+    except Exception as exc:  # the row still waits with its sentence; the download can also be started by hand
+        logger.warning("could not queue the search model's download: %s", exc)
+
+
 def _embed_stage(doc_id: str, library: str) -> None:
     """Embed one document's text tree, flip pending → completed (#4225), and
     tick the queue-progress counter that feeds the status island.
@@ -925,6 +937,7 @@ def _embed_stage(doc_id: str, library: str) -> None:
             job_id = getattr(jobs._current, "job_id", None)
             if job_id:
                 jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
+            _fetch_the_search_model(db)
             raise jobs.JobDeferred(str(exc)) from exc
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
