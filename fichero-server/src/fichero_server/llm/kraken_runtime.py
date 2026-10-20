@@ -864,19 +864,42 @@ class _PageGate:
 
 _INFERENCE_LOCK = _PageGate()
 
-#: Pages read at once for a person-started (fast) run when this Mac's memory holds that many.
-PAGES_AT_ONCE = 2
+def _sysctl_int(name: str) -> int | None:
+    """An integer `hw.*` value through sysctlbyname (ctypes, no child process: a sandboxed app cannot start one,
+    #4555); None where the name does not exist (Intel Macs have no performance levels) or off macOS."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        libc = ctypes.CDLL("libc.dylib", use_errno=True)
+        value, size = ctypes.c_int32(0), ctypes.c_size_t(ctypes.sizeof(ctypes.c_int32))  # the hw.*cpu values are ints
+        if libc.sysctlbyname(name.encode(), ctypes.byref(value), ctypes.byref(size), None, 0) != 0:
+            return None
+        return int(value.value)
+    except (OSError, AttributeError):
+        return None
+
+
+def performance_cores() -> int:
+    """The Mac's performance cores (`hw.perflevel0.physicalcpu`), else half its physical cores (Intel Macs, which have
+    no performance levels), never below one: the number of pages read at once (`source.read.pages-at-once-scales`,
+    owner's ruling 2026-10-20, #5931). The efficiency cores stay for the app and the person."""
+    cores = _sysctl_int("hw.perflevel0.physicalcpu")
+    if cores is None or cores < 1:
+        physical = _sysctl_int("hw.physicalcpu") or ((os.cpu_count() or 2) // 2 * 2)
+        cores = physical // 2
+    return max(1, cores)
 
 
 def pages_at_once(person: bool) -> int:
-    """How many pages may be read at once (`source.read.two-pages-at-once`): `PAGES_AT_ONCE` for a person-started run
-    on the fast priority when there are cores for it and `page_fan_out` says the memory holds that many (so one on an
-    8 GB Mac); one for every automatic or background run."""
+    """How many pages may be read at once (`source.read.pages-at-once-scales`): the Mac's performance cores for a
+    person-started run on the fast priority, held down by what the free memory carries (`page_fan_out`: 1.5 GB a page
+    beyond the model, so one on an 8 GB Mac); one for every automatic or background run."""
     from fichero_server.core.compute_preferences import priority_for
 
-    if priority_for(person) != "fast" or (os.cpu_count() or 1) < 4:
+    if priority_for(person) != "fast":
         return 1
-    return page_fan_out(PAGES_AT_ONCE)
+    return page_fan_out(performance_cores())
+
 
 #: The environment variables the thread pools around torch read when they load.
 _THREAD_POOL_ENV = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
