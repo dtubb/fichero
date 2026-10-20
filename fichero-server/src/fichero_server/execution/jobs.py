@@ -2466,6 +2466,8 @@ _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
 SWITCH_AFTER_QUIET_SECONDS = 20.0
+#: How many times one claim makes a scan again because the lane moved during it (`activity.lane.one-model-at-a-time`, #5920).
+MAX_RESCANS = 8
 
 
 #: The longest the loaded model's queued pages hold another heavy model off the lane since the loaded model last ran.
@@ -2853,12 +2855,17 @@ class _Scheduler:
                 if held:
                     self._say_why_background_waits(lane, held)
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+            rescans = 0
             while True:
                 before = (lane.loaded_model, frozenset(lane.running))
                 picked = self._next(lane, background=held is None)
                 if picked is None:
                     break
                 if (lane.loaded_model, frozenset(lane.running)) != before:
+                    rescans += 1
+                    if rescans > MAX_RESCANS:  # a lane that keeps moving: look again in a moment, never spin (## 608)
+                        lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        return None
                     # The lane moved while this scan ran (a job finished and its model became the loaded one): the choice was
                     # made for a lane that no longer exists, so it is made again (#5920, `activity.lane.one-model-at-a-time`).
                     continue
