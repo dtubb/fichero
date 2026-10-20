@@ -266,6 +266,8 @@ def test_sync_app_bootstrap_token_stays_scoped_to_requested_app_id(monkeypatch, 
 
 def test_sync_app_bootstrap_token_discovers_uuid_sandbox_container(monkeypatch, tmp_path):
     import fichero_server.api.auth as auth_module
+    # The UUID containers are swept only without FICHERO_TOKEN_DIR (which the suite sets for isolation, #5685).
+    monkeypatch.delenv("FICHERO_TOKEN_DIR", raising=False)
 
     monkeypatch.setenv("HOME", str(tmp_path))
     containers_root = tmp_path / "Library" / "Containers"
@@ -310,6 +312,8 @@ def test_sync_app_bootstrap_token_is_idempotent_for_existing_uuid_container(
     monkeypatch, tmp_path
 ):
     import fichero_server.api.auth as auth_module
+    # The UUID containers are swept only without FICHERO_TOKEN_DIR (which the suite sets for isolation, #5685).
+    monkeypatch.delenv("FICHERO_TOKEN_DIR", raising=False)
 
     monkeypatch.setenv("HOME", str(tmp_path))
     containers_root = tmp_path / "Library" / "Containers"
