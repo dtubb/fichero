@@ -264,7 +264,7 @@ def turn_multiuser_on(host: Engine, password: str = "owner-password-for-the-test
     host.sign_in_owner()  # the owner exists (first run) and holds a key
     library = host.library or host.make_library()
     with host.uds as owner:
-        chosen = owner.patch(f"/api/auth/users/{host.owner_id}", json={"password": password})
+        chosen = owner.patch(f"/api/users/{host.owner_id}", json={"password": password})
         assert chosen.status_code == 200, f"choosing the owner's password: {chosen.status_code} {chosen.text}"
         on = owner.put("/api/pair/multiuser", json={"enabled": True}, headers=library)
         assert on.status_code == 200, f"turning Multi-user on: {on.status_code} {on.text}"
