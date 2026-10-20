@@ -100,6 +100,8 @@ def address_url(address: str) -> str:
 
 def client(url: str, token: str | None = None):
     """The HTTP client to another engine. A seam: a test returns the far engine's TestClient."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("another-mac", what="the copy", to="your other Mac")
     import httpx
 
     headers = {"Authorization": f"Bearer {token}"} if token else {}

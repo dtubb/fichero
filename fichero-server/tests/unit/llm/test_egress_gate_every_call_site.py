@@ -121,3 +121,90 @@ def test_no_cloud_embeddings_client_exists_and_a_new_one_must_be_gated():
     hits = [str(p.relative_to(SRC)) for p in SRC.rglob("*.py")
             if any(w in p.read_text() for w in ("OpenAIEmbeddings(", "init_embeddings(", ".embeddings.create("))]
     assert hits == []
+
+
+# --- the whole package: every function that opens a network connection is gated or listed with its reason (review 374) ---
+
+_NET = {("httpx", "get"), ("httpx", "post"), ("httpx", "Client"), ("httpx", "AsyncClient"), ("httpx", "request"),
+        ("httpx", "stream"), ("aiohttp", "ClientSession"), ("requests", "get"), ("requests", "post"),
+        ("requests", "request"), ("request", "urlopen"), ("urllib", "urlopen")}
+_GATES = ("check_egress", "_enforce_local_only_provider")
+
+#: Not gated, each with why. None carries what the person's library holds off this Mac.
+_OWN_FETCH = "Fichero's own fetch (models, registries, catalogues): no library content"
+_SENDS_A_KEY = "sends the API key to the provider the person set up, to list or test models: no library content"
+_FETCHES_THE_SOURCE = "fetches FROM the source the person is importing; sends only that source's own URLs"
+_LOOPBACK = "talks to a model server on this Mac"
+ALLOWED = {
+    "api/routes/ai/models.py::_fetch_hf_models": _OWN_FETCH,
+    "api/routes/ai/models.py::_fetch_hf_tasks": _OWN_FETCH,
+    "api/routes/ai/models.py::get_hf_model": _OWN_FETCH,
+    "api/routes/ai/provider_keys.py::test_provider_connection": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::_live_openrouter_models": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::_live_huggingface_models": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::_live_openai_compatible_models": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::_live_anthropic_models": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::_live_google_models": _SENDS_A_KEY,
+    "api/routes/ai/provider_models.py::list_models_for_provider": _SENDS_A_KEY,
+    "llm/__init__.py::_get_shared_httpx_async_client": "built only by _build_langchain_model, which has the gate",
+    "llm/kraken_runtime.py::record_files": _OWN_FETCH,
+    "llm/local_inference.py::get_json": _LOOPBACK,
+    "llm/local_models.py::download_spacy_pipeline": _OWN_FETCH,
+    "llm/model_downloads.py::_open": _OWN_FETCH,
+    "llm/model_types.py::_refresh_registry_cache": _OWN_FETCH,
+    "llm/script_coverage.py::_http_get_bytes": _OWN_FETCH,
+    "loaders/iiif_loader.py::load": _FETCHES_THE_SOURCE,
+    "media/iiif_fetch.py::urllib_get": _FETCHES_THE_SOURCE,
+    "recipes/htr_united.py::_fetch_catalogue": _OWN_FETCH,
+}
+
+
+def _network_functions() -> set[str]:
+    found = set()
+    for path in SRC.rglob("*.py"):
+        for fn in ast.walk(ast.parse(path.read_text())):
+            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                gated = any(g in ast.unparse(fn) for g in _GATES)
+                for n in ast.walk(fn):
+                    if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                            and isinstance(n.func.value, (ast.Name, ast.Attribute))):
+                        base = n.func.value.id if isinstance(n.func.value, ast.Name) else n.func.value.attr
+                        if (base, n.func.attr) in _NET and not gated:
+                            found.add(f"{path.relative_to(SRC)}::{fn.name}")
+    return found
+
+
+def test_every_function_that_opens_a_connection_is_gated_or_listed_with_its_reason():
+    ungated = _network_functions()
+    assert ungated - set(ALLOWED) == set(), (
+        f"opens a network connection with no egress gate and no reason listed: {sorted(ungated - set(ALLOWED))}")
+    assert set(ALLOWED) - ungated == set(), "listed as ungated, but now gated or gone: drop it from ALLOWED"
+
+
+@pytest.mark.parametrize("place, call", [
+    ("cloud", lambda: __import__("fichero_server.media.geo", fromlist=["x"])._geocode_online("Quito", timeout=1)),
+    ("cloud", lambda: asyncio.run(__import__("fichero_server.bibliography.doi_lookup", fromlist=["x"]).resolve_doi("10.1/x"))),
+])
+def test_a_lookup_that_degrades_returns_nothing_instead_of_sending_when_the_cloud_is_not_allowed(
+        client, app_db, monkeypatch, place, call):
+    import httpx
+
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: pytest.fail("a place name left the Mac"))
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: pytest.fail("a DOI left the Mac"))
+    client.put("/api/recipes/places", json={"places": []})
+    assert not call()
+
+
+def test_the_lookups_that_raise_refuse_in_words_and_another_mac_is_gated_by_its_own_place(client, app_db, monkeypatch):
+    from fichero_server.core.egress import EgressRefused, check_egress
+
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    check_egress("cloud", what="x", to="y")  # not answered: caps nothing
+    client.put("/api/recipes/places", json={"places": ["another-mac"]})
+    check_egress("another-mac", what="the copy", to="your other Mac")  # ALLOWED: the answer names it
+    with pytest.raises(EgressRefused) as refused:
+        check_egress("cloud", what="the name to look up", to="Wikidata")
+    assert "Your places do not include a cloud AI service" in str(refused.value) and "Wikidata" in str(refused.value)
+    client.put("/api/recipes/places", json={"places": []})
+    with pytest.raises(EgressRefused):
+        check_egress("another-mac", what="the copy", to="your other Mac")

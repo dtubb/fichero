@@ -244,6 +244,8 @@ async def execute_web_search(
     request: WebSearchRequest,
 ) -> WebSearchResponse:
     """Execute a web search using httpx (sandboxed — no filesystem/CLI escape)."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path
 
     if not request.query or len(request.query.strip()) < 2:
@@ -330,6 +332,8 @@ async def execute_browser_navigate(
     request: BrowserNavigateRequest,
 ) -> BrowserNavigateResponse:
     """Navigate to a URL and extract content (sandboxed — no filesystem/CLI escape)."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path
 
     if await _is_sandbox_violation(request.url):
@@ -417,6 +421,8 @@ async def execute_document_fetch(
     db: Database = Depends(get_library_database_for_write),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path
 
     if await _is_sandbox_violation(request.url):
@@ -558,6 +564,8 @@ async def browser_save(
     db: Database = Depends(get_library_database_for_write),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
+    from fichero_server.core.egress import check_egress  # noqa: PLC0415
+    check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path
     import tempfile
     from pathlib import Path as _Path
