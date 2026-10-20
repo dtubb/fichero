@@ -144,6 +144,7 @@ def test_enabled_bonjour_invalid_config_does_not_start_or_break_startup(caplog) 
         advertiser = discovery.start_bonjour_advertiser(
             {
                 "FICHERO_ENABLE_BONJOUR": "1",
+                "FICHERO_ENV": "test",
                 "FICHERO_BONJOUR_PORT": "not-a-port",
             },
             zeroconf_cls=FakeZeroconf,
