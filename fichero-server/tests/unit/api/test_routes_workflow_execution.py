@@ -743,7 +743,12 @@ class TestDeleteWorkflowRunsAction:
         remaining_ids = {i["thread_id"] for i in remaining}
         assert remaining_ids == {"thread-ok"}
 
-    def test_running_run_is_skipped_not_deleted(self, client, db):
+    def test_running_run_is_skipped_not_deleted(self, client, db, monkeypatch):
+        # A run that is running IN THIS PROCESS is in the runner's registry; the library-open sweep (which runs on the
+        # engine's background loop since f8cbfa0c4) flips any 'running' row that is not, as a zombie, so the seed must be live.
+        from fichero_server.execution import runner
+
+        monkeypatch.setitem(runner._running_workflows, "thread-running", {"status": "running"})
         _seed_run(db, "thread-running", status="running")
         r = client.post(
             "/api/workflow-execution/runs/delete",
