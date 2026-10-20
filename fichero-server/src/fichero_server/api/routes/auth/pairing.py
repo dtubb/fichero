@@ -342,6 +342,8 @@ def _invited_person(request: Request, app_db: AppDatabase, username: str | None)
     if person is None:
         if not _USERNAME.match(username.strip()):
             raise HTTPException(status_code=422, detail="a username is letters, digits, . _ - (up to 64)")
+        if app_db.username_taken(username):  # the same name in another case: not a new person, and not that one
+            raise HTTPException(status_code=409, detail="a person with that name exists (it differs only in case): use their name exactly")
         return None
     if not person.active:
         raise HTTPException(status_code=403, detail="that person is disabled")
@@ -812,10 +814,10 @@ def pair_device(
         if record.person:
             # The code was minted for this person: the device is theirs and no one else's, and they prove who they
             # are: an existing person with their password, a new person by choosing one (the owner never sets it).
-            if body.username is not None and body.username.strip().casefold() != record.person.casefold():
+            if body.username is not None and body.username.strip() != record.person:
                 raise HTTPException(status_code=403, detail="this invitation is for another person")
             if record.new_person:
-                if app_db.get_user_by_username(record.person) is not None:
+                if app_db.username_taken(record.person):
                     raise HTTPException(status_code=409, detail="that username is taken now: ask for a new invitation")
                 if len(body.new_password or "") < MIN_NEW_PASSWORD:
                     raise HTTPException(

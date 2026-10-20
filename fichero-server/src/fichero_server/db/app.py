@@ -1186,19 +1186,28 @@ class AppDatabase:
         )
 
     def get_user_by_username(self, username: str) -> AccountUser | None:
-        """Get a user row by username, case-folded: 'Carol' and 'carol' are one person (sign-in and create alike)."""
+        """Get a user row by username, EXACTLY: sign-in and authorization resolve the name as it was made, so 'Carol'
+        and 'carol' that already exist side by side each stay themselves."""
         with self._lock:
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, password_hash,
                        is_owner, active, created_at
                 FROM users
-                WHERE lower(username) = lower(?)
-                ORDER BY created_at
+                WHERE username = ?
                 """,
                 [username.strip()],
             ).fetchone()
         return self._row_to_user(result) if result else None
+
+    def username_taken(self, username: str) -> bool:
+        """Is this name taken, whatever its case? Asked only when a name is MADE (create, invite, redeem): a new
+        'CAROL' beside 'carol' is refused, while lookups stay exact."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM users WHERE lower(username) = lower(?) LIMIT 1", [username.strip()]
+            ).fetchone()
+        return row is not None
 
     @contextlib.contextmanager
     def _lock_within(self, wait: float | None):
