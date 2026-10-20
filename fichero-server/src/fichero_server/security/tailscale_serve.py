@@ -21,6 +21,8 @@ import subprocess
 from collections.abc import Mapping
 from urllib.parse import urlparse
 
+from fichero_server.security.bind_host import listen_port
+
 TAILNET_URL_ENV = "FICHERO_TAILNET_URL"
 PUBLIC_BASE_URL_ENV = "FICHERO_PUBLIC_BASE_URL"
 # The Mac app's own binary is the CLI; `/usr/local/bin/tailscale` exists only after the
@@ -146,7 +148,7 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     if (source.get("FICHERO_UDS_PATH") or "").strip() and source.get("FICHERO_TCP_TLS_ALSO") != "1":
         log.warning("Sharing over Tailscale: this engine listens on a socket only, so nothing is forwarded")
         return None
-    port = int(source.get("FICHERO_TCP_PORT", "8765"))
+    port = listen_port(source)
     cli = tailscale_cli()
     if cli is None:
         log.warning("Sharing over Tailscale, but Tailscale is not installed: nothing forwards port %d", port)
