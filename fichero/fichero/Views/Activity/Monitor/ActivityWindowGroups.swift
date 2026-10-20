@@ -20,10 +20,11 @@ struct ActivityWindowGroups: Equatable {
         now = listed.filter { $0.phase == .running || $0.phase == .paused }
         upNext = listed.filter { $0.phase == .waiting }
             .sorted { ($0.queueKey, $0.startedKey) < ($1.queueKey, $1.startedKey) }
-        // DONE TODAY goes by when it ENDED (an overnight run that ended today is here), and a row whose end is not known
-        // is listed rather than lost; the newest end first, the unknown last.
+        // DONE TODAY goes by when it ENDED (an overnight run that ended today is here). A row with no known end is not
+        // listed: it would show every day. The engine sends `finished_at` for ended jobs (regen held), until then a
+        // job of its own reads only its failure time (## 747).
         doneToday = listed.filter { !$0.phase.isLive }
-            .filter { row in (row.ended ?? row.started).map { calendar.isDate($0, inSameDayAs: date) } ?? true }
+            .filter { row in row.ended.map { calendar.isDate($0, inSameDayAs: date) } ?? false }
             .sorted { ($0.ended ?? .distantPast) > ($1.ended ?? .distantPast) }
     }
 

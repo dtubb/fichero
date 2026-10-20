@@ -1,0 +1,119 @@
+import SwiftUI
+
+/// The Activity window's list: NOW, UP NEXT and DONE TODAY, one row per run, one button per row (the one-bar design,
+/// #5960: `activity.window.three-groups`, `activity.window.one-button`, `activity.window.row-subtitle`).
+///
+/// No table header and no empty-group prose: a group with nothing in it is not drawn. The stage bar, the page grid and
+/// the opened run's new look are later slices (`activity.window.stage-bar`, `activity.window.page-grid`); a row's bar
+/// here is the plain pages-done bar.
+struct ActivityGroupsView: View {
+    let groups: ActivityWindowGroups
+    /// With work from several projects the project leads a row's name (`activity.window.project-prefix`).
+    let showsProject: Bool
+    let appeared: (ActivityMonitorRow) async -> Void
+    let perform: (ActivityMonitorRow.OneButton, ActivityMonitorRow) -> Void
+    let open: (ActivityMonitorRow) -> Void
+    let stopTarget: (ActivityMonitorRow) -> ActivityRunMenuTarget
+    /// Clear Failed and Clear Finished, from the DONE TODAY heading (`activity.window.done-today`).
+    let clearFailed: () -> Void
+    let clearFinished: () -> Void
+    /// Delete is a context-menu item (`activity.window.one-button`); only a run deletes.
+    let delete: (ActivityMonitorRow) -> Void
+    @AppStorage("activity.doneTodayExpanded") private var doneExpanded = false
+
+    var body: some View {
+        List {
+            if !groups.now.isEmpty {
+                Section("Now") { ForEach(groups.now) { rowView($0) } }
+            }
+            if !groups.upNext.isEmpty {
+                Section("Up Next") { ForEach(groups.upNext) { rowView($0) } }
+            }
+            if !groups.doneToday.isEmpty {
+                Section {
+                    if doneExpanded { ForEach(groups.doneToday) { rowView($0) } }
+                } header: {
+                    HStack {
+                        Button {
+                            doneExpanded.toggle()
+                        } label: {
+                            Label("Done Today (\(groups.doneToday.count))",
+                                  systemImage: doneExpanded ? "chevron.down" : "chevron.right")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("activity.doneToday.toggle")
+                        Spacer()
+                        Menu("Clear") {
+                            Button("Clear Failed", role: .destructive, action: clearFailed)
+                            Button("Clear Finished…", role: .destructive, action: clearFinished)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .accessibilityIdentifier("activity.doneToday.clear")
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("activity.groups")
+    }
+
+    private func rowView(_ row: ActivityMonitorRow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title(row)).lineLimit(1)
+                if row.total > 0, row.phase == .running || row.phase == .paused {
+                    ProgressView(value: Double(row.done), total: Double(row.total))
+                }
+                Text(subtitle(row)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            if !row.costText.isEmpty, row.costUsd != nil {
+                Text(row.costText).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            if let button = row.oneButton {
+                Button { perform(button, row) } label: { Label(label(button), systemImage: symbol(button)) }
+                    .labelStyle(button == .retry || button == .show ? .titleOnly : .iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("\(label(button)) \(row.name)")
+                    .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(label(button).lowercased())")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { open(row) }
+        .contextMenu {
+            if row.controls.contains(.stop) { ActivityStopMenuItem(target: stopTarget(row)) }
+            Button("Show Details") { open(row) }
+            if row.kind == .run, !row.phase.isLive { Button("Delete", role: .destructive) { delete(row) } }
+        }
+        .task(id: row.id) { await appeared(row) }
+        .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id)")
+    }
+
+    private func title(_ row: ActivityMonitorRow) -> String {
+        if showsProject, let project = row.projectName, !project.isEmpty { return "\(project) · \(row.name)" }
+        return row.name
+    }
+
+    /// The state's words, then the counts and the time left; a waiting row says what it waits for and never ticks.
+    private func subtitle(_ row: ActivityMonitorRow) -> String {
+        [row.stateText, row.progressText].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    private func label(_ button: ActivityMonitorRow.OneButton) -> String {
+        switch button {
+        case .pause: "Pause"
+        case .resume: "Resume"
+        case .retry: "Retry"
+        case .show: "Show"
+        }
+    }
+
+    private func symbol(_ button: ActivityMonitorRow.OneButton) -> String {
+        switch button {
+        case .pause: "pause.fill"
+        case .resume: "play.fill"
+        case .retry: "arrow.counterclockwise"
+        case .show: "chevron.right"
+        }
+    }
+}
