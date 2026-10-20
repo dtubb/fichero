@@ -531,6 +531,8 @@ def record_batch(db: "Database", batch_id: str, *, status: str, name: str | None
                  reason: str | None = None) -> None:
     """A batch's row follows the batch's own record; its runs are its children (`set_parent`)."""
     if status in _BATCH_STATES:
+        if status == "partial_failure" and not reason:
+            reason = "Partial: some of its runs failed"  # the state stays done until a real partial state exists (#5937)
         _record(db, batch_id, kind="batch", subject=batch_id, parent_id=None, state=_BATCH_STATES[status],
                 reason=reason, name=name)
 
