@@ -584,6 +584,18 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     return apply_project_overrides(out, [card])
 
 
+def keep_saved_overrides(stored: dict[str, Any] | None, sent: dict[str, Any]) -> dict[str, Any]:
+    """The recipe a client sends back, with the overrides the project's saved recipe holds and no others. An override
+    is made only by Use This (a measured candidate, a granularity, a project scope), which stamps it with the server's
+    time and audits it; Set Up then saves the recipe it loaded earlier, whole, and dropped that newer choice. So the
+    saved ones are kept as they are (a client's `at` is never read), and one the saved recipe does not hold is DROPPED,
+    not refused: a stale copy legitimately echoes one an undo has since removed, and a PUT must neither add one around
+    Use This's rules nor bring an undone one back. Changes `sent` in place (`source.project.setup-saves-what-is-sent`,
+    Fable review #6)."""
+    sent["overrides"] = list((stored or {}).get("overrides") or [])
+    return sent
+
+
 def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[str, Any]:
     """Set each step a project-scope override names to that override's reader, as the step's own choice, so
     the recipe Start reads and the one setup proposes again both read with the reader the person chose
