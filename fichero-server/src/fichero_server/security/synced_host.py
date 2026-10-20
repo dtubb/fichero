@@ -6,6 +6,7 @@ can ask once for the host's pairing link; the app never reads the project root i
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from pathlib import Path
@@ -61,6 +62,7 @@ def read_synced_host(library_root: Path) -> SyncedHost | None:
         return None
 
 
+@functools.cache  # stable for the engine's life; each read otherwise takes the app-DB lock
 def this_engine_id() -> str:
     """This engine's stable id: the `engine_id` the sign-in challenge reports. The host's writer calls this."""
     from fichero_server.api.routes.auth.accounts import _engine_id
