@@ -55,11 +55,11 @@ enum HostChoices {
         return nil
     }
 
-    private static func sameHost(_ a: String, _ b: String) -> Bool {
+    private static func sameHost(_ lhs: String, _ rhs: String) -> Bool {
         func host(_ raw: String) -> String? {
             URL(string: raw)?.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
         }
-        guard let left = host(a), let right = host(b) else { return false }
+        guard let left = host(lhs), let right = host(rhs) else { return false }
         return left == right
     }
 
