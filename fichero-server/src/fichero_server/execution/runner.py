@@ -2649,7 +2649,7 @@ async def _run_workflow_in_background(
         ).total_seconds() * 1000
 
         await log_execution(
-            f"SYSTEMIC ERROR: {e.error_count}/{e.total_count} consecutive failures"
+            f"SYSTEMIC ERROR: {e.error_count} of {e.total_count} pages failed"
         )
         await log_execution(f"Sample errors: {e.errors[:3] if e.errors else []}")
 

@@ -3,7 +3,7 @@
 failed, not where (`activity.run.systemic-error-rule`)."""
 from __future__ import annotations
 
-from fichero_server.workflows.builder import is_systemic
+from fichero_server.workflows.builder import is_systemic, systemic_reason
 
 
 def test_five_bad_scans_in_a_row_do_not_stop_a_large_batch_that_mostly_reads():
@@ -29,3 +29,9 @@ def test_a_small_batch_needs_five_in_a_row_not_a_rate():
 
 def test_a_refusal_that_holds_for_every_page_stops_at_the_first():
     assert is_systemic(total=500, error_count=1, max_consecutive=1, refused_all=True)
+
+
+def test_the_stop_message_says_which_rule_fired():
+    assert systemic_reason(total=20, error_count=15, max_consecutive=4) == "15 of 20 pages failed"
+    assert systemic_reason(total=6, error_count=5, max_consecutive=5) == "5 pages in a row failed"
+    assert systemic_reason(total=500, error_count=1, max_consecutive=1, refused_all=True) == "the same refusal applies to every page"
