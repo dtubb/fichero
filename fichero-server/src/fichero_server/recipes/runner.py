@@ -867,6 +867,13 @@ def _folders_words(detail: dict[str, Any]) -> str:
 
 
 def _run(db: Any, job_id: str) -> dict[str, Any]:
+    from fichero_server.execution.cancellation import pause_requested
+
+    if pause_requested(job_id):
+        # Paused with its run: wait, and write nothing else. Re-picked every PAUSED_LOOK_AGAIN_SECONDS, a paused run that
+        # did its work first submitted a page row each time for the lane to withdraw (437: ~17k rows overnight).
+        jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
+        raise jobs.JobDeferred("Paused with its run")
     row = jobs.read_job(db, job_id)
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")

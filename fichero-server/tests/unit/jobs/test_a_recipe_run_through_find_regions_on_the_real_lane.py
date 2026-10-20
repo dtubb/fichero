@@ -7,6 +7,7 @@ Written for the M4 (not run where it was written)."""
 from __future__ import annotations
 
 import threading
+import time
 
 import pytest
 
@@ -65,9 +66,10 @@ def test_stop_on_the_run_withdraws_the_waiting_segmenter_page_and_the_step_reads
 
 
 def test_pause_on_the_run_defers_it_not_done_and_un_pausing_finishes_find_regions(
-        client, test_package, pages, model_lane_held):
+        client, test_package, pages, model_lane_held, monkeypatch):
     """434: a Pause withdraws the waiting segmenter page and the run goes back to WAITING (resumes from its checkpoint);
     it must not end done with nothing left to resume. Un-pause (and a free lane): Find Regions finishes."""
+    monkeypatch.setattr(recipes, "PAUSED_LOOK_AGAIN_SECONDS", 0.2)
     db = db_manager.get_database(test_package)
     run = _regions_run(db, pages)
     assert _wait_for(lambda: _waiting_segmenter(db, run), 60)
@@ -79,6 +81,11 @@ def test_pause_on_the_run_defers_it_not_done_and_un_pausing_finishes_find_region
     assert jobs.read_job(db, run)["state"] != "done"
     assert db.execute_fetchone("SELECT state FROM jobs WHERE kind = 'find-regions' AND parent_id = ?",
                                [run]) == ("cancelled",)
+
+    # Paused for several looks: no further page rows (437). The run is re-picked at each look and writes nothing.
+    time.sleep(2.0)  # about ten looks at the 0.2 s grace
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = 'find-regions' AND parent_id = ?",
+                               [run])[0] == 1, "a paused run submitted new page rows"
 
     clear_pause(run)
     model_lane_held.set()  # the lane frees too
