@@ -118,16 +118,29 @@ DETECT_REGIONS_CONFIG = {
 async def _find_regions_with_kraken(files: list, documents: list, state: State) -> dict[str, Any]:
     from fichero_server.db.manager import db_manager
     from fichero_server.execution import jobs
+    from fichero_server.execution.cancellation import WorkflowCancelled, cancellation_requested
     from fichero_server.recipes import regions
 
     ids = [d.get("id") if isinstance(d, dict) else d for d in documents]
     if not ids or not all(ids):
         raise ValueError("Detect Regions (Kraken) needs the pages as documents of the project, and some have none")
     db = db_manager.get_database(state.get("library_path", ""))
+    run_id = state.get("task_id") or ""
+    # Stop ends it before the next page, and the throttle's and progress words reach the run's row, as in a recipe.
     account = await asyncio.to_thread(
-        regions.find_regions, db, ids, state.get("task_id") or "", "kraken:blla", provider="kraken",
+        regions.find_regions, db, ids, run_id, "kraken:blla", provider="kraken",
+        stop=lambda: cancellation_requested(run_id),
+        say=(lambda words: jobs.say(db, run_id, words)) if run_id else None,
         person=jobs.current_job_is_a_persons())
-    result: dict[str, Any] = {"files": files, "documents": documents, "regions_found": account, "results": [], "artifacts": []}
+    if cancellation_requested(run_id):
+        raise WorkflowCancelled(run_id)  # settles cancelled, never done or failed
+    # `results` and `processed_count` as the node always gave them: the builder caches a result that has results and
+    # counts the pages the node did.
+    result: dict[str, Any] = {
+        "files": files, "documents": documents, "regions_found": account, "artifacts": [],
+        "results": [{"document_id": i} for i in ids] if account["pages"] else [],
+        "processed_count": account["pages"],
+    }
     if account["no_image"] and not account["pages"]:
         # A PDF (or a text file) has no page image for the segmenter: said, as before, never empty geometry.
         result["error"] = "Kraken's segmenter needs a page image, and none of these has one (a PDF is split into pages first)"
