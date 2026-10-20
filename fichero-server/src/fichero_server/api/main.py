@@ -182,9 +182,33 @@ LIBRARY_OUTSIDE_ALLOWED_LOCATIONS = "library_outside_allowed_locations"
 LIBRARY_NOT_A_PACKAGE = "library_not_a_package"
 
 
+def _served_library_names_unsafe() -> list[str]:
+    from fichero_server.db.manager import db_manager
+    from fichero_server.db.storage import settings
+    from fichero_server.models import KnownLibrary
+
+    registry = db_manager.get_database(str(settings.global_library_path), create=True)
+    libraries = sorted(registry.all(KnownLibrary), key=lambda lib: lib.last_accessed, reverse=True)
+    return [lib.name or Path(lib.path).stem for lib in libraries]
+
+
+def _served_library_names() -> list[str]:
+    """The libraries this engine serves, by name, newest first, for the end of a rejection (#5965). Best effort: a registry that
+    cannot be read never hides the refusal."""
+    try:
+        return _served_library_names_unsafe()
+    except Exception:  # noqa: BLE001 -- the refusal itself is what matters
+        logger.warning("Could not list the served libraries for a rejected path", exc_info=True)
+        return []
+
+
 def _rejected_library_path_payload(path: str) -> dict[str, str]:
-    """The 403 body for a rejected library path: the one accurate sentence and its machine code."""
+    """The 403 body for a rejected library path: the one accurate sentence, what this Mac serves (a guest that sent its own
+    path then knows what to address, `sharing.guest-addresses-the-hosts-library`), and its machine code."""
     detail = _rejected_library_path_detail(path)
+    served = _served_library_names()
+    if served:
+        detail += f" This Mac serves: {', '.join(served)}."
     code = LIBRARY_NOT_A_PACKAGE if Path(path).expanduser().suffix != ".fichero" else LIBRARY_OUTSIDE_ALLOWED_LOCATIONS
     return {"detail": detail, "code": code}
 
