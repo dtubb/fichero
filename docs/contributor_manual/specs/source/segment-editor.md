@@ -1664,7 +1664,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   leaves out the lines where the readers agree. An unknown page is 404; with fewer than two readers the answer is 200
   with `lines` and no `differs`, and the view says so (`source.disagree.fewer-than-two`). *CLI:* `fichero documents
   compare-readers <page_id> [--readers a,b] [--only-differing]`; *MCP:* `fichero_documents_compare_readers`; both before
-  any app work. *Tests (red first):* `fichero-server/tests/unit/api/test_compare_readers_5900.py` (the shape; as written
+  any app work. *Tests (red first):* test, when built: `test_compare_readers_5900` (the shape; as written
   vs normalised; one reader; a person's reading shown as the counting one; the picture is a reference).
 - `source.compare.try-candidates-same-shape` — **[GAP]** (#5900) the Try candidates path feeds the same view and is not
   rebuilt: a stage Try (`POST /api/recipes/stages/{stage}/try`, `GET /api/recipes/stages/{stage}/try`, `recipes/samples.py`
@@ -1689,7 +1689,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
   a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
   that same action, saved as the person's reading. There is **no pick-all and no accept-what-agrees**: unanimous lines are marked
-  agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* `fichero-server/tests/unit/api/test_compare_pick_5900.py`:
+  agreed and take one key each to confirm and move on, so each is a person's act. *Tests:* test, when built: `test_compare_pick_5900`:
   the pick calls `reading.choose` with the reading's id (and no second action exists); a model is refused (403); a stale view is
   refused (409) and writes nothing; one undo; a typed correction and a choice both give `picked_by_person`.
 - `source.compare.pick-is-a-training-line` — **[GAP]** (#5900) a line whose counting reading a person chose or typed is a line a person
@@ -1715,7 +1715,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   missing in one sentence ("one reader: nothing to compare", "no readings on this page yet"). *Accessibility:* each cell is an
   element reading "<reader>: <text>", a row announces "readers agree" or "readers differ", and the pick is a button
   per reading. *Tests:* the store (rows from an answer, the filter, next-differing, a pick calling the route once) and
-  the identifiers, in `fichero/Tests/Unit/general/Segments/CompareReadersTests.swift`.
+  the identifiers, in test, when built: `CompareReadersTests`.
 - `source.compare.ways-in` — **[GAP]** (#5900) the same view opens from a page's Inspector (a "Compare Readers" button in
   the page's Readings section, with the number of readers: absent with fewer than two) and from Set Up's Try (a page row of
   a Read comparison opens it for the Try's candidates, `source.compare.try-candidates-same-shape`); both open the Segments
