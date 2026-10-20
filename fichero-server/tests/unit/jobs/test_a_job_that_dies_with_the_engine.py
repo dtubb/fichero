@@ -53,7 +53,7 @@ def test_no_job_is_left_running_after_the_engine_died(client, db, test_package, 
         assert (row["state"], row["reason"]) == ("waiting", "Interrupted; carries on"), (job_id, row)
     listed = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}
     set_aside = listed[poisoned]
-    assert set_aside["state"] == "failed" and "the engine stopped while it ran" in set_aside["reason"]
+    assert set_aside["state"] == "failed" and set_aside["reason"] == "Stopped 3 times by the engine stopping; set aside. Resume to carry on."
     assert set_aside["offer"] == "Resume" and set_aside["failed_at"], set_aside
     run = listed[thread]
     assert run["state"] == "failed" and run["reason"].startswith("Interrupted: the engine stopped at"), run
