@@ -78,7 +78,7 @@ requires = [
     # 3.14.1 closes 11 advisories (PYSEC-2026-237, 2104-2113); 3.14.4 closes Dependabot #43-#45 (#5896).
     "aiohttp>=3.14.4",
     # Transitive floors so a lock refresh cannot slide back (#5896): PyJWT comes in through mcp[crypto] (2.15.0 closes
-    # the critical asymmetric-PEM bypass and 13 more), urllib3 through requests/httpx-adjacent clients.
+    # the critical asymmetric-PEM bypass and 13 more); urllib3 comes in through requests (and the cloud SDKs built on it).
     "pyjwt>=2.15.0",
     "urllib3>=2.8.0",
     "httpx",
