@@ -279,6 +279,9 @@ struct PairingCardView: View {
             Text("On the other device, choose Enter Link Manually and paste this.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            Text(ShareLibrarySheet.syncedCopyHint)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
 
         HStack {

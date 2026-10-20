@@ -13,6 +13,13 @@ import Foundation
 import Testing
 
 struct PairingLinkCopyTests {
+    /// #5898: a Mac that already has a synced copy is paired by the same one-time link; the host card says so.
+    @Test func theHostSaysTheSameLinkPairsAMacThatAlreadyHasACopy() {
+        #expect(ShareLibrarySheet.syncedCopyHint.contains("copy of this project"))
+        #expect(ShareLibrarySheet.syncedCopyHint.contains("Paste this link"))
+        #expect(!ShareLibrarySheet.syncedCopyHint.contains("fichero://"), "the hint never carries a link or code itself")
+    }
+
     @Test func withNoLinkTheCardSaysWhyInWords() {
         let outcome = PairingLinkCopy.attempt(link: nil, blocker: .pinNotDerived,
                                               write: { _ in Issue.record("nothing to write") }, read: { nil })
