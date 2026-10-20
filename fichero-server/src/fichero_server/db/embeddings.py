@@ -9,6 +9,7 @@ and are only valid when mixed into a Database subclass.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass
 import logging
 import math
@@ -562,6 +563,42 @@ def _join_text_parts(parts: list[str | None]) -> str:
     return " ".join(values)
 
 
+class _DocumentLocks:
+    """One lock per document being embedded, made when first wanted and dropped when no one holds or waits for it, taken in id
+    order so two batches that share pages cannot wait on each other (`runtime.embed.once-per-text-version`, #5954)."""
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[str, list[Any]] = {}  # id -> [lock, holders and waiters]
+
+    @contextlib.contextmanager
+    def hold(self, doc_ids: list[str]):
+        ids = sorted(set(doc_ids))
+        with self._guard:
+            entries = []
+            for doc_id in ids:
+                entry = self._locks.setdefault(doc_id, [threading.Lock(), 0])
+                entry[1] += 1
+                entries.append((doc_id, entry))
+        taken: list[Any] = []
+        try:
+            for _doc_id, entry in entries:
+                entry[0].acquire()
+                taken.append(entry[0])
+            yield
+        finally:
+            for lock in reversed(taken):
+                lock.release()
+            with self._guard:
+                for doc_id, entry in entries:
+                    entry[1] -= 1
+                    if entry[1] == 0:
+                        self._locks.pop(doc_id, None)
+
+
+_DOCUMENT_EMBED_LOCKS = _DocumentLocks()
+
+
 class DatabaseEmbeddingMixin:
     """Embedding helper methods mixed into Database.
 
@@ -716,50 +753,64 @@ class DatabaseEmbeddingMixin:
                     embedded_ids.add(doc.id)
             return embedded_ids
 
-    def embedding_is_current(self, doc: Any) -> bool:
-        """Whether the vectors stored for ``doc`` are the ones its text and the current model would give: the same passages
-        (each unit's id and text) stamped with this model. Read from the vectors themselves, so there is no second record to
-        go stale, and a page embedded before this existed is judged on what is stored (`runtime.embed.once-per-text-version`,
-        #5954). False for a page with no embeddable text, no vectors, another passage, or another model."""
-        text = self._embedding_text_for_document(doc)
-        if not text:
-            return False
-        units = self.passage_units_for_document(doc, text=text)
-        if not units:
-            return False
+    def _current_ids(self, docs: list[Any]) -> set[str]:
+        """The ids among ``docs`` whose stored vectors are the ones their text and the current model would give: the same
+        passages (each unit's id and text), stamped with this model, and no others. One query for all of them."""
+        wanted: dict[str, list[Any]] = {}
+        for doc in docs:
+            text = self._embedding_text_for_document(doc)
+            units = self.passage_units_for_document(doc, text=text) if text else []
+            if units:
+                wanted[doc.id] = units
+        if not wanted:
+            return set()
         try:
             if EMBEDDINGS_TABLE not in self._lance_tables():
-                return False
-            safe_id = str(doc.id).replace("'", "''")
-            rows = (self.lance.open_table(EMBEDDINGS_TABLE).search()
-                    .where(f"document_id = '{safe_id}'").limit(len(units) + 1).to_list())
+                return set()
+            quoted = ", ".join("'" + str(doc_id).replace("'", "''") + "'" for doc_id in wanted)
+            rows = (self.lance.open_table(EMBEDDINGS_TABLE).search().where(f"document_id IN ({quoted})")
+                    .limit(sum(len(u) for u in wanted.values()) + len(wanted) + 64).to_list())
         except Exception:  # noqa: BLE001 -- cannot tell: not current, so it is embedded (never skipped on a guess)
-            return False
-        if len(rows) != len(units):
-            return False
+            return set()
+        by_doc: dict[str, dict[Any, tuple]] = {}
+        for row in rows:
+            by_doc.setdefault(row.get("document_id"), {})[row.get("id")] = (row.get("text"), row.get(EMBEDDING_MODEL_ID_FIELD))
         model = self._get_embedding_model_id()
-        stored = {row.get("id"): (row.get("text"), row.get(EMBEDDING_MODEL_ID_FIELD)) for row in rows}
-        return all(stored.get(unit.id) == (unit.text, model) for unit in units)
+        return {doc_id for doc_id, units in wanted.items()
+                if len(by_doc.get(doc_id, {})) == len(units)
+                and all(by_doc[doc_id].get(unit.id) == (unit.text, model) for unit in units)}
+
+    def embedding_is_current(self, doc: Any) -> bool:
+        """Whether the vectors stored for ``doc`` are the ones its text and the current model would give. Read from the
+        vectors themselves, so there is no second record to go stale, and a page embedded before this existed is judged on
+        what is stored (`runtime.embed.once-per-text-version`, #5954). False for a page with no embeddable text, no vectors,
+        another passage, or another model."""
+        return doc.id in self._current_ids([doc])
 
     def embed_unless_current(self, doc: Any):
         """``embed``, except that a page whose stored vectors are already the current ones is left alone: a page read, then
-        searched, is embedded once per text version, not once per door that asks (#5954). Returns the outcome; for a page
-        left alone it is ``embedded=True, reason="unchanged"``."""
+        searched, is embedded once per text version, not once per door that asks (#5954). The page is held while it is
+        checked and embedded, so two doors asking at once (a correction and a recipe's batch) embed it once. Returns the
+        outcome; for a page left alone it is ``embedded=True, reason="unchanged"``."""
         from fichero_server.db import EmbedOutcome
 
-        if self.embedding_is_current(doc):
-            self.last_embed_outcome = EmbedOutcome(embedded=True, document_id=doc.id, reason="unchanged")
-            return self.last_embed_outcome
-        return self.embed(doc)
+        with _DOCUMENT_EMBED_LOCKS.hold([doc.id]):
+            if self.embedding_is_current(doc):
+                self.last_embed_outcome = EmbedOutcome(embedded=True, document_id=doc.id, reason="unchanged")
+                return self.last_embed_outcome
+            return self.embed(doc)
 
     def embed_many_unless_current(self, docs: list[Any]) -> tuple[int, int, int]:
         """(pages left alone as current, pages embedded, pages that have text to embed) for a batch: the stale ones go
         through ``embed_many``, one forward pass per batch, not one per page (#5954). A page with no embeddable text is
-        not counted, so the caller can tell a page that failed from one with nothing to embed."""
+        not counted, so the caller can tell a page that failed from one with nothing to embed. The pages are held while
+        checked and embedded (one currency query for the batch)."""
         docs = [doc for doc in docs if doc is not None]
         wanted = [doc for doc in docs if self._embedding_text_for_document(doc)]
-        stale = [doc for doc in wanted if not self.embedding_is_current(doc)]
-        return len(wanted) - len(stale), self.embed_many(stale) if stale else 0, len(wanted)
+        with _DOCUMENT_EMBED_LOCKS.hold([doc.id for doc in wanted]):
+            current = self._current_ids(wanted)
+            stale = [doc for doc in wanted if doc.id not in current]
+            return len(wanted) - len(stale), self.embed_many(stale) if stale else 0, len(wanted)
 
     def embedding_stats(self) -> dict:
         """Get statistics about embeddings.
