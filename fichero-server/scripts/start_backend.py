@@ -102,10 +102,6 @@ def main(argv: list[str] | None = None) -> None:
         sys.stdout.write("\n")
         return
 
-    from fichero_server.security.real_data_guard import refuse_real_base
-
-    refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))  # never a dev engine on the owner's real libraries
-
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -121,6 +117,10 @@ def main(argv: list[str] | None = None) -> None:
         os.environ["PYTHONHOME"] = python_home
     else:
         logger.info("Running in development mode")
+        from fichero_server.security.real_data_guard import refuse_real_base
+
+        # Never a dev engine on the owner's real libraries or the app's state; the bundled engine IS the app's.
+        refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
