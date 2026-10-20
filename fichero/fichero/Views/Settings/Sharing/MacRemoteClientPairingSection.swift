@@ -55,7 +55,7 @@ struct MacRemoteClientPairingSection: View {
 
             // Asked only after the host answers that it needs a person.
             if ConnectSheetModel.asksForPerson(hostAskedForPerson: needsPerson) {
-                TextField("Name", text: $personName)
+                TextField("Username", text: $personName)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                 SecureField("Password", text: $personPassword)
