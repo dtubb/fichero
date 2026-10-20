@@ -296,14 +296,13 @@ def _paths(suffix):
     return [route.path for route in _app().routes if isinstance(route, APIRoute) and route.path.endswith(suffix)]
 
 
-@pytest.mark.parametrize("suffix, probe", [("/activity/stream", None), ("/changes/stream", None),
-                                           ("/stream/{thread_id}", "/no-such-run")])
-def test_a_person_shared_a_folder_is_refused_the_library_wide_event_streams(project, suffix, probe):
+@pytest.mark.parametrize("suffix", ["/activity/stream", "/changes/stream"])
+def test_a_person_shared_a_folder_is_refused_the_library_wide_event_streams(project, suffix):
     client = _scoped_client(project)
     paths = _paths(suffix)
     assert paths, f"no route ends {suffix}"
     for path in paths:
-        got = _status(client, "GET", path.replace("/{thread_id}", probe) if probe else path)
+        got = _status(client, "GET", path)
         assert got in (401, 403), f"{path} answered a person shared one folder with {got}"
 
 
@@ -323,3 +322,51 @@ def test_a_scoped_editor_cannot_start_a_run_or_any_library_level_write(project):
             if client.request(method, route.path, json={}).status_code < 300:
                 started.append(f"{method} {route.path}")
     assert not started, f"a person shared one folder to edit changed the whole project through: {started}"
+
+
+# -- review 707: a run's stream is checked against the RUN's library, whatever header (or none) the caller sends -----------
+@pytest.fixture
+def live_run(project):
+    from pathlib import Path
+
+    from fichero_server.execution import runner
+
+    thread = "run-5967-stream"
+    hub = runner.WorkflowEventHub()
+    runner._set_workflow_state(thread, {"workflow_id": "w", "workflow_name": "w", "db_path": str(Path(project.library) / "fichero.duckdb"),
+                                        "documents": [], "reader": "r", "status": "running", "events": hub, "error": None,
+                                        "final_state": None})
+    yield thread
+    hub.put(None)
+    runner._remove_workflow_state(thread)
+
+
+def _stream_path(thread):
+    return _paths("/stream/{thread_id}")[0].replace("{thread_id}", thread)
+
+
+def test_a_run_stream_is_refused_to_a_scoped_person_who_sends_no_library_header(project, live_run):
+    client = _scoped_client(project)
+    client.headers.pop("X-Fichero-Library-Path", None)
+    assert _status(client, "GET", _stream_path(live_run)) in (401, 403)
+
+
+def test_a_run_stream_is_refused_to_someone_with_no_role_on_the_runs_library(project, live_run):
+    _person(project.harness, "mallory")  # a member of nothing here (another project's person)
+    client = _as(project.harness, "mallory", library=False)
+    assert _status(client, "GET", _stream_path(live_run)) in (401, 403)
+
+
+def test_a_run_stream_naming_another_library_is_refused(project, live_run, tmp_path):
+    client = _as(project.harness, "owner")
+    client.headers["X-Fichero-Library-Path"] = str(tmp_path / "other.fichero")
+    assert _status(client, "GET", _stream_path(live_run)) in (400, 403, 404)
+
+
+def test_the_owner_still_follows_a_run_with_or_without_the_header(project, live_run):
+    for library in (True, False):
+        assert _status(_as(project.harness, "owner", library=library), "GET", _stream_path(live_run)) == 200
+
+
+def test_an_unknown_run_is_not_found_for_anyone(project):
+    assert _status(_as(project.harness, "owner"), "GET", _stream_path("no-such-run")) == 404

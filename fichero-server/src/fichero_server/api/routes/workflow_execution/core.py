@@ -231,14 +231,6 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
     Returns:
         StreamingResponse with SSE events
     """
-    # A stream is not a library read the dependency sees: with the project named, the caller is checked as for any other
-    # library-level read, so a person shared only a folder never subscribes to a run's events (review 705,
-    # `sharing.share-sheet-chooses-what`, #5967).
-    from fichero_server.api.library_header import optional_library_path
-    from fichero_server.api.main import assert_library_read_authorized
-
-    if library := optional_library_path(http_request):
-        assert_library_read_authorized(http_request, library)
     # Check if workflow is being tracked
     state = _get_workflow_state(thread_id)
     if not state:
@@ -246,6 +238,23 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
             status_code=404,
             detail=f"Workflow thread not found: {thread_id}. It may have already completed.",
         )
+    # A stream is not a library read the dependency sees, and the caller need not name a project: the run's own library
+    # (where it was started) is checked as for any other library-level read, so a person shared only a folder, or a member
+    # of another project, never subscribes to a run's events by its id; a header naming another library is refused too
+    # (reviews 705, 707; `sharing.share-sheet-chooses-what`, #5967).
+    from pathlib import Path
+
+    from fichero_server.api.library_header import optional_library_path
+    from fichero_server.api.main import assert_library_read_authorized
+    from fichero_server.security.authz import normalize_library_path
+
+    run_library = str(Path(state["db_path"]).parent) if state.get("db_path") else None
+    if run_library is None:
+        raise HTTPException(status_code=404, detail=f"Workflow thread not found: {thread_id}. It may have already completed.")
+    named = optional_library_path(http_request)
+    if named and normalize_library_path(named) != normalize_library_path(run_library):
+        raise HTTPException(status_code=404, detail=f"Workflow thread not found: {thread_id}. It may have already completed.")
+    assert_library_read_authorized(http_request, run_library)
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events from the workflow's event hub.
