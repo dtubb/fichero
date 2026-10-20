@@ -81,14 +81,16 @@ def test_main_gates_multiuser_env_without_an_owner_password_and_health_says_why(
     sock_dir = tempfile.mkdtemp(dir="/tmp", prefix="fem-")
     sock_path = str(Path(sock_dir) / "e.sock")
     env = {
-        **os.environ, "HOME": home, "FICHERO_UDS_PATH": sock_path, "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-gates",
+        **{key: value for key, value in os.environ.items() if not key.startswith("FICHERO_")},  # nothing of the shell's reaches it
+        "HOME": home, "FICHERO_UDS_PATH": sock_path, "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-gates",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1", "FICHERO_MULTIUSER": "1", "FICHERO_GATE_MULTIUSER_ENV": "0",
         "FICHERO_BASE_PATH": home,
     }
     env.pop("FICHERO_TCP_TLS_ALSO", None)
+    log = open(Path(home) / "engine.log", "wb")  # a file, never an unread pipe that could fill and block the engine
     process = subprocess.Popen(
         [sys.executable, "-c", "from fichero_server.__main__ import main; main()"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        env=env, stdout=log, stderr=subprocess.STDOUT,
     )
     try:
         deadline = time.monotonic() + 90
@@ -98,10 +100,11 @@ def test_main_gates_multiuser_env_without_an_owner_password_and_health_says_why(
             if body is not None:
                 break
             time.sleep(0.25)
-        assert body is not None, f"main() never answered /api/health (exit {process.poll()})"
+        assert body is not None, f"main() never answered /api/health (exit {process.poll()}):\n{(Path(home) / 'engine.log').read_text(errors='replace')[-3000:]}"
         assert process.poll() is None, "the engine exited instead of starting with Multi-user off"
         assert body["dependencies"].get("multiuser") == "off: the owner has not chosen a password yet", body
     finally:
+        log.close()
         if process.poll() is None:
             process.terminate()
             try:
