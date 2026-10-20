@@ -64,6 +64,10 @@ def check_recipe(recipe: Any) -> list[str]:
 
     return check(recipe)
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/recipes")
 
 
@@ -1636,7 +1640,23 @@ async def save_project_setup(
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _search_when_known(db, (result.result or {}).get("answers"))
     return _whole_setup(result.result)
+
+
+def _search_when_known(db: Database, answers: Optional[dict]) -> None:
+    """The model search starts by itself once Set Up knows the script and the language (`source.onboard.search-triggered`):
+    the person presses nothing. Only the reader search by languages (the step searches wait for their page); it is the
+    project's own Activity job, never run offline, and it never fails the save."""
+    from fichero_server.recipes import discovery
+
+    languages = frozenset((answers or {}).get("languages") or ())
+    if not languages or not (answers or {}).get("scripts") or not discovery.egress_allowed():
+        return
+    try:
+        discovery.search(db, languages, by_itself=True)
+    except Exception:  # noqa: BLE001 -- a search that cannot be queued is the Search Online button's to say, not the save's
+        logger.warning("the automatic model search could not be queued", exc_info=True)
 
 
 def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionContext):
