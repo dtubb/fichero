@@ -14,7 +14,7 @@ from fichero_server.recipes.stages import STAGES, listing
 RECIPE = {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t"}
 #: The stage questions that name kinds (stage id, answer key).
 OPEN = [("names", "entity_kinds"), ("statements", "statement_kinds"), ("dates", "calendars"),
-        ("passages", "passage_kinds"), ("structured-data", "fields")]
+        ("structured-data", "fields")]  # Passages waits for its job and is not listed (`source.job.pull-out-passages`)
 
 
 def _question(items, stage, key):
@@ -92,10 +92,12 @@ def test_suggestions_hold_only_what_a_sample_try_found():
 
 
 def test_passages_says_what_it_does_without_listing_kinds_and_has_an_example():
-    passages = next(s for s in listing(None) if s["id"] == "passages")
-    assert passages["sentence"] and passages["example"]
-    assert "quotation" not in passages["sentence"].lower() and "formul" not in passages["sentence"].lower()
-    assert passages["example_from_samples"] is None  # until a try returns a passage
-    tried = {"passages": {"passages": [{"page": "p1", "text": "Ante mí, el escribano"}]}}
-    again = next(s for s in listing(None, None, tried) if s["id"] == "passages")
-    assert again["example_from_samples"] == "Ante mí, el escribano"
+    """Not listed while no job runs it, but its words and its example from a try stand ready for when it does."""
+    from fichero_server.recipes.stages import example_from_samples, get_stage
+
+    passages = get_stage("passages")
+    assert passages.sentence and passages.example
+    assert "quotation" not in passages.sentence.lower() and "formul" not in passages.sentence.lower()
+    assert example_from_samples("passages", None) is None  # until a try returns a passage
+    tried = {"passages": [{"page": "p1", "text": "Ante mí, el escribano"}]}
+    assert example_from_samples("passages", {"passages": tried["passages"]}) == "Ante mí, el escribano"
