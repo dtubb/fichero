@@ -39,3 +39,13 @@ struct GuestLibraryChoiceTests {
         #expect(GuestLibraryChoice.noneServedWords.hasPrefix("The Mac you are connected to"))
     }
 }
+
+extension GuestLibraryChoiceTests {
+    @Test("each way the host cannot be asked says why nothing is shown")
+    func problemWords() {
+        #expect(GuestLibraryChoice.problemWords(for: APIError.httpError(statusCode: 401, message: "")).contains("not signed in"))
+        #expect(GuestLibraryChoice.problemWords(for: APIError.httpError(statusCode: 404, message: "")).contains("newer Fichero"))
+        #expect(GuestLibraryChoice.problemWords(for: APIError.notFound("x")).contains("newer Fichero"))
+        #expect(GuestLibraryChoice.problemWords(for: URLError(.cannotConnectToHost)).contains("cannot be reached"))
+    }
+}

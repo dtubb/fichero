@@ -280,13 +280,18 @@ extension LibraryManager {
             }
         } catch {
             libraryManagerLogger.error("Could not ask the host which libraries it serves: \(error.localizedDescription, privacy: .public)")
+            guestLibraryProblem = GuestLibraryChoice.problemWords(for: error)
+            dropLocalLibraryForRemoteHost()
         }
     }
 
-    /// With no library the host serves for this guest, the guest's own local library must not be the one it addresses to the host.
+    /// With no library the host serves for this guest, no library of the guest's OWN is the current one: its local path is never
+    /// what a remote host is asked about.
     private func dropLocalLibraryForRemoteHost() {
-        openLibraries.removeAll { $0.id == Self.globalLibraryId }
-        currentLibraryId = nil
+        let local = openLibraries.filter { $0.id == Self.globalLibraryId || $0.id == currentLibraryId }
+        let ids = Set(local.map(\.id))
+        openLibraries.removeAll { ids.contains($0.id) }
+        currentLibraryId = openLibraries.first?.id
     }
 
     private func adoptRemoteLibrary(at path: String) {
