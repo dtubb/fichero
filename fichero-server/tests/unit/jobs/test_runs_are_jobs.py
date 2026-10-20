@@ -50,10 +50,10 @@ def pages(db, tmp_path):
     return docs
 
 
-@pytest.fixture
-def page_sets(db, tmp_path):
-    """A new set of three pages on every call: a page is read by one live run at a time (#5848,
-    `activity.run.one-live-read-per-page`), so runs that must each make their calls need pages of their own."""
+def make_page_sets(db, tmp_path, *, text: bool = False):
+    """A function that makes a new set of three pages on every call: a page is read by one live run at a time (#5848,
+    `activity.run.one-live-read-per-page`), so runs that must each make their calls need pages of their own. Images, or
+    (`text`) letters that already carry their text."""
     from fichero_server.models import DocType, Document, FileType
 
     made = []
@@ -62,14 +62,26 @@ def page_sets(db, tmp_path):
         tag = len(made)
         docs = []
         for i in range(3):
-            doc = Document(name=f"s{tag}-{i}.png", doc_type=DocType.file, file_type=FileType.image,
-                           path=str(_png(tmp_path / f"s{tag}-{i}.png")))
+            if text:
+                body = f"Letter {tag}-{i}: the vecino of Cartagena sold a house."
+                path = tmp_path / f"set{tag}-letter-{i}.txt"
+                path.write_text(body, encoding="utf-8")
+                doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.text, path=str(path),
+                               page_content=body)
+            else:
+                path = _png(tmp_path / f"s{tag}-{i}.png")
+                doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
             db.save(doc)
             docs.append(doc)
         made.append(docs)
         return docs
 
     return new
+
+
+@pytest.fixture
+def page_sets(db, tmp_path):
+    return make_page_sets(db, tmp_path)
 
 
 @pytest.fixture
