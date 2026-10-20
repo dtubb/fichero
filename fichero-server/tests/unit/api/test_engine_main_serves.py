@@ -71,3 +71,40 @@ def test_main_starts_and_answers_health_on_its_socket():
                 process.wait(15)
             except subprocess.TimeoutExpired:
                 process.kill()
+
+
+def test_main_gates_multiuser_env_without_an_owner_password_and_health_says_why():
+    """`multiuser.env-without-owner-password-starts-off` (#5908), the app's own path: the embedded app starts the engine through
+    `main()` with FICHERO_MULTIUSER on; with no owner password ever chosen the engine must still serve, with Multi-user off and
+    the reason in health. An inherited FICHERO_GATE_MULTIUSER_ENV=0 must not turn the gate off (main() assigns it)."""
+    home = tempfile.mkdtemp(prefix="fem-")
+    sock_dir = tempfile.mkdtemp(dir="/tmp", prefix="fem-")
+    sock_path = str(Path(sock_dir) / "e.sock")
+    env = {
+        **os.environ, "HOME": home, "FICHERO_UDS_PATH": sock_path, "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-gates",
+        "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1", "FICHERO_MULTIUSER": "1", "FICHERO_GATE_MULTIUSER_ENV": "0",
+        "FICHERO_BASE_PATH": home,
+    }
+    env.pop("FICHERO_TCP_TLS_ALSO", None)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "from fichero_server.__main__ import main; main()"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    try:
+        deadline = time.monotonic() + 90
+        body = None
+        while time.monotonic() < deadline and process.poll() is None:
+            body = _health(sock_path)
+            if body is not None:
+                break
+            time.sleep(0.25)
+        assert body is not None, f"main() never answered /api/health (exit {process.poll()})"
+        assert process.poll() is None, "the engine exited instead of starting with Multi-user off"
+        assert body["dependencies"].get("multiuser") == "off: the owner has not chosen a password yet", body
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(15)
+            except subprocess.TimeoutExpired:
+                process.kill()

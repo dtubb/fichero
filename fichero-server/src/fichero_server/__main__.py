@@ -285,7 +285,7 @@ def main(argv: list[str] | None = None):
 
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    os.environ.setdefault("FICHERO_GATE_MULTIUSER_ENV", "1")  # the engine itself gates the env switch (#5908); tests and dev servers do not
+    os.environ["FICHERO_GATE_MULTIUSER_ENV"] = "1"  # assigned, never defaulted: an inherited value cannot turn the engine's own gate off (#5908)
 
     # Seed the mimetypes registry from built-ins only. Its lazy init() reads
     # /etc/apache2/mime.types, which the app sandbox DENIES — so the first
