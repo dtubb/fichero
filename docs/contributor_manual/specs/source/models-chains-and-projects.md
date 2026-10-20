@@ -1009,41 +1009,20 @@ plan's peak memory across steps. Ready shows none of it.
   its own issue. The classes the matrix must cover: right-to-left, vertical, non-Latin scripts, tables, marginalia
   and interlinear glosses, mixed languages or scripts on a line, print against hand. *Built:* the rules
   (`recipes/assemble.py`, `seed/cards.yaml`); the direction a script derives (`recipes/answers.default_direction`).
-  *Not built:* the matrix script and its first run on the M4; the result is unknown until then. Until it runs,
+  *Not built:* the matrix script (planned at scripts/onboard_defaults_matrix.py under fichero-server; it does not exist yet) and its first run on the M4; the result is unknown until then. M4 rules for the run: public data only, a read-only copy of the corpus in a scratch folder (never into a project or the global library), a scratch FICHERO_BASE_PATH with its own copy of the dev seed models, one heavy job at a time, on AC, free disk checked first, no key and no pairing link printed, nothing deleted that was not made by the run. Until it runs,
   these are predictions from the seed cards' script lists, not findings: PP-OCRv6 lists ten scripts (Latin, Arabic,
   Armenian, Cyrillic, Ge'ez, Georgian, Greek, Hebrew, Malayalam, Syriac), Apple Vision lists six read printed
   (Latin, Cyrillic, Han, Hangul, Arabic, Thai; Latin also handwritten) and the two Qwen VL cards four (Latin,
   Cyrillic, Han, Arabic), so Devanagari, Cherokee, Canadian syllabics, Tibetan, Newa and Japanese kana have no seed
   reader and are expected to say "needs a model". *Test:* the matrix script itself, run on the M4 (named without a
   path until the file exists).
-- `source.onboard.defaults.direction-and-script-from-the-set` — **[PARTIAL]** (#5969) the direction Set Up
-  saves follows from the script (`source.onboard` direction line above; vertical Han, Hant, Japanese, Hiragana,
-  Katakana read top to bottom with columns right to left, Mongolian and Phags-pa top to bottom with columns left
-  to right, every right-to-left script right to left) and a set the person did not describe is proposed the script
-  its sample pages show. *Built:* the direction from the script. *Not built, unmeasured:* the script and language
-  guess from sample pages against the Test Corpus's tags (the matrix reports its hit rate per set; a set where the
-  guess is wrong is an issue).
-- `source.onboard.defaults.mixed-scripts-need-one-reader-for-all` — **[PARTIAL]** (#5969) a project that
-  names two scripts (Persian with English on the page, Latin and Old English, Latin and Arabic) is proposed a
-  reader whose card lists EVERY one of them, else the plan says which script nothing covers and offers the
-  ordinary fixes (download, cloud, choose, train); it is never proposed a reader for one of them alone.
-  *Built:* the rule (`assemble._refusal`: `no-model-for-script` unless all the asked scripts are listed).
-  *Not built:* a per-line language or script choice inside one page (the Test Corpus's line-tagged sets);
-  the matrix records how many such sets exist and what the page-level proposal costs in CER.
-- `source.onboard.defaults.no-model-says-so-with-a-way-on` — **[PARTIAL]** (#5969) for a script or language
-  where no card reads (the matrix's expected Devanagari, Cherokee, Cree syllabics, Tibetan, Newa, Japanese kana),
-  Set Up says in words that no model reads it and what a person can do (download one it found, a cloud reader if
-  the project allows pages to leave, train from corrected lines, choose a model by hand), never a reader that does
-  not list the script and never a silent empty step. *Built:* the refusal codes and fixes
-  (`source.onboard.says-no-model`). *Not built, unmeasured:* that the fix offered is the right one for each script
-  (the matrix reads each set's plan and says).
 - `source.onboard.defaults.model-search-recorded` — **[GAP]** (#5970; owner 2026-10-20) for each set the
   matrix also runs Set Up's model search (the automatic one: Hugging Face by task and language, Zenodo and
   HTR-United Kraken models, the catalogue; `recipes/discovery.py`) and records what it finds for that script and
   language (for example classical Chinese, Aramaic or Syriac, Hebrew, Maghrebi Arabic, Devanagari, Fraktur), whether
   a found model reads better than the default (CER where truth exists, the found model run on the same pages), and,
   when it finds NOTHING, says so in words in the matrix as a gap with what a person could do (train from corrected
-  lines, a cloud reader). Search is network: only inside the egress rules (`ai.where.egress-gate`), public queries
+  lines, a cloud reader). Search is network: only inside the egress rules (`ai.where.one-egress-gate`), public queries
   only, no page leaves. *Built:* the search (`discovery.search_hugging_face`, `repository_cards`). *Not built:*
   the per-script record and the comparison.
 - `source.onboard.model-search-names-the-script` — **[GAP]** (#5970; audit `briefs/model-search-audit-2026-10-20.md`) the
@@ -1193,7 +1172,7 @@ plan's peak memory across steps. Ready shows none of it.
   Activity; the app showing or correcting a page's kind.
 - `source.onboard.auto.hand-and-script-per-page` — **[GAP]** (#5456) script and hand are found per
   page and region, and each region goes to the reader that suits it (as
-  `recipe.distil.script-and-hand-routed-per-region`).
+  `recipe.distil.script-and-hand-routed-per-region`). *The matrix measures it (#5969):* the script and language guessed from sample pages are set against each Test Corpus set's tags and the hit rate is reported per set; a wrong guess is an issue.
 - `source.onboard.auto.blank-pages-not-read` — **[PARTIAL]** (#5579, #5578, #5676; #5550 for pairing leaves;
   tested in `fichero-server/tests/unit/recipes/test_find_documents_step.py`
   (`test_blank_versos_are_not_read`), `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`
@@ -3166,7 +3145,7 @@ Setup
   each chosen script (the engine's derived fact, with where it came from) and changeable: left to
   right, right to left, top to bottom with columns right to left, or with columns left to right;
   one per script; saved on the project (`answers.directions`) and read by the steps that need it.
-  *Test:* choosing Arab pre-fills right to left; changing it to left to right is saved.
+  *Test:* choosing Arab pre-fills right to left; changing it to left to right is saved. *The matrix measures it (#5969):* the derived direction is set against each Test Corpus set's direction (right-to-left, vertical, left-to-right) and a wrong one is an issue.
 - `source.onboard.material-any-mix` — **[PARTIAL]** (#5478) **Built 2026-10-05 (engine):** the answers hold `materials` (a saved single `material` reads as a list of one); with more than one kind, the reading step carries `readers`, one choice per kind, and its own model is the default kind's (handwriting first), so Start still reads each page once; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** Material is three checkboxes, at least one kept ticked, saved and sent as `materials`; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: "roughly when"; the folder or page override choosing a reader.* material is checkboxes, Handwriting, Print and
   Typescript, any mix (at least one; default Handwriting), saved as a list (`answers.materials`);
   the rules propose a reader for each kind ticked, and a card's `material` must cover the kind its
@@ -3800,7 +3779,7 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
   (download a fitting model, use a cloud model, choose a model; hand-transcribe, draft-and-correct
   and train where they apply); the rules' own reason goes to the log and the Inspector; it never
   substitutes silently. *Test:* a recipe whose correct step is refused for language shows one
-  sentence naming the language, and no card id.
+  sentence naming the language, and no card id. *The matrix measures it (#5969):* for each script or language where no seed card reads (expected, unmeasured until the M4 run: Devanagari, Cherokee, Canadian syllabics, Tibetan, Newa, Japanese kana) the plan says so in words and offers the way on (a model found, a cloud reader where pages may leave, training from corrected lines, choosing by hand), never a reader that does not list the script; the matrix records whether the offer is the right one.
 - `source.onboard.never-raw-model-ids` — **[PARTIAL]** (#5481) **Built 2026-10-05 (engine):** a step problem's `sentence` holds no `mlx:`, `hf/`, `@`, `kraken:` or repository; the raw ids stay in `detail` and `gap`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** setup names a step's model by its card's name (`note`) beside where it runs, never its id, and shows nothing in its place when the card has no name; the Advanced disclosure that listed card ids is deleted; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. nothing in setup shows a model's id, pin,
   repository path or revision; a model is named by its card's display name. *Test:* every string
   setup renders for a recipe whose cards are `mlx:hf/...@unpinned` contains no `mlx:`, `hf/` or
@@ -4418,7 +4397,7 @@ Finding models
 - `source.recipe.no-cross-script-reader` — **[OK]** (#5593; Fraktur and Gaelic type (`Latf`, `Latg`) are Latin: a reader that states Latin and lists the language fits them, one that states the exact variant ranking first, `assemble._refusal`, #5516, pinned by `test_fraktur_gets_a_reader_5516.py`; built 2026-10-08: `discovery.covered_scripts` widens a card one step from what it states, never chained; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) a reader is never chosen for a script its
   card does not cover: a Japanese card covers Han, kana and Japanese, never Traditional or Simplified
   Chinese, so Classical Chinese (`Hant`) never gets the Kuzushiji reader silently. Where no reader
-  covers the script, the step says so (`source.onboard.nothing-fits-names-nearest`).
+  covers the script, the step says so (`source.onboard.nothing-fits-names-nearest`). *The matrix measures it (#5969, `source.onboard.defaults.matrix-measured`):* a project that names two scripts (Persian with English on the page, Latin and Arabic) is proposed a reader whose card lists every one of them, else the plan says which script nothing covers; the Test Corpus's mixed sets record what the page-level proposal costs in CER. Not built: a per-line script or language choice inside one page.
 - `source.find.found-reader-downloads` — **[PARTIAL]** (#5593; built 2026-10-08: `discovery.keep_hub`/`hub_cards`/`hub_spec`, the model store's `hub_spec`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`. *Residue: the Hub's listing states no size or memory, so a found reader's are unknown until downloaded; the download itself is not exercised without the network.*) a Hugging Face reader found by the online
   search is kept beside the repository listing in the model store's `discovery/` folder, joins the rules
   for the languages it was found for (never the network at assembly), and where the rules choose it the
