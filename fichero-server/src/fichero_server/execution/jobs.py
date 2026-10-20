@@ -2143,7 +2143,9 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
                "attempts": attempts, "created_at": created_at, "count": count, "parent_id": parent_id,
                "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
-               "failed_at": finished_at if state == "failed" else None}
+               "failed_at": finished_at if state == "failed" else None,
+               # When any ended job ended: the window's DONE TODAY goes by it (#5960).
+               "finished_at": finished_at if state not in ("waiting", "running", "paused") else None}
         if group is not None:
             reps[group] = row
             if count > 1:  # a row for many jobs is the kind's queue: Stop and Pause on it reach every one not started

@@ -171,6 +171,9 @@ class BackgroundJob(BaseModel):
     # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
     # null for any job that has not failed, and cleared when it is retried.
     failed_at: Optional[datetime] = None
+    # When a job that has ended ended (ISO 8601, UTC): done, failed, stopped or interrupted; null while it is waiting,
+    # running or paused. The window's DONE TODAY goes by it (`activity.window.done-today`, #5960).
+    finished_at: Optional[datetime] = None
     # Who started it: the person, plus the paired Mac when it came from another one ("alice on Alice's Mac",
     # `sharing.remote-run-in-host-activity`, #5732); "automatic" for work the app queued itself.
     started_by: Optional[str] = None
@@ -696,6 +699,7 @@ async def list_background_jobs(
                     account=account,
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
+                    finished_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -748,6 +752,7 @@ async def list_background_jobs(
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
+                finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
             )

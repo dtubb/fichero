@@ -36,3 +36,15 @@ def test_a_job_that_has_not_failed_has_no_failed_at(held, client):
     jobs.enqueue(held, KIND, "failed-at:waits")
     listed = client.get("/api/activity/jobs").json()["jobs"]
     assert listed and all(j["failed_at"] is None for j in listed if j["state"] != "failed"), listed
+
+
+def test_an_ended_job_says_when_it_ended_and_a_live_one_does_not(held, client):
+    """`activity.window.done-today` (#5960): DONE TODAY goes by when a job ENDED, so the list carries `finished_at`."""
+    from fichero_server.execution import jobs
+
+    failed = _failed(held, KIND, "finished-at:1")
+    jobs.enqueue(held, KIND, "finished-at:waits")
+    listed = client.get("/api/activity/jobs").json()["jobs"]
+    row = next(j for j in listed if j["id"] == failed)
+    assert row["finished_at"] and row["finished_at"] == row["failed_at"], row
+    assert all(j["finished_at"] is None for j in listed if j["state"] in ("waiting", "running", "paused")), listed
