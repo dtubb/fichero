@@ -41,4 +41,13 @@ struct EngineRestartSaysWhyTests {
             == AppState.restartSentence(failures: 2, busyWithImport: false))
         #expect(!AppState.restartSentence(failures: 2, busyWithImport: false, previousStall: "").contains("stuck"))
     }
+
+    @Test("a stall is said once: the second restart without a new stall says nothing about it")
+    func stallIsSaidOnce() {
+        ConnectionPresentation.lastPreviousStall = "31s in fichero_server.db:save"
+        defer { ConnectionPresentation.lastPreviousStall = nil }
+        #expect(AppState.takeRestartSentence(failures: 2, busyWithImport: false).contains("31s in fichero_server.db:save"))
+        #expect(ConnectionPresentation.lastPreviousStall == nil)
+        #expect(!AppState.takeRestartSentence(failures: 2, busyWithImport: false).contains("stuck"))
+    }
 }
