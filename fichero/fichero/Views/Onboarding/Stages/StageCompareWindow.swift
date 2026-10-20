@@ -74,3 +74,7 @@ struct ShapesOverlay: View {
         .allowsHitTesting(false)
     }
 }
+
+#Preview("A page opened from Compare, no model's lines yet") {
+    StageCompareWindow(pageId: "page-1", name: "f. 1r", candidates: [])
+}
