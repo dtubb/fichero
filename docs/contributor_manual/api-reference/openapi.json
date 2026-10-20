@@ -69957,6 +69957,11 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "not_embedded": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Not Embedded"
           }
         },
         "type": "object",
