@@ -76,7 +76,7 @@ def _readings_of(client, db, doc_id):
 
 
 def test_source_recipe_start_runs_the_steps__kraken_lines_read_by_a_vision_model(client, db, pages, tmp_path,  # noqa: F811
-                                                                                lines, with_material):  # noqa: F811
+                                                                                lines):  # noqa: F811
     """source.recipe.start-runs-the-steps: "... reading a line (with a Kraken reader, or Kraken's lines read by a
     vision model: `Read Lines (Kraken lines, vision model)`) ...". The step's own model reads each line Kraken
     found; never a stand-in."""
@@ -125,7 +125,7 @@ def test_source_recipe_start_runs_the_steps__split_pages_then_its_pages_are_read
     assert len(engine.read) == 2 and "spread.png" not in engine.read, "the pages are read, not the photograph"
 
 
-def test_source_recipe_done_is_not_redone(client, db, pages, tmp_path, lines, with_material):  # noqa: F811
+def test_source_recipe_done_is_not_redone(client, db, pages, tmp_path, lines):  # noqa: F811
     """source.recipe.done-is-not-redone: "a started recipe does not run a step again on a page that already has its
     output ... The Start plan says, for each such step, "already done on N of M pages", and the run does only the
     rest, unless the person names the steps to redo when pressing Start. A step that cannot tell (names,
@@ -173,7 +173,7 @@ READ_PAGE = {"id": "read", "job": "read-a-page", "model": GEMINI, "runs_on": "cl
 
 
 def test_source_chain_checked_before_run__a_page_reading_meets_the_names_step(client, db, pages, tmp_path,  # noqa: F811
-                                                                            monkeypatch, lines, with_material):  # noqa: F811
+                                                                            monkeypatch, lines):  # noqa: F811
     """source.chain.checked-before-run: "finding names, finding statements, checking and exporting take readings of
     the lines **or** a reading of the whole page, so a recipe that reads whole pages passes; one that gives neither
     is refused, naming both." Also source.recipe.done-is-not-redone for reading a page: a page already read by the
@@ -217,7 +217,7 @@ TIE = {"id": "tie", "job": "tie-text-to-lines", "model": {"zenodo": "10.5281/zen
 
 
 def test_source_job_tie_text_to_lines__a_recipe_card_runs_it(client, db, pages, tmp_path, monkeypatch,  # noqa: F811
-                                                              lines, with_material):  # noqa: F811
+                                                              lines):  # noqa: F811
     """source.job.tie-text-to-lines (#5444: "the job has no card"): a recipe step that ties the page reading to
     its lines runs, after Start, as the tie job with the step's Kraken reader, on this Mac; each line of the
     page's own pass gets its stretch of the page reading as a reading.
