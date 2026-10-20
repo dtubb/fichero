@@ -7,15 +7,16 @@ socket under a temp directory: never the owner's ports (8765), data, Keychain or
 from __future__ import annotations
 
 import base64
-import hashlib
 import os
 import secrets
 import shutil
+import signal
 import socket
 import ssl
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,7 +57,7 @@ def lan_address() -> str | None:
 class Engine:
     name: str
     base: Path
-    token: str
+    launch_secret: str
     sock: Path
     proc: subprocess.Popen
     port: int | None = None
@@ -64,11 +65,37 @@ class Engine:
     spki_pin: str | None = None
     _clean: list[Path] = field(default_factory=list)
     env_for: Callable[[bool, bool], dict[str, str]] | None = None  # (sharing, multiuser) -> the env the app would give the engine
+    _key: object | None = None  # the owner's P-256 key, made once; the engine keeps only its public half
+    _client_id: str | None = None
+
+    def _socket_client(self, headers: dict[str, str] | None = None) -> httpx.Client:
+        return httpx.Client(transport=httpx.HTTPTransport(uds=str(self.sock)), base_url="http://localhost", timeout=30,
+                            headers=headers or {})
 
     @property
     def uds(self) -> httpx.Client:
-        return httpx.Client(transport=httpx.HTTPTransport(uds=str(self.sock)), base_url="http://localhost", timeout=30,
-                            headers={"Authorization": f"Bearer {self.token}"})
+        """The host's owner as a person: a session from signing in with their key, never the bootstrap token (#5911, ## 582).
+        Sessions are honoured while Multi-user is on (the app's state: multiuser-always-on); with it off the engine takes only
+        the bootstrap token, so a host that must mint a code runs with Multi-user on."""
+        return self._socket_client({"Authorization": f"Bearer {self.sign_in_owner()}"})
+
+    def sign_in_owner(self) -> str:
+        """First run (the owner and their key, with the launch secret the app would have piped in), then the real
+        challenge/sign-in routes; returns the session token."""
+        from tests.signed_in import new_key, signature_for
+
+        with self._socket_client() as http:
+            if self._key is None:
+                self._key, pem = new_key()
+                made = http.post("/api/auth/first-run", headers={"X-Fichero-Launch-Secret": self.launch_secret},
+                                 json={"display_name": "Owner", "public_key_pem": pem, "client": {"kind": "app", "name": self.name}})
+                made.raise_for_status()
+                self._client_id = made.json()["client"]["id"]
+            issued = http.post("/api/auth/challenge", json={"client_id": self._client_id}).json()
+            signed = http.post("/api/auth/sign-in", json={
+                "client_id": self._client_id, "nonce": issued["nonce"], "signature": signature_for(self._key, self._client_id, issued)})
+            signed.raise_for_status()
+            return signed.json()["session_token"]
 
     def wait_ready(self) -> None:
         from tests.integration._engine_wait import wait_for_engine
@@ -85,21 +112,46 @@ class Engine:
         return self.proc.poll() is None
 
     def _end_process(self) -> None:
-        self.proc.terminate()
+        """End the engine and anything it spawned (the engine runs in its own process group)."""
+        self._signal_group(signal.SIGTERM)
         try:
             self.proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
-            self.proc.kill()
+            self._signal_group(signal.SIGKILL)
             self.proc.wait(timeout=5)
+
+    def _signal_group(self, sig: int) -> None:
+        try:
+            os.killpg(self.proc.pid, sig)
+        except ProcessLookupError:
+            pass  # already gone
 
     def restart(self, *, sharing: bool, multiuser: bool) -> None:
         """What the app does for a Sharing or Multi-user switch: stop its engine and start it again, same libraries and
         socket, with the new settings in its environment. Raises if the new engine does not come up."""
         assert self.env_for is not None, "only a host restarts"
         self._end_process()
-        self.proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=self.env_for(sharing, multiuser),
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.proc = _popen(self.env_for(sharing, multiuser), self.launch_secret)
         self.wait_ready()
+        if self.lan_expected(sharing):  # the LAN listener binds a moment after the socket answers: wait for it, never race it
+            self.wait_lan()
+
+    def lan_expected(self, sharing: bool) -> bool:
+        return sharing and self.port is not None
+
+    def lan_answers(self) -> bool:
+        try:
+            with httpx.Client(verify=False, base_url=f"https://{self.lan}:{self.port}", timeout=5) as client:
+                return client.get("/api/health").status_code == 200
+        except httpx.TransportError:
+            return False
+
+    def wait_lan(self, seconds: float = 30.0) -> None:
+        deadline = time.monotonic() + seconds
+        while not self.lan_answers():
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"{self.name} engine's LAN listener never answered in {seconds:g} s")
+            time.sleep(0.25)
 
     def stop(self) -> None:
         self._end_process()
@@ -111,22 +163,29 @@ def _env(base: Path, sock: Path, token: str) -> dict[str, str]:
     from tests.integration._engine_wait import _share_real_model_cache
 
     home = base / "home"
-    env = dict(os.environ)
+    env = {key: value for key, value in os.environ.items() if not key.startswith("FICHERO_")}  # nothing of the owner's shell reaches a test engine
     env.update(
         HOME=str(home), FICHERO_MODEL_STORE_ROOT=str(_share_real_model_cache(home)), FICHERO_BASE_PATH=str(base),
         FICHERO_BOOTSTRAP_TOKEN=token, FICHERO_TOKEN_DIR=str(base / "token"), FICHERO_UDS_PATH=str(sock),
+        FICHERO_LAUNCH_SECRET_STDIN="1",
         FICHERO_MULTIUSER="0", FICHERO_FEATURE_TIER="dev", FICHERO_SKIP_DEFAULT_WORKFLOWS="1", FICHERO_ENV="test",
         PYTHONPATH=str(ENGINE_SRC))
-    env.pop("FICHERO_DISABLE_AUTH", None)
-    for leaked in ("FICHERO_TCP_PORT", "FICHERO_LAN_HOST", "FICHERO_PUBLIC_BASE_URL", "FICHERO_TLS_CERTFILE",
-                   "FICHERO_TLS_KEYFILE", "FICHERO_TLS_SPKI_HASH", "FICHERO_TCP_TLS_ALSO", "FICHERO_BIND_HOST"):
-        env.pop(leaked, None)  # nothing of the owner's shell reaches a test engine
     return env
 
 
-def _spawn(name: str, env: dict[str, str], base: Path, sock: Path, token: str, **extra) -> Engine:
-    proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    engine = Engine(name=name, base=base, token=token, sock=sock, proc=proc, _clean=[base, sock.parent], **extra)
+def _popen(env: dict[str, str], launch_secret: str) -> subprocess.Popen:
+    """The engine in its own process group, its launch secret piped in on stdin as the app does (one line, then closed)."""
+    proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=env, stdin=subprocess.PIPE, text=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    proc.stdin.write(launch_secret + "\n")
+    proc.stdin.close()
+    return proc
+
+
+def _spawn(name: str, env: dict[str, str], base: Path, sock: Path, **extra) -> Engine:
+    launch_secret = secrets.token_hex(32)
+    engine = Engine(name=name, base=base, launch_secret=launch_secret, sock=sock, proc=_popen(env, launch_secret),
+                    _clean=[base, sock.parent], **extra)
     try:
         engine.wait_ready()
     except Exception:
@@ -156,7 +215,7 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
                        FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
         return env
 
-    engine = _spawn("host", env_for(sharing, multiuser), base, sock, token, port=port, lan=lan, spki_pin=material.spki_pin)
+    engine = _spawn("host", env_for(sharing, multiuser), base, sock, port=port, lan=lan, spki_pin=material.spki_pin)
     engine.env_for = env_for
     return engine
 
@@ -166,7 +225,7 @@ def start_guest() -> Engine:
     token = secrets.token_urlsafe(24)
     base = Path(tempfile.mkdtemp(prefix="fichero-guest-"))
     sock = Path(tempfile.mkdtemp(dir="/tmp", prefix="fsk-")) / "g.sock"
-    return _spawn("guest", _env(base, sock, token), base, sock, token)
+    return _spawn("guest", _env(base, sock, token), base, sock)
 
 
 def pairing_link(host: Engine, code: str, pin: str | None = None) -> str:
