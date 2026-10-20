@@ -5,7 +5,7 @@ platform.27-only-api-gated, #5730).
 The Mac app target is built at macOS 26.0, so the compiler refuses a 27-only API used without an availability check.
 A helper compiled by a bare `swiftc` is built for the HOST's OS instead (27 here), so the same mistake compiles and
 then crashes or refuses to launch on a 26 Mac (the fm-bridge was staged with minos 27.0 once, 2026-09-04). This
-checks that every `swiftc ... FmBridge.swift` / `fm-bridge` invocation in the build scripts passes
+checks that every `swiftc`/`clang` command (also via `xcrun`, or after `&&` / `;`) in the build scripts passes
 `-target arm64-apple-macos26.0`.
 
 Run: python scripts/check_swiftc_floor.py
@@ -19,7 +19,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIRS = ("scripts", "fichero-server/scripts", "fichero-server/bin")
 FLOOR_TARGET = "-target arm64-apple-macos26.0"
-_SWIFTC = re.compile(r"^\s*swiftc\s")  # a command, not `command -v swiftc`
+# a command (line start, or after && ; | ||, optionally via `xcrun`), not `command -v swiftc`
+_SWIFTC = re.compile(r"(?:^|&&|\|\||[;|])\s*(?:xcrun\s+(?:-\S+\s+\S+\s+)*)?(?:swiftc|clang(?:\+\+)?)\s")
+_BUILDS_NOTHING = ("-parse", "-fsyntax-only", "-typecheck", " -E ", "--version")
 
 
 def invocations(text: str) -> list[tuple[int, str]]:
@@ -43,11 +45,10 @@ def scan(root: Path = ROOT) -> list[str]:
     for folder in SCRIPT_DIRS:
         for path in sorted((root / folder).rglob("*.sh")):
             for line_no, command in invocations(path.read_text(encoding="utf-8", errors="ignore")):
-                if "FmBridge" in command or "fm-bridge" in command or "swiftc -parse" in command:
-                    if "swiftc -parse" in command and "-typecheck" not in command and "-target" not in command:
-                        continue  # a parse-only check builds nothing
-                    if FLOOR_TARGET not in command:
-                        problems.append(f"{path.relative_to(root)}:{line_no}: swiftc without `{FLOOR_TARGET}`")
+                if any(flag in command + " " for flag in _BUILDS_NOTHING):
+                    continue  # a parse-only check builds nothing
+                if FLOOR_TARGET not in command and "--target arm64-apple-macos26.0" not in command:
+                    problems.append(f"{path.relative_to(root)}:{line_no}: compiler without `{FLOOR_TARGET}`")
     return problems
 
 
@@ -57,7 +58,7 @@ def main() -> int:
         print("FAIL: a helper built for the host's OS can use a 27-only API unflagged:")
         print("\n".join(f"  {p}" for p in problems))
         return 1
-    print("OK check_swiftc_floor: every swiftc that builds fm-bridge targets macOS 26.0")
+    print("OK check_swiftc_floor: every swiftc/clang that builds a helper targets macOS 26.0")
     return 0
 
 
