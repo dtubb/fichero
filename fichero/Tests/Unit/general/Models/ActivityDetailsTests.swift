@@ -361,6 +361,36 @@ final class ActivityDetailsTests: XCTestCase {
         XCTAssertNil(store.jobLogs[Self.runId], "another row's log is not touched")
     }
 
+    // MARK: - activity.window.expands-to-pages
+
+    func testQueuedKindRow_readsItsPagesThroughTheStoreInTheOrderServed() async throws {
+        // WHY (#5839): a kind's row said "12 waiting" and nothing else; its details list the pages behind it, as the
+        // engine serves them (the lane's order, running first), through the store and the generated client.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathSuffix: "/api/activity/jobs/kind/derivatives/items", method: "GET", status: 200, body: Data("""
+            [{"id": "j1", "subject": "page-001.png", "state": "running", "reason": null},
+             {"id": "j2", "subject": "page-002.png", "state": "waiting", "reason": "Waiting for a model slot"}]
+            """.utf8))
+        ])
+
+        await store.loadQueuedItems(rowId: "waiting:derivatives")
+
+        let items = try XCTUnwrap(store.queuedItems["derivatives"])
+        XCTAssertEqual(items.map(\.subject), ["page-001.png", "page-002.png"])
+        XCTAssertEqual(items.last?.reason, "Waiting for a model slot")
+        XCTAssertEqual(MockTransportURLProtocol.recorded().compactMap(\.url?.path),
+                       ["/api/activity/jobs/kind/derivatives/items"])
+        XCTAssertTrue(MockTransportURLProtocol.recorded().first?.url?.query?.contains("limit=50") == true)
+    }
+
+    func testQueuedKind_onlyAWaitingOrPausedKindRowHasPages() {
+        XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "waiting:ask-a-model"), "ask-a-model")
+        XCTAssertEqual(ActivityStore.queuedKind(ofRowId: "paused:derivatives"), "derivatives")
+        XCTAssertNil(ActivityStore.queuedKind(ofRowId: "waiting:"))
+        XCTAssertNil(ActivityStore.queuedKind(ofRowId: "page-1"))
+    }
+
     func testActivityDetailsLog_theDeveloperLevelAsksForTheDebugLinesAndTheDefaultDoesNot() async throws {
         // WHY (`activity.log.developer-level`): the person's log is the default; Developer adds `?detail=developer`.
         let store = Self.storeWithMockTransport()

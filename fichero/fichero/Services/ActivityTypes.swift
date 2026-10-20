@@ -655,3 +655,19 @@ struct ActivityStats: Codable {
         case periodEnd = "period_end"
     }
 }
+
+/// One job queued behind a kind's row (`activity.window.expands-to-pages`, #5839): what it is for, where it stands, and
+/// why when it waits or failed.
+struct ActivityQueuedItem: Equatable, Identifiable {
+    let id: String
+    let subject: String
+    let state: String
+    let reason: String?
+
+    init(_ item: Components.Schemas.QueuedItem) {
+        id = item.id
+        subject = item.subject
+        state = item.state
+        reason = item.reason
+    }
+}
