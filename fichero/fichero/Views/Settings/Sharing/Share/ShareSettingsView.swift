@@ -34,10 +34,6 @@ struct ShareSettingsView: View {
 
     @State var pairingCode: PairingCodeRecord?
     @State var pairedDevices: [PairedDeviceRecord] = []
-    @State var connectedClients: [ConnectedClientRecord] = []
-    @State var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
-    @State var authzError: String?
-    @State var isLoadingAuthz = false
     @State var spkiPin = ""
     @State var shareError: String?
     @State var isApplyingChange = false
@@ -49,7 +45,10 @@ struct ShareSettingsView: View {
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
-    @State var confirmRemoveAllDevices = false
+    @State var selectedDevices = Set<String>()
+    @State var confirmRemoveSelected = false
+    @State var showAddDevice = false
+    @State var showConnect = false
 
     let qrContext = CIContext()
 
@@ -59,104 +58,35 @@ struct ShareSettingsView: View {
 
     var body: some View {
         Form {
-            securitySection
+            Section {
+                Toggle(SharingPaneText.switchTitle, isOn: sharingBinding)
+                    .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
+                if let line = SharingPaneText.statusLine(
+                    isOn: hostingEnabled, isApplying: isApplyingChange, error: shareError,
+                    engineIsLocal: EngineConfig.engineIsLocal) {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(shareError == nil ? Color.secondary : Color.red)
+                }
+            }
+
+            if SharingPaneText.showsDevices(isOn: hostingEnabled, engineIsLocal: EngineConfig.engineIsLocal) {
+                devicesSection
+            }
 
             Section {
-                Toggle(isOn: sharingBinding) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(SharingToggles.all[0].label)
-                            .font(.headline)
-                        Text(SharingToggles.caption(.sharing))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
-                .padding(.vertical, 4)
-
-                Toggle(isOn: multiuserBinding) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(SharingToggles.all[1].label)
-                            .font(.headline)
-                        Text(SharingToggles.caption(.multiUser))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                // Only the Mac hosting the library can change it: the engine reads the
-                // flag at startup, so a remote-connected Mac would write a flag the
-                // host never sees (#3776).
-                .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
-                .padding(.vertical, 4)
-
-                if hostingEnabled || pairingBlocker == .engineIsRemote {
-                    PairingCardView(
-                        pairingCode: pairingCode,
-                        qrCodeImage: qrCodeImage,
-                        publicURL: validatedPublicURL?.absoluteString,
-                        inviteLink: inviteLinkString,
-                        isGeneratingPairingCode: isGeneratingCode,
-                        blocker: pairingBlocker,
-                        errorMessage: shareError,
-                        isResolving: isApplyingChange,
-                        onResolve: { blocker in Task { await resolve(blocker) } },
-                        copiedInvite: copiedInvite,
-                        onCopyInvite: copyInvite,
-                        copyNote: copyNote
-                    )
-                    .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
-                }
-            }
-
-            #if canImport(AppKit)
-            // Client side of pairing — connect THIS Mac to another Fichero library
-            // (consolidated here so all connection/pairing lives in Library Access). Right under the Sharing switch,
-            // not last: a guest Mac needs it first and the pane is long (#5893).
-            MacRemoteClientPairingSection(
-                appState: appState,
-                backendService: backendService,
-                libraryManager: libraryManager
-            )
-            #endif
-
-            if hostingEnabled {
-                Section("Connected Devices") {
-                    PairedDevicesSectionView(
-                        devices: activePairedDevices(from: pairedDevices),
-                        isLoading: isLoadingDevices,
-                        canHostRemoteAccess: EngineConfig.engineIsLocal,
-                        onRefresh: { Task { await refreshDevices() } },
-                        onRevoke: { deviceID in Task { await revoke(deviceID: deviceID) } }
-                    )
-                }
-            }
-
-            // Which SURFACES are talking to the engine right now — the app,
-            // the fichero CLI, MCP clients (Daniel, 2026-08-27: "shouldn't
-            // we see that you're connected?"). Presence, not devices.
-            Section("Connected Clients") {
-                if connectedClients.isEmpty {
-                    Text("Nothing has connected this session.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(connectedClients) { record in
-                        LabeledContent(record.client) {
-                            Text("\(record.requests) requests · \(record.transport)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Button("Refresh") { Task { await refreshConnectedClients() } }
+                Button(SharingPaneText.connect) { showConnect = true }
             }
 
             advancedSection
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showAddDevice) { addDeviceSheet }
+        .sheet(isPresented: $showConnect) { connectSheet }
         .task {
             loadSPKIPin()
             addressDraft = publicBaseURL
-            // Refresh the backend's real multi-user state so this tab's status
-            // matches Users + Engine (#3331).
+            // Refresh the backend's real multi-user state so this pane matches Accounts (#3331).
             await appState.identityStore.load()
             multiuserEnabled = appState.identityStore.multiuserEnabled
             if let note = MultiuserMigration.takeNote(defaults: EngineConfig.defaults) { shareError = note }
@@ -166,14 +96,17 @@ struct ShareSettingsView: View {
             } else if hostingEnabled, appState.isBackendRunning {
                 await refreshDevices()
             }
-            await refreshConnectedClients()
             await refreshSharingState()
-            await loadAuthzSnapshot()
             didBootstrap = true
         }
-        .task(id: securityRefreshKey) {
-            guard didBootstrap else { return }
-            await loadAuthzSnapshot()
+        // The Devices list refreshes itself while sharing is on: there is no Refresh button.
+        .task(id: hostingEnabled) {
+            guard hostingEnabled else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                if Task.isCancelled { return }
+                if didBootstrap, appState.isBackendRunning { await refreshDevices() }
+            }
         }
         .task(id: refreshKey) {
             guard didBootstrap else { return }
@@ -198,6 +131,90 @@ struct ShareSettingsView: View {
             loadSPKIPin()
             addressDraft = newValue
         }
+    }
+
+    /// The Devices list: name and when last seen, `+ Add Device…` and `−` (multi-select Remove). Blank when empty, no Refresh.
+    @ViewBuilder
+    private var devicesSection: some View {
+        let devices = activePairedDevices(from: pairedDevices)
+        Section("Devices") {
+            List(devices, selection: $selectedDevices) { device in
+                HStack {
+                    Text(device.name)
+                    Spacer()
+                    Text(device.lastSeen, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .tag(device.id)
+            }
+            .frame(minHeight: devices.isEmpty ? 0 : 80)
+            HStack {
+                Button(SharingPaneText.addDevice) { showAddDevice = true }
+                Button("−") { confirmRemoveSelected = true }
+                    .help("Remove the selected devices")
+                    .disabled(!SharingPaneText.canRemove(selected: selectedDevices.count, engineIsLocal: EngineConfig.engineIsLocal))
+            }
+        }
+        .confirmationDialog(
+            SharingPaneText.removeQuestion(
+                count: selectedDevices.count, firstName: devices.first { selectedDevices.contains($0.id) }?.name),
+            isPresented: $confirmRemoveSelected,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { Task { await revokeSelected() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let also = selectedDevices.flatMap { devicesRevokedWith($0, in: pairedDevices) }
+                .filter { !selectedDevices.contains($0.id) }
+            Text(also.isEmpty ? "They will no longer be able to connect."
+                 : "They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), which will be removed too.")
+        }
+    }
+
+    /// Add Device: the QR, the code and the invite link on one sheet (`sharing.settings.add-device-sheet`).
+    private var addDeviceSheet: some View {
+        VStack(spacing: 12) {
+            PairingCardView(
+                pairingCode: pairingCode,
+                qrCodeImage: qrCodeImage,
+                publicURL: validatedPublicURL?.absoluteString,
+                inviteLink: inviteLinkString,
+                isGeneratingPairingCode: isGeneratingCode,
+                blocker: pairingBlocker,
+                errorMessage: shareError,
+                isResolving: isApplyingChange,
+                onResolve: { blocker in Task { await resolve(blocker) } },
+                copiedInvite: copiedInvite,
+                onCopyInvite: copyInvite,
+                copyNote: copyNote
+            )
+            .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
+            HStack {
+                Spacer()
+                Button("Done") { showAddDevice = false; Task { await refreshDevices() } }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(minWidth: 420)
+    }
+
+    /// Connect to Another Mac: hosts the existing client pairing section on a sheet (`sharing.settings.connect-sheet`).
+    private var connectSheet: some View {
+        VStack(spacing: 12) {
+            Form {
+                MacRemoteClientPairingSection(
+                    appState: appState, backendService: backendService, libraryManager: libraryManager)
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Done") { showConnect = false }.keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding()
+        .frame(minWidth: 460, minHeight: 360)
     }
 }
 #endif
