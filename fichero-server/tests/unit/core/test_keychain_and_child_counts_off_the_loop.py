@@ -182,3 +182,25 @@ def test_an_unreadable_keychain_replaces_the_old_found_answer_and_a_repeat_runs_
 
 def test_a_found_answer_is_kept_for_a_short_while_only():
     assert keychain._LOOKUP_SECONDS <= 30.0
+
+
+def test_the_children_route_counts_through_the_off_the_loop_helper(client, db, monkeypatch):
+    """The route itself, not only the helper: `GET /api/documents/{id}/children` hands its rows to
+    `_child_counts_off_the_loop` (documents.py), so a count behind a write never holds the event loop."""
+    from fichero_server.api.routes.document import documents
+    from fichero_server.models import DocType, Document
+
+    parent = Document(name="folder", doc_type=DocType.folder)
+    db.save(parent)
+    db.save(Document(name="page", doc_type=DocType.file, parent_id=parent.id))
+    asked: list[int] = []
+    real = documents._child_counts_off_the_loop
+
+    async def spy(db_, items):
+        asked.append(len(items))
+        return await real(db_, items)
+
+    monkeypatch.setattr(documents, "_child_counts_off_the_loop", spy)
+    response = client.get(f"/api/documents/{parent.id}/children")
+    assert response.status_code == 200, response.text
+    assert asked == [1]

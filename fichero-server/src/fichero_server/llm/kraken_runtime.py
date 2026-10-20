@@ -93,6 +93,8 @@ from fichero_server.media.ocr_geometry import (
 
 logger = logging.getLogger(__name__)
 
+from fichero_server.core.no_model_in_get import ModelWorkInGet  # noqa: E402
+
 _T = TypeVar("_T")
 
 
@@ -1253,7 +1255,7 @@ def segment_lines(
     token = _WANTED.set({"segment": "blla"})
     try:
         return caller(lambda: _segment_raw(image_path, direction))
-    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
         # Both are already the plain-language, non-programmer-actionable
         # message #4987/#4959 want on screen — wrapping either as "Kraken
         # segmentation failed: ..." would bury that message inside a less
@@ -1277,7 +1279,7 @@ def recognize_lines(
     token = _WANTED.set({"segment": "blla", "read": model_path})
     try:
         return caller(lambda: _recognize_raw(image_path, model_path, direction))
-    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken recognition failed: {exc}") from exc
@@ -1336,7 +1338,7 @@ def read_given_lines(
     token = _WANTED.set({"read": model_path})
     try:
         return caller(lambda: _read_given_raw(image_path, model_path, lines))
-    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken could not read the lines: {exc}") from exc
