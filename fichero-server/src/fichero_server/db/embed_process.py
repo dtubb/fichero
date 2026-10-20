@@ -52,10 +52,15 @@ def in_process() -> bool:
 
 def _cached(model_name: str, cache_dir: str) -> bool:
     """Whether the model's files are already in the cache, so loading needs no Hub call."""
-    tail = model_name.rsplit("/", 1)[-1].lower()
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    # The pinned e5's fastembed name is an alias; its files live under the repo it is fetched from
+    # (models--qdrant--multilingual-e5-large-onnx), so match the source model's name inside the folder name.
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    tail = (space.source_model_name if space else model_name).rsplit("/", 1)[-1].lower()
     try:
         return any(
-            d.name.startswith("models--") and d.name.lower().endswith(tail) and (d / "snapshots").is_dir()
+            d.name.startswith("models--") and tail in d.name.lower() and (d / "snapshots").is_dir()
             for d in os.scandir(cache_dir)
         )
     except OSError:
