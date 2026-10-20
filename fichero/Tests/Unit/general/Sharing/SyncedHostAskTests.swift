@@ -58,5 +58,9 @@ struct SyncedHostAskTests {
         try RemoteClientPairing.persistHostCredentials(result, expectedSPKIPin: nil)
         #expect(AuthTokenMiddleware.readRemoteTokenForHost(root.absoluteString) == "tok")
         #expect(DeviceTokenRenewal.storedExpiry(host: root.absoluteString) == expiry)
+        // a pinned (`.local`) host: the pin is stored too
+        let pin = Data(repeating: 7, count: 32).base64EncodedString()
+        try RemoteClientPairing.persistHostCredentials(result, expectedSPKIPin: pin)
+        #expect(RemoteCertificatePinning.persistedSPKIPin(hostString: root.absoluteString) == pin)
     }
 }

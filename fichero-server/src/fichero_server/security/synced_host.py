@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -58,3 +59,26 @@ def read_synced_host(library_root: Path) -> SyncedHost | None:
     except (OSError, ValueError) as exc:  # pydantic.ValidationError and JSONDecodeError are ValueErrors
         logger.info("ignoring %s in %s: %s", FILE_NAME, library_root, exc)
         return None
+
+
+def _origin(url: str | None) -> str | None:
+    """`https://host[:port]`, host lower-cased, the default port dropped; None for anything that is not an https address."""
+    parts = urlsplit((url or "").strip())
+    if parts.scheme != "https" or not parts.hostname:
+        return None
+    port = f":{parts.port}" if parts.port and parts.port != 443 else ""
+    return f"https://{parts.hostname.lower()}{port}"
+
+
+def own_origin() -> str | None:
+    """This engine's own https origin (FICHERO_PUBLIC_BASE_URL), the one test for "this engine is the recorded host"
+    (the host's writer, `sharing_host_file`, names itself by the same variable)."""
+    return _origin(os.environ.get("FICHERO_PUBLIC_BASE_URL"))
+
+
+def host_to_ask(library_root: Path) -> SyncedHost | None:
+    """What a GUEST asks for: the file's host, unless it names THIS engine (the host's own copy asks nobody)."""
+    host = read_synced_host(library_root)
+    if host is None:
+        return None
+    return None if _origin(host.hostURL) == own_origin() else host
