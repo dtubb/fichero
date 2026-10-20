@@ -14,13 +14,17 @@ struct ActivityWindowGroups: Equatable {
     let doneToday: [ActivityMonitorRow]
 
     init(rows: [ActivityMonitorRow], now date: Date = Date(), calendar: Calendar = .current) {
-        let listed = rows.filter { $0.kind == .run || $0.kind == .job }
+        // A run is ONE row: a run seen as a job of its own as well (same id behind it) is listed once, as the run.
+        let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))
+        let listed = rows.filter { $0.kind == .run || ($0.kind == .job && !runJobs.contains($0.jobId ?? "")) }
         now = listed.filter { $0.phase == .running || $0.phase == .paused }
         upNext = listed.filter { $0.phase == .waiting }
             .sorted { ($0.queueKey, $0.startedKey) < ($1.queueKey, $1.startedKey) }
+        // DONE TODAY goes by when it ENDED (an overnight run that ended today is here), and a row whose end is not known
+        // is listed rather than lost; the newest end first, the unknown last.
         doneToday = listed.filter { !$0.phase.isLive }
-            .filter { row in row.started.map { calendar.isDate($0, inSameDayAs: date) } ?? false }
-            .sorted { $0.startedKey > $1.startedKey }
+            .filter { row in (row.ended ?? row.started).map { calendar.isDate($0, inSameDayAs: date) } ?? true }
+            .sorted { ($0.ended ?? .distantPast) > ($1.ended ?? .distantPast) }
     }
 
     var isEmpty: Bool { now.isEmpty && upNext.isEmpty && doneToday.isEmpty }
