@@ -219,14 +219,23 @@ def _read_token(
     refused: frozenset[str] = frozenset(),
     engine: str | None = None,
 ) -> str | None:
-    """The credential to send: a person's session first, then the engine's other credentials, and only then the
-    device this CLI was paired as (`fichero devices pair`), so a signed-in person is never attributed to the device
-    and the owner's own key still wins on the owner's Mac (review 583)."""
+    """The credential to send. Loopback or the app socket: a person's session, the owner's own key, and only then
+    the device this CLI was paired as (`fichero devices pair`). A remote host: session, then the device paired with
+    that host, before anything this Mac's own key could add (reviews 583, 585)."""
+    from fichero_cli.pairing import device_token
+
+    if not as_user and _is_loopback_base_url(base_url) is False:
+        # A REMOTE host: a person's session, then the device paired with it, and only then the old fallbacks. This
+        # Mac's own key (FICHERO_API_KEY) is the owner's on THIS engine: it never outranks the host's own device
+        # (review 585).
+        env = os.environ.get("FICHERO_SESSION_TOKEN")
+        session = _read_cli_session_payload(engine=engine).get("session_token")
+        for candidate in (env, session, device_token(engine)):
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
     token = _read_token_without_device(base_url, as_user, prefer_container, refused, engine)
     if token or as_user:
         return token
-    from fichero_cli.pairing import device_token
-
     return device_token(engine)
 
 
