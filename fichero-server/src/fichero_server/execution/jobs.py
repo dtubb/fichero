@@ -3119,4 +3119,30 @@ def stop(key: str | None, timeout: float = STOP_TIMEOUT_SECONDS) -> list[threadi
     return left
 
 
+def is_queued_or_running(db, kind: str, subject: str) -> bool:
+    """True while a job of this kind and subject waits or runs (so a second is not queued)."""
+    return db.execute_fetchone(
+        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'running')", [kind, subject]
+    ) is not None
+
+
+def queue_state(db, own_kinds: list[str], since=None) -> str | None:
+    """What the job table says about a queue made of `own_kinds`: "moving" while page work of ours on a model or
+    image lane runs behind it (a workflow, batch or far-side row does not count); "over" when its jobs have all
+    ended, one failed since `since`, and none waits or runs; else None."""
+    marks = ", ".join("?" for _ in own_kinds)
+    running = [r[0] for r in db.execute_fetchall(
+        f"SELECT DISTINCT kind FROM jobs WHERE state = 'running' AND kind NOT IN ({marks})", own_kinds)]
+    if any(k in KINDS and KINDS[k].lane in ("local-ml", "images") and k not in RUN_KINDS
+           and k not in FAR_SIDE_KINDS for k in running):
+        return "moving"
+    if since is not None and db.execute_fetchone(
+            f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused') LIMIT 1",
+            own_kinds) is None and db.execute_fetchone(
+            f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND finished_at >= ? LIMIT 1",
+            [*own_kinds, since]) is not None:
+        return "over"
+    return None
+
+
 _scheduler = _Scheduler()

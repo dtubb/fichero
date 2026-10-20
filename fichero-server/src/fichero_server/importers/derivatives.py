@@ -343,25 +343,18 @@ def _jobs_say(library: str, since: Any = None) -> str | None:
     from fichero_server.db.manager import DatabaseManager, db_manager
     from fichero_server.execution import jobs
 
-    kinds = [THUMBNAIL_KIND, EMBED_KIND, NLP_KIND]
-    marks = ", ".join("?" for _ in kinds)
+    global jobs_say_failure
     try:
         db = db_manager.open_database(DatabaseManager._cache_key(_Path(library)))
         if db is None:
             return None
-        running = [r[0] for r in db.execute_fetchall(
-            f"SELECT DISTINCT kind FROM jobs WHERE state = 'running' AND kind NOT IN ({marks})", kinds)]
-        if any(k in jobs.KINDS and jobs.KINDS[k].lane in ("local-ml", "images") and k not in jobs.RUN_KINDS
-               and k not in jobs.FAR_SIDE_KINDS for k in running):
-            return "moving"
-        if since is not None and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused') LIMIT 1",
-                kinds) is None and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND finished_at >= ? LIMIT 1",
-                [*kinds, since]) is not None:
-            return "over"
-    except Exception:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
-        logger.debug("derivatives: job table unreadable for the stall check", exc_info=True)
+        said = jobs.queue_state(db, [THUMBNAIL_KIND, EMBED_KIND, NLP_KIND], since)
+        jobs_say_failure = None  # readable again: the next outage warns afresh
+        return said
+    except Exception as exc:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
+        if jobs_say_failure is None:  # once per outage, not once per poll
+            logger.warning("derivatives: job table unreadable for the stall check: %s", exc, exc_info=True)
+        jobs_say_failure = f"{type(exc).__name__}: {exc}"
     return None
 
 
@@ -1104,8 +1097,7 @@ def queue_knowledge_backfill(db: "Database", what: str) -> bool:
 
     jobs.load_kinds()
     jobs._ensure(db)
-    if db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'running')",
-                           [EMBED_KNOWLEDGE_KIND, what]):
+    if jobs.is_queued_or_running(db, EMBED_KNOWLEDGE_KIND, what):
         return False
     jobs.enqueue(db, EMBED_KNOWLEDGE_KIND, what)
     return True
