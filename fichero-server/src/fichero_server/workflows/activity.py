@@ -851,7 +851,9 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
                     "recover_stale_runs scheduling failed for %s (ignored)", db_path
                 )
             else:
-                loop.create_task(_recover_stale_runs_bg(tracker, db_path))
+                from fichero_server.core.no_model_in_get import spawn_free
+
+                spawn_free(loop.create_task, _recover_stale_runs_bg(tracker, db_path))
         else:
             logger.debug(f"Reusing existing ActivityTracker for: {db_path}")
         return _activity_trackers[db_path]

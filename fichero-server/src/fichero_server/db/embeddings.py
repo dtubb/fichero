@@ -967,6 +967,14 @@ class DatabaseEmbeddingMixin:
         Returns:
             List of floats (embedding vector)
         """
+        from fichero_server.core.no_model_in_get import embed_query_in_get, forbid_in_get, in_get
+
+        if role == "query" and in_get():  # a GET embeds its own query, within a bound
+            return embed_query_in_get(lambda: self._embed_text_now(text, role))
+        forbid_in_get("an embedding")
+        return self._embed_text_now(text, role)
+
+    def _embed_text_now(self, text: str, role: EmbeddingRole) -> list[float]:
         self._ensure_embedder()
         model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
         formatted = format_for_model(model_name, text, role)
@@ -987,6 +995,9 @@ class DatabaseEmbeddingMixin:
         Returns:
             List of embedding vectors
         """
+        from fichero_server.core.no_model_in_get import forbid_in_get
+
+        forbid_in_get("an embedding")
         if not texts:
             return []
 
@@ -1616,6 +1627,8 @@ class DatabaseEmbeddingMixin:
                 except Exception as exc:
                     logger.warning("Failed to auto-embed %s in background: %s", label, exc)
 
-        task = loop.create_task(_runner())
+        from fichero_server.core.no_model_in_get import spawn_free
+
+        task = spawn_free(loop.create_task, _runner())  # the GET that saved is not this embed
         bg_tasks.add(task)
         task.add_done_callback(bg_tasks.discard)
