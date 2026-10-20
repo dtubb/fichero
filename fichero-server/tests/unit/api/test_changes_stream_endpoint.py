@@ -40,8 +40,8 @@ def _patch_subscribe_to_capture_queue(monkeypatch):
     captured: dict[str, object] = {}
     original_connect = change_stream._change_hub.connect
 
-    def _connect(library_path: str, *, last_event_id: str | None = None):
-        subscription = original_connect(library_path, last_event_id=last_event_id)
+    def _connect(library_path: str, **kwargs):  # passes through every keyword the hub takes (last_event_id, device_id)
+        subscription = original_connect(library_path, **kwargs)
         captured["queue"] = subscription.queue
         return subscription
 

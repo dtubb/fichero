@@ -27,7 +27,7 @@ async def test_idle_stream_survives_multiple_keepalives(monkeypatch, test_packag
     monkeypatch.setattr(activity_module, "_KEEPALIVE_TIMEOUT", 0.05)
 
     db = db_manager.get_database(test_package)
-    response = await activity_module.stream_activities(db=db, types=None, levels=None)
+    response = await activity_module.stream_activities(http_request=None, db=db, types=None, levels=None)
 
     keepalives = 0
     iterator = response.body_iterator

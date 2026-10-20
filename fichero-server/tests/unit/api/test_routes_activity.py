@@ -181,7 +181,7 @@ class TestActivityStream:
         monkeypatch.setattr(activity_routes.asyncio, "wait", wait_until_started)
         db = MagicMock(path=Path("/tmp/test-activity.fichero/fichero.duckdb"))
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
-            response = await stream_activities(db=db, types=None, levels=None)
+            response = await stream_activities(http_request=None, db=db, types=None, levels=None)
 
         try:
             assert await anext(response.body_iterator) == ": keepalive\n\n"
@@ -205,7 +205,7 @@ class TestActivityStream:
         tracker.stream = stream
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
-                db=MagicMock(path="/tmp/test.fichero"), types=None, levels=None
+                http_request=None, db=MagicMock(path="/tmp/test.fichero"), types=None, levels=None
             )
 
         try:
@@ -236,7 +236,7 @@ class TestActivityStream:
         tracker.stream = stream
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
-                db=MagicMock(path="/tmp/test.fichero"),
+                http_request=None, db=MagicMock(path="/tmp/test.fichero"),
                 types=None,
                 levels=None,
             )
@@ -266,7 +266,7 @@ class TestActivityStream:
         tracker.stream = stream
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
-                db=MagicMock(path="/tmp/test.fichero"),
+                http_request=None, db=MagicMock(path="/tmp/test.fichero"),
                 types=None,
                 levels=None,
             )
@@ -294,7 +294,7 @@ class TestActivityStream:
         library_path = "/tmp/test-activity.fichero"
         db = MagicMock(path=Path(library_path) / "fichero.duckdb")
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
-            response = await stream_activities(db=db, types=None, levels=None)
+            response = await stream_activities(http_request=None, db=db, types=None, levels=None)
 
         try:
             emit_change(
@@ -337,7 +337,7 @@ class TestActivityStream:
         other_library_path = "/tmp/other-activity.fichero"
         db = MagicMock(path=Path(library_path) / "fichero.duckdb")
         with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
-            response = await stream_activities(db=db, types=None, levels=None)
+            response = await stream_activities(http_request=None, db=db, types=None, levels=None)
 
         try:
             emit_change(
