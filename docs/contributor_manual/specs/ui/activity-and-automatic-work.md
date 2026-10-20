@@ -703,7 +703,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
-  children on a worker thread, not the event loop (same test).
+  children on a worker thread, not the event loop (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py::test_get_children_counts_children_off_the_loop`).
 - `activity.engine.auth-never-hangs` — **[PARTIAL]** (owner, 2026-10-19 18:11: the engine stopped answering and was respawned; review 317:
   the dumps' holder is the `is_paused` claim thread inside `app.py` `get_setting`'s execute, with `app_db._lock` AND `_heavy_pick`
   held for 3+ minutes, one DuckDB call stuck under a Python `isinstance` (ABC) callback) the two flags every claim reads
@@ -727,7 +727,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   yield), so that page takes the next slot (`fichero-server/tests/unit/jobs/test_person_heavy_first.py`).
 - `recipes.try.says-what-it-waits-for` — **[OK]** (owner, 2026-10-19) the try's result (`GET /api/recipes/stages/{stage}/try`)
   carries `waiting_for`, in words, while its job waits or runs ("Copying the sample pages for Find Lines", "Waiting for the model
-  lane: …", "Trying Read: …"), so the stage page never shows a spinner with no words (same test file). The stage page shows
+  lane: …", "Trying Read: …"), so the stage page never shows a spinner with no words (`fichero-server/tests/unit/jobs/test_person_heavy_first.py::test_a_try_waiting_or_running_says_what_for_in_a_field_beside_its_spinner`; the waiting words in `fichero-server/tests/unit/recipes/test_a_waiting_try_says_why_5837.py`). The stage page shows
   it: Set Up's Swift (r1, `briefs/r1-try-progress-2026-10-19.md`).
 - `activity.popover.same-summary` — **[PARTIAL]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
@@ -1444,7 +1444,7 @@ and node, not by job); a retry action for failed pages.
   `_embed_texts`) stays refused. Pinned by `fichero-server/tests/unit/api/test_get_embeds_its_own_query.py` (a answers,
   b busy answers in words within the bound, c the loaded heavy model is still loaded).
 - `activity.read.get-keeps-kraken-and-lane-refused` — **[OK]** Kraken, recognise and `run_on_lane` stay refused in every GET
-  (the indirect-call test above stays).
+  (`fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py`: a GET reaching Kraken through a helper thread, the embedder and the lane refuse inside a GET and not outside).
 - `activity.read.claims-backfill-is-a-lane-job` — **[PARTIAL]** a GET never embeds the claims that lack a vector. It
   searches the vectors that exist, says how many claims are not embedded yet (`not_embedded` on the response, absent when
   none), and queues ONE background job (kind `embed-knowledge`, subject `claims` or `entities`, the embed lane, so the throttle applies); a second GET while
