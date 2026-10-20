@@ -1516,7 +1516,8 @@ and node, not by job); a retry action for failed pages.
 - `activity.throttle.hand-started-waits-for-memory-and-heat` — **[PARTIAL]** (#5358) a run a person
   started by hand waits only for memory and heat, never for battery or for the person being at
   the Mac, and its row says which it waits for. Built: a page a person waits for is held only by
-  memory pressure and a serious thermal state (`fichero-server/tests/unit/jobs/test_throttle.py`). Still a gap: it is pinned
+  memory pressure and a serious thermal state (`fichero-server/tests/unit/jobs/test_throttle.py`); Find Regions in a hand-started
+  run and in a Set Up try holds the same way (`fichero-server/tests/unit/recipes/test_a_hand_started_regions_run_waits_only_for_memory_and_heat_2026_10_20.py`). Still a gap: it is pinned
   below the public surface (see "Pinning"), and the window shows no waiting reason.
 - `activity.throttle.one-heavy-when-memory-tight` — **[PARTIAL]** (#5622) while this Mac's memory
   pressure is at warn or above, the heavy lanes (the model lane and the images lane) run **one job at
@@ -1553,8 +1554,11 @@ and node, not by job); a retry action for failed pages.
   at every batch while the Mac is in use, hot or on battery, and lets memory go when it is tight
   (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: slowing rather than waiting, and the other lanes.
   **[OK]** (#5685) a recipe step that reads pages inside the run (Find Regions) checks before each page: while
-  the throttle holds background work, the run's row says so ("Waiting: you're using the Mac") and holds, Stop
-  still heard; between pages it counts pages, not folders ("Finding regions: 3 of 92 pages"). Before, the row said
+  the throttle holds it, the run's row says so and holds, Stop still heard. What holds is the RUN's starter's (not the
+  page row's): a run a person started by hand (and a Set Up try, which a person presses and watches) waits only for memory and heat,
+  and on battery goes on slower and says so (#5819); a background run is also held by battery ("Waiting: the Mac is
+  on battery") and slowed while the Mac is used (Fable review 2026-10-19 #4, ruled by the manager;
+  `fichero-server/tests/unit/recipes/test_a_hand_started_regions_run_waits_only_for_memory_and_heat_2026_10_20.py`); between pages it counts pages, not folders ("Finding regions: 3 of 92 pages"). Before, the row said
   "Running step find-regions: 0 of 1 folder done" while `machine.why_wait` said wait (the 2026-10-11 MCP walk);
   `fichero-server/tests/unit/recipes/test_regions_step_waits_and_counts_pages_5685.py`.
   **[OK]** (#5702) a long job that stops to wait (memory tight, the Mac in use) is always looked at again: its
