@@ -392,13 +392,31 @@ def test_a_refused_redeem_hints_the_next_step_in_a_typed_header_not_in_prose(har
     assert existing.status_code == 401 and existing.headers["X-Fichero-Pair-Next"] == "person-required"
 
 
-def test_usernames_are_one_person_whatever_their_case(harness, monkeypatch):
+def test_a_new_name_differing_only_in_case_is_refused_as_taken_at_create_mint_and_redeem(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     owner = _as(harness, "owner")
     clash = owner.post("/api/users", json={"username": "ALICE", "display_name": "Other", "password": "pw-other-1"})
-    assert clash.status_code == 409, "'ALICE' beside 'alice' is refused"
-    assert harness.client().post("/api/auth/login", json={"username": "Alice", "password": "pw-alice"}).status_code == 200
-    code = _invite(harness, "Alice", client=owner).json()  # names the existing person, not a second account
-    assert code["person"] == "alice" and pairing._PAIRING_CODES[code["code"]].new_person is False
-    other = _redeem(harness, code["code"], username="ALICE", password="pw-alice")
-    assert other.status_code == 200, other.text
+    assert clash.status_code == 409 and "exists" in clash.json()["detail"]
+    minted = _invite(harness, "Alice", client=owner)
+    assert minted.status_code == 409 and "differs only in case" in minted.json()["detail"], "not a new person, not alice"
+    assert pairing._PAIRING_CODES == {}
+    code = _invite(harness, "dave", client=owner).json()["code"]
+    harness.app_db.create_user(username="DAVE", display_name="Dave", password_hash="x", is_owner=False)
+    assert _redeem(harness, code, new_password="a long secret").status_code == 409, "taken by 'DAVE' meanwhile"
+
+
+def test_lookups_stay_exact_so_an_existing_carol_and_carol_pair_each_sign_in_as_themselves(harness, monkeypatch):
+    """The older pair (made before names were checked case-folded) must not lock the newer account out."""
+    _multiuser_on(harness, monkeypatch)
+    from fichero_server.security import accounts
+
+    older = harness.app_db.create_user(username="carol", display_name="carol", password_hash=accounts.hash_password("pw-lower"))
+    newer = harness.app_db.create_user(username="Carol", display_name="Carol", password_hash=accounts.hash_password("pw-Upper"))
+    assert harness.app_db.get_user_by_username("carol").id == older.id
+    assert harness.app_db.get_user_by_username("Carol").id == newer.id
+    lower = harness.client().post("/api/auth/login", json={"username": "carol", "password": "pw-lower"})
+    upper = harness.client().post("/api/auth/login", json={"username": "Carol", "password": "pw-Upper"})
+    assert lower.status_code == 200 and upper.status_code == 200
+    assert harness.client().post("/api/auth/login", json={"username": "carol", "password": "pw-Upper"}).status_code == 401
+    assert harness.app_db.username_taken("CAROL") is True
+    assert _as(harness, "owner").post("/api/users", json={"username": "CAROL", "display_name": "x", "password": "pw-new-123"}).status_code == 409

@@ -566,6 +566,8 @@ def create_invite(
     existing = app_db.get_user_by_username(username)
     if existing is not None and existing.active:
         raise HTTPException(status_code=409, detail="username already exists")
+    if existing is None and app_db.username_taken(username):  # the same name in another case is taken too
+        raise HTTPException(status_code=409, detail="username already exists")
     if app_db.get_pending_invite_for_username(username) is not None:
         raise HTTPException(status_code=409, detail="pending invite already exists")
 
@@ -762,7 +764,7 @@ def create_user(
     if not username or not display_name:
         raise HTTPException(status_code=422, detail="username and display_name are required")
 
-    if app_db.get_user_by_username(username) is not None:
+    if app_db.username_taken(username):  # case-folded: 'CAROL' beside 'carol' is the same name taken
         raise HTTPException(status_code=409, detail="username already exists")
 
     user_id = new_id()
