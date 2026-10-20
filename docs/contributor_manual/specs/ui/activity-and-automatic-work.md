@@ -1883,7 +1883,7 @@ code path.
   the call, never outliving the slot. A stopped CLOUD call still books its cost on its row: when no usage came back it is booked as
   an estimate (kind `stopped`, `estimated`, a floor of `STOPPED_CALL_INPUT_TOKENS` = 1,000 input tokens: the provider never said
   what it billed and the prompt's size is not known at the lane), so a Stop never hides spend; when usage did come back, that is the
-  figure (`fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py`). Still broken: a Kraken page already running is
+  figure, and the row's log says so in words ("booked as an ESTIMATE, a floor of 1000 input tokens, not what it billed"). A callee that swallows the cancel and returns normally still ends in the stop (the guard's `fired` flag is checked after the call too). LIMIT: the cancel closes only OUR side of the request; a local model server may keep generating for a while after a Stop, so the next page on that server can queue behind the abandoned one (nothing here stops the server) (`fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py`). Still broken: a Kraken page already running is
   waited for (C code on a thread: it cannot be interrupted, but its result is dropped and the run moves on), and economy HTR's pages
   are not reached.
 - `activity.run.record-keeps-all-history` — **[OK]** (#5376) a long run's record keeps every
