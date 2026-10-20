@@ -354,14 +354,22 @@ def profile(args) -> None:
         stopped: set[tuple[str, str]] = set()  # (device, order) whose larger batches stop after a failure or a slow one
         # Kraken's OWN defaults (what the plain `kraken` command runs: its batch size and a pool of line workers), against
         # the engine's config (device=1, num_line_workers=0 for the app sandbox, batch_size 1): the difference we feed it.
-        try:
-            default = RecognitionInferenceConfig(accelerator="cpu")
-            began = time.perf_counter()
-            count = sum(1 for _ in net.predict(image, segmentation, default))
-            print(f"| KRAKEN-DEFAULTS | batch={getattr(default, 'batch_size', '?')} | workers={getattr(default, 'num_line_workers', '?')} "
-                  f"| predict_s={time.perf_counter() - began:.2f} | lines={count} |", flush=True)
-        except Exception as exc:  # noqa: BLE001 -- a pool the sandbox forbids, or a missing option, is a result
-            print(f"| KRAKEN-DEFAULTS: FAILED {type(exc).__name__}: {exc} |", flush=True)
+        free = free_ram_gb()
+        if free is not None and free < 3.0:  # Kraken's defaults start line workers, each of which imports torch again
+            print(f"| KRAKEN-DEFAULTS: SKIPPED, only {free:.1f} GB free |", flush=True)
+        else:
+            try:
+                default = RecognitionInferenceConfig(accelerator="cpu")
+                workers = getattr(default, "num_line_workers", 0)
+                if workers > 4:  # never more than 4 workers: the default it replaced is printed
+                    default.num_line_workers = 4
+                began = time.perf_counter()
+                count = sum(1 for _ in net.predict(image, segmentation, default))
+                print(f"| KRAKEN-DEFAULTS | batch={getattr(default, 'batch_size', '?')} | workers="
+                      f"{getattr(default, 'num_line_workers', '?')} (default was {workers}) | "
+                      f"predict_s={time.perf_counter() - began:.2f} | lines={count} |", flush=True)
+            except Exception as exc:  # noqa: BLE001 -- a pool the sandbox forbids, or a missing option, is a result
+                print(f"| KRAKEN-DEFAULTS: FAILED {type(exc).__name__}: {exc} |", flush=True)
         for device in devices:
             for batch in args.batches:
                 for order in ("page", "by-width"):
