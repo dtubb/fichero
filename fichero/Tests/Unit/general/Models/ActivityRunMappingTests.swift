@@ -27,6 +27,7 @@ struct ActivityRunStatusMappingTests {
         #expect(ActivityRunStatus.completed.workflowStatus == .completed)
         #expect(ActivityRunStatus.failed.workflowStatus == .failed)
         #expect(ActivityRunStatus.cancelled.workflowStatus == .cancelled)
+        #expect(ActivityRunStatus.unknown.workflowStatus == .idle)  // its own bucket: never running, never done
     }
 
     @Test("workflow_started maps to running")

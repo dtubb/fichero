@@ -52,6 +52,16 @@ struct ActivityStateWordsTests {
         #expect(row(.interrupted, reason: "Interrupted: the engine stopped").stateText == "Interrupted: the engine stopped")
     }
 
+    @Test("a node in a state the app does not know is its own bucket, not running; transient states stay live")
+    func unknownIsItsOwnBucket() throws {
+        let run = ActivityRun(node: try jobNode(state: "quarantined"), libraryId: nil, libraryName: nil)
+        #expect(run.status == .unknown && run.status != .running)
+        #expect(ActivityMonitorRow.run(run, tree: nil).stateText == "unknown state quarantined")
+        for transient in ["stopping", "pausing", "resuming", "retrying"] {
+            #expect(Phase(engineState: transient) == .running, "\(transient)")
+        }
+    }
+
     @Test("a run the engine says is waiting is drawn waiting, not Running")
     func waitingRunReadsWaiting() throws {
         let node = ActivityRun(node: try jobNode(state: "waiting"), libraryId: nil, libraryName: nil)
