@@ -66,7 +66,9 @@ def _ready(stream: TextIO, timeout: float) -> bool:
         fd = stream.fileno()
     except (AttributeError, OSError, ValueError):
         return True
-    return bool(select.select([fd], [], [], timeout)[0])
+    poller = select.poll()  # not select(): that raises "filedescriptor out of range" for a descriptor above 1024
+    poller.register(fd, select.POLLIN)
+    return bool(poller.poll(timeout * 1000))
 
 
 def _is_pipe_or_memory(stream: TextIO) -> bool:
