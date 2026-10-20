@@ -2487,10 +2487,13 @@ def warm_supported_locales() -> None:
     """Load the Vision bundle and ask it, in the caller's thread (the engine does this at startup, off the loop)."""
     if sys.platform != "darwin":
         return  # Vision is macOS-only: nothing to warm and nothing to say
+    from fichero_server import startup_warnings
+
     try:
         _supported_vision_locales()
-    except Exception as exc:  # noqa: BLE001 -- off macOS: nothing to warm
+    except Exception as exc:  # noqa: BLE001 -- the locales are asked again on first use
         logger.warning("vision locale warm-up skipped: %s", exc)
+        startup_warnings.note("vision-locales-warm-up", f"{type(exc).__name__}: {exc}")  # health says it (#4420)
 
 
 def supported_locales_are_known() -> bool:
