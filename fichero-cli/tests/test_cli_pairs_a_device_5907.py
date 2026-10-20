@@ -189,11 +189,20 @@ def test_a_signed_in_persons_session_beats_the_device_token(monkeypatch, tmp_pat
     assert client_module._read_token(base_url=LOCAL, engine=key) == "alice-session"
 
 
-def test_the_owners_own_key_on_their_mac_beats_the_device_token(monkeypatch):
+def test_the_owners_own_key_on_their_mac_beats_the_device_token_on_loopback(monkeypatch):
+    local = "https://127.0.0.1:8765"
+    key = client_module.engine_key(local, None)
+    run(monkeypatch, Host([GOOD]), link(api_url=local, spki=PIN))
+    monkeypatch.setenv("FICHERO_API_KEY", "owner-bootstrap")
+    assert client_module._read_token(base_url=local, engine=key) == "owner-bootstrap"
+
+
+def test_this_macs_owner_key_is_never_sent_to_a_remote_host_that_has_a_paired_device(monkeypatch):
+    """Review 585: FICHERO_API_KEY is the owner's on THIS engine; the host's own device token is used instead."""
     key = client_module.engine_key(LOCAL, None)
     run(monkeypatch, Host([GOOD]), link())
-    monkeypatch.setenv("FICHERO_API_KEY", "owner-bootstrap")
-    assert client_module._read_token(base_url=LOCAL, engine=key) == "owner-bootstrap"
+    monkeypatch.setenv("FICHERO_API_KEY", "this-macs-owner-key")
+    assert client_module._read_token(base_url=LOCAL, engine=key) == TOKEN
 
 
 def test_a_link_on_argv_is_warned_about_without_echoing_it(monkeypatch):
