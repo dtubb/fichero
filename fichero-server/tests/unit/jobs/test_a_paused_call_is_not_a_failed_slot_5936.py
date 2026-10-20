@@ -39,3 +39,9 @@ def test_a_pause_raised_in_the_body_ends_the_row_cancelled_paused_with_its_run(d
 def test_a_stop_raised_in_the_body_ends_the_row_cancelled_stopped_by_you(db, test_package):
     asyncio.run(_raise_in_slot(test_package, "stopped page", WorkflowCancelled("run-5936")))
     assert _settled(db, "stopped page") == ("cancelled", "Stopped by you")
+
+
+def test_an_ordinary_exception_in_the_body_still_ends_the_row_failed(db, test_package):
+    asyncio.run(_raise_in_slot(test_package, "broken page", RuntimeError("model fell over")))
+    state, reason = _settled(db, "broken page")
+    assert state == "failed" and "model fell over" in reason
