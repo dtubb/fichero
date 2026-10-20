@@ -106,7 +106,7 @@ def test_the_segmenter_runs_through_the_model_lane_not_beside_it(db, tmp_path, m
 
     seen = []
 
-    def through_the_lane(library_path, kind, subject, *, model, fn):
+    def through_the_lane(library_path, kind, subject, *, model, fn, **kw):
         seen.append((kind, model, subject))
         return fn()
 
@@ -119,7 +119,7 @@ def test_the_segmenter_runs_through_the_model_lane_not_beside_it(db, tmp_path, m
     assert seen == [("find-regions", "kraken:blla", p.id) for p in pages]
 
 
-def test_a_lane_page_of_a_recipe_step_hangs_under_its_run_and_takes_the_runs_starter(db, test_package):
+def test_a_lane_page_of_a_recipe_step_hangs_under_its_run_and_takes_the_runs_starter(db, test_package, real_model_lane):
     """Review 390: a recipe step has no workflow node context, so the page row was orphaned and 'workflow'-started, and an
     AUTOMATIC run's segmenter ranked and held as a person's. Through the real submit, not a stand-in."""
     from fichero_server.execution import jobs
@@ -147,3 +147,18 @@ def test_a_lane_job_that_asks_for_the_lane_runs_in_place_instead_of_waiting_on_i
     jobs.run_on_lane_blocking(str(test_package), "find-regions", "outer", model="kraken:blla", fn=outer)
     assert seen == ["inner ran"]
     assert db.execute_fetchone("SELECT COUNT(*) FROM jobs WHERE subject = 'inner'") == (0,)
+
+
+def test_a_find_regions_page_is_a_kind_the_lane_can_run(db, test_package, real_model_lane):
+    """Find Regions' segmenter page is handed to the model lane under the kind `find-regions`; a kind the lane did not
+    know (`KeyError: 'find-regions'` in the lane thread) left the page waiting for good (M4, 14f3f1216, #5685)."""
+    import threading
+
+    from fichero_server.execution import jobs
+
+    out = []
+    thread = threading.Thread(daemon=True, target=lambda: out.append(jobs.run_on_lane_blocking(
+        str(test_package), "find-regions", "page-1", model="kraken:blla", fn=lambda: "segmented")))
+    thread.start()
+    thread.join(30)
+    assert out == ["segmented"], "the lane never ran the page"
