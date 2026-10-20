@@ -148,6 +148,10 @@ def _sysctl(monkeypatch, **values):
     ({"hw.physicalcpu": 2}, 1),
     ({"hw.perflevel0.physicalcpu": 0, "hw.physicalcpu": 6}, 3),      # a level that reads zero is no level
     ({}, max(1, (kr.os.cpu_count() or 2) // 2)),                     # nothing readable: half the logical cores
+    ({"hw.perflevel0.physicalcpu": -1, "hw.physicalcpu": 8}, 4),     # a negative level is no level
+    ({"hw.perflevel0.physicalcpu": None, "hw.physicalcpu": 8}, 4),
+    ({"hw.physicalcpu": -4}, max(1, (kr.os.cpu_count() or 2) // 2)),  # a negative or zero count is no count
+    ({"hw.physicalcpu": 0}, max(1, (kr.os.cpu_count() or 2) // 2)),
 ])
 def test_pages_at_once_is_the_performance_cores_else_half_the_physical_ones_never_below_one(monkeypatch, sysctl, expected):
     _sysctl(monkeypatch, **sysctl)
@@ -155,9 +159,9 @@ def test_pages_at_once_is_the_performance_cores_else_half_the_physical_ones_neve
 
 
 @pytest.mark.parametrize("priority, perf_cores, memory_gib, expected", [
-    ("fast", 4, 40, 4),    # four performance cores, memory for all of them
-    ("fast", 10, 40, 10),  # more cores, more pages
-    ("fast", 4, 12, 4),    # (12 GiB - the model's need) / 1.5 GiB still holds four
+    ("fast", 4, 40, 2),    # four performance cores, gated at two until #5929 closes
+    ("fast", 10, 40, 2),   # ten performance cores, still two
+    ("fast", 1, 40, 1),    # the gate never raises
     ("fast", 4, 6, 2),     # memory sets it below the cores
     ("fast", 4, 3, 1),     # and never below one
     ("balanced", 4, 40, 1), ("background", 4, 40, 1)])

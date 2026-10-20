@@ -885,9 +885,16 @@ def performance_cores() -> int:
     owner's ruling 2026-10-20, #5931). The efficiency cores stay for the app and the person."""
     cores = _sysctl_int("hw.perflevel0.physicalcpu")
     if cores is None or cores < 1:
-        physical = _sysctl_int("hw.physicalcpu") or ((os.cpu_count() or 2) // 2 * 2)
+        physical = _sysctl_int("hw.physicalcpu")
+        if physical is None or physical < 1:  # a missing or nonsense count is no count
+            physical = (os.cpu_count() or 2) // 2 * 2
         cores = physical // 2
     return max(1, cores)
+
+
+#: Held at two until #5929 (threads segfault at exit) closes and an M4 run at N=4 is clean; then delete this and the
+#: `min` below, and N is the performance cores as the owner ruled (#5931, `source.read.pages-at-once-scales`).
+PAGES_AT_ONCE_GATE_5929 = 2
 
 
 def pages_at_once(person: bool) -> int:
@@ -898,7 +905,7 @@ def pages_at_once(person: bool) -> int:
 
     if priority_for(person) != "fast":
         return 1
-    return page_fan_out(performance_cores())
+    return page_fan_out(min(performance_cores(), PAGES_AT_ONCE_GATE_5929))
 
 
 #: The environment variables the thread pools around torch read when they load.
