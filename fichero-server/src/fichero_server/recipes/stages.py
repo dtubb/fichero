@@ -184,6 +184,14 @@ def example_from_samples(stage_id: str, result: dict[str, Any] | None) -> str | 
     return str(text).strip() or None if text else None
 
 
+def offered(stage: Stage) -> bool:
+    """Whether Set Up offers this stage: at least one of its jobs is one Start runs by itself, or one that has a way to
+    do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job."""
+    from fichero_server.recipes.start import BY_HAND_FIX, start_runs
+
+    return any(start_runs(job) or job in BY_HAND_FIX for job in stage.jobs)
+
+
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
@@ -195,6 +203,8 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
     tried = tried or {}
     out = []
     for stage in STAGES:
+        if not offered(stage):  # a stage whose job nothing runs yet is not offered (`source.job.pull-out-passages`)
+            continue
         result = tried.get(stage.id)
         out.append({
             "id": stage.id, "title": stage.title, "sentence": stage.sentence, "example": stage.example,
