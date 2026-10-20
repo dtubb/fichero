@@ -1461,7 +1461,7 @@ and node, not by job); a retry action for failed pages.
   enqueue; #8 and #14 a job ends, or is deferred, on the connection its project has NOW, so a reopen no longer leaves a phantom
   `running` row or counts a deferral as an attempt; #15 the stale-run sweep runs on the engine's background loop, not on whichever
   loop made the tracker, and is no longer skipped when none runs. NOT done in this entry: #18 (`_wait_for_lane` polling), #19 (the
-  lane's reason before Kraken's lock), #23 (an embed timeout kills a healthy child), #10 (Swift, its own entry).
+  lane's reason before Kraken's lock), #23 (an embed timeout kills a healthy child), #10's view dimming. #10 (Swift, needs compile): the stream gives up on a 403 only after three in a row with no connect between (the first answer after an engine restart can be a 403 while the session is re-established), and the store says `rowsAreStale` after three failed reads in a row; pinned by `ActivityReconnectTests`. NOT done: the window greying the rows on `rowsAreStale` (the footer already says the engine is not answering; the dimming is a view change still to make).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a

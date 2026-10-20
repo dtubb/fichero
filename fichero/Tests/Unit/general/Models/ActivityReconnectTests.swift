@@ -62,4 +62,22 @@ struct ActivityReconnectTests {
         store.jobsPollFailed(AccessError.unauthenticated)
         #expect(resolved == 2, "a refusal is not the engine being away")
     }
+
+    @Test func theStreamGivesUpOnA403OnlyAfterThreeInARow() {
+        #expect(!ActivityStreamService.denialIsTerminal(consecutiveDenials: 1))
+        #expect(!ActivityStreamService.denialIsTerminal(consecutiveDenials: 2))
+        #expect(ActivityStreamService.denialIsTerminal(consecutiveDenials: 3))
+    }
+
+    @Test func rowsAreStaleOnlyAfterThreeFailedReadsInARow() {
+        let store = store()
+        #expect(!store.rowsAreStale)
+        store.reresolveEndpoint = {}
+        for _ in 0..<2 { store.jobsPollFailed(socketError) }
+        #expect(!store.rowsAreStale)
+        store.jobsPollFailed(socketError)
+        #expect(store.rowsAreStale)
+        store.jobsPollSucceeded()
+        #expect(!store.rowsAreStale)
+    }
 }
