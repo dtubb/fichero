@@ -7,6 +7,8 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
     struct Cost: Decodable, Equatable {
         let value: Double?
         let basis: String?
+        /// The engine's words for the figure ("up to this: …", or "cost not measured: <why>").
+        let from: String?
     }
 
     typealias Measures = StageCandidateMeasures
@@ -107,7 +109,13 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
         } else if let value = costUsd?.value {
             // A price in US dollars reads "$0.04" everywhere; the machine's locale would say "US$0.04" in Canada.
             let price = value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
-            said.append(costUsd?.basis == "estimate" ? "about \(price)" : price)
+            switch costUsd?.basis {
+            case "estimate": said.append("about \(price)")
+            case "upper bound": said.append("up to \(price)")  // variant A re-reads only the unsure lines (#5922)
+            default: said.append(price)
+            }
+            // A cost the engine could not measure says so, in its words, beside the figure that is left.
+            if let note = costUsd?.from, note.hasPrefix("cost not measured") { said.append(note) }
         } else {
             said.append("price not known")
         }
