@@ -165,6 +165,8 @@ async def _refine_with_llm(text: str, llm_config: LLMConfig) -> str:
         return text
 
     try:
+        from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused  # noqa: F401
+        from fichero_server.execution.jobs import JobCancelled  # noqa: F401
         from fichero_server.llm import call_llm_with_cache
 
         response = await call_llm_with_cache(
@@ -173,6 +175,10 @@ async def _refine_with_llm(text: str, llm_config: LLMConfig) -> str:
             cache_key=f"text_reflow_refine_{hash(text) % (10**9)}",
         )
         return response.strip() if response else text
+    except (WorkflowCancelled, WorkflowPaused, JobCancelled):
+        # A Stop or Pause is not a failed refinement (#5919 sweep): swallowed, the page would be marked done unrefined and
+        # never redone; raised, Resume does it again.
+        raise
     except Exception:
         # If LLM call fails, return the heuristic result
         return text

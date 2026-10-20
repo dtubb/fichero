@@ -3150,6 +3150,7 @@ class _Scheduler:
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
+        from fichero_server.execution.cancellation import WorkflowPaused
 
         job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
@@ -3194,6 +3195,8 @@ class _Scheduler:
                 raise PageStopped(stopped_by(job_id))
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
+        except WorkflowPaused as exc:  # its run was paused while the page waited (an MLX memory wait): paused, not failed
+            state, reason, error = "cancelled", "Paused with its run", exc
         except JobDeferred as exc:
             state, reason, error = "waiting", str(exc), exc
         except JobOutOfReach as exc:
