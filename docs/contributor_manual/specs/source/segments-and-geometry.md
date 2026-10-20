@@ -1019,7 +1019,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
 - `source.convert.results-live-as-passes` — **[OK]** (→ #5222) results always live as passes: old
   ones convert when their library opens (the behaviours below), and every tool that finds boxes
   writes its result as its own pass (the next three behaviours, built 2026-09-30).
-- `source.convert.a-new-result-is-a-pass-at-once` — **[OK]** (→ #5222 part 2; ruled 2026-09-28: "bring
+- `source.convert.a-new-result-is-a-pass-at-once` — **[OK]** (→ #5222 part 2; ruled 2026-09-28: "bring Every outcome is one engine-log line naming the page ("A new result on page P: converted|skipped|failed"), so a page that shows text with no boxes can be answered from the log (test: `fichero-server/tests/unit/maintenance/test_new_result_outcome_is_logged_2026_10_19.py`).
   them over when they're generated from now on") a result with boxes becomes its own pass in the
   same run that made it, not at the next open: Apple Vision OCR, a VLM's layout or transcription, a
   PDF's text layer at import, detect regions, Kraken, merged geometry, and a transcript aligned to

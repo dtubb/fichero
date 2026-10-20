@@ -474,7 +474,10 @@ def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None)
     why. It is logged as an ERROR with the page and the reason, and returns ``"failed"``.
     """
     try:
-        return _convert_one_page(db, document_id, run_id)
+        outcome = _convert_one_page(db, document_id, run_id)
+        # One line per page, so "text but no boxes" can be answered from the log: did this page's result become a pass?
+        logger.info("A new result on page %s: %s", document_id, outcome)
+        return outcome
     except Exception as exc:  # noqa: BLE001 -- the result is saved; the next open retries it
         logger.error(
             "A new result on page %s did not become a pass (it stays readable and waits for the "
