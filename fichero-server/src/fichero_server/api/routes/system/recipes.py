@@ -2732,8 +2732,6 @@ async def use_bakeoff_choice(
     undoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a
     project with no recipe."""
     from fichero_server.core.timeutil import utc_now_iso
-    from fichero_server.models import DocType, Document
-
     bakeoff, library = _bakeoff(), _library(db)
     try:
         table = bakeoff.result(db, library, bakeoff_id)
@@ -2742,10 +2740,8 @@ async def use_bakeoff_choice(
     card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that reader is not one Fichero has a card for")
-    if request.scope == "folder":
-        folder = db.get(Document, request.folder_id) if request.folder_id else None
-        if folder is None or folder.doc_type != DocType.folder:
-            raise HTTPException(status_code=422, detail=f"{request.folder_id} is not a folder in this project")
+    if request.scope == "folder":  # no run applies a folder override yet (source.recipe.per-folder): never store an inert one
+        raise HTTPException(status_code=422, detail="Use This applies to the whole project; per-folder choices aren't applied yet")
     setup = read_project_setup(library)
     try:
         recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,
