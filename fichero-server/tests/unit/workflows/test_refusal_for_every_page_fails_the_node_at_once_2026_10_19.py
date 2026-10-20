@@ -67,6 +67,20 @@ async def test_the_runs_own_language_refused_stops_the_pages_not_yet_started(tmp
 
 
 @pytest.mark.asyncio
+async def test_pages_queued_behind_one_slot_re_check_the_refusal_when_they_get_it(tmp_path, monkeypatch):
+    """With ONE slot every page after the first waits for it, having passed the check before the slot while no refusal
+    existed. The first page's refusal lands while they wait, so each re-checks inside the slot and does not try: exactly one
+    page is tried (M4, 2026-10-20: 26 of 26 tried before the re-check)."""
+    # The fan-out workflow's model is hosted, so its pages draw from the hosted pool: both pools are one slot.
+    monkeypatch.setattr("fichero_server.workflows.builder.VISION_FAN_OUT_CONCURRENCY", 1)
+    monkeypatch.setattr("fichero_server.workflows.builder.REMOTE_VISION_FAN_OUT_CONCURRENCY", 1)
+    monkeypatch.setattr("fichero_server.workflows.builder._remote_vision_sem", None)
+    calls, stopped = await _run(tmp_path, lambda n, kw: _failure(SPANISH, "run"))
+    assert stopped is not None and SPANISH in str(stopped)
+    assert len(calls) == 1, f"{len(calls)} of {PAGE_COUNT} pages tried; the ones queued for the slot must not"
+
+
+@pytest.mark.asyncio
 async def test_one_latin_page_refused_does_not_stop_the_spanish_pages(tmp_path):
     """The first page is Latin (its own language, refused); every other page is Spanish and reads."""
     def answer(n, kwargs):
