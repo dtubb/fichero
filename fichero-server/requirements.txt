@@ -61,7 +61,9 @@ websockets
 python-multipart>=0.0.31
 python-dotenv
 aiofiles
-aiohttp>=3.14.1
+aiohttp>=3.14.4
+pyjwt>=2.15.0
+urllib3>=2.8.0
 httpx
 iso639-lang  # ISO 639-3 language names: setup's language search (recipes/names.py, #5472)
 defusedxml
@@ -88,7 +90,7 @@ langchain-mistralai
 langchain-openrouter
 langchain-community
 langchain-mcp-adapters
-mcp>=1.28.1,<2
+mcp>=1.30.0,<2
 langgraph
 langchain-ollama
 
