@@ -435,8 +435,8 @@ _WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print)
 
 
 def choose_try_candidates(own: Any, fits: list[Any], frontier: list[Any], *, limit: int) -> tuple[list[Any], list[Any]]:
-    """The Try's default candidates, at most `limit`: the step's own card, then the best frontier reader (from the
-    person's provider rows, when pages may leave), then the finder's next local ones, then any more frontier ones.
+    """The Try's default candidates, at most `limit`: the step's own card, then the FIRST frontier reader listed (the
+    person's provider rows in their order, when pages may leave: nothing is measured yet, so none is ranked), then the finder's next local ones, then any more frontier ones.
     (chosen, the frontier readers left out for the limit): the limit stays three, and the recommendation says who was
     left out (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922)."""
     seen: set[str] = set()
@@ -465,16 +465,17 @@ def left_out_sentence(left_out: list[Any]) -> str | None:
     names = [str(c.note).strip().rstrip(".") or c.id for c in left_out]
     who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
     verb, them = ("was", "it") if len(names) == 1 else ("were", "them")
-    return f"{who} {verb} not tried: a Try compares three readers. Name {them} to try {them}."
+    return f"{who} {verb} not tried: a Try compares three readers. Tick {them} under Models for your pages to try {them}."
 
 
 def _frontier_cards(a: Any, job: str) -> list[Any]:
-    """The frontier readers the person's provider rows offer for this step's job: only when pages may leave
-    (`answers.cloud_allowed`), only those that can run, in the rows' order."""
+    """The frontier readers the person's provider rows offer for this step's job: only when pages may leave (the
+    project said yes AND the app allows the place: `places.may_leave_to`, `source.onboard.pages-may-leave`), only those
+    that can run, in the rows' order."""
     from fichero_server.recipes.assemble import _refusal
     from fichero_server.recipes.discovery import remote_reader_cards
 
-    if not a.cloud_allowed:
+    if not a.cloud_allowed:  # `Answers.cloud_allowed` is already `places.may_leave_to(answers, "cloud")` (`_answers`)
         return []
     return [c for c in remote_reader_cards() if job in c.jobs and c.runs_here and _refusal(job, c, a, a.material) is None]
 
