@@ -22,6 +22,9 @@ enum PairingCodeRenewal {
 
     /// Mints the replacement WITHOUT clearing the code on screen first: clearing it changes the key the waiting task
     /// is running under and cancels the very task doing the renewal (review 597, #5915).
+    /// Main-actor isolated: the card calls it from its view task with a mint closure over the main-actor
+    /// PairingService, so the closure never crosses an isolation boundary (Dev Embedded RegionIsolation red, a0d0cb252).
+    @MainActor
     static func renew(mint: () async throws -> PairingCodeRecord) async -> Outcome {
         do {
             let fresh = try await mint()
