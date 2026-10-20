@@ -139,3 +139,33 @@ def test_startup_warms_only_the_providers_the_person_has_set_up(monkeypatch):
     monkeypatch.setattr(providers, "get_provider_info", lambda t: NS(is_local=(t == "mlx")))
     main._warm_configured_provider_keys()
     assert warmed == [["openai"]]  # enabled and not on-device; the disabled and the local ones are not asked
+
+
+def test_an_unreadable_keychain_drops_the_old_found_answer(monkeypatch):
+    """#4534: the keychain locks after a key was read; the refresh says UNREADABLE and the old FOUND is not served on."""
+    from fichero_server.security.keychain import ProviderKeyState
+
+    _security(monkeypatch, [(0, "sk-1\n", ""), (36, "", "User interaction is not allowed.")])
+    assert keychain.lookup_api_key("openai").state is ProviderKeyState.FOUND
+    monkeypatch.setattr(keychain, "_LOOKUP_SECONDS", -1.0)  # the kept answer is stale
+    done = threading.Event()
+    real = keychain._read_api_key
+
+    def read(provider):
+        try:
+            return real(provider)
+        finally:
+            done.set()
+
+    monkeypatch.setattr(keychain, "_read_api_key", read)
+    assert keychain.lookup_api_key("openai").state is ProviderKeyState.FOUND  # the stale answer, served once
+    assert done.wait(10)
+    for _ in range(100):  # the refresh thread drops the entry just after the read returns
+        if "openai" not in keychain._LOOKUPS:
+            break
+        threading.Event().wait(0.02)
+    assert keychain.lookup_api_key("openai").state is ProviderKeyState.UNREADABLE
+
+
+def test_a_found_answer_is_kept_for_a_short_while_only():
+    assert keychain._LOOKUP_SECONDS <= 30.0

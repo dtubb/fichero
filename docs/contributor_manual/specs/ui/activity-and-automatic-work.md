@@ -697,8 +697,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` and, against the real graph (one model call, the run
   id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches), green on the M4 at `c7cc86d09` (REALGRAPH, 3-page stopped test included).
 - `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
-  `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
-  spawns no subprocess (a stale one is returned at once and re-read on a thread); a refusal is never kept; saving or deleting a key
+  `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 30 seconds, so a repeated lookup
+  spawns no subprocess (a stale one is returned at once and re-read on a thread; a key deleted outside the engine reads as found for
+  at most that long); a refusal is never kept, and when a re-read is refused the old answer is dropped, never served on (#4534); saving or deleting a key
   drops its entry, and a read begun before it never stores its old answer; at startup only the providers the person has set up (the
   app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
