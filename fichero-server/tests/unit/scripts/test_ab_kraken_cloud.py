@@ -232,6 +232,7 @@ def test_each_arm_text_lands_on_its_line_id_and_the_reference_is_the_strongest_f
     report = _free_run(tmp_path, ["kraken", "vision", "mlx:Qwen2.5-VL-7B"], readers)
     assert report["reference_arm"] == "mlx:Qwen2.5-VL-7B", "mlx is the strongest present"
     assert report["label"] == "model reference (mlx:Qwen2.5-VL-7B), not ground truth"
+    assert json.loads((tmp_path / "out" / "lines.json").read_text())["arms"] == ["kraken", "vision", "mlx:Qwen2.5-VL-7B"]
     by = {r["id"]: r for r in json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]}
     assert (by["1"]["kraken"], by["1"]["vision"], by["1"]["mlx:Qwen2.5-VL-7B"]) == ("mundo", "mundo", "mundo!")
     assert by["2"]["reference"] == "adiós" and report["cost"]["total"] == 0
