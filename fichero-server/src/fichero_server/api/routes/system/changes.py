@@ -48,6 +48,7 @@ async def stream_library_changes(
     subscription = _change_hub.connect(
         x_fichero_library_path,
         last_event_id=last_event_id,
+        device_id=getattr(getattr(request.state, "device", None), "id", None),
     )
     queue = subscription.queue
 
@@ -97,7 +98,10 @@ async def stream_library_changes(
                         # same tick the timeout fires; cancel() is then a no-op and the
                         # event would be dropped. Send it.
                         if queue_task.done() and not queue_task.cancelled():
-                            yield format_change_sse(queue_task.result())
+                            late = queue_task.result()
+                            yield format_change_sse(late)
+                            if late.type == "sharing.revoked":
+                                break
                         yield ": keepalive\n\n"
                         continue
                     for task in pending:
@@ -109,6 +113,8 @@ async def stream_library_changes(
                         break
                     event = queue_task.result()
                     yield format_change_sse(event)
+                    if event.type == "sharing.revoked":  # this device was removed: the stream ends (#5913)
+                        break
                 except asyncio.TimeoutError:
                     # Keepalive comment prevents idle-connection timeouts.
                     yield ": keepalive\n\n"
