@@ -2461,8 +2461,7 @@ Jobs and chains
   box | maker | confidence | text` and answers `<segment id> | <text>` with a flag per line (certain, uncertain,
   unreadable) and a short note; it never changes a line a person read; it leaves an uncertain line uncertain, keeping the
   machine's confidence (#5694), rather than inventing text; and a corrected line records which lens changed it. Builds
-  on `source.job.review-asks-one-answer-line-per-segment-id`, which asks for the ids; today the preset's prompts say
-  only "same line breaks" and think in text, not segments. *Test:* a stub that marks one line unreadable leaves it
+  on `source.job.review-asks-one-answer-line-per-segment-id`, which asks for the ids. *Test:* a stub that marks one line unreadable leaves it
   unchanged and flagged; a person's line is returned unchanged by the stub and untouched in the project.
 - `source.job.review-context-fits-the-model` — **[PARTIAL]** (#5648, ruled 2026-10-17) done: a pass of words never takes a page from a pass of read lines as the working pass; it ranks after the sound passes of lines and still leads where it is all there is (`PassCandidate.words_beside_read_lines`; `test_a_newer_pass_of_words_does_not_take_the_page_from_read_lines_5648`, `test_a_pass_of_words_is_still_the_working_pass_beside_lines_nobody_read_5648`); a model whose card states `prefill_tokens` is sent the page's lines in reading order up to what the prompt and the page image leave of it, and the prompt, the log and the step's notes say how many were left out (`test_a_page_over_the_models_budget_is_sent_the_lines_that_fit_and_told_what_was_left_out_5648`, `test_the_3b_mlx_reader_states_its_prefill_budget_5648`). Ruled 2026-10-17 (manager, on #5648; consistent with the 2026-09-28 ruling that word readings retire): a word pass whose words sit in lines is listed by line, each line's words joined, and a correction to such a line is written as a reading of the parent line, the words keeping their own readings; a word pass with no lines stays listed by word, capped by the budget. Built: `tool_context._grouped_into_lines` and `working_lines._as_lines` (`test_a_word_pass_is_listed_by_its_lines_5648`, `test_a_correction_to_a_grouped_line_is_a_reading_of_the_line_and_the_words_keep_theirs_5648`). Owed: the first-token wait scaling with the prompt (manager's call).
 - `source.job.review-uses-the-projects-names-and-places` — **[PARTIAL]** (#5725) done: every review step is given the project's verified names, places and organisations (`recipes/known_names.py`; rejected, merged, unreviewed entities and concepts are left out, the most corroborated 300 are listed and the rest counted) with every other name each carries, whatever prompt the node has (`test_a_reading_of_a_confirmed_names_variant_comes_back_in_the_confirmed_spelling_5725`, `test_only_what_a_person_confirmed_is_listed_with_every_other_name_it_carries_5725`, `test_a_graph_larger_than_the_limit_says_how_many_are_left_out_5725`). Owed: the gazetteer's places beyond graph entities; the reference search over the graph and the corrected pages; names the review confirms going back to the graph; the disagreement view. The review is given the project's
@@ -2695,7 +2694,7 @@ The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; 
   the research web tools (the agent's queries), and the copy to another Mac (`transfer/machines.client`). A refusal is in words
   (403 for a route; a lookup that degrades, geocoding and DOI/ISBN, returns nothing and says why in the log). Pinned by
   `fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`: an AST scan of every function in the package that opens a
-  connection (httpx, aiohttp, requests, urllib) fails unless it is gated or listed in `ALLOWED` with its reason (Fichero's own
+  connection (httpx, aiohttp, requests, urllib) fails unless the gate (`check_egress` / `_enforce_local_only_provider`) is CALLED in it before its first network call, or it is listed in `ALLOWED` with its reason (Fichero's own
   fetches, API keys sent to the provider the person set up, the source being imported, a server on this Mac), and fails again when a
   listed one becomes gated or goes. Allowing another Mac does not open the cloud, and the reverse. Embeddings run in fastembed on this
   Mac; no cloud embeddings client exists. LIMIT: the scan sees the listed call shapes; a client reached through a new library
@@ -2741,7 +2740,7 @@ Projects
   a part left out (the answers, or the recipe) is kept as it was, and a part sent as null is removed.
   The route's description says so. An agent onboarding a project saved its recipe alone and lost
   the answers it had saved a step before. Through MCP a part is sent only when given (the generated tool
-  drops an argument left None), so the tool keeps what it is not given and cannot remove a part.
+  drops an argument left None), so the tool keeps what it is not given and cannot remove a part (`fichero-mcp/tests/test_save_project_setup_sends_only_what_is_given.py`).
   M4 PASS 2026-10-20 c979508a5: test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py, test_setup_through_mcp_edges.py (10 passed). (Red at 9707dcc83 for a stale test, not the engine: the test took `with_material` on top of its own pages, one page too many (#5813 fixture, 563753cc4).)
 - `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a
   folder in the one cascade; a folder can override them; a shown value says which level it came from.
@@ -2785,7 +2784,7 @@ Projects
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
   account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
   ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
-  M4 PASS 2026-10-20 c979508a5: test_recipe_batches_to_spec.py, test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py (12 passed). (Red at 9707dcc83 for a stale test, not the engine: two batch tests assumed creation order; a run reads in Finder order with pages in no folder first (#5849, f51a53535).)
+  M4 PASS 2026-10-20 c979508a5: test_recipe_batches_to_spec.py (10 passed) and the earlier two tests of test_a_step_with_no_job_does_not_borrow_a_download_2026_10_20.py. Added since (review 456 item 2), unrun until the tester slots them: that file's `[regions|prepare|embed|table]` cases and `::test_a_run_still_waiting_says_what_it_waits_for`. (Red at 9707dcc83 for a stale test, not the engine: two batch tests assumed creation order; a run reads in Finder order with pages in no folder first (#5849, f51a53535).)
 - `source.recipe.folder-scoped-start` — **[PARTIAL]** (#5540; the engine is done and tested, the app is not yet seen in a build and Set Up… shows the whole project's plan, not the folder's; built 2026-10-10: `folder_id` on `GET|POST
   /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
   tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before
