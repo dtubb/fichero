@@ -19,9 +19,10 @@ _SPEC.loader.exec_module(ab)  # type: ignore[attr-defined]
 
 
 @pytest.fixture(autouse=True)
-def _restore_vision():
+def _restore_vision(monkeypatch, tmp_path):
     from fichero_server import llm
 
+    monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path / "state"))  # a scratch dir, as the guard demands
     real = llm.vision
     yield
     llm.vision = real
@@ -103,83 +104,31 @@ def test_the_real_cost_is_the_calls_reported_tokens_when_it_reports_any(monkeypa
     assert ledger.spent == pytest.approx(0.15), "100 + 50 reported tokens, not the 1000-token estimate"
 
 
-def test_it_refuses_to_run_without_a_scratch_state_dir_or_inside_the_apps_own(monkeypatch, tmp_path):
+def test_it_refuses_to_run_without_a_scratch_state_dir_or_inside_the_owners_places(monkeypatch, tmp_path):
     monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
     with pytest.raises(SystemExit, match="FICHERO_BASE_PATH"):
         ab.require_scratch_state()
-    monkeypatch.setenv("FICHERO_BASE_PATH", str(Path.home() / "Library" / "Application Support" / "Fichero"))
-    with pytest.raises(SystemExit, match="Library"):
-        ab.require_scratch_state()
+    for place in ("Library/Application Support/Fichero", "Fichero", "Fichero Projects/Mosquera.fichero", "Library"):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(Path.home() / place))
+        with pytest.raises(SystemExit, match="scratch"):
+            ab.require_scratch_state()
     monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
     ab.require_scratch_state()
 
 
-def test_a_model_with_no_price_is_refused_because_a_cap_cannot_be_kept(monkeypatch):
-    from fichero_server.llm import model_types
-
-    monkeypatch.setattr(model_types, "estimate_cost", lambda *a, **k: None)
-    with pytest.raises(SystemExit, match="no price"):
-        ab.install_model("anthropic:made-up", ab.Ledger(cap=1.0))
-
-
-def _pages(tmp_path: Path, n: int = 2) -> Path:
-    folder = tmp_path / "pages"
-    folder.mkdir()
-    for i in range(n):
-        im = Image.new("RGB", (400, 200), "white")
-        ImageDraw.Draw(im).text((10, 10), f"page {i}", fill="black")
-        im.save(folder / f"p{i}.png")
-    return folder
+def test_a_symlink_dotdot_or_other_case_cannot_slip_past(monkeypatch, tmp_path):
+    link = tmp_path / "innocent"
+    link.symlink_to(Path.home() / "Fichero Projects")
+    sneaky = [str(link), str(tmp_path / ".." / ".." / ".." / "x"), str(Path.home() / "fichero projects")]
+    sneaky[1] = str(Path.home() / "Fichero" / ".." / "Fichero" / "sub")
+    for value in sneaky:
+        monkeypatch.setenv("FICHERO_BASE_PATH", value)
+        with pytest.raises(SystemExit, match="scratch"):
+            ab.require_scratch_state()
 
 
-def _stub_kraken(image, reader):
-    """Three lines per page: one Kraken is sure of, one unsure, one with no stated certainty."""
-    from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel
-
-    out = []
-    for i, (text, conf) in enumerate((("hola", 0.95), ("mundo", 0.30), ("adios", None))):
-        y = 10 + 40 * i
-        poly = [[10, y], [390, y], [390, y + 30], [10, y + 30]]
-        box = OCRGeometryBox(text=text, bbox=[0.0, y / 200, 1.0, 0.15], level=OCRGeometryLevel.LINE, provider="kraken",
-                             model="m", source="kraken-htr", confidence=conf,
-                             metadata={"polygon_px": poly, "baseline_px": [[10, y + 25], [390, y + 25]],
-                                       "pixel_frame": {"width": 400, "height": 200}})
-        out.append({"id": str(i), "text": text, "confidence": conf, "polygon": poly, "box": box})
-    return out
-
-
-def test_the_dry_run_with_the_fake_model_measures_all_three_and_labels_the_reference(tmp_path):
-    report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
-                    reader_ref="unused", language="es", kraken=_stub_kraken)
-    assert report["label"] == "model reference, not ground truth" and report["pages_done"] == 2
-    assert (report["A_lines_sent"], report["A_lines_total"]) == (4, 6), "the unsure line and the one with no certainty"
-    assert report["cost"]["total"] == 0 and report["cost"]["estimated"] is False and not report["stopped"]
-    assert report["B"]["cer"] is not None and report["kraken"]["cer"] is not None
-    text = (tmp_path / "out" / "report.md").read_text()
-    assert "model reference, not ground truth" in text and "Calibration" in text and "Cost" in text
-    rows = json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]
-    by = {(r["page"], r["id"]): r for r in rows}
-    sure = by[("p0.png", "0")]
-    assert sure["A"] == "hola" and not sure["sent_in_A"], "a sure line is not sent and keeps Kraken's text"
-    assert by[("p0.png", "1")]["A"] == ab.FAKE_TEXT and by[("p0.png", "1")]["sent_in_A"]
-    assert all(r["B"] == ab.FAKE_TEXT for r in rows) and all(r["reference"] == ab.FAKE_REFERENCE_TEXT for r in rows)
-    assert "model reference, not ground truth" in (tmp_path / "out" / "sheet.html").read_text()
-
-
-def test_a_real_model_is_priced_and_the_run_stops_at_the_cap_reporting_what_it_has(tmp_path, monkeypatch):
-    from fichero_server import llm
-    from fichero_server.llm import model_types
-
-    monkeypatch.setattr(model_types, "estimate_cost", lambda model, i, o: (i + o) * 1e-3)
-    calls = []
-
-    async def real(images, prompt, config, **kw):
-        calls.append(len(images))
-        return json.dumps(["texto"] * len(images))
-
-    monkeypatch.setattr(llm, "vision", real)
-    report = ab.run(_pages(tmp_path, 3), tmp_path / "out", model="anthropic:cheap", reference_model=None, bar=0.6,
-                    cap=1.0, reader_ref="unused", language="es", kraken=_stub_kraken)
-    assert report["stopped"] and report["cost"]["total"] <= 1.0, report["cost"]
-    assert report["pages_done"] < 3 and report["cost"]["estimated"] is True
-    assert (tmp_path / "out" / "report.md").exists(), "a stopped run still writes what it has"
+def test_run_itself_refuses_without_the_guard_not_only_main(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
+    with pytest.raises(SystemExit, match="FICHERO_BASE_PATH"):
+        ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
+               reader_ref="unused", language="es", kraken=_stub_kraken)

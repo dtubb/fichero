@@ -276,6 +276,7 @@ async def reading_unsure(image: Path, lines: list[dict], config, language: str |
 
 def run(pages: Path, out: Path, *, model: str, reference_model: str | None, bar: float, cap: float,
         reader_ref: str, language: str | None, kraken=kraken_lines) -> dict:
+    require_scratch_state()  # every entry that reads a Kraken reader or calls a model, not only main()
     ledger = Ledger(cap=cap)
     images = sorted(p for p in pages.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
     if not images:
@@ -392,16 +393,25 @@ def _sheet_html(shown: list[dict], r: dict) -> str:
             f"{body}</table>")
 
 
+#: Where the app and the owner keep their own things, under the home directory: never a scratch directory.
+OWNER_PLACES = ("Library", "Fichero", "Fichero Projects")
+
+
 def require_scratch_state() -> None:
-    """Refuse to run unless FICHERO_BASE_PATH names a scratch directory, never the app's own state."""
+    """Refuse to run unless FICHERO_BASE_PATH names a scratch directory: not the app's state (~/Library) and not where
+    the owner's projects live (~/Fichero, ~/Fichero Projects), nor inside any of them. Compared after resolve(), so a
+    symlink or `..` cannot slip past, and without regard to case (macOS volumes ignore it)."""
     import os
 
     base = os.environ.get("FICHERO_BASE_PATH", "").strip()
     if not base:
         raise SystemExit("set FICHERO_BASE_PATH to a scratch directory holding kraken-models (a copy of the seeded reader)")
     resolved = Path(base).expanduser().resolve()
-    if (Path.home() / "Library") in (resolved, *resolved.parents):
-        raise SystemExit(f"FICHERO_BASE_PATH={base} is under ~/Library, where the app keeps its own state: use a scratch directory")
+    here = [str(q).casefold() for q in (resolved, *resolved.parents)]
+    for place in OWNER_PLACES:
+        if str((Path.home() / place).resolve()).casefold() in here:
+            raise SystemExit(f"FICHERO_BASE_PATH={base} is in ~/{place}, where the app or the owner keeps their own "
+                             "things: use a scratch directory")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -415,7 +425,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--reader", default=None, help="the Kraken reader (a catalogue id or a .mlmodel path)")
     ap.add_argument("--language", default="es")
     args = ap.parse_args(argv)
-    require_scratch_state()
     reader = args.reader
     if reader is None:
         from fichero_server.recipes.cards import kraken_reader_for
