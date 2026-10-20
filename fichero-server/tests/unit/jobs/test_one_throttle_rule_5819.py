@@ -11,6 +11,14 @@ import re
 import threading
 import time
 from pathlib import Path
+import importlib.util
+
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location(
+    "_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 from types import SimpleNamespace
 
 import pytest
@@ -73,7 +81,7 @@ def test_every_caller_gives_the_same_hold_slow_or_fast_answer(mac, monkeypatch, 
 
     monkeypatch.setattr(regions.time, "sleep", sleep)
     db = SimpleNamespace(path=tmp_path / "lib" / "x.duckdb",
-                         get=lambda *_a: SimpleNamespace(path=str(tmp_path / "none.jpg"), id="d", name="n"))
+                         get=lambda *_a: SimpleNamespace(path=str(tmp_path / "none.jpg"), id="d", name="n", metadata={}))
     regions.find_regions(db, ["a", "b"], "run", "m", provider="yolo", say=lambda _w: None)
     if action == "go":
         assert sleeps == []
@@ -88,7 +96,7 @@ def test_no_module_but_the_throttle_reads_a_probe_itself():
     probe = re.compile(r"\b(?:throttle\.)?(on_battery|a_build_is_running|mac_is_in_use|memory_is_tight|mac_is_hot)\(")
     root = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
     offenders = []
-    for path in root.rglob("*.py"):
+    for path in scan_files.scan_rglob(root, "*.py"):
         if path.name == "throttle.py":
             continue
         for number, line in enumerate(path.read_text().splitlines(), 1):
@@ -180,7 +188,7 @@ def test_every_literal_started_by_in_the_engine_is_decided_as_background_or_a_pe
     literal = re.compile(r"started_by\s*[=:]\s*(?:str\s*=\s*)?[\"']([a-z][a-z _-]*)[\"']")
     decided = set(jobs.BACKGROUND_STARTERS) | set(jobs.PERSON_STARTERS)
     found = {}
-    for path in root.rglob("*.py"):
+    for path in scan_files.scan_rglob(root, "*.py"):
         for number, line in enumerate(path.read_text().splitlines(), 1):
             for who in literal.findall(line):
                 found.setdefault(who, f"{path.relative_to(root)}:{number}")
