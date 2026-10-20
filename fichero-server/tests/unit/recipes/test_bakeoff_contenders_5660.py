@@ -73,6 +73,7 @@ def test_each_kind_takes_part_two_at_most_and_no_fixed_ranking(app_db, apple_her
 
 def test_without_apple_vision_it_is_listed_with_why(app_db, monkeypatch):
     monkeypatch.setattr(evaluation, "apple_vision_here", lambda: False)
+    monkeypatch.setattr(evaluation, "apple_vision_warming_up", lambda: False)  # else: "still starting up" (not asked yet)
     assert _named()[APPLE]["not_scored"] == "Apple Vision's text recognition is not available on this Mac"
 
 

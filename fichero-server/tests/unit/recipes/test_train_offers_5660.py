@@ -54,7 +54,7 @@ def test_a_project_that_keeps_its_pages_here_is_offered_only_this_mac():
     that runs only there says why it is not available."""
     (_, read, _) = (_ways(o) for o in train_offers(RECIPE, NONE, stays_local=True))
     assert [t["place"] for t in read["kraken"]["targets"]] == ["this-mac"]
-    assert read["mlx-vision-lora"]["available"] is False and "keeps its pages on this Mac" in read["mlx-vision-lora"]["why"]
+    assert read["mlx-vision-lora"]["available"] is False and "Your pages stay on this Mac" in read["mlx-vision-lora"]["why"]
 
 
 def test_it_says_how_many_more_corrected_lines_and_pages_it_needs():
