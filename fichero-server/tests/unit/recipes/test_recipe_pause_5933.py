@@ -41,7 +41,7 @@ def test_pause_on_a_running_recipe_row_pauses_the_recipe_and_its_step_run_and_sa
 def test_resume_on_the_recipe_row_lets_it_go_on_and_resumes_the_step_run(db, monkeypatch):
     recipe, child = _running_recipe_with_a_step_run(db)
     resumed: list[str] = []
-    monkeypatch.setattr(runner, "_resume_step_run", lambda database, thread: resumed.append(thread))
+    monkeypatch.setattr(runner, "_resume_step_run", lambda database, thread, recipe=None: resumed.append(thread))
     jobs.pause_job(db, recipe, True)
     db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [child])  # the step's run has reached its pause
     state = jobs.pause_job(db, recipe, False)
@@ -51,35 +51,74 @@ def test_resume_on_the_recipe_row_lets_it_go_on_and_resumes_the_step_run(db, mon
     clear_pause(child)
 
 
-def test_a_paused_step_run_is_waited_for_never_failed(monkeypatch):
-    from fichero_server.api.routes.workflow import chains
-
-    answers = iter([("paused", None), ("paused", None), ("completed", None)])
-    monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: next(answers))
-    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
-    monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
-    assert runner._settled_outcome("thread-1", "recipe-1") == ("completed", None)
-
-
-def test_a_stop_on_the_recipe_ends_the_wait_for_a_paused_step(monkeypatch):
+def test_a_paused_step_run_parks_the_recipe_never_failed(monkeypatch):
     from fichero_server.api.routes.workflow import chains
 
     monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: ("paused", None))
-    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
+    with pytest.raises(runner.ParkedOnStepRun) as parked:
+        runner._settled_outcome("thread-1", "recipe-1")
+    assert parked.value.thread_id == "thread-1"
+
+
+def test_a_stop_on_the_recipe_does_not_park_it(monkeypatch):
+    from fichero_server.api.routes.workflow import chains
+
+    monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: ("paused", None))
     monkeypatch.setattr(runner, "_stop_asked", lambda job: True)
     assert runner._settled_outcome("thread-1", "recipe-1")[0] == "paused"  # the caller's Stop turns it into "Stopped by you"
 
 
-def test_a_joined_run_that_pauses_is_waited_for_too(monkeypatch):
+def test_a_joined_run_that_pauses_parks_the_recipe_too(monkeypatch):
     from fichero_server.api.routes.workflow import chains
     from fichero_server.execution import runner as engine_runner
 
-    answers = iter([("running", None), ("paused", None), ("running", None), ("completed", None), ("completed", None)])
+    answers = iter([("running", None), ("paused", None), ("paused", None)])
     monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: next(answers))
     monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
     monkeypatch.setattr(engine_runner, "_get_workflow_state", lambda thread: {"workflow_name": "Read"})
-    assert runner._join_live_run("live-1", "recipe-1")[1] == "done"
+    with pytest.raises(runner.ParkedOnStepRun):
+        runner._join_live_run("live-1", "recipe-1")
+
+
+def test_parking_frees_the_lane_the_row_goes_back_to_waiting_and_remembers_the_run(db):
+    """## 656: a second recipe is not blocked by the first one's pause: the first raises JobDeferred (its row waits, off the lane)."""
+    import json
+
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "park-test")
+    detail = {"runs": []}
+    with pytest.raises(jobs.JobDeferred):
+        runner._park(db, recipe, detail, {"id": "read"}, "thread-9")
+    row = jobs.read_job(db, recipe)
+    assert json.loads(row["detail"])["awaiting"] == {"card": "read", "child": "thread-9"}
+    assert row["reason"] == "Paused with its run"
+
+
+def test_taking_up_a_parked_recipe_adopts_its_run_still_paused_it_parks_again_ended_it_goes_on(monkeypatch):
+    from fichero_server.api.routes.workflow import chains
+
+    monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
+    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: ("paused", None))
+    with pytest.raises(runner.ParkedOnStepRun):
+        runner._run_workflow(None, {}, [], "recipe-1", adopt="thread-9")  # still paused: park again, start nothing new
+    monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: ("completed", None))
+    assert runner._run_workflow(None, {}, [], "recipe-1", adopt="thread-9") == ("thread-9", "done", None)
+
+
+def test_a_stop_on_a_parked_recipe_ends_it_now_and_stops_its_step_run(db, monkeypatch):
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "stop-parked")
+    child = jobs.enqueue(db, "workflow", "thread-9")
+    jobs.set_parent(db, child, recipe)
+    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [child])
+    stopped: list[str] = []
+    monkeypatch.setattr(jobs, "cancel_job", lambda database, job_id: stopped.append(job_id) or "cancelled")
+    assert runner.request_cancel(db, recipe) == "cancelled"
+    assert jobs.read_job(db, recipe)["state"] == "cancelled"
+    assert stopped == [child]
 
 
 @pytest.mark.asyncio
