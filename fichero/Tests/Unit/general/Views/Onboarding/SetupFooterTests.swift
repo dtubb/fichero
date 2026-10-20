@@ -101,7 +101,7 @@ struct SetupFooterTests {
         #expect(WhatFicheroRuns.places[0].body.hasPrefix("Free and private: your pages never leave this Mac."))
         for link in ["https://kraken.re", "https://developer.apple.com/documentation/vision",
                      "https://huggingface.co/models", "https://github.com/ml-explore/mlx"] {
-            #expect(WhatFicheroRuns.places[0].body.contains("(\(link))"), link)
+            #expect(WhatFicheroRuns.places[0].body.contains("(\(link))"), "\(link)")
         }
         #expect(WhatFicheroRuns.places[2].body.hasSuffix("says what it will cost."))
         #expect(WhatFicheroRuns.footnote == "You can change this later in Settings, and for each project.")
