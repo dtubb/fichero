@@ -1,0 +1,35 @@
+import FicheroAPIClient
+
+/// The reading candidates grouped by tier (`source.recipe.reader-tiers`): specialist line readers, then small vision
+/// models on this Mac, then general models. The engine's order is kept inside a group, and the person's choice and a
+/// measured result stay first inside theirs. A list with no tiers (another job's) is one group with no heading.
+enum ModelFinderTiers {
+    struct Group: Equatable {
+        /// The tier in the engine's words, or nil for the one ungrouped list.
+        let title: String?
+        let candidates: [Components.Schemas.ModelCandidate]
+
+        static func == (lhs: Group, rhs: Group) -> Bool {
+            lhs.title == rhs.title && lhs.candidates.map(\.id) == rhs.candidates.map(\.id)
+        }
+    }
+
+    /// The order the tiers are shown in.
+    static let order = ["specialist", "small-vlm", "general"]
+
+    static func groups(_ candidates: [Components.Schemas.ModelCandidate]) -> [Group] {
+        guard candidates.contains(where: { $0.tier != nil }) else {
+            return candidates.isEmpty ? [] : [Group(title: nil, candidates: candidates)]
+        }
+        var out: [Group] = []
+        for tier in order {
+            let inTier = candidates.filter { $0.tier == tier }
+            if let first = inTier.first {
+                out.append(Group(title: first.tierWords, candidates: inTier))
+            }
+        }
+        let untiered = candidates.filter { $0.tier == nil || !order.contains($0.tier ?? "") }
+        if !untiered.isEmpty { out.append(Group(title: nil, candidates: untiered)) }
+        return out
+    }
+}
