@@ -53,3 +53,10 @@ def test_a_hugging_face_timeout_is_said_in_words():
 
     assert hf_error_words(ReadTimeout()) == "Could not reach Hugging Face: it did not answer in time."
     assert "Hugging Face" in hf_error_words(RuntimeError("boom")) and "boom" in hf_error_words(RuntimeError("boom"))
+
+
+def test_the_row_says_how_long_a_download_has_been_going():
+    assert model_downloads.progress_words("the reader", 0, 63_000_000, 23.4) == "Downloading the reader, 23 s in"
+    assert model_downloads.progress_words("the reader", 8_800_000, 63_000_000, 12) == (
+        "Downloading the reader: 8.8 MB of 63.0 MB, 12 s in")
+    assert model_downloads.progress_words("the reader", 0, None) == "Downloading the reader"
