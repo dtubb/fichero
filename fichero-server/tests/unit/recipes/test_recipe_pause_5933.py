@@ -166,9 +166,12 @@ def test_the_between_steps_pause_says_so_660(db):
         clear_pause(recipe)
 
 
-def test_resume_on_a_parked_recipe_whose_step_run_is_gone_says_so_and_does_not_500_663(db):
+def test_resume_on_a_parked_recipe_whose_step_run_is_gone_says_so_and_does_not_500_663(db, monkeypatch):
     import json
 
+    from fichero_server.execution import runner as engine_runner
+
+    monkeypatch.setattr(engine_runner, "_get_workflow_state", lambda thread: None)  # the run's state is gone too
     runner.register_job_kinds()
     recipe = jobs.enqueue(db, runner.KIND, "resume-gone")
     db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps({"awaiting": {"card": "read", "child": "no-such-run"}}), recipe])
@@ -176,3 +179,19 @@ def test_resume_on_a_parked_recipe_whose_step_run_is_gone_says_so_and_does_not_5
     row = jobs.read_job(db, recipe)
     assert "awaiting" not in json.loads(row["detail"])
     assert "step run is gone" in row["reason"]
+
+
+def test_a_cleared_job_row_is_not_a_cleared_run_the_retake_adopts_it_666(db, monkeypatch):
+    """## 666: the job row is gone but the run finished: 'awaiting' is kept so the retake adopts the run's outcome, never reads again."""
+    import json
+
+    from fichero_server.execution import runner as engine_runner
+
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "cleared-row")
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps({"awaiting": {"card": "read", "child": "done-run"}}), recipe])
+    monkeypatch.setattr(engine_runner, "_get_workflow_state", lambda thread: {"status": "completed"})
+    jobs.pause_job(db, recipe, False)  # must not raise
+    assert json.loads(jobs.read_job(db, recipe)["detail"])["awaiting"]["child"] == "done-run"
+    monkeypatch.setattr("fichero_server.api.routes.workflow.chains._step_run_outcome", lambda thread: ("completed", None))
+    assert runner._adopt_step_run("done-run", recipe) == ("done-run", "done", None)
