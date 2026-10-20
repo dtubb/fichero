@@ -19,7 +19,7 @@ def _page(db, lines: int, read: int) -> str:
     pas = SegmentPass(document_id=doc.id, name="lines", provenance_kind=ProvenanceKind.workflow)
     db.save(pas)
     for i in range(lines):
-        anchor = SourceAnchor(document_id=doc.id, rect=[0.1, 0.05 * i, 0.6, 0.04])
+        anchor = SourceAnchor(document_id=doc.id, rect=[0.1, 0.9 * i / lines, 0.6, 0.5 / lines])
         x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
         seg = Segment(document_id=doc.id, pass_id=pas.id, kind="line", anchor=anchor, bbox_x=x, bbox_y=y,
                       bbox_w=w, bbox_h=h, tile=tile, doc_kind=f"{doc.id}:line",
