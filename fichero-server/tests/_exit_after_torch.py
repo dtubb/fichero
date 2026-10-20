@@ -12,6 +12,8 @@ import logging
 import os
 import sys
 
+import pytest
+
 _status: int | None = None
 
 
@@ -57,3 +59,21 @@ def leave(config=None) -> None:
         except Exception:  # noqa: BLE001 -- a closed pipe
             pass
     os._exit(_status)
+
+
+class Plugin:
+    """The two hooks as a registered plugin: pytest only reads a hook from a module or conftest if its name starts with
+    `pytest_` (a `specname` on another name is ignored there), so an object registered with `register` is the way to
+    have `remember` run last at sessionfinish and `leave` last at unconfigure."""
+
+    @pytest.hookimpl(trylast=True)
+    def pytest_sessionfinish(self, session, exitstatus):  # noqa: ARG002
+        remember(session)
+
+    @pytest.hookimpl(trylast=True)
+    def pytest_unconfigure(self, config):
+        leave(config)
+
+
+def register(config) -> None:
+    config.pluginmanager.register(Plugin(), "exit-after-torch-5903")
