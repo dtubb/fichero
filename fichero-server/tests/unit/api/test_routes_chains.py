@@ -178,6 +178,9 @@ class TestExecuteChain:
             r = client.post(f"/api/chains/{created.json()['id']}/execute", json={"inputs": {}, "input_files": []},
                             headers=LIB_HEADER)
             assert r.status_code == 422 and "does not apply" in r.json()["detail"], r.text
+            sibling = client.post(f"/api/chains/{created.json()['id']}/execute-steps", json={"inputs": {}},
+                                  headers=LIB_HEADER)  # /execute-steps starts the same way: refused the same way
+            assert sibling.status_code == 422 and "does not apply" in sibling.json()["detail"], sibling.text
 
     def test_execute_missing_chain_returns_404(self, client):
         r = client.post(

@@ -242,7 +242,10 @@ def _live(refs: list[Any]) -> Any:
             conn.cursor().execute("SELECT 1")
             return conn
         except Exception as exc:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
-            _last_probe_error["error"] = f"{type(exc).__name__}: {exc}"  # kept for diagnostics: a probe that fails is seen
+            said = f"{type(exc).__name__}: {exc}"
+            if _last_probe_error.get("error") != said:  # said once per kind of failure, not on every rebalance
+                logger.warning("A DuckDB instance no longer answers (treated as closed): %s", said)
+            _last_probe_error["error"] = said
             continue
     return None
 
