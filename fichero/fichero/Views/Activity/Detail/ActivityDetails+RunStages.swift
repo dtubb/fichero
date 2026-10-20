@@ -42,7 +42,7 @@ enum SetupStages {
 
 /// Where a stage of a recipe run got to (#5670).
 enum ActivityStageCardState: Equatable {
-    case done, running, waiting, notRun, skipped, failed
+    case done, partial, running, waiting, notRun, skipped, failed
 }
 
 extension ActivityDetails {
@@ -68,6 +68,7 @@ extension ActivityDetails {
         var stateWords: String {
             switch state {
             case .done: "Done"
+            case .partial: "Partial"
             case .running: "Running"
             case .waiting: "Waiting"
             case .notRun: "Not run"
@@ -93,7 +94,7 @@ extension ActivityDetails {
             let failedStage = summary?.failed.first { failure in runs.contains { $0.childId == failure.threadId } }
             let why: String? = switch state {
             case .skipped: skipped.first.map { Self.oneSentence($0.why) }
-            case .notRun, .failed: runs.compactMap(\.why).first.map(Self.oneSentence)
+            case .notRun, .failed, .partial: runs.compactMap(\.why).first.map(Self.oneSentence)
             default: nil
             }
             return StageCard(
@@ -115,6 +116,7 @@ extension ActivityDetails {
         if states.contains("failed") { return .failed }
         if states.contains("running") { return .running }
         if states.contains("waiting") { return .waiting }
+        if states.contains("partial") { return .partial }  // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
         if states.contains(where: { $0 == "not run" || $0 == "cancelled" }) { return .notRun }
         return .done
     }

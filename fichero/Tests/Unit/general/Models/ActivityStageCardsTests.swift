@@ -16,7 +16,8 @@ struct ActivityStageCardsTests {
      "stages":[
        {"steps":["prepare-the-image"],"card":"workflow","state":"done","child_id":"w0",
         "account":{"state":"done","pages_total":92,"pages_done":92}},
-       {"steps":["find-lines","read-a-line"],"card":"workflow","state":"done","child_id":"w1",
+       {"steps":["find-lines","read-a-line"],"card":"workflow","state":"partial","child_id":"w1",
+        "why":"91 of 92 pages done; 1 failed: IMG_001: Kraken could not read its lines",
         "account":{"state":"done","pages_total":92,"pages_done":91,"pages_failed":1}},
        {"steps":["find-names-tag-words","work-out-dates"],"card":"workflow","state":"done","child_id":"w2",
         "account":{"state":"done","pages_total":92,"pages_done":92}}],
@@ -56,7 +57,8 @@ struct ActivityStageCardsTests {
     func whatEachMade() throws {
         let cards = Dictionary(uniqueKeysWithValues: try Self.cards().map { ($0.id, $0) })
         let read = try #require(cards["read"])
-        #expect(read.state == .done && read.stateWords == "Done")
+        #expect(read.state == .partial && read.stateWords == "Partial", "a stage that lost a page is never Done")
+        #expect(read.why == "91 of 92 pages done; 1 failed: IMG_001: Kraken could not read its lines.")
         #expect(read.done == 91 && read.total == 92, "the bar is the stage's own pages")
         #expect(read.made == ["Read 91 of 92 pages"])
         #expect(read.failed?.text == "1 page failed" && read.failed?.offer == "Read Again")
