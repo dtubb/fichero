@@ -136,26 +136,11 @@ def test_the_idle_release_never_frees_a_model_while_a_page_runs():
     assert "read" not in kr._RESIDENT
 
 
-def _sysctl(monkeypatch, **values):
-    """A Mac's hw.* values, by name (a name not given does not exist there, as on an Intel Mac)."""
-    monkeypatch.setattr(kr, "_sysctl_int", lambda name: values.get(name))
+def _cores(monkeypatch, n, source="mac-performance-cores"):
+    """The machine this run is on, as `core.cores.cores_available` reports it."""
+    from fichero_server.core import cores
 
-
-@pytest.mark.parametrize("sysctl, expected", [
-    ({"hw.perflevel0.physicalcpu": 4, "hw.physicalcpu": 8}, 4),     # an M1/M4 Air or an M1 Pro-class laptop
-    ({"hw.perflevel0.physicalcpu": 10, "hw.physicalcpu": 14}, 10),  # a Pro with ten performance cores
-    ({"hw.physicalcpu": 8}, 4),                                      # Intel: no performance levels, half the physical cores
-    ({"hw.physicalcpu": 2}, 1),
-    ({"hw.perflevel0.physicalcpu": 0, "hw.physicalcpu": 6}, 3),      # a level that reads zero is no level
-    ({}, max(1, (kr.os.cpu_count() or 2) // 2)),                     # nothing readable: half the logical cores
-    ({"hw.perflevel0.physicalcpu": -1, "hw.physicalcpu": 8}, 4),     # a negative level is no level
-    ({"hw.perflevel0.physicalcpu": None, "hw.physicalcpu": 8}, 4),
-    ({"hw.physicalcpu": -4}, max(1, (kr.os.cpu_count() or 2) // 2)),  # a negative or zero count is no count
-    ({"hw.physicalcpu": 0}, max(1, (kr.os.cpu_count() or 2) // 2)),
-])
-def test_pages_at_once_is_the_performance_cores_else_half_the_physical_ones_never_below_one(monkeypatch, sysctl, expected):
-    _sysctl(monkeypatch, **sysctl)
-    assert kr.performance_cores() == expected >= 1
+    monkeypatch.setattr(cores, "cores_available", lambda: (n, source))
 
 
 @pytest.mark.parametrize("priority, perf_cores, memory_gib, expected", [
@@ -171,8 +156,19 @@ def test_only_a_fast_run_reads_a_page_per_performance_core_held_down_by_the_free
 
     monkeypatch.setattr(compute_preferences, "priority_for", lambda person: priority)
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: memory_gib * GIB)
-    _sysctl(monkeypatch, **{"hw.perflevel0.physicalcpu": perf_cores, "hw.physicalcpu": perf_cores + 4})
+    _cores(monkeypatch, perf_cores)
     assert kr.pages_at_once(person=True) == expected
+
+
+@pytest.mark.parametrize("source", ["slurm", "cgroup", "affinity", "none"])
+def test_a_cluster_task_or_a_container_reads_one_page_pipeline(monkeypatch, source):
+    """Parallelism there is array tasks, not pages side by side (`source.read.threads-fit-the-machine`)."""
+    from fichero_server.core import compute_preferences
+
+    monkeypatch.setattr(compute_preferences, "priority_for", lambda person: "fast")
+    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 64 * GIB)
+    _cores(monkeypatch, 16, source)
+    assert kr.pages_at_once(person=True) == 1
 
 
 def test_a_small_mac_reads_one_page_whatever_the_priority(monkeypatch):
@@ -180,7 +176,7 @@ def test_a_small_mac_reads_one_page_whatever_the_priority(monkeypatch):
 
     monkeypatch.setattr(compute_preferences, "priority_for", lambda person: "fast")
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 4 * GIB)  # an 8 GB Mac with the system's share used
-    _sysctl(monkeypatch, **{"hw.perflevel0.physicalcpu": 4, "hw.physicalcpu": 8})
+    _cores(monkeypatch, 4)
     assert kr.pages_at_once(person=True) == 1
 
 
@@ -189,19 +185,8 @@ def test_unknown_memory_reads_one_page(monkeypatch):
 
     monkeypatch.setattr(compute_preferences, "priority_for", lambda person: "fast")
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: None)
-    _sysctl(monkeypatch, **{"hw.perflevel0.physicalcpu": 10})
+    _cores(monkeypatch, 10)
     assert kr.pages_at_once(person=True) == 1
-
-
-def test_the_real_sysctl_answers_an_integer_or_nothing_and_never_starts_a_process(monkeypatch):
-    """sysctlbyname through ctypes: a sandboxed app cannot exec `sysctl` (#4555)."""
-    import subprocess
-
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("started a child process"))
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("started a child process"))
-    assert kr._sysctl_int("hw.no.such.name") is None
-    cores = kr.performance_cores()
-    assert isinstance(cores, int) and cores >= 1
 
 
 def test_the_cores_are_split_by_the_pages_actually_inside(monkeypatch):
@@ -209,7 +194,6 @@ def test_the_cores_are_split_by_the_pages_actually_inside(monkeypatch):
     import sys
     import types
 
-    from fichero_server.core import background_compute
     from fichero_server.execution import jobs, throttle
 
     seen = []
@@ -221,7 +205,9 @@ def test_the_cores_are_split_by_the_pages_actually_inside(monkeypatch):
     monkeypatch.setattr(kr, "require_installed", lambda: None)
     monkeypatch.setattr(kr, "assert_memory_available_for_kraken", lambda: None)
     monkeypatch.setattr(kr, "_release_when_idle", lambda: None)
-    cores = background_compute.cpu_count()
+    from fichero_server.core.cores import cores_available
+
+    cores = cores_available()[0]
 
     kr._kraken_call(lambda: None)  # a lone page
     assert seen[-1] == cores

@@ -726,7 +726,7 @@ async def list_background_jobs(
     from pathlib import Path as _Path
 
     from fichero_server.core.background_compute import (
-        cpu_count,
+        host_cpu_count,
         process_cpu_percent,
         process_energy_watts,
         process_tree_rusage,
@@ -864,7 +864,7 @@ async def list_background_jobs(
         process_cpu_percent=process_cpu_percent(),
         process_memory_bytes=(usage or {}).get("memory_bytes"),
         process_energy_watts=process_energy_watts(usage),
-        cpu_count=cpu_count(),
+        cpu_count=host_cpu_count(),
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),
         machine=MachineState(**await asyncio.to_thread(throttle.machine_state)),
