@@ -251,7 +251,7 @@ def _only_unsure(prior_text: Any, below: float, model: str) -> tuple[Any, list[s
                 sent += 1
                 keep.append(row)
         texts[index] = "\n".join(keep)
-    note = f"{sent} of {total} lines sent to {model}: the others are at or above {below:g} sure and are not re-read"
+    note = f"{sent} of {total} lines are under {below:g} sure; the others are not re-read"
     return (texts if isinstance(prior_text, list) else texts[0]), [note], (sent, total)
 
 
@@ -287,6 +287,17 @@ async def _review_whole_page(inputs: dict[str, Any], state: State, llm_config: L
     )
 
 
+def _answered_by(db: Any, document_id: str, provider: str, model: str) -> set[str]:
+    """The lines of a page that already carry a reading from a review by this same model (a re-run does not ask them
+    again, or pay for them again)."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    made = {a.id for a in db.query(Artifact, document_id=document_id, artifact_type="transcription_review")
+            if (a.provider, a.model) == (provider, model)}
+    return {r.segment_id for r in db.query(ContentRepresentation, document_id=document_id)
+            if r.segment_id and r.derived_from_artifact_id in made and not getattr(r, "retracted_at", None)}
+
+
 async def _review_unsure_lines(prior_text: Any, documents: list, files: list, llm_config: LLMConfig, state: State,
                                inputs: dict[str, Any]) -> dict[str, Any]:
     """Variant A (`source.recipe.kraken-then-cloud-unsure-lines`): the model is sent each unsure line's own crop with
@@ -309,13 +320,15 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
     language = inputs.get("language")
     pages = list(prior_text) if isinstance(prior_text, list) else [prior_text]
     result: dict[str, Any] = {"text": "", "value": None, "texts": [], "values": [], "results": [], "artifacts": [],
-                              "output_files": [], "page_records": [], "notes": []}
+                              "output_files": [], "page_records": [], "notes": [], "lines_sent": 0}
+    total_lines = already = 0
     for index, file_path in enumerate(files):
         doc = documents[index] if index < len(documents) else None
         doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
         shown = {row[:32] for row in str(pages[index] if index < len(pages) else "").split("\n")
                  if _SHOWN_LINE.match(row)}
         rows = working_lines(db, str(doc_id)) if doc_id else None
+        total_lines += len(rows.lines) if rows is not None else 0
         if rows is None or not shown:
             result["results"].append({"file": file_path, "text": "", "value": None, "lines": "no line under the bar"})
             continue
@@ -323,12 +336,27 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         texts = counting_texts(db, rows.lines)
         with Image.open(page.path) as img:
             width, height = img.size
+        done = _answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
+        already += len(shown & done)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
-                 for r in rows.lines if r.id in shown]
+                 for r in rows.lines if r.id in shown and r.id not in done]
+        if not asked:
+            result["results"].append({"file": file_path, "text": "", "value": None,
+                                      "lines": "every unsure line was already answered by this model"})
+            continue
         got, missing = await re_ask(page.path, asked, "", llm_config,
                                     batch=lines_per_request_for(str(llm_config.model)) or LINES_PER_CALL,
                                     language=language)
         name = getattr(page, "name", None) or doc_id
+        for line_id in list(got):  # the same guard as a whole-page review: commentary is not a line (#4496)
+            try:
+                got[line_id] = sanitize_transcription(got[line_id])
+            except Exception as err:
+                del got[line_id]
+                missing.append(line_id)
+                result["notes"].append(f"{name}: {model}'s answer for line {line_id} was not a reading ({err}); "
+                                       "the line keeps its first reader's text")
+        result["lines_sent"] += len(asked)
         if missing:
             result["notes"].append(f"{name}: {model} gave no reading for {len(missing)} of {len(asked)} lines "
                                    f"({', '.join(missing)}); they keep their first reader's text")
@@ -343,6 +371,9 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         result["texts"].append(content)
         result["page_records"].append({"doc_id": str(doc_id), "text": content})
         result["results"].append({"file": file_path, "text": content, "value": content, "artifact_id": art.id})
+    if already:
+        result["notes"].append(f"{already} unsure line(s) were already answered by {model} and were not asked again")
+    result["notes"].append(f"{result['lines_sent']} of {total_lines} lines sent to {model}")
     return result
 
 
@@ -470,7 +501,8 @@ async def transcribe_review(
         result.setdefault("notes", []).append(profile_said)
     result.setdefault("notes", []).extend(said_sent + cut)
     if counted is not None:
-        result["lines_sent"], result["lines_total"] = counted
+        result.setdefault("lines_sent", counted[0])
+        result["lines_total"] = counted[1]
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio
