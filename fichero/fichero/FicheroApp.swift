@@ -281,7 +281,7 @@ struct FicheroApp: App {
         if RemoteClientPairing.isPairingInviteLink(url) {
             logger.info("handleOpenURL: pairing link received")  // never log the payload
             appState.pendingPairingInvite = url.absoluteString
-            appState.openSettings(tab: .backend)
+            appState.openSettings(tab: .connect)
             return
         }
 
