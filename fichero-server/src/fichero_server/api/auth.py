@@ -487,21 +487,18 @@ def _authenticate_device_token(token: str):
         return None, device, "missing or invalid Authorization header"
     if device.expires_at <= now:
         return None, device, "device token expired"
-    if not _use_multiuser_auth():
-        # Multi-user off, a paired device acts as the owner (`sharing.private-by-default`) because
-        # the OWNER paired it. A device another person paired while Multi-user was on is not the
-        # owner's: turning Multi-user off must not promote a viewer's Mac to owner (#5344).
-        if device.user_id:
-            paired_by = app_db.get_user(device.user_id, wait=AUTH_DB_WAIT_SECONDS)
-            if paired_by is None or not paired_by.active or not paired_by.is_owner:
-                return None, device, "missing or invalid Authorization header"
-        if _should_touch_last_seen(device.last_seen, now):
-            app_db.touch_device(token_hash, when=now)
-        # Without the owner here its edits were audited as an anonymous ``system`` (#5319).
-        return _resolve_single_user_owner(), device, None
+    # Sharing on, Multi-user on or off: a paired device acts as the user it is BOUND to, never as the
+    # owner by fallback (S1). The owner's own device is bound to the owner, so it stays owner by that
+    # binding; a device with no binding is refused.
+    if not device.user_id:
+        return None, device, "this device is not tied to a person: pair it again"
     user = app_db.get_user(device.user_id, wait=AUTH_DB_WAIT_SECONDS)
     if user is None or not user.active:
         return None, device, "missing or invalid Authorization header"
+    if not _use_multiuser_auth() and not user.is_owner:
+        # Roles are only evaluated with Multi-user on, so a person's device acting "as that person"
+        # with it off would carry no limits at all: refuse it until Multi-user is on again (#5344).
+        return None, device, "this device was paired by someone other than the owner: turn Multi-user on to use it"
     if _should_touch_last_seen(device.last_seen, now):
         app_db.touch_device(token_hash, when=now)
     return user, device, None

@@ -74,8 +74,9 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
             import onnxruntime
 
             onnxruntime.disable_telemetry_events()
-        except Exception:  # noqa: BLE001 -- an older onnxruntime has no such switch
-            pass
+        except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
+            os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
+            logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
         if os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):  # tests: a slow, fake model load
             import time
 
@@ -105,14 +106,18 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
     except BaseException as exc:  # noqa: BLE001 -- say why the model did not load, then die
         try:
             conn.send(("error", f"{type(exc).__name__}: {exc}"))
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as sent:  # noqa: BLE001 -- the pipe is gone with the parent: nobody is left to tell
+            os.environ["FICHERO_EMBED_LAST_WORDS_LOST"] = type(sent).__name__
+            logger.warning("embedder child: could not report why it stopped: %s", sent)
     finally:
         os._exit(0)
 
 
 class RemoteEmbedder:
     """Stands where fastembed's `TextEmbedding` stood: `embed(texts)` returns one vector per text."""
+
+    close_failure: str | None = None  # why the last pipe close failed (the process is ended regardless)
+    release_failure: str | None = None  # why a release in `__del__` failed
 
     def __init__(self, model_name: str, cache_dir: str, threads: int,
                  init_timeout: float | None = None, embed_timeout: float | None = None) -> None:
@@ -183,8 +188,9 @@ class RemoteEmbedder:
         """End the child; the engine goes on. Safe to call twice."""
         try:
             self._conn.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 -- already closed or the pipe broke; the process is ended below
+            self.close_failure = f"{type(exc).__name__}: {exc}"
+            logger.warning("embedder: closing the pipe failed: %s", exc)
         if self._process.is_alive():
             self._process.terminate()
             self._process.join(5)
@@ -195,5 +201,6 @@ class RemoteEmbedder:
     def __del__(self) -> None:  # the ONNX session goes with its process when the embedder is released
         try:
             self.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 -- interpreter shutdown: kept on the class, nothing can be raised here
+            RemoteEmbedder.release_failure = f"{type(exc).__name__}: {exc}"
+            logger.warning("embedder: release failed: %s", exc)

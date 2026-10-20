@@ -714,3 +714,95 @@ def test_pin_an_edit_against_the_current_version_is_saved(harness):
     seen = host.get(f"/api/notes/{note_id}").json()
     r = host.patch(f"/api/notes/{note_id}", json={"body": "mine", "expected_updated_at": seen["updated_at"]})
     assert r.status_code == 200 and r.json()["body"] == "mine", r.text
+
+
+# --- S1 (2026-10-20): Sharing on, Multi-user off -- a device acts as the user it is BOUND to ---------------
+
+_INGESTS = (
+    ("/api/ingest/file", {"path": "/etc/hosts"}),
+    ("/api/ingest/files", {"paths": ["/etc/hosts"]}),
+    ("/api/ingest/folder", {"path": "/etc"}),
+)
+
+
+def _device_for(harness, user_id, name="Mac") -> str:
+    raw = accounts.new_session_token()
+    harness.app_db.create_device(name=name, user_id=user_id, token_hash=accounts.hash_token(raw))
+    return raw
+
+
+def _a_person(harness, username="bob"):
+    return harness.app_db.create_user(
+        username=username, display_name=username.title(),
+        password_hash=accounts.hash_password("pw-" + username), is_owner=False,
+    )
+
+
+@pytest.mark.parametrize("route, body", _INGESTS)
+def test_s1_a_person_bound_device_cannot_ingest_a_host_path_with_multiuser_off(harness, route, body):
+    token = _device_for(harness, _a_person(harness).id)
+    r = harness.remote().post(route, json=body, headers=_bearer(token))
+    assert r.status_code in (401, 403), r.text  # refused before it reaches the disk (no roles are evaluated with it off)
+
+
+@pytest.mark.parametrize("route, body", _INGESTS)
+def test_s1_an_owner_bound_device_is_the_owner_by_its_binding(harness, route, body):
+    owner = harness.app_db.create_user(
+        username="owner", display_name="Owner", password_hash=accounts.hash_password("pw"), is_owner=True)
+    r = harness.remote().post(route, json=body, headers=_bearer(_device_for(harness, owner.id)))
+    assert "Owner access" not in r.text and r.status_code != 401, r.text  # past the owner check; the path itself may be refused
+
+
+def test_s1_an_unbound_device_is_refused_in_words(harness, monkeypatch):
+    token = _device_for(harness, _a_person(harness).id)
+    real = harness.app_db.get_device_by_token_hash
+    monkeypatch.setattr(harness.app_db, "get_device_by_token_hash",
+                        lambda *a, **k: (lambda d: d and d.model_copy(update={"user_id": ""}))(real(*a, **k)))
+    r = harness.remote().get("/api/notes", headers=_bearer(token))
+    assert r.status_code == 401 and r.json()["detail"]
+
+
+def test_s1_the_host_app_on_loopback_still_ingests(harness):
+    r = harness.host().post("/api/ingest/file", json={"path": "/etc/hosts"})
+    assert "Owner access" not in r.text and r.status_code != 401, r.text
+
+
+@pytest.mark.parametrize("route, body", _INGESTS)
+def test_s1_the_owners_keychain_key_session_still_ingests_a_host_path(harness, monkeypatch, route, body):
+    """Challenge -> sign-in (not the bootstrap shortcut): the owner's own app keeps working with Sharing on.
+    With Multi-user OFF the engine accepts no session token at all (bootstrap or device only; slice 10 ends that),
+    so the owner's app there is the loopback bootstrap owner, pinned by `..._host_app_on_loopback_still_ingests`."""
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    session = signed_in_client(harness, users["owner"], name="Owner's Mac")
+    r = harness.client().post(route, json=body, headers=session.headers)
+    assert "Owner access" not in r.text and r.status_code != 401, r.text  # the path itself may still be refused
+
+
+def test_s1_a_non_owner_keychain_session_cannot_ingest_a_host_path(harness, monkeypatch):
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    session = signed_in_client(harness, users["bob"])
+    r = harness.client().post("/api/ingest/file", json={"path": "/etc/hosts"}, headers=session.headers)
+    assert r.status_code == 403, r.text  # a viewer's session: refused by its role before the owner check
+
+
+def test_s1_a_library_owner_person_is_not_the_engine_owner_for_host_paths(harness, monkeypatch):
+    """Multi-user ON: a person granted LIBRARY-owner passes `require_owner`, but the host's disk is the engine owner's."""
+    from tests.signed_in import signed_in_client
+
+    users = _multiuser_on(harness, monkeypatch)
+    lib = authz.normalize_library_path(harness.library)
+    harness.app_db.set_library_role(user_id=users["alice"].id, library_path=lib, role=authz.ROLE_OWNER)
+    session = signed_in_client(harness, users["alice"])
+    for route, body in _INGESTS:
+        r = harness.client().post(route, json=body, headers=session.headers)
+        assert r.status_code == 403 and "Owner access" in r.text, (route, r.text)
+
+
+def test_s1_a_refused_device_says_why(harness):
+    token = _device_for(harness, _a_person(harness).id)
+    r = harness.remote().get("/api/notes", headers=_bearer(token))
+    assert r.status_code == 401 and "Multi-user" in r.json()["detail"], r.text

@@ -332,6 +332,10 @@ def _emit_queue_progress(
         logger.warning("derivatives: progress emit failed", exc_info=True)
 
 
+#: Why the last job-table read for the stall check failed, or None.
+jobs_say_failure: str | None = None
+
+
 def _jobs_say(library: str, since: Any = None) -> str | None:
     """What the project's job table says about this queue, asked only when none of its own embeds is in flight:
     "moving" while page work of ours on a model or image lane is running (the queue waits its turn behind it: a Kraken
@@ -360,8 +364,10 @@ def _jobs_say(library: str, since: Any = None) -> str | None:
                 f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND finished_at >= ? LIMIT 1",
                 [*kinds, since]) is not None:
             return "over"
-    except Exception:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
-        logger.debug("derivatives: job table unreadable for the stall check", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
+        global jobs_say_failure
+        jobs_say_failure = f"{type(exc).__name__}: {exc}"
+        logger.warning("derivatives: job table unreadable for the stall check: %s", exc, exc_info=True)
     return None
 
 
