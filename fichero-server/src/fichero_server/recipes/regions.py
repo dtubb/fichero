@@ -102,8 +102,13 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
 
             from fichero_server.workflows.tools.vision_base import page_direction
 
-            found_geometry = geometry_from_segmentation(segment_lines(path, **page_direction(library, doc.id)),
-                                                        source_name=doc.name)
+            direction = page_direction(library, doc.id)
+            # THROUGH the model lane, as every Kraken page is (Fable review #5): the lane sees the segmenter, counts it
+            # for its one-heavy-model rule and its memory check, and an embed cannot load beside it unseen.
+            segmented = jobs.run_on_lane_blocking(
+                library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
+                fn=lambda path=path, direction=direction: segment_lines(path, **direction))
+            found_geometry = geometry_from_segmentation(segmented, source_name=doc.name)
             regions_here = sum(1 for b in found_geometry.boxes if b.level is OCRGeometryLevel.REGION)
         else:
             found = detect_regions(path, model)
