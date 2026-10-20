@@ -619,6 +619,10 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             node["done"], node["total"] = 0, 0  # a step that handed nothing to a lane has no pages
         elif not node["children"]:
             node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
+            counted = json.loads(detail) if detail else {}
+            if isinstance(counted.get("total"), int) and counted["total"] > 0 and isinstance(counted.get("done"), int):
+                # A leaf that counts its own pages (a try: its pages live in a scratch copy that is gone after) says so
+                node["done"], node["total"] = (counted["total"] if node["state"] == "done" else counted["done"]), counted["total"]
         else:
             for child in node["children"]:
                 usage += roll(child)
