@@ -2395,7 +2395,8 @@ async def start_project(
                                               "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
+    clusters = _cluster_names(http)
+    return StartPlan(**await asyncio.to_thread(lambda: _as_started(db, _start_plan(db, folder_id, clusters=clusters))))
 
 
 class UseInsteadRequest(BaseModel):
@@ -2433,7 +2434,7 @@ async def use_installed_instead(
     now = utc_now_iso(timespec="seconds")
     if request.provider:
         try:
-            recipe = use_place_instead(setup["recipe"], _start_plan(db)["elsewhere"], request.model,
+            recipe = use_place_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["elsewhere"], request.model,
                                        request.provider, now=now)
             result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
         except ValueError as exc:
@@ -2443,7 +2444,7 @@ async def use_installed_instead(
     if card is None:
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
     try:
-        recipe = use_instead(setup["recipe"], _start_plan(db)["downloads"], request.model, card, now=now)
+        recipe = use_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["downloads"], request.model, card, now=now)
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2583,7 +2584,7 @@ async def change_project_layers(
         registry.invoke(db, "project.add_layer", request.model_dump(mode="json"), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_start_plan(db, clusters=_cluster_names(http)))
+    return StartPlan(**await asyncio.to_thread(_start_plan, db, clusters=_cluster_names(http)))
 
 
 def _invert_add_layer(before: dict | None, after: dict | None, ctx: ActionContext):

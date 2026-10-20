@@ -137,3 +137,39 @@ def test_variant_a_on_this_mac_costs_nothing_and_an_unpriced_place_is_unpriced()
     assert here["cost_usd"] == 0.0 and here["lines_to_send"] == 330
     [other] = estimate([{**A, "runs_on": "cluster:acenet"}], 10)["runs"]
     assert other["cost_usd"] is None
+
+
+def test_every_route_that_returns_the_start_plan_builds_it_off_the_event_loop(monkeypatch):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.system import recipes as route
+    from fichero_server.recipes import start
+
+    seen = []
+
+    def plan(db, folder_id=None, clusters=()):
+        seen.append(threading.get_ident())
+        return {"elsewhere": [], "downloads": []}
+
+    monkeypatch.setattr(route, "_cluster_names", lambda http: [])
+    monkeypatch.setattr(route, "_start_plan", plan)
+    monkeypatch.setattr(route, "_as_started", lambda db, p: p)
+    monkeypatch.setattr(route, "StartPlan", lambda **kw: kw)
+    monkeypatch.setattr(route.registry, "invoke", lambda *a, **k: SimpleNamespace(result={}))
+    monkeypatch.setattr(route, "_library", lambda db: None)
+    monkeypatch.setattr(route, "read_project_setup", lambda lib: {"recipe": {}, "answers": {}})
+    monkeypatch.setattr(route, "_whole_setup", lambda r: r)
+    monkeypatch.setattr(start, "use_place_instead", lambda *a, **k: {})
+    monkeypatch.setattr(route, "known_cards", lambda **k: [SimpleNamespace(id="c")])
+    monkeypatch.setattr(start, "use_instead", lambda *a, **k: {})
+
+    async def go():
+        await route.start_project(None, None, None, None)
+        await route.change_project_layers(None, SimpleNamespace(model_dump=lambda **k: {}), None, None)
+        await route.use_installed_instead(SimpleNamespace(card="", provider="p", model="m"), None, None)
+        await route.use_installed_instead(SimpleNamespace(card="c", provider="", model="m"), None, None)
+
+    asyncio.run(go())
+    assert len(seen) == 4 and threading.get_ident() not in seen
