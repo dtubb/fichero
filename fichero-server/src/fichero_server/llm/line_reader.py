@@ -143,9 +143,14 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         answer = parse_answer(raw, len(indices))
         if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
             return [cut_short_reading(raw)]
+        if answer is None and len(indices) == 1:
+            said = " ".join(str(raw or "").split())
+            why_not[indices[0]] = (f"the model answered with text that is not a reading ({said[:80]!r})" if said
+                                   else "the model gave no answer")
         return answer
 
     looked: set[int] = set()  # lines the reader answered for, with or without words
+    why_not: dict[int, str] = {}  # a line asked on its own that came back unread, and what the model said (variant B)
 
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
@@ -170,7 +175,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 no_writing.append(box.metadata["segment_id"])
             # Every line left without a reading, and why (#5758): the reader said no writing, or never answered.
             logger.debug("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,
-                        "the reader found no writing" if n in looked else "the reader gave no answer for it")
+                        "the reader found no writing" if n in looked else why_not.get(n, "the reader gave no answer for it"))
             continue
         texts.append(text)
         # Each line's reading is checked as it lands (#5522): one picture is one line, so a reading
@@ -196,7 +201,9 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     read = len(boxes) - len(regions)
     logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
                 config.model, len(found), read, len(found) - read, len(flagged))
-    page_metadata = {**lines.metadata, "lines_found_by": "kraken", "lines_found": len(found),
+    unanswered = {box.metadata.get("segment_id") or str(n): why_not[n] for n, box in enumerate(found)
+                  if n in why_not and n not in looked}
+    page_metadata = {**lines.metadata, "lines_unanswered": unanswered, "lines_found_by": "kraken", "lines_found": len(found),
                      "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
                      NO_WRITING_KEY: no_writing}
     if flagged:
