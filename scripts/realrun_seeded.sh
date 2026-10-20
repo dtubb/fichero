@@ -6,24 +6,27 @@
 #
 # THE SEED: a fresh state dir has no Kraken reader, so Start downloads one first, and that one-time download was 228 s of a
 # 268 s run (2026-10-20). This script copies the reader in before the engine starts, so the wall time measures reading
-# (43 s, same pages). The seed is the reader the run uses, PP-OCRv6 (medium), Zenodo record 10.5281/zenodo.21788410, 61 MB:
+# (43 s, same pages). The seed is the reader the run uses, PP-OCRv6 (medium), Zenodo record 10.5281/zenodo.21788410, 61 MB, Apache-2.0:
 # ~/Fichero Dev Test/reader-seed/kraken-models, a copy of the state/kraken-models of any finished run (the engine downloaded
 # it once through its normal path). The pages are ~/Fichero Dev Test/reader-seed/src (dev-corpus photographs, no owner data).
 # To re-seed, copy a finished run's state/kraken-models into reader-seed/. Everything it writes is under ~/Fichero Dev Test.
-# The engine's bootstrap token is read from the app's key file and never printed.
-SHA="${1:?usage: realrun_seeded.sh <sha>}"; D="$HOME/Fichero Dev Test/realrun-$SHA"; O="$D/out"; SOCK=/tmp/rr14f3.sock
+# The engine and the CLI use a fresh random token made for this run, kept in the run dir (FICHERO_TOKEN_DIR, so the engine
+# does not rewrite the app's own .api-key); the socket is $D/engine.sock. The seed's licence is Apache-2.0 (the record's own
+# metadata: license: Apache-2.0; author Benjamin Kiessling, ALMAnaCH), so keeping a copy for tests is within it.
+SHA="${1:?usage: realrun_seeded.sh <sha>}"; D="$HOME/Fichero Dev Test/realrun-$SHA"; O="$D/out"; SOCK="$D/engine.sock"  # inside the run dir: never another engine's socket
 mkdir -p "$O" "$D/state"; rm -rf "$D/state" "$D/rr.fichero"; mkdir -p "$D/state"; rm -f $SOCK
 # The Kraken reader (PP-OCRv6 medium) is copied in, so the wall time measures reading, not the one-time download
 # (a fresh state dir spent 228 s of 268 on it, 2026-10-20). To re-seed: copy a finished run's state/kraken-models to reader-seed/.
 cp -R "$HOME/Fichero Dev Test/reader-seed/kraken-models" "$D/state/"
 cd ~/code/fichero-worktrees/check && git fetch -q ~/code/fichero-test.git "+refs/heads/*:refs/remotes/t/*" && git checkout -qf --detach $SHA || { echo CHECKOUT-FAILED > $O/verdict; exit 4; }
 echo "code $(git rev-parse --short=9 HEAD)" > $O/status
+TOKEN="$(openssl rand -hex 24)"; mkdir -p "$D/token"  # this run's own credential, in its own token dir
 source ~/code/fichero/.venv/bin/activate; export PATH=/opt/homebrew/bin:$PATH HF_HUB_OFFLINE=1
 export PYTHONPATH=$PWD/fichero-server/src:$PWD/fichero-server:$PWD/fichero-cli/src:$PWD/fichero-mcp/src
-FICHERO_FEATURE_TIER=beta FICHERO_BASE_PATH="$D/state" FICHERO_UDS_PATH=$SOCK FICHERO_LIBRARY_ALLOWED_ROOTS="$D" FICHERO_BOOTSTRAP_TOKEN="$(cat $HOME/Library/Application\ Support/Fichero/.api-key)" nohup caffeinate -dis python -m fichero_server > "$O/engine.log" 2>&1 &
+FICHERO_FEATURE_TIER=beta FICHERO_BASE_PATH="$D/state" FICHERO_UDS_PATH=$SOCK FICHERO_LIBRARY_ALLOWED_ROOTS="$D" FICHERO_TOKEN_DIR="$D/token" FICHERO_BOOTSTRAP_TOKEN="$TOKEN" nohup caffeinate -dis python -m fichero_server > "$O/engine.log" 2>&1 &
 EP=$!
 for i in $(seq 1 90); do [ -S $SOCK ] && break; sleep 1; done
-R() { FICHERO_UDS=$SOCK python -m fichero_cli --library "$D/rr.fichero" "$@"; }
+R() { FICHERO_API_KEY="$TOKEN" FICHERO_UDS=$SOCK python -m fichero_cli --library "$D/rr.fichero" "$@"; }
 R library create "$D/rr.fichero" > $O/create.txt 2>&1
 R import "$HOME/Fichero Dev Test/reader-seed/src" > $O/import.txt 2>&1
 R --json recipes assemble --purposes transcribe --languages es --scripts Latn --materials handwriting --no-cloud-allowed --pages 5 --jobs find-regions,find-lines,read-a-line > "$O/recipe.json" 2>&1
@@ -74,7 +77,7 @@ def w(x):
 w(d)
 print(' '.join(i for n,i in sorted(set(ids))[:1]))
 " )" > /dev/null 2>&1
-kill $EP 2>/dev/null; sleep 4; kill -9 $EP 2>/dev/null
+pkill -P $EP 2>/dev/null; kill $EP 2>/dev/null; sleep 4; pkill -9 -P $EP 2>/dev/null; kill -9 $EP 2>/dev/null  # the engine is caffeinate's child
 grep -cE "ERROR|did not become a pass|Traceback" $O/engine.log > $O/errors-count.txt
 grep -E "ERROR|did not become a pass|Traceback" $O/engine.log | head -20 | cut -c1-220 > $O/errors.txt
 tail -40 $O/engine.log > $O/engine-tail.txt
