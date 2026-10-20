@@ -27,7 +27,7 @@ def test_variant_a_is_priced_from_the_most_lines_it_can_send_and_says_so():
     assert "really had" in row["lines_basis"], "the run reports the real figure afterwards"
 
 
-def test_it_is_far_below_the_price_of_a_whole_page_review_at_the_same_rate():
+def test_a_whole_page_review_is_priced_as_before_and_without_a_bar():
     [whole] = estimate([CORRECT], 10)["runs"]
     [lines] = estimate([A], 10)["runs"]
     assert whole["certainty_bar"] is None and whole["lines_at_most"] is None and whole["lines_basis"] is None
