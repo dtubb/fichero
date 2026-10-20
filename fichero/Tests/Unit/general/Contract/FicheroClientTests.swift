@@ -15,7 +15,7 @@ struct FicheroClientTests {
         #expect(client.apiBaseURL == originalURL.appendingPathComponent("api"))
         #expect(client.currentLibraryPath == "/tmp/Test.fichero")
 
-        client.reconfigure(baseURL: remoteURL)
+        client.reconfigure(baseURL: remoteURL, transportMode: .https)
 
         #expect(client.baseURL == remoteURL)
         #expect(client.apiBaseURL == remoteURL.appendingPathComponent("api"))
