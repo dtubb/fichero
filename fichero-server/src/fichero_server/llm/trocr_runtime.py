@@ -1,13 +1,19 @@
 """A TrOCR model from Hugging Face as a line reader (`source.onboard.model-search-trocr-runs-here`, #5981). It reads the lines
 Kraken found, one strip each: the page is cut by each line's outline, and the strips go to the TrOCR line reader the economy
 HTR tool already has (`economy_htr.trocr_transcribe_lines`, the bundled torch and transformers, on the CPU unless the person
-chose the GPU). Its reader id is `trocr-hf-<owner>--<repo>`; the weights download into Fichero's store on first use."""
+chose the GPU). Its reader id is `trocr-hf-<owner>--<repo>`.
+
+Only safetensors weights are ever loaded: a `.bin`, `.pt` or `.ckpt` is a pickle, and unpickling a repository a recipe pin names
+would run its code in the engine. The download pins the Hub's commit, takes no pickled file, and is refused in words when the
+repository has no safetensors; the load names that commit and `use_safetensors=True`, from the files on this Mac only
+(`source.onboard.model-search-trocr-runs-here`, review 765)."""
 from __future__ import annotations
 
+import json
 import re
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _READER = re.compile(r"^trocr-hf-([A-Za-z0-9_.-]+?)--([A-Za-z0-9_.-]+)$")
 #: A strip is cut a little wider than the outline, as the economy tool does, so a stroke at the edge is not lost.
@@ -58,3 +64,75 @@ def read_lines(image_path: str | Path, repo: str, lines: list[dict[str, Any]]) -
             for slot, text in zip(slots, economy_htr.trocr_transcribe_lines(paths, repo)):
                 out[slot] = (text or "").strip()
     return out
+
+
+#: Files that are pickles or a runtime this reader never loads: not downloaded.
+PICKLED = ("*.bin", "*.pt", "*.pth", "*.ckpt", "*.pkl", "*.pickle", "*.h5", "*.msgpack", "*.onnx")
+
+
+class NoSafetensors(ValueError):
+    """The repository has no safetensors weights: Fichero will not load a pickled model."""
+
+
+def _store() -> Path:
+    from fichero_server.db.paths import hf_hub_dir
+
+    return Path(hf_hub_dir())
+
+
+def _record_path(repo: str) -> Path:
+    return _store() / f"{reader_id_for_trocr(repo)}.installed.json"
+
+
+def hub_info(repo: str) -> dict[str, Any]:
+    """The Hub's answer for a repository: its commit (`sha`) and files (`siblings`). Network."""
+    import requests
+
+    found = requests.get(f"https://huggingface.co/api/models/{repo}", params={"blobs": "true"}, timeout=60)
+    found.raise_for_status()
+    return found.json()
+
+
+def _snapshot(repo: str, revision: str, cache_dir: str) -> None:
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(repo_id=repo, revision=revision, cache_dir=cache_dir, ignore_patterns=list(PICKLED))
+
+
+def is_installed(repo: str) -> bool:
+    """Whether the repository's safetensors were downloaded whole at a pinned commit (its record is written last)."""
+    try:
+        return bool(json.loads(_record_path(repo).read_text(encoding="utf-8")).get("revision"))
+    except (OSError, ValueError):
+        return False
+
+
+def revision_of(repo: str) -> str | None:
+    """The commit this Mac holds, or None when the repository is not downloaded."""
+    try:
+        return str(json.loads(_record_path(repo).read_text(encoding="utf-8")).get("revision") or "") or None
+    except (OSError, ValueError):
+        return None
+
+
+def download(repo: str, *, should_stop: Callable[[], bool] = lambda: False, on_bytes: Callable[..., None] | None = None) -> str:
+    """Download the repository's safetensors at the commit the Hub answers with, and return that commit. Refused, before
+    anything downloads, when it has no `.safetensors` file; a pickled file beside them is never fetched."""
+    info = hub_info(repo)
+    names = [str(s.get("rfilename", "")) for s in info.get("siblings") or []]
+    if not any(n.endswith(".safetensors") for n in names):
+        raise NoSafetensors(f"{repo} has no safetensors weights (only a pickled file, if any): Fichero loads no pickled "
+                            "model, so it will not download or run this one")
+    revision = str(info.get("sha") or "")
+    if not revision:
+        raise NoSafetensors(f"{repo}: the Hub did not name a commit to pin")
+    _snapshot(repo, revision, str(_store()))
+    size = sum(int(s.get("size") or 0) for s in info.get("siblings") or [] if str(s.get("rfilename", "")).endswith(".safetensors"))
+    _record_path(repo).write_text(json.dumps({"repo": repo, "revision": revision, "bytes": size}), encoding="utf-8")
+    return revision
+
+
+def ensure(repo: str) -> str:
+    """The pinned commit to load: the one downloaded, else download now (the TRIDIS default of the economy tool, which no
+    plan listed first). Raises `NoSafetensors` in words for a repository with no safetensors."""
+    return revision_of(repo) or download(repo)

@@ -65,7 +65,7 @@ def places_it_can_run(card: Card, *, this_mac_gb: float | None, hf_ready: bool,
     if kind == "trocr":
         why = "no TrOCR reader runs there yet: the remote reader loads vision-language models and Kraken readers only"
         return [_option(THIS_MAC, "this Mac", True, needs="; ".join(filter(None, ["torch and transformers, which ship with Fichero", size,
-                                                       "weights download when first used"]))),
+                                                       "safetensors download before the run asks"]))),
                 _option(HF_JOBS, HF_NAME, False, why=why), *[_option(CLUSTER, c, False, why=why) for c in clusters]]
     if kind == "vlm":
         needs = f"a GPU with room for about {_gb(card.size_gb)} of weights" if card.size_gb else "a GPU"

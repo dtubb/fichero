@@ -400,6 +400,10 @@ def recognition_spec(model_id: str | None) -> dict[str, object] | None:
     hub = _HUB_READER.match(model_id or "")
     if hub:
         return {"hf": f"{hub.group(1)}/{hub.group(2)}"}
+    from fichero_server.llm.trocr_runtime import repo_of
+
+    if (trocr := repo_of(model_id)) is not None:  # a TrOCR model: downloaded by the same job, loaded by trocr_runtime
+        return {"trocr": trocr}
     card = trained_reader_card(model_id)
     return {"trained": card} if card is not None else None
 
@@ -1436,6 +1440,10 @@ def recognition_display_name(model_id: str) -> str:
     hub = _HUB_READER.match(model_id or "")
     if hub:
         return hub.group(2)  # the repository's own name, as the Hub shows it
+    from fichero_server.llm.trocr_runtime import repo_of
+
+    if (trocr := repo_of(model_id)) is not None:
+        return trocr.split("/", 1)[1]
     return f"the reader from Kraken's repository (record {match.group(1)})" if match else "the Kraken reader"
 
 
@@ -1462,6 +1470,11 @@ def download_recognition_model(
     spec = recognition_spec(model_id)
     if spec is None:
         raise ValueError(f"Unknown Kraken recognition model: {model_id}")
+    if "trocr" in spec:
+        from fichero_server.llm.trocr_runtime import download
+
+        download(str(spec["trocr"]), should_stop=should_stop, on_bytes=on_bytes)
+        return
     if "trained" in spec:
         raise ValueError(f"{model_id} is a reader Fichero trained: it lands from its training job, "
                          "it is not downloaded")
