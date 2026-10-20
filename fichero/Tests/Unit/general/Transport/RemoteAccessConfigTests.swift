@@ -385,11 +385,8 @@ final class RemoteAccessConfigTests: XCTestCase {
         )
 
         XCTAssertEqual(environment["FICHERO_BIND_HOST"], "pairing.example.com")
-        // Multiuser is a separate toggle now (default off) — remote-access transport
-        // no longer auto-enables it (#3941/two-toggles). This test doesn't set the
-        // toggle, so it stays "0"; the on/off behaviour is covered by the sibling
-        // testRemoteAccessLaunchEnvironment{Disables,…}Multiuser tests.
-        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "0")
+        // Multi-user is the engine's persisted choice, switched through its route (#5914): the launch environment never carries it.
+        XCTAssertNil(environment["FICHERO_MULTIUSER"])
         XCTAssertEqual(environment["FICHERO_PUBLIC_BASE_URL"], "https://pairing.example.com:9443")
         XCTAssertEqual(environment["FICHERO_TLS_CERTFILE"], "/tmp/server.crt")
         XCTAssertEqual(environment["FICHERO_TLS_KEYFILE"], "/tmp/server.key")
@@ -398,25 +395,17 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(environment["FICHERO_ALLOW_NON_LOOPBACK_BIND"], "I_UNDERSTAND_SHARED_SECRET_RISK")
     }
 
-    func testRemoteAccessLaunchEnvironmentDisablesMultiuserWhenToggledOff() {
-        EngineConfig.defaults.set(false, forKey: EngineConfig.multiuserEnabledKey)
-        defer { EngineConfig.defaults.removeObject(forKey: EngineConfig.multiuserEnabledKey) }
-
-        let material = RemoteAccessTLSMaterial(
-            bindHost: "pairing.example.com",
-            certificatePath: "/tmp/server.crt",
-            keyPath: "/tmp/server.key",
-            spkiPin: "c3BraS1waW4="
-        )
-        let publicBaseURL = URL(string: "https://pairing.example.com:9443")!
-
-        let environment = RemoteAccessConfig.launchEnvironment(
-            for: publicBaseURL,
-            material: material,
-            bonjourEnabled: false
-        )
-
-        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "0")
+    func testRemoteAccessLaunchEnvironmentNeverCarriesMultiuserWhateverTheLocalFlagSays() {
+        for local in [true, false] {
+            EngineConfig.defaults.set(local, forKey: EngineConfig.multiuserEnabledKey)
+            defer { EngineConfig.defaults.removeObject(forKey: EngineConfig.multiuserEnabledKey) }
+            let material = RemoteAccessTLSMaterial(
+                bindHost: "pairing.example.com", certificatePath: "/tmp/server.crt", keyPath: "/tmp/server.key",
+                spkiPin: "c3BraS1waW4=")
+            let environment = RemoteAccessConfig.launchEnvironment(
+                for: URL(string: "https://pairing.example.com:9443")!, material: material, bonjourEnabled: false)
+            XCTAssertNil(environment["FICHERO_MULTIUSER"], "local flag \(local)")
+        }
     }
 
     func testActivePairedDevicesFilterHidesRevokedDevices() {

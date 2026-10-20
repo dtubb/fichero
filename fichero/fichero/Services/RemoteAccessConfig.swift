@@ -103,7 +103,6 @@ enum RemoteAccessConfig {
         bonjourEnabled: Bool
     ) -> [String: String] {
         var environment = [
-            "FICHERO_MULTIUSER": EngineConfig.multiuserEnabled ? "1" : "0",
             "FICHERO_ALLOW_NON_LOOPBACK_BIND": "I_UNDERSTAND_SHARED_SECRET_RISK",
             "FICHERO_BIND_HOST": material.bindHost,
             "FICHERO_PUBLIC_BASE_URL": publicBaseURL.absoluteString,
