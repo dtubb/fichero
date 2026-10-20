@@ -61,3 +61,66 @@ def test_the_read_onto_working_lines_path_follows_the_same_rule(monkeypatch):
     src = (Path(kraken_runtime.__file__).parents[1] / "workflows" / "tools" / "vision_base.py").read_text()
     assert "_mostly_nothing(len(_blank), len(geometry.boxes))" in src
     assert "len(_blank) == len(geometry.boxes)" not in src
+
+
+def _owners_page(db):
+    """5 of 25 lines read; the 20 empty ones saved as `segment_from_box` saves them (unread, with the reason)."""
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+    from tests.unit.recipes.test_unread_lines_not_read_5758 import _page
+
+    page = _page(db, 25, 5)
+    for seg in db.query(Segment, document_id=page):
+        if seg.kind == "line" and not any(r.segment_id == seg.id for r in db.query(ContentRepresentation, document_id=page)):
+            seg.metadata = {**(seg.metadata or {}),
+                            "unread_reason": "most lines came back empty: the reader may not suit this hand"}
+            db.save(seg)
+    return page
+
+
+def test_the_reason_the_segment_saves_is_the_one_the_run_matches():
+    from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE
+
+    box = OCRGeometryBox(text="", bbox=[0.1, 0.1, 0.5, 0.05], level=OCRGeometryLevel.LINE, provider="kraken", model="m",
+                         source="kraken-htr",
+                         metadata={"polygon_px": [[0, 0], [9, 0], [9, 3]], "page_read_mostly_nothing": True})
+    saved = segment_from_box(document_id="d", artifact_id="a", box_index=0, box=box, rendition_id=None,
+                             pass_provenance_kind=ProvenanceKind.workflow)
+    assert saved.metadata["unread_reason"] == MOSTLY_NOTHING_FOR_PAGE
+
+
+def test_in_a_run_the_owners_page_makes_the_read_step_partial_naming_the_page_and_why(db, monkeypatch):
+    """Review 480: the node succeeded (pages_failed 0), so the step said done and the row plain Done."""
+    from fichero_server.models import Document
+    from fichero_server.recipes import run_view, runner
+    from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE
+
+    page = _owners_page(db)
+    monkeypatch.setattr(runner, "_did_no_page", lambda *a, **k: (False, 0, []))
+    card = {"card": "model", "job": "read-a-line", "steps": ["read-a-line"]}
+    step = {"state": "done", "child_id": "c", "why": None}
+    problems: list[str] = []
+    runner._after_the_step(db, card, step, {"folder": "f"}, [page], "done", "c", None, {}, problems, "read-a-line")
+
+    name = db.get(Document, page).name
+    assert step["state"] == "partial"
+    assert step["failed_pages"] == [{"page": name, "reason": MOSTLY_NOTHING_FOR_PAGE}]
+    assert step["why"].startswith(f"0 of 1 pages done; 1 failed: {name}: most lines came back empty")
+    assert len(problems) == 1 and "partial" in problems[0]
+    words = runner._failures_words(db, [card], [step], 0)
+    assert "lost pages" in words and name in words and "most lines came back empty" in words
+    assert run_view.pages_read_nothing(db, [page]) == 1
+    assert run_view.pages_fully_read(db, [page]) == []
+
+
+def test_a_page_the_node_already_failed_is_not_counted_twice(db, monkeypatch):
+    from fichero_server.recipes import runner
+    from fichero_server.workflows.run_account import PageFailure
+
+    page = _owners_page(db)
+    lost = [PageFailure(page="p.png", document_id=page, reason="out of memory")]
+    monkeypatch.setattr(runner, "_did_no_page", lambda *a, **k: (False, 1, lost))
+    step = {"state": "done", "child_id": "c", "why": None}
+    runner._after_the_step(db, {"card": "model", "job": "read-a-line", "steps": ["r"]}, step, {"folder": "f"}, [page],
+                           "done", "c", None, {}, [], "r")
+    assert step["pages_lost"] == 1 and len(step["failed_pages"]) == 1
