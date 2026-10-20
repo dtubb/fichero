@@ -235,6 +235,13 @@ class MachineState(BaseModel):
     why_wait: Optional[str] = None
 
 
+def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:
+    """When a run that has ended ended: its `completed_at` for EVERY ended status (done, failed, stopped, not run), null
+    while it runs or is paused (`activity.window.done-today`, #5960). The list shows only running, paused and failed runs
+    today; a done or stopped one reads its end the same way if the list is widened."""
+    return None if status in ("running", "paused", "waiting", "") else _utc(completed_at)
+
+
 def _utc(value: Any) -> Optional[datetime]:
     """A stored time as an aware UTC datetime (the jobs table keeps naive UTC); None stays None."""
     if value is None:
@@ -699,7 +706,7 @@ async def list_background_jobs(
                     account=account,
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
-                    finished_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
+                    finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
