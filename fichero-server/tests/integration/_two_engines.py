@@ -64,7 +64,11 @@ class Engine:
     lan: str | None = None
     spki_pin: str | None = None
     _clean: list[Path] = field(default_factory=list)
-    env_for: Callable[[bool, bool], dict[str, str]] | None = None  # (sharing, multiuser) -> the env the app would give the engine
+    env_for: Callable[[bool], dict[str, str]] | None = None  # sharing -> the env the app would give the engine
+    token: str = ""  # the engine's bootstrap token: the app's own credential, used only by turn_multiuser_on
+    cert: Path | None = None  # the host's TLS certificate, which LAN calls are pinned to
+    owner_id: str | None = None
+    _multiuser: bool = False
     _key: object | None = None  # the owner's P-256 key, made once; the engine keeps only its public half
     _client_id: str | None = None
     library: dict[str, str] | None = None  # the header naming this engine's library, once make_library has run
@@ -92,11 +96,18 @@ class Engine:
                                  json={"display_name": "Owner", "public_key_pem": pem, "client": {"kind": "app", "name": self.name}})
                 made.raise_for_status()
                 self._client_id = made.json()["client"]["id"]
+                self.owner_id = made.json()["user"]["id"]
             issued = http.post("/api/auth/challenge", json={"client_id": self._client_id}).json()
             signed = http.post("/api/auth/sign-in", json={
                 "client_id": self._client_id, "nonce": issued["nonce"], "signature": signature_for(self._key, self._client_id, issued)})
             signed.raise_for_status()
             return signed.json()["session_token"]
+
+    def log_tail(self, lines: int = 40) -> str:
+        try:
+            return "\n".join((self.base / "engine.log").read_text(errors="replace").splitlines()[-lines:])
+        except OSError:
+            return "(no engine.log)"
 
     def wait_ready(self) -> None:
         from tests.integration._engine_wait import wait_for_engine
@@ -107,7 +118,7 @@ class Engine:
 
         why = wait_for_engine(answers, self.proc)
         if why:
-            raise RuntimeError(f"{self.name} engine never became ready: {why}")
+            raise RuntimeError(f"{self.name} engine never became ready: {why}\n--- last 40 lines of its output ---\n{self.log_tail()}")
 
     def alive(self) -> bool:
         return self.proc.poll() is None
@@ -127,37 +138,30 @@ class Engine:
         except ProcessLookupError:
             pass  # already gone
 
-    def restart(self, *, sharing: bool, multiuser: bool) -> None:
-        """What the app does for a Sharing or Multi-user switch: stop its engine and start it again, same libraries and
-        socket, with the new settings in its environment. Raises if the new engine does not come up."""
+    def restart(self, *, sharing: bool) -> None:
+        """What the app does for a Sharing switch: stop its engine and start it again, same libraries and socket, with
+        the new settings in its environment (Multi-user is the engine's own persisted setting, #5914: it survives this). Raises if the new engine does not come up."""
         assert self.env_for is not None, "only a host restarts"
         self._end_process()
-        self.persist_multiuser(multiuser)
-        self.proc = _popen(self.env_for(sharing, multiuser), self.launch_secret)
+        self.proc = _popen(self.env_for(sharing), self.launch_secret)
         self.wait_ready()
         if self.lan_expected(sharing):  # the LAN listener binds a moment after the socket answers: wait for it, never race it
             self.wait_lan()
 
-    def persist_multiuser(self, on: bool) -> None:
-        """What the app's Multi-user switch leaves in the library (#5914: the engine owns the switch, the app no longer passes
-        FICHERO_MULTIUSER): the persisted setting, plus the owner's chosen password when it goes on. Written to the throwaway
-        app database while the engine is stopped, since the route that does this needs the app's own credential (the bootstrap
-        token the ## 582 ratchet keeps out of tests)."""
-        assert self._key is not None or not on, "sign the owner in (first run) before turning Multi-user on"
-        code = ("from fichero_server.db.app import get_app_db\n"
-                "from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY, note_owner_password_set\n"
-                "db = get_app_db()\n"
-                f"db.set_setting(MULTIUSER_SETTING_KEY, {'true' if on else 'false'!r})\n"
-                + ("note_owner_password_set(db)\n" if on else ""))
-        env = _env(self.base, self.sock, "unused")
-        env.pop("FICHERO_MULTIUSER", None)
-        subprocess.run([sys.executable, "-c", code], env=env, check=True, timeout=120)
+    def lan_ssl(self):
+        """TLS for the host's LAN address, pinned to the certificate this harness made for it (never verify=False)."""
+        context = ssl.create_default_context(cafile=str(self.cert))
+        context.check_hostname = False  # the certificate is pinned; its names are not what is under test
+        return context
 
-    def make_library(self, name: str = "Release bar") -> dict[str, str]:
+    def make_library(self, name: str = "Release bar", client: httpx.Client | None = None) -> dict[str, str]:
         """A library on this engine, under its throwaway HOME (an allowed location), as the header every library route wants."""
         path = self.base / "home" / "Documents" / f"{name}.fichero"
-        with self.uds as local:
-            made = local.post("/api/library", json={"path": str(path)})
+        if client is None:
+            with self.uds as local:
+                made = local.post("/api/library", json={"path": str(path)})
+        else:
+            made = client.post("/api/library", json={"path": str(path)})
         made.raise_for_status()
         self.library = {"X-Fichero-Library-Path": quote(str(path), safe="/")}
         return self.library
@@ -167,7 +171,7 @@ class Engine:
 
     def lan_answers(self) -> bool:
         try:
-            with httpx.Client(verify=False, base_url=f"https://{self.lan}:{self.port}", timeout=5) as client:
+            with httpx.Client(verify=self.lan_ssl(), base_url=f"https://{self.lan}:{self.port}", timeout=5) as client:
                 return client.get("/api/health").status_code == 200
         except httpx.TransportError:
             return False
@@ -186,12 +190,11 @@ class Engine:
 
 
 def _env(base: Path, sock: Path, token: str) -> dict[str, str]:
-    from tests.integration._engine_wait import _share_real_model_cache
-
     home = base / "home"
+    home.mkdir(parents=True, exist_ok=True)
     env = {key: value for key, value in os.environ.items() if not key.startswith("FICHERO_")}  # nothing of the owner's shell reaches a test engine
     env.update(
-        HOME=str(home), FICHERO_MODEL_STORE_ROOT=str(_share_real_model_cache(home)), FICHERO_BASE_PATH=str(base),
+        HOME=str(home), FICHERO_MODEL_STORE_ROOT=str(base / "models"), FICHERO_BASE_PATH=str(base),
         FICHERO_BOOTSTRAP_TOKEN=token, FICHERO_TOKEN_DIR=str(base / "token"), FICHERO_UDS_PATH=str(sock),
         FICHERO_LAUNCH_SECRET_STDIN="1",
         FICHERO_FEATURE_TIER="dev", FICHERO_SKIP_DEFAULT_WORKFLOWS="1", FICHERO_ENV="test",
@@ -200,9 +203,11 @@ def _env(base: Path, sock: Path, token: str) -> dict[str, str]:
 
 
 def _popen(env: dict[str, str], launch_secret: str) -> subprocess.Popen:
-    """The engine in its own process group, its launch secret piped in on stdin as the app does (one line, then closed)."""
-    proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=env, stdin=subprocess.PIPE, text=True,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    """The engine in its own process group, its launch secret piped in on stdin as the app does (one line, then closed).
+    Its stdout and stderr go to `engine.log` under its base path, whose tail a failed start prints."""
+    with open(Path(env["FICHERO_BASE_PATH"]) / "engine.log", "ab") as log:
+        proc = subprocess.Popen([sys.executable, "-m", "fichero_server"], env=env, stdin=subprocess.PIPE, text=True,
+                                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     proc.stdin.write(launch_secret + "\n")
     proc.stdin.close()
     return proc
@@ -232,7 +237,7 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
     public = f"https://{lan}:{port}"
     material = prepare_remote_access_tls(public, storage_root=base)
 
-    def env_for(sharing_on: bool, multiuser_on: bool) -> dict[str, str]:
+    def env_for(sharing_on: bool) -> dict[str, str]:
         env = _env(base, sock, token)
         if sharing_on:
             env.update(FICHERO_TCP_TLS_ALSO="1", FICHERO_TCP_PORT=str(port), FICHERO_LAN_HOST=lan, FICHERO_PUBLIC_BASE_URL=public,
@@ -240,12 +245,48 @@ def start_host(lan: str, *, sharing: bool = True, multiuser: bool = False) -> En
                        FICHERO_TLS_SPKI_HASH=material.spki_pin, FICHERO_BIND_HOST=material.bind_host)
         return env
 
-    engine = _spawn("host", env_for(sharing, False), base, sock, port=port, lan=lan, spki_pin=material.spki_pin)
+    engine = _spawn("host", env_for(sharing), base, sock, port=port, lan=lan, spki_pin=material.spki_pin,
+                    token=token, cert=Path(material.certificate_path))
     engine.env_for = env_for
-    if multiuser:  # as a person does: the owner exists and chose a password first, then the switch goes on and the engine restarts
-        engine.sign_in_owner()
-        engine.restart(sharing=sharing, multiuser=True)
+    if multiuser:
+        turn_multiuser_on(engine)
     return engine
+
+
+def set_owner_password(host: Engine, password: str) -> None:
+    """The product's own #5908 step: the owner chooses a password. While Multi-user is off the route takes only the app's start-up
+    credential (a session is not honoured until Multi-user is on), so this is the ONE named use of it in the tests
+    (`check_no_ambient_owner_in_tests.NAMED`, #5911)."""
+    bootstrap_token = host.token
+    with host._socket_client({"Authorization": f"Bearer {bootstrap_token}"}) as app:
+        chosen = app.patch(f"/api/auth/users/{host.owner_id}", json={"password": password})
+    assert chosen.status_code == 200, f"choosing the owner's password: {chosen.status_code} {chosen.text}"
+
+
+def turn_multiuser_on(host: Engine, password: str = "owner-password-for-the-test") -> None:
+    """The real path (#5908, #5914): the owner chooses a password through its route, then ONE PUT /api/pair/multiuser as the
+    SIGNED-IN owner (never the start-up key). If the engine refuses the owner's own session here, that is a product finding
+    (the app signs in the same way), reported as the failure below, not worked around."""
+    host.sign_in_owner()  # the owner exists (first run) and holds a key
+    set_owner_password(host, password)
+    try:
+        library = host.make_library()
+        with host.uds as owner:
+            on = owner.put("/api/pair/multiuser", json={"enabled": True}, headers=library)
+    except httpx.HTTPStatusError as exc:
+        pytest.fail(f"PRODUCT FINDING (#5908/#5914): the signed-in owner cannot create the library to turn Multi-user on: {exc}")
+    if on.status_code in (401, 403):
+        pytest.fail(f"PRODUCT FINDING (#5908/#5914): the signed-in owner's session is refused ({on.status_code}) while Multi-user is off, "
+                    f"so the app cannot turn it on either: {on.text}")
+    assert on.status_code == 200, f"turning Multi-user on: {on.status_code} {on.text}"
+    host._multiuser = True
+
+
+def turn_multiuser_off(host: Engine) -> None:
+    with host.uds as owner:  # on: the owner's session is honoured
+        off = owner.put("/api/pair/multiuser", json={"enabled": False}, headers=host.library)
+        assert off.status_code == 200, f"turning Multi-user off: {off.status_code} {off.text}"
+    host._multiuser = False
 
 
 def start_guest() -> Engine:
@@ -291,23 +332,26 @@ def pair_with_link(guest: Engine, link: str, device_name: str = "Guest test") ->
 class Stream:
     """A server-sent-events stream read on a thread: `frames` fills as data arrives, `ended` is set when the server closes it."""
 
-    def __init__(self, url: str, headers: dict[str, str]):
+    def __init__(self, url: str, headers: dict[str, str], verify):
         import threading
 
         self.frames: list[str] = []
+        self.lines: list[str] = []  # every non-empty line, keepalive comments too
         self.status: int | None = None
         self.ended = threading.Event()
         self.opened = threading.Event()
-        self._thread = threading.Thread(target=self._read, args=(url, headers), daemon=True)
+        self._thread = threading.Thread(target=self._read, args=(url, headers, verify), daemon=True)
         self._thread.start()
 
-    def _read(self, url: str, headers: dict[str, str]) -> None:
+    def _read(self, url: str, headers: dict[str, str], verify) -> None:
         try:
-            with httpx.Client(verify=False, timeout=httpx.Timeout(60, read=60)) as client, \
+            with httpx.Client(verify=verify, timeout=httpx.Timeout(60, read=60)) as client, \
                     client.stream("GET", url, headers=headers) as response:
                 self.status = response.status_code
                 self.opened.set()
                 for line in response.iter_lines():
+                    if line:
+                        self.lines.append(line)
                     if line.startswith("data:"):
                         self.frames.append(line)
         except httpx.HTTPError:
@@ -320,10 +364,12 @@ class Stream:
         assert self.opened.wait(seconds), "the stream never opened"
         assert self.status == 200, f"the stream answered {self.status}"
 
-    def wait_frame(self, seconds: float = 15.0) -> bool:
+    def wait_line(self, seconds: float = 25.0) -> bool:
+        """Any line at all: the engine sends a keepalive comment every 10 s on a quiet activity stream, so a live stream says
+        something within that, whatever else is or is not emitted."""
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            if self.frames:
+            if self.lines:
                 return True
             time.sleep(0.1)
         return False
