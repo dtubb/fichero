@@ -61,7 +61,22 @@ private enum SharingSection: String, CaseIterable, SettingsGroupSection {
 /// (device pairing / QR), Users (people/roles), and Capture (capture permissions)
 /// tabs, consolidated. Reuses each pane unchanged.
 struct SharingSettingsView: View {
+    @Environment(AppState.self) private var appState
     @State private var selection: SharingSection = .people
+
+    /// The Sharing tab (`.connect`) and a tapped invite link both open on Devices, where the Connect sheet is hosted
+    /// (`ShareSettingsView`); People is the start only for Accounts (`.users`).
+    static func startsOnDevices(tab: SettingsTab, pendingInvite: String?) -> Bool {
+        tab == .connect || ConnectSheetModel.opensFor(pendingInvite: pendingInvite)
+    }
+
+    private func routeToConnect() {
+        #if canImport(AppKit)
+        if Self.startsOnDevices(tab: appState.selectedSettingsTab, pendingInvite: appState.pendingPairingInvite) {
+            selection = .devices
+        }
+        #endif
+    }
 
     private var availableSections: [SharingSection] {
         // People / Devices (pairing + QR) / Capture are all real, keepable
@@ -91,5 +106,7 @@ struct SharingSettingsView: View {
                 CaptureSettingsView()
             }
         }
+        .onAppear(perform: routeToConnect)
+        .onChange(of: appState.pendingPairingInvite) { _, _ in routeToConnect() }
     }
 }

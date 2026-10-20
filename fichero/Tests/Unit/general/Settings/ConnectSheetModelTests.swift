@@ -45,3 +45,14 @@ struct ConnectSheetModelTests {
         #expect(Model.connectTitle(isConnecting: true) == "Connecting…" && Model.connectTitle(isConnecting: false) == "Connect")
     }
 }
+
+@Suite("Settings › routing to the Connect sheet")
+struct ConnectRoutingTests {
+    @Test("the Sharing tab and a pending invite start on Devices, where the Connect sheet lives; Accounts does not")
+    func startsOnDevices() {
+        #expect(SharingSettingsView.startsOnDevices(tab: .connect, pendingInvite: nil))
+        #expect(SharingSettingsView.startsOnDevices(tab: .users, pendingInvite: "fichero://pair?x=1"))
+        #expect(!SharingSettingsView.startsOnDevices(tab: .users, pendingInvite: nil))
+        #expect(!SharingSettingsView.startsOnDevices(tab: .users, pendingInvite: ""))
+    }
+}
