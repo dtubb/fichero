@@ -282,11 +282,12 @@ def queue_of(job_id: str) -> tuple[tuple[str, ...], str, tuple[str, ...]] | None
     return None
 
 
-# Kraken's line finding and line reading, and a page read by a model served on this Mac, handed
-# in by a workflow step that waits for each page. Named as the recipe job registry names them.
+# Kraken's line finding, region finding and line reading, and a page read by a model served on this Mac, handed
+# in by a workflow step that waits for each page. (`find-regions` was missing: a page handed in under an unregistered
+# kind is never picked by the lane, so a recipe's Find Regions waited for good.) Named as the recipe job registry names them.
 # Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
 # Kraken (#4959).
-for _attached in ("find-lines", "read-a-line", "read-a-page", "ask-a-model"):
+for _attached in ("find-lines", "find-regions", "read-a-line", "read-a-page", "ask-a-model"):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 #: True while this task holds a lane slot: a model call made inside work that already holds one
@@ -1114,6 +1115,47 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
 CLOSED_BEFORE_RUN = "Interrupted: the project was closed before this work ran"
 
 
+def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseException:
+    """What a waiter raises once its job was withdrawn from the lane: the run's Stop or Pause, or this page alone."""
+    from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+
+    if run_id and _stop_requested(run_id):
+        return WorkflowCancelled(run_id)
+    if run_id and _pause_requested(run_id):
+        return WorkflowPaused(run_id)
+    job_id = getattr(future, "job_id", None)
+    found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
+    said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+    if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
+        return JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
+    return PageStopped(said)  # skip this page; the run goes on
+
+
+def _wait_for_lane_blocking(db: "Database", future: Future, run_id: str | None) -> Any:
+    """`_wait_for_lane` for a thread: poll, and while the job still WAITS let a Stop, a Pause or a closed project
+    withdraw it. A page already running is waited for. Without this a closed project or a Stop left the thread
+    hung for good (review 424)."""
+    from concurrent.futures import CancelledError, TimeoutError as FutureTimeout
+
+    while True:
+        try:
+            return future.result(timeout=STOP_POLL_SECONDS)
+        except FutureTimeout:
+            pass
+        except CancelledError:
+            raise _withdrawn(db, future, run_id) from None
+        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
+            from fichero_server.execution.cancellation import WorkflowCancelled
+
+            raise WorkflowCancelled(run_id)
+        if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
+            raise JobCancelled(CLOSED_BEFORE_RUN)
+        if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
+            from fichero_server.execution.cancellation import WorkflowPaused
+
+            raise WorkflowPaused(run_id)
+
+
 async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None) -> Any:
     """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
     stopped while the job is still waiting for the lane, or `JobCancelled` if its project closes
@@ -1126,18 +1168,7 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
         polls += 1
         if done:
             if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
-                from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
-
-                if run_id and _stop_requested(run_id):
-                    raise WorkflowCancelled(run_id)
-                if run_id and _pause_requested(run_id):
-                    raise WorkflowPaused(run_id)
-                job_id = getattr(future, "job_id", None)
-                found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
-                said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
-                if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
-                    raise JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
-                raise PageStopped(said)  # skip this page; the run goes on
+                raise _withdrawn(db, future, run_id)
             return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
             from fichero_server.execution.cancellation import WorkflowCancelled
@@ -1370,7 +1401,8 @@ def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, m
     db = _open_library(library_path)
     if db is None or getattr(_current, "lane", None) == "local-ml":
         return fn()
-    return submit(db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id).result()
+    future = submit(db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id)
+    return _wait_for_lane_blocking(db, future, run_id)
 
 
 def settle_made_thumbnails(db: "Database") -> int:
