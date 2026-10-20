@@ -33,9 +33,19 @@ def test_once_there_is_enough_the_sentence_gives_way_to_the_offer():
 
 
 def test_the_plan_carries_it(client, with_material):
+    """Through the route the app calls: a project with a saved recipe and no corrected work says the count early."""
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "pages": 1000}
+    recipe = client.post("/api/recipes/assemble", json=answers)
+    assert recipe.status_code == 200, recipe.text
+    saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe.json()})
+    assert saved.status_code == 200, saved.text
     plan = client.get("/api/recipes/project/start")
-    assert plan.status_code in (200, 422)  # no recipe saved yet is refused in words, not a field missing
-    assert "train_ahead" in (client.get("/openapi.json").json()["components"]["schemas"]["StartPlan"]["properties"])
+    assert plan.status_code == 200, plan.text
+    ahead = plan.json()["train_ahead"]
+    assert ahead and {"step", "job", "sentence"} <= set(ahead[0])
+    assert any("corrected lines" in a["sentence"] for a in ahead)
+    assert plan.json()["train_offers"] == []  # #5804: still no greyed row
 
 
 def test_every_stage_says_whether_it_can_be_tried_and_one_that_cannot_says_so_in_words():
