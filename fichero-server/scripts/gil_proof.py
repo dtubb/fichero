@@ -14,6 +14,7 @@ Pro. Every mode prints one markdown table row per N, and with --out appends the 
   engine    the engine's own seam (kraken_runtime._kraken_call) with N pages at once, the cap lifted to N, run twice
             (--threads one: 1 torch thread a page; --threads default: the engine's own split). Per stage seconds, wall,
             CPU%, and the wait at each lock the seam takes (the page gate, the memory guard).
+  settings  ONE process: Kraken's own speed settings against the engine config, one change per row, text identical or CER (#5930)
   profile   ONE process: per page, the lines found, segment time and the reader's predict time at batch 1/4/8/16/32
             (page order and sorted by line width, CPU and --mps), then a cProfile of the engine's own recognize_lines.
             Answers "does the engine read row by row?" (it makes one predict call a page; the batch is inside Kraken).
@@ -418,6 +419,112 @@ def profile(args) -> None:
     print(f"\nengine recognize_lines on {files[0].name}: {wall:.2f} s wall; top 30 by cumulative time:\n{out.getvalue()}")
 
 
+def _cer(a: str, b: str) -> float:
+    """Character error rate of b against a (edit distance / len(a)); stdlib, two-row."""
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1] / max(1, len(a))
+
+
+def settings(args) -> None:
+    """Kraken's own speed settings, one page at a time (briefs/kraken-speed-settings-2026-10-20.md): the engine's config
+    is the baseline; each row changes ONE thing and says whether the text came out identical (a setting is only
+    adopted if it is). Rows: line workers 0/2/4 (capped at 4, 3 GB free), batch 1/4/8, our own torch.set_num_threads,
+    MPS for the reader only, and blla's no-legacy-polygons / no-subline options where this Kraken has them (CER of the
+    page text against the default segmentation). Also prints the Kraken version and the defaults the engine inherits."""
+    import inspect
+
+    from fichero_server.security.real_data_guard import refuse_real_base
+
+    refuse_real_base(os.environ.get("FICHERO_BASE_PATH"))
+
+    import torch
+    from kraken import blla
+    from kraken.configs import RecognitionInferenceConfig
+    from kraken.tasks import RecognitionTaskModel
+    from PIL import Image
+
+    try:
+        from importlib.metadata import version
+
+        print(f"| kraken={version('kraken')} | torch={torch.__version__} |", flush=True)
+    except Exception:  # noqa: BLE001
+        pass
+    sig = inspect.signature(blla.segment)
+    print("| blla.segment defaults: " + ", ".join(f"{k}={v.default!r}" for k, v in sig.parameters.items()
+                                                   if v.default is not inspect.Parameter.empty) + " |", flush=True)
+    d = RecognitionInferenceConfig(accelerator="cpu")
+    print("| RecognitionInferenceConfig defaults: " + ", ".join(
+        f"{k}={getattr(d, k)!r}" for k in sorted(vars(d)) if not k.startswith("_")) + " |", flush=True)
+    torch.set_num_threads(args.torch_threads)
+    seg_model = _load_blla()
+    net = RecognitionTaskModel.load_model(str(args.model))
+
+    def read(image, segmentation, **kw):
+        config = RecognitionInferenceConfig(**{"accelerator": "cpu", "device": 1, "num_line_workers": 0, "batch_size": 1, **kw})
+        began = time.perf_counter()
+        text = [getattr(r, "prediction", str(r)) for r in net.predict(image, segmentation, config)]
+        return time.perf_counter() - began, text
+
+    for path in pages_in(args.images, args.pages):
+        with Image.open(path) as im:
+            image = im.convert("RGB")
+        began = time.perf_counter()
+        segmentation = blla.segment(image, model=seg_model)
+        seg_s = time.perf_counter() - began
+        if not list(segmentation.lines):
+            print(f"| page={path.name} | NO LINES, nothing to read |", flush=True)
+            continue
+        base_s, base = read(image, segmentation)
+        print(f"| page={path.name} | lines={len(base)} | segment_s={seg_s:.2f} | BASELINE (engine config) predict_s={base_s:.2f} |",
+              flush=True)
+
+        def report(label: str, wall: float, text: list[str]) -> None:
+            print(f"| {label} | predict_s={wall:.2f} | x{base_s / wall:.2f} | identical={text == base} | "
+                  f"cer_vs_baseline={_cer(chr(10).join(base), chr(10).join(text)):.4f} |", flush=True)
+
+        def attempt(label: str, **kw) -> None:
+            free = free_ram_gb()
+            if free is not None and free < 3.0:
+                print(f"| {label}: SKIPPED, only {free:.1f} GB free |", flush=True)
+                return
+            try:
+                report(label, *read(image, segmentation, **kw))
+            except Exception as exc:  # noqa: BLE001 -- a setting the sandbox or this Kraken refuses is a result
+                print(f"| {label}: FAILED {type(exc).__name__}: {exc} |", flush=True)
+
+        for workers in (2, 4):  # each worker imports torch again: capped at 4, memory checked
+            attempt(f"line_workers={workers}", num_line_workers=min(workers, 4))
+        for batch in (4, 8):
+            attempt(f"batch={batch}", batch_size=batch)
+        for threads_ in (2, 4):
+            torch.set_num_threads(threads_)
+            attempt(f"torch_threads={threads_}")
+        torch.set_num_threads(args.torch_threads)
+        if torch.backends.mps.is_available():
+            attempt("reader on MPS (blla on cpu)", accelerator="mps")
+        else:
+            print("| reader on MPS: not available here |", flush=True)
+        for name in ("no_legacy_polygons", "no_subline_segmentation", "subline_segmentation"):
+            if name not in sig.parameters:
+                print(f"| blla.segment has no {name} in this Kraken (see the defaults line) |", flush=True)
+                continue
+            value = False if name == "subline_segmentation" else True
+            try:
+                began = time.perf_counter()
+                other = blla.segment(image, model=seg_model, **{name: value})
+                took = time.perf_counter() - began
+                text = read(image, other)[1]
+                print(f"| blla {name}={value} | segment_s={took:.2f} | x{seg_s / took:.2f} | lines={len(text)} | "
+                      f"cer_vs_baseline={_cer(chr(10).join(base), chr(10).join(text)):.4f} |", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                print(f"| blla {name}: FAILED {type(exc).__name__}: {exc} |", flush=True)
+
+
 # -- spy-top: py-spy's folded output ------------------------------------------------------------------------------------
 def _folded(path: Path) -> collections.Counter:
     """(stack -> samples) from py-spy `--format raw` (one `a;b;c count` per line)."""
@@ -488,6 +595,12 @@ def main() -> int:
     p.add_argument("--torch-threads", type=int, default=1)
     p.add_argument("--slow-s", type=float, default=60.0, help="a batch slower than this ends the larger ones")
     p.set_defaults(fn=profile)
+    p = sub.add_parser("settings")
+    p.add_argument("--images", type=Path, required=True)
+    p.add_argument("--model", type=Path, required=True)
+    p.add_argument("--pages", type=int, default=3)
+    p.add_argument("--torch-threads", type=int, default=1)
+    p.set_defaults(fn=settings)
     p = sub.add_parser("spy-top")
     p.add_argument("file", type=Path)
     p.add_argument("--all", type=Path)
