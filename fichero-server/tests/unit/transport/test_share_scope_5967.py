@@ -173,3 +173,104 @@ def test_the_folder_is_in_the_mint_audit(project):
 def test_only_the_owner_may_share_a_folder(project):
     refused = _invite(project.harness, "ivan", client=_as(project.harness, "alice"), folder_id=project.ids["A"])
     assert refused.status_code == 403
+
+
+# -- review 704: a person shared one folder never reads the whole project through a library-level route ---------------------
+def _app():
+    import importlib
+
+    return importlib.import_module("fichero_server.api.main").app
+
+
+def _walk(dependant):
+    yield dependant
+    for sub in dependant.dependencies:
+        yield from _walk(sub)
+
+
+def _library_level_get_routes():
+    """(route, endpoint id) of every GET route that opens the library through the shared dependency and names no id."""
+    from fastapi.routing import APIRoute
+
+    found = []
+    for route in _app().routes:
+        if not isinstance(route, APIRoute) or "GET" not in route.methods or "{" in route.path:
+            continue
+        names = {getattr(d.call, "__name__", "") for d in _walk(route.dependant)}
+        if names & {"get_library_database", "get_library_database_for_write"}:
+            found.append((route, f"{route.endpoint.__module__}:{route.endpoint.__name__}"))
+    return found
+
+
+def test_every_listed_route_exists_and_filters_its_rows():
+    import inspect
+
+    by_id = {}
+    for route in _app().routes:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is not None:
+            by_id[f"{endpoint.__module__}:{endpoint.__name__}"] = route
+    missing = sorted(authz.SCOPED_LIBRARY_READ_ROUTES - by_id.keys())
+    assert not missing, f"listed but not a route (renamed?): {missing}"
+    for name in authz.SCOPED_LIBRARY_READ_ROUTES:
+        route = by_id[name]
+        filters = ("readable_documents" in inspect.getsource(route.endpoint)
+                   or any(getattr(d.call, "__name__", "") == "readable_rows" for d in _walk(route.dependant)))
+        assert filters, f"{name} is on the scoped list but does not filter per row"
+
+
+def test_a_scoped_person_is_refused_every_library_level_route_that_is_not_listed(project):
+    _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
+                       role="viewer")
+    client = _as(project.harness, "carla")
+    leaked = []
+    for route, name in _library_level_get_routes():
+        if name in authz.SCOPED_LIBRARY_READ_ROUTES:
+            continue
+        got = client.get(route.path)
+        if got.status_code == 200:
+            leaked.append(route.path)
+    assert not leaked, f"a person shared one folder reads the whole project through: {leaked}"
+
+
+def test_search_is_refused_in_words_that_name_nothing(project):
+    _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
+                       role="viewer")
+    got = _as(project.harness, "carla").get("/api/search", params={"q": "Page b1"})
+    assert got.status_code in (401, 403) and "Page b1" not in got.text and "Folder B" not in got.text
+
+
+def test_a_listed_route_shows_only_the_folder(project):
+    _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
+                       role="viewer")
+    got = _as(project.harness, "carla").get("/api/documents")
+    assert got.status_code == 200, got.text
+    text = got.text
+    assert "Page a1" in text and "Page b1" not in text and "Page r1" not in text and "Folder B" not in text
+
+
+def test_the_owner_still_reads_every_library_level_route_the_scoped_person_cannot(project):
+    client = _as(project.harness, "owner")
+    assert client.get("/api/documents").status_code == 200
+
+
+def test_an_item_moved_out_of_the_granted_folder_disappears_for_the_person(project):
+    carla = _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
+                       role="viewer")
+    assert authz.can_read(carla, project.library, project.ids["a1"])
+    db = db_manager.get_database(project.harness.library)
+    row = db.get(Document, project.ids["a1"])
+    row.parent_id = project.ids["B"]
+    db.save(row)
+    assert not authz.can_read(carla, project.library, project.ids["a1"])
+
+
+def test_an_editor_invited_to_view_a_folder_is_told_they_already_have_more(project):
+    refused = _invite(project.harness, "alice", folder_id=project.ids["A"], role="viewer")
+    assert refused.status_code == 409
+    assert "already has more access" in refused.json()["detail"] and "editor" in refused.json()["detail"]
+    assert "Folder A" not in refused.json()["detail"]
