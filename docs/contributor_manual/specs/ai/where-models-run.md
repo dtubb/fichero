@@ -452,9 +452,22 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.local-servers-measured` — **[GAP]** (#5537) Ollama and LM Studio on this Mac are asked
   what they hold and count in the memory sum and the reads-at-once rule; today both are
   `omlx`-only (`llm/__init__.py:1392,4230`).
-- `ai.where.one-retry-policy` — **[PARTIAL]** (#5353, #5555) one table by error kind decides
-  retries; a transient error is retried outside the lane slot. Built: `page_retry` and stored
-  jobs' attempts; LangChain's ten retries still run inside the slot (`llm/__init__.py:4568-4573`).
+- `ai.where.one-retry-policy` — **[PARTIAL]** (#5353, #5555, #5944) one table by error kind decides
+  retries, in ONE layer. *Built, unrun until an M4 pass:* the SDK's own retries are off on every model (`max_retries=0`,
+  `llm._build_langchain_model`; it was ten, under the breaker's four and a page retry); the layer is
+  `workflows/circuit_breaker.call_with_breaker`, which a workflow's vision calls already ran inside and which every other
+  model call (chat, tools, structured output, the line reader, a check) now runs inside through `llm/retry.py` (a call
+  already inside the layer is not wrapped again; a model on this Mac is not retried here, its no-progress rule and
+  `page_retry` own that). The table: **slow-down** (429, rate limit) and **transient** (5xx, 408, 409, a timeout, a dropped
+  connection) are retried after the provider's Retry-After (a floor, capped at 120 s) or the exponential backoff, at most
+  `FICHERO_VISION_MAX_RETRIES` (4) times, so **a cloud call is sent at most 5 times** and a page is that times the calls it
+  needs (a local-cause `page_retry` reads a page once more, local models only); neither is a breaker failure, a call whose
+  retries are spent is one, and K such in a row open the breaker; **fatal** (401, 402, `insufficient_quota`, a key limit)
+  opens the breaker at once with no retry and the provider is failed fast for 30 s engine-wide; anything else is raised at
+  once. Each try takes the lane slot and the cloud spend hold again, so a backoff holds neither. *Not built:* the
+  workflow vision tool's `hold_lane` still wraps its whole retry loop (the backoff holds the network slot there),
+  `ai.where.retry-outside-the-slot`. *Test:* `fichero-server/tests/unit/llm/test_one_retry_layer_5944.py`,
+  `fichero-server/tests/unit/workflows/test_circuit_breaker.py`.
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).
 - `ai.where.cloud-spend-cap` — **[PARTIAL]** (#5943; Fable cloud review 2026-10-20, verdict ## 664; prerequisites `ai.where.one-egress-gate` #5368) **Every project has a cloud spend cap** (owner's ruling 2026-10-20): US$10 a month unless the project sets another, as high as the person likes; there is no project without one. It is linked to `source.onboard.spend-cap` (#5769, Hugging Face only today); one cap for Hugging Face and cloud, or two: owner to decide. A call's worst case (its input, 30,000 tokens unless its caller says, and the full output its config allows or the model's catalogue maximum when smaller, at the listed prices; a model with no listed price is held at an assumed US$0.50, never free) is held when the call is about to be SENT (inside its lane slot: a page still queued holds nothing and is never refused for money nobody has spent), and released when it ends, the real cost booked (a failed call books what it reported; an answer or a call cancelled after it was sent that reported no priced usage books its worst case). A call that fits only once other calls in flight have ended waits for them. A call that would not fit what is already booked is refused in words (`CloudSpendRefusedError`: the cap, what is spent, "not sent", where to raise it) and the workflow run it belongs to is asked to pause at its next boundary (`cancellation.request_pause`, the run's Pause, #5932/#5933). The estimate shown before a run is the recipe's (`recipes/start.py`). Cloud batches reserve their worst case the same way (`ai.where.provider-batch-is-an-offer`, #5940). *Built, unrun until an M4 pass:* `llm/spend.py`, held in `llm.model_call_slot`; the answer is `cloud_spend_cap_usd` in the project's setup answers; booked spend is `recipe/cloud-spend.json` (UTC month); the chat books its answer's usage and a chat that names no model config is held too. *Not built:* Set Up asking the cap and the API field for it (today a number written by hand), the run row's reason carrying the cap's words (the refused page's reason has them), a pause for a call outside a workflow run (a recipe card's own job fails the page instead), the cap shown against the estimate, and the batch place's reservation. *Test:* `fichero-server/tests/unit/llm/test_cloud_spend_cap_5943.py` (a new project's cap is $10; ten queued pages under a cap of three worst cases all send; a cap reached refuses and asks the run to pause).

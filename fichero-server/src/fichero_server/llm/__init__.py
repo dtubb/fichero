@@ -1963,10 +1963,13 @@ async def chat(
         # callers can route around.
         budget = _call_budget(config)
         try:
-            async with _remote_llm_call_slot(config):
-                response = await asyncio.wait_for(
-                    model.ainvoke(messages), timeout=budget,
-                )
+            async def _once():
+                async with _remote_llm_call_slot(config):
+                    return await asyncio.wait_for(
+                        model.ainvoke(messages), timeout=budget,
+                    )
+
+            response = await _resilient(_once, config)
         except asyncio.TimeoutError as exc:
             if budget is None:
                 raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
@@ -2882,10 +2885,13 @@ async def vision(
     # vision providers ignore the LangChain `timeout` kwarg under keepalive.
     budget = _call_budget(config)
     try:
-        async with _remote_llm_call_slot(config):
-            response = await asyncio.wait_for(
-                model.ainvoke([message]), timeout=budget,
-            )
+        async def _once():
+            async with _remote_llm_call_slot(config):
+                return await asyncio.wait_for(
+                    model.ainvoke([message]), timeout=budget,
+                )
+
+        response = await _resilient(_once, config)
     except asyncio.TimeoutError as exc:
         if budget is None:
             raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
@@ -3310,8 +3316,11 @@ async def chat_with_tools(
 
     # Call model with tools
     try:
-        async with _remote_llm_call_slot(config):
-            response = await model_with_tools.ainvoke(messages)
+        async def _once():
+            async with _remote_llm_call_slot(config):
+                return await model_with_tools.ainvoke(messages)
+
+        response = await _resilient(_once, config)
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -3400,8 +3409,11 @@ async def structured_output(
 
     # Call model
     try:
-        async with _remote_llm_call_slot(config):
-            result = await structured_model.ainvoke([HumanMessage(content=prompt)])
+        async def _once():
+            async with _remote_llm_call_slot(config):
+                return await structured_model.ainvoke([HumanMessage(content=prompt)])
+
+        result = await _resilient(_once, config)
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -3619,10 +3631,13 @@ async def chat_structured(
     # asyncio.wait_for is the backstop.
     budget = _call_budget(config)
     try:
-        async with _remote_llm_call_slot(config):
-            result = await asyncio.wait_for(
-                structured_model.ainvoke(messages), timeout=budget,
-            )
+        async def _once():
+            async with _remote_llm_call_slot(config):
+                return await asyncio.wait_for(
+                    structured_model.ainvoke(messages), timeout=budget,
+                )
+
+        result = await _resilient(_once, config)
     except asyncio.TimeoutError as exc:
         if budget is None:
             raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
@@ -4694,9 +4709,8 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     - apple → ChatAppleIntelligence, a thin BaseChatModel adapter over
       the existing fm-bridge chat()/chat_structured() helpers.
 
-    `max_retries=10` (LangChain default is 6) is set on every model so
-    transient OpenRouter / Anthropic blips recover silently with
-    exponential backoff + jitter.
+    `max_retries=0` is set on every model: a retry is the one retry layer's
+    (`llm/retry.py`, `workflows/circuit_breaker.py`), never the SDK's.
     """
     _enforce_local_only_provider(config, kind="chat")  # where the client is built (`source.egress.every-call-site`)
     provider = config.provider.lower()
@@ -4727,14 +4741,14 @@ def _build_langchain_model(config: LLMConfig) -> Any:
             pass
     api_key = _resolve_api_key(config)
 
-    # Common parameters. max_retries=10 bumps LangChain's default 6 so
-    # transient transport failures (network blips, 429, 5xx) recover
-    # without breaking long parallel runs.
+    # Common parameters. Transient failures (network blips, 429, 5xx) recover in the one retry layer.
     common_params: dict[str, Any] = {
         "temperature": config.temperature,
         "max_tokens": config.max_tokens,
         "timeout": config.timeout,
-        "max_retries": 10,
+        # No SDK retries: the one retry layer is ours (`llm/retry.py`, #5944), so a send is counted once and a provider's
+        # Retry-After is honoured in one place. (ten SDK retries x the breaker's four x a page retry was 40+ sends.)
+        "max_retries": 0,
     }
 
     # Reasoning effort routing (#859). Each provider exposes the knob
@@ -4927,6 +4941,13 @@ def _cache_langchain_model(
     while len(cache) > _LANGCHAIN_MODEL_CACHE_SIZE:
         cache.popitem(last=False)
     return cached_model
+
+
+async def _resilient(make_coro, config: LLMConfig):
+    """One model call under the one retry layer (`llm/retry.py`, `ai.where.one-retry-policy`, #5944)."""
+    from fichero_server.llm.retry import resilient
+
+    return await resilient(make_coro, config)
 
 
 def get_langchain_model(config: LLMConfig) -> Any:

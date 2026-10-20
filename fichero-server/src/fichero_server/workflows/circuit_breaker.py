@@ -36,12 +36,17 @@ already import it lazily).
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import random
 import time
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+#: True while a call runs inside `call_with_breaker`: the llm layer wraps its own calls in the same retry layer only when
+#: this is False, so a call is retried by exactly one layer (`ai.where.one-retry-policy`, #5944).
+IN_RETRY_LAYER: contextvars.ContextVar[bool] = contextvars.ContextVar("in_retry_layer", default=False)
 
 # Backoff / breaker defaults. The vision driver overrides these from env
 # (FICHERO_VISION_BACKOFF_*, FICHERO_VISION_BREAKER_THRESHOLD) but these are
@@ -81,26 +86,60 @@ class ProviderRateLimitedError(RuntimeError):
         )
 
 
+#: The longest wait a provider's Retry-After may ask for before the call gives up (a provider asking for more than this
+#: is not going to answer this run).
+RETRY_AFTER_CAP = 120.0
+
+
+def retry_after_seconds(exc: BaseException) -> float | None:
+    """The provider's own Retry-After (seconds), from the response headers or the exception, capped; None if it gave none."""
+    value = getattr(exc, "retry_after", None)
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if value is None and headers is not None:
+        try:
+            value = headers.get("retry-after") or headers.get("Retry-After")
+        except Exception:  # noqa: BLE001
+            value = None
+    try:
+        seconds = float(value)  # an HTTP-date form is not honoured: the backoff covers it
+    except (TypeError, ValueError):
+        return None
+    return min(max(seconds, 0.0), RETRY_AFTER_CAP)
+
+
 def classify_provider_error(exc: BaseException) -> str:
-    """Classify a provider exception as ``"retryable"`` or ``"terminal"``.
+    """Classify a provider exception as ``"slow-down"``, ``"transient"``, ``"fatal"`` or ``"terminal"``
+    (`ai.where.one-retry-policy`, #5944).
 
-    Retryable = 429 / quota / rate-limit / "too many requests" — back off
-    and retry, and count toward the circuit breaker. Terminal = auth,
-    invalid key, other non-429 4xx, or anything else — propagate
-    immediately (the caller records the per-file error and moves on).
-
-    Reuses ``fichero_server.llm``'s quota detection so the two layers stay in
-    sync. The import is deferred to avoid an import cycle.
+    * **slow-down**: 429 / rate-limit / too many requests. Wait (the provider's Retry-After, else backoff) and retry. NOT a
+      breaker failure: a provider that said "slow down" is alive.
+    * **transient**: 5xx, 408, 409, a timeout or a dropped connection. Back off and retry; not a breaker failure.
+    * **fatal**: this provider will not answer for this run: no credit (402, ``insufficient_quota``, a key limit) or a
+      refused key (401). Opens the breaker at once; no retry.
+    * **terminal**: anything else (a bad request, a refusal, a bug). Raised at once.
     """
-    from fichero_server.llm import ProviderQuotaError, _is_provider_quota_error
+    from fichero_server.llm import _extract_exc_message, _extract_exc_status_code, _is_provider_quota_error
 
-    if isinstance(exc, ProviderQuotaError):
-        return "retryable"
+    status = _extract_exc_status_code(exc)
+    try:
+        text = _extract_exc_message(exc).lower()
+    except Exception:  # pragma: no cover - classification must never crash
+        text = str(exc).lower()
+    if status in (401, 402) or any(
+            k in text for k in ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits")):
+        return "fatal"
     try:
         is_quota, _status, _detail = _is_provider_quota_error(exc)
-    except Exception:  # pragma: no cover - classification must never crash
+    except Exception:  # pragma: no cover
         is_quota = False
-    return "retryable" if is_quota else "terminal"
+    if status == 429 or is_quota:
+        return "slow-down"
+    name = type(exc).__name__.lower()
+    if (status is not None and (status >= 500 or status in (408, 409))) or any(
+            k in name for k in ("timeout", "connecterror", "connectionerror", "remoteprotocol", "readerror")):
+        return "transient"
+    return "terminal"
 
 
 def compute_backoff_delay(
@@ -225,6 +264,17 @@ class ProviderCircuitBreaker:
                 )
             return st.opened_at is not None
 
+    async def trip(self, provider: str | None, *, detail: str | None = None) -> None:
+        """Open the breaker for ``provider`` now: it cannot answer this run (no credit, a refused key)."""
+        key = self._key(provider)
+        async with self._lock:
+            st = self._states.setdefault(key, _ProviderState())
+            st.consecutive_failures = max(st.consecutive_failures, self.threshold)
+            st.last_detail = detail
+            if st.opened_at is None:
+                st.opened_at = time.monotonic()
+                logger.error("Circuit OPEN for provider %s: %s", provider or "unknown", detail or "it cannot answer")
+
     def is_open(self, provider: str | None) -> bool:
         """Cheap, lock-free snapshot of whether ``provider`` is OPEN."""
         st = self._states.get(self._key(provider))
@@ -266,27 +316,35 @@ async def call_with_breaker(
     await breaker.check(provider)
     attempt = 0
     while True:
+        token = IN_RETRY_LAYER.set(True)  # the one layer: a call inside this one does not wrap itself again
         try:
             result = await make_coro()
         except Exception as exc:
-            if classify_provider_error(exc) != "retryable":
+            kind = classify_provider_error(exc)
+            if kind == "fatal":
+                await breaker.trip(provider, detail=str(exc))
                 raise
-            # Retryable quota/rate-limit error: count it and re-check the
-            # breaker. If this failure tripped it (or it was already open),
-            # check() raises ProviderRateLimitedError -> fail fast.
-            await breaker.record_failure(provider, detail=str(exc))
-            await breaker.check(provider)
+            if kind == "terminal":
+                raise
+            # slow-down or transient: neither is a breaker failure (a provider that said "slow down" is alive); the
+            # number of sends is bounded by max_retries alone.
             if attempt >= max_retries:
-                # Exhausted retries without tripping the breaker — surface
-                # the underlying error to the per-file handler.
+                # Retries spent without an answer: THIS is the breaker's failure (K calls in a row that never got
+                # through open it), not each 429 on the way.
+                await breaker.record_failure(provider, detail=str(exc))
+                await breaker.check(provider)
                 raise
             delay = compute_backoff_delay(
                 attempt, base=base_delay, cap=max_delay, jitter=jitter
             )
+            asked = retry_after_seconds(exc)
+            if asked is not None:
+                delay = max(delay, asked)  # the provider's own Retry-After is a floor
             attempt += 1
             logger.warning(
-                "Retryable rate-limit/quota error%s (provider=%s): backing "
+                "Retryable %s error%s (provider=%s): backing "
                 "off %.2fs before retry %d/%d (%s)",
+                kind,
                 f" for {label}" if label else "",
                 provider or "unknown",
                 delay,
@@ -308,3 +366,5 @@ async def call_with_breaker(
         else:
             await breaker.record_success(provider)
             return result
+        finally:
+            IN_RETRY_LAYER.reset(token)
