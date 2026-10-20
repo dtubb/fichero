@@ -85,7 +85,7 @@ class TestDurability:
 
         states = _states(db)
         assert states["once"] == ("waiting", "Interrupted; carries on")
-        assert states["poison"][0] == "failed" and "Interrupted 3 times" in states["poison"][1]
+        assert states["poison"][0] == "failed" and states["poison"][1] == "Stopped 3 times by the engine stopping; set aside. Resume to carry on."
         jobs.set_paused(False)
         assert _wait_for(lambda: ran == ["once"])
 
