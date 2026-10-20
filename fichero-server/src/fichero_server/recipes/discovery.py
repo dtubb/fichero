@@ -1568,11 +1568,12 @@ def _languages_of(subject: str) -> frozenset[str]:
     return frozenset() if key in ("", "any") else frozenset(key.split(","))
 
 
-def search(db: Any, languages: frozenset[str], job: str | None = None) -> dict[str, Any]:
+def search(db: Any, languages: frozenset[str], job: str | None = None, *, by_itself: bool = False) -> dict[str, Any]:
     """The search job for these languages, and for a step's own job when given one with a search of its own
     (`STEP_SEARCHES`, #5668), else the reader search (its row: id, state, reason, detail, finished_at): the one
     waiting or running, or one done within a day; otherwise a new one, queued on the search lane with a person
-    waiting on it. Never reaches the network itself."""
+    waiting on it (`by_itself`: started by Set Up's save, not by a person: 'automatic' and not watched, so Activity says
+    so and it goes in its turn). Never reaches the network itself."""
     from fichero_server.core.timeutil import ensure_utc
     from fichero_server.execution import jobs
 
@@ -1587,7 +1588,8 @@ def search(db: Any, languages: frozenset[str], job: str | None = None) -> dict[s
         if (row["state"] == "done" and finished is not None
                 and datetime.now(timezone.utc) - ensure_utc(finished) < REFRESH_AFTER):
             return row
-    job_id = jobs.enqueue(db, SEARCH_KIND, subject, started_by="owner", watched=True)
+    job_id = jobs.enqueue(db, SEARCH_KIND, subject, started_by="automatic" if by_itself else "owner",
+                          watched=not by_itself)
     return jobs.find_jobs(db, kinds=[SEARCH_KIND], job_id=job_id)[0]
 
 
