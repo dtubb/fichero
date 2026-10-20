@@ -72,6 +72,7 @@ struct BackendSettingsView: View {
             AdvancedConnectionSection(
                 engineHost: $engineHost,
                 appState: appState,
+                backendService: backendService,
                 libraryManager: libraryManager
             )
         }
@@ -113,14 +114,20 @@ struct BackendSettingsView: View {
 }
 
 private struct AdvancedConnectionSection: View {
+    /// The stored host. Written only by `EngineHostSwitch` (#5916); the field below edits a draft.
     @Binding var engineHost: String
     let appState: AppState
+    let backendService: EmbeddedBackendService
     let libraryManager: LibraryManager
+
+    @State private var draft = ""
+    @State private var isApplying = false
+    @State private var applyError: String?
 
     var body: some View {
         Section {
             DisclosureGroup("Advanced") {
-                TextField("Server URL", text: $engineHost)
+                TextField("Server URL", text: $draft)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
 
@@ -136,21 +143,42 @@ private struct AdvancedConnectionSection: View {
                         .foregroundStyle(.red)
                 }
 
-                Button("Apply") {
-                    appState.reconfigureGeneratedClientsForCurrentHost()
-                    libraryManager.reconfigureGeneratedClientsForCurrentHost()
+                Button("Apply") { Task { await apply() } }
+                    .disabled(hostIsInvalid || isApplying)
+
+                if let applyError {
+                    Text(applyError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
-                .disabled(hostIsInvalid)
 
                 Text("Leave blank only when this Mac should use its embedded local server.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+        .onAppear { draft = engineHost }
+        .onChange(of: engineHost) { _, stored in draft = stored }
+    }
+
+    /// Same stop, write, repoint, start, check and roll-back as Connect This Mac, through the one procedure (#5916).
+    private func apply() async {
+        isApplying = true
+        applyError = nil
+        defer { isApplying = false }
+        do {
+            try await EngineHostSwitch.standard(
+                appState: appState, backendService: backendService, libraryManager: libraryManager,
+                setHost: { engineHost = $0 }
+            ).run(from: engineHost, to: draft, notResponding: "That address did not answer, so the previous one is back.")
+        } catch {
+            applyError = error.localizedDescription
+        }
+        draft = engineHost
     }
 
     private var hostIsInvalid: Bool {
-        if case .invalid = EngineConfig.hostConfiguration(from: engineHost) {
+        if case .invalid = EngineConfig.hostConfiguration(from: draft) {
             return true
         }
         return false
