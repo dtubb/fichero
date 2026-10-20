@@ -10,9 +10,9 @@ Usage:
 
     # Python
     from fichero_server.api import app
-    from fichero_server.security.bind_host import resolve_bind_host
+    from fichero_server.security.bind_host import listen_port, resolve_bind_host
     import uvicorn
-    uvicorn.run(app, host=resolve_bind_host(), port=8765)
+    uvicorn.run(app, host=resolve_bind_host(), port=listen_port())
 """
 
 from typing import TYPE_CHECKING, Any
