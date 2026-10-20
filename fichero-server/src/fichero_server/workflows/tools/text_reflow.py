@@ -190,6 +190,7 @@ def _say_refinement_unavailable(library_path: str) -> None:
             type=ActivityType.SYSTEM_WARNING, level=ActivityLevel.WARNING, message=REFINEMENT_UNAVAILABLE,
             workflow_id=node.workflow_id if node else None, thread_id=run_id or None, node_id=node.node_id if node else None)
     except Exception:  # the page must finish even when Activity cannot be written
+        _said_for.discard(run_id)  # not said yet: the run's next page tries the Activity warning again
         logger.warning(REFINEMENT_UNAVAILABLE)
 
 
