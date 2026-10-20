@@ -90,6 +90,7 @@ class _PairingCode:
     display_name: str = ""
     role: str = INVITE_DEFAULT_ROLE  # on `library`, for a NEW person (an existing person keeps the role they have)
     library: str | None = None
+    folder_id: str | None = None  # a folder of `library` the invitation shares, not the whole project (#5967)
     never_expires: bool = False
     claimed: bool = False  # a redeem is under way: only one at a time may spend the code
 
@@ -128,6 +129,9 @@ class PairCodeRequest(BaseModel):
     display_name: str | None = None
     role: Literal["viewer", "editor"] = INVITE_DEFAULT_ROLE
     library: str | None = Field(default=None, description="the library the role is granted on, for a new person")
+    folder_id: str | None = Field(default=None, description=(
+        "share one folder of that project instead of the whole project: the person reaches that folder and what is under "
+        "it, nothing beside it (`sharing.share-sheet-chooses-what`)"))
     expires_in_days: int | None = Field(default=None, ge=1, le=INVITE_MAX_DAYS, description="default 7")
     never_expires: bool = False
 
@@ -215,6 +219,7 @@ class InviteResponse(BaseModel):
     new_person: bool
     role: str | None = Field(default=None, description="the role it gives; none: the person keeps the role they have")
     library: str | None = None
+    folder_id: str | None = Field(default=None, description="the folder of the project it shares; none: the whole project")
     minted_by: str
     expires_at: datetime | None = Field(default=None, description="none when it never expires")
     never_expires: bool = False
@@ -665,6 +670,9 @@ def create_pairing_code(
     if person_name is None and (body.never_expires or body.expires_in_days is not None):
         raise HTTPException(status_code=422, detail="a lifetime is for an invitation to a named person")
     library_path = None
+    folder_id = (body.folder_id or "").strip() or None
+    if folder_id and person_name is None:
+        raise HTTPException(status_code=422, detail="a folder is shared with a named person: name who it is for")
     granted_role = None  # the role this invitation really gives; the answer, the list and the audit all say this
     if person_name is not None:
         from fichero_server.security import authz
@@ -677,12 +685,21 @@ def create_pairing_code(
             except authz.AuthorizationError as exc:
                 raise HTTPException(status_code=403, detail=str(exc)) from exc
             library_path = authz.normalize_library_path(library)
+        if folder_id:
+            if library_path is None:
+                raise HTTPException(status_code=422, detail="a folder is shared from a project: open it (or name it) and share again")
+            try:
+                authz.folder_of_library(library_path, folder_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
         if invited is None:
             if library_path is None:
                 raise HTTPException(
                     status_code=422,
                     detail="a new person needs a library to be invited to: open one (or name it) and invite again",
                 )
+            granted_role = body.role
+        elif folder_id:  # a folder shared to an existing person: the role asked, on that folder
             granted_role = body.role
         elif library_path is not None:  # an existing person keeps the role they have; that is what is said
             held = app_db.get_library_role(invited.id, library_path)
@@ -710,6 +727,7 @@ def create_pairing_code(
         display_name=(body.display_name or "").strip(),
         role=granted_role or "",
         library=library_path,
+        folder_id=folder_id,
         never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
     )
@@ -727,7 +745,7 @@ def create_pairing_code(
         get_app_db().save_action_audit(ActionAudit(
             action_name="invite.mint", actor=record.minted_by, target_ids=[record.invite_id],
             params={"person": person_name, "new_person": record.new_person, "role": granted_role,
-                    "library": library_path, "never_expires": record.never_expires,
+                    "library": library_path, "folder_id": folder_id, "never_expires": record.never_expires,
                     "expires_at": None if record.never_expires else expires_at.isoformat()},
             created_at=utc_now()))
     return PairCodeResponse(
@@ -752,7 +770,7 @@ def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_databas
     _prune_pairing_codes(now)
     return [
         InviteResponse(
-            id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role or None, library=r.library,
+            id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role or None, library=r.library, folder_id=r.folder_id,
             minted_by=r.minted_by, expires_at=None if r.never_expires else r.expires_at, never_expires=r.never_expires,
         )
         for r in _PAIRING_CODES.values()
@@ -861,8 +879,18 @@ def pair_device(
                 active=True,
             )
             user_id = chosen.id
-            if record.library:  # the role the owner picked (a viewer unless they said editor), on the library they named
+            if record.library and not record.folder_id:  # the role the owner picked (a viewer unless they said editor), on the library they named
                 app_db.set_library_role(user_id=chosen.id, library_path=record.library, role=record.role)
+        if record.folder_id and record.library and chosen is not None:
+            # A folder shared (`sharing.share-sheet-chooses-what`, #5967): the person reaches that folder and what is
+            # under it, nothing beside it. The owner who minted the invitation was checked at the mint.
+            from fichero_server.security import authz
+
+            try:
+                authz.apply_folder_grant(library_path=record.library, user_id=chosen.id, folder_id=record.folder_id,
+                                         role=record.role or INVITE_DEFAULT_ROLE)
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=f"the shared folder is no longer there: {exc}") from exc
         if _use_multiuser_auth():
             if chosen is None and record.ambient:
                 # The host owner is never ambient on a remote device: the device says who it is.
@@ -895,7 +923,8 @@ def pair_device(
                 actor=f"invite:{record.minted_by}",
                 params={"person": record.person, "minted_by": record.minted_by, "device_name": name,
                         "new_person": bool(new_account), "role": record.role if new_account else None,
-                        "library": record.library if new_account else None, "never_expires": record.never_expires},
+                        "library": record.library if new_account else None, "folder_id": record.folder_id,
+                        "never_expires": record.never_expires},
                 device_id=device.id,
                 after=_to_public_device(device).model_dump(mode="json"),
             )

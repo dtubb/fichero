@@ -44,6 +44,7 @@ from fichero_server.models import (
     Artifact,
     ConvertedBoxOrigin,
     ContentRepresentation,
+    DocType,
     Document,
     DocumentNote,
     ImageEditChain,
@@ -63,11 +64,16 @@ logger = logging.getLogger(__name__)
 ROLE_OWNER = "owner"
 ROLE_EDITOR = "editor"
 ROLE_VIEWER = "viewer"
-VALID_ROLES = frozenset({ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER})
+#: A person shared only a folder (or folders) of the project (`sharing.share-sheet-chooses-what`, #5967): the role gives
+#: nothing by itself; they reach what the folder grants below name, and nothing beside them.
+ROLE_SCOPED = "scoped"
+VALID_ROLES = frozenset({ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER, ROLE_SCOPED})
 
 EFFECT_GRANT = "grant"
 EFFECT_DENY = "deny"
-VALID_EFFECTS = frozenset({EFFECT_GRANT, EFFECT_DENY})
+#: A folder shared to edit: read AND write on the folder and everything under it (a plain grant reads).
+EFFECT_EDIT = "edit"
+VALID_EFFECTS = frozenset({EFFECT_GRANT, EFFECT_DENY, EFFECT_EDIT})
 
 
 class AuthorizationError(PermissionError):
@@ -246,6 +252,43 @@ def set_override(
     )
 
 
+def folder_of_library(library_path: str, folder_id: str) -> None:
+    """Refuse, in words, a target that is not a folder of this project."""
+    from fichero_server.db.manager import db_manager
+
+    folder = db_manager.get_database(library_path).get(Document, folder_id)
+    if folder is None or getattr(folder, "doc_type", None) != DocType.folder:
+        raise ValueError("choose a folder of this project to share")
+
+
+def apply_folder_grant(*, library_path: str, user_id: str, folder_id: str, role: str) -> str:
+    """Write a folder grant: (person, project, folder, role). The caller has checked that the one granting is the project's
+    owner (`grant_folder` at once, an invitation at its mint). A person who holds no role on the project becomes a `scoped`
+    member of it; one who already holds a project role keeps it (a viewer shared a folder to edit may write there).
+    Returns the effect given: `grant` (read) or `edit`."""
+    role = role.strip().lower()
+    if role not in (ROLE_VIEWER, ROLE_EDITOR):
+        raise ValueError(f"a folder is shared to view or to edit, not as {role!r}")
+    folder_of_library(library_path, folder_id)
+    app_db = get_app_db()
+    if app_db.get_library_role(user_id, library_path) is None:
+        app_db.set_library_role(user_id=user_id, library_path=library_path, role=ROLE_SCOPED)
+    effect = EFFECT_EDIT if role == ROLE_EDITOR else EFFECT_GRANT
+    app_db.set_library_acl_override(user_id=user_id, library_path=library_path, target_id=folder_id, effect=effect)
+    return effect
+
+
+def grant_folder(*, actor: Any, library: str | Path | None, user: str, folder_id: str, role: str) -> str:
+    """Owner-only: share one FOLDER of the project with a person (`sharing.share-sheet-chooses-what`, #5967): the person
+    reaches the folder and everything under it, nothing beside it."""
+    require_owner(actor, library)
+    library_path = normalize_library_path(library)
+    target_user = resolve_user(user)
+    if target_user is None or library_path is None:
+        raise ValueError("unknown user or library")
+    return apply_folder_grant(library_path=library_path, user_id=target_user.id, folder_id=folder_id, role=role)
+
+
 def ensure_owner_role(user: Any, library: str | Path | None) -> bool:
     """Bootstrap a library's first owner.
 
@@ -390,13 +433,23 @@ def _allowed(
         base_allowed = True
     elif role.role == ROLE_VIEWER:
         base_allowed = not write
+    elif role.role == ROLE_SCOPED:
+        # Shared a folder, not the project: the library itself may be opened to read (every list is filtered to what they
+        # may open), nothing is written at library level, and a target is reached only through a folder grant on it or
+        # on a folder above it (`sharing.share-sheet-chooses-what`, #5967). Not shared = refused.
+        base_allowed = (not write) if not target_id else False
     else:
         return False
 
     effect = _matching_override_effect(resolved.id, library_path, target_id)
     if effect == EFFECT_DENY:
         return False
-    allowed = (base_allowed if write else True) if effect == EFFECT_GRANT else base_allowed
+    if effect == EFFECT_EDIT:
+        allowed = True  # shared to edit: reads and writes on the folder and everything under it
+    elif effect == EFFECT_GRANT:
+        allowed = (base_allowed if write else True)
+    else:
+        allowed = base_allowed
     return allowed and not _rights_refuse(resolved.id, library_path, target_id)
 
 
