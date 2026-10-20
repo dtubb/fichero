@@ -1448,15 +1448,15 @@ def _get_remote_llm_semaphore() -> asyncio.Semaphore:
 @contextlib.asynccontextmanager
 async def model_call_slot(config: LLMConfig, *, library: str | None = None,
                           subject: str | None = None) -> AsyncIterator[None]:
-    """Every model call's slot. First the project's cloud spend cap (`ai.where.cloud-spend-cap`, #5943): the call's worst
-    case is reserved before it waits for anything, so a call over the cap is refused having queued nowhere and sent
-    nothing; the reservation is released, and the real cost booked, when the call ends. Then the lane slot
-    (`_model_call_slot`)."""
+    """Every model call's slot: the lane (`_model_call_slot`), then, once the call is about to be SENT, its worst case held
+    against the project's cloud spend cap (`ai.where.cloud-spend-cap`, #5943), released and the real cost booked when it
+    ends. The hold is taken inside the lane slot so a page still queued holds nothing and is never refused for money
+    that has not been spent."""
     from fichero_server.llm import spend
     from fichero_server.llm.egress import current_library
 
-    async with spend.holding(config, library or current_library()):
-        async with _model_call_slot(config, library=library, subject=subject):
+    async with _model_call_slot(config, library=library, subject=subject):
+        async with spend.holding(config, library or current_library()):
             yield
 
 
