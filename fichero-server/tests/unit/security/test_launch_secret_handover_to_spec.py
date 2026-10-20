@@ -120,6 +120,38 @@ def test_a_pipe_nobody_writes_to_never_blocks_start_up():
     assert not launch_secret.matches(SECRET)
 
 
+def test_a_pipe_on_a_descriptor_above_1024_still_delivers_the_secret():
+    """P0 red: select() refuses a descriptor over 1024 ("filedescriptor out of range"), so a busy engine took no secret and
+    first-run stayed closed; the wait uses poll."""
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft < 1200:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (1200 if hard == resource.RLIM_INFINITY else min(1200, hard), hard))
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, (SECRET + "\n").encode())
+    os.close(write_fd)
+    spare = []
+    try:
+        while True:
+            high = os.dup(read_fd)
+            spare.append(high)
+            if high > 1100:
+                break
+        os.close(read_fd)
+        with os.fdopen(high, "r", closefd=False) as stream:
+            launch_secret.set_secret(None)
+            launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, stream)
+        assert launch_secret.matches(SECRET)
+    finally:
+        for fd in spare:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        launch_secret.set_secret(None)
+
+
 def test_an_unreadable_dev_file_never_stops_start_up(tmp_path):
     env = {"FICHERO_DEV_LAUNCH_SECRET_FILE": str(tmp_path / "missing"), "FICHERO_ENV": "development"}
     launch_secret.load_at_startup(env, io.StringIO(""))
