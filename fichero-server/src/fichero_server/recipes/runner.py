@@ -1172,6 +1172,19 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
         none_done, pages_failed, lost = _did_no_page(db, card, child, scratch)
+        if state == "done" and card.get("job") == "read-a-line":
+            # A page whose reader gave no text for every line, or most (`source.read.line-with-no-writing-is-read`),
+            # is a lost page though its node succeeded: the step is partial and names it with the reason.
+            from fichero_server.models import Document
+            from fichero_server.recipes.done import failed_reads
+            from fichero_server.workflows.run_account import PageFailure
+
+            counted = {f.document_id for f in lost}
+            for page, reason in failed_reads(db, documents):
+                if page not in counted:
+                    doc = db.get(Document, page)
+                    lost.append(PageFailure(page=doc.name if doc else page, document_id=page, reason=reason))
+                    pages_failed += 1
         if state == "done":
             step["pages_tried"] = step.get("pages_tried", 0) + len(documents)  # clean batches count too
         if state == "done" and pages_failed and step["state"] in ("done", "partial"):

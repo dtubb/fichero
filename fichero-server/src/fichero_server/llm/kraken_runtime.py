@@ -1685,7 +1685,17 @@ def recognize_to_geometry(
     lines_found = [b for b in boxes if b.level == OCRGeometryLevel.LINE]
     # Whether the page was read at all: a blank line among read ones is 'no writing'; every line blank is a read
     # that failed (review 64), so it is not marked and the page is read again.
-    flag = "page_has_readings" if texts else "page_read_nothing"
+    from fichero_server.llm.working_lines import reads_mostly_nothing
+
+    empty = len(lines_found) - len(texts)
+    if not texts:
+        flag = "page_read_nothing"
+    elif reads_mostly_nothing(empty, len(lines_found)):
+        flag = "page_read_mostly_nothing"  # a hand the reader cannot read: not 'no writing' (rate rule)
+        logger.warning("Kraken read %d of %d lines on %s as empty text; they stay unread", empty, len(lines_found),
+                       image_path)
+    else:
+        flag = "page_has_readings"
     for b in lines_found:
         b.metadata[flag] = True
     if not texts and lines_found:
