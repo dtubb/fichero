@@ -804,9 +804,10 @@ def update_user(
 ) -> UserResponse:
     user = app_db.get_user(user_id)
     if not _use_multiuser_auth():
-        # While Multi-user is off the only change allowed is the owner's password, by the app's own credential, so
+        # While Multi-user is off the only change allowed is the owner's password, so
         # it can be set BEFORE the switch is turned on (`multiuser.turning-on-needs-an-owner-password`, #5908).
-        if not getattr(request.state, "bootstrap_auth", False):
+        # By the owner's own signed-in session, never the start-up credential (`multiuser.owner-session-sets-the-switch`).
+        if getattr(request.state, "session", None) is None or not getattr(request.state.user, "is_owner", False):
             raise HTTPException(status_code=404, detail="multi-user auth is disabled")
         if user is None or not user.is_owner or set(body.model_fields_set) - {"password"} or body.password is None:
             raise HTTPException(status_code=404, detail="multi-user auth is disabled")

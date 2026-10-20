@@ -231,6 +231,9 @@ def _to_pair_response(device: Device, raw_token: str) -> PairResponse:
 
 def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
     if not _use_multiuser_auth():
+        session_owner = getattr(request.state, "user", None)
+        if getattr(request.state, "session", None) is not None and isinstance(session_owner, AccountUser) and session_owner.is_owner:
+            return session_owner  # the owner's own key session (the middleware lets one through only for the Multi-user switch)
         if getattr(request.state, "bootstrap_auth", False):
             owner_accounts = [candidate for candidate in app_db.list_users() if candidate.is_owner]
             active_owners = [candidate for candidate in owner_accounts if candidate.active]
@@ -488,7 +491,10 @@ def set_multiuser(
     ctx: ActionContext = Depends(action_context),
 ) -> SharingStateResponse:
     """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
-    switch, the CLI and MCP share this route."""
+    switch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may
+    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential."""
+    if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
+        raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
     _owner_only(request, app_db)
     try:
         result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
