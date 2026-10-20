@@ -103,6 +103,10 @@ def test_a_child_that_crashes_mid_batch_is_restarted_then_fails_in_words(forked,
 def test_the_child_goes_offline_when_cached_and_gets_the_parents_proxies(tmp_path, monkeypatch):
     (tmp_path / "models--qdrant--bge-m3-onnx" / "snapshots").mkdir(parents=True)
     monkeypatch.setattr("urllib.request.getproxies", lambda: {"https": "http://p:3128"})
+    # Which repo fastembed fetches a name from depends on the fastembed installed (the M4's lists no BAAI/bge-m3-onnx):
+    # the test states the alias it assumes instead of reading the installed list.
+    monkeypatch.setattr("fichero_server.llm.local_models._fastembed_source_repo",
+                        lambda name: "qdrant/bge-m3-onnx" if name == "BAAI/bge-m3-onnx" else None)
     env = embed_process._child_env("BAAI/bge-m3-onnx", str(tmp_path))
     assert env["HF_HUB_OFFLINE"] == "1" and env["https_proxy"] == "http://p:3128"
     assert env["no_proxy"] and env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] == "YES"
