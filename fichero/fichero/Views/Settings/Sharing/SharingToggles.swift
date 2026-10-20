@@ -18,5 +18,11 @@ enum SharingToggles {
                caption: "Give other people their own accounts on this Mac's libraries."),
     ]
 
+    /// What the People tab's "Invite a Person" section says while Multi-user is off: it names the switch where it is
+    /// (Settings → Sharing → Devices), not a place it is not (#5917).
+    static let multiUserOffHint =
+        "Multi-user mode is off, so this project has one account and nobody to invite. "
+        + "Turn on Multi-user in Settings → Sharing → Devices, and Fichero will restart its engine to apply it."
+
     static func caption(_ id: ID) -> String { all.first { $0.id == id }?.caption ?? "" }
 }
