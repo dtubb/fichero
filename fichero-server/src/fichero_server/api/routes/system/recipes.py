@@ -1868,6 +1868,13 @@ class StartEstimateRun(BaseModel):
     calls_per_page: Optional[int] = Field(default=1, description=(
         "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other "
         "run, one; null when a review's passes cannot be counted, and then `cost_usd` is null too, never $0"))
+    certainty_bar: Optional[float] = Field(default=None, description=(
+        "Kraken, then a model for the unsure lines (`source.recipe.kraken-then-cloud-unsure-lines`): the bar X, below "
+        "which Kraken's lines go to the model; null for any other run"))
+    lines_at_most: Optional[int] = Field(default=None, description=(
+        "with a bar: the most lines the model can be sent (every line of the pages), the figure `cost_usd` is priced "
+        "from before Kraken has read anything; null for any other run"))
+    lines_basis: Optional[str] = Field(default=None, description="with a bar: that figure in words")
     lenses: list[StartLensCost] = Field(default_factory=list, description=(
         "the review's lenses, on or off, each with what it costs a page, so turning one on or off is priced before "
         "Start (#5723); empty for any other run"))

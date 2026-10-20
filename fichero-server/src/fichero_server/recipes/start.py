@@ -1214,6 +1214,31 @@ def use_place_instead(recipe: dict[str, Any] | None, elsewhere: list[dict[str, A
     return apply_project_overrides(out, cards)
 
 
+#: Variant A's price before Kraken has read anything (`source.recipe.kraken-then-cloud-unsure-lines`): at most this many
+#: lines a page (a measured 33-line page on the M4), each sent as a crop with a short prompt and answered with a line.
+ASSUMED_LINES_PER_PAGE = 33
+LINE_TOKENS_IN = 700
+LINE_TOKENS_OUT = 40
+
+
+def certainty_bar(run: dict[str, Any]) -> float | None:
+    """The bar X of a `correct` run that re-reads only the lines under it (variant A), else None."""
+    bar = ((run.get("tool_config") or {}).get("transcribe_review") or {}).get("only_below_confidence")
+    return None if bar is None else float(bar)
+
+
+def _priced_lines(run: dict[str, Any], lines: int) -> float | None:
+    """What `lines` line calls of `run` cost, priced like `_priced` (this Mac free, a cloud model by its listed rate,
+    any other place unpriced)."""
+    from fichero_server.workflows.model_comparison import estimate_cost
+
+    runs_on = str(run["runs_on"])
+    if runs_on.startswith("cloud"):
+        return estimate_cost(run["model_override"] or "", lines * LINE_TOKENS_IN, lines * LINE_TOKENS_OUT,
+                             provider=run["provider_override"] or "")
+    return 0.0 if runs_on in ("this-mac", "") else None
+
+
 def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`).
 
@@ -1229,7 +1254,10 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
         # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
         # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
         calls = review_passes(w["workflow"], w.get("lenses")) if review else 1
-        cost = _priced(w, pages * calls) if calls is not None else None
+        bar = certainty_bar(w) if review else None
+        lines_at_most = pages * ASSUMED_LINES_PER_PAGE if bar is not None else None
+        cost = (_priced_lines(w, lines_at_most) if lines_at_most is not None
+                else _priced(w, pages * calls) if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None
@@ -1237,7 +1265,10 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
                   for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
-                     "calls_per_page": calls, "lenses": lenses})
+                     "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_at_most": lines_at_most,
+                     "lines_basis": None if bar is None else (
+                         f"at most {lines_at_most} lines are sent: only the ones Kraken is under {bar:g} sure of, "
+                         "which is known once Kraken has read the pages; the run reports the lines and the cost it really had")})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 
