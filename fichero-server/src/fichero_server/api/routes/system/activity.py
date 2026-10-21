@@ -953,6 +953,15 @@ def _event_detail(level: str, message: str) -> str:
     return "developer" if level == "debug" or _DEBUG_EVENT.match(message) else "person"
 
 
+#: What Problems shows (`activity.log.problems-first`, #5960): the warnings, errors and criticals.
+_PROBLEM_LEVELS = frozenset({"warning", "error", "critical"})
+
+
+def problem_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
+    """Only the warnings and errors, in the order given (newest last when the log is)."""
+    return [line for line in lines if line.level in _PROBLEM_LEVELS]
+
+
 def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
     seen: set[tuple[str, str]] = set()
@@ -1011,6 +1020,7 @@ def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) 
 async def get_job_log(
     job_id: str,
     detail: Literal["person", "developer"] = Query("person", description="developer adds the debug lines"),
+    level: Literal["all", "problems"] = Query("all", description="problems: warnings and errors only, newest last"),
     db: Database = Depends(get_library_database),
 ) -> JobLog:
     """The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for
@@ -1054,6 +1064,8 @@ async def get_job_log(
     lines.sort(key=order)
     if detail == "person":
         lines = person_lines(lines)
+    if level == "problems":
+        lines = problem_lines(lines)
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 
