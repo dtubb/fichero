@@ -60,3 +60,33 @@ def test_the_verdict_names_a_wrong_direction_and_a_missing_reader_in_words():
     assert m.judge(truth, {"direction": {"Arab": "rtl"}, "steps": {"read-a-line": {"card": "kraken:x"}}}) == "ok"
     assert m.judge(truth, {"direction": {"Arab": "rtl"}, "steps": {"read-a-line": {"card": None, "problem": "no-model-for-script"}}}) == "none-says-so"
     assert m.judge(truth, {"refused": "words"}) == "refused"
+
+
+def test_one_apple_vision_timeout_stops_the_vision_arm_for_the_rest_of_the_run(tmp_path, monkeypatch):
+    """The abandoned call keeps its gate slot (#5392), so every later line would wait a whole deadline: stall of 2026-10-21."""
+    import sys
+    import types
+
+    class AppleVisionTimeout(RuntimeError):
+        pass
+
+    calls = []
+    fake = types.ModuleType("ab_kraken_cloud")
+    fake.kraken_lines = lambda image, reader: [{"id": "0", "text": "a"}]
+
+    def free_reader(arm, fake):
+        async def read(image, lines):
+            calls.append(image.name)
+            raise AppleVisionTimeout("did not finish")
+        return read
+
+    fake.free_reader = free_reader
+    monkeypatch.setitem(sys.modules, "ab_kraken_cloud", fake)
+    monkeypatch.setattr(m, "_VISION_STUCK", [])
+    pages = [(tmp_path / f"{n}.png", None) for n in "abc"]
+    first = m.read_pages("vision", pages, "reader")
+    assert calls == ["a.png"] and len(first) == 3  # the first page timed out; the others were not tried
+    assert first[0]["error"].startswith("AppleVisionTimeout: did not") and "not tried" in first[1]["error"]
+    again = m.read_pages("vision", pages, "reader")  # the next set of the run
+    assert calls == ["a.png"] and all("not tried" in r["error"] for r in again)
+    assert m.read_pages("seed", pages, "reader")[0].get("error", "").startswith("AppleVisionTimeout") is False  # the seed arm still reads
