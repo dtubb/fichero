@@ -72,7 +72,7 @@ def test_the_lifespan_runs_the_gate_at_start_up_and_health_says_why(app_db, monk
     _owner(app_db, chose_password=False)
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv(multiuser.GATE_ENV_FLAG, "1")
-    monkeypatch.setattr(api_main, "get_app_db", lambda: app_db)
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: app_db)  # main.py imports it inside the gate
     monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
     monkeypatch.setattr(api_main, "_watch_parent_process", _never_runs)
