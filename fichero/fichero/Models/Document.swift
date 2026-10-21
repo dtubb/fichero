@@ -208,6 +208,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     // Computed fields from backend (ignored on encode)
     var expectedThumbnailPath: String?
     var expectedDisplayPath: String?
+    /// A page whose read is not trusted (`source.read.page-flag-shown-in-the-inspector`, #6003); nil when it is.
+    var readFlag: ReadFlag?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -242,6 +244,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case updatedAt = "updated_at"
         case expectedThumbnailPath = "expected_thumbnail_path"
         case expectedDisplayPath = "expected_display_path"
+        case readFlag = "read_flag"
     }
 
     init(
@@ -276,7 +279,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         expectedThumbnailPath: String? = nil,
-        expectedDisplayPath: String? = nil
+        expectedDisplayPath: String? = nil,
+        readFlag: ReadFlag? = nil
     ) {
         self.id = id
         self.parentId = parentId
@@ -310,6 +314,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.updatedAt = updatedAt
         self.expectedThumbnailPath = expectedThumbnailPath
         self.expectedDisplayPath = expectedDisplayPath
+        self.readFlag = readFlag
     }
 
     /// Fallback decoder for legacy JSON responses that predate the
@@ -349,5 +354,6 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         self.expectedThumbnailPath = try container.decodeIfPresent(String.self, forKey: .expectedThumbnailPath)
         self.expectedDisplayPath = try container.decodeIfPresent(String.self, forKey: .expectedDisplayPath)
+        self.readFlag = try container.decodeIfPresent(ReadFlag.self, forKey: .readFlag)
     }
 }

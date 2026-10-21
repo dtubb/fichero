@@ -1,0 +1,34 @@
+import Foundation
+import Testing
+@testable import fichero
+
+@Suite("A page's read flag (#6003)")
+struct ReadFlagTests {
+    private func document(_ extra: String) throws -> Document {
+        let json = """
+        {"id":"p1","doc_type":"file","name":"p","status":"completed","metadata":{},
+         "created_at":"2026-10-21T10:00:00Z","updated_at":"2026-10-21T10:00:00Z"\(extra)}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(Document.self, from: Data(json.utf8))
+    }
+
+    @Test("a Document with a read_flag gives the note, the Inspector and the row say the same words")
+    func flagged() throws {
+        let doc = try document(#","read_flag":{"kind":"needs-re-reading","reason":"the repair could not restore its text"}"#)
+        #expect(doc.readFlag?.note == "Needs re-reading: the repair could not restore its text")
+        #expect(doc.readFlag?.measure == nil)
+    }
+
+    @Test("a Document without one gives neither")
+    func notFlagged() throws {
+        #expect(try document("").readFlag == nil)
+        #expect(try document(#","read_flag":null"#).readFlag == nil)
+    }
+
+    @Test("another kind says its own word and the reason as sent")
+    func otherKind() {
+        #expect(ReadFlag(kind: "low-confidence", reason: "", measure: nil).note == "Low Confidence")
+    }
+}
