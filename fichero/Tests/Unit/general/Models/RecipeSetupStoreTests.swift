@@ -844,4 +844,37 @@ extension URLRequest {
         #expect((answers?["job_answers"] as? [String: Any])?["correct_with_a_second_model"] as? Bool == true)
         #expect(store.stepMenus.first?.inPlan == true)
     }
+
+    /// WHY (## 923, data loss): a refused assemble leaves recipe nil; saving then would PUT recipe: null over the saved
+    /// recipe and the person's step choices. A 422 on /assemble sends no PUT and shows the engine's words.
+    @Test("turning a step on when the engine refuses to assemble saves nothing and says why")
+    func turnOnAfterARefusedAssembleSendsNoPut() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        var methods: [String] = []
+        let store = makeStore { request in
+            methods.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
+            return Self.reply(request, 422, #"{"detail":{"sentence":"This project has no material yet."}}"#)
+        }
+        store.languages = ["es"]
+        store.scripts = ["Latn"]
+        store.purposes = ["transcribe"]
+        let menu = StepChoiceMenu(step: "correct", name: "Correct", chosenBy: .setup, inPlan: false,
+                                  turnOnWords: "Have a second model check the reading, in Set Up",
+                                  turnOnAnswer: "correct_with_a_second_model", turnOnValue: .yesNo(true), candidates: [])
+        await store.turnOn(menu)
+        #expect(!methods.contains { $0.hasPrefix("PUT") }, "no save after a refused assemble: \(methods)")
+        #expect(store.errorMessage != nil)
+    }
+
+    @Test("a turn-on the app cannot read says so in words and sends nothing")
+    func turnOnWithoutAReadableAnswerSaysSo() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        var calls = 0
+        let store = makeStore { request in calls += 1; return Self.reply(request, 200, "{}") }
+        let menu = StepChoiceMenu(step: "correct", name: "Correct", chosenBy: .setup, inPlan: false,
+                                  turnOnWords: "Turn on", candidates: [])
+        await store.turnOn(menu)
+        #expect(calls == 0)
+        #expect(store.errorMessage?.contains("Turn it on in Set Up") == true)
+    }
 }

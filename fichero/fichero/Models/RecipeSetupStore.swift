@@ -807,8 +807,10 @@ extension RecipeSetupStore {
 
     /// Ask the engine for the recipe these answers give. The same answers always
     /// give the same recipe, so this can run on every change.
-    func assemble() async {
-        guard canAssemble else { return }
+    /// Returns whether the engine proposed a recipe now (false: refused, failed, superseded, or nothing to propose from).
+    @discardableResult
+    func assemble() async -> Bool {
+        guard canAssemble else { return false }
         isAssembling = true
         errorMessage = nil
         defer { isAssembling = false }
@@ -833,6 +835,7 @@ extension RecipeSetupStore {
             switch output {
             case .ok(let success):
                 recipe = try success.body.json
+                return true
             case .unprocessableContent(let error):
                 recipe = nil
                 // The engine's declared sentence (#5813: "This project has no material yet: …").
@@ -842,10 +845,11 @@ extension RecipeSetupStore {
                 errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not assemble a recipe (HTTP \(code))"
             }
         } catch {
-            if error.isCancellationError { return }   // superseded by a newer answer
+            if error.isCancellationError { return false }   // superseded by a newer answer
             recipe = nil
             errorMessage = await Self.engineWords(error) ?? error.localizedDescription
         }
+        return false
     }
 
     /// A step problem's `allow-cloud` fix: the person says pages may leave this Mac, and the
