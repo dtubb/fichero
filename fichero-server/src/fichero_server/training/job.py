@@ -139,8 +139,8 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     from fichero_server.training.hf_jobs import LORA_FLAVORS, kraken_batch
 
     place = _place_of(request)
+    where = "Hugging Face" if place == TARGET else f"the cluster {place}"  # both the refusal below and the project's check name it
     if not request.pages_may_leave:
-        where = "Hugging Face" if place == TARGET else f"the cluster {place}"
         raise PagesMayNotLeave(f"Training on {where} sends this project's pages there. "
                                "Say yes for this project first (pages_may_leave).")
     from fichero_server.recipes import places
