@@ -8,8 +8,9 @@ struct StepChoiceMenuTests {
     typealias Candidate = StepChoiceMenu.Candidate
 
     private func candidate(_ card: String, picked: Bool = false, recommended: Bool = false, local: Bool = true,
-                           available: Bool = true, needs: [StepChoiceMenu.Need] = [], cost: Double? = nil) -> Candidate {
-        Candidate(card: card, name: card.capitalized, runsOn: local ? "this Mac" : "the cloud", isLocal: local,
+                           available: Bool = true, needs: [StepChoiceMenu.Need] = [], cost: Double? = nil,
+                           runsOn: String? = nil) -> Candidate {
+        Candidate(card: card, name: card.capitalized, runsOn: runsOn ?? (local ? "this Mac" : "the cloud"), isLocal: local,
                   isPicked: picked, isRecommended: recommended, isAvailable: available, needs: needs, costUsd: cost)
     }
 
@@ -50,6 +51,8 @@ struct StepChoiceMenuTests {
         #expect(model.costText(of: candidate("kraken")) == "Free, on this Mac")
         #expect(model.costText(of: candidate("claude", local: false, cost: 0.4)) == "About $0.40")
         #expect(model.costText(of: candidate("gemini", local: false)) == "Cost not known yet")
+        // a cluster is local to the person and not on this Mac: it is not called free, nor said to run here
+        #expect(model.costText(of: candidate("cluster", local: true, runsOn: "Maya's cluster")) == "Cost not known yet")
     }
 
     @Test("the one in use has no Use button")

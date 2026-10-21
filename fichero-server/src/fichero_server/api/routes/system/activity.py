@@ -422,20 +422,41 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     return blocks
 
 
-def up_next(jobs: "list[BackgroundJob]") -> list[UpNextItem]:
-    """The waiting rows of the ordered list, each with what it waits for. A page's row under a run is the run's, not a line.
-
-    ponytail: `after` is read out of a reason that starts "after "; a row that waits for a lane or memory has none."""
+def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | None" = None) -> list[UpNextItem]:
+    """The work not yet started, in the order of the ordered list: each waiting row with what it waits for, and, under a
+    recipe run that is going, each of its stages not yet started with the stage before it as `after` (a field of the run's
+    steps, never read out of a sentence). A page's row under a run is the run's, not a line."""
     from fichero_server.recipes.stages import stage_of
 
     items = []
     for job in jobs:
-        if job.state != "waiting" or job.parent_id or job.group != "live":
+        if job.parent_id or job.group != "live":
             continue
-        stage = stage_of(job.task_type)
-        reason = job.reason or "in the queue"
-        items.append(UpNextItem(id=job.id, name=job.name, stage=stage.title if stage else None,
-                                after=reason[len("after "):] if reason.startswith("after ") else None, why=reason))
+        if job.state == "waiting":
+            stage = stage_of(job.task_type)
+            items.append(UpNextItem(id=job.id, name=job.name, stage=stage.title if stage else None, after=None,
+                                    why=job.reason or "in the queue"))
+        elif job.task_type == "run-a-recipe" and job.state in ("running", "paused"):
+            items.extend(_stages_not_started(job, (statuses or {}).get(job.id)))
+    return items
+
+
+def _stages_not_started(job: "BackgroundJob", status: "dict[str, Any] | None") -> list[UpNextItem]:
+    """A going recipe run's stages that have not started, each after the stage before it."""
+    from fichero_server.recipes.stages import stage_of
+
+    steps = (status or {}).get("steps") or []
+    items = []
+    for index, step in enumerate(steps):
+        if step.get("state") != "waiting" or index == 0:
+            continue
+        before = steps[index - 1]
+        stage = stage_of(step.get("job") or (step.get("steps") or [""])[0])
+        after_stage = stage_of(before.get("job") or (before.get("steps") or [""])[0])
+        after = after_stage.title if after_stage else before.get("doing")
+        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name,
+                                stage=stage.title if stage else None, after=after,
+                                why=step.get("why") or (f"after {after}" if after else "in the queue")))
     return items
 
 
@@ -444,7 +465,7 @@ async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
     """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
     the window can only agree."""
     return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs),
-                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs))
+                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses))
 
 
 class BackgroundJobsResponse(BaseModel):
