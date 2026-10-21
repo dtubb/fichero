@@ -29,6 +29,9 @@ from fichero_server.db.embeddings import search_embedder
 
 from fichero_server.recipes import places
 from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
+
+#: The jobs that hand a model a page picture to read: its card's page floor applies (`runtime.mlx.fit-estimate`).
+READS_A_PICTURE = frozenset({*READING_JOBS, "correct"})
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
 
@@ -1595,7 +1598,8 @@ async def model_candidates(
         model = models.get(c.id)
         if model is None:
             return None
-        made = fit_estimate(model, context, physical_memory=physical, catalog=catalogue)
+        made = fit_estimate(model, context, physical_memory=physical, catalog=catalogue,
+                            reads_pages=job in READS_A_PICTURE)  # the page floor is a refusal for a reader, as in runs_here
         return ModelFit(word=made.word, reason=made.reason, smaller=made.smaller)
 
     def measured(c: Any) -> str:
