@@ -161,7 +161,7 @@ cards:
     material: [handwriting, print, typescript]
     licence: Apache-2.0
     size_gb: 5.6
-    memory_gb: 7.0
+    memory_gb: 24.0          # weights are 7 GB; NOT measured reading a page: 0.1 tok/s on a 16 GB Mac (2026-10-21), so 24 until measured (#5641)
     trainable: true          # LoRA
     note: Qwen2.5-VL 7B, 4-bit, for MLX on Apple silicon.
   - id: mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@unpinned
