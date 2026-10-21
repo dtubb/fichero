@@ -440,7 +440,11 @@ def test_the_hosted_qwen_arm_says_hosted_not_local_in_the_report_and_the_sheet(t
     for name in ("report.md", "sheet.html"):
         text = (tmp_path / "out" / name).read_text()
         assert "hosted, not local" in text and "model reference" in text and "not ground truth" in text
-    assert (tmp_path / "out" / "report.md").read_text().count("hosted, not local") == 1, "only the Qwen arm"
+    # The report names each arm in two tables (all lines, and the wide lines: 76762330b), so the Qwen arm is marked in each;
+    # the claim is that no other arm is.
+    marked = [line for line in (tmp_path / "out" / "report.md").read_text().splitlines() if "hosted, not local" in line]
+    assert marked and all("qwen" in line for line in marked), "only the Qwen arm"
+    assert not any("claude-haiku" in line for line in marked)
 
 
 def test_arms_on_their_own_model_parse_and_a_bare_provider_is_refused():
