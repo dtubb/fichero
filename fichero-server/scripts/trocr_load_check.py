@@ -36,7 +36,9 @@ def check_one(repo: str, crops: list[str]) -> dict:
         import transformers
 
         row.update(transformers=transformers.__version__, torch=torch.__version__)
-        from fichero_server.workflows.tools import economy_htr
+        import importlib
+
+        economy_htr = importlib.import_module("fichero_server.workflows.tools.economy_htr")  # honours a replaced module
 
         began = time.perf_counter()
         economy_htr._load_trocr(repo)
