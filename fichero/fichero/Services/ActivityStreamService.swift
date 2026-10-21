@@ -133,9 +133,19 @@ final class ActivityStreamService {
         consecutiveDenials >= deniedBeforeTerminal
     }
 
-    private var consecutiveDenials = 0
+    private(set) var consecutiveDenials = 0
+
+    /// One more 403 in a row; true when it is the terminal one.
+    func noteDenial() -> Bool {
+        consecutiveDenials += 1
+        return Self.denialIsTerminal(consecutiveDenials: consecutiveDenials)
+    }
+
+    /// A fresh run of the loop (a start, or a revival after a grant) gets its full grace again (#5868, ## 912).
+    func resetDenials() { consecutiveDenials = 0 }
 
     private func runLoop(onEvent: @escaping @MainActor (ActivityItem) -> Void) async {
+        resetDenials()
         var backoffNanos: UInt64 = 1_000_000_000
         var consecutiveUnavailableCycles = 0
         var hasConnectedBefore = false
@@ -150,8 +160,8 @@ final class ActivityStreamService {
                 // 403: terminal (#2479), but only after `Self.deniedBeforeTerminal` in a row with no connect between: the
                 // first answer after an engine restart can be a 403 while the session is re-established (Fable #10).
                 // The cause is the engine's to state, not ours to guess — see LibraryChangeStream (#4532).
-                consecutiveDenials += 1
-                if !Task.isCancelled, !Self.denialIsTerminal(consecutiveDenials: consecutiveDenials) {
+                let terminal = noteDenial()
+                if !Task.isCancelled, !terminal {
                     log.info("activity stream denied (403) \(self.consecutiveDenials) time(s), trying again")
                     try? await Task.sleep(nanoseconds: backoffNanos)
                     backoffNanos = min(backoffNanos * 2, 30_000_000_000)

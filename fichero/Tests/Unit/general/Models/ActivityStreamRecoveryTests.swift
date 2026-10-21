@@ -101,4 +101,14 @@ struct ActivityStreamRecoveryTests {
         #expect(!store.liveUpdatesAccessDenied)
         #expect(store.livePillMessage == LiveUpdatesPausedPill.reconnectingMessage)
     }
+
+    @Test func aRevivedStreamGetsItsFullGraceAgain() {
+        let service = service()
+        #expect(!service.noteDenial())
+        #expect(!service.noteDenial())
+        #expect(service.noteDenial())  // given up
+        service.resetDenials()  // runLoop's first line, on a start or a revival after a grant
+        #expect(service.consecutiveDenials == 0)
+        #expect(!service.noteDenial())
+    }
 }
