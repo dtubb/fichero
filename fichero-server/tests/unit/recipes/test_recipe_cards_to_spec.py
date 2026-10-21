@@ -54,7 +54,9 @@ class Lines:
 
     async def vision(self, images, prompt, config, **kw):
         self.read_calls += 1
-        return json.dumps([f"línea leída {i}" for i in range(len(images))])
+        # variant B (#5894): the page comes first, for context, and is not read; one answer for each line picture after it
+        lines_shown = len(images) - (1 if str(prompt).startswith("Before the ") else 0)
+        return json.dumps([f"línea leída {i}" for i in range(lines_shown)])
 
 
 @pytest.fixture
