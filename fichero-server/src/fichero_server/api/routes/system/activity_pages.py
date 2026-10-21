@@ -71,10 +71,13 @@ def page_states(tree: dict[str, Any], stage: Optional[str]) -> list[dict[str, An
             worst = _worst(cell["states"])
             reason = next((text for state, text in cell["reasons"] if state == worst), None)
             page = pages[doc]
-            # the same Set Up stage reached by two stage runs keeps its worst
-            if stage_id in page["stages"]:
-                worst = _worst([page["stages"][stage_id]["state"], worst])
-                reason = page["stages"][stage_id]["reason"] or reason
+            # the same Set Up stage reached by two stage runs keeps its worst, and the reason of the worst cell
+            before = page["stages"].get(stage_id)
+            if before is not None:
+                if _PRIORITY.index(before["state"]) < _PRIORITY.index(worst):
+                    worst, reason = before["state"], before["reason"]
+                elif before["state"] == worst:
+                    reason = before["reason"] or reason
             page["stages"][stage_id] = {"state": worst, "reason": reason}
     out = []
     for page in pages.values():

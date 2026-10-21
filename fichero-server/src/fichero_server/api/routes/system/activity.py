@@ -1056,6 +1056,32 @@ class RunPageStates(BaseModel):
     items: list[RunPageState] = Field(default_factory=list)
 
 
+#: A run's page list, built once and shared by the pages of one read (the grid pages through it a request at a time, and each
+#: build is the whole job tree): (monotonic time it was built, the list), by (library, run, stage).
+_PAGE_LISTS: dict[tuple[str, str, Optional[str]], tuple[float, list[dict[str, Any]]]] = {}
+_PAGE_LIST_SECONDS = 2.0
+
+
+async def _run_page_list(db: Database, job_id: str, stage: Optional[str]) -> list[dict[str, Any]]:
+    """`page_states` over the run's tree, built once for every request within a couple of seconds.
+
+    ponytail: a time window, not an invalidation: the grid reads a moving run, and two seconds old is the same page."""
+    import time
+
+    from fichero_server.api.routes.system.activity_pages import page_states
+
+    key, now = (str(db.path), job_id, stage), time.monotonic()
+    held = _PAGE_LISTS.get(key)
+    if held is not None and now - held[0] < _PAGE_LIST_SECONDS:
+        return held[1]
+    tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
+    pages = page_states(tree, stage)
+    for old_key in [k for k, (built, _) in _PAGE_LISTS.items() if now - built >= _PAGE_LIST_SECONDS]:
+        del _PAGE_LISTS[old_key]
+    _PAGE_LISTS[key] = (now, pages)
+    return pages
+
+
 @router.get("/jobs/{job_id}/pages", response_model=RunPageStates)
 async def get_run_page_states(
     job_id: str,
@@ -1066,10 +1092,7 @@ async def get_run_page_states(
 ) -> RunPageStates:
     """One entry per PAGE of a run with its state in each stage, in reading order, paged (`activity.run.page-states`,
     #5960): the page grid's read, instead of the thousands of step rows under `GET /jobs/{id}`."""
-    from fichero_server.api.routes.system.activity_pages import page_states
-
-    tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
-    pages = page_states(tree, stage)
+    pages = await _run_page_list(db, job_id, stage)
     return RunPageStates(job_id=job_id, stage=stage, total=len(pages), offset=offset,
                          items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
 
