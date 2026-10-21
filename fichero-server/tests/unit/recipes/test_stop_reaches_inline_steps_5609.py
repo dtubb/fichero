@@ -106,7 +106,9 @@ def test_stop_reaches_the_entries_step__it_splits_no_page_after(client, db, page
     read, entries = run["steps"]
     assert read["state"] == "done"
     assert (entries["state"], entries["why"]) == ("cancelled", "Stopped by you"), entries
-    assert gate.calls == 1 and entries["entries"]["pages"] == 1 and len(splitter) == 1, entries
+    # Pages are ASKED together and written in order (#5955): the model may have been asked for the pages in its window before
+    # Stop, but no page after Stop is written (one write, one page in the account).
+    assert gate.calls == 1 and entries["entries"]["pages"] == 1, entries
     assert jobs.read_job(db, run["job_id"])["reason"].startswith("Stopped by you; 1 of 2 steps done")
 
 
