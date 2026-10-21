@@ -68,44 +68,6 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_SKIP_SOURCES_FOLDER", "1")
 
 
-def _arm_credentials_tripwire() -> None:
-    """Trace whoever writes a file literally named ``credentials``.
-
-    ``test_nothing_is_persisted`` fails ~1-in-2 FULL runs with a phantom
-    ``./credentials`` in its cwd; it always passes alone, and the writer has
-    evaded three instrumented hunts (2026-08-19/20). This audit hook costs a
-    string-endswith per open() and dumps the guilty stack to
-    /tmp/fichero_credentials_writer.log the moment it happens — delete the
-    hook once that log has named the polluter and it is fixed.
-    """
-    import sys as _sys
-    import traceback as _traceback
-
-    log_path = "/tmp/fichero_credentials_writer.log"
-
-    # Not only open(): the 2026-10-20 P0 full run found `credentials` in the tmp_path of three unrelated llm tests and no log,
-    # so the writer is not an open() for writing (a mkdir, a rename or a copy lands the same entry).
-    _made = {"os.mkdir": 0, "os.rename": 1, "os.symlink": 1, "os.link": 1, "shutil.copyfile": 1, "shutil.copymode": 1}
-
-    def _hook(event: str, args: tuple) -> None:
-        if event != "open" and event not in _made:
-            return
-        try:
-            path = str(args[_made.get(event, 0)])
-            mode = args[1] if event == "open" and len(args) > 1 else "w"
-        except Exception:
-            return
-        wants_write = any(c in str(mode) for c in ("w", "a", "x", "+"))
-        if wants_write and (path.endswith("/credentials") or path == "credentials"):
-            with open(log_path, "a") as f:  # log name doesn't match the trap
-                f.write(f"{event.upper()} {path} mode={mode}\n")
-                _traceback.print_stack(file=f)
-                f.write("=" * 60 + "\n")
-
-    _sys.addaudithook(_hook)
-
-
-_arm_credentials_tripwire()
 # No background embed threads out of db_manager.get_database — a re-opened
 # test package with pending rows would otherwise embed during the test.
 os.environ.setdefault("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
