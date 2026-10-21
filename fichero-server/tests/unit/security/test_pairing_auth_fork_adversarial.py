@@ -207,9 +207,9 @@ def test_pairing_code_ttl_is_exactly_sixty_seconds(app_db, monkeypatch):
     now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
 
     _freeze_clock(monkeypatch, now)
-    monkeypatch.setattr(pairing, "_new_pairing_code", lambda: "TTL-0001")
+    monkeypatch.setattr(pairing, "_new_pairing_code", lambda groups=2: "TTL-0001")
 
-    response = pairing.create_pairing_code(_owner_request(owner), app_db)
+    response = pairing.create_pairing_code(_owner_request(owner), app_db=app_db)
 
     assert response.expires_at == now + timedelta(minutes=10)
     assert pairing._PAIRING_CODES["TTL-0001"].expires_at == response.expires_at
@@ -409,9 +409,9 @@ def test_create_pairing_code_prunes_stale_entries_before_minting(app_db, monkeyp
     )
     pairing._PAIRING_CODES[stale_expired.code] = stale_expired
     pairing._PAIRING_CODES[stale_used.code] = stale_used
-    monkeypatch.setattr(pairing, "_new_pairing_code", lambda: "FRESH-2222")
+    monkeypatch.setattr(pairing, "_new_pairing_code", lambda groups=2: "FRESH-2222")
 
-    response = pairing.create_pairing_code(_owner_request(owner), app_db)
+    response = pairing.create_pairing_code(_owner_request(owner), app_db=app_db)
 
     assert response.code == "FRESH-2222"
     assert set(pairing._PAIRING_CODES) == {"FRESH-2222"}
@@ -522,7 +522,7 @@ def test_create_pairing_code_rejects_remote_plaintext_transport(app_db, monkeypa
     with pytest.raises(HTTPException, match="remote pairing requires https") as exc:
         pairing.create_pairing_code(
             _owner_request(owner, host="198.51.100.26", scheme="http"),
-            app_db,
+            app_db=app_db,
         )
 
     assert exc.value.status_code == 400
@@ -567,7 +567,7 @@ def test_create_pairing_code_rejects_remote_https_without_configured_spki_pin(
     ) as exc:
         pairing.create_pairing_code(
             _owner_request(owner, host="198.51.100.27", scheme="https"),
-            app_db,
+            app_db=app_db,
         )
 
     assert exc.value.status_code == 503
