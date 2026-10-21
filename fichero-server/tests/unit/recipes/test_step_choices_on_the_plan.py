@@ -158,8 +158,8 @@ def test_only_a_card_that_runs_on_this_mac_is_free_a_cluster_or_gpu_service_is_u
 
     from fichero_server.recipes.step_choices import _cost
 
-    mac = _cost(SimpleNamespace(runs_on="this-mac"), 10)
-    assert mac["value"] == 0.0 and "free" in mac["from"]
+    here = _cost(SimpleNamespace(runs_on="this-mac"), 10)
+    assert here["value"] == 0.0 and "free" in here["from"]
     for where in ("cluster", "gpu-service"):
         c = _cost(SimpleNamespace(runs_on=where), 10)
         assert c["value"] is None and c["basis"] == "unknown" and where in c["from"] and "free" not in c["from"]
