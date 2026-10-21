@@ -238,6 +238,15 @@ struct MailStyleRow: View {
                             .accessibilityLabel("Read-only")
                     }
 
+                    if let flag = document.readFlag {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .help(flag.note)
+                            .accessibilityLabel(flag.note)
+                            .accessibilityIdentifier("library.row.readFlag")
+                    }
+
                     Spacer()
 
                     if visibleAttributes.contains(.date) {

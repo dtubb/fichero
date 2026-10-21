@@ -75,6 +75,7 @@ struct DocumentInspectorInfoTab: View {
         attributesChooser
 
         statusSection
+        readFlagSection
         classSection
         languageSection
 
