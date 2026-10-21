@@ -2266,3 +2266,18 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 - `activity.run-control-is-global` — **[GAP]** (#5116) one global start, stop and pause over every file's steps, with per-file step tracking, for a library left running for days.
 - `activity.simple-for-its-reader` — **[GAP]** (#5117) Activity is redesigned from who reads it, not from the existing views.
 - `activity.window.newest-first-and-clear-all` **[PARTIAL]** (#5016): the engine lists finished jobs newest first (pinned by fichero-server/tests/unit/jobs/test_activity_newest_first_5016.py); still owed on the Swift side, which needs a screen check: the window lists the newest run at the top, offers a way to delete every run at once, and its first row is never drawn under the title bar. (The 'just now' half is `activity.window.absolute-times`, built 2026-10-04.)
+
+## Release rows without a spec line before (clerk, 2026-10-21; draft from the issue text)
+
+- `release.issue-5860` — **[BROKEN]** (#5860) GET /api/activity/jobs blocks the event loop every 2 s (app-DB lock, DuckDB reads, pmset). Test: (not yet written: a test citing #5860); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5932` — **[GAP]** (#5932) Pause in a fan-out cancels pages mid-read; the between-events pause check returns too early. Test: (not yet written: a test citing #5932); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5933` — **[BROKEN]** (#5933) Pause and Stop do not work for recipe runs; a recipe's child pause reads as a failed step. Test: (not yet written: a test citing #5933); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5934` — **[BROKEN]** (#5934) The one-model hold never holds a page handed in by a run. Test: (not yet written: a test citing #5934); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5935` — **[GAP]** (#5935) A page the person stops, or the lane withdraws, is recorded as a failed page. Test: (not yet written: a test citing #5935); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5936` — **[GAP]** (#5936) A Pause or Stop inside the lane slot marks the lane row failed with the pause's words. Test: (not yet written: a test citing #5936); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5937` — **[BROKEN]** (#5937) A run with some pages failed or stopped reads Completed; a partly failed batch reads Done. Test: (not yet written: a test citing #5937); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5938` — **[BROKEN]** (#5938) HOLD_LIMIT frees the model lane under a live model call and writes a false 'had ended' reason. Test: (not yet written: a test citing #5938); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5957` — **[BROKEN]** (#5957) The app shows interrupted, not-run and partial states as Partial or Interrupted, not Done. Test: (not yet written: a test citing #5957); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5958` — **[BROKEN]** (#5958) A waiting run is drawn as waiting, with no ticking timer. Test: (not yet written: a test citing #5958); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5960` — **[GAP]** (#5960) Activity one-bar design: NOW / UP NEXT / DONE TODAY. Test: (not yet written: a test citing #5960); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-6001` — **[GAP]** (#6001) Activity stays responsive during a recipe run: the recipe summary reads pages in one query off the loop. Test: (not yet written: a test citing #6001); no [OK] until a passing test and an M4 run are cited.
