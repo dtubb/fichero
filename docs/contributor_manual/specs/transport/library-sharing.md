@@ -124,9 +124,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   an invite that points at another host than the one picked is refused in words. There is
   still **no open lookup** of libraries: the list is hosts, never their libraries, and the pairing code grants
   trust. The drawer shows the host being connected to, read-only. Tests: `HostChoicesTests.swift` (the pure
-  rules); Swift, not built or run. Not built: the camera/QR scan on a Mac. Open: the drawer still says "Scan the
-  QR code shown on the host Mac" (`MacRemoteClientPairingSection.swift`); the Mac has no scanner, so it needs
-  paste-only wording or a Mac scan.
+  rules); built, uncompiled here, unrun. Not built: the camera/QR scan on a Mac. The Mac drawer says nothing about scanning (read 2026-10-20: `MacRemoteClientPairingSection.swift` has no QR wording; the iOS entry has its own). Open: nobody has run the list on two Macs; the owner's 2026-10-20 build (329fcfb28) predates it, which is the likely reason it showed none (#5892, to confirm on a new build).
 - `sharing.connect-section-always-shown` — **[PARTIAL: superseded by `sharing.settings.connect-sheet`]** (#5893, owner's test 2026-10-20) the "Connect This Mac to
   Another Fichero" section is on the Devices pane whether or not Sharing is on: connecting to another Mac does not
   need this Mac to share (`ShareSettingsView.swift`: outside the `hostingEnabled` branch, and placed right under the
