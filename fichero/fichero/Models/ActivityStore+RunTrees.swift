@@ -30,7 +30,7 @@ extension ActivityStore {
             }
         } catch {
             log.debug("ActivityStore: tree for \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
-            treeReadFailures[threadId] = "Couldn't read this row: \(Self.failureCause(of: error))"
+            treeReadFailures[threadId] = "Couldn't read this row: \(await Self.engineCause(of: error))"
         }
     }
 
