@@ -21,7 +21,7 @@ def test_only_waiting_work_is_up_next_in_the_order_given():
     assert [i.id for i in items] == ["b", "c", "e"]
     assert [i.why for i in items] == ["waiting for the model lane: another box is reading", "memory is tight", "after Read"]
     assert [i.name for i in items] == ["Mosquera box", "c", "Run the recipe"]
-    assert [i.after for i in items] == [None, None, "Read"]
+    assert [i.after for i in items] == [None, None, None], "a waiting row's reason is words, not a field to parse"
 
 
 def test_a_stage_kind_names_its_set_up_stage_and_others_none():
@@ -36,6 +36,19 @@ def test_a_waiting_row_with_no_reason_says_what_it_is_in_the_queue_for():
 
 def test_a_page_row_is_not_a_line_of_its_own():
     assert up_next([_job("run:step", "read-a-line", "waiting", parent_id="run")]) == []
+
+
+def test_a_going_run_lists_its_stages_not_started_each_after_the_one_before_from_the_steps():
+    status = {"steps": [{"steps": ["find-lines"], "job": "find-lines", "state": "done"},
+                        {"steps": ["read-a-line"], "job": "read-a-line", "state": "running"},
+                        {"steps": ["find-names-tag-words"], "job": "find-names-tag-words", "state": "waiting",
+                         "child_id": "w3"},
+                        {"steps": ["work-out-dates"], "job": "work-out-dates", "state": "waiting"}]}
+    run = _job("rec", "run-a-recipe", "running", name="Run the recipe")
+    items = up_next([run], {"rec": status})
+    assert [(i.stage, i.after) for i in items] == [("Names", "Read"), ("Dates & Times", "Names")]
+    assert items[0].id == "rec:w3" and items[0].why == "after Read"
+    assert up_next([run]) == [], "no status read, no stages named"
 
 
 def test_the_summary_carries_it():

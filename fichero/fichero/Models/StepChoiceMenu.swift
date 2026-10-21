@@ -67,12 +67,13 @@ struct StepChoiceMenu: Equatable, Identifiable {
         return words.isEmpty ? nil : words.joined(separator: "; ")
     }
 
-    /// Before Start, for these pages: free on this Mac, a price when the engine has one, else said not known.
+    /// Before Start, for these pages: a price when the engine has one, free only where it runs on this Mac (keyed on where
+    /// it runs, not on `local`: a cluster is local to the person and not free), else said not known.
     func costText(of candidate: Candidate) -> String {
         if let cost = candidate.costUsd {
             return "About $" + cost.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US_POSIX")))
         }
-        return candidate.isLocal ? "Free, on this Mac" : "Cost not known yet"
+        return candidate.runsOn.lowercased() == "this mac" ? "Free, on this Mac" : "Cost not known yet"
     }
 
     /// A row already in use has no "Use"; every other row has one, also one that needs something (the choice is kept and
