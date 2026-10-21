@@ -2448,11 +2448,13 @@ def _family(model: str | None) -> str | None:
     return model
 
 
-def _keep_local_model_server(_reason: str = "") -> None:
-    # Not stopped on a switch: its server takes 30-300 s to start again. It does NOT free its own
-    # memory (an idle `mlx_vlm.server` held 5.7 GB, #5529): the engine stops it after
-    # `api.routes.ai.local_inference.IDLE_STOP_SECONDS` without a request, and when the engine ends.
-    return None
+def _stop_local_model_server(reason: str = "") -> None:
+    """Stop the model server the engine started, so its weights leave memory (`activity.lane.small-mac-one-heavy-model`). It
+    starts again on the next request (30 to 300 s); runs are step-major, so the lane switches families rarely. A server the person
+    runs themselves is left alone. Before 2026-10-21 this did nothing, and a 7B model stayed beside Kraken for its 10 idle minutes."""
+    module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
+    if module is not None:
+        module.stop_served_models(reason)
 
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
@@ -2461,7 +2463,7 @@ _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
             # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
             # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
             "mlx-convert": lambda _reason="": None,
-            "local-model": _keep_local_model_server}
+            "local-model": _stop_local_model_server}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
@@ -2524,11 +2526,26 @@ def _model_need_bytes(model: str | None) -> int | None:
     return model_need(model).get("need_bytes")
 
 
+#: At or below this much memory the lane never keeps two heavy models loaded.
+SMALL_MAC_BYTES = 16 * 1024**3
+
+
+def _physical_memory_bytes() -> int | None:
+    from fichero_server.llm.kraken_runtime import _physical_memory_bytes as physical
+
+    return physical()
+
+
 def _fits_beside(model: str | None) -> tuple[bool, str]:
     """Whether `model` loads without freeing the loaded one: this Mac's free memory covers its need. Unknown sizes or
     an unreadable memory say no (the old behaviour: swap). The words are the reason the swap or the keep is logged with."""
     from fichero_server.execution.throttle import memory_available_bytes
 
+    physical = _physical_memory_bytes()
+    if physical is not None and physical <= SMALL_MAC_BYTES:
+        # One heavy model at a time (owner, via the manager, 2026-10-21). macOS's 'free' counts compressible pages and file cache,
+        # so it read adequate while swap was full and a 7B model ran beside Kraken at 0.1 tok/s.
+        return False, f"this Mac has {physical / 1024**3:.0f} GB or less: one heavy model at a time"
     need, free = _model_need_bytes(model), memory_available_bytes()
     if need is None or free is None:
         return False, f"{model} cannot be sized, so the loaded model is freed"

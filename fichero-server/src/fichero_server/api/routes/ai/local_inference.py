@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shlex
 import threading
@@ -27,6 +28,8 @@ from fichero_server.llm.local_inference import (
 from fichero_server.llm.local_model_facts import get_local_inference_capabilities
 from fichero_server.llm.mlx_model_store import get_mlx_model_store
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/local-inference")
 
@@ -248,6 +251,24 @@ def _stop_if_still_idle(manager: LocalInferenceServiceManager) -> None:
         # On this timer's own loop: the process stop falls back to signals when its handle belongs
         # to the loop that started it (`ManagedLocalInferenceProcess.stop`).
         asyncio.run(manager.stop())
+
+
+def stop_served_models(reason: str = "") -> int:
+    """Stop every model server the ENGINE started and that is running now; returns how many (`activity.lane.small-mac-one-heavy-model`).
+
+    The model lane calls this before a heavy Kraken load on a Mac with 16 GB or less. The next request starts the server again
+    (30 to 300 s). A server the person runs themselves is theirs, never stopped here."""
+    stopped = 0
+    for manager in list(_MANAGERS.values()):
+        if not manager.profile.managed_by_app or not manager.process.is_running():
+            continue
+        timer = _IDLE_TIMERS.pop(manager.profile.id, None)
+        if timer is not None:
+            timer.cancel()
+        logger.info("stopping the served model of %s: %s", manager.profile.id, reason)
+        asyncio.run(manager.stop())  # the caller is a lane thread with no loop of its own
+        stopped += 1
+    return stopped
 
 
 async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
