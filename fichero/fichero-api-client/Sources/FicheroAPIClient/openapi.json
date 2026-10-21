@@ -2838,7 +2838,7 @@
           "pairing"
         ],
         "summary": "Set Multiuser",
-        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.",
+        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may\n(`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.",
         "operationId": "set_multiuser_api_pair_multiuser_put",
         "parameters": [
           {
@@ -52363,6 +52363,63 @@
         "title": "BakeoffReadiness",
         "description": "Whether the project holds enough corrected lines for a bake-off now: the same count and constants as\nthe refusal of a start (`bakeoff.readiness`), so setup can say it before anything is pressed."
       },
+      "BakeoffRecommendation": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cer": {
+            "type": "number",
+            "title": "Cer"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "cost_per_page_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Per Page Usd",
+            "description": "none when the price is not known"
+          },
+          "cost_set_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Set Usd",
+            "description": "for the project's whole page count"
+          },
+          "within_noise_band_of": {
+            "type": "string",
+            "nullable": true,
+            "title": "Within Noise Band Of",
+            "description": "the best reader's card, when this one is recommended because it reads within the band of it"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "name",
+          "cer",
+          "local",
+          "sentence"
+        ],
+        "title": "BakeoffRecommendation",
+        "description": "What Set Up recommends from the measured rows (#5922): the reader that reads best by more than the project's\nnoise band, or a local or cheaper one within the band of the best, with the reason in words."
+      },
       "BakeoffResult": {
         "properties": {
           "id": {
@@ -52439,6 +52496,11 @@
             "nullable": true,
             "title": "No Winner Why",
             "description": "when the job has finished with no winner, why, in words: only one reader could be compared, or no reader read these pages"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/BakeoffRecommendation",
+            "nullable": true,
+            "description": "Set Up's recommendation from the measured rows, frontier models weighed with the local ones (#5922); none while scoring or with no winner"
           }
         },
         "type": "object",
