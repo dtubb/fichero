@@ -36,6 +36,6 @@ def test_a_reply_that_would_not_parse_is_still_billed_and_so_counted(monkeypatch
     monkeypatch.setattr(llm, "_ensure_managed_local_provider_ready", ready)
     with llm.collect_usage() as bucket:
         with pytest.raises(RuntimeError, match="parse failed"):
-            asyncio.run(llm.structured_output("hi", Schema, CLOUD))
+            asyncio.run(llm.chat_structured("hi", Schema, CLOUD))
     assert bucket and bucket[0]["input_tokens"] == 100 and bucket[0]["output_tokens"] == 7
 
