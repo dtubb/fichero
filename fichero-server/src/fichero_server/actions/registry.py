@@ -209,6 +209,9 @@ class ActionRegistration:
     # in `invoke`, before `execute`, so every door (`POST /api/actions/invoke`, MCP, chat, a route) is held to it
     # with library WRITE alone never enough. The loopback owner (bootstrap) passes. Declared per action.
     owner_only: bool = False
+    # Whose ownership `owner_only` asks for: "library" (the library's owner role, the default) or "app" (the person is an owner of
+    # the app, `AccountUser.is_owner`): an app-wide setting such as Multi-user belongs to no one library (## 797).
+    owner_scope: str = "library"
 
 
 class ActionNotFoundError(KeyError):
@@ -278,7 +281,10 @@ class ActionRegistry:
         from fichero_server.security import authz
 
         if reg.owner_only and not ctx.is_bootstrap:
-            authz.require_owner(ctx.actor, ctx.library_path)  # raises AuthorizationError: nothing has run yet
+            if reg.owner_scope == "app":
+                authz.require_app_owner(ctx.actor)
+            else:
+                authz.require_owner(ctx.actor, ctx.library_path)  # raises AuthorizationError: nothing has run yet
         target_ids = authz.target_ids_from_params(params)
         if not ctx.is_bootstrap:
             if not target_ids:
@@ -454,6 +460,7 @@ def action(
     redo_via_own_invert: bool = False,
     undo_keeps_later_work: bool = False,
     owner_only: bool = False,
+    owner_scope: str = "library",
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -481,6 +488,7 @@ def action(
                 redo_via_own_invert=redo_via_own_invert,
                 undo_keeps_later_work=undo_keeps_later_work,
                 owner_only=owner_only,
+                owner_scope=owner_scope,
             )
         )
         return fn
