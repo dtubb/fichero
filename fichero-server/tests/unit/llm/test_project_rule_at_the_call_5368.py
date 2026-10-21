@@ -43,7 +43,7 @@ def test_a_project_that_said_nothing_leaves_refuses_a_cloud_call_in_words(tmp_pa
 
 def test_the_same_call_for_a_project_that_said_yes_is_not_refused_by_the_gate(tmp_path):
     with places.bound_project(_project(tmp_path, cloud_allowed=True)):
-        llm._enforce_local_only_provider(CLOUD, kind="chat")  # raises if refused
+        assert llm._enforce_local_only_provider(CLOUD, kind="chat") is None  # raises if refused
 
 
 def test_a_project_with_no_saved_set_up_and_a_call_for_no_project_are_refused_as_the_spec_says(tmp_path):
@@ -58,7 +58,7 @@ def test_a_project_with_no_saved_set_up_and_a_call_for_no_project_are_refused_as
 
 def test_this_mac_is_never_refused_by_the_projects_rule(tmp_path):
     with places.bound_project(_project(tmp_path, cloud_allowed=False)):
-        llm._enforce_local_only_provider(THIS_MAC, kind="chat")
+        assert llm._enforce_local_only_provider(THIS_MAC, kind="chat") is None
 
 
 def test_chat_with_tools_and_structured_output_meet_the_projects_rule(tmp_path):
