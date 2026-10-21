@@ -206,8 +206,8 @@ def test_a_new_person_sets_their_own_password_and_gets_the_role_on_the_library(h
     assert harness.app_db.get_user_by_username("carol") is None, "no account until the person accepts"
 
     no_password = _redeem(harness, minted["code"])
-    assert no_password.status_code == 422 and "password" in no_password.json()["detail"]
-    assert _redeem(harness, minted["code"], new_password="short").status_code == 422
+    assert no_password.status_code == 400 and "password" in no_password.json()["detail"]
+    assert _redeem(harness, minted["code"], new_password="short").status_code == 400
     assert harness.app_db.get_user_by_username("carol") is None and harness.app_db.list_devices() == []
 
     paired = _redeem(harness, minted["code"], new_password="a long secret")
@@ -380,14 +380,14 @@ def test_a_code_being_redeemed_refuses_a_second_redeem_in_words_and_a_refusal_re
     assert busy.status_code == 409 and "being used right now" in busy.json()["detail"]
     assert pairing._PAIRING_CODES[code].claimed is True, "the loser never releases the winner's claim"
     pairing._PAIRING_CODES[code].claimed = False
-    assert _redeem(harness, code).status_code == 422 and pairing._PAIRING_CODES[code].claimed is False, "a refusal releases it"
+    assert _redeem(harness, code).status_code == 400 and pairing._PAIRING_CODES[code].claimed is False, "a refusal releases it"
     assert _redeem(harness, code, new_password="a long secret").status_code == 200
 
 
 def test_a_refused_redeem_hints_the_next_step_in_a_typed_header_not_in_prose(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     new = _redeem(harness, _invite(harness, "carol").json()["code"])
-    assert new.status_code == 422 and new.headers["X-Fichero-Pair-Next"] == "choose-password"
+    assert new.status_code == 400 and new.headers["X-Fichero-Pair-Next"] == "choose-password"
     existing = _redeem(harness, _invite(harness, "alice").json()["code"], bare=True)
     assert existing.status_code == 401 and existing.headers["X-Fichero-Pair-Next"] == "person-required"
 

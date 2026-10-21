@@ -827,7 +827,7 @@ def pair_device(
 
         name = body.device_name.strip()
         if not name:
-            raise HTTPException(status_code=422, detail="device_name is required")
+            raise HTTPException(status_code=400, detail="device_name is required")
 
         user_id = record.user_id
         chosen = None
@@ -846,7 +846,7 @@ def pair_device(
                     raise HTTPException(status_code=409, detail="that username is taken now: ask for a new invitation")
                 if len(body.new_password or "") < MIN_NEW_PASSWORD:
                     raise HTTPException(
-                        status_code=422,
+                        status_code=400,
                         detail=f"choose a password of at least {MIN_NEW_PASSWORD} characters to accept this invitation",
                         headers={PAIR_NEXT_HEADER: NEXT_NEW_PASSWORD},
                     )
@@ -868,7 +868,7 @@ def pair_device(
                 new_account = True
         elif body.username is not None:
             if not _use_multiuser_auth():
-                raise HTTPException(status_code=422, detail="choosing a person needs Multi-user on")
+                raise HTTPException(status_code=409, detail="choosing a person needs Multi-user on")
             chosen = app_db.get_user_by_username(body.username.strip())
             if chosen is None or not accounts.verify_password(
                 body.password or "", chosen.password_hash if chosen else accounts.hash_password("x")
@@ -967,7 +967,7 @@ def enroll_device(
 
         name = body.device_name.strip()
         if not name:
-            raise HTTPException(status_code=422, detail="device_name is required")
+            raise HTTPException(status_code=400, detail="device_name is required")
         raw_token = accounts.new_session_token()
         device = app_db.create_device(
             name=name,
