@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-import pytest
 
 from fichero_server.db.embeddings import EMBEDDING_MODEL_ID_FIELD, EMBEDDINGS_TABLE, DatabaseEmbeddingMixin
 from fichero_server.models import Document
@@ -217,7 +216,7 @@ def test_the_currency_of_a_whole_batch_is_one_query():
     for page in pages[:3]:
         lib.embed_unless_current(page)
     queries = []
-    table = lib.lance.open_table(EMBEDDINGS_TABLE)
+    lib.lance.open_table(EMBEDDINGS_TABLE)
     real_where = _Table.where
 
     def counting(self, clause):
