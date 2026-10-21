@@ -898,11 +898,11 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     from fichero_server.recipes import places
 
     # The copy has no Set Up: model calls made for it are judged by, and counted against, the real project (#5368, #5987).
-    real_project = contextlib.ExitStack()
-    real_project.enter_context(places.scratch_of(scratch, library))
+    real_project = contextlib.ExitStack()  # entered inside the try below, so it cannot outlive it (## 790 LOW)
     for sub in ("lance", "storage", "files"):
         (scratch / sub).mkdir(parents=True, exist_ok=True)
     try:
+        real_project.enter_context(places.scratch_of(scratch, library))
         copy = db_manager.get_database(scratch)
         folder = Document(name="Samples", doc_type=DocType.folder)
         copy.save(folder)
