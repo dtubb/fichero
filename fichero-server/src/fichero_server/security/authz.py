@@ -225,6 +225,15 @@ def require_owner(user: Any, library: str | Path | None) -> ResolvedUser:
     return resolved
 
 
+def require_app_owner(user: Any) -> ResolvedUser:
+    """Require that the person is an owner of the app (an app-wide setting, not one library's)."""
+    resolved = resolve_user(user)
+    row = get_app_db().get_user(resolved.id) if resolved else None
+    if row is None or not row.is_owner:
+        raise AuthorizationError("owner access required", required="owner")
+    return resolved
+
+
 def set_role(*, actor: Any, library: str | Path | None, user: str, role: str):
     """Owner-only role grant/update helper used by the registry action."""
     role = role.strip().lower()

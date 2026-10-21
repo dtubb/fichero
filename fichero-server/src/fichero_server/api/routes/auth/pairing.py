@@ -608,7 +608,8 @@ def _multiuser_invert(before: dict | None, after: dict | None, ctx: ActionContex
     return ("sharing.set_multiuser", {"enabled": before["enabled"]}) if before else None
 
 
-@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert, owner_only=True)
+@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert, owner_only=True,
+        owner_scope="app")  # the switch is app-wide: an owner needs no role in this one library (## 797)
 def _set_multiuser_action(_db, params: MultiuserParams, ctx: ActionContext):
     """Who sees every library: audited and undoable. Owner only at the route; the environment wins."""
     from fichero_server.security.authz import AuthorizationError
