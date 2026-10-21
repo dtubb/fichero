@@ -52,5 +52,6 @@ struct AddDeviceSheetModelTests {
         #expect(Model.expiresText(expiresAt: now.addingTimeInterval(600), now: now) == "Expires in 10 min")
         #expect(Model.expiresText(expiresAt: now.addingTimeInterval(30), now: now) == "Expires in under a minute")
         #expect(Model.expiresText(expiresAt: now.addingTimeInterval(-5), now: now) == "Renewing…")
+        #expect(Model.expiresText(expiresAt: nil, now: now) == "Never expires")  // an invitation with no end (expires_at null)
     }
 }

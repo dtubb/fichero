@@ -170,7 +170,7 @@ struct PairingCardView: View {
                     .accessibilityIdentifier("sharing.pairing.copyNote")
             }
 
-            Text("Expires \(pairingCode.expiresAt.formatted(date: .omitted, time: .shortened))")
+            Text(pairingCode.expiresAt.map { "Expires \($0.formatted(date: .omitted, time: .shortened))" } ?? "Never expires")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

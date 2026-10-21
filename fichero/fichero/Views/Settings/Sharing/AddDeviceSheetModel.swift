@@ -41,7 +41,8 @@ enum AddDeviceSheetModel {
     }
 
     /// "Expires in 10 min"; under a minute says so; past the time it says it is being renewed (never an expired time).
-    static func expiresText(expiresAt: Date, now: Date = Date()) -> String {
+    static func expiresText(expiresAt: Date?, now: Date = Date()) -> String {
+        guard let expiresAt else { return "Never expires" }
         let seconds = expiresAt.timeIntervalSince(now)
         if seconds <= 0 { return "Renewing…" }
         if seconds < 60 { return "Expires in under a minute" }
