@@ -5,7 +5,8 @@ struct PairingQRCodePayload: Codable {
     let version: Int
     let apiURL: String
     let pairCode: String
-    let expiresAt: Date
+    /// nil (the key left out) for an invitation that never expires; a decoder reads a missing key as never-expires.
+    let expiresAt: Date?
     /// Absent when the advertised host's TLS is terminated by a public CA — a
     /// `tailscale serve` endpoint — because the host does not hold that key and
     /// must not claim it (#5041). Present for an engine serving its own cert.
@@ -145,8 +146,7 @@ final class PairingService {
         case .ok:
             return
         case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+            throw APIError.httpError(statusCode: 422, message: Self.validationWords(try? error.body.json))
         case .undocumented(let statusCode, let payload):
             // The engine refuses in words (the person already has the whole project, the folder is not in it, not the owner):
             // 4xx other than 422 is not in the contract, so the body is read as the other pairing calls read it.
@@ -162,11 +162,17 @@ final class PairingService {
             let record = try okResponse.body.json
             return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
         case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+            throw APIError.httpError(statusCode: 422, message: Self.validationWords(try? error.body.json))
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
         }
+    }
+
+    /// A 422's own messages ("a lifetime is for an invitation to a named person"), not the array's debug text.
+    private static func validationWords(_ body: Components.Schemas.HTTPValidationError?) -> String {
+        let words = (body?.detail ?? []).map(\.msg).joined(separator: "; ")
+        return words.isEmpty ? "The engine did not accept that request." : words
     }
 
     /// Sharing state from the engine: the detected `.ts.net` address and, when the engine cannot
