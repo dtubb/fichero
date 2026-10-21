@@ -69,5 +69,10 @@ struct PairingIncomingLinkSheet: View {
         }
     }
 }
-
+#Preview {
+    PairingIncomingLinkSheet(url: URL(string: "fichero://pair?code=ABC")!, onConnected: {})
+        .environment(AppState())
+        .environment(LibraryManager.shared)
+        .environment(MobileCaptureQueueStore())
+}
 #endif

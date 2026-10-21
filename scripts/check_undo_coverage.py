@@ -73,6 +73,11 @@ KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_undo_coverage_known
 REVERSE_MARKERS = ("undo", "rollback", "restore")
 NON_UNDO_MUTATIONS = {
     "POST /api/sandbox/security-scoped-access": "process-local capability grant; no persisted user state",
+    "DELETE /api/pair/invites/{invite_id}": (
+        "a revoked invitation's one-time link is gone for good (the engine keeps no code to restore); the owner mints a new one"),
+    "POST /api/recipes/cloud/accept-unpriced": (
+        "the engine does not call it undoable either: the way back is the same action with `withdraw: true`, so Undo never "
+        "re-refuses a model a run is using"),
 }
 
 

@@ -2423,7 +2423,7 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
     for key in accepted:
         provider, _, model = key.partition("/")
-        _invoke_accept(db, {"provider": provider, "model": model}, ctx)
+        registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
 
 
 @router.post("/project/start", response_model=StartPlan, responses={422: {
@@ -3052,11 +3052,22 @@ class AcceptedUnpriced(BaseModel):
     accepted: list[str] = Field(description="every `provider/model` this project accepts running without a listed price")
 
 
-def _invert_accept(before: dict | None, after: dict | None, ctx: ActionContext):
-    return ("cloud.accept_unpriced", {"provider": after["provider"], "model": after["model"], "withdraw": not after["withdraw"]})
+def _was_accepted(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext) -> bool:
+    from fichero_server.llm import spend
+
+    return spend.model_key(params.provider, params.model) in spend.accepted_models(_library(db))
 
 
-@action("cloud.accept_unpriced", AcceptUnpricedRequest, domains=["project"], undoable=True, invert=_invert_accept)
+def _put_accepted_back(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext, was: bool) -> None:
+    """The file is written inside the action, before its audit row commits: when the invocation then fails, just THIS key goes
+    back to what it was (never the whole list, which would undo a concurrent accept of another model)."""
+    from fichero_server.llm import spend
+
+    spend.set_accepted(_library(db), params.provider, params.model, was)
+
+
+@action("cloud.accept_unpriced", AcceptUnpricedRequest, domains=["project"],
+        snapshot=_was_accepted, restore=_put_accepted_back)
 def _action_accept_unpriced(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.llm import spend
 
@@ -3068,20 +3079,6 @@ def _action_accept_unpriced(db: Database, params: AcceptUnpricedRequest, ctx: Ac
                                           "accepted": before}, after={**mark, "accepted": kept}, emit_type="project.cloud_accepted")
 
 
-def _invoke_accept(db: Database, params: dict, ctx: ActionContext):
-    """`cloud.accept_unpriced`, with the acceptance file put back if the action fails: the file is written inside the action,
-    before its audit row commits, so an audit that fails must not leave a yes with no record of who gave it."""
-    from fichero_server.llm import spend
-
-    library = _library(db)
-    before = spend.accepted_models(library)
-    try:
-        return registry.invoke(db, "cloud.accept_unpriced", params, ctx)
-    except BaseException:
-        spend.restore_accepted(library, before)
-        raise
-
-
 @router.post("/cloud/accept-unpriced", response_model=AcceptedUnpriced)
 async def accept_unpriced_cloud_model(
     request: AcceptUnpricedRequest,
@@ -3091,4 +3088,4 @@ async def accept_unpriced_cloud_model(
     """Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an
     assumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the
     one Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers."""
-    return AcceptedUnpriced(**_invoke_accept(db, request.model_dump(), ctx).result)
+    return AcceptedUnpriced(**registry.invoke(db, "cloud.accept_unpriced", request.model_dump(), ctx).result)

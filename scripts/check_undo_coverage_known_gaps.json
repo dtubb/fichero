@@ -486,5 +486,6 @@
   "POST /api/auth/local-clients/request": "a local program asks to be allowed; a request record, no library data (multiuser-always-on slice 6a, #2403)",
   "POST /api/auth/local-clients/requests/{request_id}/decision": "the owner's Allow/Deny of a request; reversed by revoking the client, not by undo (slice 6a, #2403)",
   "POST /api/auth/local-clients/register": "the allowed program registers its own key; reversed by revoking the client (slice 6a, #2403)",
-  "PUT /api/auth/local-clients/switches": "the two local-client switches; set back by the owner, not an undoable library change (slice 6a, #2403)"
+  "PUT /api/auth/local-clients/switches": "the two local-client switches; set back by the owner, not an undoable library change (slice 6a, #2403)",
+  "POST /api/recipes/project/allow-cloud": "undoable in the engine (project.allow_cloud, audited with an inverse that restores the setup), undone from the audit; the app has no view of the one-click Allow yet to register it (#5368, waits on an owner question)"
 }

@@ -212,6 +212,11 @@ class ActionRegistration:
     # Whose ownership `owner_only` asks for: "library" (the library's owner role, the default) or "app" (the person is an owner of
     # the app, `AccountUser.is_owner`): an app-wide setting such as Multi-user belongs to no one library (## 797).
     owner_scope: str = "library"
+    # For an action whose effect is not all in the database (a file in the project folder): `snapshot(db, params, ctx)` reads
+    # what it will touch before it runs, and `restore(db, params, ctx, token)` puts just that back if the invocation then
+    # fails (the action, its audit row, the commit). Every door, an undo and a redo too, goes through `invoke`, so every door has it.
+    snapshot: Callable[[Any, BaseModel, ActionContext], Any] | None = None
+    restore: Callable[[Any, BaseModel, ActionContext, Any], None] | None = None
 
 
 class ActionNotFoundError(KeyError):
@@ -257,6 +262,27 @@ class ActionRegistry:
     # -- the one write choke point -------------------------------------------
 
     def invoke(
+        self,
+        db: Any,
+        name: str,
+        raw_params: dict,
+        ctx: ActionContext,
+        *,
+        inverse_of: str | None = None,
+    ) -> ActionResult:
+        """`_invoke`, with the action's own `restore` run if it fails (see :attr:`ActionRegistration.snapshot`)."""
+        reg = self.get(name)  # ActionNotFoundError if unknown
+        if reg.snapshot is None or reg.restore is None:
+            return self._invoke(db, name, raw_params, ctx, inverse_of=inverse_of)
+        params = reg.params_model.model_validate(raw_params)
+        token = reg.snapshot(db, params, ctx)
+        try:
+            return self._invoke(db, name, raw_params, ctx, inverse_of=inverse_of)
+        except BaseException:
+            reg.restore(db, params, ctx, token)
+            raise
+
+    def _invoke(
         self,
         db: Any,
         name: str,
@@ -462,6 +488,8 @@ def action(
     undo_keeps_later_work: bool = False,
     owner_only: bool = False,
     owner_scope: str = "library",
+    snapshot: Callable[[Any, BaseModel, ActionContext], Any] | None = None,
+    restore: Callable[[Any, BaseModel, ActionContext, Any], None] | None = None,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -490,6 +518,8 @@ def action(
                 undo_keeps_later_work=undo_keeps_later_work,
                 owner_only=owner_only,
                 owner_scope=owner_scope,
+                snapshot=snapshot,
+                restore=restore,
             )
         )
         return fn
