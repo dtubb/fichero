@@ -66,6 +66,15 @@ READ_FLAG_KEY = "read_flag"
 _CHAR_LOOP = re.compile(r"(.{2,30}?)\1{%d,}" % (CHAR_LOOP_MIN_REPEATS - 1), re.S)
 
 
+def flag_words(flag: dict[str, Any]) -> dict[str, Any]:
+    """The flag with its ``reason`` always in words: a flag of ANY kind (one a later check or repair adds) that carries none gets a
+    sentence made from its kind, so the app never has to name a kind it does not know."""
+    if isinstance(flag.get("reason"), str) and flag["reason"].strip():
+        return flag
+    kind = str(flag.get("kind") or "").replace("-", " ").replace("_", " ").strip()
+    return {**flag, "reason": f"this reading is flagged ({kind})" if kind else "this reading is flagged"}
+
+
 @dataclass(frozen=True)
 class ReadFlag:
     """Why a read is not trusted, in a word (``kind``) and a sentence (``reason``)."""
@@ -75,7 +84,7 @@ class ReadFlag:
     measure: dict[str, Any]
 
     def as_data(self) -> dict[str, Any]:
-        return {"kind": self.kind, "reason": self.reason, "measure": dict(self.measure)}
+        return flag_words({"kind": self.kind, "reason": self.reason, "measure": dict(self.measure)})
 
 
 class ModelText(str):
@@ -167,9 +176,9 @@ def read_flag_of(holder: Any) -> dict[str, Any] | None:
     for attr in ("data", "metadata"):
         bag = getattr(holder, attr, None)
         if isinstance(bag, dict) and isinstance(bag.get(READ_FLAG_KEY), dict):
-            return bag[READ_FLAG_KEY]
+            return flag_words(bag[READ_FLAG_KEY])
     if isinstance(holder, dict) and isinstance(holder.get(READ_FLAG_KEY), dict):
-        return holder[READ_FLAG_KEY]
+        return flag_words(holder[READ_FLAG_KEY])
     return None
 
 
@@ -197,6 +206,7 @@ __all__ = [
     "MAX_CHARS_PER_LINE",
     "ModelText",
     "READ_FLAG_KEY",
+    "flag_words",
     "REPETITION",
     "ReadFlag",
     "TOO_LONG",
