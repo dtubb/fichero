@@ -148,3 +148,17 @@ def test_a_line_vision_gave_up_on_is_counted_on_its_own_in_the_set_based_counts(
     got = run_view.reading_counts(db, [page], blank=set())
     assert got.lines_vision_could_not_read == run_view.lines_vision_could_not_read(db, [page]) == 1
     assert got.lines_seen_blank == run_view.lines_seen_blank(db, [page]) == 1
+
+
+def test_no_async_function_of_the_summary_touches_the_database_itself():
+    """## 837: a list of helper names lets a new one slip past, so any `db.<call>` (and `runner.status(`) inside the async
+    summary functions is forbidden: the database is reached only through a function handed to `asyncio.to_thread`."""
+    offenders = []
+    for rel, names in (("recipes/run_view.py", {"summary", "counts_off_the_loop"}), ("api/routes/system/activity.py", {"_recipe_run"})):
+        tree = ast.parse((SRC / rel).read_text())
+        for fn in (n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name in names):
+            for call in (n for n in ast.walk(fn) if isinstance(n, ast.Call)):
+                chain = ast.unparse(call.func)
+                if chain.startswith("db.") or chain == "runner.status":
+                    offenders.append(f"{rel}::{fn.name} calls {chain}")
+    assert not offenders, offenders
