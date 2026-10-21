@@ -275,7 +275,8 @@ private struct DerivedScriptRow: View {
 
 /// Where a field's list comes from, as the engine's search routes really draw it (`recipes/names.py`): languages are
 /// ISO 639-3 (historic languages included) joined with Glottolog (the languages and dialects ISO gives no code), each
-/// language's own name from Unicode CLDR only adds a way to find it; scripts are ISO 15924. One grey line under each field, with links (#5834).
+/// language's own name from Unicode CLDR only adds a way to find it; scripts are ISO 15924. One grey line under each field,
+/// with links (#5834).
 enum CodeListSource {
     static func markdown(scripts: Bool) -> String {
         scripts

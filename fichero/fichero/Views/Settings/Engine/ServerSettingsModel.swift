@@ -52,7 +52,8 @@ final class ServerAdvancedModel {
         do {
             try await switchHost(
                 stored, draft,
-                draft == ServerSettingsText.shownAddress(stored: stored) ? "The engine did not answer." : "That address did not answer, so the previous one is back.")
+                draft == ServerSettingsText.shownAddress(stored: stored)
+                    ? "The engine did not answer." : "That address did not answer, so the previous one is back.")
         } catch {
             self.error = error.localizedDescription
         }
