@@ -1400,3 +1400,14 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     terminalreporter.write_line(
         f"  Listed in tests/{_SPEC_FAILURES_PATH.name} — this is debt, not a pass."
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_workflow_node_leaks_between_tests():
+    """A sync test runs in the session's context, so a node it stamps (`set_current_node`) would be the current node of
+    every later test and hang job-lane pages under its step (the 5689 lane-page polluter)."""
+    from fichero_server.workflows import node_context
+
+    token = node_context._current_node.set(None)
+    yield
+    node_context._current_node.reset(token)
