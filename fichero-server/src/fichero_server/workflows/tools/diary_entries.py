@@ -740,9 +740,11 @@ async def split_pages_into_entries(
     lines: list[str] = []
     errors: list[str] = []
     totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
-    async def ask(page: Document) -> DiaryPageSplit | ValueError | None:
+    async def ask(numbered: tuple[int, Document]) -> DiaryPageSplit | ValueError | None:
         """The model's split of a page, asked while earlier pages are written (`runtime.cloud-extractors.pages-together`,
-        #5955); a page with no transcript asks nothing (its own error is raised in order below)."""
+        #5955); a page with no transcript asks nothing (its own error is raised in order below). It is handed the
+        numbered page `ahead` iterates, not the bare page."""
+        _done, page = numbered
         if not (page.page_content or "").strip():
             return None
         try:
