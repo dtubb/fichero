@@ -1,4 +1,4 @@
-"""Fable runner review #17: a first ask of Vision's locales that failed (empty) was cached for the whole session, so
+"""Fable runner review #17 (issue #5875): a first ask of Vision's locales that failed (empty) was cached for the whole session, so
 `validate_vision_language` passed any string through and Vision silently read in its default locale. An empty answer is
 asked again; an answer is kept (`source.read.vision-locale`)."""
 from __future__ import annotations
