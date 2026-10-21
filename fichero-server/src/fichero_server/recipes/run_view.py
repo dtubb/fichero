@@ -13,6 +13,8 @@ account's), and the steps the plan skipped with their fixes.
 """
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -377,6 +379,43 @@ def pages_fully_read(db: Any, pages: list[str]) -> list[str]:
     return [p for p in pages if _fully_read(db, p)]
 
 
+@dataclass
+class ReadingCounts:
+    pages_fully_read: list[str]
+    lines_unread: int
+    lines_unread_why: dict[str, int]
+    lines_seen_blank: int
+    pages_read_nothing: int
+    pages_dated: int
+
+
+def reading_counts(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
+    """The summary's counts over `pages` (`blank`: pages the run left out, which no count includes, except the dates), from two
+    set-based reads of the pages' lines and readings (`done.lines_by_page`) and one of their dates, instead of ten calls a page
+    (`activity.summary.counts-in-two-queries`, #6001). Only a page with no lines keeps its own check, for a page-level reading."""
+    from fichero_server.models import Document
+    from fichero_server.recipes.done import FAILED_READ_REASONS, lines_by_page
+
+    kept = [p for p in pages if p not in blank]
+    by_page = lines_by_page(db, kept)
+    why: dict[str, int] = {}
+    for info in by_page.values():
+        for reason, n in info.why.items():
+            why[reason] = why.get(reason, 0) + n
+    fully = [p for p in kept if not by_page[p].unread and (by_page[p].found > 0 or _has_reading(db, p))]
+    failed = sum(1 for info in by_page.values() if info.why and set(info.why) <= FAILED_READ_REASONS)
+    dated = sum(1 for d in db.query_in(Document, "id", pages) if d.date_jdn is not None)
+    return ReadingCounts(
+        pages_fully_read=fully, lines_unread=sum(i.unread for i in by_page.values()), lines_unread_why=why,
+        lines_seen_blank=sum(i.blank for i in by_page.values()), pages_read_nothing=failed, pages_dated=dated)
+
+
+async def counts_off_the_loop(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
+    """`reading_counts` on a worker thread: it waits for the database's transaction gate behind the writers (Kraken saves, a
+    kept-text export, an import), and the event loop must not (`activity.summary.off-the-loop`, #6001)."""
+    return await asyncio.to_thread(reading_counts, db, pages, blank)
+
+
 def _pages_dated(db: Any, pages: list[str]) -> int:
     """The pages Work out dates gave a date (`date_jdn` set), out of these."""
     from fichero_server.models import Document
@@ -580,14 +619,13 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     blank = {e["page_id"] for step in status["steps"] for e in step.get("left_out") or []
              if e.get("why") in (sorting.BLANK_WHY, sorting.PERSON_BLANK_WHY)}
     entries, pages_split = _entries(status["steps"])
+    counts = await counts_off_the_loop(db, pages, blank)
     made = RecipeRunSummary(
         job_id=job_id, state=status["state"], finished=status["state"] in ("done", "failed", "cancelled"),
-        pages=len(pages), pages_read=len([p for p in pages_fully_read(db, pages) if p not in blank]),
-        lines_unread=lines_unread(db, [p for p in pages if p not in blank]),
-        lines_unread_why=lines_unread_why(db, [p for p in pages if p not in blank]),
-        lines_seen_blank=lines_seen_blank(db, [p for p in pages if p not in blank]),
-        pages_read_nothing=pages_read_nothing(db, [p for p in pages if p not in blank]),
-        names=names, dates=dates, statements=statements, pages_dated=_pages_dated(db, pages),
+        pages=len(pages), pages_read=len(counts.pages_fully_read),
+        lines_unread=counts.lines_unread, lines_unread_why=counts.lines_unread_why,
+        lines_seen_blank=counts.lines_seen_blank, pages_read_nothing=counts.pages_read_nothing,
+        names=names, dates=dates, statements=statements, pages_dated=counts.pages_dated,
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],

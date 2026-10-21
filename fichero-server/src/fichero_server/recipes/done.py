@@ -22,6 +22,7 @@ Every other card cannot tell, and runs on every page.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
@@ -194,6 +195,49 @@ def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, in
     blank = [x for x in lines if x.id not in read and isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
              and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, ""))]
     return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
+
+
+@dataclass
+class PageLines:
+    """One page's lines as a reader left them (what `lines_state` and `unread_reasons` give, for the Activity summary)."""
+
+    found: int = 0
+    unread: int = 0  # found lines with no reading that were not looked at
+    blank: int = 0  # looked at, no writing
+    why: dict[str, int] = field(default_factory=dict)  # each unread line's reason, counted
+
+
+def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
+    """`lines_state` and `unread_reasons` for all these pages from TWO reads of the database (their lines, then the readings of the
+    pages that have lines), not two per page: a run of 200 pages took the connection's transaction gate 2000 times a poll
+    (`activity.summary.counts-in-two-queries`, #6001). Same numbers as the per-page helpers."""
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    lines: dict[str, list[Any]] = {}
+    for x in db.query_in(Segment, "document_id", pages):
+        if x.kind == "line" and x.deleted_at is None:
+            lines.setdefault(x.document_id, []).append(x)
+    read: dict[str, set[str]] = {}
+    for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
+        if r.segment_id:
+            read.setdefault(r.document_id, set()).add(r.segment_id)
+    out: dict[str, PageLines] = {}
+    for page in pages:
+        info = PageLines(found=len(lines.get(page, [])))
+        done = read.get(page, set())
+        for x in lines.get(page, []):
+            if x.id in done:
+                continue
+            if isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict):
+                info.blank += 1
+                continue
+            info.unread += 1
+            why = (x.metadata or {}).get("unread_reason") or NOT_ANSWERED
+            info.why[why] = info.why.get(why, 0) + 1
+        out[page] = info
+    return out
 
 
 def unread_on(db: Any, doc_id: str) -> int:
