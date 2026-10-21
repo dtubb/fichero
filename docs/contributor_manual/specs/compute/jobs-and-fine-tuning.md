@@ -379,7 +379,7 @@ What the memory check does for a local model's load (#5537), each pinned in
   states, the read slot holds and the server batches); any other job (a Kraken page, an embed, another
   model) waits for them all to end. Pinned through the real lane in
   `fichero-server/tests/unit/jobs/test_model_lane_reads_what_the_plan_says_5654.py`.
-- `compute.apple-vision.bounded-and-deadlined` — **[OK]** (#5392, #5537) every Apple Vision call in
+- `compute.apple-vision.bounded-and-deadlined` — **[BROKEN]** (#5392, #5537; a call that timed out is abandoned but keeps its gate slot for as long as Apple's recogniser holds it, which can be for ever, so after two such calls every later Apple Vision read, the app's own included, waits its whole deadline for a slot it never gets and fails; seen in the defaults matrix on 2026-10-21, 06:20 to 06:31) every Apple Vision call in
   the engine (a Transcribe page, a PDF page, a node on the apple provider through `llm.vision`, Economy
   HTR, the page splitter's outline) passes one engine-wide gate (`vision_base._apple_vision_call`, and
   `_apple_vision_call_sync` off the event loop): at most the smaller of two pages at once (the bound
@@ -395,6 +395,11 @@ What the memory check does for a local model's load (#5537), each pinned in
   bound, memory short → one at a time, a stuck page failing by name, in
   `fichero-server/tests/unit/workflows/test_apple_vision_is_gated.py`. Stop ending a run whose page
   is inside a native call is `activity.run.stop-reaches-in-flight-calls` (#4402).
+  *Required (manager, 2026-10-21, P1 for the release):* a call that times out FREES its gate slot at once (the abandoned thread no longer
+  counts toward the bound) and its page fails by name; later reads go on normally. The abandoned threads are counted; past a small ceiling
+  (4) a new call fails fast with a named error that says Apple Vision is stuck until the engine is restarted, with no wait. *Test (red until
+  the fix):* `fichero-server/tests/unit/workflows/test_apple_vision_stuck_5392.py` (a recogniser that never returns: its page fails within
+  the timeout, the next call gets a slot and succeeds, and past the ceiling a call fails fast with the named error).
 - `compute.memory.server-death-said` — **[OK]** (#5537) when the engine's model server dies under a
   request, the page's cause is "The local model server stopped while reading: <its last output>" (e.g.
   Metal's "Insufficient Memory"), never "An error occurred during streaming"; the server's last output
