@@ -65,3 +65,17 @@ def test_the_plan_lists_the_unsure_lines_option_beside_the_cloud_reader():
 
 
 # The saved cloud choice with no key or permission is pinned in test_step_choices_on_the_plan.py (the plan skips it in place).
+
+
+def test_the_frontier_pick_is_the_cheaper_by_the_price_list_not_by_a_cost_field_remote_cards_leave_at_zero(monkeypatch):
+    from dataclasses import replace
+
+    from fichero_server.recipes import routes
+
+    dear = replace(CLOUD_READER, id="dear", pin={"cloud": "anthropic", "model": "dear-model"})
+    cheap = replace(CLOUD_READER, id="cheap", pin={"cloud": "anthropic", "model": "cheap-model"})
+    prices = {"anthropic/dear-model": 0.05, "anthropic/cheap-model": 0.002}
+    monkeypatch.setattr(routes, "_cloud_cost", lambda teacher, pages=1: prices[teacher] * pages)
+    answers = _handwriting(cloud_allowed=True, cloud_keys=("anthropic",))
+    step = next(s for s in assemble(answers, CARDS, readers=[dear, cheap])["steps"] if s["job"] == "read-a-line")
+    assert step["card"]["id"] == "cheap"
