@@ -2939,9 +2939,9 @@ Projects
   run is step-major within each batch (a folder, or at most `BATCH_PAGE_LIMIT` pages), the same on every Mac: Kraken's
   cards on all of the batch's pages, then the MLX / vision / cloud reader cards and Correct, then spaCy's, then
   embedding; the next batch starts after the embedder step, so folders finish one after another and each heavy model
-  loads once per batch. The order is `assemble.STEP_ORDER`; there is no order setting. Cards that read what spaCy
-  found (find statements, describe, extract) come after it because they need its names, so a batch loads the MLX
-  server again for them. The whole-project tail (find documents, check, export, publish) runs once at the end.
+  loads once per batch. The order is `assemble.STEP_ORDER`; there is no order setting. The LLM text steps (find
+  statements, describe, extract) load the MLX model a second time per batch, because they need the names spaCy
+  found and so run after it (open question to the owner: whether that is acceptable). The whole-project tail (find documents, check, export, publish) runs once at the end.
   Tested in `fichero-server/tests/unit/recipes/test_recipe_runs_step_major_per_batch.py` (the order of the jobs) and
   `test_recipe_batches_to_spec.py::test_every_step_finishes_a_batch_before_the_next_batch` (the loop).
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
