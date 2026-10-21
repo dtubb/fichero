@@ -22,6 +22,7 @@ extension ActivityStore {
         defer { treeFetchesInFlight.remove(threadId) }
         do {
             if let tree = try await activityService.getJobTree(id: threadId) {
+                if treeReadFailures[threadId] != nil { treeReadFailures[threadId] = nil }
                 if runTrees[threadId] != tree { runTrees[threadId] = tree }
                 if tree.kind == Self.recipeRunKind { await readRecipeRunFolders(jobId: threadId) }
             } else {
@@ -29,7 +30,16 @@ extension ActivityStore {
             }
         } catch {
             log.debug("ActivityStore: tree for \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
+            treeReadFailures[threadId] = "Couldn't read this row: \(Self.failureCause(of: error))"
         }
+    }
+
+    /// Why the details of a row cannot be shown, in words, when its tree read failed (never a blank pane; nil while it is
+    /// merely not read yet). The run's thread is the part of a step's id before the colon.
+    func detailsReadFailure(forJobId jobId: String) -> String? {
+        if let failure = treeReadFailures[jobId] { return failure }
+        guard let colon = jobId.lastIndex(of: ":") else { return nil }
+        return treeReadFailures[String(jobId[..<colon])]
     }
 
     /// A recipe run's folders from its status (`GET /api/recipes/project/runs/{id}`), patched on its ONE key.

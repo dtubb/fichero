@@ -30,6 +30,14 @@ struct ActivityDetailsView: View {
         Group {
             if let details {
                 content(details)
+            } else if let failure = store.detailsReadFailure(forJobId: selection.jobId) {
+                // a read that failed says so, with the engine's reason: never a pane that stays blank
+                Text(failure)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .accessibilityIdentifier("activity.details.readFailure")
             } else {
                 Color.clear  // nothing yet means blank (`activity.window.no-empty-prose`)
             }

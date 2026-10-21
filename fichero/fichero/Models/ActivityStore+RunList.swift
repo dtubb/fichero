@@ -151,24 +151,28 @@ extension ActivityStore {
     /// (`library_outside_allowed_locations`, the roots check) is not the app's
     /// credentials, and any other coded refusal reads as the engine wrote it.
     static func runLoadFailureMessage(libraryName: String, error: Error) -> String {
-        let cause: String
-        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
-        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
-            cause = "the engine isn't allowed to open the project from where it's saved"
-        case .forbidden(_?, let message?):
-            cause = message
-        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
-            cause = "the engine refused the app's credentials"
-        case .engineUnreachable:
-            cause = "the engine could not be reached"
-        case let other:
-            cause = other.localizedDescription
-        }
+        let cause = failureCause(of: error)
         // The always-there project has no name: no "from" (never "from : …").
         guard let project = ActivityRun.projectLabel(libraryName) else {
             return "Couldn't load activity: \(cause)"
         }
         return "Couldn't load activity from \(project): \(cause)"
+    }
+
+    /// The cause of a failed read in words, the engine's own when it gave one.
+    static func failureCause(of error: Error) -> String {
+        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
+        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
+            "the engine isn't allowed to open the project from where it's saved"
+        case .forbidden(_?, let message?):
+            message
+        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
+            "the engine refused the app's credentials"
+        case .engineUnreachable:
+            "the engine could not be reached"
+        case let other:
+            other.localizedDescription
+        }
     }
 
     private func liveRun(

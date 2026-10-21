@@ -226,6 +226,26 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertNil(details.counts, "pages are counted stage by stage, never summed across stages")
     }
 
+    func testDetails_aFailedTreeReadSaysSoInWordsAndTheNextGoodReadClearsIt() async throws {
+        // WHY: with the loading words gone (`activity.window.no-empty-prose`) a nil `ActivityDetails` could mean "failed";
+        // the details say why, never a pane that stays blank.
+        let store = ActivityStore(service: ActivityService(ficheroClient: Self.client()))
+        let tree = try Self.recorded("recipe_run_tree")
+        let jobId = try XCTUnwrap(Self.object(tree)["id"] as? String)
+        let body = Data(#"{"detail":"The project is busy"}"#.utf8)
+        MockTransportURLProtocol.reset([Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 500, body: body)])
+        await store.loadDetails(jobId: jobId)
+        XCTAssertNil(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
+        let failure = try XCTUnwrap(store.detailsReadFailure(forJobId: jobId))
+        XCTAssertTrue(failure.hasPrefix("Couldn't read this row: "), failure)
+        XCTAssertNotNil(store.detailsReadFailure(forJobId: jobId + ":step"), "a step's details say why its run's read failed")
+
+        MockTransportURLProtocol.reset([Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: tree)])
+        await store.loadDetails(jobId: jobId)
+        XCTAssertNil(store.detailsReadFailure(forJobId: jobId), "a read that works clears it")
+        XCTAssertNotNil(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
+    }
+
     func testRecipeRunDetails_aStageRunsChangeRereadsTheRecipeRun() async throws {
         // WHY: the details follow the row (`activity.details.follows-the-row`): a stage's pages done and left
         // must move while the recipe run's details are open, though the change names the stage's run.
