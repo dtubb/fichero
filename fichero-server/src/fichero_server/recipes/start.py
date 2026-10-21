@@ -1073,7 +1073,7 @@ def _keep_choice(recipe: dict[str, Any], sid: str, card: Any, because: str, now:
     recipe["overrides"].append(override)
 
 
-def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str) -> dict[str, Any]:
+def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str, because: str | None = None) -> dict[str, Any]:
     """The recipe with any found candidate `card` set as step `step_id`'s reader, kept as a project-scope override
     by the path use-instead and Use This take (#5612, `source.find.app-card-actions`). The press is the person's
     deliberate choice: the rules' refusals (a licence, a script its card does not state) do not stop it, but a card
@@ -1091,7 +1091,7 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
     if step.get("job") not in card.jobs:
         raise ValueError(f"{card.note.strip().rstrip('.') or card.id} does not do the step {step_id!r} "
                          f"({step.get('job')}): it does {', '.join(sorted(card.jobs)) or 'no job'}")
-    because = f"chosen by you from the models found ({card.offered_because or card.source})"
+    because = because or f"chosen by you from the models found ({card.offered_because or card.source})"
     _keep_choice(out, step_id, card, because, now)
     return apply_project_overrides(out, [card])
 
