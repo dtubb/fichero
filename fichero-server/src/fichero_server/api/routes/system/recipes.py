@@ -2196,6 +2196,14 @@ class StepCandidate(BaseModel):
     measured: str = Field(description="what is measured on this project's pages, or that it is not yet")
 
 
+class StepTurnOn(BaseModel):
+    """How to bring a step into the plan: Set Up's own answer, nothing new to send (PUT /api/recipes/project with the answer)."""
+
+    answer: str = Field(description="the job answer to set")
+    value: Any
+    words: str
+
+
 class StepChoice(BaseModel):
     """A step of the plan that has a choice of model."""
 
@@ -2205,6 +2213,13 @@ class StepChoice(BaseModel):
     picked: Optional[str] = Field(default=None, description="the card the step uses now")
     chosen_by: Literal["setup", "person"] = Field(description=(
         "setup: Set Up's pick stands; person: they chose another (POST .../steps/use-setup-pick takes it back)"))
+    in_plan: bool = Field(default=True, description=(
+        "false for a step the recipe does not have yet but that is listed so it can be found: Correct beside a Kraken reader; "
+        "`turn_on` says how to bring it in"))
+    wording: Optional[str] = Field(default=None, description="the sentence to show for the step when it is not a plain model choice")
+    certainty_bar: Optional[float] = Field(default=None, description=(
+        "Correct beside a Kraken reader: Set Up's certainty-bar answer, the lines under it are the ones corrected; null: no bar chosen"))
+    turn_on: Optional[StepTurnOn] = None
     candidates: list[StepCandidate]
 
 
