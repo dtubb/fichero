@@ -1689,12 +1689,12 @@ class AppDatabase:
             self.conn.commit()
         return self.get_session(session_id)
 
-    def revoke_all_for_user(self, user_id: str) -> None:
-        """Drop all session rows for one user."""
+    def revoke_all_for_user(self, user_id: str, *, keep_token_hash: str | None = None) -> None:
+        """Drop all session rows for one user, except the one named by `keep_token_hash` (the caller's own, on a password change)."""
         with self._lock:
             self.conn.execute(
-                "DELETE FROM sessions WHERE user_id = ?",
-                [user_id],
+                "DELETE FROM sessions WHERE user_id = ? AND token_hash IS DISTINCT FROM ?",
+                [user_id, keep_token_hash],
             )
             self.conn.commit()
 
