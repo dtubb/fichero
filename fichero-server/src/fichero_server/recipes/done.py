@@ -180,6 +180,24 @@ def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
                                   for r in db.query(ContentRepresentation, document_id=doc_id))
 
 
+def pages_with_readings(db: Any, pages: list[str]) -> set[str]:
+    """The pages (that have no live lines) with a reading of any model: a saved transcription, or a reading written onto a
+    line from one of the page's artifacts (`_has_page_reading` and `_has_line_readings` for model None, in two reads for all
+    the pages, not three or four queries each; a page without live lines has no pass with lines, so `_has_lines` is no)."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    have: set[str] = set()
+    artifacts: dict[str, set[str]] = {}
+    for a in db.query_in(Artifact, "document_id", pages):
+        if a.artifact_type == "transcription":
+            have.add(a.document_id)
+        artifacts.setdefault(a.document_id, set()).add(a.id)
+    for r in db.query_in(ContentRepresentation, "document_id", list(artifacts)):
+        if r.segment_id and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
+            have.add(r.document_id)
+    return have
+
+
 def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, int, int]:
     """(lines found, lines with no reading and not looked at, lines looked at with no writing) on the page, from
     one scan of its segments and readings (#5758); `model`: only that reader's 'no writing' counts. A ruled or blank line the reader looked at is read: it has

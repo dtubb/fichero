@@ -395,7 +395,7 @@ def reading_counts(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
     set-based reads of the pages' lines and readings (`done.lines_by_page`) and one of their dates, instead of ten calls a page
     (`activity.summary.counts-in-two-queries`, #6001). Only a page with no lines keeps its own check, for a page-level reading."""
     from fichero_server.models import Document
-    from fichero_server.recipes.done import FAILED_READ_REASONS, lines_by_page
+    from fichero_server.recipes.done import FAILED_READ_REASONS, lines_by_page, pages_with_readings
 
     kept = [p for p in pages if p not in blank]
     by_page = lines_by_page(db, kept)
@@ -403,7 +403,10 @@ def reading_counts(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
     for info in by_page.values():
         for reason, n in info.why.items():
             why[reason] = why.get(reason, 0) + n
-    fully = [p for p in kept if not by_page[p].unread and (by_page[p].found > 0 or _has_reading(db, p))]
+    # A page with no lines is read when it has a page-level reading, found with the other such pages in two reads.
+    lineless = [p for p in kept if not by_page[p].found and not by_page[p].unread]
+    have = pages_with_readings(db, lineless) if lineless else set()
+    fully = [p for p in kept if not by_page[p].unread and (by_page[p].found > 0 or p in have)]
     failed = sum(1 for info in by_page.values() if info.why and set(info.why) <= FAILED_READ_REASONS)
     dated = sum(1 for d in db.query_in(Document, "id", pages) if d.date_jdn is not None)
     return ReadingCounts(
@@ -591,13 +594,46 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
     return lines
 
 
+def _head(db: Any, status: dict[str, Any]) -> tuple[list[str], tuple, tuple]:
+    """The summary's first database reads (the run's pages, their names, dates and statements, the documents found), for one
+    worker thread: the event loop never waits on the connection's transaction gate (`activity.summary.off-the-loop`, #6001)."""
+    pages = _pages(db, status.get("documents"), status.get("folder_id"))
+    return pages, _knowledge(db, pages), _found_documents(db, status["steps"])
+
+
+def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[str], counts: "ReadingCounts") -> set[str]:
+    """The summary's last database reads (pages with lines or regions, the review, the project's setup, the downloads), filled
+    into `made` on one worker thread; returns the jobs the run ran."""
+    from fichero_server.recipes import places, runner
+    from fichero_server.recipes.project import read_project_setup
+
+    ran = _jobs_of_the_run(db, status["steps"])
+    if "find-lines" in ran:
+        made.pages_with_lines = _pages_with(db, pages, "line")
+    if ran & {"find-lines", "find-regions"}:
+        made.pages_with_regions = _pages_with(db, pages, "region")
+    if "correct" in ran:
+        did = reviewed(db, pages)
+        made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
+        made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
+    setup = read_project_setup(runner._library(db))
+    made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
+                                   lines_blank=counts.lines_seen_blank, pages_read_nothing=made.pages_read_nothing,
+                                   cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
+    from fichero_server.execution import jobs
+
+    awaited = status.get("awaited") or []
+    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
+                                             setup["recipe"], cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
+    return ran
+
+
 async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     """The summary of one recipe run; LookupError when there is none."""
     from fichero_server.recipes import runner, sorting
 
     status = await with_accounts(db, runner.status(db, job_id))
-    pages = _pages(db, status.get("documents"), status.get("folder_id"))
-    names, dates, statements = _knowledge(db, pages)
+    pages, (names, dates, statements), (proposed, accepted, groups) = await asyncio.to_thread(_head, db, status)
     from fichero_server.workflows import run_account as accounts
 
     failed: list[StageFailures] = []
@@ -615,7 +651,6 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                                         failures=account.failures,
                                         offer=offer_words(step.get("job"), account.offer.label)
                                         if account.offer else None))
-    proposed, accepted, groups = _found_documents(db, status["steps"])
     # The pages a stage left out as blank: not read by this run, whatever an earlier one gave them (#5705: "Read 92
     # of 92 pages" with 5 left out).
     blank = {e["page_id"] for step in status["steps"] for e in step.get("left_out") or []
@@ -639,26 +674,6 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
             if entry["page_id"] not in seen:
                 seen.add(entry["page_id"])
                 made.left_out.append(LeftOutPage(**entry))
-    ran = _jobs_of_the_run(db, status["steps"])
-    if "find-lines" in ran:
-        made.pages_with_lines = await asyncio.to_thread(_pages_with, db, pages, "line")
-    if ran & {"find-lines", "find-regions"}:
-        made.pages_with_regions = await asyncio.to_thread(_pages_with, db, pages, "region")
-    if "correct" in ran:
-        did = reviewed(db, pages)
-        made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
-        made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
-    from fichero_server.recipes import places
-    from fichero_server.recipes.project import read_project_setup
-
-    setup = read_project_setup(runner._library(db))
-    made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
-                                   lines_blank=counts.lines_seen_blank, pages_read_nothing=made.pages_read_nothing,
-                                   cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
-    from fichero_server.execution import jobs
-
-    awaited = status.get("awaited") or []
-    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
-                                             setup["recipe"], cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
+    ran = await asyncio.to_thread(_tail, db, made, status, pages, counts)
     made.lines = _lines(made, pages_split, ran)
     return made

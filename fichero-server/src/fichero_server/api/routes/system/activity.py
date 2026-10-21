@@ -438,6 +438,9 @@ class JobTree(BaseModel):
     stages: Optional[list[RecipeRunStep]] = None
     # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
     summary: Optional[RecipeRunSummary] = None
+    summary_unavailable: Optional[str] = Field(None, description=(
+        "why `summary` is null for a recipe run that has ended: the summary could not be built just now (the rest of the tree "
+        "is whole, and a later read tries again); null when the summary is there or the run has not ended"))
     children: list["JobTree"] = Field(default_factory=list)
     children_omitted: int = Field(0, description=(
         "children left out because the tree was asked for to a `depth`; this row's counts still include them"))
@@ -899,7 +902,12 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
         for key in ("done", "total", "failed"):
             found[key] = sum(c[key] for c in found["children"])
     if found["state"] in ("done", "failed", "cancelled"):
-        found["summary"] = await run_view.summary(db, found["id"])
+        try:
+            found["summary"] = await run_view.summary(db, found["id"])
+        except Exception as exc:  # noqa: BLE001 -- a summary that raises must not fail the tree read (`activity.summary.never-fails-the-tree`, #6001)
+            logger.warning("the summary of run %s could not be built: %s", found["id"], exc, exc_info=True)
+            found["summary"] = None
+            found["summary_unavailable"] = "The summary could not be built just now; it is tried again on the next read."
 
 
 class JobLogLine(BaseModel):
