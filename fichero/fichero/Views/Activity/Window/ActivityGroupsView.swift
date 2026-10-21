@@ -111,10 +111,7 @@ struct ActivityGroupsView: View {
         .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id)")
     }
 
-    private func title(_ row: ActivityMonitorRow) -> String {
-        if showsProject, let project = row.projectName, !project.isEmpty { return "\(project) · \(row.name)" }
-        return row.name
-    }
+    private func title(_ row: ActivityMonitorRow) -> String { row.displayName(showsProject: showsProject) }
 
     /// The state's words, then the counts and the time left; a waiting row says what it waits for and never ticks.
     private func subtitle(_ row: ActivityMonitorRow) -> String {

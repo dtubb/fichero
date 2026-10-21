@@ -20,9 +20,9 @@ struct ActivityWindowGroupsTests {
     /// the engine sends with no start (a job of its own) or one that began yesterday (## 745).
     private func row(_ id: String, _ phase: Phase, kind: ActivityMonitorRow.Kind = .run, started: Date? = nil,
                      ended: Date? = nil, queue: Int? = nil, jobId: String? = "job",
-                     reason: String? = nil) -> ActivityMonitorRow {
+                     reason: String? = nil, project: String? = nil) -> ActivityMonitorRow {
         var row = ActivityMonitorRow(
-            id: id, kind: kind, libraryId: nil, runRowID: nil, runThreadId: nil, jobId: jobId, name: id, projectName: nil,
+            id: id, kind: kind, libraryId: nil, runRowID: nil, runThreadId: nil, jobId: jobId, name: id, projectName: project,
             phase: phase, reason: reason, workingOn: nil, done: 0, total: 0, started: started, seconds: nil, costUsd: nil,
             tokens: 0, errors: 0, model: nil, isLive: phase.isLive, children: nil, account: nil
         )
@@ -93,5 +93,14 @@ struct ActivityWindowGroupsTests {
         #expect(row("a", .done).oneButton == .show)
         #expect(row("a", .unknown).oneButton == .show)
         #expect(row("a", .running, jobId: nil).oneButton == nil)
+    }
+
+    @Test("with one project's work in the window a row names no project; with several, the project leads the name")
+    func projectPrefix() {
+        let named = row("Read the box", .running, project: "Mosquera")
+        #expect(named.displayName(showsProject: false) == "Read the box")
+        #expect(named.displayName(showsProject: true) == "Mosquera · Read the box")
+        #expect(row("Read the box", .running).displayName(showsProject: true) == "Read the box")  // no project name to lead
+        #expect(row("Read the box", .running, project: "").displayName(showsProject: true) == "Read the box")
     }
 }
