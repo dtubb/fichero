@@ -13,9 +13,28 @@ CHOICE_JOBS = ("read-a-line", "read-a-page", "correct")
 _STAGE_WORDS = {"read-a-line": "Read lines", "read-a-page": "Read pages", "correct": "Correct"}
 
 
+#: Where a card that is neither this Mac nor a cloud service runs, in the words the plan shows (never the internal id).
+PLACE_WORDS = {"cluster": "a cluster", "gpu-service": "a GPU service"}
+
+#: The choice kraken-then-cloud-corrects on the READ step's menu: its card id form, and what its Correct override says
+#: (`source.recipe.kraken-reads-cloud-corrects-unsure`).
+UNSURE_ID = "corrects-unsure:"
+UNSURE_BECAUSE = "Kraken reads; chosen by you: a cloud model corrects only the lines Kraken is unsure of"
+
+
 def _person_override(recipe: dict[str, Any], step_id: str) -> dict[str, Any] | None:
     return next((o for o in recipe.get("overrides") or []
                  if o.get("step") == step_id and o.get("scope") == "project" and o.get("folder_id") is None), None)
+
+
+def unsure_card(recipe: dict[str, Any] | None) -> str | None:
+    """The cloud card whose correction of Kraken's unsure lines the person chose (their Correct override says so), else None."""
+    for step in (recipe or {}).get("steps") or []:
+        if step.get("job") == "correct":
+            o = _person_override(recipe or {}, step.get("id", ""))
+            if o and o.get("because") == UNSURE_BECAUSE:
+                return o.get("card")
+    return None
 
 
 def _how(card: Any, job: str) -> str:
@@ -60,7 +79,7 @@ def _cost(card: Any, pages: int | None, how: str = "") -> dict[str, Any] | None:
     if runs_on == "this-mac":
         return {"value": 0.0, "basis": "estimate", "measured": False, "from": "free on this Mac"}
     if not runs_on.startswith("cloud:"):
-        return {"value": None, "basis": "unknown", "measured": False, "from": f"runs on {runs_on}; no price is listed here"}
+        return {"value": None, "basis": "unknown", "measured": False, "from": f"runs on {PLACE_WORDS.get(runs_on, runs_on)}; no price is listed here"}
     price = _page_price(card)
     if not price:
         return {"value": None, "basis": "unknown", "measured": False, "from": "no listed price"}
@@ -104,22 +123,32 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
         # `recommended` is Set Up's pick, known only while it stands: under a person's choice the pick is not stored, so
         # nothing is marked (taking the choice back, use-setup-pick, shows it again) rather than guessing one.
         recommended = None if override else own
+        entries = [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages) for c in listed]
+        chosen_by = "person" if override else "setup"
+        if job == "read-a-line" and _kraken(step):
+            # Kraken-then-a-cloud-correction is a way to read the lines too (`source.onboard.step-candidates-on-the-plan`): its own
+            # card id form, so `use-candidate` on this step keeps Kraken as the reader and turns Correct on with that card.
+            on = unsure_card(recipe)
+            for c in step_candidates(cards, "correct"):
+                if str(c.runs_on).startswith("cloud:"):
+                    e = _candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages)
+                    e.update(card=UNSURE_ID + c.id, picked=c.id == on)
+                    entries.append(e)
+            if on:
+                for e in entries:
+                    e["picked"] = e["card"] == UNSURE_ID + on
+                picked, chosen_by = UNSURE_ID + on, "person"
         out.append({"step": step.get("id"), "job": job, "name": _STAGE_WORDS.get(job, job), "picked": picked,
-                    "chosen_by": "person" if override else "setup", "in_plan": True,
+                    "chosen_by": chosen_by, "in_plan": True,
                     "wording": UNSURE_WORDS if job == "correct" and kraken_reads else None,
                     "certainty_bar": bar if job == "correct" and kraken_reads else None, "turn_on": None,
-                    "candidates": [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages)
-                                   for c in listed]})
+                    "candidates": entries})
     if kraken_reads and not any(s.get("job") == "correct" for s in steps):
         # Where the person finds it (`source.recipe.kraken-reads-cloud-corrects-unsure`): Correct is not in the plan, but its cloud
         # candidates are listed with the way to turn it on (Set Up's own question), so Kraken-then-a-cloud-model is never hidden.
-        from dataclasses import replace
-
-        # A cloud vision reader corrects too (`_cloud_correctors` makes the same step of it for a keyed provider); here every one
-        # the person has a row for is listed, a missing key said in `needs`, so the option is found before a key is added.
-        corrector_cards = [replace(c, jobs=c.jobs | {"correct"}) if "correct" not in c.jobs and "read-a-line" in c.jobs else c
-                           for c in cards if str(c.runs_on).startswith("cloud:")]
-        listed = [c for c in step_candidates(corrector_cards, "correct") if str(c.runs_on).startswith("cloud:")]
+        # every cloud corrector the person has a row for is listed (`_offered_cards` makes a cloud vision reader one), a missing
+        # key said in `needs`, so the option is found before a key is added.
+        listed = [c for c in step_candidates(cards, "correct") if str(c.runs_on).startswith("cloud:")]
         if listed:
             out.append({"step": "correct", "job": "correct", "name": _STAGE_WORDS["correct"], "picked": None, "chosen_by": "setup",
                         "in_plan": False, "wording": UNSURE_WORDS, "certainty_bar": bar,

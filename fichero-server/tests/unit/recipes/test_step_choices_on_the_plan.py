@@ -80,7 +80,7 @@ def test_every_candidate_the_plan_lists_can_be_chosen_cloud_readers_included(cli
     choices = _plan(client)["step_choices"]
     assert any(c["runs_on"].startswith("cloud:") for ch in choices for c in ch["candidates"]), "no cloud reader listed"
     for choice in (c for c in choices if c["in_plan"]):  # a step not in the plan is turned on in Set Up, not chosen
-        for candidate in choice["candidates"]:
+        for candidate in (c for c in choice["candidates"] if not c["card"].startswith("corrects-unsure:")):  # its own test below
             r = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": candidate["card"]})
             assert r.status_code == 200, (choice["step"], candidate["card"], r.text)
 
@@ -102,12 +102,14 @@ def test_each_candidate_carries_its_cost_for_the_set_before_start(client, projec
     pages = plan["estimate"]["pages"]
     assert pages > 0, "the test project has no pages to price"
     candidates = _read_choice(plan)["candidates"]
-    local = [c for c in candidates if c["local"]]
+    local = [c for c in candidates if c["runs_on"] == "this-mac"]  # only this Mac is free: a cluster or GPU service is not
     assert local and all(c["cost_usd"] == {"value": 0.0, "basis": "estimate", "measured": False, "why": None,
                                            "from": "free on this Mac"} for c in local)
-    priced = [c for c in candidates if not c["local"] and c["cost_usd"] and c["cost_usd"]["value"]]
+    priced = [c for c in candidates if c["how"] == "cloud-reads-kraken-lines" and c["cost_usd"] and c["cost_usd"]["value"]]
     assert priced, "no cloud candidate was priced"  # a test that prices nothing must fail, not pass vacuously
     assert all(c["cost_usd"]["value"] == round(0.01 * pages, 2) and c["cost_usd"]["basis"] == "estimate" for c in priced)
+    unsure = [c for c in candidates if c["how"] == "kraken-then-cloud-corrects"]
+    assert unsure and all(c["cost_usd"]["basis"] == "upper bound" for c in unsure if c["cost_usd"]["value"])
 
 
 def test_the_cost_of_a_cloud_correction_of_the_unsure_lines_is_an_upper_bound():
@@ -160,6 +162,50 @@ def test_only_a_card_that_runs_on_this_mac_is_free_a_cluster_or_gpu_service_is_u
 
     here = _cost(SimpleNamespace(runs_on="this-mac"), 10)
     assert here["value"] == 0.0 and "free" in here["from"]
-    for where in ("cluster", "gpu-service"):
+    for where, words in (("cluster", "a cluster"), ("gpu-service", "a GPU service")):
         c = _cost(SimpleNamespace(runs_on=where), 10)
-        assert c["value"] is None and c["basis"] == "unknown" and where in c["from"] and "free" not in c["from"]
+        assert c["value"] is None and c["basis"] == "unknown" and words in c["from"] and "free" not in c["from"]
+        assert where not in c["from"], "an internal id is not words"
+
+
+def _unsure(plan):
+    return next(c for c in _read_choice(plan)["candidates"] if c["card"] == "corrects-unsure:" + CLAUDE)
+
+
+def test_the_read_step_also_lists_kraken_then_a_cloud_correction_and_choosing_it_turns_correct_on(client, project):
+    """`source.recipe.kraken-reads-cloud-corrects-unsure`: on the READ step's menu, own card id form; Kraken stays the reader."""
+    before = _read_choice(_plan(client))
+    step = before["step"]
+    option = _unsure(_plan(client))
+    assert option["how"] == "kraken-then-cloud-corrects" and not option["picked"] and not option["local"]
+    r = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": option["card"]})
+    assert r.status_code == 200, r.text
+    plan = _plan(client)
+    read = _read_choice(plan)
+    assert read["picked"] == option["card"] and read["chosen_by"] == "person"
+    assert [c["card"] for c in read["candidates"] if c["picked"]] == [option["card"]]  # exactly one, Kraken's mark moved to it
+    recipe = r.json()["recipe"]
+    reader = next(s for s in recipe["steps"] if s["id"] == step)
+    assert "kraken" in reader["model"] or reader["card"]["id"].startswith("kraken:"), "Kraken stays the reader"
+    correct = next(c for c in plan["step_choices"] if c["job"] == "correct")
+    assert correct["in_plan"] and correct["picked"] == CLAUDE and correct["wording"].startswith("Kraken reads;")
+    assert CLAUDE in [c["card"] for c in correct["candidates"]], "a keyed reader with no listed price stays on Correct's menu"
+    assert r.json()["answers"]["job_answers"]["correct_with_a_second_model"] is True
+
+
+def test_taking_back_kraken_then_a_cloud_correction_turns_correct_off_again(client, project):
+    step = _read_choice(_plan(client))["step"]
+    client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE})
+    back = client.post("/api/recipes/project/steps/use-setup-pick", json={"step": step})
+    assert back.status_code == 200, back.text
+    plan = _plan(client)
+    assert _read_choice(plan)["chosen_by"] == "setup" and not any(c["picked"] and c["card"].startswith("corrects-unsure:")
+                                                                  for c in _read_choice(plan)["candidates"])
+    assert not any(s["job"] == "correct" for s in back.json()["recipe"]["steps"]) and not back.json()["recipe"].get("overrides")
+
+
+def test_kraken_then_a_cloud_correction_is_refused_in_words_when_kraken_is_not_the_reader(client, project):
+    step = _read_choice(_plan(client))["step"]
+    assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": CLAUDE}).status_code == 200
+    r = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE})
+    assert r.status_code == 422 and "where Kraken reads" in r.json()["detail"]
