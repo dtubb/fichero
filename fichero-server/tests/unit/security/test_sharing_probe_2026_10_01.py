@@ -254,9 +254,9 @@ def test_pin_a_paired_device_cannot_list_or_revoke_devices_over_rest_single_user
 def _every_authenticated_route(app):
     from fichero_server.api.auth import _UNAUTHENTICATED_PATHS, _UNAUTHENTICATED_PREFIXES
 
-    from tests.route_inventory import api_routes
+    from tests.route_inventory import served_routes
 
-    for route in api_routes(app):  # every served route, not app.routes (FastAPI 0.141, #5674)
+    for route in served_routes(app):  # every served route, not app.routes (FastAPI 0.141, #5674)
         if not isinstance(route, Route):
             continue
         path = route.path
