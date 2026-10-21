@@ -17,6 +17,7 @@
     "provider_override": "kraken",
     "model_override": "kraken-mccatmus",
     "layer": null,
+    "how": null,
     "check": null,
     "provider": null,
     "model": null,
@@ -50,6 +51,7 @@
     "provider_override": "spacy",
     "model_override": "es_core_news_sm",
     "layer": null,
+    "how": null,
     "check": null,
     "provider": null,
     "model": null,
@@ -82,11 +84,12 @@
     "provider_override": null,
     "model_override": null,
     "layer": null,
+    "how": null,
     "check": null,
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2924/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-233/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -133,134 +136,34 @@
   "skipped": [
    {
     "step": "signs",
-    "why": "step signs: no card runs the job 'find-signs' yet: Start cannot run \u201cFind signs\u201d by itself; nothing in Fichero does this yet, by hand or by itself",
+    "why": "Find signs: no card runs it yet, so Start cannot run it by itself; nothing in Fichero does this yet, by hand or by itself",
     "fix": null
    },
    {
     "step": "check",
-    "why": "step check would send pages off this Mac, and this project keeps its pages here",
+    "why": "Check would send pages off this Mac, and this project keeps its pages here",
     "fix": "allow-cloud"
    },
    {
     "step": "nameless",
-    "why": "step nameless has no model: none is named",
+    "why": "Correct has no model: none is named",
     "fix": "choose-model"
    },
    {
     "step": "authorities",
-    "why": "step authorities: no card runs the job 'link-to-authorities' yet: Start cannot run \u201cLink to authorities\u201d by itself; link each name to an authority from its Inspector",
+    "why": "Link to authorities: no card runs it yet, so Start cannot run it by itself; link each name to an authority from its Inspector",
     "fix": null
    }
   ],
+  "built_in": [],
   "offered": [],
   "left_off": [],
-  "bakeoff_offer": null,
-  "train_offers": [
+  "train_offers": [],
+  "train_ahead": [
    {
     "step": "read",
     "job": "read-a-line",
-    "title": "Train a model of your own for this step",
-    "ways": [
-     {
-      "method": "kraken",
-      "how": "fine-tune",
-      "says": "Fine-tune a Kraken reader on the lines you corrected",
-      "targets": [
-       {
-        "place": "this-mac",
-        "name": "this Mac",
-        "starts": "training.start_here",
-        "params": {
-         "scope_ids": [
-          "78b53f2a236e4dbd8c1cf8220176b15b",
-          "e6d02c64c0b047e098ce8c2556b9f632",
-          "system-workflows"
-         ],
-         "teacher": "person"
-        },
-        "held": null,
-        "first_run": null
-       }
-      ],
-      "available": true,
-      "why": null
-     },
-     {
-      "method": "kraken",
-      "how": "distil",
-      "says": "Train a reader on the lines you have corrected",
-      "targets": [
-       {
-        "place": "this-mac",
-        "name": "this Mac",
-        "starts": "training.start_here",
-        "params": null,
-        "held": null,
-        "first_run": null
-       }
-      ],
-      "available": true,
-      "why": null
-     },
-     {
-      "method": "mlx-vision-lora",
-      "how": "distil",
-      "says": "Make a small, fast reader from the best model's readings",
-      "targets": [],
-      "available": false,
-      "why": "this project keeps its pages on this Mac, and this training runs only on Hugging Face Jobs"
-     }
-    ],
-    "readiness": {
-     "ready": false,
-     "lines": 0,
-     "pages": 0,
-     "min_lines": 2000,
-     "min_pages": 2,
-     "more_lines": 2000,
-     "more_pages": 2,
-     "unmarked_import_pages": 0,
-     "sentence": "Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."
-    },
-    "setting": {
-     "mode": "here",
-     "why": "this Mac has the memory to train a reader itself"
-    },
-    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold.",
-    "noise_band": {
-     "value": 0.005,
-     "measured": false,
-     "basis": "0.5 CER points, the ruled band until this project's pages measure one"
-    }
-   },
-   {
-    "step": "names",
-    "job": "find-names-tag-words",
-    "title": "Train a model of your own for this step",
-    "ways": [
-     {
-      "method": "spacy-ner",
-      "how": "fine-tune",
-      "says": "Fine-tune a spaCy names model on your corrected names",
-      "targets": [],
-      "available": false,
-      "why": "not available yet: Fichero has no spaCy trainer"
-     }
-    ],
-    "readiness": {
-     "ready": false,
-     "sentence": null
-    },
-    "setting": {
-     "mode": "here",
-     "why": "this Mac has the memory to train a reader itself"
-    },
-    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold.",
-    "noise_band": {
-     "value": 0.005,
-     "measured": false,
-     "basis": "0.5 CER points, the ruled band until this project's pages measure one"
-    }
+    "sentence": "Training a model of your own for Read each line is offered once the project has the corrected work. Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."
    }
   ],
   "hf_spend": {
@@ -270,6 +173,17 @@
    "unpriced": 0,
    "month": "2026-10",
    "sentence": "Hugging Face this month: at most $0.00 of $0.00, 0 Jobs."
+  },
+  "cloud_cap": {
+   "cap_usd": 10.0,
+   "spent_usd": 0.0,
+   "remaining_usd": 10.0,
+   "estimate_usd": 0.0,
+   "over": false,
+   "unpriced_models": [],
+   "unpriced": false,
+   "assumed_calls": 0,
+   "assumed_usd": 0.0
   },
   "bakeoff_offer": {
    "sentence": "Every reader compared runs on this Mac: the comparison costs nothing (1 readers).",
@@ -297,7 +211,8 @@
     "instead": [],
     "downloading": false,
     "progress": null,
-    "job_id": null
+    "job_id": null,
+    "sentence": "the spaCy pipeline es_core_news_sm is not on this Mac yet (16 MB): Start downloads it, and its steps wait for it."
    }
   ],
   "start_downloads": {
@@ -330,7 +245,13 @@
      "pages": 2,
      "cost_usd": 0.0,
      "basis": "free on this Mac",
-     "memory": null
+     "memory": null,
+     "calls_per_page": 1,
+     "certainty_bar": null,
+     "lines_to_send": null,
+     "lines_to_send_kind": null,
+     "lines_basis": null,
+     "lenses": []
     },
     {
      "workflow": "Extract Entities",
@@ -341,7 +262,13 @@
      "pages": 2,
      "cost_usd": 0.0,
      "basis": "free on this Mac",
-     "memory": null
+     "memory": null,
+     "calls_per_page": 1,
+     "certainty_bar": null,
+     "lines_to_send": null,
+     "lines_to_send_kind": null,
+     "lines_basis": null,
+     "lenses": []
     }
    ],
    "total_cost_usd": 0.0
@@ -351,10 +278,9 @@
   "addable": [
    "entities",
    "graph",
-   "vectors"
+   "vectors",
+   "publish"
   ],
-  "folder_id": null,
-  "built_in": [],
-  "train_ahead": []
+  "folder_id": null
  }
 }

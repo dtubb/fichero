@@ -2,17 +2,18 @@
  "request": null,
  "status": 200,
  "response": {
-  "lines_unread": 0,
-  "download_failed": [],
-  "lines_unread_why": {},
-  "lines_seen_blank": 0,
-  "next_reader": null,
-  "pages_read_nothing": 0,
-  "job_id": "0eca2fca-4300-4d20-91c2-7627cf5d3d04",
+  "job_id": "0bbb521e-3a85-4440-bc94-c65b26de90aa",
   "state": "failed",
   "finished": true,
   "pages": 2,
   "pages_read": 2,
+  "lines_unread": 0,
+  "lines_seen_blank": 0,
+  "lines_vision_could_not_read": 0,
+  "pages_read_nothing": 0,
+  "next_reader": null,
+  "download_failed": [],
+  "lines_unread_why": {},
   "names": [
    {
     "kind": "person",
@@ -35,6 +36,10 @@
   "pages_with_lines": 2,
   "left_out": [],
   "pages_with_regions": 0,
+  "pages_reviewed": null,
+  "lines_reviewed": null,
+  "lines_corrected": null,
+  "lines_review_unreadable": null,
   "lines": [
    "Lines on 2 of 2 pages \u00b7 regions on 0 of 2 pages",
    "Read 2 of 2 pages",
@@ -47,19 +52,19 @@
      "lines",
      "read"
     ],
-    "thread_id": "thread-e68314df1127",
+    "thread_id": "thread-0e67d40fe39e",
     "pages_failed": 2,
     "failures": [
      {
       "page": "p0.png",
-      "document_id": "f1c3e08f48514b339cd425d50510be95",
-      "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+      "document_id": "25271afcc16e43709dc613e9d0fc2b37",
+      "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
       "retried": false
      },
      {
       "page": "p1.png",
-      "document_id": "7655cd11ff124a308f9a613e5ffe9b01",
-      "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+      "document_id": "d039270291d14071bccaa86655cfe060",
+      "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
       "retried": false
      }
     ],
@@ -70,17 +75,17 @@
   "skipped": [
    {
     "step": "signs",
-    "why": "step signs: no card runs the job 'find-signs' yet: Start cannot run \u201cFind signs\u201d by itself; nothing in Fichero does this yet, by hand or by itself",
+    "why": "Find signs: no card runs it yet, so Start cannot run it by itself; nothing in Fichero does this yet, by hand or by itself",
     "fix": null
    },
    {
     "step": "check",
-    "why": "step check would send pages off this Mac, and this project keeps its pages here",
+    "why": "Check would send pages off this Mac, and this project keeps its pages here",
     "fix": "allow-cloud"
    },
    {
     "step": "names",
-    "why": "step names has no model: none is named",
+    "why": "Find names has no model: none is named",
     "fix": "choose-model"
    }
   ],
@@ -93,8 +98,9 @@
     "card": "workflow",
     "job": "read-a-line",
     "state": "failed",
-    "child_id": "thread-e68314df1127",
-    "why": "All parallel branches failed for kraken-htr. First error: Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+    "child_id": "thread-0e67d40fe39e",
+    "why": "All parallel branches failed for kraken-htr. First error: Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+    "failed_pages": null,
     "account": {
      "state": "failed",
      "pages_total": 2,
@@ -104,23 +110,23 @@
      "failures": [
       {
        "page": "p0.png",
-       "document_id": "f1c3e08f48514b339cd425d50510be95",
-       "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+       "document_id": "25271afcc16e43709dc613e9d0fc2b37",
+       "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
        "retried": false
       },
       {
        "page": "p1.png",
-       "document_id": "7655cd11ff124a308f9a613e5ffe9b01",
-       "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+       "document_id": "d039270291d14071bccaa86655cfe060",
+       "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
        "retried": false
       }
      ],
      "retried": 0,
      "waiting_reason": null,
-     "reason": "All parallel branches failed for kraken-htr. First error: Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
+     "reason": "All parallel branches failed for kraken-htr. First error: Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
      "interrupted": false,
      "estimate_seconds_left": null,
-     "engine_peak_memory_bytes": 2415791896,
+     "engine_peak_memory_bytes": 2285768328,
      "model_server_peak_memory_bytes": null,
      "offer": {
       "action": "read-again",
@@ -146,6 +152,7 @@
     "state": "not run",
     "child_id": null,
     "why": "it needs line readings or page reading, which no earlier step gave (step lines, read failed)",
+    "failed_pages": null,
     "account": null,
     "blank_versos": null,
     "left_out": null,
@@ -156,10 +163,6 @@
     "prepared": null,
     "regions_found": null
    }
-  ],
-  "pages_reviewed": null,
-  "lines_reviewed": null,
-  "lines_corrected": null,
-  "lines_review_unreadable": null
+  ]
  }
 }
