@@ -32,6 +32,7 @@ MACHINE_STATE = {
     "check_no_orphan_stashes.py": "reads the stash stack shared by every worktree on this machine",
     "check_merged_worktrees.py": "lists this machine's worktrees whose branch already landed",
     "check_engine_imports_bundled.py": "judges a staged app_packages; preflight-embedded-engine.sh runs it on one",
+    "check_agent_commits_authored_as_claude.py": "judges the push range it is given (default origin/integration..HEAD), not the tree",
 }
 
 
