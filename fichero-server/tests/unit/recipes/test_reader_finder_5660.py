@@ -62,7 +62,8 @@ def _searched(client, db) -> dict:
 
 def test_the_online_search_finds_the_htr_models_made_for_manuscripts(client, db, store, hub):
     body = _searched(client, db)
-    found = {c["pin"]["hf"]: c for c in body["items"] if c["source"] == "hugging-face"}
+    found = {c["pin"].get("hf") or c["pin"]["trocr"]: c  # a TrOCR build is pinned by its own key (#5981)
+             for c in body["items"] if c["source"] == "hugging-face"}
     assert set(found) == {MLX_HTR["modelId"], TROCR["modelId"]}, list(found)
 
     runnable = found[MLX_HTR["modelId"]]
@@ -70,11 +71,10 @@ def test_the_online_search_finds_the_htr_models_made_for_manuscripts(client, db,
     assert "for handwriting" in runnable["offered_because"] and "lists Spanish" in runnable["offered_because"]
     assert runnable["availability"] == "download" and runnable["availability_words"] == "Download (size not stated)"
 
+    # A TrOCR build reads the lines Kraken found, here (#5981): ranked, and a plan download (not "cannot run it yet").
     trocr = found[TROCR["modelId"]]
-    assert trocr["rule_rank"] is None and trocr["availability"] == "not_here"
-    assert trocr["refused"].startswith("Fichero cannot run it yet: a TrOCR model")
-    assert trocr["availability_words"].startswith("Fichero cannot run it yet (a TrOCR model")
-    assert trocr["download"] is None
+    assert trocr["rule_rank"] is not None and trocr["refused"] is None and trocr["availability"] == "download"
+    assert trocr["download"]["model"] == "trocr-hf-someone--trocr-spanish-medieval-htr"
 
     # Searched by name for the HTR words and the project's language, beside the tag listings.
     searched_for = {search for _task, search, _tags in hub if search}
