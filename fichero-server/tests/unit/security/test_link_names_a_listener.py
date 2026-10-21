@@ -46,5 +46,5 @@ def test_minting_a_code_refuses_with_409_when_nothing_listens_where_the_link_poi
     monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True, id="u"))
     td.note_tcp_listeners(["127.0.0.1"])
     with pytest.raises(HTTPException) as refused:
-        pairing.create_pairing_code(SimpleNamespace(), SimpleNamespace())
+        pairing.create_pairing_code(SimpleNamespace(), app_db=SimpleNamespace())
     assert refused.value.status_code == 409 and "not listening there" in refused.value.detail
