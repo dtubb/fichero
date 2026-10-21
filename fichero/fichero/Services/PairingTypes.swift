@@ -143,8 +143,14 @@ final class PairingService {
         switch response {
         case .ok:
             return
-        case .undocumented(let statusCode, _):
-            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            // The engine refuses in words (the person already has the whole project, the folder is not in it, not the owner):
+            // 4xx other than 422 is not in the contract, so the body is read as the other pairing calls read it.
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
         }
     }
 

@@ -50,6 +50,8 @@ extension ShareLibrarySheet {
                 username: username, role: role, library: library.url.path, folderId: folder.folderId)
             didFolderShare = true
             await loadMembers()
+        } catch APIError.httpError(_, let message) {
+            shareError = message  // the engine's own words, without the status prefix
         } catch {
             shareError = error.localizedDescription
         }
