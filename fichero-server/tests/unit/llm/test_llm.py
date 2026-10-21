@@ -12,6 +12,8 @@ import sys
 import types
 from types import SimpleNamespace
 
+import contextlib
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -29,6 +31,8 @@ from fichero_server.llm import (
     vision_inference_api,
 )
 from fichero_server.llm.local_inference import LocalProviderStartupPolicy, LocalServiceState
+
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
 
 
 class _StructuredResult(BaseModel):
@@ -1035,6 +1039,15 @@ def _reset_remote_llm_limit(monkeypatch) -> _CountingModel:
     monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "2")
     model = _CountingModel()
     monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    @contextlib.asynccontextmanager
+    async def process_cap_only(config, *, library=None, subject=None):
+        # the call is made under a project (the egress gate needs one), but this test pins the process's own cap, which a
+        # call with no library work takes: under a library the call is a job on the network lane instead
+        async with llm._get_remote_llm_semaphore():
+            yield
+
+    monkeypatch.setattr(llm, "_lane_call_slot", process_cap_only)
     return model
 
 

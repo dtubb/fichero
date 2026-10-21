@@ -13,6 +13,8 @@ import pytest
 
 from fichero_server import llm
 
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
+
 
 @pytest.fixture(autouse=True)
 def _clear_http_client_cache():

@@ -6,6 +6,8 @@ import pytest
 
 from fichero_server.llm import LLMConfig, translate_text
 
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
+
 
 @pytest.mark.asyncio
 async def test_translate_text_routes_to_deepl(monkeypatch):
