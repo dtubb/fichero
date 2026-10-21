@@ -109,6 +109,24 @@ def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[s
     return {"restored": restored, "flagged": flagged, "newly_flagged": newly_flagged, "left_edited": left_edited, "dry_run": dry_run}
 
 
+def _record_finished_row(db: Any, restored: int, flagged: int) -> None:
+    """One finished row in Activity, the record a finished job uses, so the app shows what the repair did with no new screen:
+    "3 pages restored, 1 needs re-reading". Only when it changed something."""
+    if restored + flagged == 0:
+        return
+    import uuid
+
+    from fichero_server.execution import jobs
+
+    words = f"{restored} page{'s' if restored != 1 else ''} restored, {flagged} need{'s' if flagged == 1 else ''} re-reading"
+    try:
+        job_id = f"repair-page-text-{uuid.uuid4().hex[:12]}"
+        jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="done", reason=words,
+                     name="Page text repair")
+    except Exception:  # noqa: BLE001 -- the repair stands; the row is a courtesy
+        logger.exception("page text repair: could not record its Activity row")
+
+
 def repair_on_open(db: Any) -> dict[str, Any]:
     """Count first; when any page needs it, repair, say so in the log, and audit it (one action, ids capped)."""
     counted = repair_classification_page_text(db, dry_run=True)
@@ -119,6 +137,7 @@ def repair_on_open(db: Any) -> dict[str, Any]:
         "Page text repair (classifier JSON had replaced page text): restored %d from a transcription or the PDF's text layer, "
         "flagged %d for re-reading (nothing to restore from; their text is kept): %s, left %d a person saved",
         len(done["restored"]), len(done["flagged"]), done["flagged"][:20], len(done["left_edited"]))
+    _record_finished_row(db, len(done["restored"]), len(done["newly_flagged"]))
     try:
         from fichero_server.db.app import get_app_db
         from fichero_server.models import ActionAudit

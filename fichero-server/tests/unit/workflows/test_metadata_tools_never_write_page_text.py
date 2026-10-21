@@ -139,3 +139,26 @@ def test_a_real_text_that_mentions_script_type_is_not_a_classification():
     assert not page_text_repair.is_classification_json("the script_type of this hand is secretary")
     assert not page_text_repair.is_classification_json(json.dumps({"script_type": "x", "confidence": 1, "chapter": 2}))
     assert page_text_repair.is_classification_json("```json\n" + CLASSIFICATION + "\n```")
+
+
+def _repair_rows(db):
+    return db.execute_fetchall("SELECT state, reason FROM jobs WHERE id LIKE 'repair-page-text-%'")
+
+
+def test_the_repair_records_one_finished_activity_row_when_it_changed_something(db):
+    _parent, (restorable, hopeless) = _pdf_with_pages(db)
+    db.save(Artifact(document_id=restorable.id, artifact_type="transcription", content=TRANSCRIPT, provider="openai",
+                     model="gpt-5"))
+    for page in (restorable, hopeless):
+        page.page_content = CLASSIFICATION
+        db.save(page)
+    page_text_repair.repair_on_open(db)
+    assert _repair_rows(db) == [("done", "1 page restored, 1 needs re-reading")]
+    page_text_repair.repair_on_open(db)  # nothing new: no second row
+    assert len(_repair_rows(db)) == 1
+
+
+def test_the_repair_records_no_row_when_there_is_nothing_to_repair(db):
+    _pdf_with_pages(db)
+    page_text_repair.repair_on_open(db)
+    assert _repair_rows(db) == []
