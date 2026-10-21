@@ -3052,10 +3052,6 @@ class AcceptedUnpriced(BaseModel):
     accepted: list[str] = Field(description="every `provider/model` this project accepts running without a listed price")
 
 
-def _invert_accept(before: dict | None, after: dict | None, ctx: ActionContext):
-    return ("cloud.accept_unpriced", {"provider": after["provider"], "model": after["model"], "withdraw": not after["withdraw"]})
-
-
 def _was_accepted(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext) -> bool:
     from fichero_server.llm import spend
 
@@ -3070,7 +3066,7 @@ def _put_accepted_back(db: Database, params: AcceptUnpricedRequest, ctx: ActionC
     spend.set_accepted(_library(db), params.provider, params.model, was)
 
 
-@action("cloud.accept_unpriced", AcceptUnpricedRequest, domains=["project"], undoable=True, invert=_invert_accept,
+@action("cloud.accept_unpriced", AcceptUnpricedRequest, domains=["project"],
         snapshot=_was_accepted, restore=_put_accepted_back)
 def _action_accept_unpriced(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.llm import spend

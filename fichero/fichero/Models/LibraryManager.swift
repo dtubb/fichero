@@ -249,12 +249,6 @@ class LibraryManager {
         @ObservationIgnored lazy var disagreementStore =
             ReadingDisagreementStore(source: ReadingDisagreementStore.engine(ficheroClient))
 
-        /// What this project's pages' readers made of the same lines, for choosing between them (#5900).
-        @ObservationIgnored lazy var readerComparisonStore = ReaderComparisonStore(client: ficheroClient)
-
-        /// This project's two audited yeses to the cloud: pages may leave, and a model with no listed price may run.
-        @ObservationIgnored lazy var cloudPermissionStore = CloudPermissionStore(client: ficheroClient)
-
         /// This project's kept exports (#5485): setup's Kept exported screen keeps them, and the
         /// project's Inspector lists them with Write Now and Remove.
         @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)
