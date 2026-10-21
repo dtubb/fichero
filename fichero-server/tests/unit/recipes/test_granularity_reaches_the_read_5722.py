@@ -67,5 +67,15 @@ def test_start_gives_the_read_node_the_granularity_the_bakeoff_chose(asked):
     assert _plan(asked)["tool_config"]["transcribe"]["read_granularity"] == asked
 
 
-def test_a_step_with_no_chosen_granularity_sets_none():
-    assert "read_granularity" not in (_plan(None).get("tool_config") or {}).get("transcribe", {})
+def test_a_cloud_reader_with_no_chosen_granularity_reads_one_call_a_page():
+    """`source.recipe.cloud-reads-lines-per-page`: Kraken finds the lines and the cloud model reads a page's crops in ONE call."""
+    assert _plan(None)["tool_config"]["transcribe"]["read_granularity"] == "page"
+
+
+def test_a_local_reader_with_no_chosen_granularity_sets_none():
+    from tests.unit.recipes.test_start_plan import _recipe
+
+    step = {"id": "read", "job": "read-a-line", "runs_on": "this-mac",
+            "model": {"hf": "mlx-community/Qwen2.5-VL-3B-Instruct-4bit", "revision": "main"}}
+    run = next(r for r in plan_start(_recipe(step), stays_local=False)["runs"] if r["job"] == "read-a-line")
+    assert "read_granularity" not in (run.get("tool_config") or {}).get("transcribe", {})

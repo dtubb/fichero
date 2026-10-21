@@ -585,9 +585,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                           f"{label}: {name} cannot run the model {pin}", "choose-model")
                 continue
             entry.update(reading)
-            if job == "read-a-line" and step.get("granularity") in ("lines", "region", "page"):
+            measured = step.get("granularity")
+            if job == "read-a-line" and measured not in ("lines", "region", "page") and _override(pin) is not None and _uses_cloud(step):
+                # A cloud reader on Kraken's lines is asked ONE call a page, the page's line crops in reading order, unless the
+                # bake-off measured it another way (`source.recipe.cloud-reads-lines-per-page`, #4951, #5955).
+                measured = "page"
+            if job == "read-a-line" and measured in ("lines", "region", "page"):
                 # How the bake-off measured this reader is how it reads (#5722).
-                entry["tool_config"] = {"transcribe": {"read_granularity": step["granularity"]}}
+                entry["tool_config"] = {"transcribe": {"read_granularity": measured}}
             if step.get("readers"):
                 # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
                 # off a Mac that keeps them, is read by the step's own reader.
