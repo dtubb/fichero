@@ -77,7 +77,7 @@ def test_a_range_git_cannot_read_fails_rather_than_passing(tmp_path):
     assert _run(repo, "nosuchref..HEAD").returncode == 2
     empty = tmp_path / "not-a-repo"
     empty.mkdir()
-    assert _run(empty, None).returncode == 2
+    assert _run(empty, "HEAD~1..HEAD").returncode == 2  # a range that is given and cannot be read; no range is a skip (review 807)
 
 
 def test_no_argument_and_no_origin_integration_skips_with_exit_0_but_a_given_range_still_fails(tmp_path):
