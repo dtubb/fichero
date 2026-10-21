@@ -66,3 +66,37 @@ def test_states_are_only_done_running_waiting_failed():
 def test_the_route_exists_with_stage_offset_and_limit():
     operation = app.openapi()["paths"]["/api/activity/jobs/{job_id}/pages"]["get"]
     assert {"stage", "offset", "limit"} <= {p["name"] for p in operation["parameters"]}
+
+
+def test_a_page_in_two_runs_of_one_stage_keeps_the_worst_cells_reason():
+    first = _stage_run("w1", {"read-a-line": [_page("a", "A", "failed", "the model refused")]})
+    second = _stage_run("w2", {"read-a-line": [_page("a", "A", "waiting", "waiting for the model lane")]})
+    tree = {"id": "r", "kind": "run-a-recipe", "children": [first, second],
+            "stages": [{"steps": ["read-a-line"], "child_id": "w1"}, {"steps": ["read-a-line"], "child_id": "w2"}]}
+    page = page_states(tree, stage="read")[0]
+    assert (page["state"], page["reason"]) == ("failed", "the model refused"), "not the later, better cell's words"
+    tree["children"] = [second, first]
+    tree["stages"] = [{"steps": ["read-a-line"], "child_id": "w2"}, {"steps": ["read-a-line"], "child_id": "w1"}]
+    assert page_states(tree, stage="read")[0]["reason"] == "the model refused", "whichever run came first"
+
+
+def test_the_pages_of_one_read_share_one_build_of_the_tree(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.system import activity
+
+    built = []
+
+    async def tree(job_id, depth, db):
+        built.append(job_id)
+        return SimpleNamespace(model_dump=_tree)
+
+    monkeypatch.setattr(activity, "get_job_tree", tree)
+    monkeypatch.setattr(activity, "_PAGE_LISTS", {})
+    db = SimpleNamespace(path="/lib/P.fichero/fichero.duckdb")
+    first = asyncio.run(activity._run_page_list(db, "r1", "read"))
+    again = asyncio.run(activity._run_page_list(db, "r1", "read"))
+    other_stage = asyncio.run(activity._run_page_list(db, "r1", None))
+    assert first is again and len(built) == 2, "the same read within the window builds once; another stage builds its own"
+    assert len(other_stage) == 3
