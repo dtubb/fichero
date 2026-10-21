@@ -52,7 +52,7 @@ def models(root: Path) -> tuple[dict[str, set[str]], int]:
             if isinstance(node, ast.ClassDef):
                 bases = [b.id if isinstance(b, ast.Name) else b.attr if isinstance(b, ast.Attribute) else "" for b in node.bases]
                 classes.append((node.name, str(path.relative_to(root)), bases))
-    known = {"BaseModel"}
+    known = {"BaseModel", "Enum", "IntEnum", "StrEnum"}  # an Enum is an OpenAPI schema too, so its name clashes like a model's
     grew = True
     while grew:
         grew = False
@@ -62,7 +62,7 @@ def models(root: Path) -> tuple[dict[str, set[str]], int]:
                 grew = True
     found: dict[str, set[str]] = defaultdict(set)
     for name, file, bases in classes:
-        if name != "BaseModel" and known & set(bases):  # this class derives from a model; a plain class of the same name is not one
+        if name not in {"BaseModel", "Enum", "IntEnum", "StrEnum"} and known & set(bases):  # this class derives from a model; a plain class of the same name is not one
             found[name].add(file)
     return found, scanned
 
