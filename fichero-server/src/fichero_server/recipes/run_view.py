@@ -385,6 +385,7 @@ class ReadingCounts:
     lines_unread: int
     lines_unread_why: dict[str, int]
     lines_seen_blank: int
+    lines_found: int
     pages_read_nothing: int
     pages_dated: int
 
@@ -407,7 +408,8 @@ def reading_counts(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
     dated = sum(1 for d in db.query_in(Document, "id", pages) if d.date_jdn is not None)
     return ReadingCounts(
         pages_fully_read=fully, lines_unread=sum(i.unread for i in by_page.values()), lines_unread_why=why,
-        lines_seen_blank=sum(i.blank for i in by_page.values()), pages_read_nothing=failed, pages_dated=dated)
+        lines_seen_blank=sum(i.blank for i in by_page.values()), lines_found=sum(i.found for i in by_page.values()),
+        pages_read_nothing=failed, pages_dated=dated)
 
 
 async def counts_off_the_loop(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
@@ -492,7 +494,7 @@ def _jobs_of_the_run(db: Any, steps: list[dict[str, Any]]) -> set[str]:
 def _pages_with(db: Any, pages: list[str], kind: str) -> int:
     from fichero_server.models.segments import Segment
 
-    return sum(1 for p in pages if any(seg.kind == kind for seg in db.query(Segment, document_id=p)))
+    return len({seg.document_id for seg in db.query_in(Segment, "document_id", pages) if seg.kind == kind})
 
 
 def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
@@ -639,21 +641,19 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                 made.left_out.append(LeftOutPage(**entry))
     ran = _jobs_of_the_run(db, status["steps"])
     if "find-lines" in ran:
-        made.pages_with_lines = _pages_with(db, pages, "line")
+        made.pages_with_lines = await asyncio.to_thread(_pages_with, db, pages, "line")
     if ran & {"find-lines", "find-regions"}:
-        made.pages_with_regions = _pages_with(db, pages, "region")
+        made.pages_with_regions = await asyncio.to_thread(_pages_with, db, pages, "region")
     if "correct" in ran:
         did = reviewed(db, pages)
         made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
         made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
     from fichero_server.recipes import places
-    from fichero_server.recipes.done import lines_state
     from fichero_server.recipes.project import read_project_setup
 
     setup = read_project_setup(runner._library(db))
-    states = [lines_state(db, p) for p in pages if p not in blank]
-    made.next_reader = next_reader(setup["recipe"], lines_found=sum(s[0] for s in states),
-                                   lines_blank=sum(s[2] for s in states), pages_read_nothing=made.pages_read_nothing,
+    made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
+                                   lines_blank=counts.lines_seen_blank, pages_read_nothing=made.pages_read_nothing,
                                    cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
     from fichero_server.execution import jobs
 
