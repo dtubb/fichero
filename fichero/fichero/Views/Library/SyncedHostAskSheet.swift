@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// Asks once for the host's pairing link when a synced project's host holds no token here (#5898).
