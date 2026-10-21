@@ -194,7 +194,10 @@ def test_a_page_abandoned_before_its_turn_never_starts(monkeypatch):
         return path
 
     monkeypatch.setattr(vb, "apple_vision_ocr", vision)
-    monkeypatch.setattr(vb, "_apple_vision_deadline", lambda: 0.3)
+    # The two reads in the recogniser time out at 0.3 s and free their slots then (#5392); the third gave up at 0.1 s, before
+    # its turn, so it must not start when the slots free.
+    deadlines = iter([0.3, 0.3, 0.1])
+    monkeypatch.setattr(vb, "_apple_vision_deadline", lambda: next(deadlines))
 
     async def three():
         return await asyncio.gather(*(vb.apple_vision_ocr_async(f"p{i}") for i in range(3)),
