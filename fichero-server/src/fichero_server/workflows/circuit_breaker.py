@@ -127,7 +127,9 @@ def classify_provider_error(exc: BaseException) -> str:
     except Exception:  # pragma: no cover - classification must never crash
         text = str(exc).lower()
     if status in (401, 402) or any(
-            k in text for k in ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits")):
+            k in text for k in ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits",
+                            # a refused key that reached us as text only (a wrapper that dropped the status)
+                            "invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized")):
         return "fatal"
     try:
         is_quota, _status, _detail = _is_provider_quota_error(exc)
