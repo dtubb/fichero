@@ -6,6 +6,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from fichero_server.execution import jobs
 
 JOBS_SOURCE = Path(jobs.__file__).read_text()
@@ -25,10 +27,20 @@ def test_resume_does_not_word_a_batch_row_like_a_page(db):
 
 
 def test_a_batch_is_listed_once_not_as_its_record_and_its_row(db):
-    """#20."""
+    """#20 (issue #5878)."""
     jobs._ensure(db)
     _row(db, "b2", "batch", "running")
     assert [r for r in jobs.snapshot(db) if r["id"] == "b2"] == []
+
+
+@pytest.mark.parametrize("kind", jobs.RUN_KINDS)
+@pytest.mark.parametrize("state", ["running", "waiting"])
+def test_every_run_kind_is_listed_once_not_as_its_record_and_its_row(db, kind, state):
+    """#20 (issue #5878): the snapshot hid workflow rows but showed batch ones; every run kind's record is its own row, so none
+    is listed as a job beside it."""
+    jobs._ensure(db)
+    _row(db, f"r-{kind}-{state}", kind, state)
+    assert [r for r in jobs.snapshot(db) if r["id"] == f"r-{kind}-{state}"] == []
 
 
 def test_a_lane_thread_that_dies_on_an_error_wakes_the_lane_again():
@@ -45,7 +57,7 @@ def test_a_job_ends_on_the_connection_the_project_has_now_not_only_the_one_it_st
 
 
 def test_the_stale_run_sweep_is_scheduled_on_the_background_loop(tmp_path, monkeypatch):
-    """#15."""
+    """#15 (issue #5873): a recipe step builds its tracker inside asyncio.run, which cancels what it scheduled when it returns."""
     from fichero_server.execution import runner
     from fichero_server.workflows import activity
 
