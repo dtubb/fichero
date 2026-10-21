@@ -93,3 +93,61 @@ def test_reads_in_flight_counts_the_live_holders_of_a_read_slot():
         return during, engine.reads_in_flight()
 
     assert asyncio.run(scenario()) == (1, 0)
+
+
+def test_a_read_that_starts_during_the_release_wait_waits_and_is_never_killed(monkeypatch):
+    """## 844 MED 1: new reads must not enter while the release waits for the reads in flight, or one can take the slot between
+    `reads_in_flight() == 0` and the stop and be killed. A pending release holds the slot back until it ends."""
+    import asyncio
+    import threading
+
+    from fichero_server.llm import local_inference as engine
+
+    mine = _Manager("mine", managed=True)
+    monkeypatch.setattr(li, "_MANAGERS", {"mine": mine})
+    monkeypatch.setattr(li, "_IDLE_TIMERS", {})
+    monkeypatch.setattr(li, "_RELEASE_LOOK_AGAIN_SECONDS", 0.01)
+    monkeypatch.setattr(engine, "_READ_LOOK_AGAIN_SECONDS", 0.01)
+    started, finish = threading.Event(), threading.Event()
+    log: list[str] = []
+
+    async def first_read():
+        async with engine.local_read_slot(2):
+            started.set()
+            while not finish.is_set():
+                await asyncio.sleep(0.01)
+
+    async def second_read():
+        while not engine.release_pending():
+            await asyncio.sleep(0.005)
+        async with engine.local_read_slot(2):
+            log.append(f"entered; server stopped: {mine.stopped}")
+
+    async def scenario():
+        reader = asyncio.create_task(first_read())
+        await asyncio.get_running_loop().run_in_executor(None, started.wait)
+        late = asyncio.create_task(second_read())
+        release = asyncio.get_running_loop().run_in_executor(None, li.stop_served_models, "test")
+        await asyncio.sleep(0.15)
+        assert not log, "a read entered during the release wait"
+        finish.set()
+        await reader
+        await release
+        await asyncio.wait_for(late, 5)
+
+    asyncio.run(scenario())
+    assert mine.stopped and log == ["entered; server stopped: True"]  # it waited the whole release out, never mid-read
+
+
+def test_a_release_that_could_not_free_the_server_says_so_and_the_lane_does_not_load_beside_it(monkeypatch):
+    from fichero_server.llm import local_inference as engine
+
+    mine = _Manager("mine", managed=True)
+    monkeypatch.setattr(li, "_MANAGERS", {"mine": mine})
+    monkeypatch.setattr(li, "_IDLE_TIMERS", {})
+    monkeypatch.setattr(engine, "reads_in_flight", lambda: 1)
+    monkeypatch.setattr(li, "_RELEASE_LOOK_AGAIN_SECONDS", 0.0)
+    monkeypatch.setattr(li, "SERVED_RELEASE_WAIT_SECONDS", 0.0)
+    assert li.release_served_models("test") is False and jobs._RELEASE["local-model"]("test") is False
+    monkeypatch.setattr(engine, "reads_in_flight", lambda: 0)
+    assert li.release_served_models("test") is True and mine.stopped
