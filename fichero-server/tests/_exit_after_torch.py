@@ -24,17 +24,10 @@ def remember(session) -> None:
 
 
 def close_everything() -> None:
-    """Checkpoint and close every database this process opened; raises if one is left open."""
-    from fichero_server.db import app as app_module
-    from fichero_server.db.manager import db_manager
+    """Checkpoint and close every database this process opened; raises if one is left open (the engine's own, #5929)."""
+    from fichero_server.core.fast_exit import close_everything as close
 
-    db_manager.checkpoint_all()
-    db_manager.close_all()
-    app_module.checkpoint_app_db()
-    if app_module._app_db is not None:
-        app_module._app_db.close()
-    if db_manager._databases:
-        raise RuntimeError(f"still open: {sorted(db_manager._databases)}")
+    close()
 
 
 def leave(config=None) -> None:

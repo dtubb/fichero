@@ -205,8 +205,25 @@ _RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server"}
 
 
 def main(argv: list[str] | None = None):
-    """Start the Fichero API backend server."""
+    """Start the Fichero API backend server; with torch loaded it leaves by `fast_exit.leave` (#5929), so torch's exit-time
+    destructor cannot abort a finished engine. An uncaught error takes the ordinary exit (its traceback prints, status 1)."""
+    status = 0
+    try:
+        return _main(argv)
+    except SystemExit as exit_:
+        status = exit_.code if isinstance(exit_.code, int) else (0 if exit_.code is None else 1)
+        raise
+    except BaseException:
+        status = None  # an uncaught error: no fast exit, the interpreter prints it
+        raise
+    finally:
+        if status is not None and "pytest" not in sys.modules:  # a test calls main() in-process: never exit the runner
+            from fichero_server.core.fast_exit import leave
 
+            leave(status)
+
+
+def _main(argv: list[str] | None = None):
     _stamp("main() entry")
     # The interpreter's own start-up, before any line of ours (#5228): the app stamps the wall
     # clock it spawned us at, so the run-up is a number rather than a guess.
