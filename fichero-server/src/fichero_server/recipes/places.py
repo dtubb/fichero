@@ -8,8 +8,11 @@ pages would leave.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
-from typing import Any
+from pathlib import Path
+from typing import Any, Iterator
 
 SETTING_KEY = "models_may_run"
 THIS_MAC = "this-mac"
@@ -71,6 +74,44 @@ def refusal(place: str) -> str | None:
         return None
     return (f"Your places do not include {PLACE_WORDS.get(place, place)}, so no pages are sent there. "
             "Allow it in Set Up Fichero… under where models may run.")
+
+
+#: The project the work in hand is for (`ai.where.egress-at-every-call`, #5368): set where a run or a chat starts, read by the
+#: model-call gate, so no call has to carry it. A ContextVar, so it follows the work into `asyncio` tasks and `to_thread`.
+_project: contextvars.ContextVar[Path | None] = contextvars.ContextVar("fichero_egress_project", default=None)
+
+
+@contextlib.contextmanager
+def bound_project(library: str | Path | None) -> Iterator[None]:
+    """Model calls inside this block are made for the project at `library` (None: for no project)."""
+    token = _project.set(Path(library) if library else None)
+    try:
+        yield
+    finally:
+        _project.reset(token)
+
+
+def bound_library() -> Path | None:
+    return _project.get()
+
+
+def project_refusal(place: str) -> str | None:
+    """Why the bound project's own rule keeps pages from `place`, in words, or None. A project that saved a Set Up and did not
+    say its pages may leave this Mac keeps them here (the start-time rule, `may_leave_to`, read at the call); a project with no
+    saved Set Up, and a call made for no project, are capped by the app's places alone."""
+    library = _project.get()
+    if library is None or place == THIS_MAC:
+        return None
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        answers = read_project_setup(library)["answers"]
+    except Exception:  # noqa: BLE001 -- an unreadable Set Up is the strictest answer, as for the app's places
+        answers = {}
+    if answers is None or answers.get("cloud_allowed"):
+        return None
+    return (f"This project's Set Up says its pages stay on this Mac, so no pages are sent to {PLACE_WORDS.get(place, place)}. "
+            "Change it in the project's Set Up.")
 
 
 def this_mac_line(memory_gb: float) -> str:

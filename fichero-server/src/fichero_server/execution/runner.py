@@ -1160,6 +1160,23 @@ async def _run_workflow_in_background(
     resume_input: Any = None,
     is_resume: bool = False,
 ) -> None:
+    """Run a workflow in the background (see `_run_workflow_body`), every model call it makes for this project: the gate reads
+    the project's own rule (`ai.where.egress-at-every-call`, #5368). The workflow bar, a recipe, a schedule and MCP all run here."""
+    from fichero_server.recipes.places import bound_project  # noqa: PLC0415
+
+    with bound_project(db.path.parent if hasattr(db, "path") else None):
+        await _run_workflow_body(thread_id, workflow, request, db, resume_input=resume_input, is_resume=is_resume)
+
+
+async def _run_workflow_body(
+    thread_id: str,
+    workflow: Workflow,
+    request: ExecuteWorkflowRequest,
+    db: Database,
+    *,
+    resume_input: Any = None,
+    is_resume: bool = False,
+) -> None:
     """
     Run a workflow in the background, publishing events to the event hub.
 
