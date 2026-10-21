@@ -23,8 +23,8 @@ struct ActivityDetails: Equatable {
         case openSetUp(stage: String?)
         /// A failed download retried (#5352): the download's job.
         case retryDownload(jobId: String)
-        /// The step takes the next candidate of its chain (#5352).
-        case useNextCandidate(step: String, card: String)
+        /// The steps take the next candidate of their chain (#5352).
+        case useNextCandidate(steps: [String], card: String)
     }
 
     struct FailedPageRow: Equatable, Identifiable {
