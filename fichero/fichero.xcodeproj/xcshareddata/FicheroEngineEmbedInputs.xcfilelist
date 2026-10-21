@@ -228,6 +228,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/egress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/failure_text.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/fast_exit.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/logging.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/loop_lag.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/naturalsort.py
@@ -364,6 +365,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/wikidata_enrich.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_guided_schemas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_translation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/egress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/failed_fetches.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/kraken_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/lang_detect.py
@@ -392,7 +394,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/re_ask_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/read_guard.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/retry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/script_coverage.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/spend.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/trocr_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/usage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/whisper_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/working_lines.py
@@ -517,6 +522,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/where_it_runs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/askpass.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/cluster_check.py
@@ -635,6 +641,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_access_tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_backend.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/revocation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/security_scoped_access.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/synced_host.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/tailscale_serve.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/url_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/xml_security.py
@@ -727,6 +734,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_annotation_input.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_doc_lookup.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_entity_writer.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_together.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_workflow_change_emit.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/adaptive_binarize_images.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/agent.py
