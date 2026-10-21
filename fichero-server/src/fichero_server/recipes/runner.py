@@ -869,9 +869,12 @@ def _folders_words(detail: dict[str, Any]) -> str:
 
 
 def _served_steps(cards: list[dict[str, Any]]) -> list[tuple[int, str]]:
-    """(index, model id) of the cards the engine's served model runs."""
-    return [(i, str(c["model_override"])) for i, c in enumerate(cards)
-            if (c.get("provider_override") or "").lower() == "omlx" and c.get("model_override")]
+    """(index, store id) of the cards the engine's served model runs: the id the server serves (`model_to_serve`: `omlx/` stripped,
+    the default names mapped, the canonical id), which is what the idle stop compares; a card naming no model runs the default."""
+    from fichero_server.llm.local_model_choice import model_to_serve
+
+    return [(i, model_to_serve(c.get("model_override"))) for i, c in enumerate(cards)
+            if (c.get("provider_override") or "").lower() == "omlx"]
 
 
 def _let_go_after_the_last_served_step(job_id: str, cards: list[dict[str, Any]], index: int) -> None:

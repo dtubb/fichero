@@ -89,3 +89,24 @@ def test_a_run_holds_the_served_model_through_the_last_step_that_uses_it(client,
 def test_the_hold_ends_after_the_last_served_step_not_at_the_batch_end(client, db, archive, steps, monkeypatch):
     """## 849 LOW: when only the first card uses the served model, the second card (and what follows) runs without the hold."""
     assert _run_with_served_step_at(0, client, archive, steps, monkeypatch) == [True, False, True, False]
+
+
+def test_the_hold_names_the_id_the_server_serves_however_the_card_says_it(monkeypatch):
+    """## 856 MED: the idle stop compares the store id; a card that says `omlx/<id>`, a default alias or nothing is held under it."""
+    from fichero_server.llm import local_model_choice
+    from fichero_server.recipes import runner
+
+    monkeypatch.setattr(local_model_choice, "model_to_serve",
+                        lambda name, **k: {"omlx/Org/Big-4bit": "Org/Big-4bit-mlx", "default": "Org/Default-mlx",
+                                           None: "Org/Default-mlx"}.get(name, name))
+    cards = [{"provider_override": "omlx", "model_override": "omlx/Org/Big-4bit"},
+             {"provider_override": "omlx", "model_override": None},
+             {"provider_override": "openai", "model_override": "gpt-5"}]
+    served = runner._served_steps(cards)
+    assert served == [(0, "Org/Big-4bit-mlx"), (1, "Org/Default-mlx")]
+    local_inference.hold_served_models("run-1", {m for _, m in served})
+    try:
+        assert local_inference.served_models_held("Org/Big-4bit-mlx") and local_inference.served_models_held("Org/Default-mlx")
+        assert not local_inference.served_models_held("omlx/Org/Big-4bit")  # the raw name is never what the server reports
+    finally:
+        local_inference.let_go_served_models("run-1")
