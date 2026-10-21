@@ -68,4 +68,10 @@ struct IOSConnectionRecoveryBar: View {
         }
     }
 }
+
+#Preview {
+    IOSConnectionRecoveryBar(onRetry: {})
+        .environment(AppState())
+        .padding()
+}
 #endif

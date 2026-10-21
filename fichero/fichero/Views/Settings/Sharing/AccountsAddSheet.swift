@@ -91,3 +91,8 @@ struct AccountsAddSheet: View {
         }
     }
 }
+
+#Preview {
+    AccountsAddSheet(store: AppState().usersStore, multiUserOn: true, done: {})
+        .frame(width: 420)
+}

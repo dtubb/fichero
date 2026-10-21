@@ -292,3 +292,18 @@ struct ActivityDetailsSummary: View {
         .accessibilityIdentifier("activity.details.summary")
     }
 }
+
+#Preview("A waiting job's heading and progress") {
+    let row = ActivityMonitorRow.job(
+        ActivityJob(id: "embed-1", taskType: "embedding", name: "Embedding queue", current: 4, total: 10,
+                    state: .waiting, reason: "Waiting: memory is tight"),
+        libraryId: nil, projectName: "Marshall Diaries")
+    let details = ActivityDetails(row: row, node: nil, runRow: nil, projectName: "Marshall Diaries",
+                                  startedBy: "automatic", machine: nil)
+    return VStack(alignment: .leading, spacing: 16) {
+        ActivityDetailsHeading(details: details)
+        if let counts = details.counts { ActivityDetailsProgress(counts: counts) }
+    }
+    .padding()
+    .frame(width: 480)
+}
