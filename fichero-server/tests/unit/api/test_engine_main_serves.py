@@ -49,7 +49,6 @@ def test_main_starts_and_answers_health_on_its_socket():
         "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-serves",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
     }
-    env.pop("FICHERO_TCP_TLS_ALSO", None)
     process = subprocess.Popen(
         [sys.executable, "-c", "from fichero_server.__main__ import main; main()"],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -89,7 +88,6 @@ def test_main_gates_multiuser_env_without_an_owner_password_and_health_says_why(
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1", "FICHERO_MULTIUSER": "1", "FICHERO_GATE_MULTIUSER_ENV": "0",
         "FICHERO_BASE_PATH": home,
     }
-    env.pop("FICHERO_TCP_TLS_ALSO", None)
     log = open(Path(home) / "engine.log", "wb")  # a file, never an unread pipe that could fill and block the engine
     process = subprocess.Popen(
         [sys.executable, "-c", "from fichero_server.__main__ import main; main()"],
