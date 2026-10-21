@@ -165,6 +165,7 @@ async def test_the_model_already_loaded_is_not_restarted(mac):
 @pytest.mark.asyncio
 async def test_a_steps_model_beats_settings_local_model(mac, client):
     """Settings' local model is only the default for a request that names none."""
+    mac.ram(32)  # the 7B reader needs 24 GB to read a page: a 32 GB Mac
     mac.install("Qwen2.5-VL-3B", "Qwen2.5-VL-7B")
     assert client.put("/api/settings/ai-defaults", json={"local_model": "Qwen2.5-VL-3B"}).status_code == 200
     await llm._ensure_managed_local_provider_ready(
@@ -179,6 +180,7 @@ async def test_a_steps_model_beats_settings_local_model(mac, client):
 async def test_settings_local_model_changes_what_is_served(mac, client):
     """The setting the error messages name is real: it changes the profile and what a request
     naming no model is served -- no environment variable, no restart."""
+    mac.ram(32)  # the 7B reader needs 24 GB to read a page: a 32 GB Mac
     mac.install("Qwen2.5-VL-3B", "Qwen2.5-VL-7B")
     assert client.put("/api/settings/ai-defaults", json={"local_model": "Qwen2.5-VL-7B"}).status_code == 200
 
@@ -215,6 +217,7 @@ def test_on_16_gb_the_default_local_model_is_one_that_fits(mac):
 
 
 def test_an_installed_model_that_fits_is_preferred(mac):
+    mac.ram(32)  # the 7B reader needs 24 GB to read a page: a 32 GB Mac
     mac.install("Qwen2.5-VL-7B")
     pick = choice.default_local_model()
     assert pick.model_id == "Qwen2.5-VL-7B" and "installed" in pick.reason
@@ -310,6 +313,7 @@ def test_the_plan_offers_a_model_not_installed_as_a_download_or_the_installed_on
     """#5583: not installed is a download offer beside the installed models, never "edit the recipe"
     (`source.onboard.auto.installed-model-first`, pinned through the routes in
     tests/unit/recipes/test_installed_model_first_to_spec.py)."""
+    mac.ram(32)  # the 7B reader needs 24 GB to read a page: a 32 GB Mac
     mac.install("Qwen2.5-VL-3B")
     plan = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))
     # #5664: Start downloads it itself (no refusal); the installed one stays offered instead.
@@ -321,6 +325,7 @@ def test_the_plan_offers_a_model_not_installed_as_a_download_or_the_installed_on
 
 
 def test_the_plan_runs_an_installed_model_that_fits_as_the_steps_own(mac):
+    mac.ram(32)  # the 7B reader needs 24 GB to read a page: a 32 GB Mac
     mac.install("Qwen2.5-VL-7B")
     plan = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))
     assert plan["refusals"] == []

@@ -41,6 +41,18 @@ import openai  # what tests/conftest.py does for the suite: bind real bases firs
 
 import fichero_server.llm as llm
 
+# The one egress gate (#5368) refuses a cloud model with no project open; this test is about the import, so it builds
+# the models under a project that said yes (the gate itself is pinned in test_one_egress_gate_5368).
+import pathlib
+import tempfile
+
+from fichero_server.observability import episodes
+
+_project = pathlib.Path(tempfile.mkdtemp()) / "Yes.fichero"
+(_project / "recipe").mkdir(parents=True)
+(_project / "recipe" / "setup.yaml").write_text("cloud_allowed: true\\n", encoding="utf-8")
+episodes.set_library(str(_project))
+
 
 class _FakeAsyncClient:
     def __init__(self, **kwargs):

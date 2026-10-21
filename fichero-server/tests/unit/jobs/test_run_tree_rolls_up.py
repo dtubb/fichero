@@ -50,9 +50,14 @@ class CountedModel(ChatModel):
 
 
 @pytest.fixture
-def cloud(monkeypatch):
+def cloud(monkeypatch, db):
+    from pathlib import Path
+
     import fichero_server.llm as llm
+    from fichero_server.recipes.project import write_project_setup
     from fichero_server.workflows import validation
+
+    write_project_setup(Path(db.path).parent, {"cloud_allowed": True}, None)  # the project says yes to cloud models (#5368)
 
     model = CountedModel()
     monkeypatch.setattr(llm, "get_langchain_model", lambda config, *a, **k: model)
@@ -86,6 +91,12 @@ def test_activity_jobs_are_a_tree__cost_rolls_up_from_the_price_list(client, db,
 def test_activity_jobs_are_a_tree__an_unpriced_model_costs_null_never_a_guess(client, db, pages, cloud):
     """Behaviour `activity.jobs-are-a-tree`, cost: a model the price list does not know costs null,
     and so does every row above it: never zero, never a guess."""
+    from pathlib import Path
+
+    from fichero_server.llm import spend
+
+    # the project accepts this model without a listed price (the cap's way in, #5987): the call runs, and costs null
+    spend.set_accepted(Path(db.path).parent, "openai", "a-model-nobody-prices", True)
     tree = _finished_tree(client, db, pages, "a-model-nobody-prices")
     assert {c["cost_usd"] for c in _calls(tree)} == {None}
     assert tree["cost_usd"] is None
