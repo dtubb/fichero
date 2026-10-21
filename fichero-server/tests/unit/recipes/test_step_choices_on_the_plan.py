@@ -79,7 +79,7 @@ def test_every_candidate_the_plan_lists_can_be_chosen_cloud_readers_included(cli
     """The menu and `use-candidate` take cards from one list (`_offered_cards`): a listed candidate is never refused as 'not found'."""
     choices = _plan(client)["step_choices"]
     assert any(c["runs_on"].startswith("cloud:") for ch in choices for c in ch["candidates"]), "no cloud reader listed"
-    for choice in choices:
+    for choice in (c for c in choices if c["in_plan"]):  # a step not in the plan is turned on in Set Up, not chosen
         for candidate in choice["candidates"]:
             r = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": candidate["card"]})
             assert r.status_code == 200, (choice["step"], candidate["card"], r.text)
@@ -130,3 +130,24 @@ def test_a_cloud_choice_the_project_cannot_use_is_not_run_in_place_and_nothing_s
     skipped = next((s for s in plan["skipped"] if s["step"] == step), None)
     assert skipped is not None and "keeps its pages here" in skipped["why"], plan["skipped"]
     assert _read_choice(plan)["picked"] == CLAUDE and not any(f["step"] == step and f.get("used") for f in plan["fallbacks"])
+
+
+def test_beside_a_kraken_reader_the_plan_lists_correct_with_the_unsure_lines_wording_and_how_to_turn_it_on(client, project, claude_row):
+    """`source.recipe.kraken-reads-cloud-corrects-unsure`: Correct is not in the plan, but it is found: Kraken reads, a cloud model
+    corrects only the lines Kraken is unsure of, listed with the way to turn it on and its cost as an upper bound."""
+    plan = _plan(client)
+    assert not any(c["job"] == "correct" and c["in_plan"] for c in plan["step_choices"]), "this project has no Correct step"
+    entry = next(c for c in plan["step_choices"] if c["job"] == "correct")
+    assert entry["in_plan"] is False and entry["wording"] == "Kraken reads; a cloud model corrects only the lines Kraken is unsure of"
+    assert entry["turn_on"]["answer"] == "correct_with_a_second_model"
+    assert entry["candidates"] and all(c["how"] == "kraken-then-cloud-corrects" and not c["local"] for c in entry["candidates"])
+    assert {n["kind"] for c in entry["candidates"] for n in c["needs"]} >= {"permission"}  # listed greyed, never hidden
+    assert all(c["cost_usd"] is None or c["cost_usd"]["basis"] in ("upper bound", "unknown") for c in entry["candidates"])
+
+
+def test_the_certainty_bar_is_set_ups_answer_as_a_number_or_none_for_the_whole_page():
+    from fichero_server.recipes.step_choices import _certainty_bar
+
+    assert _certainty_bar({"job_answers": {"review_certainty_bar": "0.7"}}) == 0.7
+    assert _certainty_bar({"job_answers": {"review_certainty_bar": "whole-page"}}) is None
+    assert _certainty_bar({"job_answers": {"review_certainty_bar": "7"}}) is None and _certainty_bar(None) is None

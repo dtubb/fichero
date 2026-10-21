@@ -86,7 +86,10 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
     from fichero_server.recipes.discovery import step_candidates
 
     out: list[dict[str, Any]] = []
-    for step in (recipe or {}).get("steps") or []:
+    bar = _certainty_bar(answers)
+    steps = (recipe or {}).get("steps") or []
+    kraken_reads = any(s.get("job") == "read-a-line" and _kraken(s) for s in steps)
+    for step in steps:
         job = step.get("job")
         if job not in CHOICE_JOBS:
             continue
@@ -98,10 +101,50 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
         # nothing is marked (taking the choice back, use-setup-pick, shows it again) rather than guessing one.
         recommended = None if override else own
         out.append({"step": step.get("id"), "job": job, "name": _STAGE_WORDS.get(job, job), "picked": picked,
-                    "chosen_by": "person" if override else "setup",
+                    "chosen_by": "person" if override else "setup", "in_plan": True,
+                    "wording": UNSURE_WORDS if job == "correct" and kraken_reads else None,
+                    "certainty_bar": bar if job == "correct" and kraken_reads else None, "turn_on": None,
                     "candidates": [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages)
                                    for c in listed]})
+    if kraken_reads and not any(s.get("job") == "correct" for s in steps):
+        # Where the person finds it (`source.recipe.kraken-reads-cloud-corrects-unsure`): Correct is not in the plan, but its cloud
+        # candidates are listed with the way to turn it on (Set Up's own question), so Kraken-then-a-cloud-model is never hidden.
+        from dataclasses import replace
+
+        # A cloud vision reader corrects too (`_cloud_correctors` makes the same step of it for a keyed provider); here every one
+        # the person has a row for is listed, a missing key said in `needs`, so the option is found before a key is added.
+        corrector_cards = [replace(c, jobs=c.jobs | {"correct"}) if "correct" not in c.jobs and "read-a-line" in c.jobs else c
+                           for c in cards if str(c.runs_on).startswith("cloud:")]
+        listed = [c for c in step_candidates(corrector_cards, "correct") if str(c.runs_on).startswith("cloud:")]
+        if listed:
+            out.append({"step": "correct", "job": "correct", "name": _STAGE_WORDS["correct"], "picked": None, "chosen_by": "setup",
+                        "in_plan": False, "wording": UNSURE_WORDS, "certainty_bar": bar,
+                        "turn_on": {"answer": "correct_with_a_second_model", "value": True,
+                                    "words": "Have a second model check the reading, in Set Up"},
+                        "candidates": [_candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages)
+                                       for c in listed]})
     return out
+
+
+#: What the Correct step is when Kraken reads (`source.recipe.kraken-reads-cloud-corrects-unsure`).
+UNSURE_WORDS = "Kraken reads; a cloud model corrects only the lines Kraken is unsure of"
+
+
+def _kraken(step: dict[str, Any]) -> bool:
+    """Whether the step's reader is a Kraken reader (a Kraken model pin, or Kraken's repository record)."""
+    pin = step.get("model") or {}
+    return "kraken" in pin or "zenodo" in pin or str((step.get("card") or {}).get("id", "")).startswith("kraken:")
+
+
+def _certainty_bar(answers: dict[str, Any] | None) -> float | None:
+    """Set Up's `review_certainty_bar` answer as a number: Kraken's lines under it are the ones the cloud model corrects; None when the
+    answer is the whole page (no bar chosen yet)."""
+    raw = ((answers or {}).get("job_answers") or {}).get("review_certainty_bar")
+    try:
+        bar = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return bar if 0 < bar <= 1 else None
 
 
 def overrides_without(recipe: dict[str, Any] | None, step_id: str) -> list[dict[str, Any]]:
