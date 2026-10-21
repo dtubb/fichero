@@ -993,7 +993,8 @@ def normalise_answers(answers: Any, *, strict: bool) -> Any:
     return normalise(answers, strict=strict)
 
 
-def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[str, Any]:
+def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overrides: Optional[list[dict[str, Any]]] = None
+              ) -> dict[str, Any]:
     """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project).
     A language or script given as a word is resolved to its tag first, or refused (ValueError, in
     words): the rules only ever see tags (`source.onboard.language-stored-as-tag`).
@@ -1029,10 +1030,11 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
             a = replace(a, noise_band=band["value"])
     recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
-    if saved.get("overrides"):
+    kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
+    if kept:
         from fichero_server.recipes.bakeoff import apply_project_overrides
 
-        recipe["overrides"] = list(saved["overrides"])
+        recipe["overrides"] = kept
         # Every card Fichero keeps, not only those the finder lists for these answers: a reader chosen for other
         # languages is still the person's choice (#5660 item 8).
         apply_project_overrides(recipe, [*known_cards(a, include_not_built=True),
@@ -2161,6 +2163,44 @@ class BuiltInStep(BaseModel):
     sentence: str = Field(description="why it runs nothing, in the engine's words: it is part of the plan, not a problem")
 
 
+class StepNeed(BaseModel):
+    """What a step candidate needs before it can run, in words, with the kind an app can act on."""
+
+    kind: Literal["permission", "key", "download", "price"] = Field(description=(
+        "permission: pages may not leave this Mac yet; key: the provider has no key; download: the model is not on this Mac; "
+        "price: a cloud model with no listed price (accepted at Start)"))
+    words: str
+
+
+class StepCandidate(BaseModel):
+    """One way to do a step, as the plan lists it (`source.onboard.step-candidates-on-the-plan`): the Try's shapes, reused."""
+
+    card: str = Field(description="the card id, as POST /api/recipes/project/steps/use-candidate takes it")
+    name: str
+    how: Literal["kraken", "kraken-then-cloud-corrects", "cloud-reads-kraken-lines", "local-model", "cloud-model"]
+    runs_on: str = Field(description="this-mac, cluster or cloud:<provider>")
+    local: bool
+    picked: bool = Field(description="the one the step uses now, Set Up's pick or the person's choice")
+    recommended: bool = Field(description="the one Set Up picks by the rules")
+    available: bool = Field(description="false while `needs` is not empty; listed greyed, never hidden")
+    needs: list[StepNeed] = Field(default_factory=list)
+    places: list[PlaceOption] = Field(default_factory=list, description="every place it can run, as the finder lists them")
+    cost_usd: Optional[TryCost] = Field(default=None, description="its cost for the whole set before Start; null until priced")
+    measured: str = Field(description="what is measured on this project's pages, or that it is not yet")
+
+
+class StepChoice(BaseModel):
+    """A step of the plan that has a choice of model."""
+
+    step: str = Field(description="the recipe step's id")
+    job: str
+    name: str = Field(description="the stage in words")
+    picked: Optional[str] = Field(default=None, description="the card the step uses now")
+    chosen_by: Literal["setup", "person"] = Field(description=(
+        "setup: Set Up's pick stands; person: they chose another (POST .../steps/use-setup-pick takes it back)"))
+    candidates: list[StepCandidate]
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -2187,6 +2227,10 @@ class StartPlan(BaseModel):
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
         "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
         "recipe has no reading step (#5660 item 7)"))
+    step_choices: list[StepChoice] = Field(default_factory=list, description=(
+        "for each step that has a choice of model, its candidates (local and cloud, with what each needs and costs) and "
+        "which one is used: the step menu's data; choosing is POST /api/recipes/project/steps/use-candidate, taking it "
+        "back POST /api/recipes/project/steps/use-setup-pick (`source.onboard.step-candidates-on-the-plan`)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
@@ -2217,6 +2261,23 @@ class StartPlan(BaseModel):
     folder_id: Optional[str] = Field(default=None, description=(
         "the folder the plan and its estimate cover, its folders inside it included; null: the whole project "
         "(source.recipe.folder-scoped-start)"))
+
+
+def _step_choices_of(setup: dict[str, Any], *, may_leave: bool) -> list[dict[str, Any]]:
+    """The plan's per-step candidates over every card the finder knows, local and cloud (`recipes/step_choices.py`). A project
+    whose answers cannot be read has none (the plan says why elsewhere)."""
+    from fichero_server.recipes.discovery import other_text_cards, remote_reader_cards
+    from fichero_server.recipes.step_choices import step_choices
+
+    if not setup["recipe"]:
+        return []
+    try:
+        a = _answers(setup["answers"]) if setup["answers"] else None
+    except ValueError:
+        return []
+    cards = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *remote_reader_cards(),
+             *_cloud_correctors(a.cloud_keys if a else ())]
+    return step_choices(setup["recipe"], setup["answers"], cards, may_leave=may_leave)
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
@@ -2295,6 +2356,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
         plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
                             f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
                             "Raise the cap in Set Up, or choose a cheaper model."]
+    plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"))
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
@@ -2552,6 +2614,37 @@ async def use_candidate_for_step(
                                                     "the candidates (online, to search) and choose one of them")
     try:
         recipe = use_candidate(setup["recipe"], request.step, card, now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
+class UseSetupPickRequest(BaseModel):
+    """Take a step back to Set Up's pick."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the recipe step's id")
+
+
+@router.post("/project/steps/use-setup-pick", response_model=ProjectSetup)
+async def use_setup_pick_for_step(
+    request: UseSetupPickRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Take the person's choice for the step back (`source.onboard.step-choice-overrides-the-pick`): the recipe is
+    assembled again from the project's answers with that one choice dropped, so Set Up's pick stands for the step; the
+    project's other choices stay. Saved through `project.save_setup` (audited, undoable). Refused (422) for a step the
+    recipe lacks, or one already on Set Up's pick."""
+    from fichero_server.recipes.step_choices import overrides_without
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    try:
+        kept = overrides_without(setup["recipe"], request.step)
+        recipe = await asyncio.to_thread(_assemble, setup["answers"] or {}, library, overrides=kept)
+        recipe["overrides"] = kept
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
