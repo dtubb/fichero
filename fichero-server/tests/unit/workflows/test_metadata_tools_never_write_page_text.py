@@ -111,7 +111,7 @@ def test_the_repair_restores_the_transcription_and_a_second_run_changes_nothing(
     done = page_text_repair.repair_on_open(db)
     assert done["restored"] == [page.id] and db.get(Document, page.id).page_content == TRANSCRIPT
     again = page_text_repair.repair_on_open(db)
-    assert again["restored"] == [] and again["blanked"] == []
+    assert again["restored"] == []  # nothing left to restore
 
 
 def test_the_repair_never_touches_a_text_a_person_saved(db):
@@ -120,10 +120,11 @@ def test_the_repair_never_touches_a_text_a_person_saved(db):
     assert result["left_edited"] == [page.id] and db.get(Document, page.id).page_content == CLASSIFICATION
 
 
-def test_a_page_with_nothing_to_restore_is_blanked_never_left_as_json(db):
+def test_a_page_with_nothing_to_restore_is_left_as_it_is_and_reported_never_blanked(db):
     page = _overwritten(db, transcript=False)
     result = page_text_repair.repair_on_open(db)
-    assert result["blanked"] == [page.id] and db.get(Document, page.id).page_content == ""
+    assert result["unrecoverable"] == [page.id] and result["restored"] == []
+    assert db.get(Document, page.id).page_content == CLASSIFICATION  # left as it is
 
 
 def test_a_real_text_that_mentions_script_type_is_not_a_classification():
