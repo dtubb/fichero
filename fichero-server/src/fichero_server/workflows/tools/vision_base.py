@@ -3024,8 +3024,14 @@ async def _propagate_to_page_children(
     page_thinking: list[str | None] | None = None,
     page_episode_ids: list[str | None] | None = None,
     page_flags: list[dict | None] | None = None,
+    *,
+    update_page_content: bool,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
+
+    ``update_page_content``: the tool's own setting (`LLMToolConfig.update_page_content`). Only a tool whose answer IS the
+    page's text writes it onto the page; a classifier, a describer or any metadata tool saves its per-page artifact and leaves
+    the page's text alone (`source.read.metadata-tools-never-write-page-text`). A page a person edited is never overwritten.
 
     ``page_flags``: the read checker's flag per page (#5522). A flagged page's
     artifact is saved carrying its flag, and nothing is written onto the page.
@@ -3046,7 +3052,7 @@ async def _propagate_to_page_children(
         ConversionRefusal,
         is_converted,
     )
-    from fichero_server.workflows.curation_guard import page_text_is_derived
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited, page_text_is_derived
 
     try:
         from fichero_server.db import db_manager
@@ -3074,7 +3080,8 @@ async def _propagate_to_page_children(
             # itself: no page_content, no re-embed. It saves a new artifact below, as every other
             # producer does, and the guard runs before anything is written.
             page_is_converted = page_text_is_derived(db, page_doc.id)
-            if not is_blank and not page_is_converted and page_flag is None:
+            if (update_page_content and not is_blank and not page_is_converted and page_flag is None
+                    and not page_content_is_user_edited(page_doc)):
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
                 page_doc.page_content = page_text
@@ -4054,6 +4061,7 @@ async def process_vision(
     # Strictly gated: when every file has its own document — the ordinary case
     # for every other tool — nothing below changes and behaviour is identical.
     _fan_in_indices_by_doc: dict[str, list[int]] = {}
+    _tool_writes_page_text = tool_config.update_page_content  # the tool's own setting, before a fan-in defers it
     if tool_config.update_page_content:
         for _i in range(len(files)):
             _doc = documents[_i] if _i < len(documents) else None
@@ -5884,6 +5892,7 @@ async def process_vision(
                         page_thinking=per_page_thinking,
                         page_episode_ids=_ep_page_ids,
                         page_flags=_page_flags,
+                        update_page_content=_tool_writes_page_text,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -5922,6 +5931,7 @@ async def process_vision(
                             page_thinking=per_page_thinking,
                             page_episode_ids=_ep_page_ids,
                             page_flags=_page_flags,
+                            update_page_content=_tool_writes_page_text,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
