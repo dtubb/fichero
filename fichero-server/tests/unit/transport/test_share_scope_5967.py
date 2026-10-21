@@ -154,12 +154,12 @@ def test_an_existing_person_invited_to_a_folder_gains_it_and_keeps_the_project_r
 def test_an_invitation_names_a_real_folder_or_is_refused_in_words(project, folder):
     target = project.ids["a1"] if folder == "a1" else "no-such-folder"
     refused = _invite(project.harness, "gina", folder_id=target)
-    assert refused.status_code == 422 and "choose a folder of this project" in refused.json()["detail"]
+    assert refused.status_code == 400 and "choose a folder of this project" in refused.json()["detail"]
 
 
 def test_a_folder_is_shared_with_a_named_person(project):
     refused = _as(project.harness, "owner").post("/api/pair/code", json={"folder_id": project.ids["A"]})
-    assert refused.status_code == 422 and "named person" in refused.json()["detail"]
+    assert refused.status_code == 400 and "named person" in refused.json()["detail"]
 
 
 def test_the_folder_is_in_the_mint_audit(project):
