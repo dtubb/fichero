@@ -90,6 +90,19 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertNil(decoded.libraryPath)
     }
 
+    /// A never-expiring invitation (`expires_at` null) still gets its QR: the key is left out and a scan reads it as never-expires.
+    func testPairingQRCodePayloadWithNoExpiryRoundTripsAndOmitsTheKey() throws {
+        let apiRoot = URL(string: "https://pairing.example.com/")!
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: PairingCodeRecord(code: "PAIR-1234", expiresAt: nil))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
+        XCTAssertFalse(message.contains("expires_at"))
+        let decoded = try PairingQRCodePayloadDecoder.decode(message: message)
+        XCTAssertNil(decoded.expiresAt)
+        XCTAssertEqual(decoded.pairCode, "PAIR-1234")
+    }
+
     func testRemoteClientPairingFieldsNormalizeRemoteHost() throws {
         let apiRoot = URL(string: "https://pairing.example.com/")!
         let code = PairingCodeRecord(
