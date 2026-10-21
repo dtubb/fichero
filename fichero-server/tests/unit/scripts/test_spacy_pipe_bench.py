@@ -17,3 +17,10 @@ def test_a_passage_is_at_least_the_asked_words_and_the_same_every_time():
 
 def test_the_bar_is_one_and_a_half_times():
     assert bench.CLEARS == 1.5
+
+
+def test_the_arms_alternate_their_order_on_each_repeat():
+    order = []
+    bench.compare(lambda: order.append("page"), lambda: order.append("pipe"), 4)
+    assert order[:2] == ["page", "pipe"]  # the warm-up
+    assert order[2:] == ["page", "pipe", "pipe", "page", "page", "pipe", "pipe", "page"]

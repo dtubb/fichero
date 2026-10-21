@@ -2,14 +2,18 @@
 is 1.5x or better). Run on the M4 only, after the MLX 3B run; it loads the engine's spaCy pipelines and nothing else.
 
     python scripts/spacy_pipe_bench.py [--pages 200] [--words 150] [--models es_core_news_sm,es_core_news_md] [--repeats 3]
+                                       [--texts DIR]
 
 Prints, per pipeline, seconds for the per-page loop and for `pipe`, the ratio (per-page / pipe), and whether it clears 1.5x.
-The texts are Spanish page-sized passages built from a fixed sentence list, so every run reads the same words."""
+The texts are Spanish page-sized passages built from a FIVE-sentence list, so every run reads the same words; real pages are more varied
+(more names, longer sentences), so `--texts DIR` reads every *.txt in a folder instead (one page each; a folder of real transcriptions).
+Each repeat runs the two arms in alternating order (per page first, then pipe first), so neither always pays for a cold cache."""
 from __future__ import annotations
 
 import argparse
 import statistics
 import time
+from pathlib import Path
 
 SENTENCES = (
     "Don Juan de Mosquera vendió una casa en la calle de San Pedro a Francisco Pérez por trescientos pesos.",
@@ -30,15 +34,22 @@ def passage(words: int, seed: int) -> str:
     return " ".join(out)
 
 
-def timed(fn, repeats: int) -> float:
-    fn()  # warm-up: the first pass pays the pipeline's caches
-    return statistics.median(_seconds(fn) for _ in range(repeats))
-
-
 def _seconds(fn) -> float:
     start = time.perf_counter()
     fn()
     return time.perf_counter() - start
+
+
+def compare(per_page, piped, repeats: int) -> tuple[float, float]:
+    """(median seconds per page-by-page, median seconds piped); each arm warmed once, the order alternating on every repeat."""
+    per_page()
+    piped()
+    a, b = [], []
+    for i in range(repeats):
+        arms = [(a, per_page), (b, piped)]
+        for out, fn in (arms if i % 2 == 0 else arms[::-1]):
+            out.append(_seconds(fn))
+    return statistics.median(a), statistics.median(b)
 
 
 def main() -> int:
@@ -48,20 +59,27 @@ def main() -> int:
     ap.add_argument("--models", default="es_core_news_sm,es_core_news_md")
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--batch-size", type=int, default=32)
+    ap.add_argument("--texts", help="a folder of *.txt pages to use instead of the generated passages")
     args = ap.parse_args()
 
     from fichero_server.llm.local_models import load_spacy_pipeline
 
-    texts = [passage(args.words, i) for i in range(args.pages)]
-    print(f"{args.pages} pages of about {args.words} words, batch_size={args.batch_size}, median of {args.repeats}")
+    if args.texts:
+        texts = [p.read_text() for p in sorted(Path(args.texts).glob("*.txt"))][: args.pages]
+        words = sum(len(t.split()) for t in texts) // max(1, len(texts))
+        print(f"{len(texts)} real pages from {args.texts}, about {words} words each, batch_size={args.batch_size}, median of {args.repeats}")
+    else:
+        texts = [passage(args.words, i) for i in range(args.pages)]
+        print(f"{args.pages} generated pages of about {args.words} words from {len(SENTENCES)} rotated sentences "
+              f"(less varied than real pages: use --texts DIR for those), batch_size={args.batch_size}, median of {args.repeats}")
     for name in args.models.split(","):
         try:
             nlp = load_spacy_pipeline(name)
         except Exception as exc:  # noqa: BLE001 -- a pipeline not installed here is reported, the rest still run
             print(f"{name}: not available here ({exc})")
             continue
-        per_page = timed(lambda: [nlp(t) for t in texts], args.repeats)
-        piped = timed(lambda: list(nlp.pipe(texts, batch_size=args.batch_size)), args.repeats)
+        per_page, piped = compare(lambda: [nlp(t) for t in texts], lambda: list(nlp.pipe(texts, batch_size=args.batch_size)),
+                                  args.repeats)
         ratio = per_page / piped
         print(f"{name}: per page {per_page:.2f} s, pipe {piped:.2f} s, ratio {ratio:.2f}x -> "
               f"{'builds the batcher' if ratio >= CLEARS else 'no batcher: write the numbers in the spec line'}")
