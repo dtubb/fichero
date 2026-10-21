@@ -78,7 +78,10 @@ def test_readers_narrows_and_only_differing_leaves_out_the_lines_where_they_agre
     only = _compare(client, page.id, "?only_differing=true")
     assert [line["segment_id"] for line in only["lines"]] == [differing.id]
     first = everything["readers"][0]["id"]
-    narrowed = _compare(client, page.id, f"?readers={first}")
+    from urllib.parse import quote
+
+    # a reader id carries a `#` (model#run): unencoded it starts the URL fragment and the filter never reaches the route
+    narrowed = _compare(client, page.id, f"?readers={quote(first, safe='')}")
     assert [r["id"] for r in narrowed["readers"]] == [first]
     assert all(len(line["readings"]) == 1 and line["differs"] is False for line in narrowed["lines"])
 
