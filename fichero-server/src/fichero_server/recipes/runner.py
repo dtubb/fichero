@@ -32,8 +32,10 @@ each other's checks.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
+import sys
 import time
 import uuid
 from collections import Counter
@@ -866,6 +868,20 @@ def _folders_words(detail: dict[str, Any]) -> str:
     return f"{detail.get('folders_done', 0)} of {total} {'folder' if total == 1 else 'folders'} done"
 
 
+@contextlib.contextmanager
+def _holding_the_served_model(job_id: str):
+    """The engine's served model is not idle-stopped while a batch runs: spaCy's steps sit between two of its users
+    (`source.recipe.step-major-per-batch`). Let go at the batch's end; nothing is held if no server was ever started."""
+    module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
+    if module is not None:
+        module.hold_served_models(job_id)
+    try:
+        yield
+    finally:
+        if module is not None:
+            module.let_go_served_models(job_id)
+
+
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.execution.cancellation import pause_requested
 
@@ -895,7 +911,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     for number, batch in enumerate(batches):
         if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
             continue
-        problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
+        with _holding_the_served_model(job_id):  # one MLX load per batch, kept through spaCy's steps
+            problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
         if _stop_asked(job_id):  # a person's Stop ends the run after this batch; a failure does not (#5540)
             break
         detail["batches_done"], detail["batch_states"] = number + 1, [None] * len(cards)

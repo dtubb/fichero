@@ -246,7 +246,28 @@ def _stop_when_idle(manager: LocalInferenceServiceManager) -> None:
     timer.start()
 
 
+#: Runs holding the served model through one batch: a recipe batch's text steps come after spaCy's, and a
+#: spaCy step over 500 pages can outlast the idle stop, which would load the model a second time
+#: (`source.recipe.step-major-per-batch`). A hold never blocks the lane's own release.
+_HELD: set[str] = set()
+
+
+def hold_served_models(owner: str) -> None:
+    _HELD.add(owner)
+
+
+def let_go_served_models(owner: str) -> None:
+    _HELD.discard(owner)
+
+
+def served_models_held() -> bool:
+    return bool(_HELD)
+
+
 def _stop_if_still_idle(manager: LocalInferenceServiceManager) -> None:
+    if _HELD:  # a run's batch still has steps to ask this model: look again later
+        _stop_when_idle(manager)
+        return
     if _MANAGERS.get(manager.profile.id) is manager and manager.process.is_running():
         # On this timer's own loop: the process stop falls back to signals when its handle belongs
         # to the loop that started it (`ManagedLocalInferenceProcess.stop`).

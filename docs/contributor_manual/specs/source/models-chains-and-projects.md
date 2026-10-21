@@ -2935,14 +2935,18 @@ Projects
   folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
   names the files. `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`.
   The pages not yet started of a refusal that holds for every page are withdrawn (`fichero-server/tests/unit/workflows/test_refusal_for_every_page_fails_the_node_at_once_2026_10_19.py::test_pages_queued_behind_one_slot_re_check_the_refusal_when_they_get_it`); a rate stop comes once the pages have run, so there is none to withdraw. Unrun on the M4 since the OR fix (the earlier PASS was for the AND rule).
-- `activity.run.step-major-per-batch` — **[OK]** (#5358; owner ruling 2026-10-21 ## 664; built as the runner's per-batch loop, `runner._run`/`_run_batch`) a recipe
+- `activity.run.step-major-per-batch` — **[PARTIAL]** (#5358; owner rulings 2026-10-21 ## 664 and the one-load rule; built: the runner's per-batch loop `runner._run`/`_run_batch`, `assemble.STEP_ORDER`, `runner._holding_the_served_model`, `local_inference.hold_served_models`; unrun on the M4) a recipe
   run is step-major within each batch (a folder, or at most `BATCH_PAGE_LIMIT` pages), the same on every Mac: Kraken's
-  cards on all of the batch's pages, then the MLX / vision / cloud reader cards and Correct, then spaCy's, then
-  embedding; the next batch starts after the embedder step, so folders finish one after another and each heavy model
-  loads once per batch. The order is `assemble.STEP_ORDER`; there is no order setting. The LLM text steps (find
-  statements, describe, extract) load the MLX model a second time per batch, because they need the names spaCy
-  found and so run after it (open question to the owner: whether that is acceptable). The whole-project tail (find documents, check, export, publish) runs once at the end.
-  Tested in `fichero-server/tests/unit/recipes/test_recipe_runs_step_major_per_batch.py` (the order of the jobs) and
+  cards on all of the batch's pages, then the MLX / vision / cloud reader cards and Correct, then spaCy's, then the
+  LLM text steps (statements, describe, extract), then embedding; the next batch starts after the embedder step. The
+  rule: **one MLX load per batch, kept through spaCy.** spaCy is light (CPU, a few hundred MB) and never releases the
+  served model, and the idle stop does not take the model while a batch still has steps to run (it is let go at the
+  batch's end); the lane unloads it only before a heavy load (Kraken, or the embedder at 16 GB or less). The order is
+  `assemble.STEP_ORDER`; there is no order setting. Of the whole-project steps only publish waits for the run's last
+  batch (`runner._run_batch`, `final`); find documents, check and export run per batch like the rest. At 8 GB, whether
+  spaCy and the served model fit together is not measured; no exception is made until it is.
+  Tested in `fichero-server/tests/unit/recipes/test_recipe_runs_step_major_per_batch.py` (every page-image job before every reading-layer job before names before embedding),
+  `test_one_mlx_load_per_batch.py` (a spaCy job releases nothing and the next MLX job finds the model loaded; the idle stop waits while a run holds it; a run holds it for every card of every batch and lets go) and
   `test_recipe_batches_to_spec.py::test_every_step_finishes_a_batch_before_the_next_batch` (the loop).
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py::test_the_run_says_how_many_folders_are_done`) a recipe run's row says how far
