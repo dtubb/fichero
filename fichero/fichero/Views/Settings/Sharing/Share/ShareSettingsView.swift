@@ -47,8 +47,20 @@ struct ShareSettingsView: View {
     @State var detectedTailnetURL: String?
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false
-    @State var showAddDevice = false
-    @State var showConnect = false
+    /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.
+    enum ActiveSheet: Identifiable {
+        case addDevice, connect
+        var id: Self { self }
+    }
+    @State var activeSheet: ActiveSheet?
+    var showAddDevice: Bool {
+        get { activeSheet == .addDevice }
+        nonmutating set { activeSheet = newValue ? .addDevice : (activeSheet == .addDevice ? nil : activeSheet) }
+    }
+    var showConnect: Bool {
+        get { activeSheet == .connect }
+        nonmutating set { activeSheet = newValue ? .connect : (activeSheet == .connect ? nil : activeSheet) }
+    }
 
     let qrContext = CIContext()
 
@@ -81,8 +93,12 @@ struct ShareSettingsView: View {
             advancedSection
         }
         .formStyle(.grouped)
-        .sheet(isPresented: $showAddDevice) { addDeviceSheet }
-        .sheet(isPresented: $showConnect) { connectSheet }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .addDevice: addDeviceSheet
+            case .connect: connectSheet
+            }
+        }
         // A tapped invite link opens the Connect sheet with the link filled in (`sharing.settings.connect-sheet`).
         .onChange(of: appState.pendingPairingInvite) { _, invite in
             if ConnectSheetModel.opensFor(pendingInvite: invite) { showConnect = true }
