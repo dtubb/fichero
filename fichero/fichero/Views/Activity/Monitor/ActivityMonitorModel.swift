@@ -234,6 +234,13 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return value.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "en_US_POSIX"))) + " GB"
     }
 
+    /// The name a row shows: with several projects' work in the window the project leads it, with one no project is named
+    /// (`activity.window.project-prefix`, #5960).
+    nonisolated func displayName(showsProject: Bool) -> String {
+        if showsProject, let projectName, !projectName.isEmpty { return "\(projectName) · \(name)" }
+        return name
+    }
+
     /// "12 of 40", plus "about 3 min left" while it runs.
     var progressText: String {
         guard total > 0, !looksWaiting else { return "" }
