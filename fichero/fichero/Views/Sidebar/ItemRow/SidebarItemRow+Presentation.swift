@@ -35,7 +35,12 @@ extension SidebarItemRow {
                     sidebarState.showingNewFolderDialog = true
                 })
                 // Share… this folder alone (#5967): offered where a project's Share… is, with Multi-user on.
-                if EngineConfig.multiuserEnabled, let libraryId = item.libraryId {
+                if let libraryId = item.libraryId,
+                   let sharedLibrary = LibraryManager.shared.getLibrary(id: libraryId),
+                   FolderShareOffer.isOffered(
+                       multiuser: EngineConfig.multiuserEnabled,
+                       isAlwaysThere: libraryId == LibraryManager.globalLibraryId,
+                       hostIsLocal: sharedLibrary.host.isLocal) {
                     Button("Share…") {
                         sidebarState.folderToShare = FolderShareTarget(
                             libraryId: libraryId, folderId: folderDoc.id, name: folderDoc.name)
