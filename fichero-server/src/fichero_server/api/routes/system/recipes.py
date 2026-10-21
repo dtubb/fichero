@@ -1751,7 +1751,9 @@ async def save_project_setup(
     ctx: ActionContext = Depends(action_context),
 ) -> ProjectSetup:
     """Save the project's setup answers and recipe (audited, undoable). Only the parts sent change:
-    a part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed
+    a part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed,
+    except a recipe the project already has saved, which a null recipe never clears (a client whose assemble failed has no
+    recipe in hand and must not wipe the saved one and the person's step choices; the kept recipe is logged)
     (`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`
     and `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,
     or refused), and one direction per script. Refused with 422 when either holds code or
@@ -1759,6 +1761,11 @@ async def save_project_setup(
     also store the recipe the rules assemble from them (#5747); a recipe already stored is kept."""
     try:
         params = request.model_dump(mode="json", exclude_unset=True)
+        if "recipe" in params and params["recipe"] is None and read_project_setup(_library(db)).get("recipe"):
+            # The backstop for every client (Set Up and first-run Continue after a failed assemble have no recipe in hand):
+            # a null never wipes a saved recipe and the person's step choices in it (## 923, ## 924).
+            logger.warning("project setup saved with recipe: null; keeping the project's saved recipe")
+            del params["recipe"]
         if "answers" in params:
             params["answers"] = normalise_answers(params["answers"], strict=True)
             if params["answers"] and "recipe" not in params:
