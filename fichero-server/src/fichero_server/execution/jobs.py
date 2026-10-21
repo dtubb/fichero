@@ -2448,13 +2448,12 @@ def _family(model: str | None) -> str | None:
     return model
 
 
-def _stop_local_model_server(reason: str = "") -> None:
+def _stop_local_model_server(reason: str = "") -> bool:
     """Stop the model server the engine started, so its weights leave memory (`activity.lane.small-mac-one-heavy-model`). It
     starts again on the next request (30 to 300 s); runs are step-major, so the lane switches families rarely. A server the person
     runs themselves is left alone. Before 2026-10-21 this did nothing, and a 7B model stayed beside Kraken for its 10 idle minutes."""
     module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
-    if module is not None:
-        module.stop_served_models(reason)
+    return True if module is None else module.release_served_models(reason)  # False: a call still reads from it, nothing freed
 
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
@@ -2468,6 +2467,9 @@ _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
 SWITCH_AFTER_QUIET_SECONDS = 20.0
+#: A job whose release of the loaded model found a call still using it asks again this often, for this long, then goes back to waiting.
+RELEASE_RETRY_SECONDS = 1.0
+RELEASE_KEEP_WAITING_SECONDS = 300.0
 #: How many times one claim makes a scan again because the lane moved during it (`activity.lane.one-model-at-a-time`, #5920).
 MAX_RESCANS = 8
 
@@ -3178,6 +3180,7 @@ class _Scheduler:
 
         job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
+        held: str | None = None  # why this job did not start: the lane could not release the loaded model
         if lane.name == "local-ml":
             queued = sum(1 for other, m in list(lane.running.items())
                          if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX))
@@ -3195,11 +3198,25 @@ class _Scheduler:
                     # hold, and the row must not sit silent behind it (Fable review #19).
                     wait_on(db, job_id, f"Waiting for {_family(lane.loaded_model)} to let go of its models")
                     try:
-                        _RELEASE[_family(lane.loaded_model)](
-                            f"memory: {why}; the lane switches to {_family(model)} for job {job_id}")
+                        release = _RELEASE[_family(lane.loaded_model)]
+                        reason = f"memory: {why}; the lane switches to {_family(model)} for job {job_id}"
+                        freed = release(reason)
+                        if freed is False:  # a call still reads from the loaded model: nothing loads beside it, so the job keeps waiting
+                            said = (f"Waiting: a call is still using the {_family(lane.loaded_model)} model, and {_family(model)} loads when "
+                                    "it ends (this Mac holds one heavy model at a time)")
+                            wait_on(db, job_id, said)
+                            give_up = time.monotonic() + RELEASE_KEEP_WAITING_SECONDS
+                            while freed is False and time.monotonic() < give_up:
+                                with self._lock:
+                                    if job_id in self._stopping:
+                                        break
+                                time.sleep(RELEASE_RETRY_SECONDS)
+                                freed = release(reason)
+                            if freed is False:  # still in use: back to waiting with the reason; Kraken has not loaded
+                                held = said
                     finally:
                         wait_over(db, job_id)
-            if model is not None and not is_light(model):
+            if model is not None and not is_light(model) and held is None:
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
             watched = handed_in is None and db.execute_fetchone(
@@ -3216,6 +3233,8 @@ class _Scheduler:
 
         library_token = set_library(key)
         try:
+            if held is not None:
+                raise JobDeferred(held)  # back to waiting with its reason; it asks again soon
             result = self._work(db, job_id, kind, subject, handed_in)
             with self._lock:
                 stopping = job_id in self._stopping
