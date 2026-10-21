@@ -130,6 +130,24 @@ final class PairingService {
         self.client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
     }
 
+    /// Share ONE folder of a project with a person who has an account (`sharing.settings.project-share-sheet`, #5967): the person
+    /// reaches that folder and what is under it, nothing beside it. The engine grants the role on the folder at once and answers
+    /// with a pairing code the person does not need (they already have an account).
+    func shareFolder(username: String, role: String, library: String, folderId: String) async throws {
+        let response = try await client.api.createPairingCodeApiPairCodePost(.init(body: .json(.init(
+            username: username,
+            role: role == "editor" ? .editor : .viewer,
+            library: library,
+            folderId: folderId
+        ))))
+        switch response {
+        case .ok:
+            return
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     func createPairingCode() async throws -> PairingCodeRecord {
         let response = try await client.api.createPairingCodeApiPairCodePost(.init())
         switch response {

@@ -16,6 +16,9 @@ import SwiftUI
 struct ShareLibrarySheet: View {
     let library: LibraryManager.LibraryReference
     let usersStore: UsersStore
+    /// Share one folder of the project instead of all of it (`sharing.settings.project-share-sheet`, #5967): the person reaches that
+    /// folder and what is under it, nothing beside it. nil: the whole project.
+    var folder: FolderShareTarget?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -40,6 +43,8 @@ struct ShareLibrarySheet: View {
     @State var isSharing = false
     // Set once the role grant succeeds — the "Share Link" section appears then.
     @State var didShare = false
+    /// Set once a FOLDER grant succeeds (`folder` is set): no link is needed, the person has an account.
+    @State var didFolderShare = false
     // The short-lived, single-use pair code minted for the link — SAME code
     // semantics as the QR. nil until minted; the link cannot exist without it.
     @State var pairingCode: PairingCodeRecord?
@@ -79,7 +84,7 @@ struct ShareLibrarySheet: View {
                 membersSection
             }
             .formStyle(.grouped)
-            .navigationTitle("Share Project")
+            .navigationTitle(folder.map { "Share \"\($0.name)\"" } ?? "Share Project")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
