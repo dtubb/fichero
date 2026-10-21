@@ -1,5 +1,5 @@
 """A tool whose answer is not the page's text never writes it onto the page, and a page it overwrote gets its text back
-(`source.read.metadata-tools-never-write-page-text`, P1 release bar, issue to be filed by the clerk: Classify Script over a PDF left each page's text as its
+(`source.read.metadata-tools-never-write-page-text`, #6002, P1 release bar: Classify Script over a PDF left each page's text as its
 `{script_type, confidence, notes}` JSON in every release up to 2026.10.11).
 
 NOT RUN on the Pro (the owner's presentation hour, 2026-10-21): the tester runs it on the M4.
@@ -184,3 +184,25 @@ def test_a_later_successful_read_clears_the_needs_re_reading_flag_and_a_metadata
             update_page_content=True))
     again = db.get(Document, page.id)
     assert again.page_content == TRANSCRIPT and read_flag_of(again) is None
+
+
+def test_the_flag_is_typed_on_the_document_and_the_inspector_responses(client, db):
+    page = _overwritten(db, transcript=False)
+    page_text_repair.repair_on_open(db)
+    expected = {"kind": page_text_repair.NEEDS_REREADING,
+                "reason": "a classifier's answer had replaced this page's text and no transcription or text layer is left "
+                          "to restore it from: read the page again"}
+    assert client.get(f"/api/documents/{page.id}").json()["read_flag"] == expected
+    assert client.get(f"/api/documents/{page.id}/inspector").json()["read_flag"] == expected
+    other = _pdf_with_pages(db)[1][0]
+    assert client.get(f"/api/documents/{other.id}").json()["read_flag"] is None
+    assert client.get(f"/api/documents/{other.id}/inspector").json()["read_flag"] is None
+
+
+def test_the_repair_queues_the_embed_and_does_not_run_it_inline(db, monkeypatch):
+    queued = []
+    monkeypatch.setattr("fichero_server.actions.page_text_cache.queue_reembed", lambda _db, ids: queued.append(list(ids)))
+    page = _overwritten(db)
+    monkeypatch.setattr(db, "embed", lambda *_a, **_k: pytest.fail("the repair embedded inline"), raising=False)
+    page_text_repair.repair_on_open(db)
+    assert queued == [[page.id]]

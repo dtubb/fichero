@@ -16,10 +16,9 @@ import logging
 from typing import Any
 
 from fichero_server.core.timeutil import utc_now
+from fichero_server.llm.read_guard import READ_FLAG_KEY
 
 logger = logging.getLogger(__name__)
-
-from fichero_server.llm.read_guard import READ_FLAG_KEY  # noqa: E402
 
 NEEDS_REREADING = "needs-re-reading"
 _KEYS = {"script_type", "confidence", "notes", "needs_human_selection"}
@@ -62,7 +61,8 @@ def _transcription_of(db: Any, doc: Any) -> tuple[str, str]:
         if text.strip() and not is_classification_json(text):
             return text, f"its newest {art.artifact_type} ({art.id})"
     parent = db.get(Document, doc.parent_id) if getattr(doc, "parent_id", None) else None
-    path = getattr(parent, "path", None) or ""
+    # the file the page was cut from: the import records where it came from (`source_path`), else the document's path
+    path = ((getattr(parent, "metadata", None) or {}).get("source_path") or getattr(parent, "path", None) or "")
     if path.lower().endswith(".pdf") and doc.sequence:
         try:
             import fitz
@@ -111,10 +111,13 @@ def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[s
             continue
         doc.page_content = text
         db.save(doc)
+    if restored and not dry_run:  # queued, never run inline at open: the embed is a job a scheduler runs (Activity, pause, quit)
         try:
-            db.embed(doc)
-        except Exception:  # noqa: BLE001 -- the text is back; search catches up at the next embed
-            logger.warning("page text repair: could not re-embed %s", doc_id, exc_info=True)
+            from fichero_server.actions.page_text_cache import queue_reembed
+
+            queue_reembed(db, restored)
+        except Exception:  # noqa: BLE001 -- the text is back; search catches up at the next embed of the page
+            logger.warning("page text repair: could not queue the re-embed of %d page(s)", len(restored), exc_info=True)
     return {"restored": restored, "flagged": flagged, "newly_flagged": newly_flagged, "left_edited": left_edited, "dry_run": dry_run}
 
 

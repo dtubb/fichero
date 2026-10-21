@@ -398,8 +398,11 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     if not items:
         return items
     counts = db.child_counts([item.id for item in items])
+    from fichero_server.llm.read_guard import typed_read_flag
+
     for item in items:
         item.child_count = counts.get(item.id, 0)
+        item.read_flag = typed_read_flag(item)
     # A diary entry on lines is listed with its text read from them (#5601).
     from fichero_server.workflows.tools.diary_entries import with_texts_read_from_lines
 

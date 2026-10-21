@@ -31,7 +31,8 @@ from fichero_server.models.knowledge import (
     Project,
     ProjectInclusion,
 )
-from fichero_server.models import Artifact, Document, DocType
+from fichero_server.llm.read_guard import typed_read_flag
+from fichero_server.models import Artifact, Document, DocType, ReadFlagInfo
 from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class DocumentInspectorResponse(BaseModel):
     citations_inbound: list[DocumentCitation]  # what cites this doc
     interpretations: list[Interpretation]
     projects: list[Project]
+    read_flag: ReadFlagInfo | None = None  # why this page's read is not trusted (`read_guard.typed_read_flag`)
 
 
 class DocumentOutlineRow(BaseModel):
@@ -215,6 +217,7 @@ def inspector(
         citations_inbound=citations_inbound,
         interpretations=interpretations,
         projects=projects,
+        read_flag=typed_read_flag(doc),
     )
 
 
