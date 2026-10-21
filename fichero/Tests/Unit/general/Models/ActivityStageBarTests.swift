@@ -1,3 +1,5 @@
+import FicheroAPIClient
+import Foundation
 import Testing
 @testable import Fichero
 
@@ -36,5 +38,25 @@ struct ActivityStageBarTests {
         let segment = ActivityStageBar.segments(of: [card(.done, done: 7, total: 10, failed: 3)]).first
         #expect(segment?.fill == 1 && segment?.hatched == true && segment?.failedPages == 3)
         #expect(ActivityStageBar.segments(of: [card(.done, done: 10, total: 10)]).first?.hatched == false)
+    }
+
+    @Test func aSecondProjectsRowGetsItsBarFromItsOwnStore() throws {
+        let tree = try JSONDecoder().decode(Components.Schemas.JobTree.self,
+                                            from: Data(ActivityStageCardsTests.treeJSON.utf8))
+        let first = UUID(), second = UUID()
+        let node = try JSONDecoder().decode(Components.Schemas.JobTree.self, from: Data("""
+        {"id":"r1","kind":"run-a-recipe","name":"Run","subject":"r1","state":"running","done":0,"total":0}
+        """.utf8))
+        let run = ActivityRun(node: ActivityJobNode(node), libraryId: second, libraryName: "Second")
+        let row = ActivityMonitorRow.run(run, tree: nil)
+        let trees = [first: [String: ActivityJobNode](), second: ["r1": ActivityJobNode(tree)]]
+        #expect(!ActivityStageBar.segments(for: row, trees: trees).isEmpty)
+        #expect(ActivityStageBar.segments(for: row, trees: [first: trees[second] ?? [:]]).isEmpty)  // not the other's
+    }
+
+    @Test func theSegmentSaysItsStateAndItsFailuresForVoiceOver() {
+        let partial = ActivityStageBar.segments(of: [card(.partial, done: 7, total: 10, failed: 3)]).first
+        #expect(partial?.label == "Read, partial, 3 failed")
+        #expect(ActivityStageBar.segments(of: [card(.running, done: 1, total: 10)]).first?.label == "Read, running")
     }
 }

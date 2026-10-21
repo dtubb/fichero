@@ -10,9 +10,13 @@ struct ActivityStageBar: View {
         /// 0...1.
         let fill: Double
         let hatched: Bool
-        /// One red tick per failed page.
+        /// One red tick per failed page (the bar draws at most `maxTicks`).
         let failedPages: Int
+        /// The stage's state in words, for VoiceOver: "Read, partial, 3 failed".
+        let label: String
     }
+
+    nonisolated static let maxTicks = 5
 
     let segments: [Segment]
 
@@ -27,29 +31,47 @@ struct ActivityStageBar: View {
             }
             // an ended stage with failed pages is full AND hatched, like a partial one
             let ended = card.state == .done || card.state == .partial
-            return Segment(id: card.id, title: card.title, fill: fill,
-                           hatched: card.state == .partial || (ended && card.pagesFailed > 0),
-                           failedPages: card.pagesFailed)
+            let hatched = card.state == .partial || (ended && card.pagesFailed > 0)
+            let words = [card.title, hatched ? "partial" : card.stateWords.lowercased(),
+                         card.pagesFailed > 0 ? "\(card.pagesFailed) failed" : nil].compactMap { $0 }
+            return Segment(id: card.id, title: card.title, fill: fill, hatched: hatched,
+                           failedPages: card.pagesFailed, label: words.joined(separator: ", "))
         }
+    }
+
+    /// The row's bar, from the tree in the store of the row's OWN library (`trees`, by library), so every project's
+    /// recipe row has one.
+    nonisolated static func segments(for row: ActivityMonitorRow,
+                                     trees: [UUID: [String: ActivityJobNode]]) -> [Segment] {
+        guard let library = row.libraryId, let thread = row.runThreadId else { return [] }
+        return segments(of: ActivityDetails.stageCards(of: trees[library]?[thread]))
     }
 
     var body: some View {
         HStack(spacing: 2) {
             ForEach(segments) { segment in
                 GeometryReader { proxy in
+                    let width = proxy.size.width
                     ZStack(alignment: .leading) {
                         Capsule().fill(.quaternary)
-                        Capsule()
-                            .fill(segment.hatched ? AnyShapeStyle(.orange.opacity(0.6)) : AnyShapeStyle(.tint))
-                            .frame(width: proxy.size.width * segment.fill)
-                        ForEach(0..<min(segment.failedPages, 5), id: \.self) { index in
+                        Capsule().fill(.tint).frame(width: width * segment.fill)
+                        if segment.hatched {
+                            Hatch().stroke(.white.opacity(0.6), lineWidth: 1.5)
+                                .frame(width: width * segment.fill)
+                                .clipShape(Capsule())
+                        }
+                        // ticks sit by position across the filled part, one per failed page
+                        let ticks = min(segment.failedPages, Self.maxTicks)
+                        ForEach(0..<ticks, id: \.self) { index in
                             Rectangle().fill(.red).frame(width: 2).frame(maxHeight: .infinity)
-                                .offset(x: max(0, proxy.size.width * segment.fill - 2 - CGFloat(index) * 4))
+                                .offset(x: max(0, width * segment.fill * (Double(index) + 1) / Double(ticks + 1) - 1))
                         }
                     }
                 }
                 .frame(height: 6)
-                .help(segment.title)
+                .help(segment.label)
+                .accessibilityElement()
+                .accessibilityLabel(segment.label)
                 .accessibilityIdentifier("activity.window.stageBar.\(segment.id)")
             }
         }
@@ -58,11 +80,25 @@ struct ActivityStageBar: View {
     }
 }
 
+/// Diagonal stripes, the hatch of a partial segment.
+private struct Hatch: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        var x = -rect.height
+        while x < rect.width {
+            path.move(to: CGPoint(x: x, y: rect.height))
+            path.addLine(to: CGPoint(x: x + rect.height, y: 0))
+            x += 4
+        }
+        return path
+    }
+}
+
 #Preview("A run part-way") {
     ActivityStageBar(segments: [
-        .init(id: "find-lines", title: "Find Lines", fill: 1, hatched: false, failedPages: 0),
-        .init(id: "read", title: "Read", fill: 0.4, hatched: false, failedPages: 2),
-        .init(id: "names", title: "Names", fill: 0, hatched: false, failedPages: 0),
+        .init(id: "find-lines", title: "Find Lines", fill: 1, hatched: false, failedPages: 0, label: "Find Lines, done"),
+        .init(id: "read", title: "Read", fill: 0.4, hatched: true, failedPages: 2, label: "Read, partial, 2 failed"),
+        .init(id: "names", title: "Names", fill: 0, hatched: false, failedPages: 0, label: "Names, waiting"),
     ])
     .frame(width: 320)
     .padding()
