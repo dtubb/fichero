@@ -33,6 +33,8 @@ from fichero_server.llm.local_inference import (
 from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 from fichero_server.workflows import page_retry
 
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
+
 GB = 1024**3
 THREE_B = MANAGED_MLX_MODELS["Qwen2.5-VL-3B"]
 EIGHT_B = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]

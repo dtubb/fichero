@@ -120,3 +120,25 @@ def project_says_yes(test_package):
     answers = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None) or {}
     answers["cloud_allowed"] = True
     path.write_text(yaml.safe_dump(answers), encoding="utf-8")
+
+
+@pytest.fixture
+def cloud_call_project(tmp_path, monkeypatch):
+    """A call to a cloud model is made inside a project that said yes to cloud models (the one egress gate, #5368: a call with
+    no project open, or under a project that keeps its pages here, is not sent). For tests of the CALL's own behaviour (retries,
+    caching, usage, truncation); the gate's refusals are pinned in `test_one_egress_gate_5368.py` and are not weakened. The test
+    models carry a listed price, so the spending cap (which refuses an unpriced model) stays on and is met."""
+    from fichero_server.llm import usage
+    from fichero_server.observability import episodes
+
+    monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": {
+        "input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5})
+
+    folder = tmp_path / "CloudYes.fichero" / "recipe"
+    folder.mkdir(parents=True)
+    (folder / "setup.yaml").write_text("cloud_allowed: true\n", encoding="utf-8")
+    token = episodes.set_library(str(tmp_path / "CloudYes.fichero"))
+    try:
+        yield str(tmp_path / "CloudYes.fichero")
+    finally:
+        episodes._episode_library_path.reset(token)

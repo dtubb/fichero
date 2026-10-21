@@ -231,6 +231,9 @@ def test_a_run_reaches_the_row_server_url_off_this_mac(app_db, stub_server, monk
     monkeypatch.setattr(jobs, "lane_slot", spy_lane_slot)
 
     workflow = _summarize_workflow(provider_name="ollama", model_name="llama3.2")
+    # A model on another machine is a call that leaves this Mac: the project says yes to it (the one egress gate, #5368)
+    (tmp_path / "lib.fichero" / "recipe").mkdir(parents=True)
+    (tmp_path / "lib.fichero" / "recipe" / "setup.yaml").write_text("cloud_allowed: true\n", encoding="utf-8")
     state = build_initial_state({}, library_path=str(tmp_path / "lib.fichero"))
     with llm.collect_usage() as usage:
         result = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
