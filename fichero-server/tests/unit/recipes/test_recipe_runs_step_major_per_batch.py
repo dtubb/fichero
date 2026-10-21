@@ -7,10 +7,13 @@ from fichero_server.recipes.assemble import STEP_ORDER
 from fichero_server.recipes.jobs import get_job
 
 def test_step_order_puts_every_kraken_job_before_every_reader_before_spacy_before_embedding():
-    """The order a batch runs its cards in: the page-image jobs (prepare, find regions and lines: Kraken's) precede
-    every reading job (MLX / vision / cloud readers, Correct), which precede spaCy's names, then the embedder."""
+    """The order a batch runs its cards in: every page-image job (prepare, find regions and lines: Kraken's) precedes
+    every reading-layer job (read a line / a page, speech, Correct, translate, drawings, signs: the MLX / vision /
+    cloud cards), which precedes spaCy's names, then the embedder."""
     at = STEP_ORDER.index
-    reading_first = at("read-a-line")
-    assert all(at(job) < reading_first for job in STEP_ORDER if get_job(job) and get_job(job).layer in ("prepare", "lines"))
-    assert at("read-a-line") < at("correct") < at("find-names-tag-words") < at("make-a-vector")
-
+    jobs = [j for j in STEP_ORDER if get_job(j)]
+    page_image = [j for j in jobs if get_job(j).layer in ("prepare", "lines")]
+    readers = [j for j in jobs if get_job(j).layer == "reading"]
+    assert page_image and readers
+    assert max(at(j) for j in page_image) < min(at(j) for j in readers), (page_image, readers)
+    assert max(at(j) for j in readers) < at("find-names-tag-words") < at("make-a-vector")
