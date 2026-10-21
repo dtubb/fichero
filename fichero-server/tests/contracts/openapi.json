@@ -460,6 +460,85 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}/pages": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Run Page States",
+        "description": "One entry per PAGE of a run with its state in each stage, in reading order, paged (`activity.run.page-states`,\n#5960): the page grid's read, instead of the thousands of step rows under `GET /jobs/{id}`.",
+        "operationId": "get_run_page_states_api_activity_jobs__job_id__pages_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "a Set Up stage id (read, find-lines, ...); omitted: every stage",
+              "title": "Stage"
+            },
+            "description": "a Set Up stage id (read, find-lines, ...); omitted: every stage"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPageStates"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/log": {
       "get": {
         "tags": [
@@ -494,6 +573,22 @@
               "title": "Detail"
             },
             "description": "developer adds the debug lines"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "problems"
+              ],
+              "type": "string",
+              "description": "problems: warnings and errors only, newest last",
+              "default": "all",
+              "title": "Level"
+            },
+            "description": "problems: warnings and errors only, newest last"
           }
         ],
         "responses": {
@@ -16038,6 +16133,70 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UseCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/steps/use-setup-pick": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Setup Pick For Step",
+        "description": "Take the person's choice for the step back (`source.onboard.step-choice-overrides-the-pick`): the recipe is\nassembled again from the project's answers with that one choice dropped, so Set Up's pick stands for the step; the\nproject's other choices stay. Saved through `project.save_setup` (audited, undoable). Refused (422) for a step the\nrecipe lacks, or one already on Set Up's pick.",
+        "operationId": "use_setup_pick_for_step_api_recipes_project_steps_use_setup_pick_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseSetupPickRequest"
               }
             }
           }
@@ -33199,7 +33358,7 @@
           "workflow-execution"
         ],
         "summary": "Stream Workflow Events",
-        "description": "Subscribe to SSE events for a running workflow.\n\nThis endpoint returns a Server-Sent Events stream for a workflow\nthat was started via POST /execute. Connect to this endpoint\nimmediately after receiving the 202 Accepted response.\n\nEvents include:\n- start: Workflow execution started\n- node_begin: A node started executing\n- node_end: A node finished executing\n- parallel_complete: Parallel file processing completed\n- complete: Workflow finished successfully\n- error: An error occurred\n- systemic_error: Too many consecutive failures\n\nArgs:\n    thread_id: The thread ID returned from /execute\n\nReturns:\n    StreamingResponse with SSE events",
+        "description": "Subscribe to SSE events for a running workflow.\n\nThis endpoint returns a Server-Sent Events stream for a workflow\nthat was started via POST /execute. Connect to this endpoint\nimmediately after receiving the 202 Accepted response.\n\nEvents include:\n- start: Workflow execution started\n- node_begin: A node started executing\n- node_end: A node finished executing\n- parallel_complete: Parallel file processing completed\n- complete: Workflow finished successfully\n- error: An error occurred\n- systemic_error: The run stopped because its failures are a fundamental problem, not a few bad scans: five\n  pages in a row failed on a batch of fewer than ten, or more than half the pages failed on a batch of ten or\n  more (a refusal that applies to every page stops at the first)\n\nArgs:\n    thread_id: The thread ID returned from /execute\n\nReturns:\n    StreamingResponse with SSE events",
         "operationId": "stream_workflow_events_api_workflow_execution_stream__thread_id__get",
         "parameters": [
           {
@@ -49001,6 +49160,14 @@
             "type": "integer",
             "title": "History",
             "default": 0
+          },
+          "up_next": {
+            "items": {
+              "$ref": "#/components/schemas/UpNextItem"
+            },
+            "type": "array",
+            "title": "Up Next",
+            "description": "work not yet started, in lane order, each with what it waits for (`activity.summary.up-next`, #5960)"
           }
         },
         "type": "object",
@@ -52211,6 +52378,12 @@
             "format": "date-time",
             "nullable": true,
             "title": "Failed At"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Finished At"
           },
           "started_by": {
             "type": "string",
@@ -61470,6 +61643,10 @@
             "title": "Child Count",
             "default": 0
           },
+          "read_flag": {
+            "$ref": "#/components/schemas/ReadFlagInfo",
+            "nullable": true
+          },
           "case_id": {
             "type": "string",
             "nullable": true,
@@ -62066,6 +62243,10 @@
             },
             "type": "array",
             "title": "Projects"
+          },
+          "read_flag": {
+            "$ref": "#/components/schemas/ReadFlagInfo",
+            "nullable": true
           }
         },
         "type": "object",
@@ -73542,6 +73723,18 @@
             "type": "integer",
             "nullable": true,
             "title": "Folders Total"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model",
+            "description": "the model the running stage uses, by its own name; null when unknown"
+          },
+          "where": {
+            "type": "string",
+            "nullable": true,
+            "title": "Where",
+            "description": "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown (`activity.summary.where-and-model`, #5960)"
           }
         },
         "type": "object",
@@ -82468,6 +82661,31 @@
         ],
         "title": "ReadAtScaleRequest"
       },
+      "ReadFlagInfo": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "measure": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Measure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "title": "ReadFlagInfo",
+        "description": "A read that is not trusted: `kind` in a word, `reason` in a sentence (the wire shape of `read_guard.ReadFlag`)."
+      },
       "ReadableSentence": {
         "properties": {
           "text": {
@@ -86877,6 +87095,88 @@
         ],
         "title": "RunOffer",
         "description": "What the run offers at its end: read the pages it did not do, as one action."
+      },
+      "RunPageState": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what a person calls the page: its file name"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "running",
+              "waiting",
+              "failed"
+            ],
+            "title": "State",
+            "description": "in the stage asked for, else the worst of its stages"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason",
+            "description": "at most one: why it failed, or what it waits for"
+          },
+          "stages": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Stages",
+            "description": "its state in each stage, by Set Up's stage id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "state"
+        ],
+        "title": "RunPageState",
+        "description": "One PAGE of a run (`activity.run.page-states`, #5960)."
+      },
+      "RunPageStates": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stage"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "pages in all for this stage, whatever page was asked for"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset",
+            "default": 0
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunPageState"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "total"
+        ],
+        "title": "RunPageStates"
       },
       "RunProgress": {
         "properties": {
@@ -92846,6 +93146,14 @@
             "nullable": true,
             "description": "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the recipe has no reading step (#5660 item 7)"
           },
+          "step_choices": {
+            "items": {
+              "$ref": "#/components/schemas/StepChoice"
+            },
+            "type": "array",
+            "title": "Step Choices",
+            "description": "for each step that has a choice of model, its candidates (local and cloud, with what each needs and costs) and which one is used: the step menu's data; choosing is POST /api/recipes/project/steps/use-candidate, taking it back POST /api/recipes/project/steps/use-setup-pick (`source.onboard.step-candidates-on-the-plan`)"
+          },
           "refusals": {
             "items": {
               "type": "string"
@@ -93290,6 +93598,143 @@
         ],
         "title": "StatusResponse"
       },
+      "StepCandidate": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "the card id, as POST /api/recipes/project/steps/use-candidate takes it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "kraken",
+              "kraken-then-cloud-corrects",
+              "cloud-reads-kraken-lines",
+              "local-model",
+              "cloud-model"
+            ],
+            "title": "How"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On",
+            "description": "this-mac, cluster or cloud:<provider>"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local"
+          },
+          "picked": {
+            "type": "boolean",
+            "title": "Picked",
+            "description": "the one the step uses now, Set Up's pick or the person's choice"
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended",
+            "description": "the one Set Up picks by the rules"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "false while `needs` is not empty; listed greyed, never hidden"
+          },
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/StepNeed"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceOption"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "every place it can run, as the finder lists them"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/TryCost",
+            "nullable": true,
+            "description": "its cost for the whole set before Start; null until priced"
+          },
+          "measured": {
+            "type": "string",
+            "title": "Measured",
+            "description": "what is measured on this project's pages, or that it is not yet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "name",
+          "how",
+          "runs_on",
+          "local",
+          "picked",
+          "recommended",
+          "available",
+          "measured"
+        ],
+        "title": "StepCandidate",
+        "description": "One way to do a step, as the plan lists it (`source.onboard.step-candidates-on-the-plan`): the Try's shapes, reused."
+      },
+      "StepChoice": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "the recipe step's id"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the stage in words"
+          },
+          "picked": {
+            "type": "string",
+            "nullable": true,
+            "title": "Picked",
+            "description": "the card the step uses now"
+          },
+          "chosen_by": {
+            "type": "string",
+            "enum": [
+              "setup",
+              "person"
+            ],
+            "title": "Chosen By",
+            "description": "setup: Set Up's pick stands; person: they chose another (POST .../steps/use-setup-pick takes it back)"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/StepCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "job",
+          "name",
+          "chosen_by",
+          "candidates"
+        ],
+        "title": "StepChoice",
+        "description": "A step of the plan that has a choice of model."
+      },
       "StepCreateRequest": {
         "properties": {
           "task_id": {
@@ -93326,6 +93771,32 @@
           "label"
         ],
         "title": "StepCreateRequest"
+      },
+      "StepNeed": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "permission",
+              "key",
+              "download",
+              "price"
+            ],
+            "title": "Kind",
+            "description": "permission: pages may not leave this Mac yet; key: the provider has no key; download: the model is not on this Mac; price: a cloud model with no listed price (accepted at Start)"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "words"
+        ],
+        "title": "StepNeed",
+        "description": "What a step candidate needs before it can run, in words, with the kind an app can act on."
       },
       "StepProblem": {
         "properties": {
@@ -97567,6 +98038,43 @@
         ],
         "title": "UnicodeLibraryMergeParams"
       },
+      "UpNextItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stage",
+            "description": "Set Up's stage it belongs to, by title; null for work that is none"
+          },
+          "after": {
+            "type": "string",
+            "nullable": true,
+            "title": "After",
+            "description": "what it follows, when it waits for an earlier stage ('Read')"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "what it waits for, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "why"
+        ],
+        "title": "UpNextItem",
+        "description": "One piece of work not yet started (`activity.summary.up-next`, #5960), in the order the lanes will take it."
+      },
       "UpdateActionRequest": {
         "properties": {
           "name": {
@@ -97913,6 +98421,22 @@
         ],
         "title": "UseInsteadRequest",
         "description": "Use an installed model instead of downloading the one the plan waits for (#5583), or the same model at a free\nplace instead of on this Mac, which cannot run it (#5592). Exactly one of `card` and `provider`."
+      },
+      "UseSetupPickRequest": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "the recipe step's id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step"
+        ],
+        "title": "UseSetupPickRequest",
+        "description": "Take a step back to Set Up's pick."
       },
       "UserListResponse": {
         "properties": {

@@ -497,10 +497,43 @@
             "name": "detail",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "level",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,
         "response_model": "JobLog"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/jobs/{job_id}/pages",
+        "operation_id": "get_run_page_states_api_activity_jobs__job_id__pages_get",
+        "summary": "Get Run Page States",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunPageStates"
       },
       {
         "method": "PUT",
@@ -9597,6 +9630,16 @@
         "path_params": [],
         "query_params": [],
         "request_model": "UseCandidateRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/steps/use-setup-pick",
+        "operation_id": "use_setup_pick_for_step_api_recipes_project_steps_use_setup_pick_post",
+        "summary": "Use Setup Pick For Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UseSetupPickRequest",
         "response_model": "ProjectSetup"
       },
       {
