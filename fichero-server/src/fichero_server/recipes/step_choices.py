@@ -52,11 +52,15 @@ def _needs(card: Any, *, may_leave: bool) -> list[dict[str, str]]:
 
 def _cost(card: Any, pages: int | None, how: str = "") -> dict[str, Any] | None:
     """The candidate's cost for the whole set before Start (an estimate from the price list; `TryCost`'s shape): free on this Mac,
-    the price per page times the pages for a priced cloud model, unknown for one with no listed price, none before the pages are counted."""
+    the price per page times the pages for a priced cloud model, unknown for one with no listed price, none before the pages are counted.
+    Only a card that runs on this Mac is free: a cluster or GPU service says its own words (no price here), never "free"."""
     from fichero_server.recipes.assemble import _page_price
 
-    if not str(card.runs_on).startswith("cloud:"):
+    runs_on = str(card.runs_on)
+    if runs_on == "this-mac":
         return {"value": 0.0, "basis": "estimate", "measured": False, "from": "free on this Mac"}
+    if not runs_on.startswith("cloud:"):
+        return {"value": None, "basis": "unknown", "measured": False, "from": f"runs on {runs_on}; no price is listed here"}
     price = _page_price(card)
     if not price:
         return {"value": None, "basis": "unknown", "measured": False, "from": "no listed price"}
