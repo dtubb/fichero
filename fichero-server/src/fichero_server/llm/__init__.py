@@ -1275,18 +1275,19 @@ def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
     if _runs_on_this_mac(config):
         return
     # The Set Up answer, per place (`source.egress.setting-is-reachable`): another Mac is not the cloud.
-    from fichero_server.recipes.places import project_refusal, refusal
+    from fichero_server.recipes.places import refusal
 
     place = "another-mac" if _place_of(config) == "own_machine" else "cloud"
-    because = refusal(place) or project_refusal(place)  # the app's places, then the project's own rule (#5368)
+    because = refusal(place)
     if because:
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind, because=because)
     if is_local_only():
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
     from fichero_server.llm.egress import current_library, project_allows_leaving
 
-    if not project_allows_leaving(current_library()):
-        raise EgressRefusedError(config.provider, model=config.model, kind=kind, project=current_library())
+    library = current_library()  # the one reading of the project: a Set Up try's scratch copy is its real project
+    if not project_allows_leaving(library):
+        raise EgressRefusedError(config.provider, model=config.model, kind=kind, project=library)
 
 
 # =============================================================================

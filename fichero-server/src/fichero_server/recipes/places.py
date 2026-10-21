@@ -113,25 +113,6 @@ def bound_library() -> Path | None:
     return _scratch_of.get(bound, bound) if bound is not None else None
 
 
-def project_refusal(place: str) -> str | None:
-    """Why the bound project's own rule keeps pages from `place`, in words, or None. A project that saved a Set Up and did not
-    say its pages may leave this Mac keeps them here (the start-time rule, `may_leave_to`, read at the call); a project with no
-    saved Set Up, and a call made for no project, are capped by the app's places alone."""
-    library = bound_library()
-    if library is None or place == THIS_MAC:
-        return None
-    from fichero_server.recipes.project import read_project_setup
-
-    try:
-        answers = read_project_setup(library)["answers"]
-    except Exception:  # noqa: BLE001 -- an unreadable Set Up is the strictest answer, as for the app's places
-        answers = {}
-    if answers is None or answers.get("cloud_allowed"):
-        return None
-    return (f"This project's Set Up says its pages stay on this Mac, so no pages are sent to {PLACE_WORDS.get(place, place)}. "
-            "Change it in the project's Set Up.")
-
-
 def this_mac_line(memory_gb: float) -> str:
     """What this Mac can run, from its real memory (the owner's words, 2026-10-19)."""
     gb = round(memory_gb)

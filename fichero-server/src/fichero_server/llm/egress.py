@@ -45,9 +45,13 @@ def project_allows_leaving(library: str | None) -> bool:
 
 
 def current_library() -> str | None:
+    """The project the call is for: the one the run or chat bound (`recipes.places.bound_library`; a Set Up try's scratch copy
+    maps to its REAL project there), else the one the request or stored job runs under. The only place the gate reads it."""
     from fichero_server.observability.episodes import _episode_library_path
+    from fichero_server.recipes.places import bound_library
 
-    return _episode_library_path.get()
+    bound = bound_library()
+    return str(bound) if bound is not None else _episode_library_path.get()
 
 
 def project_name(library: str | None) -> str | None:
