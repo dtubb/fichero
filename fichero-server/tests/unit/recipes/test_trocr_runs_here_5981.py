@@ -131,11 +131,24 @@ def test_a_repository_with_only_a_pickled_bin_is_refused_in_words_and_nothing_do
 def test_the_download_pins_the_commit_and_takes_no_pickled_file(store, monkeypatch):
     _hub(monkeypatch, ["model.safetensors", "config.json", "optimizer.pt", "training_args.bin"])
     seen = []
-    monkeypatch.setattr(tr, "_snapshot", lambda repo, revision, cache_dir: seen.append((repo, revision, cache_dir)))
+    monkeypatch.setattr(tr, "_snapshot", lambda repo, revision: seen.append((repo, revision)))
     assert tr.download(REPO) == SHA
-    assert seen == [(REPO, SHA, str(store))]
+    assert seen == [(REPO, SHA)]
     assert tr.is_installed(REPO) and tr.revision_of(REPO) == SHA
     assert {"*.bin", "*.pt", "*.ckpt", "*.pth"} <= set(tr.PICKLED)  # the snapshot ignores every pickle pattern
+
+
+def test_the_snapshot_goes_to_the_one_hugging_face_store_folder(store, monkeypatch):
+    """The call itself names `db.paths.hf_hub_dir()` (the model-download guard reads that line)."""
+    import sys
+    import types
+
+    seen = {}
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(snapshot_download=lambda **kw: seen.update(kw)))
+    tr._snapshot(REPO, SHA)
+    from fichero_server.db.paths import hf_hub_dir
+
+    assert seen["cache_dir"] == str(hf_hub_dir()) and seen["revision"] == SHA and "*.bin" in seen["ignore_patterns"]
 
 
 def test_the_load_names_the_pinned_commit_demands_safetensors_and_reads_only_what_is_on_this_mac(store, monkeypatch):
