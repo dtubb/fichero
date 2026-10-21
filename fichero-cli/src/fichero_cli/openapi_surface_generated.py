@@ -13453,6 +13453,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("accept-unpriced-cloud-model")
+    def recipes_accept_unpriced_cloud_model_post(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='the model id, as the refusal names it.'),
+        provider: str = typer.Option(..., '--provider', help='the provider row id of the cloud model.'),
+        withdraw: Optional[bool] = typer.Option(None, '--withdraw/--no-withdraw', help='take the yes back: calls to it are refused again. Default: false.'),
+    ) -> None:
+        """Accept Unpriced Cloud Model (POST /api/recipes/cloud/accept-unpriced)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/cloud/accept-unpriced"
+            params = None
+            payload = _build_json_payload({
+                "model": model,
+                "provider": provider,
+                "withdraw": withdraw,
+            }, {
+                "model": {'type': 'string', 'minLength': 1, 'title': 'Model', 'description': 'the model id, as the refusal names it', 'x-cli-required': True},
+                "provider": {'type': 'string', 'minLength': 1, 'title': 'Provider', 'description': 'the provider row id of the cloud model', 'x-cli-required': True},
+                "withdraw": {'type': 'boolean', 'title': 'Withdraw', 'description': 'take the yes back: calls to it are refused again', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
@@ -13782,6 +13805,7 @@ def register_generated_openapi_commands(
     @target_app.command("start-project")
     def recipes_start_project_post(
         ctx: typer.Context,
+        accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13790,9 +13814,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/project/start"
             params = None
             payload = _build_json_payload({
+                "accept_unpriced": accept_unpriced,
                 "folder_id": folder_id,
                 "redo": redo,
             }, {
+                "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)

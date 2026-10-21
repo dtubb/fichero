@@ -25,6 +25,16 @@ extension ContentView {
         #endif
     }
 
+    /// The column a compact (iPhone) split view shows after a sidebar choice (`m2p.ios.sidebar-to-library`, #5964): the
+    /// content column, from either column; at regular width, or before a size class is measured, nothing moves. SwiftUI
+    /// changes `preferredCompactColumn` itself only as the person navigates BACK; nothing moved it forward.
+    nonisolated static func preferredCompactColumnAfterSidebarChoice(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        current: NavigationSplitViewColumn
+    ) -> NavigationSplitViewColumn {
+        shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) ? .detail : current
+    }
+
     static func shouldUseSplittablePane(
         horizontalSizeClass: UserInterfaceSizeClass?,
         windowWidth: Double? = nil,

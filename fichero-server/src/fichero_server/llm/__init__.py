@@ -3661,6 +3661,15 @@ async def chat_structured(
         raw_message = result.get("raw")
         parsing_error = result.get("parsing_error")
         if parsing_error and parsed is None:
+            # The provider answered and bills it: a reply that would not parse is still spend (the cap counts it, #5987).
+            failed_usage = usage_from_message(raw_message) if raw_message else None
+            if failed_usage:
+                _record_usage(
+                    config.provider, config.model, "structured", place=_place_of(config),
+                    input_tokens=failed_usage["input_tokens"], output_tokens=failed_usage["output_tokens"],
+                    total_tokens=failed_usage["total_tokens"], cache_read_tokens=failed_usage["cache_read_tokens"],
+                    method=method,
+                )
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} structured "
                 f"parse failed: {parsing_error}"

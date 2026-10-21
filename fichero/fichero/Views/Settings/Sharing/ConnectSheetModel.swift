@@ -28,7 +28,7 @@ enum ConnectSheetModel {
     }
 
     /// A tapped invite link opens the sheet with the link filled in, to be read and pressed by the person; nothing pairs by itself.
-    static func opensFor(pendingInvite: String?) -> Bool { !(pendingInvite ?? "").isEmpty }
+    nonisolated static func opensFor(pendingInvite: String?) -> Bool { !(pendingInvite ?? "").isEmpty }
 
     /// The sheet's button for the work in hand.
     static func connectTitle(isConnecting: Bool) -> String { isConnecting ? "Connecting…" : "Connect" }

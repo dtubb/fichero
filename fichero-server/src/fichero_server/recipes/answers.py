@@ -89,6 +89,10 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
             unknown = [j for j in out[key] if j not in STEP_ORDER]
             if unknown:
                 problems.append(f"Fichero has no job {', '.join(map(repr, unknown))}.")
+    if "cloud_spend_cap_usd" in out:
+        cap = out["cloud_spend_cap_usd"]
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
+            problems.append("The cloud spending cap is a number of dollars, 0 or more.")
     chosen = dict(out.get("directions") or {})
     bad = {s: d for s, d in chosen.items() if d not in SETUP_DIRECTIONS}
     if bad:

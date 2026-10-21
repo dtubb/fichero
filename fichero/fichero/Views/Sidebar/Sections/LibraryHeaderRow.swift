@@ -246,3 +246,11 @@ nonisolated struct ProjectRowMenuOffers: Equatable {
         Self(rename: !isAlwaysThere, share: multiuser && !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
     }
 }
+
+/// Whether a FOLDER row offers Share… (`sharing.settings.project-share-sheet`, #5967): with Multi-user on, for a project this engine
+/// hosts, and never the always-there project (which is never shared). Pure, so the gating is tested without a window.
+nonisolated enum FolderShareOffer {
+    static func isOffered(multiuser: Bool, isAlwaysThere: Bool, hostIsLocal: Bool) -> Bool {
+        multiuser && !isAlwaysThere && hostIsLocal
+    }
+}

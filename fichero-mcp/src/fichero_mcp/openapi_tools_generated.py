@@ -6372,6 +6372,16 @@ def fichero_recipes_check(
     return _rt.call("POST", "/api/recipes/check", json=_rt.body({"recipe": recipe}))
 
 
+def fichero_recipes_accept_unpriced_cloud_model(
+    *,
+    model: Annotated[str, Field(description='the model id, as the refusal names it.')],
+    provider: Annotated[str, Field(description='the provider row id of the cloud model.')],
+    withdraw: Annotated[Optional[bool], Field(description='take the yes back: calls to it are refused again. Default: false.')] = None,
+) -> Any:
+    "Accept Unpriced Cloud Model\n\nAccept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.\n\nRoute: POST /api/recipes/cloud/accept-unpriced (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/cloud/accept-unpriced", json=_rt.body({"model": model, "provider": provider, "withdraw": withdraw}))
+
+
 def fichero_recipes_derived_facts(
     *,
     period: Annotated[Optional[str], Field(description='Period')] = None,
@@ -6545,11 +6555,12 @@ def fichero_recipes_get_start_plan(
 
 def fichero_recipes_start_project(
     *,
+    accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "folder_id": folder_id, "redo": redo}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -9677,6 +9688,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
+    GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),

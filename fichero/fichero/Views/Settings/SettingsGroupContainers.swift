@@ -66,7 +66,7 @@ struct SharingSettingsView: View {
 
     /// The Sharing tab (`.connect`) and a tapped invite link both open on Devices, where the Connect sheet is hosted
     /// (`ShareSettingsView`); People is the start only for Accounts (`.users`).
-    static func startsOnDevices(tab: SettingsTab, pendingInvite: String?) -> Bool {
+    nonisolated static func startsOnDevices(tab: SettingsTab, pendingInvite: String?) -> Bool {
         tab == .connect || ConnectSheetModel.opensFor(pendingInvite: pendingInvite)
     }
 

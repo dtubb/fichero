@@ -403,3 +403,30 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(ProjectRunStrip(store: store)?.title, "Transcribe (Kraken) · stage 1 of 3")
     }
 }
+
+/// `activity.run.strip-tells-the-truth` (day goal 3): a run that has ended or stalled is not shown as running because its tree
+/// read failed. Pure, over the state words. Not run on the Pro; the builder/M4 runs it.
+final class ProjectRunStripStateTests: XCTestCase {
+    func testAnEndedNodeStandsWhateverTheListSays() {
+        for ended in ["done", "failed", "cancelled"] {
+            XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: ended, jobState: .running), ended)
+        }
+    }
+
+    func testAnEndInTheListWinsOverATreeThatHasNotCaughtUp() {
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .completed), "done")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .failed), "failed")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .failed), "failed")
+    }
+
+    func testAStallInTheListShowsAsStalled() {
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .stalled), "stalled")
+    }
+
+    func testOtherwiseTheNodeThenTheListDecide() {
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "paused", jobState: .running), "paused")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .running), "running")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .waiting), "waiting")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: nil), "waiting")
+    }
+}

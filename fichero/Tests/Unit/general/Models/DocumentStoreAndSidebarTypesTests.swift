@@ -590,22 +590,28 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(shareSource.contains("activePairedDevices(from: pairedDevices)"))
         XCTAssertTrue(remoteAccessSource.contains("ProgressView(\"Preparing QR code…\")"))
         XCTAssertTrue(remoteAccessSource.contains(".accessibilityLabel(\"Pairing QR code\")"))
-        XCTAssertTrue(remoteAccessSource.contains("Expires \\(pairingCode.expiresAt.formatted"))
+        XCTAssertTrue(remoteAccessSource.contains("Expires \\($0.formatted(date: .omitted, time: .shortened))"))
+        XCTAssertTrue(remoteAccessSource.contains("Never expires"))
         XCTAssertFalse(remoteAccessSource.contains("Show Pairing QR"))
         XCTAssertFalse(remoteAccessSource.contains("Generate Pairing QR"))
         XCTAssertFalse(remoteAccessSource.contains(".sheet(isPresented:"))
         XCTAssertFalse(remoteAccessSource.contains("QRCodeScannerSheet"))
     }
 
-    func testBackendSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {
-        let settingsSource = try Self.appSource("Views/Settings/Engine/BackendSettingsView.swift")
+    func testServerSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {
+        // Settings › Server replaced BackendSettingsView (#5928): the URL field commits on Return through EngineHostSwitch, the
+        // draft's wording lives in ServerSettingsModel, and the switch repoints the generated clients.
+        let settingsSource = try Self.appSource("Views/Settings/Engine/EngineSettingsView.swift")
+        let modelSource = try Self.appSource("Views/Settings/Engine/ServerSettingsModel.swift")
+        let switchSource = try Self.appSource("Services/EngineHostSwitch.swift")
         let libraryManagerSource = try Self.appSource("Models/LibraryManager.swift")
         let storageSource = try Self.appSource("Services/StorageService.swift")
 
-        XCTAssertTrue(settingsSource.contains("Text(\"Invalid URL\")"))
-        XCTAssertTrue(settingsSource.contains(".disabled(hostIsInvalid)"))
-        XCTAssertTrue(settingsSource.contains("appState.reconfigureGeneratedClientsForCurrentHost()"))
-        XCTAssertTrue(settingsSource.contains("libraryManager.reconfigureGeneratedClientsForCurrentHost()"))
+        XCTAssertTrue(settingsSource.contains("EngineHostSwitch.standard("))
+        XCTAssertTrue(modelSource.contains("Address must start with https://"))
+        XCTAssertTrue(modelSource.contains("guard problem == nil, !isApplying else { return }"))  // invalid is never applied
+        XCTAssertTrue(switchSource.contains("appState.reconfigureGeneratedClientsForCurrentHost()"))
+        XCTAssertTrue(switchSource.contains("libraryManager.reconfigureGeneratedClientsForCurrentHost()"))
         XCTAssertTrue(libraryManagerSource.contains("storageService.clearAll()"))
         XCTAssertTrue(storageSource.contains("func clearAll()"))
     }

@@ -2187,6 +2187,10 @@ def _make_parallel_node_function(
                     await asyncio.sleep(page_retry.RETRY_AFTER_SECONDS)
                     continue
                 if caught is not None:
+                    from fichero_server.llm.spend import RefusedForTheRun  # noqa: PLC0415
+
+                    if isinstance(caught, RefusedForTheRun) and not refused_for_all:
+                        refused_for_all.append(str(caught))  # the cap or an unpriced model holds for every page: said once
                     raise caught
                 break
 
@@ -2334,6 +2338,7 @@ def _make_parallel_node_function(
                             "total": total,  # Include total for SSE
                             "error": error_msg,
                             "success": False,
+                            "refused_for_all": bool(refused_for_all) and error_msg == refused_for_all[0],
                         }
                     ]
                 },

@@ -33,6 +33,12 @@ extension ShareLibrarySheet {
             }
             .disabled(isSharing || !canShare)
 
+            if didFolderShare, let folder {
+                Text("\(sharedPersonName) can now open “\(folder.name)”.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let shareError {
                 Text(shareError)
                     .font(.caption)
@@ -41,10 +47,16 @@ extension ShareLibrarySheet {
         } header: {
             Text("Share With")
         } footer: {
-            Text("The person gets the chosen role for this project. Editors change content; "
-                + "viewers are read-only. To make someone an Owner (full admin), use "
-                + "Settings → People.")
-                .foregroundStyle(.secondary)
+            if let folder {
+                Text("The person gets the chosen role on “\(folder.name)” and what is inside it, and nothing else in this "
+                    + "project. Editors change content; viewers are read-only.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("The person gets the chosen role for this project. Editors change content; "
+                    + "viewers are read-only. To make someone an Owner (full admin), use "
+                    + "Settings → People.")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
