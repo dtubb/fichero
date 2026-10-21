@@ -9,9 +9,9 @@ struct StepChoiceMenuTests {
 
     private func candidate(_ card: String, picked: Bool = false, recommended: Bool = false, local: Bool = true,
                            available: Bool = true, needs: [StepChoiceMenu.Need] = [], cost: Double? = nil,
-                           runsOn: String? = nil) -> Candidate {
+                           runsOn: String? = nil, words: String? = nil) -> Candidate {
         Candidate(card: card, name: card.capitalized, runsOn: runsOn ?? (local ? "this Mac" : "the cloud"), isLocal: local,
-                  isPicked: picked, isRecommended: recommended, isAvailable: available, needs: needs, costUsd: cost)
+                  isPicked: picked, isRecommended: recommended, isAvailable: available, needs: needs, costUsd: cost, costWords: words)
     }
 
     private func menu(by: StepChoiceMenu.ChosenBy = .setup, _ candidates: [Candidate]) -> StepChoiceMenu {
@@ -45,14 +45,16 @@ struct StepChoiceMenuTests {
         #expect(model.canUse(model.candidates[0]), "a choice that needs a key is kept, and the need is said")
     }
 
-    @Test("the cost before Start: free on this Mac, a price when known, else not known yet")
+    @Test("the cost before Start is the engine's own words, never rebuilt from where it runs")
     func cost() {
         let model = menu([])
-        #expect(model.costText(of: candidate("kraken")) == "Free, on this Mac")
-        #expect(model.costText(of: candidate("claude", local: false, cost: 0.4)) == "About $0.40")
+        // the engine sends runs_on "this-mac" and cost {0.0, "free on this Mac"}
+        #expect(model.costText(of: candidate("kraken", cost: 0, runsOn: "this-mac", words: "free on this Mac")) == "Free on this Mac")
+        #expect(model.costText(of: candidate("claude", local: false, cost: 0.4, words: "the price list")) == "the price list: About $0.40")
+        #expect(model.costText(of: candidate("haiku", local: false, cost: 0.4)) == "About $0.40")
         #expect(model.costText(of: candidate("gemini", local: false)) == "Cost not known yet")
-        // a cluster is local to the person and not on this Mac: it is not called free, nor said to run here
-        #expect(model.costText(of: candidate("cluster", local: true, runsOn: "Maya's cluster")) == "Cost not known yet")
+        // no words and no price: not called free
+        #expect(model.costText(of: candidate("cluster", runsOn: "Maya's cluster")) == "Cost not known yet")
     }
 
     @Test("the one in use has no Use button")
