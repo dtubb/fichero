@@ -59,6 +59,10 @@ struct ActivityMonitorWindow: View {
                         appeared: { await rowAppeared($0) },
                         perform: { button, row in perform(button, on: row) },
                         open: { openedID = $0.id },
+                        stageSegments: { row in
+                            guard let id = row.jobId, let store = modeStore else { return [] }
+                            return ActivityStageBar.segments(of: ActivityDetails.stageCards(of: store.runTrees[id]))
+                        },
                         stopTarget: { runMenuTarget(for: $0) },
                         clearFailed: { Task { await clearFailed() } },
                         clearFinished: { confirmingClearFinished = true },

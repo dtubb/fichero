@@ -64,6 +64,8 @@ extension ActivityDetails {
         let offersSetUp: Bool
         /// Its pages that failed, with Read Again.
         let failed: Summary.Failed?
+        /// How many of its pages failed (the stage bar draws a red tick for each).
+        let pagesFailed: Int
 
         var stateWords: String {
             switch state {
@@ -107,7 +109,8 @@ extension ActivityDetails {
                     let noun = failure.pagesFailed == 1 ? "page" : "pages"
                     return Summary.Failed(id: failure.threadId, text: "\(failure.pagesFailed) \(noun) failed",
                                           offer: failure.offer, threadId: failure.threadId)
-                }
+                },
+                pagesFailed: failedStage?.pagesFailed ?? 0
             )
         }
     }

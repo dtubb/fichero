@@ -13,6 +13,8 @@ struct ActivityGroupsView: View {
     let appeared: (ActivityMonitorRow) async -> Void
     let perform: (ActivityMonitorRow.OneButton, ActivityMonitorRow) -> Void
     let open: (ActivityMonitorRow) -> Void
+    /// A recipe run's stage bar; empty for any other row.
+    var stageSegments: (ActivityMonitorRow) -> [ActivityStageBar.Segment] = { _ in [] }
     let stopTarget: (ActivityMonitorRow) -> ActivityRunMenuTarget
     /// Clear Failed and Clear Finished, from the DONE TODAY heading (`activity.window.done-today`).
     let clearFailed: () -> Void
@@ -84,7 +86,10 @@ struct ActivityGroupsView: View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title(row)).lineLimit(1)
-                if row.total > 0, row.phase == .running || row.phase == .paused {
+                let segments = stageSegments(row)
+                if !segments.isEmpty {
+                    ActivityStageBar(segments: segments)
+                } else if row.total > 0, row.phase == .running || row.phase == .paused {
                     ProgressView(value: Double(row.done), total: Double(row.total))
                 }
                 Text(subtitle(row)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
