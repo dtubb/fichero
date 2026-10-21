@@ -1423,8 +1423,7 @@ dev = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "openai" },
-    { name = "openapi-python-client", version = "0.28.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "openapi-python-client", version = "0.29.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "openapi-python-client", marker = "python_full_version >= '3.11'" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pathvalidate" },
@@ -1487,7 +1486,7 @@ requires-dist = [
     { name = "networkx", marker = "extra == 'dev'" },
     { name = "numpy", marker = "extra == 'dev'" },
     { name = "openai", marker = "extra == 'dev'" },
-    { name = "openapi-python-client", marker = "extra == 'dev'" },
+    { name = "openapi-python-client", marker = "python_full_version >= '3.11' and extra == 'dev'", specifier = ">=0.29.1" },
     { name = "opencv-python-headless" },
     { name = "opencv-python-headless", marker = "extra == 'image'" },
     { name = "pandas", marker = "extra == 'dev'" },
@@ -3775,46 +3774,8 @@ wheels = [
 
 [[package]]
 name = "openapi-python-client"
-version = "0.28.4"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version < '3.11'",
-]
-dependencies = [
-    { name = "attrs" },
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "httpx" },
-    { name = "jinja2" },
-    { name = "pydantic" },
-    { name = "python-dateutil" },
-    { name = "ruamel-yaml" },
-    { name = "ruff" },
-    { name = "shellingham" },
-    { name = "typer", version = "0.25.1", source = { registry = "https://pypi.org/simple" } },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/cf/c9278f87a8454cef126fb2594bc32472d681957ea03b8de68d304107a459/openapi_python_client-0.28.4.tar.gz", hash = "sha256:f78dfab5e21652806b17af07c16187b5911138fc526229126953c1b7b37d2b88", size = 125974, upload-time = "2026-05-11T19:44:08.427Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/59/016bf13a3bfb85a0d890d492cc9fc65ccefa53ecc5eba3c9a049e5ea6317/openapi_python_client-0.28.4-py3-none-any.whl", hash = "sha256:6bb87dbb05f88e5ab5ba4e5902f0c85ea53e666d3646be49ea2bb19bc8b5bb85", size = 183212, upload-time = "2026-05-11T19:44:07.005Z" },
-]
-
-[[package]]
-name = "openapi-python-client"
 version = "0.29.1"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform == 'win32'",
-    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-]
 dependencies = [
     { name = "attrs" },
     { name = "colorama", marker = "sys_platform == 'win32'" },
