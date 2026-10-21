@@ -237,7 +237,7 @@ final class RecipeRunVisibleTests: XCTestCase {
         await store.loadDetails(jobId: jobId)
         XCTAssertNil(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
         let failure = try XCTUnwrap(store.detailsReadFailure(forJobId: jobId))
-        XCTAssertTrue(failure.hasPrefix("Couldn't read this row: "), failure)
+        XCTAssertEqual(failure, "Couldn't read this row: The project is busy", "the engine's own words, not the client's")
         XCTAssertNotNil(store.detailsReadFailure(forJobId: jobId + ":step"), "a step's details say why its run's read failed")
 
         MockTransportURLProtocol.reset([Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: tree)])

@@ -175,6 +175,17 @@ extension ActivityStore {
         }
     }
 
+    /// `failureCause(of:)`, but a refusal with a body says what the engine wrote in it (`{"detail": "The project is busy"}`),
+    /// never the client's generic "Server error".
+    static func engineCause(of error: Error) async -> String {
+        if let clientError = error as? ClientError, let body = clientError.responseBody,
+           let data = try? await Data(collecting: body, upTo: 1 << 16),
+           let words = EngineErrorDetail.message(from: data) {
+            return words
+        }
+        return failureCause(of: error)
+    }
+
     private func liveRun(
         from execution: WorkflowExecution,
         library: LibraryManager.LibraryReference
