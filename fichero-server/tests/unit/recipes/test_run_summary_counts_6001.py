@@ -135,3 +135,16 @@ def test_a_summary_that_raises_leaves_the_tree_whole_with_a_reason(db, monkeypat
     asyncio.run(activity._recipe_run(db, found))
     assert found["summary"] is None and "tried again" in found["summary_unavailable"]
     assert found["state"] == "done" and found["stages"] == []  # the rest of the tree is there
+
+
+def test_a_line_vision_gave_up_on_is_counted_on_its_own_in_the_set_based_counts(db):
+    """Folded in from #5901: `lines_vision_could_not_read` comes from the same two reads, apart from the lines found blank."""
+    from fichero_server.llm.working_lines import VISION_NOTHING_TWICE, mark_unread_reasons
+
+    page = _page(db, 4, 2)
+    lines = [s.id for s in db.query(Segment, document_id=page) if s.kind == "line"][2:]
+    mark_no_writing(db, lines, model="apple-vision")
+    mark_unread_reasons(db, {lines[0]: VISION_NOTHING_TWICE})
+    got = run_view.reading_counts(db, [page], blank=set())
+    assert got.lines_vision_could_not_read == run_view.lines_vision_could_not_read(db, [page]) == 1
+    assert got.lines_seen_blank == run_view.lines_seen_blank(db, [page]) == 1

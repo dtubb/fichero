@@ -236,7 +236,8 @@ class PageLines:
 
     found: int = 0
     unread: int = 0  # found lines with no reading that were not looked at
-    blank: int = 0  # looked at, no writing
+    blank: int = 0  # looked at, no writing (not counting `vision`)
+    vision: int = 0  # Apple Vision returned nothing for the line twice: final, with its own reason (`source.read.vision-empty-line-says-so`)
     why: dict[str, int] = field(default_factory=dict)  # each unread line's reason, counted
 
 
@@ -244,7 +245,7 @@ def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
     """`lines_state` and `unread_reasons` for all these pages from TWO reads of the database (their lines, then the readings of the
     pages that have lines), not two per page: a run of 200 pages took the connection's transaction gate 2000 times a poll
     (`activity.summary.counts-in-two-queries`, #6001). Same numbers as the per-page helpers."""
-    from fichero_server.llm.working_lines import NO_WRITING_MARK
+    from fichero_server.llm.working_lines import NO_WRITING_MARK, VISION_NOTHING_TWICE
     from fichero_server.models import ContentRepresentation
     from fichero_server.models.segments import Segment
 
@@ -264,13 +265,23 @@ def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
             if x.id in done:
                 continue
             if isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict):
-                info.blank += 1
+                if (x.metadata or {}).get("unread_reason") == VISION_NOTHING_TWICE:
+                    info.vision += 1  # only while the line has no reading: an explicit read-again that reads it wins
+                else:
+                    info.blank += 1
                 continue
             info.unread += 1
             why = (x.metadata or {}).get("unread_reason") or NOT_ANSWERED
             info.why[why] = info.why.get(why, 0) + 1
         out[page] = info
     return out
+
+
+def vision_gave_up(db: Any, doc_id: str) -> int:
+    """The page's lines Apple Vision returned nothing for twice (`source.read.vision-empty-line-says-so`): final, counted
+    read (looked at) but kept apart from the lines a reader found no writing on, as they carry a reason of their own. One
+    page of `lines_by_page`; the run summary takes all its pages in the same two reads."""
+    return lines_by_page(db, [doc_id])[doc_id].vision
 
 
 def unread_on(db: Any, doc_id: str) -> int:
