@@ -920,9 +920,12 @@ def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dic
     return jobs_in_order, sorted(taken_out, key=lambda t: STEP_ORDER.index(t["job"]))
 
 
-def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
+def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = (),
+             readers: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
     """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. `offered`: cards a
-    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). A job Start
+    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). `readers`: the
+    person's cloud vision readers (their provider rows), counted ONLY by the cloud question, so a project whose steps are
+    Find Lines and Read is asked once a cloud reader could read (`source.onboard.cloud-question-counts-readers`). A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
     (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
@@ -1035,8 +1038,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
     # Where a cloud model would also fit if pages could leave this Mac: setup asks the egress
     # question only when this is not empty (`source.onboard.cloud-asked-once`).
     with_cloud = Answers(**{**a.__dict__, "cloud_allowed": True})
+    asked_about = [*cards, *readers]
     cloud_options = sorted({
-        job for job in jobs_in_order for c in cards
+        job for job in jobs_in_order for c in asked_about
         if job in c.jobs and c.runs_on.startswith("cloud") and _hard_constraints(job, c, with_cloud) is None
     })
     named = "+".join(a.purposes) or "not-sure"
@@ -1055,7 +1059,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         "left_off": left_off,
         "gaps": notes,
         "cloud_options": cloud_options,
-        "cloud_offer": cloud_offer(cloud_options, cards, with_cloud),
+        "cloud_offer": cloud_offer(cloud_options, asked_about, with_cloud),
         # What Ready says when there is nothing to read (#5553).
         **({"already_text": "The material is already text: nothing to read"
                             + (f"; the plan starts at {_topic(jobs_in_order[0]).get('title', jobs_in_order[0])}."

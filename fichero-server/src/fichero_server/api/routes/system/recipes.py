@@ -1028,7 +1028,7 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
         band = read_noise_band(library)
         if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
             a = replace(a, noise_band=band["value"])
-    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
+    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys), readers=_readers_with_a_row())
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
     if kept:
@@ -1070,6 +1070,14 @@ def _providers_with_keys() -> list[str]:
     from fichero_server.recipes.derived import _providers_with_keys as keyed
 
     return keyed()
+
+
+def _readers_with_a_row() -> list[Any]:
+    """The person's cloud vision readers whose provider has a row in Settings › AI: what the cloud question counts besides the
+    text models. The Claude card that only says to add the key first is not one (nothing could be sent to it)."""
+    from fichero_server.recipes.discovery import remote_reader_cards
+
+    return [c for c in remote_reader_cards() if not str(c.id).endswith("@settings")]
 
 
 def _cloud_correctors(keys: tuple[str, ...] | list[str]) -> list[Any]:
