@@ -10,13 +10,14 @@ extension StepChoiceMenu {
                 Candidate(
                     card: candidate.card, name: candidate.name, runsOn: candidate.runsOn, isLocal: candidate.local,
                     isPicked: candidate.picked, isRecommended: candidate.recommended, isAvailable: candidate.available,
-                    needs: (candidate.needs ?? []).map { Need(kind: Need.Kind(rawValue: $0.kind.rawValue) ?? .price, words: $0.words) },
+                    needs: (candidate.needs ?? []).map { Need(kind: Need.Kind(rawValue: $0.kind.rawValue) ?? .other, words: $0.words) },
                     costUsd: candidate.costUsd?.value, costWords: candidate.costUsd?.from)
             })
     }
 }
 
 extension StepChoiceMenu.Need.Kind {
+    /// nil for a kind this app does not know.
     init?(rawValue: String) {
         switch rawValue {
         case "permission": self = .permission

@@ -11,7 +11,7 @@ struct StepChoiceMenu: Equatable, Identifiable {
     enum ChosenBy: Equatable { case setup, person }
 
     struct Need: Equatable {
-        enum Kind: Equatable { case permission, key, download, price }
+        enum Kind: Equatable { case permission, key, download, price, other }  // other: a kind this app does not know; its words still show
         let kind: Kind
         let words: String
     }
