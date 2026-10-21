@@ -120,11 +120,19 @@ def test_the_repair_never_touches_a_text_a_person_saved(db):
     assert result["left_edited"] == [page.id] and db.get(Document, page.id).page_content == CLASSIFICATION
 
 
-def test_a_page_with_nothing_to_restore_is_left_as_it_is_and_reported_never_blanked(db):
+def test_a_page_with_nothing_to_restore_keeps_its_text_and_gets_the_flag(db):
+    from fichero_server.llm.read_guard import READ_FLAG_KEY, read_flag_of
+
     page = _overwritten(db, transcript=False)
+    counted = page_text_repair.repair_classification_page_text(db, dry_run=True)
+    assert counted["flagged"] == [page.id] and read_flag_of(db.get(Document, page.id)) is None  # counting marks nothing
     result = page_text_repair.repair_on_open(db)
-    assert result["unrecoverable"] == [page.id] and result["restored"] == []
-    assert db.get(Document, page.id).page_content == CLASSIFICATION  # left as it is
+    assert result["flagged"] == [page.id] and result["restored"] == []
+    kept = db.get(Document, page.id)
+    assert kept.page_content == CLASSIFICATION, "the page was blanked or changed"
+    assert read_flag_of(kept)["kind"] == page_text_repair.NEEDS_REREADING and READ_FLAG_KEY in kept.metadata
+    again = page_text_repair.repair_on_open(db)
+    assert again["newly_flagged"] == [] and db.get(Document, page.id).page_content == CLASSIFICATION  # idempotent
 
 
 def test_a_real_text_that_mentions_script_type_is_not_a_classification():

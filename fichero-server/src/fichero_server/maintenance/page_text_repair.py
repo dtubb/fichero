@@ -3,8 +3,9 @@
 Until this fix, `vision_base._propagate_to_page_children` wrote every tool's per-page answer onto the page child's
 `page_content`, so Classify Script over a PDF left each page's text as its `{script_type, confidence, notes}` JSON.
 Run by the open library's engine, once per open, after an update: a page whose text IS such JSON gets its transcription
-back (the newest transcription artifact on the page, else the PDF's own text layer). A page with neither is LEFT as it is and
-reported (`unrecoverable`): a page is never blanked.
+back (the newest transcription artifact on the page, else the PDF's own text layer). A page with neither keeps its current text
+and is FLAGGED (`read_flag`, kind `needs-re-reading`, the mark a flagged read already carries) so a person can re-read it: a page
+is never blanked.
 A text a person saved is never touched. Idempotent: a repaired page no longer matches. It counts first (`dry_run`), and
 what it did is one audited action in the app database (never a standalone script on a library).
 """
@@ -18,6 +19,9 @@ from fichero_server.core.timeutil import utc_now
 
 logger = logging.getLogger(__name__)
 
+from fichero_server.llm.read_guard import READ_FLAG_KEY  # noqa: E402
+
+NEEDS_REREADING = "needs-re-reading"
 _KEYS = {"script_type", "confidence", "notes", "needs_human_selection"}
 _TRANSCRIBING = ("transcription", "handwriting")
 
@@ -58,18 +62,19 @@ def _transcription_of(db: Any, doc: Any) -> tuple[str, str]:
                 layer = pdf[int(doc.sequence) - 1].get_text() or ""
             if layer.strip():
                 return layer, "the PDF's own text layer"
-        except Exception:  # noqa: BLE001 -- a missing or unreadable file: the page has nothing to restore from and is reported
+        except Exception:  # noqa: BLE001 -- a missing or unreadable file: the page has nothing to restore from and is flagged
             logger.info("page text repair: no text layer for %s", doc.id, exc_info=True)
     return "", ""
 
 
 def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[str, Any]:
-    """Restore the pages whose text is a classifier's JSON. Returns the counts and ids (`restored`, `unrecoverable`, `left_edited`)."""
+    """Restore the pages whose text is a classifier's JSON. Returns the counts and ids (`restored`, `flagged`, `left_edited`); `flagged` pages are marked unless `dry_run`."""
     from fichero_server.models import Document
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
     restored: list[str] = []
-    unrecoverable: list[str] = []
+    flagged: list[str] = []
+    newly_flagged: list[str] = []
     left_edited: list[str] = []
     rows = db.execute_fetchall(
         "SELECT id FROM documents WHERE page_content LIKE '%script_type%' AND deleted_at IS NULL")
@@ -81,8 +86,16 @@ def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[s
             left_edited.append(doc_id)
             continue
         text, _where = _transcription_of(db, doc)
-        if not text:  # nothing to restore from: the page stays as it is, and the report says so
-            unrecoverable.append(doc_id)
+        if not text:  # nothing to restore from: the page keeps its text and carries a needs-re-reading flag
+            flagged.append(doc_id)
+            if READ_FLAG_KEY not in (doc.metadata if isinstance(doc.metadata, dict) else {}):
+                newly_flagged.append(doc_id)
+                if not dry_run:
+                    doc.metadata = {**(doc.metadata or {}), READ_FLAG_KEY: {
+                        "kind": NEEDS_REREADING, "measure": {},
+                        "reason": "a classifier's answer had replaced this page's text and no transcription or text layer is left "
+                                  "to restore it from: read the page again"}}
+                    db.save(doc)
             continue
         restored.append(doc_id)
         if dry_run:
@@ -93,30 +106,27 @@ def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[s
             db.embed(doc)
         except Exception:  # noqa: BLE001 -- the text is back; search catches up at the next embed
             logger.warning("page text repair: could not re-embed %s", doc_id, exc_info=True)
-    return {"restored": restored, "unrecoverable": unrecoverable, "left_edited": left_edited, "dry_run": dry_run}
+    return {"restored": restored, "flagged": flagged, "newly_flagged": newly_flagged, "left_edited": left_edited, "dry_run": dry_run}
 
 
 def repair_on_open(db: Any) -> dict[str, Any]:
     """Count first; when any page needs it, repair, say so in the log, and audit it (one action, ids capped)."""
     counted = repair_classification_page_text(db, dry_run=True)
-    if counted["unrecoverable"]:  # said at every open until a person deals with them; nothing is changed or audited for them
-        logger.info("Page text repair: %d page(s) hold a classifier's JSON as their text and have no transcription or text layer "
-                    "to restore from; left as they are: %s", len(counted["unrecoverable"]), counted["unrecoverable"][:20])
-    if not counted["restored"]:
+    if not (counted["restored"] or counted["newly_flagged"]):
         return counted
     done = repair_classification_page_text(db)
     logger.warning(
         "Page text repair (classifier JSON had replaced page text): restored %d from a transcription or the PDF's text layer, "
-        "left %d as they are (nothing to restore from), left %d a person saved",
-        len(done["restored"]), len(done["unrecoverable"]), len(done["left_edited"]))
+        "flagged %d for re-reading (nothing to restore from; their text is kept): %s, left %d a person saved",
+        len(done["restored"]), len(done["flagged"]), done["flagged"][:20], len(done["left_edited"]))
     try:
         from fichero_server.db.app import get_app_db
         from fichero_server.models import ActionAudit
 
         get_app_db().save_action_audit(ActionAudit(
             action_name="repair.classification-page-text", actor="engine",
-            target_ids=(done["restored"] + done["unrecoverable"])[:200],
-            params={"restored": len(done["restored"]), "unrecoverable": len(done["unrecoverable"]),
+            target_ids=(done["restored"] + done["flagged"])[:200],
+            params={"restored": len(done["restored"]), "flagged": len(done["flagged"]),
                     "left_edited": len(done["left_edited"])},
             created_at=utc_now()))
     except Exception:  # noqa: BLE001 -- the repair stands; the audit failure is logged
