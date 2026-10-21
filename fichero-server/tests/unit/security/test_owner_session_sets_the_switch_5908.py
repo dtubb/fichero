@@ -82,3 +82,16 @@ def test_an_owner_setting_another_owners_password_ends_all_of_that_persons_sessi
     assert client.patch(f"/api/users/{bo.id}", json={"password": "set for them"}, headers=mine.headers).status_code == 200
     assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=theirs.headers).status_code == 401, "their session ended"
     assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=mine.headers).status_code != 401, "the admin's own stays"
+
+
+def test_an_app_owner_with_no_role_in_the_library_turns_the_switch_off_again(test_package, app_db, monkeypatch):
+    """## 803: the switch is app-wide, so on -> off asks for the app owner too, not a write role in the library it was pressed in."""
+    from fichero_server.actions import ActionContext, registry
+    from fichero_server.db import db_manager
+
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    app_db.create_user(username="owner", display_name="Owner", password_hash=accounts.hash_password("x" * 8), is_owner=True)
+    app_db.set_setting("multiuser.enabled", "true")
+    ctx = ActionContext(actor="owner", library_path=str(test_package))
+    registry.invoke(db_manager.get_database(test_package), "sharing.set_multiuser", {"enabled": False}, ctx)
+    assert app_db.get_setting("multiuser.enabled") == "false"

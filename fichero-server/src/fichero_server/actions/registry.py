@@ -286,7 +286,8 @@ class ActionRegistry:
             else:
                 authz.require_owner(ctx.actor, ctx.library_path)  # raises AuthorizationError: nothing has run yet
         target_ids = authz.target_ids_from_params(params)
-        if not ctx.is_bootstrap:
+        app_wide = reg.owner_only and reg.owner_scope == "app"  # checked above: it names no library to write
+        if not ctx.is_bootstrap and not app_wide:
             if not target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path)
             for target_id in target_ids:
