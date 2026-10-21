@@ -9,6 +9,7 @@ import time
 import pytest
 
 from fichero_server import llm
+from fichero_server.llm import usage
 from fichero_server.execution import jobs
 
 KRAKEN = "kraken-page-hb"
@@ -22,6 +23,8 @@ def test_a_hosted_call_starts_while_a_local_page_runs(db, test_package, monkeypa
         release.wait(30)
 
     monkeypatch.setitem(jobs.KINDS, KRAKEN, jobs.Kind(run=work, model="kraken:blla", lane="local-ml", name="Read a page"))
+    monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": (
+        {"input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5} if model == "gpt-x" else None))  # a listed price: the cap stays
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")
     try:
         jobs.enqueue(db, KRAKEN, "k", started_by="owner")
