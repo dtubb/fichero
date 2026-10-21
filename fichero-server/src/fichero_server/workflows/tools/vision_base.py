@@ -2089,7 +2089,7 @@ class _AppleVisionGate:
     `apple_vision_reads_at_once()` in flight, asked again while a page waits, so a page that would be
     the second waits while memory is short. A page abandoned before its turn never starts.
 
-    A call that times out while inside the recogniser cannot be stopped, but it no longer holds a slot: `timed_out` frees it at
+    A call that times out while inside the recogniser cannot be stopped, but it no longer holds a slot: `give_up` frees it at
     once and counts the call in `stuck` until it returns (if it ever does). While `stuck` is at the ceiling a new call is refused
     at once with `AppleVisionStuck`."""
 
@@ -2128,15 +2128,17 @@ class _AppleVisionGate:
                 self.in_flight -= 1
             self._cond.notify_all()
 
-    def timed_out(self, call: _AppleVisionCall) -> None:
-        """The caller gave up. A call inside the recogniser frees its slot and is counted as stuck; one that never started, or
-        already came back, holds nothing."""
+    def give_up(self, call: _AppleVisionCall) -> None:
+        """The caller no longer waits for this call: it timed out, was cancelled (a run's Stop) or came back. The call is marked
+        abandoned UNDER THE LOCK, so a slot cannot be handed to it in between. One inside the recogniser frees its slot and is
+        counted as stuck; one that never started, or already came back, holds nothing (a no-op)."""
         with self._cond:
+            call.abandoned.set()
             if call.running and not call.returned and not call.counted:
                 call.counted = True
                 self.in_flight -= 1
                 self.stuck += 1
-                self._cond.notify_all()  # a page waiting for a slot may take it now
+            self._cond.notify_all()  # a page waiting for a slot may take it now
 
 
 _APPLE_VISION_GATE = _AppleVisionGate()
@@ -2187,10 +2189,9 @@ async def _apple_vision_call(fn, *args):
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=deadline)
     except asyncio.TimeoutError as exc:
-        _APPLE_VISION_GATE.timed_out(call)
         raise _apple_vision_timeout(deadline) from exc
     finally:
-        call.abandoned.set()  # cancelled (the run's Stop) or timed out before its turn: it never starts
+        _APPLE_VISION_GATE.give_up(call)  # timed out, cancelled (the run's Stop) or done: a call not started never starts
 
 
 def _apple_vision_call_sync(fn, *args):
@@ -2201,10 +2202,9 @@ def _apple_vision_call_sync(fn, *args):
     try:
         return future.result(timeout=deadline)
     except concurrent.futures.TimeoutError as exc:
-        _APPLE_VISION_GATE.timed_out(call)
         raise _apple_vision_timeout(deadline) from exc
     finally:
-        call.abandoned.set()
+        _APPLE_VISION_GATE.give_up(call)
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
