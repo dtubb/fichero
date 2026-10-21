@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.security import real_data_guard as guard
+from _scan_files import scan_rglob
 
 REPO = Path(__file__).resolve().parents[4]
 
@@ -100,7 +101,7 @@ STARTS_AN_ENGINE = re.compile(r"uvicorn|[\"' ]-m[\"',]* *[\"']?fichero_server|st
 def _launchers() -> list[str]:
     found = []
     for folder in ("scripts", "fichero-server/scripts", "fichero-server/bin"):
-        for path in sorted((REPO / folder).rglob("*")):
+        for path in sorted(scan_rglob(REPO / folder, "*")):
             if path.is_file() and path.suffix in {".sh", ".py"} and "__pycache__" not in path.parts:
                 if STARTS_AN_ENGINE.search(path.read_text(encoding="utf-8", errors="ignore")):
                     found.append(str(path.relative_to(REPO)))
@@ -154,6 +155,6 @@ def test_the_switch_check_sees_every_way_to_set_it() -> None:
 
 def test_no_script_sets_the_owners_switch() -> None:
     for folder in ("scripts", "fichero-server/scripts", "fichero-server/bin"):
-        for path in (REPO / folder).rglob("*"):
+        for path in scan_rglob(REPO / folder, "*"):
             if path.is_file() and path.suffix in {".sh", ".py"} and "__pycache__" not in path.parts:
                 assert not sets_the_switch(path.read_text(encoding="utf-8", errors="ignore")), f"{path} names the switch"
