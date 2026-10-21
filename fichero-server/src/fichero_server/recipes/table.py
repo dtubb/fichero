@@ -286,7 +286,6 @@ def extract(db: Any, documents: list[str], *, prototype: str, provider: str, mod
     `{"units", "asked", "without_text", "values", "not_found", "refused", "kept", "unanchored", "failed",
     "refusals": [...], "errors": [...]}`. Raises when the prototype is unknown or asks nothing."""
     from fichero_server.checking.tie_text import line_spans
-    from fichero_server.workflows import attribute_sources as sources
 
     fields = _fields_of(db, prototype)
     if not fields:
