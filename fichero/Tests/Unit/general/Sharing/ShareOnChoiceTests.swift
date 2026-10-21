@@ -22,10 +22,12 @@ struct ShareOnChoiceTests {
     @Test func noSwiftFileStillPassesOrStoresTheThisNetworkChoice() throws {
         let root = try AppSource.root()
         let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        // the names are split so this file does not match itself (the scan covers the app's sources, not the tests)
+        let names = ["FICHERO_THIS_" + "NETWORK", "thisNetwork" + "Choice"]
         var offenders: [String] = []
         for case let url as URL in files where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
-            if text.contains("FICHERO_THIS_NETWORK") || text.contains("thisNetworkChoice") { offenders.append(url.lastPathComponent) }
+            if names.contains(where: text.contains) { offenders.append(url.lastPathComponent) }
         }
         #expect(offenders.isEmpty, "the 'This network' choice is back in: \(offenders)")
     }
