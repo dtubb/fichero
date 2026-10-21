@@ -4418,6 +4418,9 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
     if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
         return
 
+    from fichero_server.llm.local_inference import wait_for_release_to_end
+
+    await wait_for_release_to_end()  # the lane is stopping the served model: do not restart it under the release
     custom_command = bool(profile.command)
     model_id = _local_model_for_request(config, custom_command=custom_command, capability=capability)
     # One readiness check at a time on this loop (#5534): a line reader asks four lines at once, and

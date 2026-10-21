@@ -174,3 +174,24 @@ def test_on_a_32_gb_mac_both_still_stay_when_both_fit(db, lane, monkeypatch):
     jobs.enqueue(db, KRAKEN, "k1")
     assert _wait_for(lambda: "k1" in lane.ran)
     assert lane.swaps == []
+
+
+def test_on_a_16_gb_mac_kraken_does_not_load_beside_a_served_model_that_could_not_be_released(db, lane, monkeypatch):
+    """## 844 MED 2: a release that frees nothing (a call still reads from the served model) is not a switch: the job waits with its
+    reason and Kraken never loads beside the 7B."""
+    _memory(monkeypatch, free_gib=20, need_gib=2, physical_gib=16)
+    jobs.enqueue(db, VLM, "v1")
+    assert _wait_for(lambda: "v1" in lane.ran)
+    stuck = {"on": True}
+    monkeypatch.setattr(jobs, "RELEASE_RETRY_SECONDS", 0.05)
+    monkeypatch.setitem(jobs._RELEASE, "local-model", lambda reason="": (lane.swaps.append("tried"), not stuck["on"])[1])
+    jobs.enqueue(db, KRAKEN, "k1")
+    assert _wait_for(lambda: "tried" in lane.swaps)
+    time.sleep(0.4)
+    assert "k1" not in lane.ran, "Kraken loaded beside a served model that was not released"
+    assert jobs._scheduler.lanes["local-ml"].loaded_model == "omlx:big-vlm"
+    row = db.execute_fetchone("SELECT state, reason FROM jobs WHERE subject = 'k1'")  # it keeps waiting with its reason, in the lane
+    assert row[0] in ("waiting", "running") and "still using" in (row[1] or "")
+    stuck["on"] = False  # the call ended: the next try frees it and Kraken goes on
+    assert _wait_for(lambda: "k1" in lane.ran)
+    assert lane.swaps.count("tried") >= 2  # it asked again, and the second try freed it

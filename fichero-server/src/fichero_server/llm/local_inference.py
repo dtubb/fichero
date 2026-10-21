@@ -476,6 +476,35 @@ _holding_read: ContextVar[bool] = ContextVar("fichero_holding_local_read", defau
 _READ_LOOK_AGAIN_SECONDS = 0.05
 
 
+#: Releases of the served model in progress (`activity.lane.small-mac-one-heavy-model`). While one is, no new read takes a slot: a read
+#: that entered between the count reaching zero and the stop would be killed mid-call (## 844).
+_releases_pending = 0
+
+
+def begin_release() -> None:
+    global _releases_pending
+    with _reads_lock:
+        _releases_pending += 1
+
+
+def end_release() -> None:
+    global _releases_pending
+    with _reads_lock:
+        _releases_pending = max(0, _releases_pending - 1)
+
+
+def release_pending() -> bool:
+    with _reads_lock:
+        return _releases_pending > 0
+
+
+async def wait_for_release_to_end() -> None:
+    """The readiness check of a served-model call waits here while the lane releases the server, so the call does not restart
+    what the lane is stopping (it then asks again, and the memory wait decides whether the model may load)."""
+    while release_pending():
+        await asyncio.sleep(_READ_LOOK_AGAIN_SECONDS)
+
+
 def reads_in_flight() -> int:
     """How many requests hold a read slot on the served model right now, across every run's loop: a page, a line reader's batch,
     a Set Up try, a chat. The lane's release of the served model waits for them (`activity.lane.small-mac-one-heavy-model`)."""
@@ -499,7 +528,7 @@ async def local_read_slot(at_once: int):
         with _reads_lock:
             _readers.difference_update(
                 [t for t in _readers if t.done() or t.get_loop().is_closed()])
-            if len(_readers) < max(1, at_once):
+            if not _releases_pending and len(_readers) < max(1, at_once):  # not while the server is being released
                 _readers.add(me)
                 break
         await asyncio.sleep(_READ_LOOK_AGAIN_SECONDS)
