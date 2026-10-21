@@ -1689,6 +1689,7 @@ class TestRollbackOnlyInAnger:
 # ---------------------------------------------------------------------------
 
 from fichero_server.api.routes.document import segments as _segments_route_module  # noqa: E402
+from tests.route_inventory import router_routes  # noqa: E402
 
 #: (method, path exactly as declared on the router) -> list of id checks.
 #: Each check is `(field_path_description, request_builder)`, where
@@ -1834,7 +1835,7 @@ def test_router_route_list_matches_the_checked_route_list():
     ship with its provisional-id handling silently unchecked."""
     actual_routes = {
         (method, route.path)
-        for route in _segments_route_module.router.routes
+        for route in router_routes(_segments_route_module.router, 15)
         for method in route.methods
     }
     listed_routes = set(_ROUTE_ID_CHECKS.keys())

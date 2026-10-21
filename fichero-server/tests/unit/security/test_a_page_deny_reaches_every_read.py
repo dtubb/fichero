@@ -135,9 +135,9 @@ def _depends_on(route: APIRoute) -> set[str]:
 def get_routes() -> list[tuple[str, list[str], list[str], bool]]:
     """(path, path ids, query ids, checked by the library dependency) for every GET route."""
     out = []
-    from tests.route_inventory import api_routes
+    from tests.route_inventory import served_routes
 
-    for route in api_routes(api_main.app):  # every served route, not app.routes (FastAPI 0.141, #5674)
+    for route in served_routes(api_main.app):  # every served route, not app.routes (FastAPI 0.141, #5674)
         if isinstance(route, APIRoute) and "GET" in route.methods:
             path_ids = [p.name for p in route.dependant.path_params if _is_id(p.name)]
             query_ids = [p.name for p in route.dependant.query_params if _is_id(p.name)]

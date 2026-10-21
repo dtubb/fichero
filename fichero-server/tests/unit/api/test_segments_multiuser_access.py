@@ -29,6 +29,7 @@ from fastapi import HTTPException
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.document import segments as segments_route_module
+from tests.route_inventory import router_routes
 from fichero_server.models import (
     Artifact,
     ContentRepresentation,
@@ -386,7 +387,7 @@ def test_every_write_route_is_covered():
     never ship with its multi-user access silently unchecked."""
     actual_routes = {
         (method, route.path)
-        for route in segments_route_module.router.routes
+        for route in router_routes(segments_route_module.router, 15)
         for method in route.methods
     }
     covered = set(_WRITE_ROUTE_CHECKS.keys()) | set(_READ_ROUTE_CHECKS.keys()) | _READ_ONLY_ROUTES
