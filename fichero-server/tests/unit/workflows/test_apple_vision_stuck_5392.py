@@ -7,6 +7,7 @@ ceiling a new call fails fast, saying Apple Vision is stuck until the engine res
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 import time
 
@@ -21,6 +22,7 @@ DEADLINE = 0.3
 
 @pytest.fixture(autouse=True)
 def _gate(monkeypatch):
+    """Yields the event a stuck recogniser waits on."""
     monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 16 * GB)
     monkeypatch.setattr(throttle, "memory_pressure_level", lambda: 1)
     monkeypatch.setattr(vb, "_apple_vision_deadline", lambda: DEADLINE)
@@ -32,7 +34,7 @@ def _gate(monkeypatch):
         return f"read {path}"
 
     monkeypatch.setattr(vb, "apple_vision_ocr", recogniser)
-    yield
+    yield never
     never.set()
     for _ in range(80):
         if vb._APPLE_VISION_GATE.in_flight == 0:
@@ -70,3 +72,33 @@ def test_past_the_ceiling_a_call_fails_fast_saying_apple_vision_is_stuck():
     words = str(refused.value).lower()
     assert "stuck" in words and "restart" in words
     assert isinstance(refused.value, vb.AppleVisionTimeout)  # every handler that names the timeout still catches it
+
+
+def test_a_stop_that_cancels_a_stuck_page_frees_its_slot_and_counts_it(_gate):
+    """The run's Stop cancels the await (CancelledError, not a timeout): the stuck call must still stop holding its slot (review 817)."""
+    async def stop_the_second_page_of_two():
+        pages = [asyncio.ensure_future(vb.apple_vision_ocr_async(f"stuck{n}")) for n in range(vb.APPLE_VISION_CONCURRENCY)]
+        await asyncio.sleep(0.1)  # both are inside the recogniser
+        for page in pages:
+            page.cancel()
+        for page in pages:
+            with contextlib.suppress(asyncio.CancelledError):
+                await page
+        return await vb.apple_vision_ocr_async("fine")
+
+    began = time.monotonic()
+    assert asyncio.run(stop_the_second_page_of_two()) == "read fine"
+    assert time.monotonic() - began < DEADLINE, "the next read waited for slots the cancelled calls still held"
+    assert vb._APPLE_VISION_GATE.stuck == vb.APPLE_VISION_CONCURRENCY and vb._APPLE_VISION_GATE.in_flight == 0
+
+
+def test_the_stuck_count_goes_back_down_when_a_stuck_call_returns(_gate):
+    _stuck_page_fails_by_name("stuck0")
+    assert vb._APPLE_VISION_GATE.stuck == 1 and vb._APPLE_VISION_GATE.in_flight == 0
+    _gate.set()  # Apple's recogniser lets go
+    for _ in range(80):
+        if vb._APPLE_VISION_GATE.stuck == 0:
+            break
+        time.sleep(0.05)
+    assert vb._APPLE_VISION_GATE.stuck == 0 and vb._APPLE_VISION_GATE.in_flight == 0
+    assert _read("fine") == "read fine"
