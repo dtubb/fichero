@@ -78,6 +78,21 @@ def project(db, test_package, tmp_path, monkeypatch):
     return SimpleNamespace(db=db, path=package)
 
 
+def _say_who_holds_a_write() -> None:
+    """Every thread's stack, every open library, every DuckDB instance, to stderr (pytest shows it with the failure)."""
+    import faulthandler
+    import sys
+    import threading
+
+    from fichero_server.core import duckdb_session
+    from fichero_server.db.manager import db_manager
+
+    print("THREADS:", [t.name for t in threading.enumerate()], file=sys.stderr)
+    print("MANAGER DATABASES:", sorted(map(str, db_manager._databases)), file=sys.stderr)
+    print("DUCKDB INSTANCES:", {k: len(v) for k, v in duckdb_session._instances.items()}, file=sys.stderr)
+    faulthandler.dump_traceback(all_threads=True)
+
+
 def _build(db) -> tuple[list[Document], list[Artifact]]:
     docs, artifacts = [], []
     for index in range(PAGES):
@@ -247,7 +262,11 @@ class TestAHalfConvertedProjectReadsTheSame:
         halfway = _everything(client, docs, artifacts, claims)
         assert halfway == before, "a half-converted project reads differently"
 
-        rest = pc.convert_project(project.db, project.path)
+        try:
+            rest = pc.convert_project(project.db, project.path)
+        except Exception:
+            _say_who_holds_a_write()  # P0 red: CHECKPOINT refused, another connection holds a write transaction open
+            raise
         assert rest.pages_converted == 2
         after = _everything(client, docs, artifacts, claims)
         assert after == before, "a fully converted project reads differently"

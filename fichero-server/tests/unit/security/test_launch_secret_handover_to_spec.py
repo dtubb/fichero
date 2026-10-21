@@ -150,6 +150,7 @@ def test_a_pipe_on_a_descriptor_above_1024_still_delivers_the_secret():
             except OSError:
                 pass
         launch_secret.set_secret(None)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))  # leave the process limit as found
 
 
 def test_an_unreadable_dev_file_never_stops_start_up(tmp_path):
