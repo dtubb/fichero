@@ -988,10 +988,10 @@ def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
 
     from fichero_server.workflows.activity import get_activity_tracker
 
-    store = get_activity_tracker(str(copy.path)).store
     calls = tokens = 0
     cost: float | None = 0.0
     try:
+        store = get_activity_tracker(str(copy.path)).store  # inside the try: a store that cannot open is a reason, not a crash
         for thread in threads:
             run = asyncio.run(store.get_workflow_run(thread))
             usage = run.run_usage if run is not None else None
