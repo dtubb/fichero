@@ -150,5 +150,5 @@ def test_one_undo_takes_a_pick_back(db, client):
                            {"segment_id": segment.id, "kind": "transcription", "representation_id": pick,
                             "expected_counting_id": before}, _person())
     assert _counting(client, segment) == pick
-    assert client.post(f"/api/actions/audit/{done.id}/undo").status_code == 200
+    assert client.post(f"/api/actions/audit/{done.audit_id}/undo").status_code == 200
     assert _counting(client, segment) == before
