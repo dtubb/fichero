@@ -2,7 +2,7 @@
 password and set the switch; the start-up key and another person's session may not. Through the real middleware."""
 from __future__ import annotations
 
-from fichero_server.security import accounts
+from fichero_server.security import accounts, authz
 from tests.signed_in import signed_in_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
@@ -12,6 +12,8 @@ def _people(harness, monkeypatch):
     db = harness.app_db
     owner = db.create_user(username="owner", display_name="Owner", password_hash=accounts.hash_password("random-" * 5), is_owner=True)
     ann = db.create_user(username="ann", display_name="Ann", password_hash=accounts.hash_password("x"), is_owner=False)
+    # a library's owner holds its owner role (`authz` registers it); the action layer's owner check reads that role
+    db.set_library_role(user_id=owner.id, library_path=authz.normalize_library_path(harness.library), role=authz.ROLE_OWNER)
     return owner, ann
 
 
