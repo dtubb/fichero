@@ -41,7 +41,10 @@ def test_every_run_kind_is_listed_once_not_as_its_record_and_its_row(db, kind, s
     is listed as a job beside it."""
     jobs._ensure(db)
     _row(db, f"r-{kind}-{state}", kind, state)
-    assert [r for r in jobs.snapshot(db) if r["id"] == f"r-{kind}-{state}"] == []
+    _row(db, "control", "embed", "failed")  # a job that is not a run: this snapshot lists it, so an empty list proves nothing
+    listed = [r["id"] for r in jobs.snapshot(db)]
+    assert "control" in listed, listed
+    assert f"r-{kind}-{state}" not in listed
 
 
 def test_a_lane_thread_that_dies_on_an_error_wakes_the_lane_again():
