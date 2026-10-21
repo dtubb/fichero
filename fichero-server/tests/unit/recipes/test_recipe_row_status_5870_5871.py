@@ -1,7 +1,7 @@
 """A recipe run's row (#5870, #5871).
 
 `source.recipe.status-names-its-own-child`: a running step that makes no job shows its own state, never another row's.
-`source.recipe.row-progress-across-stages`: the row's pages count across every stage and reset at none."""
+`activity.run.pages-counted-once`: the row counts each page once across its stages (the least of the stages; 0 until a stage starts)."""
 from __future__ import annotations
 
 import json
