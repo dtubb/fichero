@@ -52,7 +52,7 @@ def pairing_rig(monkeypatch, tmp_path):
 def pair_command(tmp_path, text, *args):
     file = tmp_path / "link"
     file.write_text(text + "\n")
-    return CliRunner(mix_stderr=False).invoke(
+    return CliRunner().invoke(
         cli.app, ["devices", "pair", "--link-file", str(file), "--name", "this Mac", *args])
 
 
