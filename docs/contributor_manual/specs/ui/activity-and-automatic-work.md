@@ -1190,11 +1190,11 @@ and node, not by job); a retry action for failed pages.
 - `activity.details.state-says-why` — **[OK]** (#5561) the state line uses the table's State
   column words and adds the reason: a failed row its recorded cause, a waiting row the throttle's
   reason with the Mac reading it rests on, a running row what it is working on now. Built: the State column's words (`ActivityMonitorRow.stateText(phase:…)`), and a waiting row adds the Mac's reading (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
-- `activity.details.progress-counts` — **[OK]** (#5561, #5555) a row with pages shows pages
+- `activity.details.progress-counts` — **[PARTIAL]** (#5561, #5555; the recipe-row rule changed to counted-once and is unrun until the M4 runs `test_recipe_row_counts_each_page_once_5871.py`) a row with pages shows pages
   done, failed and left with the time left at the pace so far; a row with no pages shows no counts
   rather than "0 of 0". Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
   A recipe run's row counts each page once across its stages (`activity.run.pages-counted-once`, #5959): the least of the workflow stages' pages, 0 while a stage has not started; never the stages added (Fable #13 summed them, 92 of 184);
-  `fichero-server/tests/unit/recipes/test_recipe_row_progress_does_not_reset_per_stage_2026_10_20.py`.
+  `fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py`.
   A try's row has no child rows (its pages live in a scratch copy that is deleted when it ends), so it keeps the
   pages made and tried on its own detail and the tree reads them (Fable review 2026-10-19 #3, built 2026-10-20);
   `fichero-server/tests/unit/jobs/test_a_try_row_counts_its_pages_2026_10_20.py`.
