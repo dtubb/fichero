@@ -291,5 +291,8 @@
   "POST /api/auth/local-clients/register": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
   "PUT /api/auth/local-clients/switches": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
   "GET /api/auth/local-clients/requests": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
-  "GET /api/auth/local-clients/switches": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)"
+  "GET /api/auth/local-clients/switches": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
+  "GET /api/documents/{page_id}/compare-readers": "engine first, reached through the generated CLI and MCP; the app has no Compare surface yet to call it (#5900)",
+  "POST /api/recipes/project/allow-cloud": "the one-click Allow on a refused cloud call: engine first (CLI, MCP); the app's click waits on an owner question (#5368)",
+  "POST /api/recipes/cloud/accept-unpriced": "accepting a cloud model with no listed price: engine first (CLI, MCP, Start's accept_unpriced); the app's control to accept and withdraw is not built (#5987)"
 }

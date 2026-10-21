@@ -102,3 +102,38 @@ def test_an_acceptance_whose_audit_fails_is_not_kept(client, db, monkeypatch):
     with pytest.raises(RuntimeError):
         client.post(ACCEPT, json={"provider": "acme", "model": "lost"})
     assert spend.accepted_models(library) == ["acme/kept"]
+
+
+def test_a_failed_audit_puts_back_only_its_own_model_not_a_concurrent_accept(client, db, monkeypatch):
+    """## 843 LOW 1: the put-back is that one key, so an accept of another model that landed meanwhile is not undone."""
+    from fichero_server.actions import audit_chain
+
+    library = _library(db)
+
+    def audit_fails(*args, **kwargs):
+        spend.set_accepted(library, "acme", "meanwhile", True)  # another person's yes, landed during this call
+        raise RuntimeError("audit down")
+    monkeypatch.setattr(audit_chain, "save_chained_audit", audit_fails)
+    with pytest.raises(RuntimeError):
+        client.post(ACCEPT, json={"provider": "acme", "model": "lost"})
+    assert spend.accepted_models(library) == ["acme/meanwhile"]
+
+
+def test_a_redo_whose_audit_fails_keeps_no_yes_either(client, db, monkeypatch):
+    """## 843 LOW 2: an undo/redo reaches the action through `registry.invoke(..., inverse_of=...)`, so the same put-back holds."""
+    from fichero_server.actions import audit_chain
+    from fichero_server.actions.registry import registry
+
+    library = _library(db)
+    assert client.post(ACCEPT, json={"provider": "acme", "model": "first"}).status_code == 200
+    assert client.post(ACCEPT, json={"provider": "acme", "model": "first", "withdraw": True}).status_code == 200
+    assert spend.accepted_models(library) == []
+
+    def audit_fails(*args, **kwargs):
+        raise RuntimeError("audit down")
+    monkeypatch.setattr(audit_chain, "save_chained_audit", audit_fails)
+    from fichero_server.actions.registry import ActionContext
+    with pytest.raises(RuntimeError):
+        registry.invoke(db, "cloud.accept_unpriced", {"provider": "acme", "model": "first"},
+                        ActionContext(actor="owner", library_path=library, is_bootstrap=True), inverse_of="x")
+    assert spend.accepted_models(library) == []

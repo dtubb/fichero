@@ -86,12 +86,6 @@ def set_accepted(library: str | Path, provider: str, model: str, accepted: bool)
         return _write_accepted(library, kept)
 
 
-def restore_accepted(library: str | Path, keys: list[str]) -> list[str]:
-    """Put the accepted list back as it was: the audited action's caller undoes the file when the audit row did not commit."""
-    with _LOCK:
-        return _write_accepted(library, set(keys))
-
-
 def _write_accepted(library: str | Path, kept: set[str]) -> list[str]:
     path = Path(library) / ACCEPTED_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
