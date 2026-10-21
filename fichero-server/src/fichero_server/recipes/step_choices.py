@@ -7,6 +7,7 @@ is an OVERRIDE (`use_candidate` writes it, `overrides_without` takes it back): S
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from typing import Any
 
 CHOICE_JOBS = ("read-a-line", "read-a-page", "correct")
@@ -93,19 +94,20 @@ def _cost(card: Any, pages: int | None, how: str = "") -> dict[str, Any] | None:
 
 
 def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | None, may_leave: bool,
-               pages: int | None = None) -> dict[str, Any]:
+               pages: int | None = None, places_of: Callable[[Any], list[dict[str, Any]]] | None = None) -> dict[str, Any]:
     needs = _needs(card, may_leave=may_leave)
     return {"card": card.id, "name": card.note.strip().rstrip(".") or card.id, "how": _how(card, job),
             "runs_on": card.runs_on, "local": not str(card.runs_on).startswith("cloud:"),
             "picked": card.id == picked, "recommended": card.id == recommended,
-            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": _cost(card, pages, _how(card, job)),
+            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "places": places_of(card) if places_of else [], "cost_usd": _cost(card, pages, _how(card, job)),
             "measured": ("CER %.1f%% on your pages" % (card.cer_measured_here * 100)
                          if card.cer_measured_here is not None else "not yet measured on your pages")}
 
 
 def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, cards: list[Any], *, may_leave: bool,
-                 pages: int | None = None) -> list[dict[str, Any]]:
-    """One entry per choosable step of `recipe`: its candidates over `cards` (every card the finder knows, local and cloud)."""
+                 pages: int | None = None, places_of: Callable[[Any], list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
+    """One entry per choosable step of `recipe`: its candidates over `cards` (every card the finder knows, local and cloud);
+    `places_of(card)` lists every place the card can run (`where_it_runs.places_it_can_run`), none when not given."""
     from fichero_server.recipes.discovery import step_candidates
 
     out: list[dict[str, Any]] = []
@@ -123,7 +125,7 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
         # `recommended` is Set Up's pick, known only while it stands: under a person's choice the pick is not stored, so
         # nothing is marked (taking the choice back, use-setup-pick, shows it again) rather than guessing one.
         recommended = None if override else own
-        entries = [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages) for c in listed]
+        entries = [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages, places_of=places_of) for c in listed]
         chosen_by = "person" if override else "setup"
         if job == "read-a-line" and _kraken(step):
             # Kraken-then-a-cloud-correction is a way to read the lines too (`source.onboard.step-candidates-on-the-plan`): its own
@@ -131,7 +133,7 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
             on = unsure_card(recipe)
             for c in step_candidates(cards, "correct"):
                 if str(c.runs_on).startswith("cloud:"):
-                    e = _candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages)
+                    e = _candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages, places_of=places_of)
                     e.update(card=UNSURE_ID + c.id, picked=c.id == on)
                     entries.append(e)
             if on:
@@ -154,7 +156,7 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
                         "in_plan": False, "wording": UNSURE_WORDS, "certainty_bar": bar,
                         "turn_on": {"answer": "correct_with_a_second_model", "value": True,
                                     "words": "Have a second model check the reading, in Set Up"},
-                        "candidates": [_candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages)
+                        "candidates": [_candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages, places_of=places_of)
                                        for c in listed]})
     return out
 

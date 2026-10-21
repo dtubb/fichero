@@ -209,3 +209,13 @@ def test_kraken_then_a_cloud_correction_is_refused_in_words_when_kraken_is_not_t
     assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": CLAUDE}).status_code == 200
     r = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE})
     assert r.status_code == 422 and "where Kraken reads" in r.json()["detail"]
+
+
+def test_each_candidate_lists_every_place_it_can_run(client, project, claude_row):
+    """`places`: the finder's `PlaceOption`s (`where_it_runs`), a cloud model at its provider, Kraken here and at Hugging Face Jobs."""
+    candidates = _read_choice(_plan(client))["candidates"]
+    cloud = next(c for c in candidates if c["card"] == CLAUDE)
+    assert [p["place"] for p in cloud["places"]] == ["provider"] and cloud["places"][0]["name"] == "anthropic"
+    kraken = next(c for c in candidates if c["how"] == "kraken")
+    assert [p["place"] for p in kraken["places"]][:2] == ["this-mac", "hf-jobs"] and kraken["places"][0]["can"]
+    assert all(c["places"] for c in candidates), "every candidate says where it can run"
