@@ -17,7 +17,7 @@ final class IOSSidebarToLibraryUITests: XCTestCase {
         back.tap()
 
         // The sidebar's first project row; choosing it must show the content column again.
-        let projectRow = app.buttons.matching(identifier: "sidebar.project.row").firstMatch
+        let projectRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.project.")).firstMatch
         XCTAssertTrue(projectRow.waitForExistence(timeout: 10), "the sidebar shows no project row")
         projectRow.tap()
         XCTAssertTrue(app.otherElements["library.content.ready"].waitForExistence(timeout: 10),

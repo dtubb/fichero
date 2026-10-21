@@ -154,6 +154,13 @@ private struct FicheroSharedPlatformRoot: View {
         // offer Retry without re-implementing `reconnectToConfiguredHost()`
         // (#3108).
         .environment(\.engineRetry, { await reconnectToConfiguredHost() })
+        // A failing connection always offers Reconnect and Change Server, above whichever column is showing
+        // (`m2p.ios.connect-failure-offers-recovery`): the toolbar item alone is not on the sidebar column.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if IOSConnectionRecoveryPolicy.offersRecovery(phase: appState.engine.phase) {
+                IOSConnectionRecoveryBar { await reconnectToConfiguredHost() }
+            }
+        }
         .onOpenURL { url in
             // Account invite link (#3157): route to the redeem gate. The token
             // is a secret query param, so it is never logged.

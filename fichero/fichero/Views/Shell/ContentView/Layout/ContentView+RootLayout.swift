@@ -382,6 +382,13 @@ extension ContentView {
         }
     }
 
+    /// A sidebar choice at compact (iPhone) width shows the content column (`m2p.ios.sidebar-to-library`, #5964).
+    private func revealContentOnCompact() {
+        let column = Self.preferredCompactColumnAfterSidebarChoice(
+            horizontalSizeClass: horizontalSizeClass, current: preferredCompactColumn)
+        if column != preferredCompactColumn { preferredCompactColumn = column }
+    }
+
     /// `navigationSplitColumn` + the SECOND half of the modifier chain.
     /// See `navigationSplitColumn` for why the chain is split.
     @ViewBuilder
@@ -401,6 +408,11 @@ extension ContentView {
             .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
                 selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)
+                revealContentOnCompact()
+            }
+            // A project row chosen again (already selected): no selection changes, the person still means to go in.
+            .onChange(of: sidebarSelectionState.revealGeneration) { _, _ in
+                revealContentOnCompact()
             }
             .onChange(of: sidebarMode) { _, _ in
                 handleSidebarModeChange()
