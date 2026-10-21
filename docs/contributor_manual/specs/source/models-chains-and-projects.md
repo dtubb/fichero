@@ -2936,7 +2936,7 @@ Projects
   naturally), then the page's own place (`IMG_2` before `IMG_10`), not the order the files were imported; its Activity
   rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`.
   M4 PASS 2026-10-20 9707dcc83: test_pages_in_finder_order_5849.py and test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (7 passed).
-- `activity.run.systemic-error-rule` — **[OK]** (#5880; Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
+- `activity.run.systemic-error-rule` — **[OK]** (#5880; Fable review 2026-10-19 #22; built 2026-10-20; green on the Pro, single file, 2026-10-21, r1-steps-c15: `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`, 6 passed) a node that fans out over pages stops the run as a
   systemic failure, once its pages have run (there is no early abort when the first few fail, except a refusal that holds for every page, which stops the pages not yet started), when five pages in a row fail on a batch under ten
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
   folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
