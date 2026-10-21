@@ -45,7 +45,7 @@ def read_pages(library: str, files: list[Path], model_path: str, model_id: str |
     from fichero_server.execution import jobs
     from fichero_server.llm import kraken_runtime
 
-    kraken_runtime.PAGES_AT_ONCE = wanted  # the cap `pages_at_once` and the lane both read
+    kraken_runtime.pages_at_once = lambda person: wanted  # the bench sets the cap itself (the real one is the cores, gated at two)
     effective = kraken_runtime.pages_at_once(True)
     lock, now, peak = threading.Lock(), [0], [0]
 
