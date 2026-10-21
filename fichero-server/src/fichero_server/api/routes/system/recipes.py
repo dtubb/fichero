@@ -29,9 +29,6 @@ from fichero_server.db.embeddings import search_embedder
 
 from fichero_server.recipes import places
 from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
-
-#: The jobs that hand a model a page picture to read: its card's page floor applies (`runtime.mlx.fit-estimate`).
-READS_A_PICTURE = frozenset({*READING_JOBS, "correct"})
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
 
@@ -70,6 +67,9 @@ def check_recipe(recipe: Any) -> list[str]:
 
 
 logger = logging.getLogger(__name__)
+
+#: The jobs that hand a model a page picture to read: its card's page floor applies (`runtime.mlx.fit-estimate`).
+READS_A_PICTURE = frozenset({*READING_JOBS, "correct"})
 
 router = APIRouter(prefix="/recipes")
 
