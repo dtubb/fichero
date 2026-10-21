@@ -93,7 +93,11 @@ _PATH_EXPR_RE = re.compile(
 # Current divergence backlog (content-hash keyed). Empty: every model-download
 # path now derives from server_state_dir()/"models" — audio_base.py Whisper was
 # the last divergence (legacy bundle dir), fixed in #2269.
-KNOWN_VIOLATIONS: dict[str, str] = {}
+KNOWN_VIOLATIONS: dict[str, str] = {
+    # The adapter fetch of the reader that runs INSIDE a Hugging Face Job (#5977): there is no Fichero store on that machine, and the
+    # runner is shipped alone, so it cannot import `model_store_root`; the Job's own cache is the right place there.
+    "remote_read/runner.py#c391346bc6": "runs inside a Hugging Face Job, which has no Fichero store (#5977)",
+}
 
 
 def _key(rel: str, snippet: str) -> str:

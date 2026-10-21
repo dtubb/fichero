@@ -50,3 +50,13 @@ def test_a_known_clash_passes_and_a_known_name_that_no_longer_clashes_fails(tmp_
 def test_an_empty_tree_fails_rather_than_passes(tmp_path):
     (tmp_path / guard.ROUTES).mkdir(parents=True)
     assert guard.main(tmp_path, frozenset()) == 1
+
+
+def test_an_enum_named_like_a_model_is_a_schema_clash_too(tmp_path, capsys):
+    """## 838: an Enum is an OpenAPI schema as well, so it takes the model's name."""
+    enum = "import enum\n\n\nclass Same(str, enum.Enum):\n    a = 'a'\n"
+    root = _tree(tmp_path, {"a.py": MODEL.format(name="Same"), "b.py": enum})
+    assert guard.main(root, frozenset()) == 1
+    assert "Same" in capsys.readouterr().out
+    two_enums = _tree(tmp_path / "e", {"a.py": enum, "b.py": enum})
+    assert guard.main(two_enums, frozenset()) == 1
