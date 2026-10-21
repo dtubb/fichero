@@ -53,8 +53,11 @@ async def end_on_revoke(request: Any, events: AsyncIterator[Any]) -> AsyncIterat
     registered, so a stream that connects in the moment of the revoke cannot slip through."""
     device = getattr(getattr(request, "state", None), "device", None)
     if device is None:
-        async for item in events:
-            yield item
+        try:
+            async for item in events:
+                yield item
+        finally:  # a closed stream must close the one under it, or its unsubscribe never runs
+            await events.aclose()
         return
     gone = asyncio.Event()
     loop = asyncio.get_running_loop()
