@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// What an empty pane says to VoiceOver: which pane it is and what would fill it (#5273). Drawn BLANK. The Library pane has no entry: it always shows its
-/// location, even an empty one.
+/// What an empty pane says to VoiceOver: which pane it is and what would fill it (#5273). Drawn BLANK. The Library pane
+/// has no entry: it always shows its location, even an empty one.
 enum PaneEmptyState: String, CaseIterable {
     case reader
     case preview

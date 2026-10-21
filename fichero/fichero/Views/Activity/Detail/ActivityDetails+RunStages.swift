@@ -116,7 +116,8 @@ extension ActivityDetails {
         if states.contains("failed") { return .failed }
         if states.contains("running") { return .running }
         if states.contains("waiting") { return .waiting }
-        if states.contains("partial") { return .partial }  // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
+        // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
+        if states.contains("partial") { return .partial }
         if states.contains(where: { $0 == "not run" || $0 == "cancelled" }) { return .notRun }
         return .done
     }

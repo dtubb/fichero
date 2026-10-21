@@ -59,8 +59,8 @@ final class HpcSignInService {
 
     func refreshPrompts() async {
         guard let response = try? await client.api.listPromptsApiHpcPromptsGet(),
-              case .ok(let ok) = response,
-              let body = try? ok.body.json
+              case .ok(let success) = response,
+              let body = try? success.body.json
         else { return }
         let fresh = body.items.map { Prompt(id: $0.id, text: $0.prompt) }
         if fresh != prompts { prompts = fresh }
@@ -84,7 +84,7 @@ final class HpcSignInService {
     /// The clusters set up in Settings, for the Clusters section.
     func listClusters() async -> [Cluster] {
         guard let response = try? await client.api.listClustersApiHpcClustersGet(),
-              case .ok(let ok) = response, let body = try? ok.body.json
+              case .ok(let success) = response, let body = try? success.body.json
         else { return [] }
         return body.items.map { Cluster(id: $0.clusterId, name: $0.name, host: $0.hostAlias) }
     }
@@ -98,8 +98,8 @@ final class HpcSignInService {
                     name: name, hostAlias: hostAlias, username: username, remoteBaseDir: remoteBaseDir,
                     partition: partition, account: account.isEmpty ? nil : account)))
             switch response {
-            case .ok(let ok):
-                let body = try ok.body.json
+            case .ok(let success):
+                let body = try success.body.json
                 return .success(Cluster(id: body.clusterId, name: body.name, host: body.hostAlias))
             case .unprocessableContent:
                 return .failure(.words("Check the host and user name: letters, digits, dots, dashes and underscores only."))
@@ -117,7 +117,7 @@ final class HpcSignInService {
     func makeKey(clusterId: String) async -> String? {
         guard let response = try? await client.api.makeClusterKeyApiHpcClustersClusterIdKeyMakePost(
             path: .init(clusterId: clusterId)),
-            case .ok(let ok) = response, let body = try? ok.body.json else { return await publicKey(clusterId: clusterId) }
+            case .ok(let success) = response, let body = try? success.body.json else { return await publicKey(clusterId: clusterId) }
         return body.publicKey
     }
 
@@ -125,7 +125,7 @@ final class HpcSignInService {
     func publicKey(clusterId: String) async -> String? {
         guard let response = try? await client.api.getClusterPublicKeyApiHpcClustersClusterIdKeyPublicGet(
             path: .init(clusterId: clusterId)),
-            case .ok(let ok) = response, let body = try? ok.body.json else { return nil }
+            case .ok(let success) = response, let body = try? success.body.json else { return nil }
         return body.publicKey
     }
 
@@ -140,7 +140,7 @@ final class HpcSignInService {
     func check(clusterId: String) async -> (ok: Bool, steps: [CheckStep])? {
         guard let response = try? await client.api.checkClusterLiveApiHpcClustersClusterIdCheckPost(
             path: .init(clusterId: clusterId)),
-            case .ok(let ok) = response, let body = try? ok.body.json else { return nil }
+            case .ok(let success) = response, let body = try? success.body.json else { return nil }
         return (body.ok, body.steps.map { CheckStep(name: $0.name, state: $0.state, answer: $0.answer ?? "") })
     }
 

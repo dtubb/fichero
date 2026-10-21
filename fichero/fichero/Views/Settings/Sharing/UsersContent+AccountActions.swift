@@ -21,7 +21,9 @@ extension UsersContent {
         guard let id = selectedAccountID else { return }
         accountError = nil
         if id.hasPrefix("invite:") {
-            do { try await store.revokeInvite(id: String(id.dropFirst("invite:".count))) } catch { accountError = error.localizedDescription }
+            do {
+                try await store.revokeInvite(id: String(id.dropFirst("invite:".count)))
+            } catch { accountError = error.localizedDescription }
             selectedAccountID = nil
         } else if let person = user(for: id), person.id != store.currentUser?.id {
             await setActive(userId: id, active: !person.active)
@@ -30,7 +32,9 @@ extension UsersContent {
 
     internal var accountRows: [AccountsPaneModel.Row] {
         AccountsPaneModel.rows(
-            people: allUsers.map { .init(id: $0.id, name: $0.displayName, username: $0.username, isOwner: $0.isOwner, isActive: $0.active) },
+            people: allUsers.map {
+                .init(id: $0.id, name: $0.displayName, username: $0.username, isOwner: $0.isOwner, isActive: $0.active)
+            },
             currentID: store.currentUser?.id,
             invitations: store.invites.map { .init(id: $0.id, name: $0.displayName, username: $0.username) })
     }
