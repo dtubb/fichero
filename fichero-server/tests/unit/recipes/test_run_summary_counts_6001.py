@@ -82,7 +82,8 @@ def test_the_counts_run_on_a_worker_thread_and_leave_the_loop_free(db, monkeypat
 
 
 PER_PAGE = {"unread_reasons", "lines_state", "unread_on", "failed_reads", "lines_unread", "lines_unread_why", "lines_seen_blank",
-            "pages_read_nothing", "pages_fully_read", "_fully_read", "_pages_dated"}
+            "pages_read_nothing", "pages_fully_read", "_fully_read", "_pages_dated", "_has_reading", "_pages_with", "_knowledge",
+            "_found_documents", "_jobs_of_the_run", "reviewed", "read_project_setup", "download_failures", "_pages"}
 
 
 def test_no_async_function_of_the_run_view_or_activity_calls_a_per_page_counting_helper():
@@ -96,3 +97,41 @@ def test_no_async_function_of_the_run_view_or_activity_calls_a_per_page_counting
                 if name in PER_PAGE:
                     offenders.append(f"{rel}::{fn.name} calls {name}")
     assert not offenders, offenders
+
+
+def test_fifty_pages_with_no_lines_take_a_handful_of_database_calls_and_read_as_the_per_page_check_says(db, monkeypatch):
+    """Find Lines' window: the pages have no lines yet, and `_has_reading` cost 3-4 queries each (## 826)."""
+    from fichero_server.models import Artifact
+
+    pages = [_page(db, 0, 0) for _ in range(50)]
+    db.save(Artifact(document_id=pages[3], artifact_type="transcription", content="x", model="m", provider="p"))
+    calls: list[str] = []
+    real = db._execute_fetch_with_columns
+
+    def counting(sql, *args, **kwargs):
+        calls.append(sql[:60])
+        return real(sql, *args, **kwargs)
+
+    monkeypatch.setattr(db, "_execute_fetch_with_columns", counting)
+    got = run_view.reading_counts(db, pages, blank=set())
+    assert len(calls) <= 10, f"{len(calls)} database calls for 50 pages with no lines"
+    monkeypatch.setattr(db, "_execute_fetch_with_columns", real)
+    assert got.pages_fully_read == run_view.pages_fully_read(db, pages) == [pages[3]]
+
+
+def test_a_summary_that_raises_leaves_the_tree_whole_with_a_reason(db, monkeypatch):
+    from fichero_server.api.routes.system import activity
+    from fichero_server.recipes import run_view as view
+
+    async def state(_db, _id):
+        return "done", None, {"steps": []}
+
+    async def boom(_db, _id):
+        raise RuntimeError("a row went missing")
+
+    monkeypatch.setattr(activity, "_recipe_state", state)
+    monkeypatch.setattr(view, "summary", boom)
+    found = {"id": "r1", "children": [], "done": 0, "total": 0, "failed": 0}
+    asyncio.run(activity._recipe_run(db, found))
+    assert found["summary"] is None and "tried again" in found["summary_unavailable"]
+    assert found["state"] == "done" and found["stages"] == []  # the rest of the tree is there
