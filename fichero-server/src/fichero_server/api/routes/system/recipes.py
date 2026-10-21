@@ -2302,7 +2302,8 @@ def _offered_cards(a: Optional[Answers]) -> list[Any]:
     return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *correctors, *readers]
 
 
-def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None) -> list[dict[str, Any]]:
+def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None,
+                     clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
     """The plan's per-step candidates over every card the finder knows, local and cloud (`recipes/step_choices.py`). A project
     whose answers cannot be read has none (the plan says why elsewhere)."""
     from fichero_server.recipes.step_choices import step_choices
@@ -2313,7 +2314,13 @@ def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[
         a = _answers(setup["answers"]) if setup["answers"] else None
     except ValueError:
         return []
-    return step_choices(setup["recipe"], setup["answers"], _offered_cards(a), may_leave=may_leave, pages=pages)
+    from fichero_server.recipes.discovery import remote_compute
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+    from fichero_server.recipes.where_it_runs import places_it_can_run
+
+    mac_gb, hf_ready = this_mac_memory_gb(), bool(remote_compute(price=False)["available"])  # never the network
+    return step_choices(setup["recipe"], setup["answers"], _offered_cards(a), may_leave=may_leave, pages=pages,
+                        places_of=lambda c: places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=clusters))
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
@@ -2393,7 +2400,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                             f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
                             "Raise the cap in Set Up, or choose a cheaper model."]
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
-                                            pages=plan["estimate"].get("pages"))
+                                            pages=plan["estimate"].get("pages"), clusters=clusters)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
