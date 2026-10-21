@@ -8,9 +8,11 @@ struct ReadFlag: Codable, Hashable, Sendable {
     /// The flagged read's own measure, kept as the engine sends it.
     let measure: [String: AnyCodable]?
 
-    /// "Needs re-reading: <reason>" for the repair's kind; any other kind shows only its reason, never the kind's id.
+    /// "Needs re-reading: <reason>" for the repair's kind; any other kind shows only its reason, never the kind's id,
+    /// with the first letter capitalised; an empty reason says "This page needs reading again."
     var note: String {
-        guard kind == "needs-re-reading" else { return reason }
-        return reason.isEmpty ? "Needs re-reading" : "Needs re-reading: " + reason
+        let words = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if kind == "needs-re-reading" { return words.isEmpty ? "Needs re-reading" : "Needs re-reading: " + words }
+        return words.isEmpty ? "This page needs reading again." : words.prefix(1).uppercased() + words.dropFirst()
     }
 }
