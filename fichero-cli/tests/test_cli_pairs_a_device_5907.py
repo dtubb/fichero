@@ -166,7 +166,7 @@ def test_the_command_never_prints_the_token_and_reads_the_link_from_a_file(monke
     monkeypatch.setattr(pairing, "served_spki_der", lambda h, p: DER)
     file = tmp_path / "link"
     file.write_text(link() + "\n")
-    out = CliRunner(mix_stderr=False).invoke(cli.app, ["devices", "pair", "--link-file", str(file), "--name", "bake-off (r1)"])
+    out = CliRunner().invoke(cli.app, ["devices", "pair", "--link-file", str(file), "--name", "bake-off (r1)"])
 
     assert out.exit_code == 0, out.output
     assert TOKEN not in out.stdout + out.stderr
@@ -175,7 +175,7 @@ def test_the_command_never_prints_the_token_and_reads_the_link_from_a_file(monke
 
 
 def test_the_command_needs_exactly_one_of_link_or_file():
-    out = CliRunner(mix_stderr=False).invoke(cli.app, ["devices", "pair"])
+    out = CliRunner().invoke(cli.app, ["devices", "pair"])
     assert out.exit_code == 2
 
 
@@ -209,7 +209,7 @@ def test_a_link_on_argv_is_warned_about_without_echoing_it(monkeypatch):
     monkeypatch.setattr(pairing, "_open_client", Host([GOOD]).client)
     monkeypatch.setattr(pairing, "served_spki_der", lambda h, p: DER)
     text = link()
-    out = CliRunner(mix_stderr=False).invoke(cli.app, ["devices", "pair", text])
+    out = CliRunner().invoke(cli.app, ["devices", "pair", text])
     assert "shell history" in out.stderr and text not in out.stdout + out.stderr
 
 
