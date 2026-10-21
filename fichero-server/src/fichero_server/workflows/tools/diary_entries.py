@@ -752,7 +752,7 @@ async def split_pages_into_entries(
         except ValueError as exc:  # said for this page, in its turn, as when asked inline
             return exc
 
-    async for (done, page), asked in ahead(enumerate(pages), ask, extract_width(llm_config)):
+    async for (done, page), asked in ahead(enumerate(pages), ask, extract_width(llm_config), stop):
         if stop is not None and stop():
             totals["pages"] = done
             break

@@ -325,7 +325,7 @@ def extract(db: Any, documents: list[str], *, prototype: str, provider: str, mod
             return exc
 
     async def land_all() -> None:
-        async for unit, answer in ahead(todo, ask, width):
+        async for unit, answer in ahead(todo, ask, width, stop):
             if answer is stopped:
                 return
             if answer is None:
