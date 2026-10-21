@@ -215,3 +215,42 @@ def test_a_flagged_reads_measure_rides_on_the_typed_flag():
     holder = Document(name="p", doc_type=DocType.page, metadata={READ_FLAG_KEY: flag.as_data()})
     info = typed_read_flag(holder)
     assert (info.kind, info.reason, info.measure) == ("repetition", "the same phrase twelve times", {"repeats": 12})
+
+
+def _flagged(db):
+    from fichero_server.llm.read_guard import read_flag_of
+
+    page = _overwritten(db, transcript=False)
+    page_text_repair.repair_on_open(db)
+    assert read_flag_of(db.get(Document, page.id)) is not None
+    return page
+
+
+def test_a_persons_edit_clears_the_flag(client, db):
+    from fichero_server.llm.read_guard import read_flag_of
+
+    page = _flagged(db)
+    assert client.put(f"/api/documents/{page.id}", json={"page_content": "my own reading"}).status_code == 200
+    saved = db.get(Document, page.id)
+    assert saved.page_content == "my own reading" and read_flag_of(saved) is None
+
+
+def test_text_derived_from_the_lines_clears_the_flag(db):
+    from fichero_server.actions import page_text_cache
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.llm.read_guard import read_flag_of
+
+    page = _flagged(db)
+    page_text_cache._store(db, db.get(Document, page.id), "line one line two", utc_now(), None)
+    saved = db.get(Document, page.id)
+    assert saved.page_content == "line one line two" and read_flag_of(saved) is None
+
+
+def test_the_fan_in_join_clears_the_flag(db):
+    from fichero_server.llm.read_guard import read_flag_of
+
+    page = _flagged(db)
+    failures = vision_base._write_joined_page_content(
+        indices_by_doc={page.id: [0, 1]}, texts=["first", "second"], library_path=str(db.path))
+    saved = db.get(Document, page.id)
+    assert not failures and saved.page_content == "first\nsecond" and read_flag_of(saved) is None

@@ -306,6 +306,9 @@ def _store(db: Any, doc: Any, text: str, now: Any, standing: str | None = None) 
             reanchor_highlights(db, doc.id, old_text, text)
         doc.page_content = text
         doc.updated_at = now
+        from fichero_server.maintenance.page_text_repair import clear_needs_rereading
+
+        clear_needs_rereading(doc)  # the text now comes from the page's lines or corrections (#6002)
     db.save(doc)
     return text_changed
 

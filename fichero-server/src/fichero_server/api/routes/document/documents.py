@@ -2907,7 +2907,10 @@ def update_document_impl(
         else:
             merged_metadata = dict(existing_metadata)
         merged_metadata["page_content_user_edited_at"] = utc_now().isoformat()
-        update_data["metadata"] = merged_metadata
+        # A person's own text answers the repair's "read this page again" (#6002).
+        from fichero_server.maintenance.page_text_repair import without_needs_rereading
+
+        update_data["metadata"] = without_needs_rereading(merged_metadata)
 
     # A page's kind changed here is a person's correction: the sorting job never overwrites it (#5578).
     from fichero_server.recipes import sorting

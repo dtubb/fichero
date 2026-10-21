@@ -29,9 +29,17 @@ def clear_needs_rereading(doc: Any) -> None:
     """A successful read wrote this page's text: the repair's `needs-re-reading` mark no longer holds, so it goes (only that
     kind: a flag some other check put on the page is that check's to clear)."""
     meta = getattr(doc, "metadata", None)
+    kept = without_needs_rereading(meta)
+    if kept is not meta:
+        doc.metadata = kept
+
+
+def without_needs_rereading(meta: Any) -> Any:
+    """`meta` without the repair's flag (the same object when it carries none): for a writer that builds the metadata itself."""
     flag = meta.get(READ_FLAG_KEY) if isinstance(meta, dict) else None
     if isinstance(flag, dict) and flag.get("kind") == NEEDS_REREADING:
-        doc.metadata = {k: v for k, v in meta.items() if k != READ_FLAG_KEY}
+        return {k: v for k, v in meta.items() if k != READ_FLAG_KEY}
+    return meta
 
 
 def is_classification_json(text: Any) -> bool:
