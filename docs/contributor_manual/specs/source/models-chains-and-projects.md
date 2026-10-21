@@ -4740,8 +4740,8 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.recipe.step-counts-its-pages` — **[OK]** (#5706; tested in `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`)
   a step whose output may leave no trace on a page (Find Names on a page naming no one, Prepare on a clear page) keeps on the run the pages
   it ran on, and the plan counts them done, so a page is not "to do" after every run.
-- `source.recipe.status-names-its-own-child` — **[BROKEN]** (#5870) A running step that makes no job shows its own state, not another row's. Test: tests/unit/recipes/test_recipe_row_status_5870_5871.py.
-- `source.recipe.row-progress-across-stages` — **[BROKEN]** (#5871) A recipe's progress counts its pages across stages and resets at no stage. Test: tests/unit/recipes/test_recipe_row_status_5870_5871.py.
+- `source.recipe.status-names-its-own-child` — **[PARTIAL]** (#5870) A running step that makes no job shows its own state, not another row's. Test: fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py (lead-c14 3e1890982; PARTIAL until the M4 proof run).
+- `source.recipe.row-progress-across-stages` — **[BROKEN]** (#5871) A recipe's progress counts its pages across stages and resets at no stage. Test: (not yet written: a test citing #5871).
 - `source.recipe.systemic-stop-by-page-order` — **[PARTIAL]** (#5880) Five consecutive failures stop a small batch only; a large run stops on the error rate; the message names the files. Test: (not yet written: a test citing #5880).
 - `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
   run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
