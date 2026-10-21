@@ -315,9 +315,21 @@ def fichero_activity_get_job_log(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
     detail: Annotated[Optional[str], Field(description='developer adds the debug lines')] = None,
+    level: Annotated[Optional[str], Field(description='problems: warnings and errors only, newest last')] = None,
 ) -> Any:
     "Get Job Log\n\nThe log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for\na run (its activity events), for a step (the events of its node), and what each job's own row says (it\nstarted, it failed and why, it waits and for what). Nothing about another row.\n\nRoute: GET /api/activity/jobs/{job_id}/log (toolset `activity`; reads)."
-    return _rt.call("GET", f"/api/activity/jobs/{job_id}/log", params={"detail": detail})
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/log", params={"detail": detail, "level": level})
+
+
+def fichero_activity_get_run_page_states(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+    limit: Annotated[Optional[int], Field(description='Limit')] = None,
+    offset: Annotated[Optional[int], Field(description='Offset')] = None,
+    stage: Annotated[Optional[str], Field(description='a Set Up stage id (read, find-lines, ...); omitted: every stage')] = None,
+) -> Any:
+    "Get Run Page States\n\nOne entry per PAGE of a run with its state in each stage, in reading order, paged (`activity.run.page-states`,\n#5960): the page grid's read, instead of the thousands of step rows under `GET /jobs/{id}`.\n\nRoute: GET /api/activity/jobs/{job_id}/pages (toolset `activity`; reads)."
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/pages", params={"limit": limit, "offset": offset, "stage": stage})
 
 
 def fichero_activity_set_job_paused(
@@ -6582,6 +6594,14 @@ def fichero_recipes_use_candidate_for_step(
     return _rt.call("POST", "/api/recipes/project/steps/use-candidate", json=_rt.body({"card": card, "step": step}))
 
 
+def fichero_recipes_use_setup_pick_for_step(
+    *,
+    step: Annotated[str, Field(description="the recipe step's id.")],
+) -> Any:
+    "Use Setup Pick For Step\n\nTake the person's choice for the step back (`source.onboard.step-choice-overrides-the-pick`): the recipe is\nassembled again from the project's answers with that one choice dropped, so Set Up's pick stands for the step; the\nproject's other choices stay. Saved through `project.save_setup` (audited, undoable). Refused (422) for a step the\nrecipe lacks, or one already on Set Up's pick.\n\nRoute: POST /api/recipes/project/steps/use-setup-pick (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/use-setup-pick", json=_rt.body({"step": step}))
+
+
 def fichero_recipes_list_purposes(
 ) -> Any:
     'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself, the jobs it proposes and the purpose it is listed under (`source.onboard.purpose-first`,\n`source.onboard.purposes-grouped`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
@@ -9068,6 +9088,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
     GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
+    GeneratedTool("fichero_activity_get_run_page_states", "activity", "GET", "/api/activity/jobs/{job_id}/pages", fichero_activity_get_run_page_states),
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),
     GeneratedTool("fichero_activity_retry_job", "activity", "POST", "/api/activity/jobs/{job_id}/retry", fichero_activity_retry_job),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
@@ -9713,6 +9734,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
+    GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_get_samples", "recipes", "GET", "/api/recipes/samples", fichero_recipes_get_samples),

@@ -732,12 +732,33 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         job_id: str = typer.Argument(..., help='Job Id'),
         detail: Optional[str] = typer.Option(None, '--detail', help='developer adds the debug lines.'),
+        level: Optional[str] = typer.Option(None, '--level', help='problems: warnings and errors only, newest last.'),
     ) -> None:
         """Get Job Log (GET /api/activity/jobs/{job_id}/log)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/activity/jobs/{job_id}/log"
             params = {
                 "detail": detail,
+                "level": level,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-run-page-states")
+    def activity_get_run_page_states_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        stage: Optional[str] = typer.Option(None, '--stage', help='a Set Up stage id (read, find-lines, ...); omitted: every stage.'),
+    ) -> None:
+        """Get Run Page States (GET /api/activity/jobs/{job_id}/pages)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/pages"
+            params = {
+                "limit": limit,
+                "offset": offset,
+                "stage": stage,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13863,6 +13884,23 @@ def register_generated_openapi_commands(
                 "step": step,
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id, as GET /api/recipes/candidates lists it (`id`)", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("use-setup-pick-for-step")
+    def recipes_use_setup_pick_for_step_post(
+        ctx: typer.Context,
+        step: str = typer.Option(..., '--step', help="the recipe step's id."),
+    ) -> None:
+        """Use Setup Pick For Step (POST /api/recipes/project/steps/use-setup-pick)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/use-setup-pick"
+            params = None
+            payload = _build_json_payload({
+                "step": step,
+            }, {
                 "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
