@@ -216,7 +216,7 @@ def test_a_result_stored_before_the_flag_reads_measured_from_its_basis():
     assert TryCost.model_validate({"value": 0.04, "basis": "measured", "measured": False, "from": "x"}).measured is False
 
 
-def test_the_try_route_answers_a_stored_result_typed_and_keeps_the_extras(client, db):
+def test_the_try_route_answers_a_stored_result_typed_and_keeps_the_extras(client, db, with_material):
     """GET /api/recipes/stages/{stage}/try over a stored result file: the typed fields come back typed (an OLD
     candidate with no `measured` reads it from its basis), and what the model does not name passes through."""
     import json
