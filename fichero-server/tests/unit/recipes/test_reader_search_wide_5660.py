@@ -141,3 +141,13 @@ def test_the_finder_lists_the_remote_endpoints_every_time(client, claude_row):
     assert all(c["in_recipe_rules"] is False for c in remote)
     # The comma reader is listed for Latin too, as a shipped card.
     assert any(COMMA in c["id"] for c in r.json()["items"])
+
+
+def test_keeping_a_search_with_a_trocr_and_a_kraken_card_does_not_fail_on_hf(hub, tmp_path, monkeypatch):
+    """The defaults matrix's search pass said "the Hugging Face search failed: 'hf'" on every set: `keep_hub` read `pin["hf"]` of a
+    TrOCR card (pin `trocr`) and a Kraken repository card (pin `kraken_hf`), which only carry their own key."""
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
+    found = _search({"de"})
+    assert any("hf" not in c.pin for c in found), "the fixture must hold a card without an hf pin"
+    discovery.keep_hub(found, frozenset({"de"}))  # raised KeyError: 'hf'
+    assert all(c["repo"] for c in discovery.cached_hub().values())
