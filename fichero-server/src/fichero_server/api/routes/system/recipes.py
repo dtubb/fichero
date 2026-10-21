@@ -2673,7 +2673,8 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.recipes.assemble import CORRECT_QUESTION
     from fichero_server.recipes.start import use_candidate
-    from fichero_server.recipes.step_choices import UNSURE_BECAUSE, UNSURE_ID, UNSURE_KEPT, _kraken, _person_override
+    from fichero_server.recipes.step_choices import (CORRECT_WAS_ON_FIELD, UNSURE_BECAUSE, UNSURE_FIELD, UNSURE_ID, _kraken,
+                                                          _person_override)
 
     recipe = setup["recipe"] or {}
     step = next((st for st in recipe.get("steps") or [] if st.get("id") == request.step), None)
@@ -2694,7 +2695,8 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
         new_correct = next((st.get("id") for st in fresh.get("steps") or [] if st.get("job") == "correct"), None)
         if new_correct is None:
             raise ValueError("Set Up leaves Correct out for this project, so a model cannot be set to correct")
-        fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE + (UNSURE_KEPT if was_on else ""))
+        fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE,
+                             extra={UNSURE_FIELD: True, CORRECT_WAS_ON_FIELD: was_on})
         result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": fresh}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

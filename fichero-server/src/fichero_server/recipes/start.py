@@ -1063,17 +1063,18 @@ def use_instead(recipe: dict[str, Any] | None, downloads: list[dict[str, Any]], 
     return apply_project_overrides(out, [card])
 
 
-def _keep_choice(recipe: dict[str, Any], sid: str, card: Any, because: str, now: str) -> None:
+def _keep_choice(recipe: dict[str, Any], sid: str, card: Any, because: str, now: str, extra: dict[str, Any] | None = None) -> None:
     """Keep the person's choice of `card` for step `sid` as its project-scope override, replacing any earlier one:
     the one way a chosen reader is kept (Use This, use-instead, a found candidate). Changes `recipe` in place."""
     override = {"step": sid, "scope": "project", "folder_id": None, "model": dict(card.pin), "card": card.id,
-                "runs_on": card.runs_on, "because": because, "at": now}
+                "runs_on": card.runs_on, "because": because, "at": now, **(extra or {})}
     recipe["overrides"] = [o for o in recipe.get("overrides") or []
                            if (o.get("step"), o.get("scope"), o.get("folder_id")) != (sid, "project", None)]
     recipe["overrides"].append(override)
 
 
-def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str, because: str | None = None) -> dict[str, Any]:
+def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str, because: str | None = None,
+                  extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """The recipe with any found candidate `card` set as step `step_id`'s reader, kept as a project-scope override
     by the path use-instead and Use This take (#5612, `source.find.app-card-actions`). The press is the person's
     deliberate choice: the rules' refusals (a licence, a script its card does not state) do not stop it, but a card
@@ -1092,7 +1093,7 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
         raise ValueError(f"{card.note.strip().rstrip('.') or card.id} does not do the step {step_id!r} "
                          f"({step.get('job')}): it does {', '.join(sorted(card.jobs)) or 'no job'}")
     because = because or f"chosen by you from the models found ({card.offered_because or card.source})"
-    _keep_choice(out, step_id, card, because, now)
+    _keep_choice(out, step_id, card, because, now, extra)
     return apply_project_overrides(out, [card])
 
 

@@ -245,3 +245,12 @@ def test_taking_back_the_unsure_choice_leaves_correct_on_when_the_person_had_tur
     assert back.status_code == 200, back.text
     assert back.json()["answers"]["job_answers"]["correct_with_a_second_model"] is True, "the person's own answer stays"
     assert any(s["job"] == "correct" for s in back.json()["recipe"]["steps"]) and not back.json()["recipe"].get("overrides")
+
+
+def test_the_unsure_choice_is_kept_as_typed_fields_on_the_override_not_as_words(client, project):
+    """## 918: `unsure` and `correct_was_on` are fields of the Correct override; its `because` stays a plain sentence."""
+    step = _read_choice(_plan(client))["step"]
+    r = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE})
+    override = next(o for o in r.json()["recipe"]["overrides"] if o["step"] != step)
+    assert override["unsure"] is True and override["correct_was_on"] is False and override["card"] == CLAUDE
+    assert override["because"].startswith("Kraken reads") and "already on" not in override["because"]
