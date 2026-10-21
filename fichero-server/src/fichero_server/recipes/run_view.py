@@ -644,7 +644,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     """The summary of one recipe run; LookupError when there is none."""
     from fichero_server.recipes import runner, sorting
 
-    status = await with_accounts(db, runner.status(db, job_id))
+    status = await with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))  # reads the library's rows
     pages, (names, dates, statements), (proposed, accepted, groups) = await asyncio.to_thread(_head, db, status)
     from fichero_server.workflows import run_account as accounts
 
