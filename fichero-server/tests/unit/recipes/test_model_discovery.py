@@ -256,7 +256,7 @@ def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client,
     # By task and language tag, MLX by its tag, and by the tags HTR models are published under (ruled 2026-10-11).
     assert by_tag and all("mlx" in k or k.endswith("|ja") or k.split("|")[1].split(",")[-1] in
                           (*discovery.HTR_TAGS, "ocr") for k in by_tag)
-    assert {k.split("?", 1)[1] for k in hub if "?" in k} <= set(discovery.HTR_SEARCH_TERMS)
+    assert {k.split("?", 1)[1] for k in hub if "?" in k} <= set(discovery.HTR_SEARCH_TERMS) | {"japanese"}  # + the script's own name (Jpan, #5970)
 
 
 def test_working_offline_reaches_no_network_and_says_so(client, store, repository, hub, monkeypatch):
