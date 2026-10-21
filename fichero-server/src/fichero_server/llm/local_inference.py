@@ -191,11 +191,14 @@ def local_memory_gb(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS) ->
 
 
 def fit_estimate(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS, physical_memory: int | None = None,
-                 *, catalog: Any = None) -> FitEstimate:
+                 *, catalog: Any = None, reads_pages: bool = False) -> FitEstimate:
     """Weights + the KV cache for `context_tokens` + overhead, against this Mac's memory (#5641): "fits" within
     the working set macOS keeps resident (`MLX_COMFORT_SHARE`), "tight" up to the ceiling (it runs, slower, idle
     models unloaded first), "won't fit" above it (refused in words, with a smaller build of the same model or a
-    shorter context that would fit). `FICHERO_MLX_MEMORY_NEED_MB` overrides the whole need on one machine."""
+    shorter context that would fit). `FICHERO_MLX_MEMORY_NEED_MB` overrides the whole need on one machine.
+    `reads_pages`: the model is asked to read a page picture, so its card's page floor (`page_memory_bytes`, 24 GB for the 7B
+    and 8B readers) is a "won't fit", the same refusal `local_model_choice.runs_here(.., "vision")` gives; without it the
+    floor only makes a model "tight" (a text use of the same model runs)."""
     from fichero_server.llm import kraken_runtime
 
     weights, kv = _need_parts(model, context_tokens)
@@ -223,6 +226,11 @@ def fit_estimate(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS, physi
                            f"{_gb(total)} can give a model (about {_gb(ceiling)}){way}", need, comfort, ceiling,
                            smaller)
     page = getattr(model, "page_memory_bytes", None)
+    if reads_pages and page and total < page:
+        smaller = _smaller_build(model, context_tokens, total, catalog)
+        return FitEstimate(WONT_FIT, f"{name} needs {_gb(page)} of unified memory to read a page; this Mac has {_gb(total)} "
+                           f"(it loads at about {_gb(need)}: {parts})" + (f"; {smaller} fits" if smaller else ""),
+                           need, comfort, ceiling, smaller)
     if need > comfort or (page and total < page):
         said = (f"its note says reading a page needs a {_gb(page)} Mac" if page and total < page and need <= comfort
                 else f"more than the {_gb(comfort)} macOS keeps for the GPU")

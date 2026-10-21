@@ -68,6 +68,9 @@ def check_recipe(recipe: Any) -> list[str]:
 
 logger = logging.getLogger(__name__)
 
+#: The jobs that hand a model a page picture to read: its card's page floor applies (`runtime.mlx.fit-estimate`).
+READS_A_PICTURE = frozenset({*READING_JOBS, "correct"})
+
 router = APIRouter(prefix="/recipes")
 
 
@@ -1594,7 +1597,8 @@ async def model_candidates(
         model = models.get(c.id)
         if model is None:
             return None
-        made = fit_estimate(model, context, physical_memory=physical, catalog=catalogue)
+        made = fit_estimate(model, context, physical_memory=physical, catalog=catalogue,
+                            reads_pages=job in READS_A_PICTURE)  # the page floor is a refusal for a reader, as in runs_here
         return ModelFit(word=made.word, reason=made.reason, smaller=made.smaller)
 
     def measured(c: Any) -> str:
