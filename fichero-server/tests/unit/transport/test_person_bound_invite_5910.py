@@ -28,6 +28,8 @@ def _as(harness, username, library=True):
     client.headers.update(_bearer(_login(harness, username)))
     if library:
         client.headers["X-Fichero-Library-Path"] = str(harness.library)
+    else:  # the harness client carries the library header by default: take it off
+        client.headers.pop("X-Fichero-Library-Path", None)
     return client
 
 
@@ -109,7 +111,9 @@ def test_a_code_that_names_no_person_is_as_before(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     minted = _as(harness, "owner").post("/api/pair/code")
     assert minted.json()["person"] is None
-    assert _redeem(harness, minted.json()["code"]).status_code == 401, "person required, as sharing.device-chooses-person"
+    # minted by a SIGNED-IN owner, so it binds to that owner; only a code minted by the ambient host key (no signed-in
+    # person) is refused "person required" (`sharing.device-chooses-person`, `pairing.py`: `record.ambient`)
+    assert _redeem(harness, minted.json()["code"]).status_code == 200
     assert minted.json()["invite_id"] is None and minted.json()["role"] is None
 
 
