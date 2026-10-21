@@ -220,6 +220,30 @@ def test_the_table_step_asks_its_units_together_and_lands_them_in_unit_order(mon
     assert account["errors"] == ["u07: model said no"]
 
 
+def test_ahead_starts_no_call_once_stop_is_asked_and_still_hands_back_the_ones_in_flight():
+    """Stop is asked before EVERY new call, not only by the consumer: the window must not refill after Stop, or one more page
+    leaves this Mac (## 891)."""
+    started: list[int] = []
+    stopped = False
+
+    async def call(n):
+        started.append(n)
+        await asyncio.sleep(0.01)
+        return n
+
+    async def go():
+        nonlocal stopped
+        got = []
+        async for n, _ in ahead(range(6), call, 2, stop=lambda: stopped):
+            got.append(n)
+            stopped = True  # the person pressed Stop while the first page was being written
+        return got
+
+    got = asyncio.run(go())
+    assert started == [0, 1], f"a call started after Stop: {started}"
+    assert got == [0, 1]  # the two in flight come back, in order, for the consumer to see Stop itself
+
+
 def test_a_stop_sends_no_new_call_to_the_model(monkeypatch):
     account, asked, landed = _table_run(monkeypatch, _units(40), stop_after=12)
     assert 12 <= len(asked) <= 12 + 10, "calls went out after the stop beyond those already in flight"

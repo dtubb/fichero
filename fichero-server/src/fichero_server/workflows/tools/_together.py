@@ -34,13 +34,18 @@ def extract_width(llm_config: Any) -> int:
     return CLOUD_WIDTH if _is_remote_model(llm_config) else LOCAL_WIDTH
 
 
-async def ahead(items: Iterable[T], start: Callable[[T], Awaitable[R]], width: int) -> AsyncIterator[tuple[T, R]]:
+async def ahead(items: Iterable[T], start: Callable[[T], Awaitable[R]], width: int,
+                stop: Callable[[], bool] | None = None) -> AsyncIterator[tuple[T, R]]:
     """Yield (item, start(item)'s result) in the order of `items`, with up to `width` calls in flight. `items` is read lazily,
     only as far as the window needs. A call that raises raises here, at its own page, as an inline call did; calls still
-    running when the consumer stops (or one raises) are cancelled."""
+    running when the consumer stops (or one raises) are cancelled. `stop` is asked before EVERY new call: once it says yes
+    no call starts (a cloud page does not leave this Mac after Stop), and the calls already in flight are yielded as they
+    land, for the consumer to see Stop itself."""
     window: deque[tuple[T, asyncio.Future[R]]] = deque()
     try:
         for item in items:
+            if stop is not None and stop():
+                break
             window.append((item, asyncio.ensure_future(start(item))))
             if len(window) >= max(1, width):
                 first, call = window.popleft()
