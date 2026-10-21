@@ -86,6 +86,10 @@ struct ShareSettingsView: View {
                 devicesSection
             }
 
+            if multiuserEnabled {
+                PendingInvitesSection()
+            }
+
             Section {
                 Button(SharingPaneText.connect) { showConnect = true }
             }
