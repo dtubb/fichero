@@ -608,6 +608,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
         XCTAssertTrue(settingsSource.contains("EngineHostSwitch.standard("))
         XCTAssertTrue(modelSource.contains("Address must start with https://"))
+        XCTAssertTrue(modelSource.contains("guard problem == nil, !isApplying else { return }"))  // invalid is never applied
         XCTAssertTrue(switchSource.contains("appState.reconfigureGeneratedClientsForCurrentHost()"))
         XCTAssertTrue(switchSource.contains("libraryManager.reconfigureGeneratedClientsForCurrentHost()"))
         XCTAssertTrue(libraryManagerSource.contains("storageService.clearAll()"))
