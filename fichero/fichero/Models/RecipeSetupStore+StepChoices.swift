@@ -14,9 +14,15 @@ extension RecipeSetupStore {
         await loadStartPlan(folderId: startPlanFolderId)
     }
 
-    /// Bring a step that is not in the plan in, by Set Up's own answer (`turn_on`); the plan is read again.
+    /// Bring a step that is not in the plan in, by Set Up's own answer as the engine names it (`turn_on.answer` / `value`):
+    /// set it, propose the recipe again with it, SAVE (PUT; the plan is read from the saved project, so a draft alone
+    /// would leave the step "not in the plan"), then read the plan again.
     func turnOn(_ menu: StepChoiceMenu) async {
-        await turnOn(job: menu.job)
+        guard let question = menu.turnOnAnswer, let value = menu.turnOnValue else { return }
+        removedJobs.removeAll { $0 == menu.job }
+        jobAnswers[question: question] = value
+        await assemble()
+        guard await save() else { return }
         await loadStartPlan(folderId: startPlanFolderId)
     }
 

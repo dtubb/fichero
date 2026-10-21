@@ -46,12 +46,16 @@ struct StepChoiceMenu: Equatable, Identifiable {
     let certaintyBar: Double?
     /// The engine's words for bringing the step in ("Have a second model check the reading, in Set Up"), nil in plan.
     let turnOnWords: String?
+    /// Set Up's own answer that brings the step in, as the engine sent it (`turn_on.answer`, `turn_on.value`).
+    let turnOnAnswer: String?
+    let turnOnValue: StageAnswer?
     private let given: [Candidate]
 
     var id: String { step }
 
     init(step: String, name: String, chosenBy: ChosenBy, job: String? = nil, inPlan: Bool = true, wording: String? = nil,
-         certaintyBar: Double? = nil, turnOnWords: String? = nil, candidates: [Candidate]) {
+         certaintyBar: Double? = nil, turnOnWords: String? = nil, turnOnAnswer: String? = nil, turnOnValue: StageAnswer? = nil,
+         candidates: [Candidate]) {
         self.step = step
         self.name = name
         self.chosenBy = chosenBy
@@ -60,6 +64,8 @@ struct StepChoiceMenu: Equatable, Identifiable {
         self.wording = wording
         self.certaintyBar = certaintyBar
         self.turnOnWords = turnOnWords
+        self.turnOnAnswer = turnOnAnswer
+        self.turnOnValue = turnOnValue
         given = candidates
     }
 
