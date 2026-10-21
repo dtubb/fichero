@@ -170,7 +170,8 @@ removed; nothing had used them since early September):
 - A worktree for work that must not touch the integration checkout is made by hand under
   `~/code/fichero-worktrees/<name>`, **from the branch's HEAD sha** (`git worktree add <path> <sha>`), never
   from stale local `main` or `origin/main`, which would miss unpushed commits. Right after `worktree add`, set its
-  author: `git -C <path> config --worktree user.name Claude && git -C <path> config --worktree user.email noreply@anthropic.com` (the repo default is the maintainer; without this, a commit that forgets `--author` is his).
+  author: `git -C <path> config --worktree user.name Claude && git -C <path> config --worktree user.email noreply@anthropic.com` (the repo default is the maintainer; without this, a commit that forgets `--author` is his). A repo that
+  refuses `--worktree` ("cannot be used with multiple working trees") needs `git config extensions.worktreeConfig true` once.
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
   and **re-dispatches** the next batch. It checks in on workers about every 15 minutes.
