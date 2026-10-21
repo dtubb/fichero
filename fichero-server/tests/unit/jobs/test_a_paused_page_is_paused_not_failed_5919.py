@@ -3,6 +3,7 @@ Stop or Pause (#5919 sweep, ## 602): else Activity says 'failed' for a pause, an
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 import time
 
 import pytest
@@ -89,6 +90,8 @@ def test_the_note_is_an_activity_warning_in_the_runs_library(monkeypatch):
     monkeypatch.setattr(text_reflow, "_said_for", set())
     monkeypatch.setattr("fichero_server.db.db_manager.get_database", lambda path: SimpleNamespace(path=f"{path}/fichero.duckdb"))
     monkeypatch.setattr(activity, "get_activity_tracker", lambda db_path=None: SimpleNamespace(log=lambda **kw: logged.append((db_path, kw))))
+    # A sync test runs in the session's context: its own ContextVar, or the node leaks to every later test and `jobs.submit` hangs pages under "run-1:text_reflow".
+    monkeypatch.setattr(node_context, "_current_node", ContextVar("fichero_current_workflow_node", default=None))
     node_context.set_current_node("n1", "Reflow", "wf1", "run-1", "text_reflow")
     for _ in range(2):
         text_reflow._say_refinement_unavailable("/lib.fichero")
