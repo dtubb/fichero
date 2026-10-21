@@ -47,6 +47,12 @@ struct SyncedHostAskSheet: View {
     }
 }
 
+#Preview("Asks once for the host's pairing link") {
+    SyncedHostAskSheet(
+        record: SyncedHostRecord(hostURL: "https://studio.example.ts.net", hostName: "Studio Mac", person: "Ana"),
+        onConnected: {}, onLater: {})
+}
+
 /// The window's one host for the ask: shown for the current project while the engine reports a host its copy names
 /// and this Mac holds no token for it, until connected or dismissed.
 struct SyncedHostAskHost: ViewModifier {
