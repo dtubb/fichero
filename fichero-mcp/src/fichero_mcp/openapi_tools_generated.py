@@ -2133,7 +2133,7 @@ def fichero_documents_copy_pages_into_project(
     *,
     ids: Annotated[list[Any], Field(description='pages whose linked originals are copied into the project.')],
 ) -> Any:
-    "Copy Pages Into Project\n\nCopy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud\nagain (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then\ncopied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their\noriginals and removes the copies. A page that did not come down is not copied, and says why.\n\nRoute: POST /api/documents/copy-into-project (toolset `documents`; changes data, as the agent account when one exists)."
+    'Copy Pages Into Project\n\nBring THIS project\'s own pages\' linked originals into this project\'s package (#5669, ruled: the primary answer to\npages in iCloud). It is NOT a copy between projects: it acts only on pages of the project the call is made on (the\nlibrary header), copies each page\'s linked original FILE into that project\'s package (brought down from iCloud\nfirst, bounded), and repoints those same pages at their copy, so the project never depends on iCloud or the original\nfolder again. A page id of another project is answered "no such page in this project" and nothing is written. To copy\npages into another project, use `document.transfer` (`POST /api/documents/transfer`). Audited; undo puts the pages\nback on their originals and removes the copies. A page that did not come down is not copied, and says why.\n\nRoute: POST /api/documents/copy-into-project (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/documents/copy-into-project", json=_rt.body({"ids": ids}))
 
 
@@ -2694,6 +2694,17 @@ def fichero_documents_rollup(
 ) -> Any:
     "Cheap per-type child counts for a collapsed library outline row\n\nReturns per-type child counts (artifacts, entities, notes, claims, pages) for a document, rolled up over the document and every descendant page/chunk. The library Table renders these on a *collapsed* outline row so it can show 'N entities, M notes' without fetching the children; the heavier per-type payloads are loaded only when the disclosure is expanded (#2258).\n\nThis is intentionally cheap — plain counts with no entity resolution, dedup, or merge-chain walking. The ``entities`` count therefore mirrors the inspector's union (entities linked by this document's claims plus entities whose per-page scope intersects the document) and is NOT the deduped/merge-resolved figure from /knowledge-graph. ``pages`` counts descendant page documents only (not the document itself).\n\nRoute: GET /api/documents/{document_id}/rollup (toolset `documents`; reads)."
     return _rt.call("GET", f"/api/documents/{document_id}/rollup")
+
+
+def fichero_segments_get_compare_readers(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+    only_differing: Annotated[Optional[bool], Field(description='Only Differing')] = None,
+    readers: Annotated[Optional[str], Field(description='Readers')] = None,
+    try_stage: Annotated[Optional[str], Field(description='Try Stage')] = None,
+) -> Any:
+    "Get Compare Readers\n\nWhat this page's readers made of the same lines, for choosing between them (`source.compare.readers-answer`, #5900).\nRead-only. Per line: every reader's own text AS WRITTEN with the `representation_id` a pick sends to\n`POST /api/segments/{id}/readings/choice`, whether the readers differ, the words that differ, the line's picture, the\nreader whose reading counts now and whether a person made it. A line one reader read is listed with its one reading.\n`?readers=a,b` narrows to those readers (ids from the answer); `?only_differing=true` leaves out the lines where they\nagree; `?try_stage=read` answers the SAME shape from that stage's Try candidates instead of the page's own readings\n(`source.compare.try-candidates-same-shape`: no segment ids, nothing to pick). Agreement, never accuracy. An unknown\npage, or a stage with no Try, is 404.\n\nRoute: GET /api/documents/{page_id}/compare-readers (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/documents/{page_id}/compare-readers", params={"only_differing": only_differing, "readers": readers, "try_stage": try_stage})
 
 
 def fichero_segments_get_page_disagreement(
@@ -5779,17 +5790,26 @@ def fichero_pairing_pair_device(
     *,
     code: Annotated[str, Field(description='Code.')],
     device_name: Annotated[str, Field(description='Device Name.')],
+    new_password: Annotated[Optional[str], Field(description='New Password.')] = None,
     password: Annotated[Optional[str], Field(description='Password.')] = None,
     username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Pair Device\n\nExchange a valid one-time pairing code for a device token.\n\nRoute: POST /api/pair (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "password": password, "username": username}))
+    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "new_password": new_password, "password": password, "username": username}))
 
 
 def fichero_pairing_create_code(
+    *,
+    display_name: Annotated[Optional[str], Field(description='Display Name.')] = None,
+    expires_in_days: Annotated[Optional[int], Field(description='default 7.')] = None,
+    folder_id: Annotated[Optional[str], Field(description='share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)')] = None,
+    library: Annotated[Optional[str], Field(description='the library the role is granted on, for a new person.')] = None,
+    never_expires: Annotated[Optional[bool], Field(description='Never Expires. Default: false.')] = None,
+    role: Annotated[Optional[str], Field(description='Role. One of: viewer, editor. Default: "viewer".')] = None,
+    username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Create Pairing Code\n\nMint a short-lived one-time pairing code for the authenticated caller.\n\nRoute: POST /api/pair/code (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair/code")
+    return _rt.call("POST", "/api/pair/code", json=_rt.body({"display_name": display_name, "expires_in_days": expires_in_days, "folder_id": folder_id, "library": library, "never_expires": never_expires, "role": role, "username": username}))
 
 
 def fichero_pairing_list_devices(
@@ -5819,6 +5839,20 @@ def fichero_pairing_enroll_device(
 ) -> Any:
     "Enroll Device\n\nExchange one owner's synced enrollment secret for a new device token.\n\nRoute: POST /api/pair/enroll (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/pair/enroll", json=_rt.body({"device_name": device_name, "enrollment_secret": enrollment_secret}))
+
+
+def fichero_pairing_list_invites(
+) -> Any:
+    "List Invites\n\nThe owner's list of unused invitations to named people, with their expiry (never the codes).\n\nRoute: GET /api/pair/invites (toolset `pairing`; reads)."
+    return _rt.call("GET", "/api/pair/invites")
+
+
+def fichero_pairing_revoke_invite(
+    *,
+    invite_id: Annotated[str, Field(description='Invite Id')],
+) -> Any:
+    'Revoke Invite\n\nRevoke an unused invitation at any time, a never-expiring one too: the link stops working at once.\n\nRoute: DELETE /api/pair/invites/{invite_id} (toolset `pairing`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/pair/invites/{invite_id}")
 
 
 def fichero_pairing_set_multiuser(
@@ -6174,6 +6208,7 @@ def fichero_providers_test_connection(
 
 def fichero_reading_at_scale_start(
     *,
+    base_model: Annotated[Optional[str], Field(description='`vlm` only: the card is a PEFT adapter on this base model (a Hub repo); the Job loads the base, then the adapter on it (#5977).')] = None,
     card: Annotated[str, Field(description='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.')],
     expected_pages_per_second: Annotated[Optional[float], Field(description="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.")] = None,
     flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".')] = None,
@@ -6190,7 +6225,7 @@ def fichero_reading_at_scale_start(
     timeout: Annotated[Optional[str], Field(description='Each shard\'s time limit; always sent. Default: "2h".')] = None,
 ) -> Any:
     "Read pages on Hugging Face Jobs, many shards as one job\n\nQueue a `read-at-scale` job: the pages in scope (images here, or IIIF canvases by reference) are\npacked with the reader and Fichero's runner, sent to a private bucket of the person's Hugging Face\naccount, read in shards (at most `max_in_flight` at once), and each shard's PAGE files land as new\npasses as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a\nHugging Face token (412), or with a reader that cannot run off this Mac (422).\n\nRoute: POST /api/reading-at-scale (toolset `reading-at-scale`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "expected_pages_per_second": expected_pages_per_second, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "parent_job_id": parent_job_id, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
+    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"base_model": base_model, "card": card, "expected_pages_per_second": expected_pages_per_second, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "parent_job_id": parent_job_id, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
 
 
 def fichero_reading_at_scale_job_status(
@@ -6337,6 +6372,16 @@ def fichero_recipes_check(
     return _rt.call("POST", "/api/recipes/check", json=_rt.body({"recipe": recipe}))
 
 
+def fichero_recipes_accept_unpriced_cloud_model(
+    *,
+    model: Annotated[str, Field(description='the model id, as the refusal names it.')],
+    provider: Annotated[str, Field(description='the provider row id of the cloud model.')],
+    withdraw: Annotated[Optional[bool], Field(description='take the yes back: calls to it are refused again. Default: false.')] = None,
+) -> Any:
+    "Accept Unpriced Cloud Model\n\nAccept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.\n\nRoute: POST /api/recipes/cloud/accept-unpriced (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/cloud/accept-unpriced", json=_rt.body({"model": model, "provider": provider, "withdraw": withdraw}))
+
+
 def fichero_recipes_derived_facts(
     *,
     period: Annotated[Optional[str], Field(description='Period')] = None,
@@ -6416,6 +6461,12 @@ def fichero_recipes_save_project_setup(
 ) -> Any:
     "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
+
+
+def fichero_recipes_allow_cloud(
+) -> Any:
+    "Allow Cloud\n\nThe one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes.\n\nRoute: POST /api/recipes/project/allow-cloud (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/allow-cloud")
 
 
 def fichero_recipes_what_runs_by_itself(
@@ -6504,11 +6555,12 @@ def fichero_recipes_get_start_plan(
 
 def fichero_recipes_start_project(
     *,
+    accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "folder_id": folder_id, "redo": redo}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -7683,11 +7735,12 @@ def fichero_segments_list_readings(
 def fichero_segments_choose_reading(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
+    expected_counting_id: Annotated[Optional[str], Field(description='The reading that counted when you looked. When another counts now, the choice is refused (409, naming it) and nothing is written. Unset: no check.')] = None,
     kind: Annotated[str, Field(description='The kind of reading chosen (e.g. transcription).')],
     representation_id: Annotated[str, Field(description='The reading to make the one that counts.')],
 ) -> Any:
     'Choose Segment Reading\n\n`POST /api/segments/{segment_id}/readings/choice` — record which\nreading counts. Only a person may (`ChoiceNeedsAPerson`, 403).\n\nRoute: POST /api/segments/{segment_id}/readings/choice (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/segments/{segment_id}/readings/choice", json=_rt.body({"kind": kind, "representation_id": representation_id}))
+    return _rt.call("POST", f"/api/segments/{segment_id}/readings/choice", json=_rt.body({"expected_counting_id": expected_counting_id, "kind": kind, "representation_id": representation_id}))
 
 
 def fichero_segments_reference(
@@ -9247,6 +9300,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_renditions_list", "renditions", "GET", "/api/documents/{document_id}/renditions", fichero_renditions_list),
     GeneratedTool("fichero_renditions_get_content", "renditions", "GET", "/api/documents/{document_id}/renditions/{rendition_id}/content", fichero_renditions_get_content),
     GeneratedTool("fichero_documents_rollup", "documents", "GET", "/api/documents/{document_id}/rollup", fichero_documents_rollup),
+    GeneratedTool("fichero_segments_get_compare_readers", "segments", "GET", "/api/documents/{page_id}/compare-readers", fichero_segments_get_compare_readers),
     GeneratedTool("fichero_segments_get_page_disagreement", "segments", "GET", "/api/documents/{page_id}/disagreement", fichero_segments_get_page_disagreement),
     GeneratedTool("fichero_editorial_facts_of_segment", "editorial", "GET", "/api/editorial/segment/{segment_id}", fichero_editorial_facts_of_segment),
     GeneratedTool("fichero_entities_list", "entities", "GET", "/api/entities", fichero_entities_list),
@@ -9577,6 +9631,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
+    GeneratedTool("fichero_pairing_list_invites", "pairing", "GET", "/api/pair/invites", fichero_pairing_list_invites),
+    GeneratedTool("fichero_pairing_revoke_invite", "pairing", "DELETE", "/api/pair/invites/{invite_id}", fichero_pairing_revoke_invite),
     GeneratedTool("fichero_pairing_set_multiuser", "pairing", "PUT", "/api/pair/multiuser", fichero_pairing_set_multiuser),
     GeneratedTool("fichero_pairing_sharing_state", "pairing", "GET", "/api/pair/sharing", fichero_pairing_sharing_state),
     GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
@@ -9631,6 +9687,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
+    GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
@@ -9641,6 +9698,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_put_places", "recipes", "PUT", "/api/recipes/places", fichero_recipes_put_places),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
+    GeneratedTool("fichero_recipes_allow_cloud", "recipes", "POST", "/api/recipes/project/allow-cloud", fichero_recipes_allow_cloud),
     GeneratedTool("fichero_recipes_what_runs_by_itself", "recipes", "GET", "/api/recipes/project/automatic", fichero_recipes_what_runs_by_itself),
     GeneratedTool("fichero_recipes_list_bakeoffs", "recipes", "GET", "/api/recipes/project/bakeoffs", fichero_recipes_list_bakeoffs),
     GeneratedTool("fichero_recipes_start_bakeoff", "recipes", "POST", "/api/recipes/project/bakeoffs", fichero_recipes_start_bakeoff),
