@@ -361,6 +361,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   smaller of that and its own `max_tokens` (`call_context_tokens`). *Not built: the Mac's own Metal reading in place
   of the share.* *Test:*
   `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py`.
+- `runtime.mlx.seven-b-reader-needs-24gb` — **[BROKEN]** (#5641; owner ruling via the manager 2026-10-21) the Qwen2.5-VL 7B 4-bit reader is not chosen to read pages on a Mac under 24 GB until it is measured: its catalogue entry has no page floor (the load floor 16 GB equals a 16 GB Mac's whole memory, so `choose_local_model` picked it there, "the larger, the more capable") and the seed card says 7 GB, weights only, so the recipe default took it; on the 16 GB Pro it read at 0.1 tok/s with swap full. Required: the catalogue entry's `page_memory_bytes` and the seed card's `memory_gb` are 24 GB until measured, so below 24 GB it is refused in words ("does not have the memory to run it alongside macOS and Fichero") and the default reader on a 16 GB Mac is Kraken with Apple Vision, until the 3B MLX is measured on the M4. *Test (red until the fix):* `fichero-server/tests/unit/llm/test_seven_b_reader_needs_24gb_5641.py`.
 - `runtime.mlx.fit-shown-in-the-app` — **[OK]** (#5641) **Built 2026-10-12 (app), not yet seen:** wherever a
   step's model candidates are listed (Set Up's stage page Compare list, the model finder's cards, and the step's
   own card on its stage page), an MLX candidate says "Fits this Mac", "Tight on this Mac" or "Won't fit this
