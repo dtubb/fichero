@@ -16,12 +16,16 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # `_scan_files` beside this script, however it is loaded
+from _scan_files import scan_rglob  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIRS = ("scripts", "fichero-server/scripts", "fichero-server/bin")
 FLOOR_TARGET = "-target arm64-apple-macos26.0"
 # a command (line start, or after && ; | ||, optionally via `xcrun`), not `command -v swiftc`
 _SWIFTC = re.compile(r"(?:^|&&|\|\||[;|])\s*(?:xcrun\s+(?:-\S+\s+\S+\s+)*)?(?:swiftc|clang(?:\+\+)?)\s")
-_BUILDS_NOTHING = ("-parse", "-fsyntax-only", "-typecheck", " -E ", "--version")
+# whole words: `-parse-as-library` is a flag of a real build (the fm-bridge's), not swiftc's `-parse`, which builds nothing
+_BUILDS_NOTHING = frozenset({"-parse", "-fsyntax-only", "-typecheck", "-E", "--version"})
 
 
 def invocations(text: str) -> list[tuple[int, str]]:
@@ -41,14 +45,18 @@ def invocations(text: str) -> list[tuple[int, str]]:
 
 
 def scan(root: Path = ROOT) -> list[str]:
-    problems = []
+    problems, scanned = [], 0
     for folder in SCRIPT_DIRS:
-        for path in sorted((root / folder).rglob("*.sh")):
+        # a folder a checkout may lack is skipped here; a scan that read NO script at all fails below
+        for path in sorted(scan_rglob(root / folder, "*.sh", optional=True)):
+            scanned += 1
             for line_no, command in invocations(path.read_text(encoding="utf-8", errors="ignore")):
-                if any(flag in command + " " for flag in _BUILDS_NOTHING):
+                if _BUILDS_NOTHING & set(command.split()):
                     continue  # a parse-only check builds nothing
                 if FLOOR_TARGET not in command and "--target arm64-apple-macos26.0" not in command:
                     problems.append(f"{path.relative_to(root)}:{line_no}: compiler without `{FLOOR_TARGET}`")
+    if not scanned:
+        problems.append(f"no .sh script under {', '.join(SCRIPT_DIRS)} in {root}: the scan read nothing, so it proves nothing")
     return problems
 
 
