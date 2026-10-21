@@ -47,7 +47,8 @@ enum PairingQRCodePayloadDecoder {
 
 struct PairingCodeRecord: Codable {
     let code: String
-    let expiresAt: Date
+    /// nil when the invitation never expires (`never_expires` beside it in the engine's answer).
+    let expiresAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case code
@@ -160,6 +161,9 @@ final class PairingService {
         case .ok(let okResponse):
             let record = try okResponse.body.json
             return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
