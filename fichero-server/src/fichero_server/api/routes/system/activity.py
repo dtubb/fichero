@@ -283,6 +283,10 @@ class LiveBlock(BaseModel):
     total: int = 0
     folders_done: Optional[int] = None
     folders_total: Optional[int] = None
+    model: Optional[str] = Field(None, description="the model the running stage uses, by its own name; null when unknown")
+    where: Optional[str] = Field(None, description=(
+        "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown "
+        "(`activity.summary.where-and-model`, #5960)"))
 
 
 class BackgroundLine(BaseModel):
@@ -314,17 +318,18 @@ def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
             for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES]
 
 
-def workflow_block(job: "BackgroundJob") -> LiveBlock:
+def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
     """A workflow run outside any recipe, from its account."""
     account = job.account
-    return LiveBlock(
+    return LiveBlock(model=model, where=where, 
         id=job.id, workflow=job.name, state=job.state, reason=job.reason if job.state != "running" else
         (account.waiting_reason if account else None), done=account.pages_done if account else 0,
         failed=account.pages_failed if account else 0, left=account.pages_left if account else 0,
         total=account.pages_total if account else 0)
 
 
-def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str]) -> LiveBlock:
+def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str],
+                 model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
     """A recipe run: its recipe, the stage running now and the workflow of that stage, the pages of that stage's account."""
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
@@ -335,7 +340,21 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
         id=job.id, recipe=job.name, stage=(running or {}).get("doing"), workflow=workflow_name, state=job.state,
         reason=waiting, done=account.pages_done if account else 0, failed=account.pages_failed if account else 0,
         left=account.pages_left if account else 0, total=account.pages_total if account else 0,
-        folders_done=status.get("folders_done"), folders_total=status.get("folders_total"))
+        folders_done=status.get("folders_done"), folders_total=status.get("folders_total"), model=model, where=where)
+
+
+async def _stage_where_and_model(db: Database, run_id: str) -> tuple[Optional[str], Optional[str]]:
+    """The model and the place of one stage run, from its job rows (`activity.summary.where-and-model`, #5960); nothing
+    known when the rows cannot be read, so the block stands without them."""
+    from fichero_server.api.routes.system.activity_pages import where_and_model
+    from fichero_server.execution import jobs as job_queue
+
+    try:
+        found = await asyncio.to_thread(job_queue.tree, db, run_id)
+        return where_and_model(found) if found else (None, None)
+    except Exception as exc:  # noqa: BLE001 -- said in the log
+        logger.warning("activity summary: no job rows for %s: %s", run_id, exc)
+        return None, None
 
 
 async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
@@ -364,9 +383,11 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
             except Exception as exc:  # noqa: BLE001 -- said in the log
                 logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
                 run = None  # the block stands without its workflow's name
-        blocks.append(recipe_block(job, status, run.workflow_name if run else None))
-    blocks += [workflow_block(j) for j in jobs
-               if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned]
+        model, where = await _stage_where_and_model(db, running["child_id"]) if running else (None, None)
+        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where))
+    for j in jobs:
+        if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned:
+            blocks.append(workflow_block(j, *await _stage_where_and_model(db, j.id)))
     return blocks
 
 

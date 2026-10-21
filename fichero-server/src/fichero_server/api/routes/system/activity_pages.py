@@ -88,3 +88,38 @@ def page_states(tree: dict[str, Any], stage: Optional[str]) -> list[dict[str, An
         out.append({"document_id": page["document_id"], "name": page["name"], "state": shown["state"],
                     "reason": shown["reason"], "stages": {sid: cell["state"] for sid, cell in cells.items()}})
     return out
+
+
+_WHERE = {"this_mac": "on this Mac", "own_machine": "on your own machine", "provider": "in the cloud"}
+#: When two places tie, the one nearer the person wins.
+_WHERE_ORDER = ("this_mac", "own_machine", "provider")
+
+
+def _model_words(model: str) -> str:
+    """A model by its own name, never an address: `kraken:blla` is Kraken, `anthropic/claude-haiku-4.5` is claude-haiku-4.5."""
+    if model.startswith("kraken:"):
+        return "Kraken"
+    return model.rsplit("/", 1)[-1]
+
+
+def _rows(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    yield node
+    for child in node.get("children", []):
+        yield from _rows(child)
+
+
+def where_and_model(stage_run: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    """(the model in words, where it runs in words) for a stage's run tree (`activity.summary.where-and-model`, #5960): the
+    model of a row running now, else of the last row that names one; the place most of the run's calls went to. None for
+    what is not known; never a guess.
+
+    ponytail: the place is the run's whole record, not the running row's alone, and a provider is "the cloud", not named."""
+    named = [row for row in _rows(stage_run) if row.get("model")]
+    running = [row for row in named if row.get("state") == "running"]
+    pick = (running or named[-1:] or [None])[0]
+    places = {place: count for place, count in (stage_run.get("places") or {}).items() if place in _WHERE and count}
+    where = None
+    if places:
+        top = max(places.values())
+        where = _WHERE[next(place for place in _WHERE_ORDER if places.get(place) == top)]
+    return (_model_words(pick["model"]) if pick else None), where
