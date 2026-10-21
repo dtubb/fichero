@@ -62,4 +62,13 @@ struct StepChoiceMenuTests {
         let model = menu([candidate("kraken", picked: true, recommended: true), candidate("claude", local: false)])
         #expect(!model.canUse(model.candidates[0]) && model.canUse(model.candidates[1]))
     }
+
+    @Test("an unknown need kind shows its words and is not taken for a price")
+    func unknownNeedKind() {
+        #expect(StepChoiceMenu.Need.Kind(rawValue: "licence") == nil)
+        let odd = Candidate(card: "x", name: "X", runsOn: "this-mac", isLocal: true, isPicked: false, isRecommended: false,
+                            isAvailable: false, needs: [.init(kind: .other, words: "needs a licence")], costUsd: nil, costWords: nil)
+        #expect(menu([]).needsWords(of: odd) == "needs a licence")
+        #expect(odd.needs.first?.kind != .price)
+    }
 }
