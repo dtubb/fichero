@@ -664,6 +664,32 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     return Choice(job, best, reasons=reasons, chain=chain)
 
 
+#: The cloud providers whose vision models Set Up recommends for handwriting once pages may leave and a key is set.
+FRONTIER_PROVIDERS = frozenset({"gemini", "google", "anthropic"})
+
+
+def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
+    """`source.recipe.reader-pick-from-the-material`: handwritten pages that may leave this Mac, with a key for a frontier provider,
+    are read by that provider's vision model on Kraken's lines (one call a page), marked as not yet measured. Where the Try has
+    measured the rules' reader (`cer_measured_here`) the existing rule decides; with no permission or no key the rules' pick
+    stands (the plan names what a cloud reader would need). Never a silent substitute: the rules' pick stays the chain's next."""
+    if job != "read-a-line" or choice.card is None or a.material != "handwriting" or not a.cloud_allowed:
+        return choice
+    if choice.card.cer_measured_here is not None:
+        return choice
+    keyed = sorted((c for c in readers
+                    if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in FRONTIER_PROVIDERS
+                    and c.runs_on.split(":", 1)[1] in a.cloud_keys and job in c.jobs
+                    and _hard_constraints(job, c, a) is None), key=lambda c: (c.cost_per_page, c.id))
+    if not keyed:
+        return choice
+    best = keyed[0]
+    provider = best.runs_on.split(":", 1)[1]
+    reasons = [f"pages may leave this Mac and you have a {provider.capitalize()} key: a frontier model reads Kraken's lines, one call a page",
+               "unmeasured on your pages until a Try measures it", f"runs on {best.runs_on}"]
+    return Choice(job, best, reasons=reasons, chain=[choice.card, *choice.chain])
+
+
 def _chosen(choice: Choice) -> dict[str, Any]:
     """A choice as recipe data: the model, where it runs, why, and its card's facts; or its gap and problem."""
     if choice.card is None:
@@ -920,9 +946,12 @@ def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dic
     return jobs_in_order, sorted(taken_out, key=lambda t: STEP_ORDER.index(t["job"]))
 
 
-def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
+def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = (),
+             readers: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
     """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. `offered`: cards a
-    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). A job Start
+    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). `readers`: the
+    person's cloud vision readers (their provider rows), counted ONLY by the cloud question, so a project whose steps are
+    Find Lines and Read is asked once a cloud reader could read (`source.onboard.cloud-question-counts-readers`). A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
     (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
@@ -996,7 +1025,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
                           "reasons": [why, "raises the contrast of each faded page on a new copy, on this Mac, free, "
                                            "before lines; the original is kept"]})
             continue
-        choice = _choose(job, cards, a)
+        choice = _frontier_first(job, _choose(job, cards, a), readers, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}
         read = [m for m in a.materials if m in READ_MATERIALS]  # material already text has no reader (#5553)
         mixed = a.job_answers.get("mixed_writing") is True and job in READING_JOBS
@@ -1035,8 +1064,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
     # Where a cloud model would also fit if pages could leave this Mac: setup asks the egress
     # question only when this is not empty (`source.onboard.cloud-asked-once`).
     with_cloud = Answers(**{**a.__dict__, "cloud_allowed": True})
+    asked_about = [*cards, *readers]
     cloud_options = sorted({
-        job for job in jobs_in_order for c in cards
+        job for job in jobs_in_order for c in asked_about
         if job in c.jobs and c.runs_on.startswith("cloud") and _hard_constraints(job, c, with_cloud) is None
     })
     named = "+".join(a.purposes) or "not-sure"
@@ -1055,7 +1085,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         "left_off": left_off,
         "gaps": notes,
         "cloud_options": cloud_options,
-        "cloud_offer": cloud_offer(cloud_options, cards, with_cloud),
+        "cloud_offer": cloud_offer(cloud_options, asked_about, with_cloud),
         # What Ready says when there is nothing to read (#5553).
         **({"already_text": "The material is already text: nothing to read"
                             + (f"; the plan starts at {_topic(jobs_in_order[0]).get('title', jobs_in_order[0])}."
