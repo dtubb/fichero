@@ -268,9 +268,7 @@ async def summarize_folder(
     folder_id = inputs.get("folder_id", "")
     context = inputs.get("context")
     input_metadata = inputs.get("metadata")
-    style = inputs.get("style", "detailed")
     max_length = inputs.get("max_length", 500)
-    include_themes = inputs.get("include_themes", True)
 
     if not texts:
         return {
@@ -287,11 +285,10 @@ async def summarize_folder(
     # Combine texts with separators
     combined = "\n\n---\n\n".join([t for t in texts if t])
 
-    prompt = f"""Summarize the following collection of {len(texts)} documents.
-
-{_get_style_instructions(style, max_length)}
-
-{"Identify common themes, patterns, or connections between documents." if include_themes else ""}"""
+    # One concise, no-analysis folder prompt, capped at 200 words (#5968); style / include_themes / include_statistics no longer shape it (config keys stay: removing them is an OpenAPI regen).
+    from fichero_server.llm.prompts import load_prompt
+    prompt = load_prompt("catalogue", "folder", output_language=inputs.get("output_language") or "English")
+    max_length = min(max_length, 200)
 
     # Create documents list for folder
     documents = [{"id": folder_id}] if folder_id else []
@@ -330,6 +327,7 @@ async def summarize_folder(
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
         chunk_size_chars=inputs.get("chunk_size_chars"),
+        catalogue_entry=True,
     )
 
     return {
@@ -426,9 +424,7 @@ async def summarize_collection(
     collection_id = inputs.get("collection_id", "")
     context = inputs.get("context")
     input_metadata = inputs.get("metadata")
-    style = inputs.get("style", "executive")
     max_length = inputs.get("max_length", 1000)
-    include_statistics = inputs.get("include_statistics", True)
 
     # Use folder summaries if available, otherwise raw texts
     content_items = folder_summaries if folder_summaries else texts
@@ -447,19 +443,9 @@ async def summarize_collection(
 
     combined = "\n\n---\n\n".join([str(t) for t in content_items if t])
 
-    style_instructions = {
-        "executive": "Provide an executive summary suitable for quick review. Focus on key findings and overall themes.",
-        "detailed": "Provide a comprehensive summary covering all major topics and their relationships.",
-        "narrative": "Provide a narrative summary that tells the story of this collection.",
-    }
-
-    prompt = f"""Summarize this collection of documents.
-
-{style_instructions.get(style, style_instructions["executive"])}
-
-Maximum length: {max_length} words.
-
-{"Include statistics about the collection (e.g., number of documents, date ranges, main topics)." if include_statistics else ""}"""
+    from fichero_server.llm.prompts import load_prompt
+    prompt = load_prompt("catalogue", "folder", output_language=inputs.get("output_language") or "English")
+    max_length = min(max_length, 200)  # the cap is the prompt's, not the config's (#5968)
 
     # Create documents list for collection
     documents = [{"id": collection_id}] if collection_id else []
@@ -498,6 +484,7 @@ Maximum length: {max_length} words.
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
         chunk_size_chars=inputs.get("chunk_size_chars"),
+        catalogue_entry=True,
     )
 
     return {

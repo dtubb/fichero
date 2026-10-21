@@ -334,8 +334,6 @@ struct ActivityPopoverSummary: Equatable {
 /// errors with their reasons, and what holds heavy work back.
 struct ActivityPopoverSummaryView: View {
     let summary: ActivityPopoverSummary
-    /// No import or engine task is showing above, so an empty summary says so.
-    let nothingElseRunning: Bool
     /// A failure's row was pressed: open Activity's details for that job.
     var openDetails: (String) -> Void = { _ in }
 
@@ -357,9 +355,6 @@ struct ActivityPopoverSummaryView: View {
             }
             ForEach(summary.running) { item in
                 ActivityPopoverRunningRow(item: item)
-            }
-            if summary.running.isEmpty && summary.runs.isEmpty && summary.blocks.isEmpty && nothingElseRunning {
-                Text("Nothing running.").font(.callout).foregroundStyle(.secondary)
             }
             if summary.waitingCount > 0 {
                 Label(waitingText, systemImage: "clock")
@@ -412,8 +407,7 @@ struct ActivityPopoverSummaryView: View {
             machine: Components.Schemas.MachineState(memoryPressure: .warn, thermalState: .fair, onBattery: true,
                                   inUse: true, whyWait: "memory is tight"),
             processCpuPercent: 2, cpuCount: 8
-        ),
-        nothingElseRunning: true
+        )
     )
     .padding()
     .frame(width: 300)

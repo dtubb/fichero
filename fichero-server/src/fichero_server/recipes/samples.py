@@ -435,7 +435,7 @@ def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
 
 
 #: What can do a step, said where a wrong choice is refused (#5838).
-_WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print); cloud vision models cannot find lines yet"}
+_WHO_DOES = {"find-lines": "the line finders are Kraken (handwriting and print) and Apple Vision (print and typed pages only); cloud vision models cannot find lines yet"}
 
 
 #: Variant A's candidate id prefix, and the sureness under which the cloud model re-reads a line when the project's

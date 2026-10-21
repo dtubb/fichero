@@ -141,7 +141,8 @@ struct ShareSettingsView: View {
         // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
         .task(id: pairingCode?.code) {
             guard didBootstrap, let expiresAt = pairingCode?.expiresAt else { return }
-            do { try await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt)) } catch { return }  // the code changed or the card went away
+            // the code changed or the card went away
+            do { try await Task.sleep(for: PairingCodeRenewal.wait(until: expiresAt)) } catch { return }
             // Sharing was turned off while the code was up: an expired code must not linger on the card.
             guard pairingBlocker == nil else { pairingCode = nil; return }
             // The old code stays on screen until the new one lands: clearing it first would change this task's key
@@ -193,7 +194,10 @@ struct ShareSettingsView: View {
             let also = selectedDevices.flatMap { devicesRevokedWith($0, in: pairedDevices) }
                 .filter { !selectedDevices.contains($0.id) }
             Text(also.isEmpty ? "They will no longer be able to connect."
-                 : "They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), which will be removed too.")
+                 : """
+                   They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), \
+                   which will be removed too.
+                   """)
         }
     }
 

@@ -1279,6 +1279,8 @@ async def process_text(
     custom_metadata: dict | None = None,
     # Long-input chunking (from BASE_CONFIG_SCHEMA)
     chunk_size_chars: int | None = None,
+    # A catalogue entry: held to the 200-word cap and the ban on analysis at write time (#5968).
+    catalogue_entry: bool = False,
 ) -> dict[str, Any]:
     """Shared text processing for all LLM text tools."""
     from fichero_server.llm import chat
@@ -1349,6 +1351,7 @@ async def process_text(
             llm_config=effective_config,
             chunk_size_chars=chunk_size_chars,
         )
+        final_input = text  # what the last call is given: a retry sends the same
         if effective_chunk_size > 0 and len(text) > effective_chunk_size:
             chunks = _split_text_into_chunks(text, effective_chunk_size)
             logger.info(
@@ -1374,6 +1377,7 @@ async def process_text(
             synthesis_input = "\n\n".join(
                 f"Section {i + 1} notes:\n{note}" for i, note in enumerate(chunk_notes)
             )
+            final_input = synthesis_input
             response = await chat(
                 synthesis_input,
                 config=effective_config,
@@ -1385,6 +1389,16 @@ async def process_text(
                 config=effective_config,
                 system=instructions,
             )
+
+        if catalogue_entry:
+            from fichero_server.llm.catalogue_lint import enforce
+
+            async def again(note: str) -> str:
+                return await chat(final_input, config=effective_config, system=f"{instructions}\n\n{note}")
+
+            response, flags = await enforce(response, again, source=text)
+            if flags:
+                custom_metadata = {**(custom_metadata or {}), "lint_flags": flags}
 
         # Parse output
         parsed = parse_output(response, output_format, output_options)

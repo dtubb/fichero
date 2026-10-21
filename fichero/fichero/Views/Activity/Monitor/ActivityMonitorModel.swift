@@ -14,67 +14,6 @@ import Foundation
 struct ActivityMonitorRow: Identifiable, Equatable {
     enum Kind { case run, step, page, job }
 
-    /// The state, coarsely, in the order the State column sorts it.
-    enum Phase: Int {
-        case running, waiting, paused, failed, cancelled, done
-
-        init(engineState: String) {
-            switch engineState.lowercased() {
-            case "running", "stalled": self = .running
-            case "waiting", "accepted", "queued": self = .waiting
-            case "paused": self = .paused
-            case "failed", "error": self = .failed
-            case "cancelled", "canceled", "stopped": self = .cancelled
-            default: self = .done
-            }
-        }
-
-        init(_ status: ActivityRunStatus) {
-            switch status {
-            case .running: self = .running
-            case .paused: self = .paused
-            case .completed: self = .done
-            case .failed: self = .failed
-            case .cancelled: self = .cancelled
-            }
-        }
-
-        init(_ state: ActivityJob.State) {
-            switch state {
-            case .running, .stalled: self = .running
-            case .waiting, .other: self = .waiting
-            case .paused: self = .paused
-            case .failed: self = .failed
-            case .completed: self = .done
-            }
-        }
-
-        var word: String {
-            switch self {
-            case .running: "Running"
-            case .waiting: "Waiting"
-            case .paused: "Paused"
-            case .failed: "Failed"
-            case .cancelled: "Stopped"
-            case .done: "Done"
-            }
-        }
-
-        var isLive: Bool { self == .running || self == .waiting || self == .paused }
-
-        /// The state as an SF Symbol (#5560).
-        var symbol: String {
-            switch self {
-            case .running: "play.circle.fill"
-            case .waiting: "clock"
-            case .paused: "pause.circle.fill"
-            case .failed: "xmark.circle.fill"
-            case .cancelled: "stop.circle.fill"
-            case .done: "checkmark.circle.fill"
-            }
-        }
-    }
-
     /// What a row's Pause, Resume, Stop and Retry buttons offer.
     enum Control: String, Identifiable {
         /// `carryOn` is the engine's offer on a job set aside after its interruptions (#5615): it reads Resume and
@@ -147,6 +86,14 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var offer: String?
     /// Where a waiting job of its own stands in the engine's list, which is the order the lane will pick them (#5839).
     var queuePosition: Int?
+    /// The engine's own name for a state this app does not know, said as "unknown state <name>" (#5957).
+    var unknownState: String?
+    /// "Stopping", "Pausing", "Resuming" or "Retrying" while the engine is part-way through that: a run just Stopped
+    /// does not read "Running" (## 697, #5957). The phase stays running (it is still live, and sorts so).
+    var transientState: String?
+    /// When it ended: the engine's finished time if it sent one, else the failure time, else start plus duration; nil
+    /// when none is known (DONE TODAY then lists it rather than lose it; `activity.window.done-today`).
+    var ended: Date?
 
     // MARK: - Waiting looks like waiting (#5839)
 
@@ -214,6 +161,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         if let account, account.interrupted, let why = account.reason ?? reason {
             return why
         }
+        if phase == .running, let transientState { return transientState }
         // A running run whose page waits (for memory, #5537) says what for.
         if phase == .running, let waiting = account?.waitingReason, !waiting.isEmpty {
             return waiting.hasPrefix("Waiting") ? waiting : "Waiting: \(waiting)"
@@ -227,7 +175,19 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         if phase == .running, let workingOn, !workingOn.isEmpty {
             return "Running: \(workingOn)"
         }
+        if phase == .done, let partial = partialWords(reason) { return partial }
+        if phase == .unknown { return "unknown state \(unknownState ?? "")".trimmingCharacters(in: .whitespaces) }
+        if let reason, !reason.isEmpty, phase == .partial || phase == .interrupted || phase == .notRun {
+            return reason.lowercased().hasPrefix(phase.word.lowercased()) ? reason : "\(phase.word): \(reason)"
+        }
         return phase.word
+    }
+
+    /// A finished run that lost pages keeps the state `done` and says "Partial: 8 of 10 pages read (2 stopped)" in its reason
+    /// (`activity.run.partial-said-on-a-done-row`, #5937): shown instead of plain Done/Completed. Nil for any other reason.
+    static func partialWords(_ reason: String?) -> String? {
+        guard let reason, reason.hasPrefix("Partial") else { return nil }
+        return reason
     }
 
     /// Seconds left at the pace so far, while it runs and some are done: the
@@ -274,6 +234,13 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return value.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "en_US_POSIX"))) + " GB"
     }
 
+    /// The name a row shows: with several projects' work in the window the project leads it, with one no project is named
+    /// (`activity.window.project-prefix`, #5960).
+    nonisolated func displayName(showsProject: Bool) -> String {
+        if showsProject, let projectName, !projectName.isEmpty { return "\(projectName) · \(name)" }
+        return name
+    }
+
     /// "12 of 40", plus "about 3 min left" while it runs.
     var progressText: String {
         guard total > 0, !looksWaiting else { return "" }
@@ -304,10 +271,10 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         case .paused: return jobId == nil ? [] : [.resume, .stop]
         // #5356: a failed or stopped row, a job of its own too, offers Retry; one the engine set aside after its
         // interruptions offers Resume instead, as the engine says (#5615).
-        case .failed, .cancelled:
+        case .failed, .cancelled, .interrupted:
             guard retryJobId != nil else { return [] }
             return offer == "Resume" ? [.carryOn] : [.retry]
-        case .done: return []
+        case .done, .partial, .notRun, .unknown: return []
         }
     }
 

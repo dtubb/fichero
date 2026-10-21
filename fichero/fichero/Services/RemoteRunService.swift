@@ -45,7 +45,7 @@ final class RemoteRunService {
 
     func load(jobId: String) async {
         guard let response = try? await client.api.readingJobStatusApiReadingAtScaleJobsJobIdGet(path: .init(jobId: jobId)),
-              case .ok(let ok) = response, let body = try? ok.body.json
+              case .ok(let success) = response, let body = try? success.body.json
         else { return }
         run = Run(
             target: body.target ?? "", farState: body.farState ?? "queued", shardsDone: body.shardsDone ?? 0,

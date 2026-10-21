@@ -21,6 +21,8 @@ class LibraryManager {
 
     /// The currently active library (used for new tabs/windows)
     var currentLibraryId: UUID?
+    /// Why a paired guest has no library to address on its host (the host serves none for it), said in words (#5965).
+    var guestLibraryProblem: String?
 
     /// Cross-window "Open in New Tab / New Window" intent (#1685). Set just
     /// before `openWindow(id: "main")`; the destination LibraryView consumes

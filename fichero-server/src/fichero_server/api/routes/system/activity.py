@@ -171,6 +171,9 @@ class BackgroundJob(BaseModel):
     # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
     # null for any job that has not failed, and cleared when it is retried.
     failed_at: Optional[datetime] = None
+    # When a job that has ended ended (ISO 8601, UTC): done, failed, stopped or interrupted; null while it is waiting,
+    # running or paused. The window's DONE TODAY goes by it (`activity.window.done-today`, #5960).
+    finished_at: Optional[datetime] = None
     # Who started it: the person, plus the paired Mac when it came from another one ("alice on Alice's Mac",
     # `sharing.remote-run-in-host-activity`, #5732); "automatic" for work the app queued itself.
     started_by: Optional[str] = None
@@ -232,6 +235,13 @@ class MachineState(BaseModel):
     why_wait: Optional[str] = None
 
 
+def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:
+    """When a run that has ended ended: its `completed_at` for EVERY ended status (done, failed, stopped, not run), null
+    while it runs or is paused (`activity.window.done-today`, #5960). The list shows only running, paused and failed runs
+    today; a done or stopped one reads its end the same way if the list is widened."""
+    return None if status in ("running", "paused", "waiting", "") else _utc(completed_at)
+
+
 def _utc(value: Any) -> Optional[datetime]:
     """A stored time as an aware UTC datetime (the jobs table keeps naive UTC); None stays None."""
     if value is None:
@@ -273,6 +283,10 @@ class LiveBlock(BaseModel):
     total: int = 0
     folders_done: Optional[int] = None
     folders_total: Optional[int] = None
+    model: Optional[str] = Field(None, description="the model the running stage uses, by its own name; null when unknown")
+    where: Optional[str] = Field(None, description=(
+        "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown "
+        "(`activity.summary.where-and-model`, #5960)"))
 
 
 class BackgroundLine(BaseModel):
@@ -304,17 +318,18 @@ def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
             for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES]
 
 
-def workflow_block(job: "BackgroundJob") -> LiveBlock:
+def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
     """A workflow run outside any recipe, from its account."""
     account = job.account
-    return LiveBlock(
+    return LiveBlock(model=model, where=where, 
         id=job.id, workflow=job.name, state=job.state, reason=job.reason if job.state != "running" else
         (account.waiting_reason if account else None), done=account.pages_done if account else 0,
         failed=account.pages_failed if account else 0, left=account.pages_left if account else 0,
         total=account.pages_total if account else 0)
 
 
-def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str]) -> LiveBlock:
+def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str],
+                 model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
     """A recipe run: its recipe, the stage running now and the workflow of that stage, the pages of that stage's account."""
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
@@ -325,7 +340,21 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
         id=job.id, recipe=job.name, stage=(running or {}).get("doing"), workflow=workflow_name, state=job.state,
         reason=waiting, done=account.pages_done if account else 0, failed=account.pages_failed if account else 0,
         left=account.pages_left if account else 0, total=account.pages_total if account else 0,
-        folders_done=status.get("folders_done"), folders_total=status.get("folders_total"))
+        folders_done=status.get("folders_done"), folders_total=status.get("folders_total"), model=model, where=where)
+
+
+async def _stage_where_and_model(db: Database, run_id: str) -> tuple[Optional[str], Optional[str]]:
+    """The model and the place of one stage run, from its job rows (`activity.summary.where-and-model`, #5960); nothing
+    known when the rows cannot be read, so the block stands without them."""
+    from fichero_server.api.routes.system.activity_pages import where_and_model
+    from fichero_server.execution import jobs as job_queue
+
+    try:
+        found = await asyncio.to_thread(job_queue.tree, db, run_id)
+        return where_and_model(found) if found else (None, None)
+    except Exception as exc:  # noqa: BLE001 -- said in the log
+        logger.warning("activity summary: no job rows for %s: %s", run_id, exc)
+        return None, None
 
 
 async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
@@ -354,9 +383,11 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
             except Exception as exc:  # noqa: BLE001 -- said in the log
                 logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
                 run = None  # the block stands without its workflow's name
-        blocks.append(recipe_block(job, status, run.workflow_name if run else None))
-    blocks += [workflow_block(j) for j in jobs
-               if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned]
+        model, where = await _stage_where_and_model(db, running["child_id"]) if running else (None, None)
+        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where))
+    for j in jobs:
+        if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned:
+            blocks.append(workflow_block(j, *await _stage_where_and_model(db, j.id)))
     return blocks
 
 
@@ -696,6 +727,7 @@ async def list_background_jobs(
                     account=account,
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
+                    finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -748,6 +780,7 @@ async def list_background_jobs(
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
+                finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
             )
@@ -941,6 +974,15 @@ def _event_detail(level: str, message: str) -> str:
     return "developer" if level == "debug" or _DEBUG_EVENT.match(message) else "person"
 
 
+#: What Problems shows (`activity.log.problems-first`, #5960): the warnings, errors and criticals.
+_PROBLEM_LEVELS = frozenset({"warning", "error", "critical"})
+
+
+def problem_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
+    """Only the warnings and errors, in the order given (newest last when the log is)."""
+    return [line for line in lines if line.level in _PROBLEM_LEVELS]
+
+
 def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
     seen: set[tuple[str, str]] = set()
@@ -995,10 +1037,71 @@ def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) 
         _event_threads(child, wanted)
 
 
+class RunPageState(BaseModel):
+    """One PAGE of a run (`activity.run.page-states`, #5960)."""
+
+    document_id: str
+    name: str = Field(description="what a person calls the page: its file name")
+    state: Literal["done", "running", "waiting", "failed"] = Field(
+        description="in the stage asked for, else the worst of its stages")
+    reason: Optional[str] = Field(None, description="at most one: why it failed, or what it waits for")
+    stages: dict[str, str] = Field(default_factory=dict, description="its state in each stage, by Set Up's stage id")
+
+
+class RunPageStates(BaseModel):
+    job_id: str
+    stage: Optional[str] = None
+    total: int = Field(description="pages in all for this stage, whatever page was asked for")
+    offset: int = 0
+    items: list[RunPageState] = Field(default_factory=list)
+
+
+#: A run's page list, built once and shared by the pages of one read (the grid pages through it a request at a time, and each
+#: build is the whole job tree): (monotonic time it was built, the list), by (library, run, stage).
+_PAGE_LISTS: dict[tuple[str, str, Optional[str]], tuple[float, list[dict[str, Any]]]] = {}
+_PAGE_LIST_SECONDS = 2.0
+
+
+async def _run_page_list(db: Database, job_id: str, stage: Optional[str]) -> list[dict[str, Any]]:
+    """`page_states` over the run's tree, built once for every request within a couple of seconds.
+
+    ponytail: a time window, not an invalidation: the grid reads a moving run, and two seconds old is the same page."""
+    import time
+
+    from fichero_server.api.routes.system.activity_pages import page_states
+
+    key, now = (str(db.path), job_id, stage), time.monotonic()
+    held = _PAGE_LISTS.get(key)
+    if held is not None and now - held[0] < _PAGE_LIST_SECONDS:
+        return held[1]
+    tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
+    pages = page_states(tree, stage)
+    for old_key in [k for k, (built, _) in _PAGE_LISTS.items() if now - built >= _PAGE_LIST_SECONDS]:
+        del _PAGE_LISTS[old_key]
+    _PAGE_LISTS[key] = (now, pages)
+    return pages
+
+
+@router.get("/jobs/{job_id}/pages", response_model=RunPageStates)
+async def get_run_page_states(
+    job_id: str,
+    stage: Optional[str] = Query(None, description="a Set Up stage id (read, find-lines, ...); omitted: every stage"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=2000),
+    db: Database = Depends(get_library_database),
+) -> RunPageStates:
+    """One entry per PAGE of a run with its state in each stage, in reading order, paged (`activity.run.page-states`,
+    #5960): the page grid's read, instead of the thousands of step rows under `GET /jobs/{id}`."""
+    pages = await _run_page_list(db, job_id, stage)
+    return RunPageStates(job_id=job_id, stage=stage, total=len(pages), offset=offset,
+                         items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
+
+
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
 async def get_job_log(
     job_id: str,
     detail: Literal["person", "developer"] = Query("person", description="developer adds the debug lines"),
+    level: Literal["all", "problems"] = Query("all", description="problems: warnings and errors only, newest last"),
     db: Database = Depends(get_library_database),
 ) -> JobLog:
     """The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for
@@ -1042,6 +1145,8 @@ async def get_job_log(
     lines.sort(key=order)
     if detail == "person":
         lines = person_lines(lines)
+    if level == "problems":
+        lines = problem_lines(lines)
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 

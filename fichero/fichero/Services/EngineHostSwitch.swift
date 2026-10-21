@@ -78,6 +78,7 @@ extension EngineHostSwitch {
                 appState.startBackendHeartbeat()
                 await KnownLibraryRegistryStore.shared.refresh()
                 libraryManager.adoptPairedRemoteLibrary()
+                await libraryManager.adoptHostLibraryWhenPairingCarriedNone()
                 await libraryManager.backendDidBecomeReady()
                 return true
             },

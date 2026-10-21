@@ -25,6 +25,12 @@ struct ActivityRun: Identifiable {
     /// Why a failed run failed, as the runs table recorded it; the Activity
     /// table's state column shows it (`activity.window.row-shows-lane-state-reason`).
     var failureReason: String?
+    /// The engine's own state for a run seen only as a node of the job tree (waiting, partial, …): the row says what the
+    /// engine said, not the nearest of the five statuses (#5958).
+    var engineState: String?
+    /// When the run ended, as the runs table recorded it (`completed_at`); nil while it runs or when unreadable. DONE TODAY
+    /// goes by it, so a finished run shows without its tree being loaded (## 749).
+    var completedAt: Date?
 
     /// The details' selection for this run (#5561): its job (the thread id)
     /// and its project. Nothing else is copied: the details read the row.
@@ -100,6 +106,8 @@ enum ActivityRunStatus {
     case completed
     case failed
     case cancelled
+    /// A state the app does not know: counted in its own bucket, never as running or done (#5957).
+    case unknown
 
     /// The statuses a run has ended in: what "Clear Finished" enables on AND what it deletes (#5016).
     static let finished: [ActivityRunStatus] = [.completed, .failed, .cancelled]
@@ -115,6 +123,7 @@ enum ActivityRunStatus {
         case .completed: return "completed"
         case .failed: return "failed"
         case .cancelled: return "cancelled"
+        case .unknown: return "unknown"
         }
     }
 
@@ -125,6 +134,7 @@ enum ActivityRunStatus {
         case .completed: return "checkmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         case .cancelled: return "stop.circle.fill"
+        case .unknown: return "questionmark.circle"
         }
     }
 
@@ -135,6 +145,7 @@ enum ActivityRunStatus {
         case .completed: return .green
         case .failed: return .red
         case .cancelled: return .orange
+        case .unknown: return .secondary
         }
     }
 
@@ -146,6 +157,7 @@ enum ActivityRunStatus {
         case .completed: return .completed
         case .failed: return .failed
         case .cancelled: return .cancelled
+        case .unknown: return .idle
         }
     }
 }
