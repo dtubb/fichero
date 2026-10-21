@@ -7,7 +7,8 @@ extension StepChoiceMenu {
         self.init(
             step: choice.step, name: choice.name, chosenBy: choice.chosenBy.rawValue == "person" ? .person : .setup,
             job: choice.job, inPlan: choice.inPlan ?? true, wording: choice.wording, certaintyBar: choice.certaintyBar,
-            turnOnWords: choice.turnOn?.words, candidates: choice.candidates.map { candidate in
+            turnOnWords: choice.turnOn?.words, turnOnAnswer: choice.turnOn?.answer,
+            turnOnValue: StageAnswer.from(choice.turnOn?.value.value), candidates: choice.candidates.map { candidate in
                 Candidate(
                     card: candidate.card, name: candidate.name, runsOn: candidate.runsOn, isLocal: candidate.local,
                     isPicked: candidate.picked, isRecommended: candidate.recommended, isAvailable: candidate.available,

@@ -805,4 +805,43 @@ extension URLRequest {
         return data
     }
 
+
+    /// WHY (## 921): the plan is read from the SAVED project, so turning a step on must save (PUT) the answer before
+    /// the plan is read again, or the step stays "not in the plan" and the button seems to do nothing.
+    @Test("turning a step on sets the engine's answer, saves it, then reads the plan again")
+    func turnOnSavesBeforeRereadingThePlan() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        var sequence: [String] = []
+        var putBody: [String: Any] = [:]
+        let store = makeStore { request in
+            let path = request.url?.path ?? ""
+            sequence.append("\(request.httpMethod ?? "") \(path)")
+            if request.httpMethod == "PUT" {
+                putBody = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+                return Self.reply(request, 200, #"{"answers":{},"recipe":null}"#)
+            }
+            if path == "/api/recipes/project/start" {
+                let inPlan = sequence.contains { $0.hasPrefix("PUT") }
+                return Self.reply(request, 200, Self.planJSON(refusals: "").replacingOccurrences(
+                    of: #""offered":"#,
+                    with: #""step_choices":[{"step":"correct","job":"correct","name":"Correct","picked":null,"chosen_by":"setup","#
+                        + #""in_plan":\#(inPlan),"candidates":[]}],"offered":"#))
+            }
+            return Self.reply(request, 200, Self.recipeJSON)
+        }
+        let menu = StepChoiceMenu(step: "correct", name: "Correct", chosenBy: .setup, inPlan: false,
+                                  turnOnWords: "Have a second model check the reading, in Set Up",
+                                  turnOnAnswer: "correct_with_a_second_model", turnOnValue: .yesNo(true), candidates: [])
+        await store.loadStartPlan()
+        #expect(store.stepMenus.first?.inPlan == false)
+
+        await store.turnOn(menu)
+
+        let put = try #require(sequence.firstIndex { $0.hasPrefix("PUT") })
+        let reread = try #require(sequence.lastIndex { $0 == "GET /api/recipes/project/start" })
+        #expect(put < reread, "saved before the plan is read again: \(sequence)")
+        let answers = putBody["answers"] as? [String: Any]
+        #expect((answers?["job_answers"] as? [String: Any])?["correct_with_a_second_model"] as? Bool == true)
+        #expect(store.stepMenus.first?.inPlan == true)
+    }
 }
