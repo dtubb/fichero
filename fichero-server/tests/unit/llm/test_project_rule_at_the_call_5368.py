@@ -1,0 +1,86 @@
+"""`ai.where.egress-at-every-call` / `ai.where.one-egress-gate` (#5368): a model call made for a project is judged by the app's
+places AND the project's own rule (its saved Set Up answer `cloud_allowed`), bound where the run or the chat starts."""
+from __future__ import annotations
+
+import ast
+import asyncio
+from pathlib import Path
+
+import pytest
+from pydantic import BaseModel
+
+from fichero_server import llm
+from fichero_server.llm import LLMConfig, LocalOnlyViolationError
+from fichero_server.recipes import places
+from fichero_server.recipes.project import write_project_setup
+
+SRC = Path(llm.__file__).parents[1]
+CLOUD = LLMConfig(provider="openai", model="m")
+THIS_MAC = LLMConfig(provider="ollama", model="m")
+
+
+@pytest.fixture(autouse=True)
+def _app_allows_everything(monkeypatch):
+    """The app's places answer nothing here (not answered caps nothing): only the project's own rule is under test."""
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    monkeypatch.setattr(places, "get_places", lambda: None)
+
+
+def _project(tmp_path: Path, *, cloud_allowed: bool | None) -> Path:
+    library = tmp_path / "p.fichero"
+    library.mkdir()
+    if cloud_allowed is not None:
+        write_project_setup(library, {"purposes": ["transcribe"], "cloud_allowed": cloud_allowed}, None)
+    return library
+
+
+def test_a_project_that_said_nothing_leaves_refuses_a_cloud_call_in_words(tmp_path):
+    with places.bound_project(_project(tmp_path, cloud_allowed=False)):
+        with pytest.raises(LocalOnlyViolationError) as refused:
+            llm.get_langchain_model(CLOUD)
+    assert "this project" in str(refused.value) and "a cloud AI service" in str(refused.value)
+
+
+def test_the_same_call_for_a_project_that_said_yes_is_not_refused_by_the_gate(tmp_path):
+    with places.bound_project(_project(tmp_path, cloud_allowed=True)):
+        llm._enforce_local_only_provider(CLOUD, kind="chat")  # raises if refused
+
+
+def test_a_project_with_no_saved_set_up_caps_nothing_and_a_call_for_no_project_meets_the_apps_places_alone(tmp_path):
+    with places.bound_project(_project(tmp_path, cloud_allowed=None)):
+        llm._enforce_local_only_provider(CLOUD, kind="chat")
+    llm._enforce_local_only_provider(CLOUD, kind="chat")  # bound to nothing
+
+
+def test_this_mac_is_never_refused_by_the_projects_rule(tmp_path):
+    with places.bound_project(_project(tmp_path, cloud_allowed=False)):
+        llm._enforce_local_only_provider(THIS_MAC, kind="chat")
+
+
+def test_chat_with_tools_and_structured_output_meet_the_projects_rule(tmp_path):
+    class Schema(BaseModel):
+        x: int = 0
+
+    with places.bound_project(_project(tmp_path, cloud_allowed=False)):
+        for call in (lambda: llm.chat_with_tools("hi", [], CLOUD), lambda: llm.structured_output("hi", Schema, CLOUD)):
+            with pytest.raises(LocalOnlyViolationError):
+                asyncio.run(call())
+
+
+def test_the_binding_follows_the_work_into_a_thread_and_ends_with_the_block(tmp_path):
+    library = _project(tmp_path, cloud_allowed=False)
+
+    async def inside():
+        return await asyncio.to_thread(places.bound_library)
+
+    with places.bound_project(library):
+        assert asyncio.run(inside()) == library
+    assert places.bound_library() is None
+
+
+def test_each_place_a_run_or_chat_starts_binds_its_project():
+    """The run thread (workflow bar, recipe, schedule, MCP all start one) and the chat route bind the library they work in."""
+    for rel, fn_name in (("execution/runner.py", "_run_workflow_in_background"), ("api/routes/system/chat.py", "chat")):
+        tree = ast.parse((SRC / rel).read_text())
+        fn = next(n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == fn_name)
+        assert "bound_project(" in ast.unparse(fn), f"{rel}::{fn_name} must bind the project the work is for"
