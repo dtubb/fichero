@@ -2819,7 +2819,11 @@ Projects
 - `source.project.setup-saves-what-is-sent` — **[OK]** (#5584, #5864; PUT /api/recipes/project keeps the overrides the saved recipe holds and no others: a client's `at` is never read, an override the PUT carries that the saved recipe does not hold is dropped (not refused: a stale copy legitimately echoes one an undo removed), because an override is made only by Use This, which applies its rules and is audited; so a Use This made after Set Up loaded its recipe survives Set Up's whole-recipe save, a PUT cannot add one around Use This, and an undo is not undone by a stale save; an undo goes through the action and restores exactly what it recorded, Fable #6, `fichero-server/tests/unit/recipes/test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py`; built: the `project.save_setup` action keeps a
   part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) saving a project's setup
   (`PUT /api/recipes/project`, MCP `fichero_recipes_save_project_setup`) changes only the parts sent:
-  a part left out (the answers, or the recipe) is kept as it was, and a part sent as null is removed.
+  a part left out (the answers, or the recipe) is kept as it was, and a part sent as null is removed, EXCEPT a recipe: a null recipe never clears one the project already has
+  saved (the saved recipe, and the person's step choices in it, are kept and the keep is logged; a draft with no
+  saved recipe still saves as before), so no client whose assemble failed can wipe it (## 923, ## 924;
+  `test_a_null_recipe_never_clears_a_saved_one`, `test_a_null_recipe_with_none_saved_saves_the_draft_as_before` in
+  `fichero-server/tests/unit/recipes/test_save_setup_assembles_5747.py`, unrun until the gate ends). Undo goes through the action, not the route, and still restores a null.
   The route's description says so. An agent onboarding a project saved its recipe alone and lost
   the answers it had saved a step before. Through MCP a part is sent only when given (the generated tool
   drops an argument left None), so the tool keeps what it is not given and cannot remove a part (`fichero-mcp/tests/test_save_project_setup_sends_only_what_is_given.py`).

@@ -55,15 +55,15 @@ def test_source_project_setup_saves_what_is_sent(client, db, tmp_path):
     assert saved["answers"]["purposes"] == ["transcribe"]
     assert [s["id"] for s in saved["recipe"]["steps"]] == ["lines", "read"], "a recipe left out is kept"
 
-    # A part sent as null is removed; the other stays.
+    # A null recipe never clears a saved one (## 923); the answers stay too.
     r = client.put("/api/recipes/project", json={"recipe": None})
     assert r.status_code == 200, r.text
     saved = client.get("/api/recipes/project").json()
-    assert saved["recipe"] is None and saved["answers"]["purposes"] == ["transcribe"]
+    assert [s["id"] for s in saved["recipe"]["steps"]] == ["lines", "read"] and saved["answers"]["purposes"] == ["transcribe"]
 
     contract = json.loads((Path(__file__).resolve().parents[2] / "contracts" / "openapi.json").read_text())
     said = contract["paths"]["/api/recipes/project"]["put"]["description"]
-    assert "left out" in said and "kept" in said and "null is removed" in said
+    assert "left out" in said and "kept" in said and "never clears" in said
 
 
 # -- source.find.installed-readers-listed ---------------------------------------------------------------------

@@ -23,7 +23,19 @@ def test_a_recipe_already_stored_is_kept_when_only_the_answers_are_saved(client,
     assert client.get("/api/recipes/project").json()["recipe"]["title"] == "the person's own"
 
 
-def test_a_recipe_sent_as_null_is_removed_and_stays_removed(client, db):
+def test_a_null_recipe_never_clears_a_saved_one(client, db):
+    """## 923/924: a client whose assemble failed has no recipe in hand; its null must not wipe the saved recipe."""
     client.put("/api/recipes/project", json={"answers": ANSWERS})
-    client.put("/api/recipes/project", json={"recipe": None})
-    assert client.get("/api/recipes/project").json()["recipe"] is None
+    saved = client.get("/api/recipes/project").json()["recipe"]
+    assert saved is not None
+    r = client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["recipe"] == saved
+    assert client.get("/api/recipes/project").json()["recipe"] == saved
+
+
+def test_a_null_recipe_with_none_saved_saves_the_draft_as_before(client, db):
+    r = client.put("/api/recipes/project", json={"answers": {"purposes": ["transcribe"]}, "recipe": None})
+    assert r.status_code == 200, r.text
+    saved = client.get("/api/recipes/project").json()
+    assert saved["recipe"] is None and saved["answers"]["purposes"] == ["transcribe"]
