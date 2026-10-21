@@ -49,4 +49,15 @@ struct SharingPaneTextTests {
     func multiUserLocation() {
         #expect(SharingToggles.location == "Settings → Sharing → Advanced")
     }
+
+    @Test("Connect to Another Mac is there with Sharing on or off, on a host or a guest (#5893)")
+    func connectIsAlwaysShown() {
+        for isOn in [true, false] {
+            for local in [true, false] {
+                #expect(SharingPaneText.showsConnect(isOn: isOn, engineIsLocal: local), "on \(isOn), local \(local)")
+            }
+        }
+        // and with Sharing off the pane is the switch and Connect only
+        #expect(!SharingPaneText.showsDevices(isOn: false, engineIsLocal: true))
+    }
 }

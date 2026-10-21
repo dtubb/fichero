@@ -90,8 +90,10 @@ struct ShareSettingsView: View {
                 PendingInvitesSection()
             }
 
-            Section {
-                Button(SharingPaneText.connect) { showConnect = true }
+            if SharingPaneText.showsConnect(isOn: hostingEnabled, engineIsLocal: EngineConfig.engineIsLocal) {
+                Section {
+                    Button(SharingPaneText.connect) { showConnect = true }
+                }
             }
 
             advancedSection
