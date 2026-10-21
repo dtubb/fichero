@@ -27,8 +27,9 @@ struct ReadFlagTests {
         #expect(try document(#","read_flag":null"#).readFlag == nil)
     }
 
-    @Test("another kind says its own word and the reason as sent")
+    @Test("another kind shows only its reason, never the kind's id")
     func otherKind() {
-        #expect(ReadFlag(kind: "low-confidence", reason: "", measure: nil).note == "Low Confidence")
+        #expect(ReadFlag(kind: "low-confidence", reason: "the line check disagreed", measure: nil).note == "the line check disagreed")
+        #expect(!ReadFlag(kind: "low-confidence", reason: "x", measure: nil).note.lowercased().contains("confidence"))
     }
 }
