@@ -273,6 +273,7 @@ while any box is open.
   - [ ] Activity reconnects after a Sharing switch (spec: `sharing.toggle-restarts-engine`, #5912)
   - [ ] No engine death on any Sharing or Multi-user switch (spec: `sharing.toggle-restarts-engine`, #5909)
   - [ ] Another person sees only what the owner shared with them: a project or a folder in it, chosen on its Share… sheet (spec: `sharing.share-sheet-chooses-what`, #5967; owner ruling 2026-10-20)
+- `release.scope.next-release` — **[CONVENTION]** (#5910; owner ruling 2026-10-20) the next release is (1) recipes with cloud and local models, (2) sharing for his own Macs and for other people (the bar above, #5910), and (3) Tahoe: macOS 26.0 is the floor, APIs only macOS 27 has are availability-gated, and the first launch on macOS 26 is on Ann's Mac after the release (no Mac here runs Tahoe). After it, in this order: local models working properly (Kraken, MLX, spaCy), then Hugging Face, then ACENet (Canadians and the owner), then the iPhone. Test: n/a (a plan; the release lane checks the bar above).
 
 ## Open questions
 
