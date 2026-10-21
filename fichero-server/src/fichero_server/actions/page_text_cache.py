@@ -434,16 +434,55 @@ def queue_reread_names(db: Any, document_ids: list[str]) -> None:
         jobs.enqueue(db, REREAD_NAMES_KIND, document_id, started_by="correction")
 
 
+#: The subject of a batch job: `batch:<id>`; its pages are the job's detail (`{"documents": [...]}`).
+BATCH_PREFIX = "batch:"
+#: Pages in one batch job: one forward pass and one append per batch (`db.embed_many`, #5954).
+BATCH_PAGES = 64
+
+
+def queue_reembed_batches(db: Any, document_ids: list[str], *, started_by: str) -> list[str]:
+    """Queue the pages as jobs of BATCH_PAGES each, in the order given; returns the job ids (the recipe's embed card waits on them)."""
+    import json
+    import uuid
+
+    from fichero_server.execution import jobs
+
+    return [jobs.enqueue(db, REEMBED_KIND, f"{BATCH_PREFIX}{uuid.uuid4()}", started_by=started_by,
+                         detail=json.dumps({"documents": document_ids[start:start + BATCH_PAGES]}))
+            for start in range(0, len(document_ids), BATCH_PAGES)]
+
+
+def _reembed_batch(db: Any, subject: str) -> None:
+    import json
+
+    from fichero_server.importers.derivatives import _embed_gate
+    from fichero_server.models import Document
+
+    row = db.execute_fetchone(
+        "SELECT detail FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",  # the subject is unique to a batch
+        [REEMBED_KIND, subject])
+    ids = (json.loads(row[0] or "{}") if row else {}).get("documents") or []
+    docs = [d for d in (db.get(Document, i) for i in ids) if d is not None and d.page_content]
+    if docs:
+        with _embed_gate:
+            current, embedded, wanted = db.embed_many_unless_current(docs)
+        if current + embedded < wanted:  # the job fails, so Activity shows it, as for a single page
+            raise RuntimeError(f"{wanted - current - embedded} of {wanted} pages could not be embedded")
+
+
 def _reembed(db: Any, document_id: str) -> None:
     """The job: embed the page's current text (behind the same gate as every other embed, so a
     correction and an import never stack two all-core ONNX passes)."""
     from fichero_server.importers.derivatives import _embed_gate
     from fichero_server.models import Document
 
+    if document_id.startswith(BATCH_PREFIX):  # a recipe's embed card: a batch of pages in one job, one forward pass
+        _reembed_batch(db, document_id)
+        return
     doc = db.get(Document, document_id)
     if doc is not None and doc.page_content:
         with _embed_gate:
-            outcome = db.embed(doc)
+            outcome = db.embed_unless_current(doc)  # a page read and then searched is embedded once per text version
         if not outcome and outcome.is_infrastructure_failure:  # the job fails, so Activity shows it
             raise RuntimeError(f"Could not embed {document_id}: {outcome.error}")
 

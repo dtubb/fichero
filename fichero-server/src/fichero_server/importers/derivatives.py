@@ -515,7 +515,7 @@ def _embedding(library: str | None):
 
 def _embed_one(db: Database, target: Document, library: str | None) -> bool:
     with _embedding(library):
-        return db.embed(target)
+        return db.embed_unless_current(target)
 
 
 def _progress_touch(library: str) -> None:
