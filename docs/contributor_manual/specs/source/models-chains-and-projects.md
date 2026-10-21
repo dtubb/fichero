@@ -2940,8 +2940,8 @@ Projects
   cards on all of the batch's pages, then the MLX / vision / cloud reader cards and Correct, then spaCy's, then the
   LLM text steps (statements, describe, extract), then embedding; the next batch starts after the embedder step. The
   rule: **one MLX load per batch, kept through spaCy.** spaCy is light (CPU, a few hundred MB) and never releases the
-  served model, and the idle stop does not take the model while a batch still has steps to run (it is let go at the
-  batch's end); the lane unloads it only before a heavy load (Kraken, or the embedder at 16 GB or less). The order is
+  served model, and the idle stop does not take that model (a hold is per model id) while the batch still has a step to run that
+  uses it (let go after the batch's last such step); the lane unloads it only before a heavy load (Kraken, or the embedder at 16 GB or less). The order is
   `assemble.STEP_ORDER`; there is no order setting. Of the whole-project steps only publish waits for the run's last
   batch (`runner._run_batch`, `final`); find documents, check and export run per batch like the rest. At 8 GB, whether
   spaCy and the served model fit together is not measured; no exception is made until it is.
