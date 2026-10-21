@@ -398,8 +398,11 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     if not items:
         return items
     counts = db.child_counts([item.id for item in items])
+    from fichero_server.llm.read_guard import typed_read_flag
+
     for item in items:
         item.child_count = counts.get(item.id, 0)
+        item.read_flag = typed_read_flag(item)
     # A diary entry on lines is listed with its text read from them (#5601).
     from fichero_server.workflows.tools.diary_entries import with_texts_read_from_lines
 
@@ -2904,7 +2907,10 @@ def update_document_impl(
         else:
             merged_metadata = dict(existing_metadata)
         merged_metadata["page_content_user_edited_at"] = utc_now().isoformat()
-        update_data["metadata"] = merged_metadata
+        # A person's own text answers the repair's "read this page again" (#6002).
+        from fichero_server.maintenance.page_text_repair import without_needs_rereading
+
+        update_data["metadata"] = without_needs_rereading(merged_metadata)
 
     # A page's kind changed here is a person's correction: the sorting job never overwrites it (#5578).
     from fichero_server.recipes import sorting

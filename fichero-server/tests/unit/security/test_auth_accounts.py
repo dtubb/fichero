@@ -970,7 +970,7 @@ def test_pairing_code_rejects_invalid_tailnet_url(
 
     response = client.post("/api/pair/code", headers=_bearer(session_token))
 
-    assert response.status_code == 422
+    assert response.status_code == 409
     assert response.json()["detail"] == message
 
 

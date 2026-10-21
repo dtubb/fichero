@@ -301,7 +301,7 @@ class TestPropagateToPageChildren:
                 "parent_pdf_id",
                 ["Text from page 1", "Text from page 2", "Text from page 3"],
                 "/lib.fichero",
-            )
+            update_page_content=True)
 
         assert page1.page_content == "Text from page 1"
         assert page2.page_content == "Text from page 2"
@@ -329,7 +329,7 @@ class TestPropagateToPageChildren:
                 "parent_id",
                 ["Page 1 text", "Page 2 text"],
                 "/lib.fichero",
-            )
+            update_page_content=True)
 
         assert mock_db.save.call_count == 2
         assert mock_db.embed.call_count == 2
@@ -356,7 +356,7 @@ class TestPropagateToPageChildren:
                 "parent_id",
                 ["Page 1 text", ""],  # page 2 has no OCR output
                 "/lib.fichero",
-            )
+            update_page_content=True)
 
         assert page1.page_content == "Page 1 text"
         assert mock_db.save.call_count == 1
@@ -373,7 +373,7 @@ class TestPropagateToPageChildren:
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
 
-            await _propagate_to_page_children("orphan_id", ["text"], "/lib.fichero")
+            await _propagate_to_page_children("orphan_id", ["text"], "/lib.fichero", update_page_content=True)
 
         mock_db.save.assert_not_called()
         mock_db.embed.assert_not_called()
@@ -397,7 +397,7 @@ class TestPropagateToPageChildren:
                 "parent_id",
                 ["Page text"],
                 "/lib.fichero",
-            )
+            update_page_content=True)
 
         assert isinstance(page.metadata, dict)
         assert page.page_content == "Page text"
@@ -422,7 +422,7 @@ class TestPropagateToPageChildren:
                 "parent_id",
                 ["First page text", "Second page text"],
                 "/lib.fichero",
-            )
+            update_page_content=True)
 
         assert page.page_content == "Second page text"
 
@@ -460,7 +460,7 @@ class TestPropagateToPageChildren:
                 "/lib.fichero",
                 artifact_type="transcription",
                 llm_config=llm_config,
-            )
+            update_page_content=True)
 
         assert [art.document_id for art in saved_artifacts] == ["page-1", "page-2"]
         assert artifact_ids == [art.id for art in saved_artifacts]

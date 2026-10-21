@@ -479,6 +479,8 @@ _READ_LOOK_AGAIN_SECONDS = 0.05
 #: Releases of the served model in progress (`activity.lane.small-mac-one-heavy-model`). While one is, no new read takes a slot: a read
 #: that entered between the count reaching zero and the stop would be killed mid-call (## 844).
 _releases_pending = 0
+#: How many releases have ended: a read that waited for its slot compares it, and asks the server is ready again if one did.
+_releases_ended = 0
 
 
 def begin_release() -> None:
@@ -488,9 +490,15 @@ def begin_release() -> None:
 
 
 def end_release() -> None:
-    global _releases_pending
+    global _releases_pending, _releases_ended
     with _reads_lock:
         _releases_pending = max(0, _releases_pending - 1)
+        _releases_ended += 1
+
+
+def releases_ended() -> int:
+    with _reads_lock:
+        return _releases_ended
 
 
 def release_pending() -> bool:

@@ -421,6 +421,12 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.spacy.store-first` — **[OK]** (#5367; built: `spacy_ner._open`, `spacy_svo`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) the names step and the statement grammar
   (`knowledge/spacy_ner.py`, `knowledge/spacy_svo.py`) look for a pipeline in the model store first,
   then among the bundled ones.
+- `runtime.spacy.never-blocks` — **[OK]** (#5843 family; built: the spaCy NER provider, the SVO steps' parse and `predicate_problem` run on worker threads) no spaCy pipeline runs on the event loop: a step that names pages
+  or finds statements asks for the spaCy turn (a person's step first) and runs the pipeline on a worker thread, so the engine keeps
+  answering while another page holds the turn. Tested in `fichero-server/tests/unit/workflows/test_spacy_never_blocks_the_loop.py`: a loop-lag test (a one-second spaCy call
+  leaves the loop ticking), and a guard that finds every function that runs a pipeline from where one is loaded, to a fixed point across the
+  engine and through aliased imports, and fails on any `async def` that calls one outside a thread (with a synthetic tree that
+  proves it follows helpers and aliases). Batching pages into one `pipe` call is not built: it waits for the M4 bench (kept only at 1.5x or better).
 - `runtime.spacy.pin-is-honoured` — **[OK]** (#5367, #4948; built: `spacy_ner._load_named` / `PipelineMissing`, the provider passes its pin; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a step pinned to a spaCy pipeline runs that
   pipeline and no other; if it is not on this Mac the step says so and does not run another in its
   place (until 2026-10-04 the names step ignored its pin and took the language's preferred pipeline).
