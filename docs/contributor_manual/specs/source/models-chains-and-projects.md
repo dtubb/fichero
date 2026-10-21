@@ -2931,7 +2931,7 @@ Projects
   naturally), then the page's own place (`IMG_2` before `IMG_10`), not the order the files were imported; its Activity
   rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`.
   M4 PASS 2026-10-20 9707dcc83: test_pages_in_finder_order_5849.py and test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (7 passed).
-- `activity.run.systemic-error-rule` — **[OK]** (Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
+- `activity.run.systemic-error-rule` — **[OK]** (#5880; Fable review 2026-10-19 #22; built 2026-10-20) a node that fans out over pages stops the run as a
   systemic failure, once its pages have run (there is no early abort when the first few fail, except a refusal that holds for every page, which stops the pages not yet started), when five pages in a row fail on a batch under ten
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
   folder) do not stop a large batch that mostly reads, so the verdict does not depend on the page order, and the message
@@ -4757,8 +4757,6 @@ Each is described in the paragraph named; the id lets a test cite it.
   a step whose output may leave no trace on a page (Find Names on a page naming no one, Prepare on a clear page) keeps on the run the pages
   it ran on, and the plan counts them done, so a page is not "to do" after every run.
 - `source.recipe.status-names-its-own-child` — **[PARTIAL]** (#5870) A running step that makes no job shows its own state, not another row's. Test: fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py (lead-c14 3e1890982; PARTIAL until the M4 proof run).
-- `source.recipe.row-progress-across-stages` — **[BROKEN]** (#5871) A recipe's progress counts its pages across stages and resets at no stage. Test: (not yet written: a test citing #5871).
-- `source.recipe.systemic-stop-by-page-order` — **[PARTIAL]** (#5880) Five consecutive failures stop a small batch only; a large run stops on the error rate; the message names the files. Test: (not yet written: a test citing #5880).
 - `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
   run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
 - `source.job.names-warn-on-unreadable` — **[OK]** (#5694; tested in `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`)
