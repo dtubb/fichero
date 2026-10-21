@@ -333,8 +333,8 @@ def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
 def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
     """A workflow run outside any recipe, from its account."""
     account = job.account
-    return LiveBlock(model=model, where=where, 
-        id=job.id, workflow=job.name, state=job.state, reason=job.reason if job.state != "running" else
+    return LiveBlock(
+        model=model, where=where, id=job.id, workflow=job.name, state=job.state, reason=job.reason if job.state != "running" else
         (account.waiting_reason if account else None), done=account.pages_done if account else 0,
         failed=account.pages_failed if account else 0, left=account.pages_left if account else 0,
         total=account.pages_total if account else 0)
@@ -355,18 +355,37 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
         folders_done=status.get("folders_done"), folders_total=status.get("folders_total"), model=model, where=where)
 
 
+#: The model and place of a stage run, kept a few seconds: the summary is polled every second or two and each read is the
+#: stage run's whole job tree. By (library, run): (monotonic time read, (model, where)).
+_WHERE_AND_MODEL: dict[tuple[str, str], tuple[float, tuple[Optional[str], Optional[str]]]] = {}
+_WHERE_AND_MODEL_SECONDS = 10.0
+
+
 async def _stage_where_and_model(db: Database, run_id: str) -> tuple[Optional[str], Optional[str]]:
     """The model and the place of one stage run, from its job rows (`activity.summary.where-and-model`, #5960); nothing
-    known when the rows cannot be read, so the block stands without them."""
+    known when the rows cannot be read, so the block stands without them. Read at most once in ten seconds for a run.
+
+    ponytail: a time window, not a narrower query: the answer (which model, which place) moves slowly, the tree is the
+    only place the places are rolled up."""
+    import time
+
     from fichero_server.api.routes.system.activity_pages import where_and_model
     from fichero_server.execution import jobs as job_queue
 
+    key, now = (str(db.path), run_id), time.monotonic()
+    held = _WHERE_AND_MODEL.get(key)
+    if held is not None and now - held[0] < _WHERE_AND_MODEL_SECONDS:
+        return held[1]
     try:
         found = await asyncio.to_thread(job_queue.tree, db, run_id)
-        return where_and_model(found) if found else (None, None)
+        answer = where_and_model(found) if found else (None, None)
     except Exception as exc:  # noqa: BLE001 -- said in the log
         logger.warning("activity summary: no job rows for %s: %s", run_id, exc)
-        return None, None
+        return None, None  # not kept: the next poll asks again
+    for stale in [k for k, (read, _) in _WHERE_AND_MODEL.items() if now - read >= _WHERE_AND_MODEL_SECONDS]:
+        del _WHERE_AND_MODEL[stale]
+    _WHERE_AND_MODEL[key] = (now, answer)
+    return answer
 
 
 async def live_blocks(db: Database, jobs: "list[BackgroundJob]",

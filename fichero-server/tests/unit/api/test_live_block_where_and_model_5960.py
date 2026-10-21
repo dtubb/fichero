@@ -38,3 +38,25 @@ def test_nothing_known_says_nothing():
 def test_the_live_block_carries_both():
     fields = app.openapi()["components"]["schemas"]["LiveBlock"]["properties"]
     assert {"model", "where"} <= set(fields)
+
+
+def test_a_stage_runs_rows_are_read_once_in_the_window_not_on_every_poll(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.system import activity
+    from fichero_server.execution import jobs
+
+    reads = []
+
+    def tree(db, run_id):
+        reads.append(run_id)
+        return _row("running", places={"this_mac": 1}, children=[_row("running", "kraken:blla")])
+
+    monkeypatch.setattr(jobs, "tree", tree)
+    monkeypatch.setattr(activity, "_WHERE_AND_MODEL", {})
+    db = SimpleNamespace(path="/lib/P.fichero/fichero.duckdb")
+    answers = [asyncio.run(activity._stage_where_and_model(db, "w1")) for _ in range(3)]
+    assert answers == [("Kraken", "on this Mac")] * 3 and reads == ["w1"], "three polls, one read"
+    asyncio.run(activity._stage_where_and_model(db, "w2"))
+    assert reads == ["w1", "w2"], "another run reads its own"
