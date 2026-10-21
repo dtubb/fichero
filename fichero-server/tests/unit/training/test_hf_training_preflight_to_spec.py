@@ -22,6 +22,8 @@ from tests.unit.training.test_training_job import (  # noqa: F401  (fixtures)
     FakeHub, _request, _start, _subject, isolated, notebook,
 )
 
+pytestmark = pytest.mark.usefixtures("project_says_yes")  # the project says yes to cloud models (review 672)
+
 APP_TOKEN, KEYCHAIN_TOKEN = "hf_app_stale", "hf_keychain_good"
 
 

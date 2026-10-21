@@ -76,6 +76,12 @@ def _target(tmp_path, state="COMPLETED"):
 
 
 def test_a_kraken_reader_trains_on_a_cluster_and_comes_home(db, notebook, tmp_path):  # noqa: F811
+    from pathlib import Path
+
+    from fichero_server.recipes.project import write_project_setup
+
+    # the project says yes to the cluster but never that its copies may stay (the copies default follows `cloud_allowed`)
+    write_project_setup(Path(db.path).parent, {"cloud_allowed": True, "copies_may_stay_on_cluster": False}, None)
     target, shell = _target(tmp_path)
     started = training_job.start(db, _request(notebook, target="r"), started_by="historian",
                                  target_factory=lambda: target)
