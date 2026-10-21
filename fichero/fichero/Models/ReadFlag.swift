@@ -8,9 +8,9 @@ struct ReadFlag: Codable, Hashable, Sendable {
     /// The flagged read's own measure, kept as the engine sends it.
     let measure: [String: AnyCodable]?
 
-    /// "Needs re-reading: <reason>" for the repair's kind; any other kind says its word and reason as sent.
+    /// "Needs re-reading: <reason>" for the repair's kind; any other kind shows only its reason, never the kind's id.
     var note: String {
-        let head = kind == "needs-re-reading" ? "Needs re-reading" : kind.replacingOccurrences(of: "-", with: " ").capitalized
-        return reason.isEmpty ? head : head + ": " + reason
+        guard kind == "needs-re-reading" else { return reason }
+        return reason.isEmpty ? "Needs re-reading" : "Needs re-reading: " + reason
     }
 }
