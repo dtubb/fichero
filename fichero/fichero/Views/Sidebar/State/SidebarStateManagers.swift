@@ -301,7 +301,12 @@ class SidebarSelectionState {
     /// (#160), so its tap is the one writer of both halves: the highlight and the routed primary.
     func selectProject(_ libraryId: UUID) {
         selectedItemId = SidebarDestination.library(libraryId).serializedID
+        revealGeneration &+= 1  // choosing the row that is already selected writes nothing, yet still goes in (#5964)
     }
+
+    /// Bumped on every project choice: the window moves a compact (iPhone) split view to its content column on it
+    /// (`ContentView.decoratedNavigationSplitColumn`, `m2p.ios.sidebar-to-library`).
+    private(set) var revealGeneration = 0
 
     /// Bumped when a breadcrumb opens the node that is ALREADY the sidebar's whole selection
     /// (#5633). Selecting it again writes nothing, so neither `.onChange` a click runs would
