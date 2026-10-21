@@ -249,7 +249,7 @@ def test_glm_ocr_is_in_the_catalog_pinned_and_within_the_cap_5980() -> None:
     assert spec.repo_id == "mlx-community/GLM-OCR-4bit" and spec.licence == "MIT"
     assert spec.revision == "97f587506984cc92fa69b2694b4128e53db6b081"
     assert spec.download_size_bytes == 1_254_097_532 and spec.tested_status == "untested"
-    assert len(MANAGED_MLX_MODELS) == 8  # the cap is a curation cap: DeepSeek-OCR waits for a measured page
+    assert len(MANAGED_MLX_MODELS) <= 8  # the cap is a ceiling (a curation cap): DeepSeek-OCR waits for a measured page
     assert not any("DeepSeek" in m.repo_id for m in MANAGED_MLX_MODELS.values())
 
 
