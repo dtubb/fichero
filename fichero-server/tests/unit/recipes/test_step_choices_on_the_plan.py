@@ -105,3 +105,14 @@ def test_each_candidate_carries_its_cost_for_the_set_before_start(client, projec
     assert cloud and all(c["cost_usd"] is None or c["cost_usd"]["basis"] in ("estimate", "unknown") for c in cloud)
     priced = [c for c in cloud if c["cost_usd"] and c["cost_usd"]["basis"] == "estimate"]
     assert not pages or all(c["cost_usd"]["value"] > 0 for c in priced)
+
+
+def test_a_cloud_choice_the_project_cannot_use_is_not_run_in_place_and_nothing_stands_in_for_it(client, project):
+    """`source.onboard.step-choice-overrides-the-pick`: the choice stays the step's, the plan skips the step with the sentence on that
+    step (here: the project keeps its pages on this Mac), and no other model is swapped in."""
+    step = _read_choice(_plan(client))["step"]
+    assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": CLAUDE}).status_code == 200
+    plan = _plan(client)
+    skipped = next((s for s in plan["skipped"] if s["step"] == step), None)
+    assert skipped is not None and "keeps its pages here" in skipped["why"], plan["skipped"]
+    assert _read_choice(plan)["picked"] == CLAUDE and not any(f["step"] == step and f.get("used") for f in plan["fallbacks"])
