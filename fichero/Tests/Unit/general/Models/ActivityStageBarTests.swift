@@ -59,4 +59,20 @@ struct ActivityStageBarTests {
         #expect(partial?.label == "Read, partial, 3 failed")
         #expect(ActivityStageBar.segments(of: [card(.running, done: 1, total: 10)]).first?.label == "Read, running")
     }
+
+    @Test func twoStoresWithOneLibraryIdKeepTheFirstAndDoNotCrash() throws {
+        let id = UUID()
+        let tree = try JSONDecoder().decode(Components.Schemas.JobTree.self,
+                                            from: Data(ActivityStageCardsTests.treeJSON.utf8))
+        let trees = ActivityStageBar.trees([(id, ["r1": ActivityJobNode(tree)]), (id, [:])])
+        #expect(trees.count == 1 && trees[id]?["r1"] != nil)
+    }
+
+    @Test func ticksSpreadAcrossTheWholeSegmentWhenNothingIsFilled() {
+        let empty = ActivityStageBar.tickPositions(count: 3, fill: 0)
+        #expect(empty == [0.25, 0.5, 0.75])
+        #expect(Set(empty).count == 3)  // not stacked at the start
+        #expect(ActivityStageBar.tickPositions(count: 1, fill: 0.4) == [0.2])  // along the filled part
+        #expect(ActivityStageBar.tickPositions(count: 9, fill: 1).count == ActivityStageBar.maxTicks)
+    }
 }

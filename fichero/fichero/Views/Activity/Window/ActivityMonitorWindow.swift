@@ -60,7 +60,7 @@ struct ActivityMonitorWindow: View {
                         perform: { button, row in perform(button, on: row) },
                         open: { openedID = $0.id },
                         stageSegments: { row in
-                            let trees = Dictionary(uniqueKeysWithValues: libraries.map { ($0.id, $0.activityStore.runTrees) })
+                            let trees = ActivityStageBar.trees(libraries.map { ($0.id, $0.activityStore.runTrees) })
                             return ActivityStageBar.segments(for: row, trees: trees)
                         },
                         stopTarget: { runMenuTarget(for: $0) },
