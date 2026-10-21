@@ -8,6 +8,7 @@ from fichero_server.api.routes.auth import pairing
 from fichero_server.db.manager import db_manager
 from fichero_server.models import DocType, Document
 from fichero_server.security import authz
+from tests.route_inventory import api_routes
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
 from tests.unit.transport.test_person_bound_invite_5910 import _as, _invite, _redeem
 
@@ -163,10 +164,8 @@ def test_a_folder_is_shared_with_a_named_person(project):
 
 
 def test_the_folder_is_in_the_mint_audit(project):
-    from fichero_server.models import ActionAudit
-
     _invite(project.harness, "hana", folder_id=project.ids["A"])
-    rows = [a for a in project.harness.app_db.query(ActionAudit) if a.action_name == "invite.mint"]
+    rows = [a for a in project.harness.app_db.list_action_audits() if a.action_name == "invite.mint"]
     assert rows and rows[-1].params["folder_id"] == project.ids["A"]
 
 
@@ -176,7 +175,7 @@ def test_only_the_owner_may_share_a_folder(project):
 
 
 # -- review 704: a person shared one folder never reads the whole project through a library-level route ---------------------
-def _app():
+def _app():  # api_routes(_app()) is every served route: FastAPI 0.141 keeps included routers whole in app.routes
     import importlib
 
     return importlib.import_module("fichero_server.api.main").app
@@ -193,7 +192,7 @@ def _library_level_get_routes():
     from fastapi.routing import APIRoute
 
     found = []
-    for route in _app().routes:
+    for route in api_routes(_app()):
         if not isinstance(route, APIRoute) or "GET" not in route.methods or "{" in route.path:
             continue
         names = {getattr(d.call, "__name__", "") for d in _walk(route.dependant)}
@@ -206,7 +205,7 @@ def test_every_listed_route_exists_and_filters_its_rows():
     import inspect
 
     by_id = {}
-    for route in _app().routes:
+    for route in api_routes(_app()):
         endpoint = getattr(route, "endpoint", None)
         if endpoint is not None:
             by_id[f"{endpoint.__module__}:{endpoint.__name__}"] = route
@@ -238,7 +237,7 @@ def test_search_is_refused_in_words_that_name_nothing(project):
     _person(project.harness, "carla")
     authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
                        role="viewer")
-    got = _as(project.harness, "carla").get("/api/search", params={"q": "Page b1"})
+    got = _as(project.harness, "carla").post("/api/search", json={"query": "Page b1"})
     assert got.status_code in (401, 403) and "Page b1" not in got.text and "Folder B" not in got.text
 
 
@@ -293,7 +292,7 @@ def _status(client, method, path):
 def _paths(suffix):
     from fastapi.routing import APIRoute
 
-    return [route.path for route in _app().routes if isinstance(route, APIRoute) and route.path.endswith(suffix)]
+    return [route.path for route in api_routes(_app()) if isinstance(route, APIRoute) and route.path.endswith(suffix)]
 
 
 @pytest.mark.parametrize("suffix", ["/activity/stream", "/changes/stream"])
@@ -313,7 +312,7 @@ def test_a_scoped_editor_cannot_start_a_run_or_any_library_level_write(project):
 
     client = _scoped_client(project, role="editor")
     started = []
-    for route in _app().routes:
+    for route in api_routes(_app()):
         if not isinstance(route, APIRoute) or "{" in route.path or not (route.methods & {"POST", "PUT", "PATCH", "DELETE"}):
             continue
         if "get_library_database_for_write" not in {getattr(d.call, "__name__", "") for d in _walk(route.dependant)}:
@@ -364,7 +363,14 @@ def test_a_run_stream_naming_another_library_is_refused(project, live_run, tmp_p
 
 
 def test_the_owner_still_follows_a_run_with_or_without_the_header(project, live_run):
+    import threading
+
+    from fichero_server.execution import runner
+
+    hub = runner._get_workflow_state(live_run)["events"]
     for library in (True, False):
+        # an open stream never ends by itself and closing the client waits for it: end it a moment after the status
+        threading.Timer(1.0, hub.put, [None]).start()
         assert _status(_as(project.harness, "owner", library=library), "GET", _stream_path(live_run)) == 200
 
 

@@ -33,7 +33,8 @@ from fichero_server.workflows.tools import vision_base
 
 
 def _stat(*, blocks: int = 8, size: int = 4096, flags: int = 0) -> SimpleNamespace:
-    return SimpleNamespace(st_flags=flags, st_blocks=blocks, st_size=size)
+    # st_mode: pytest's tmp_path sweeper stats the faked path at teardown when the fake outlives it (the 4 teardown errors)
+    return SimpleNamespace(st_flags=flags, st_blocks=blocks, st_size=size, st_mode=0o100644)
 
 
 def _fake_stat_for(monkeypatch, target, result):

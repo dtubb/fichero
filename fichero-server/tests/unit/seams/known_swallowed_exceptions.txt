@@ -18,6 +18,8 @@ api/main.py::lifespan._warm_workflow_stack 1
 api/main.py::prefetch_library_caches 1
 api/routes/ai/hpc.py::_broadcast_hpc_change 1
 api/routes/ai/provider_models.py::list_models_for_provider 5
+# the host's name in a shared project is cosmetic; a failure is logged and the project still opens.
+api/routes/auth/authz.py::_name_the_host_in_the_project 1
 api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
 api/routes/document/artifacts.py::_delete_artifact_impl 2
@@ -54,6 +56,9 @@ bookmarks.py::stop_accessing 1
 core/background_compute.py::current_thread_qos_class 1
 core/background_compute.py::set_background_qos 1
 core/duckdb_session.py::pin_utc_session 1
+# the fast exit leaves by os._exit: a thumbnail-pool shutdown or an atexit hook that fails has nothing downstream to tell.
+core/fast_exit.py::_join_thumbnails 1
+core/fast_exit.py::leave 2
 # #5315: the index failing leaves search case- and accent-sensitive, logged at ERROR only;
 # surfacing it is the search owner's (#5307).
 db/__init__.py::Database._ensure_text_search_index 1
@@ -82,9 +87,9 @@ db/storage_snapshots.py::snapshot_library 1
 errors.py::log_and_recover.decorator.wrapper 1
 execution/chaining.py::ChainExecutor._emit_event 1
 execution/runner.py::_estimate_run_cost 2
-execution/runner.py::_run_workflow_in_background 4
-execution/runner.py::_run_workflow_in_background._close_in_flight_steps 1
-execution/runner.py::_run_workflow_in_background._finalize_documents 2
+execution/runner.py::_run_workflow_body 4
+execution/runner.py::_run_workflow_body._close_in_flight_steps 1
+execution/runner.py::_run_workflow_body._finalize_documents 2
 importers/derivatives.py::_emit_queue_activity 1
 importers/derivatives.py::_emit_queue_progress 1
 importers/derivatives.py::_nlp_stage 1

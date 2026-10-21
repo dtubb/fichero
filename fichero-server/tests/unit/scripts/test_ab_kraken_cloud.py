@@ -167,6 +167,7 @@ def _stub_kraken(image, reader):
 def test_the_dry_run_with_the_fake_model_measures_all_three_and_labels_the_reference(tmp_path):
     report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
                     reader_ref="unused", language="es", kraken=_stub_kraken)
+    assert report["failures"] == [], "a fake arm that fails is a bug in the harness, not a result"
     assert report["label"] == "model reference, not ground truth" and report["pages_done"] == 2
     assert (report["A_lines_sent"], report["A_lines_total"]) == (4, 6), "the unsure line and the one with no certainty"
     assert report["cost"]["total"] == 0 and report["cost"]["estimated"] is False and not report["stopped"]
@@ -293,6 +294,7 @@ def test_the_fake_arms_dry_run_works_anywhere_and_the_cloud_arms_are_unchanged(t
     report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
                     reader_ref="unused", language="es", kraken=_stub_kraken,
                     arms=ab.parse_arms("vision,mlx:auto,A,B"), fake_arms=True)
+    assert report["failures"] == [], "a fake arm that fails is a bug in the harness, not a result"
     assert report["reference_arm"] is None and report["label"] == "model reference, not ground truth"
     rows = json.loads((tmp_path / "out" / "lines.json").read_text())["lines"]
     assert all(r["vision"] == ab.FAKE_ARM_TEXT["vision"] and r["mlx:auto"] == ab.FAKE_ARM_TEXT["mlx"] for r in rows)
@@ -359,6 +361,7 @@ def test_cer_is_also_reported_over_lines_at_least_120_px_wide_and_the_fragments_
                "mlx:m": _reader({"0": "hola", "1": "mundo", "2": "adios"})}
     report = ab.run(_pages(tmp_path, 1), tmp_path / "out", model="fake", reference_model=None, bar=0.6, cap=1.0,
                     reader_ref="unused", language="es", kraken=kraken, arms=["kraken", "vision", "mlx:m"], readers=readers)
+    assert report["failures"] == [], "a fake arm that fails is a bug in the harness, not a result"
     assert report["fragments"] == {"px": 120, "lines": 1, "of": 3}
     assert report["per_arm"]["vision"]["cer"] > 0, "over every line the fragment's empty read counts as a deletion"
     assert report["per_arm"]["vision"]["wide"]["cer"] == 0.0 and report["per_arm"]["vision"]["wide"]["lines"] == 2
@@ -385,6 +388,20 @@ def test_the_report_counts_each_arms_off_script_lines(tmp_path):
 # --- cloud arms through OpenRouter: a model each, one cap, keys the engine's way (#5894) ----------------------------------
 
 OPENROUTER_MODELS = (ab.OPENROUTER_CLAUDE, ab.OPENROUTER_GEMINI, ab.OPENROUTER_QWEN)
+
+
+@pytest.fixture(autouse=True)
+def _vendored_price_table(monkeypatch):
+    """The arms are priced by the vendored registry snapshot, never by whatever a machine's downloaded cache or an
+    earlier test left in `_PRICE_TABLE` (the gate's M4 run read 'has no price' for rows the snapshot lists)."""
+    import json as _json
+    from importlib import resources
+
+    from fichero_server.llm import model_types
+
+    table = _json.loads((resources.files("fichero_server.resources") / "model_prices.json").read_text(encoding="utf-8"))
+    table.pop("sample_spec", None)
+    monkeypatch.setattr(model_types, "_PRICE_TABLE", table)
 
 
 @pytest.mark.parametrize("model", OPENROUTER_MODELS)

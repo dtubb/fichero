@@ -1226,7 +1226,6 @@ def _adapter_card(model: dict[str, Any], what: str, remote: dict[str, Any], want
     (its adapter file would be unpickled), is listed as unable to run, in words."""
     from dataclasses import replace
 
-    repo = str(model.get("modelId") or model.get("id"))
     base = _adapter_base(model)
     if base is None or "safetensors" not in (model.get("tags") or []):
         why = ("an adapter that does not name its base model" if base is None
