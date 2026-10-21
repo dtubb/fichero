@@ -34,6 +34,14 @@ extension SidebarItemRow {
                     sidebarState.newFolderCategory = .folder
                     sidebarState.showingNewFolderDialog = true
                 })
+                // Share… this folder alone (#5967): offered where a project's Share… is, with Multi-user on.
+                if EngineConfig.multiuserEnabled, let libraryId = item.libraryId {
+                    Button("Share…") {
+                        sidebarState.folderToShare = FolderShareTarget(
+                            libraryId: libraryId, folderId: folderDoc.id, name: folderDoc.name)
+                    }
+                    .accessibilityIdentifier("sidebar.folder.share")
+                }
                 Divider()
             }
 

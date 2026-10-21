@@ -375,6 +375,12 @@ struct SidebarView: View {
             .sheet(item: $libraryToShare) { library in
                 ShareLibrarySheet(library: library, usersStore: appState.usersStore)
             }
+            // Share… on a FOLDER row (#5967): the same sheet, scoped to that folder.
+            .sheet(item: $sidebarState.folderToShare) { target in
+                if let library = libraryManager.getLibrary(id: target.libraryId) {
+                    ShareLibrarySheet(library: library, usersStore: appState.usersStore, folder: target)
+                }
+            }
             // Edit Document Types… from the always-there project's empty-area menu: the same
             // sheet a project row's menu presents.
             .sheet(item: $alwaysThereTypeEditorLibrary) { library in
