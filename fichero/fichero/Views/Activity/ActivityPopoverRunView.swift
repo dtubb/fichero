@@ -75,6 +75,12 @@ struct ActivityPopoverBlockView: View {
             Text(block.counts)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            if let subtitle = block.subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("activity.block.subtitle")
+            }
             if let waiting = block.waiting, !waiting.isEmpty {
                 Text("Waiting: \(waiting)")
                     .font(.caption2)

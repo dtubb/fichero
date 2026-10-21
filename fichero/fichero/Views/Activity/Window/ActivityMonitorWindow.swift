@@ -38,6 +38,16 @@ struct ActivityMonitorWindow: View {
         return references
     }
 
+    /// The engine's UP NEXT items of every open project that the list does not already show as a row.
+    private var upNextLines: [ActivityPopoverSummary.UpNextLine] {
+        ActivityPopoverSummary.upNextLines(libraries.compactMap { $0.activityStore.activitySummary },
+                                           excluding: Set(windowGroups.upNext.map(\.id)),
+                                           runName: { jobId in
+                                               (windowGroups.now + windowGroups.upNext).first { $0.jobId == jobId }?
+                                                   .displayName(showsProject: projectNames.count > 1)
+                                           })
+    }
+
     var body: some View {
         Group {
             if libraries.isEmpty {
@@ -64,6 +74,7 @@ struct ActivityMonitorWindow: View {
                             return ActivityStageBar.segments(for: row, trees: trees)
                         },
                         stopTarget: { runMenuTarget(for: $0) },
+                        upNextLines: upNextLines,
                         clearFailed: { Task { await clearFailed() } },
                         clearFinished: { confirmingClearFinished = true },
                         delete: { rows in Task { await deleteRuns(withIDs: Set(rows.map(\.id))) } }

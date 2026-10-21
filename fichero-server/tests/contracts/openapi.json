@@ -99196,6 +99196,12 @@
             "type": "string",
             "title": "Why",
             "description": "what it waits for, in words"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "the recipe run (its job id) a stage line belongs to, so an app names the run without parsing `id`; null for work that is a row of its own"
           }
         },
         "type": "object",

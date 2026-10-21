@@ -61,6 +61,8 @@ struct ActivityPopoverSummary: Equatable {
         let counts: String
         /// What a waiting block waits for; nil while it works.
         let waiting: String?
+        /// The model by its own name and where it runs, the engine's words as sent ("Kraken · on this Mac"); nil with neither.
+        var subtitle: String?
     }
 
     /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
@@ -70,12 +72,27 @@ struct ActivityPopoverSummary: Equatable {
         let waiting: String?
     }
 
+    /// One of the first UP NEXT items (`activity.popover.now-plus-next`): its name, and in grey what it waits for.
+    struct UpNextLine: Equatable, Identifiable {
+        let id: String
+        let name: String
+        let waiting: String
+        /// The run a stage line belongs to (and its project when the list is grouped), so two runs' "Describe" differ.
+        var run: String?
+
+        /// "Describe · Mosquera box" (the stage, then its run).
+        var title: String { run.map { "\(name) · \($0)" } ?? name }
+    }
+
     static let errorsShown = 3
+    static let upNextShown = 3
 
     /// The live blocks the engine's summary names, first in the popover.
     var blocks: [Block] = []
     /// One line per background kind with its total.
     var background: [BackgroundRow] = []
+    /// The first three of the engine's `up_next`, in the order the lanes will take them.
+    var upNext: [UpNextLine] = []
 
     /// The recipe runs in hand, each with its stages.
     var runs: [Run] = []
@@ -111,6 +128,8 @@ struct ActivityPopoverSummary: Equatable {
          errorWindow: ActivityErrorWindow? = nil, activity: Components.Schemas.ActivitySummary? = nil) {
         blocks = (activity?.live ?? []).map(Self.block)
         background = (activity?.background ?? []).map(Self.backgroundLine)
+        let runNames = Dictionary(jobs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        upNext = (activity?.upNext ?? []).prefix(Self.upNextShown).map { Self.upNextLine($0, runName: { runNames[$0] }) }
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
@@ -172,8 +191,29 @@ struct ActivityPopoverSummary: Equatable {
             id: live.id,
             title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
             counts: [pages, folders, failed].compactMap { $0 }.joined(separator: " · "),
-            waiting: live.state == "waiting" ? live.reason.map(worded) : nil
+            waiting: live.state == "waiting" ? live.reason.map(worded) : nil,
+            subtitle: subtitle(model: live.model, place: live._where)
         )
+    }
+
+    /// "<model> · <where>" from the engine's own words; either alone; nil when it sends neither.
+    static func subtitle(model: String?, place: String?) -> String? {
+        let parts = [model, place].compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The window's UP NEXT lines: every project's `up_next` that is not already a row of the list, in the engine's order.
+    /// `runName` says the name of a run by its job id (with its project when the list is grouped), for the item's `run_id`:
+    /// two runs' stage lines must tell apart.
+    static func upNextLines(_ summaries: [Components.Schemas.ActivitySummary], excluding rowIds: Set<String>,
+                            runName: (String) -> String? = { _ in nil }) -> [UpNextLine] {
+        summaries.flatMap { $0.upNext ?? [] }.filter { !rowIds.contains($0.id) }.map { upNextLine($0, runName: runName) }
+    }
+
+    /// What it waits for is the engine's `why`, as sent (it already says "after Read" and the like), never rebuilt here.
+    static func upNextLine(_ item: Components.Schemas.UpNextItem, runName: (String) -> String? = { _ in nil }) -> UpNextLine {
+        let run = item.runId.flatMap(runName)
+        return UpNextLine(id: item.id, name: item.name, waiting: worded(item.why), run: run)
     }
 
     static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundRow {

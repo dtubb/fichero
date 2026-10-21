@@ -324,6 +324,9 @@ class UpNextItem(BaseModel):
     stage: Optional[str] = Field(None, description="Set Up's stage it belongs to, by title; null for work that is none")
     after: Optional[str] = Field(None, description="what it follows, when it waits for an earlier stage ('Read')")
     why: str = Field(description="what it waits for, in words")
+    run_id: Optional[str] = Field(None, description=(
+        "the recipe run (its job id) a stage line belongs to, so an app names the run without parsing `id`; null for work that "
+        "is a row of its own"))
 
 
 class ActivitySummary(BaseModel):
@@ -479,7 +482,7 @@ def _stages_not_started(job: "BackgroundJob", status: "dict[str, Any] | None") -
         stage = stage_of(step.get("job") or (step.get("steps") or [""])[0])
         after_stage = stage_of(before.get("job") or (before.get("steps") or [""])[0])
         after = after_stage.title if after_stage else before.get("doing")
-        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name,
+        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name, run_id=job.id,
                                 stage=stage.title if stage else None, after=after,
                                 why=step.get("why") or (f"after {after}" if after else "in the queue")))
     return items
