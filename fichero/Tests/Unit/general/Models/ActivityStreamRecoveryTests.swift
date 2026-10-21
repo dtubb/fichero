@@ -83,4 +83,22 @@ struct ActivityStreamRecoveryTests {
         #expect(LiveUpdatesPausedPill.reconnectNowTitle == "Reconnect now")
         #expect(LiveUpdatesPausedPill().reconnectTitle == ConnectionPresentation.Action.reconnect.title)
     }
+
+    // A 403 is terminal (#5868, `activity.window.honest-state`): the stream gives up only after
+    // `deniedBeforeTerminal` in a row, since the first answer after a restart can be a 403 while the session re-forms.
+    @Test func aLoneOrSecondDenialRetriesAndTheThirdInARowIsTerminal() {
+        let limit = ActivityStreamService.deniedBeforeTerminal
+        #expect(limit == 3)
+        #expect(!ActivityStreamService.denialIsTerminal(consecutiveDenials: 1))
+        #expect(!ActivityStreamService.denialIsTerminal(consecutiveDenials: limit - 1))
+        #expect(ActivityStreamService.denialIsTerminal(consecutiveDenials: limit))
+        #expect(ActivityStreamService.denialIsTerminal(consecutiveDenials: limit + 1))
+    }
+
+    @Test func aStreamThatWasNeverDeniedIsNotPausedForAccess() {
+        let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/ActivityStreamRecoveryTests.fichero")
+        let store = ActivityStore(service: ActivityService(ficheroClient: client))
+        #expect(!store.liveUpdatesAccessDenied)
+        #expect(store.livePillMessage == LiveUpdatesPausedPill.reconnectingMessage)
+    }
 }
