@@ -100,7 +100,7 @@ struct ActivityStatusToolbarItem: View {
                 .help("Active tasks — click to view")
             } else {
                 // Idle: subtle persistent glyph so the status island always
-                // has its right button — the popover shows "Nothing running."
+                // has its right button.
                 // The glyph is the sidebar's Activity symbol, NOT the old
                 // `list.bullet.circle`, which was indistinguishable from the
                 // filter control's three-lines-in-a-circle at toolbar size
