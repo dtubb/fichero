@@ -1366,7 +1366,9 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
             lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
                    for ln in usable],
             regions={}, line_orders=[])
-        net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
+        # This page's own handle (`_own_copy`): two pages reading their found lines at once clobbered one reader's state
+        # ("list index out of range", M4 realrun 2026-10-20: the lines Find Regions keeps made Read take this path).
+        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
         with _stage("recognise"):
             predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
@@ -1396,7 +1398,8 @@ def read_given_lines(
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
         raise
     except Exception as exc:
-        raise KrakenSegmentationError(f"Kraken could not read the lines: {exc}") from exc
+        logger.warning("Kraken could not read the lines of %s: %s", image_path, exc, exc_info=True)  # the raw error: the log only
+        raise KrakenSegmentationError("Kraken could not read this page's lines.") from exc
     finally:
         _WANTED.reset(token)
 

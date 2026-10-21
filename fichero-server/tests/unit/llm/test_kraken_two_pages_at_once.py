@@ -189,3 +189,43 @@ def test_the_cores_are_split_by_the_pages_actually_inside(monkeypatch):
     assert seen[-1] == max(1, cores // 2)
     release.set()
     t.join()
+
+
+def test_two_pages_reading_found_lines_each_get_their_own_reader(tmp_path, monkeypatch):
+    """The read of lines already found (the path Find Regions' kept lines take) used the ONE resident reader for both pages:
+    Kraken keeps a page's state on the model, so they clobbered each other (M4 realrun 2026-10-20, 'list index out of
+    range'). Each page reads on its own handle, and a failure is said in words, the raw error in the log."""
+    pytest.importorskip("kraken")
+    from PIL import Image
+
+    path = tmp_path / "p.png"
+    Image.new("RGB", (40, 40), (250, 250, 250)).save(path)
+    lines = [{"id": "l1", "baseline": [[2, 20], [38, 20]], "polygon": [[2, 10], [38, 10], [38, 30], [2, 30]]}]
+    seen, lock, both_inside = [], threading.Lock(), threading.Barrier(2, timeout=5)
+
+    class Reader:
+        def predict(self, image, segmentation, config):
+            with lock:
+                seen.append(id(self))
+            try:
+                both_inside.wait()  # the other page is inside its predict at the same time
+            except threading.BrokenBarrierError:
+                pass
+            return []
+
+    shared = Reader()
+    monkeypatch.setattr(kr, "_resident", lambda kind, key, load: shared)
+    monkeypatch.setattr(kr, "_reader_config", lambda cls: None)
+    monkeypatch.setattr(kr, "_page_is", lambda p: None)
+    [t.join() for t in _in_threads(2, lambda _i: kr._read_given_raw(path, "m", lines))]
+    assert len(seen) == 2 and len(set(seen)) == 2 and id(shared) not in seen, "each page reads on its own copy"
+
+
+def test_a_failed_read_of_found_lines_says_it_in_words_and_keeps_the_raw_error_in_the_log(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(kr, "_read_given_raw", lambda *a: (_ for _ in ()).throw(IndexError("list index out of range")))
+    monkeypatch.setattr(kr, "_kraken_call", lambda op: op())
+    lines = [{"id": "l1", "baseline": [[2, 20], [38, 20]], "polygon": [[2, 10], [38, 10], [38, 30], [2, 30]]}]
+    with pytest.raises(kr.KrakenSegmentationError) as caught:
+        kr.read_given_lines(tmp_path / "p.png", "m", lines)
+    assert "index out of range" not in str(caught.value) and "Kraken could not read this page's lines" in str(caught.value)
+    assert "list index out of range" in caplog.text
