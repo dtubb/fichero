@@ -1350,6 +1350,8 @@ async def search_hugging_face(languages: frozenset[str],
             not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
 
     def htr(m: dict[str, Any]) -> str | None:
+        if is_component(m) or _words(m) & CHAT_BUILD_WORDS:  # a detector or orientation part, a chat build: never a reader
+            return None
         return reads_text(m) or ("an HTR model" + (" (image-to-text)" if m.get("pipeline_tag") == "image-to-text"
                                                    else "") if _words(m) & (OCR_WORDS | {"catmus", "palaeography",
                                                                                          "paleography"}) else None)
