@@ -68,3 +68,25 @@ def test_a_database_that_will_not_close_takes_the_ordinary_exit(tmp_path):
         print("returned")
     ''', torch=True)
     assert done.returncode == 0 and "returned" in done.stdout and "fast exit skipped" in done.stderr, done.stderr
+
+
+def test_a_systemexit_message_is_printed_and_the_status_is_one(tmp_path):
+    done = _run(tmp_path, "from fichero_server.core.fast_exit import leave\nleave(1, 'refusing a plaintext listener')\nprint('returned')\n",
+                torch=True)
+    assert done.returncode == 1 and "refusing a plaintext listener" in done.stderr and "returned" not in done.stdout
+
+
+def test_a_thumbnail_being_written_finishes_before_the_process_leaves(tmp_path):
+    marker = tmp_path / "thumb.done"
+    done = _run(tmp_path, f'''
+        import time
+        from concurrent.futures import ThreadPoolExecutor
+        from pathlib import Path
+        from fichero_server.db import storage
+        from fichero_server.core.fast_exit import leave
+        storage._executor = ThreadPoolExecutor(1)
+        storage._executor.submit(lambda: (time.sleep(0.5), Path({str(marker)!r}).write_text("x")))
+        time.sleep(0.1)
+        leave(0)
+    ''', torch=True)
+    assert done.returncode == 0 and marker.exists(), done.stderr

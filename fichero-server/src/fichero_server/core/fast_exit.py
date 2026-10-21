@@ -28,8 +28,20 @@ def close_everything() -> None:
         raise RuntimeError(f"still open: {sorted(db_manager._databases)}")
 
 
-def leave(status: int = 0) -> None:
-    """Leave with `status` by `os._exit` when torch is loaded and every database closed; otherwise return."""
+def _join_thumbnails() -> None:
+    """`os._exit` joins no thread: the thumbnail pool's workers (non-daemon) finish the file they are writing first."""
+    storage = sys.modules.get("fichero_server.db.storage")
+    pool = getattr(storage, "_executor", None)
+    if pool is not None:
+        try:
+            pool.shutdown(wait=True, cancel_futures=True)
+        except Exception:  # noqa: BLE001 -- a thumbnail is regenerable; never block the exit on one
+            pass
+
+
+def leave(status: int = 0, message: str | None = None) -> None:
+    """Leave with `status` by `os._exit` when torch is loaded and every database closed; otherwise return. `message` is a
+    `SystemExit`'s string, which Python's own exit would have printed to stderr."""
     if "torch" not in sys.modules:
         return
     try:
@@ -37,6 +49,9 @@ def leave(status: int = 0) -> None:
     except Exception as exc:  # noqa: BLE001 -- not closed: the ordinary exit (it may abort, but never loses a write)
         print(f"fast exit skipped, a database could not be closed: {exc}", file=sys.stderr)
         return
+    _join_thumbnails()
+    if message:
+        print(message, file=sys.stderr)
     try:
         import atexit
 
