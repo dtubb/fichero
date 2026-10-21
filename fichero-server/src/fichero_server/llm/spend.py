@@ -80,14 +80,24 @@ def accepted_models(library: str | Path) -> list[str]:
 def set_accepted(library: str | Path, provider: str, model: str, accepted: bool) -> list[str]:
     """Accept (or withdraw the acceptance of) one cloud model with no listed price; the whole list kept, atomically written.
     Callers go through the audited action `cloud.accept_unpriced`, never here."""
-    path = Path(library) / ACCEPTED_FILE
     with _LOCK:
         kept = set(accepted_models(library))
         (kept.add if accepted else kept.discard)(model_key(provider, model))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(json.dumps(sorted(kept)), encoding="utf-8")
-        tmp.replace(path)
+        return _write_accepted(library, kept)
+
+
+def restore_accepted(library: str | Path, keys: list[str]) -> list[str]:
+    """Put the accepted list back as it was: the audited action's caller undoes the file when the audit row did not commit."""
+    with _LOCK:
+        return _write_accepted(library, set(keys))
+
+
+def _write_accepted(library: str | Path, kept: set[str]) -> list[str]:
+    path = Path(library) / ACCEPTED_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(sorted(kept)), encoding="utf-8")
+    tmp.replace(path)
     return sorted(kept)
 
 
