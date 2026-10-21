@@ -7,6 +7,7 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 from enum import Enum
 from pathlib import Path
@@ -2207,6 +2208,14 @@ class StepCandidate(BaseModel):
     measured: str = Field(description="what is measured on this project's pages, or that it is not yet")
 
 
+class StepTurnOn(BaseModel):
+    """How to bring a step into the plan: Set Up's own answer, nothing new to send (PUT /api/recipes/project with the answer)."""
+
+    answer: str = Field(description="the job answer to set")
+    value: Any
+    words: str
+
+
 class StepChoice(BaseModel):
     """A step of the plan that has a choice of model."""
 
@@ -2216,6 +2225,13 @@ class StepChoice(BaseModel):
     picked: Optional[str] = Field(default=None, description="the card the step uses now")
     chosen_by: Literal["setup", "person"] = Field(description=(
         "setup: Set Up's pick stands; person: they chose another (POST .../steps/use-setup-pick takes it back)"))
+    in_plan: bool = Field(default=True, description=(
+        "false for a step the recipe does not have yet but that is listed so it can be found: Correct beside a Kraken reader; "
+        "`turn_on` says how to bring it in"))
+    wording: Optional[str] = Field(default=None, description="the sentence to show for the step when it is not a plain model choice")
+    certainty_bar: Optional[float] = Field(default=None, description=(
+        "Correct beside a Kraken reader: Set Up's certainty-bar answer, the lines under it are the ones corrected; null: no bar chosen"))
+    turn_on: Optional[StepTurnOn] = None
     candidates: list[StepCandidate]
 
 
@@ -2284,13 +2300,21 @@ class StartPlan(BaseModel):
 def _offered_cards(a: Optional[Answers]) -> list[Any]:
     """Every card a step's menu can list and `use-candidate` can take: the rules' cards, the text models the finder offers beyond
     them, the person's cloud vision readers and the keyed cloud correctors. ONE list, so a candidate the plan lists can be chosen."""
+    from dataclasses import replace
+
     from fichero_server.recipes.discovery import other_text_cards, remote_reader_cards
 
-    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *remote_reader_cards(),
-            *_cloud_correctors(a.cloud_keys if a else ())]
+    # a cloud vision reader corrects too (ponytail: assumed, as `_cloud_correctors` does), so a keyed reader with no listed price
+    # stays on Correct's menu after Correct is turned on; the priced corrector of the same id comes first
+    correctors = _cloud_correctors(a.cloud_keys if a else ())
+    seen = {c.id for c in correctors}
+    readers = [replace(c, jobs=c.jobs | {"correct"}) if c.jobs & {"read-a-line", "read-a-page"} else c
+               for c in remote_reader_cards() if c.id not in seen]
+    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *correctors, *readers]
 
 
-def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None) -> list[dict[str, Any]]:
+def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None,
+                     clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
     """The plan's per-step candidates over every card the finder knows, local and cloud (`recipes/step_choices.py`). A project
     whose answers cannot be read has none (the plan says why elsewhere)."""
     from fichero_server.recipes.step_choices import step_choices
@@ -2301,7 +2325,13 @@ def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[
         a = _answers(setup["answers"]) if setup["answers"] else None
     except ValueError:
         return []
-    return step_choices(setup["recipe"], setup["answers"], _offered_cards(a), may_leave=may_leave, pages=pages)
+    from fichero_server.recipes.discovery import remote_compute
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+    from fichero_server.recipes.where_it_runs import places_it_can_run
+
+    mac_gb, hf_ready = this_mac_memory_gb(), bool(remote_compute(price=False)["available"])  # never the network
+    return step_choices(setup["recipe"], setup["answers"], _offered_cards(a), may_leave=may_leave, pages=pages,
+                        places_of=lambda c: places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=clusters))
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
@@ -2381,7 +2411,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                             f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
                             "Raise the cap in Set Up, or choose a cheaper model."]
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
-                                            pages=plan["estimate"].get("pages"))
+                                            pages=plan["estimate"].get("pages"), clusters=clusters)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
@@ -2617,6 +2647,7 @@ async def use_candidate_for_step(
     (422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job."""
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.recipes.start import use_candidate
+    from fichero_server.recipes.step_choices import UNSURE_ID
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -2629,6 +2660,8 @@ async def use_candidate_for_step(
     # And the keyed cloud correctors: Correct's offer at Ready is taken here (#5677). A text card shares a corrector's
     # id, so the card that does the step's job is the one taken.
     offered = _offered_cards(a)
+    if request.card.startswith(UNSURE_ID):
+        return await _use_unsure_correction(db, ctx, library, setup, request, offered)
     job = next((s.get("job") for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == request.step), None)
     named = [c for c in offered if c.id == request.card]
     card = next((c for c in named if job in c.jobs), named[0] if named else None)
@@ -2638,6 +2671,44 @@ async def use_candidate_for_step(
     try:
         recipe = use_candidate(setup["recipe"], request.step, card, now=utc_now_iso(timespec="seconds"))
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
+async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path, setup: dict[str, Any],
+                                 request: "UseCandidateRequest", offered: list[Any]) -> ProjectSetup:
+    """`corrects-unsure:<cloud card>` on the READ step (`source.recipe.kraken-reads-cloud-corrects-unsure`): Kraken stays the reader and
+    Correct is turned on (Set Up's own answer) with that card, which then corrects only the lines under Set Up's certainty bar. One
+    saved setup, so one audited, undoable choice; no new request field."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.assemble import CORRECT_QUESTION
+    from fichero_server.recipes.start import use_candidate
+    from fichero_server.recipes.step_choices import (CORRECT_WAS_ON_FIELD, UNSURE_BECAUSE, UNSURE_FIELD, UNSURE_ID, _kraken,
+                                                          _person_override)
+
+    recipe = setup["recipe"] or {}
+    step = next((st for st in recipe.get("steps") or [] if st.get("id") == request.step), None)
+    if step is None or step.get("job") != "read-a-line" or not _kraken(step):
+        raise HTTPException(status_code=422, detail="Kraken then a cloud correction is a way to use Kraken's lines: "
+                                                    "choose it on the step where Kraken reads")
+    wanted = request.card[len(UNSURE_ID):]
+    card = next((c for c in offered if c.id == wanted and str(c.runs_on).startswith("cloud:") and "correct" in c.jobs), None)
+    if card is None:
+        raise HTTPException(status_code=422, detail=f"{wanted} is not a cloud model Fichero has found here to correct with")
+    was_on = (setup["answers"].get("job_answers") or {}).get(CORRECT_QUESTION) is True  # the person's own answer, kept on take-back
+    answers = {**setup["answers"], "job_answers": {**(setup["answers"].get("job_answers") or {}), CORRECT_QUESTION: True}}
+    correct = next((st.get("id") for st in recipe.get("steps") or [] if st.get("job") == "correct"), "correct")
+    kept = [copy.deepcopy(o) for o in recipe.get("overrides") or [] if o is not _person_override(recipe, correct)]
+    try:
+        fresh = await asyncio.to_thread(_assemble, answers, library, overrides=kept)
+        fresh["overrides"] = kept
+        new_correct = next((st.get("id") for st in fresh.get("steps") or [] if st.get("job") == "correct"), None)
+        if new_correct is None:
+            raise ValueError("Set Up leaves Correct out for this project, so a model cannot be set to correct")
+        fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE,
+                             extra={UNSURE_FIELD: True, CORRECT_WAS_ON_FIELD: was_on})
+        result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": fresh}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -2660,15 +2731,28 @@ async def use_setup_pick_for_step(
     assembled again from the project's answers with that one choice dropped, so Set Up's pick stands for the step; the
     project's other choices stay. Saved through `project.save_setup` (audited, undoable). Refused (422) for a step the
     recipe lacks, or one already on Set Up's pick."""
-    from fichero_server.recipes.step_choices import overrides_without
+    from fichero_server.recipes.assemble import CORRECT_QUESTION
+    from fichero_server.recipes.step_choices import _person_override, overrides_without, unsure_card, unsure_set_correct_on
 
     library = _library(db)
     setup = read_project_setup(library)
+    answers = setup["answers"]
     try:
-        kept = overrides_without(setup["recipe"], request.step)
-        recipe = await asyncio.to_thread(_assemble, setup["answers"] or {}, library, overrides=kept)
+        recipe0 = setup["recipe"] or {}
+        step = next((st for st in recipe0.get("steps") or [] if st.get("id") == request.step), None)
+        if step is not None and step.get("job") == "read-a-line" and unsure_card(recipe0):
+            # Taking the read step back drops ITS override too (a cloud reader chosen after the unsure choice goes), and the unsure
+            # choice with it: Correct as Set Up had it (its answer off again only when the choice itself turned it on).
+            correct = next(st["id"] for st in recipe0["steps"] if st.get("job") == "correct")
+            drop = (_person_override(recipe0, correct), _person_override(recipe0, request.step))
+            kept = [copy.deepcopy(o) for o in recipe0.get("overrides") or [] if not any(o is d for d in drop)]
+            if unsure_set_correct_on(recipe0):
+                answers = {**answers, "job_answers": {k: v for k, v in (answers.get("job_answers") or {}).items() if k != CORRECT_QUESTION}}
+        else:
+            kept = overrides_without(setup["recipe"], request.step)
+        recipe = await asyncio.to_thread(_assemble, answers or {}, library, overrides=kept)
         recipe["overrides"] = kept
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
