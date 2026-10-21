@@ -68,6 +68,7 @@ CANONICAL_TOKENS = (
     "MODELS_BASE",
     "server_state_dir",
     "model_store_root",
+    "hf_hub_dir",  # db.paths: model_store_root()/models/hf/hub, the one folder every Hugging Face load names
     "whisper_path",
     "embeddings_path",
     "spacy_path",

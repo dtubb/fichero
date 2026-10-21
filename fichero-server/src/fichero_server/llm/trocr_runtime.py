@@ -93,10 +93,12 @@ def hub_info(repo: str) -> dict[str, Any]:
     return found.json()
 
 
-def _snapshot(repo: str, revision: str, cache_dir: str) -> None:
+def _snapshot(repo: str, revision: str) -> None:
     from huggingface_hub import snapshot_download
 
-    snapshot_download(repo_id=repo, revision=revision, cache_dir=cache_dir, ignore_patterns=list(PICKLED))
+    from fichero_server.db.paths import hf_hub_dir
+
+    snapshot_download(repo_id=repo, revision=revision, cache_dir=str(hf_hub_dir()), ignore_patterns=list(PICKLED))
 
 
 def is_installed(repo: str) -> bool:
@@ -126,7 +128,7 @@ def download(repo: str, *, should_stop: Callable[[], bool] = lambda: False, on_b
     revision = str(info.get("sha") or "")
     if not revision:
         raise NoSafetensors(f"{repo}: the Hub did not name a commit to pin")
-    _snapshot(repo, revision, str(_store()))
+    _snapshot(repo, revision)
     size = sum(int(s.get("size") or 0) for s in info.get("siblings") or [] if str(s.get("rfilename", "")).endswith(".safetensors"))
     _record_path(repo).write_text(json.dumps({"repo": repo, "revision": revision, "bytes": size}), encoding="utf-8")
     return revision
