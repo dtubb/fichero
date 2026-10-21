@@ -151,3 +151,41 @@ def test_a_release_that_could_not_free_the_server_says_so_and_the_lane_does_not_
     assert li.release_served_models("test") is False and jobs._RELEASE["local-model"]("test") is False
     monkeypatch.setattr(engine, "reads_in_flight", lambda: 0)
     assert li.release_served_models("test") is True and mine.stopped
+
+
+def test_a_call_that_waited_for_its_slot_through_a_release_readies_the_server_again(monkeypatch):
+    """## 847: the readiness check came before the slot wait; a release that stopped the server meanwhile means the call asks again."""
+    import asyncio
+
+    from fichero_server import llm
+    from fichero_server.llm import local_inference as engine
+
+    asked: list[str] = []
+
+    async def ready(config, capability="text"):
+        asked.append("ready")
+
+    @__import__("contextlib").asynccontextmanager
+    async def no_lane(*a, **k):
+        yield
+
+    monkeypatch.setattr(llm, "_ensure_managed_local_provider_ready", ready)
+    monkeypatch.setattr(llm, "_lane_call_slot", no_lane)
+    monkeypatch.setattr(llm, "_local_reads_at_once", lambda config: 1)
+    monkeypatch.setattr(engine, "_READ_LOOK_AGAIN_SECONDS", 0.01)
+    config = llm.LLMConfig(provider="omlx", model="m")
+
+    async def scenario():
+        async def calls(first: bool):
+            async with llm._model_call_slot(config):
+                if first:
+                    engine.begin_release()  # the lane stops the server while the second call waits for the slot
+                    await asyncio.sleep(0.1)
+                    engine.end_release()
+
+        holder = asyncio.create_task(calls(True))
+        await asyncio.sleep(0.02)
+        await asyncio.wait_for(asyncio.gather(holder, calls(False)), 10)
+
+    asyncio.run(scenario())
+    assert asked == ["ready"], asked  # only the call that waited through the release asks again
