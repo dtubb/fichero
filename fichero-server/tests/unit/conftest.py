@@ -127,7 +127,8 @@ def cloud_call_project(tmp_path, monkeypatch):
     """A call to a cloud model is made inside a project that said yes to cloud models (the one egress gate, #5368: a call with
     no project open, or under a project that keeps its pages here, is not sent). For tests of the CALL's own behaviour (retries,
     caching, usage, truncation); the gate's refusals are pinned in `test_one_egress_gate_5368.py` and are not weakened. The test
-    models carry a listed price, so the spending cap (which refuses an unpriced model) stays on and is met."""
+    models carry a listed price, so the spending cap (which refuses an unpriced model) stays on and is met. It prices EVERY model:
+    never opt a cap or egress test into it (those pin the refusals and set up their own project and prices)."""
     from fichero_server.llm import usage
     from fichero_server.observability import episodes
 
