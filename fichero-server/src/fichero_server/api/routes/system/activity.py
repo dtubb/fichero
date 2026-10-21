@@ -1016,6 +1016,43 @@ def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) 
         _event_threads(child, wanted)
 
 
+class RunPageState(BaseModel):
+    """One PAGE of a run (`activity.run.page-states`, #5960)."""
+
+    document_id: str
+    name: str = Field(description="what a person calls the page: its file name")
+    state: Literal["done", "running", "waiting", "failed"] = Field(
+        description="in the stage asked for, else the worst of its stages")
+    reason: Optional[str] = Field(None, description="at most one: why it failed, or what it waits for")
+    stages: dict[str, str] = Field(default_factory=dict, description="its state in each stage, by Set Up's stage id")
+
+
+class RunPageStates(BaseModel):
+    job_id: str
+    stage: Optional[str] = None
+    total: int = Field(description="pages in all for this stage, whatever page was asked for")
+    offset: int = 0
+    items: list[RunPageState] = Field(default_factory=list)
+
+
+@router.get("/jobs/{job_id}/pages", response_model=RunPageStates)
+async def get_run_page_states(
+    job_id: str,
+    stage: Optional[str] = Query(None, description="a Set Up stage id (read, find-lines, ...); omitted: every stage"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=2000),
+    db: Database = Depends(get_library_database),
+) -> RunPageStates:
+    """One entry per PAGE of a run with its state in each stage, in reading order, paged (`activity.run.page-states`,
+    #5960): the page grid's read, instead of the thousands of step rows under `GET /jobs/{id}`."""
+    from fichero_server.api.routes.system.activity_pages import page_states
+
+    tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
+    pages = page_states(tree, stage)
+    return RunPageStates(job_id=job_id, stage=stage, total=len(pages), offset=offset,
+                         items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
+
+
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
 async def get_job_log(
     job_id: str,
