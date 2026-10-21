@@ -40,13 +40,17 @@ _CONNECTION_ENV_VARS = (
 
 
 @pytest.fixture(autouse=True)
-def isolated_cli_env(monkeypatch, tmp_path):
-    """Clear connection env vars and redirect the on-disk credential paths."""
+def isolated_cli_env(monkeypatch, tmp_path_factory):
+    """Clear connection env vars and redirect the on-disk credential paths.
+
+    The credentials live in their own temp dir, never in the test's tmp_path: in the full run this autouse
+    fixture also reached server tests, and a `credentials` folder in their tmp_path broke every test that
+    lists it (53k phantom folders at the P4 gate)."""
     from fichero_cli import client as client_module
 
     for name in _CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
-    token_path = tmp_path / "credentials" / ".api-key"
+    token_path = tmp_path_factory.mktemp("cli-credentials") / ".api-key"
     token_path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", token_path)
     monkeypatch.setattr(
