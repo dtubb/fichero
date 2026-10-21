@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel
 
 from fichero_server import llm
-from fichero_server.llm import LLMConfig, LocalOnlyViolationError
+from fichero_server.llm import EgressRefusedError, LLMConfig, LocalOnlyViolationError
 from fichero_server.recipes import places
 from fichero_server.recipes.project import write_project_setup
 
@@ -38,7 +38,7 @@ def test_a_project_that_said_nothing_leaves_refuses_a_cloud_call_in_words(tmp_pa
     with places.bound_project(_project(tmp_path, cloud_allowed=False)):
         with pytest.raises(LocalOnlyViolationError) as refused:
             llm.get_langchain_model(CLOUD)
-    assert "this project" in str(refused.value) and "a cloud AI service" in str(refused.value)
+    assert "keeps its pages on this Mac" in str(refused.value) and "nothing left this Mac" in str(refused.value)
 
 
 def test_the_same_call_for_a_project_that_said_yes_is_not_refused_by_the_gate(tmp_path):
@@ -46,10 +46,14 @@ def test_the_same_call_for_a_project_that_said_yes_is_not_refused_by_the_gate(tm
         llm._enforce_local_only_provider(CLOUD, kind="chat")  # raises if refused
 
 
-def test_a_project_with_no_saved_set_up_caps_nothing_and_a_call_for_no_project_meets_the_apps_places_alone(tmp_path):
+def test_a_project_with_no_saved_set_up_and_a_call_for_no_project_are_refused_as_the_spec_says(tmp_path):
+    """`ai.where.one-egress-gate` fails closed: no saved Set Up is no yes, and no project open is refused too (it was the
+    bound-project reader that let both through; the gate now has one reader, `llm.egress`)."""
     with places.bound_project(_project(tmp_path, cloud_allowed=None)):
-        llm._enforce_local_only_provider(CLOUD, kind="chat")
-    llm._enforce_local_only_provider(CLOUD, kind="chat")  # bound to nothing
+        with pytest.raises(EgressRefusedError):
+            llm._enforce_local_only_provider(CLOUD, kind="chat")
+    with pytest.raises(EgressRefusedError):
+        llm._enforce_local_only_provider(CLOUD, kind="chat")  # bound to nothing
 
 
 def test_this_mac_is_never_refused_by_the_projects_rule(tmp_path):
@@ -87,18 +91,27 @@ def test_each_place_a_run_or_chat_starts_binds_its_project():
 
 
 def test_a_try_runs_on_a_scratch_copy_but_is_judged_by_the_real_projects_rule(tmp_path):
-    """Set Up's tries (`recipes/samples._run_one`) run on a scratch copy with no Set Up of its own (## 789 LOW)."""
-    real = _project(tmp_path, cloud_allowed=False)
+    """Set Up's tries (`recipes/samples._run_one`) run on a scratch copy with no Set Up of its own (## 789 LOW): the one gate
+    reader maps the copy to its real project, so the real project's yes allows it and its no refuses it, in words."""
+    said_no = _project(tmp_path, cloud_allowed=False)
+    said_yes = tmp_path / "yes.fichero"
+    said_yes.mkdir()
+    write_project_setup(said_yes, {"purposes": ["transcribe"], "cloud_allowed": True}, None)
     scratch = tmp_path / "try.fichero"
     scratch.mkdir()
     with places.bound_project(scratch):
-        llm._enforce_local_only_provider(CLOUD, kind="chat")  # a copy alone caps nothing: why the try must name its project
-    with places.scratch_of(scratch, real):
+        with pytest.raises(EgressRefusedError):
+            llm._enforce_local_only_provider(CLOUD, kind="chat")  # a copy alone has no yes: why the try must name its project
+    with places.scratch_of(scratch, said_yes):
         assert places.bound_library() is None  # nothing bound outside a bound block
         with places.bound_project(scratch):
-            assert places.bound_library() == real
-            with pytest.raises(LocalOnlyViolationError):
+            assert places.bound_library() == said_yes
+            llm._enforce_local_only_provider(CLOUD, kind="chat")  # the real project said yes
+    with places.scratch_of(scratch, said_no):
+        with places.bound_project(scratch):
+            with pytest.raises(EgressRefusedError) as refused:
                 llm._enforce_local_only_provider(CLOUD, kind="chat")
+    assert "keeps its pages on this Mac" in str(refused.value) and "p" in str(refused.value)
     with places.bound_project(scratch):
         assert places.bound_library() == scratch  # the mapping ends with the try
 
