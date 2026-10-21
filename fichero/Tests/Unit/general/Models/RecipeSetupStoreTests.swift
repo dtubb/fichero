@@ -505,6 +505,27 @@ struct RecipeSetupStoreTests {
         #expect(store.lastRunWords(stepId: "missing") == nil)
     }
 
+    /// `source.onboard.setup-says-what-is-happening` (#5791): a download under way and a no-model step show the
+    /// engine's own sentences (`StartDownload.sentence`, `StartRun.how`), not words the app composes.
+    @Test("Ready shows the engine's download sentence and a rules step's how")
+    func readyShowsTheEnginesSentences() async {
+        let plan = """
+        {"runs":[{"steps":["dates"],"job":"work-out-dates","how":"Rules, not a model: it reads the date at the head of each page."}],
+         "skipped":[],"workflows":[],"offered":[],"refusals":[],"waiting":[],
+         "downloads":[{"runtime":"kraken","model":"blla","steps":["lines"],"size_mb":40,"action":"model.download",
+            "params":{"runtime":"kraken","model":"blla"},"downloading":true,"progress":"12 MB of 40 MB","job_id":"j1",
+            "sentence":"Downloading blla: 12 MB of 40 MB; its steps wait for it."}],
+         "estimate":{"pages":92,"runs":[],"total_cost_usd":null}}
+        """
+        let store = makeStore { request in Self.reply(request, 200, plan) }
+        await store.loadStartPlan()
+
+        #expect(store.how(ofStep: "dates") == "Rules, not a model: it reads the date at the head of each page.")
+        #expect(store.how(ofStep: "lines") == nil)
+        #expect(RecipeDownloadRows.underWayLine(store.downloads[0], store: store)
+                == "Downloading blla: 12 MB of 40 MB; its steps wait for it.")
+    }
+
     /// WHY (#5660 item 6, the maintainer's Set Up test of 2026.10.10): the needed models began downloading by
     /// themselves, yet Ready kept Start disabled and said "not on this Mac: download it first". A model already
     /// downloading is not a refusal: Start stays pressable, and the plan says it is downloading, with its progress.
