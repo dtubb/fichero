@@ -219,3 +219,29 @@ def test_each_candidate_lists_every_place_it_can_run(client, project, claude_row
     kraken = next(c for c in candidates if c["how"] == "kraken")
     assert [p["place"] for p in kraken["places"]][:2] == ["this-mac", "hf-jobs"] and kraken["places"][0]["can"]
     assert all(c["places"] for c in candidates), "every candidate says where it can run"
+
+
+def test_taking_back_the_read_step_after_unsure_then_a_cloud_reader_returns_set_ups_reader(client, project):
+    """## 914: the read step's own override goes too, and Correct is back as Set Up had it (off)."""
+    before = _read_choice(_plan(client))
+    step = before["step"]
+    assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE}).status_code == 200
+    assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": CLAUDE}).status_code == 200
+    back = client.post("/api/recipes/project/steps/use-setup-pick", json={"step": step})
+    assert back.status_code == 200, back.text
+    after = _read_choice(_plan(client))
+    assert after["chosen_by"] == "setup" and after["picked"] == before["picked"], "the cloud reader must not stay"
+    assert not back.json()["recipe"].get("overrides") and not any(s["job"] == "correct" for s in back.json()["recipe"]["steps"])
+
+
+def test_taking_back_the_unsure_choice_leaves_correct_on_when_the_person_had_turned_it_on_themselves(client, project):
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "mac_memory_gb": 32, "cloud_allowed": False, "job_answers": {"correct_with_a_second_model": True}}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe}).status_code == 200
+    step = _read_choice(_plan(client))["step"]
+    assert client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": "corrects-unsure:" + CLAUDE}).status_code == 200
+    back = client.post("/api/recipes/project/steps/use-setup-pick", json={"step": step})
+    assert back.status_code == 200, back.text
+    assert back.json()["answers"]["job_answers"]["correct_with_a_second_model"] is True, "the person's own answer stays"
+    assert any(s["job"] == "correct" for s in back.json()["recipe"]["steps"]) and not back.json()["recipe"].get("overrides")

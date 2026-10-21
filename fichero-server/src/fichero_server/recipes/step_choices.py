@@ -21,6 +21,8 @@ PLACE_WORDS = {"cluster": "a cluster", "gpu-service": "a GPU service"}
 #: (`source.recipe.kraken-reads-cloud-corrects-unsure`).
 UNSURE_ID = "corrects-unsure:"
 UNSURE_BECAUSE = "Kraken reads; chosen by you: a cloud model corrects only the lines Kraken is unsure of"
+#: Added when Correct was already on in Set Up (the person's own answer), so taking the choice back leaves it on.
+UNSURE_KEPT = " (Correct was already on in Set Up)"
 
 
 def _person_override(recipe: dict[str, Any], step_id: str) -> dict[str, Any] | None:
@@ -33,9 +35,19 @@ def unsure_card(recipe: dict[str, Any] | None) -> str | None:
     for step in (recipe or {}).get("steps") or []:
         if step.get("job") == "correct":
             o = _person_override(recipe or {}, step.get("id", ""))
-            if o and o.get("because") == UNSURE_BECAUSE:
+            if o and str(o.get("because") or "").startswith(UNSURE_BECAUSE):
                 return o.get("card")
     return None
+
+
+def unsure_set_correct_on(recipe: dict[str, Any] | None) -> bool:
+    """Whether the unsure-lines choice itself turned Correct on (False when the person had set the answer in Set Up first)."""
+    for step in (recipe or {}).get("steps") or []:
+        if step.get("job") == "correct":
+            o = _person_override(recipe or {}, step.get("id", ""))
+            if o and str(o.get("because") or "").startswith(UNSURE_BECAUSE):
+                return not str(o["because"]).endswith(UNSURE_KEPT)
+    return False
 
 
 def _how(card: Any, job: str) -> str:
