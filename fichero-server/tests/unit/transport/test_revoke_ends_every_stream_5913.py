@@ -18,6 +18,7 @@ from fichero_server.api.routes.system import changes
 from fichero_server.api.routes.workflow_execution import core as run_stream
 from fichero_server.execution.runner import WorkflowEventHub
 from fichero_server.security import accounts, revocation
+from _scan_files import scan_rglob
 
 ROUTES = Path(change_stream.__file__).parent / "routes"
 
@@ -98,7 +99,7 @@ def test_every_streaming_route_goes_through_the_wrapper():
     """Guard: a StreamingResponse in api/routes either wraps its body in `end_on_revoke` or is the change stream, which ends
     through the hub's own `sharing.revoked` frame."""
     bare = []
-    for path in sorted(ROUTES.rglob("*.py")):
+    for path in sorted(scan_rglob(ROUTES, "*.py")):
         if path.name == "changes.py":
             continue
         for node in ast.walk(ast.parse(path.read_text())):
