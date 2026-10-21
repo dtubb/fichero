@@ -4,6 +4,7 @@ the engine's background loop."""
 from __future__ import annotations
 
 import ast
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -75,10 +76,6 @@ def test_the_stale_run_sweep_is_scheduled_on_the_background_loop(tmp_path, monke
         activity._activity_trackers.pop(path, None)
     assert len(scheduled) == 1
 
-
-import asyncio
-
-import pytest
 
 
 @pytest.mark.asyncio
