@@ -4508,7 +4508,6 @@ about 3B, not 8B. The recipe picks it.
   from are a catalogue. Each entry's size, licence and Hub availability are verified and dated, and
   an unverified fact says so. Today `training/vision_bases.py` lists only 7-9B models and
   Nanonets-OCR-s, and `DEFAULT_BASE` is `Qwen/Qwen3-VL-8B-Instruct`.
-- `source.model.order-kraken-mlx-spacy-embed` — **[PARTIAL]** (#5963) A page's models run in the order Kraken, then MLX, then spaCy, then embed. Test: (not yet written: a test citing #5963).
 - `source.recipe.picks-the-tuning-base` — **[GAP]** (#5442, #4950) the recipe picks the base from
   the project's language, script and hand among the catalogue's candidates, preferring about 3B.
   Where several fit, the evaluation job (`distill.eval.job`) decides on the project's held-out
@@ -4747,7 +4746,7 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.recipe.pages-in-finder-order` — **[BROKEN]** (#5867) Recipe pages run in Finder order (natural name sort), not import order. Test: (not yet written: a test citing #5867).
 - `source.recipe.status-names-its-own-child` — **[BROKEN]** (#5870) A running step that makes no job shows its own state, not another row's. Test: (not yet written: a test citing #5870).
 - `source.recipe.row-progress-across-stages` — **[BROKEN]** (#5871) A recipe's progress counts its pages across stages and resets at no stage. Test: (not yet written: a test citing #5871).
-- `source.recipe.systemic-stop-by-page-order` — **[PARTIAL]** (#5880) Five consecutive failures stop a small batch only; a large run stops on the error rate; the message names the files. (The commits for this are labelled #5859 by mistake.) Test: (not yet written: a test citing #5880).
+- `source.recipe.systemic-stop-by-page-order` — **[PARTIAL]** (#5880) Five consecutive failures stop a small batch only; a large run stops on the error rate; the message names the files. Test: (not yet written: a test citing #5880).
 - `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
   run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
 - `source.job.names-warn-on-unreadable` — **[OK]** (#5694; tested in `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`)
