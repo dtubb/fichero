@@ -2699,6 +2699,19 @@ def _supports_return_boxes(llm_config: LLMConfig) -> bool:
 
 #: A provider declined to answer — safety filter, content policy, blocked.
 VISION_ERROR_REFUSAL = "refusal"
+
+
+def _refusal_of(exc: BaseException) -> dict[str, Any]:
+    """The `refusal` a failed page carries when the same refusal holds for every page of the run: the run's language
+    (`VisionLocaleRefused`), or the project's cloud cap / an unpriced cloud model (`RefusedForTheRun`): the page loop stops at the
+    first and says it once (`builder.refused_for_all`)."""
+    from fichero_server.llm.spend import RefusedForTheRun
+
+    if isinstance(exc, VisionLocaleRefused):
+        return {"refusal": {"locale": exc.locale, "source": exc.source}}
+    if isinstance(exc, RefusedForTheRun):
+        return {"refusal": {"locale": None, "source": "run"}}
+    return {}
 #: The call did not come back in time. Worth one more attempt.
 VISION_ERROR_TIMEOUT = "timeout"
 #: 429 / quota / breaker-open. Retrying now makes it worse.
@@ -6020,8 +6033,7 @@ async def process_vision(
                 _log_vision_warning(msg, file_path)
             results.append(
                 {"file": file_path, "text": "", "value": None, "error": err,
-                 **({"refusal": {"locale": e.locale, "source": e.source}}
-                    if isinstance(e, VisionLocaleRefused) else {})}
+                 **_refusal_of(e)}
             )
             texts.append("")
             values.append(None)
@@ -6134,8 +6146,7 @@ async def process_vision(
             return {
                 "results": [
                     {"file": file_path, "text": "", "value": None, "error": err,
-                     **({"refusal": {"locale": exc.locale, "source": exc.source}}
-                        if isinstance(exc, VisionLocaleRefused) else {})}
+                     **_refusal_of(exc)}
                 ],
                 "texts": [""],
                 "values": [None],
