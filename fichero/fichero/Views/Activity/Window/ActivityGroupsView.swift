@@ -134,3 +134,22 @@ struct ActivityGroupsView: View {
         }
     }
 }
+
+#Preview("Now, Up Next and Done Today") {
+    let running = ActivityMonitorRow.job(
+        ActivityJob(id: "embed-1", taskType: "embedding", name: "Embedding queue", current: 4, total: 10,
+                    state: .running, reason: nil),
+        libraryId: nil, projectName: "Marshall Diaries")
+    let waiting = ActivityMonitorRow.job(
+        ActivityJob(id: "embed-2", taskType: "embedding", name: "Embedding queue", current: 0, total: 10,
+                    state: .waiting, reason: "Waiting: memory is tight"),
+        libraryId: nil, projectName: "Marshall Diaries")
+    return ActivityGroupsView(
+        groups: ActivityWindowGroups(rows: [running, waiting]), showsProject: false,
+        appeared: { _ in }, perform: { _, _ in }, open: { _ in },
+        stopTarget: { row in
+            ActivityRunMenuTarget(rowId: row.id, rowName: row.name, canStop: false, readAgainLabel: nil, stop: {}, readAgain: {})
+        },
+        clearFailed: {}, clearFinished: {}, delete: { _ in })
+        .frame(width: 420, height: 320)
+}
