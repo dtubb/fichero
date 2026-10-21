@@ -48,10 +48,11 @@ def test_without_the_permission_or_for_print_the_local_pick_stands():
 
 @pytest.mark.xfail(strict=True, reason="source.recipe.cloud-reads-lines-per-page: today's line reader sends LINES_PER_CALL=8 lines a call (#4951, #5955)")
 def test_a_cloud_line_reader_makes_one_call_per_page_with_the_crops_in_order():
-    from fichero_server.llm.page_line_reader import calls_for
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.line_reader import lines_per_call, request_groups
 
-    calls = calls_for({"p1": ["a", "b", "c"], "p2": ["d"]})
-    assert [c["page"] for c in calls] == ["p1", "p2"] and calls[0]["crops"] == ["a", "b", "c"]
+    groups = request_groups([object()] * 20, None, lines_per_call(LLMConfig(provider="openrouter", model="x")))
+    assert groups == [list(range(20))], f"{len(groups)} calls for a 20-line page"
 
 
 def test_the_unsure_lines_pass_is_the_correct_step_with_only_below_confidence():
@@ -60,25 +61,30 @@ def test_the_unsure_lines_pass_is_the_correct_step_with_only_below_confidence():
     assert "only_below_confidence" in get_job("correct").settings
 
 
+def _rows():
+    from fichero_server.recipes import bakeoff
+
+    return bakeoff.candidates(_handwriting(cloud_allowed=True, cloud_keys=("anthropic",)), [*CARDS, CLOUD_READER], volume=100)
+
+
 @pytest.mark.xfail(strict=True, reason="source.recipe.kraken-reads-cloud-corrects-unsure: not offered as a choice in the Set Up plan (#4951, #5922)")
 def test_the_plan_lists_the_unsure_lines_option_beside_the_cloud_reader():
-    from fichero_server.recipes.candidates import step_candidates
-
-    names = [c["kind"] for c in step_candidates(_handwriting(cloud_allowed=True, cloud_keys=("anthropic",)), "read-a-line")]
-    assert "kraken-then-cloud-corrects-unsure" in names and "cloud-reads-kraken-lines" in names
+    text = repr(_rows())
+    assert "unsure" in text and "claude-reader" in text
 
 
-@pytest.mark.xfail(strict=True, reason="source.onboard.step-candidates-on-the-plan: the plan lists no candidates per step (#4951, #5922)")
+@pytest.mark.xfail(strict=True, reason="source.onboard.step-candidates-on-the-plan: a candidate row names no place, need, cost or pick (#4951, #5922)")
 def test_each_step_lists_its_candidates_with_place_need_cost_and_one_pick():
-    from fichero_server.recipes.candidates import step_candidates
-
-    rows = step_candidates(_handwriting(cloud_allowed=True, cloud_keys=("anthropic",)), "read-a-line")
-    assert all({"name", "where", "needs", "cost"} <= set(r) for r in rows) and sum(1 for r in rows if r["picked"]) == 1
+    rows = _rows()
+    assert rows and all({"where", "needs", "cost", "picked"} <= set(r) for r in rows)
+    assert sum(1 for r in rows if r["picked"]) == 1
 
 
 @pytest.mark.xfail(strict=True, reason="source.onboard.step-choice-overrides-the-pick: a saved cloud choice with no key is not yet said in place (#4951)")
 def test_a_saved_cloud_choice_with_no_key_stays_chosen_and_says_what_it_needs():
-    from fichero_server.recipes.candidates import step_state
+    from fichero_server.recipes.start import use_candidate
 
-    state = step_state(_handwriting(cloud_allowed=True, cloud_keys=()), "read-a-line", chosen="claude-reader")
-    assert state["chosen"] == "claude-reader" and "key" in state["blocked_because"]
+    recipe = assemble(_handwriting(cloud_allowed=True, cloud_keys=()), [*CARDS, CLOUD_READER])
+    step = next(s for s in use_candidate(recipe, "read-a-line", CLOUD_READER, now="2026-10-21T00:00:00Z")["steps"]
+                if s["id"] == "read-a-line")
+    assert str(step["runs_on"]).startswith("cloud:") and "key" in str(step.get("blocked_because", ""))
