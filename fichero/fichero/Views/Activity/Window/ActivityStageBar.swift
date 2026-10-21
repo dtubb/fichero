@@ -39,6 +39,19 @@ struct ActivityStageBar: View {
         }
     }
 
+    /// The stores' trees by library; two stores with one id keep the first, never a crash.
+    nonisolated static func trees(_ stores: [(UUID, [String: ActivityJobNode])]) -> [UUID: [String: ActivityJobNode]] {
+        Dictionary(stores, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Where the failed-page ticks sit, as fractions of the segment's width: along the filled part, or across the
+    /// whole segment when nothing is filled (a stage that failed before it counted a page).
+    nonisolated static func tickPositions(count: Int, fill: Double) -> [Double] {
+        let ticks = min(count, maxTicks)
+        let span = fill > 0 ? fill : 1
+        return (0..<ticks).map { span * Double($0 + 1) / Double(ticks + 1) }
+    }
+
     /// The row's bar, from the tree in the store of the row's OWN library (`trees`, by library), so every project's
     /// recipe row has one.
     nonisolated static func segments(for row: ActivityMonitorRow,
@@ -61,10 +74,10 @@ struct ActivityStageBar: View {
                                 .clipShape(Capsule())
                         }
                         // ticks sit by position across the filled part, one per failed page
-                        let ticks = min(segment.failedPages, Self.maxTicks)
-                        ForEach(0..<ticks, id: \.self) { index in
+                        let ticks = Self.tickPositions(count: segment.failedPages, fill: segment.fill)
+                        ForEach(Array(ticks.enumerated()), id: \.offset) { _, position in
                             Rectangle().fill(.red).frame(width: 2).frame(maxHeight: .infinity)
-                                .offset(x: max(0, width * segment.fill * (Double(index) + 1) / Double(ticks + 1) - 1))
+                                .offset(x: max(0, width * position - 1))
                         }
                     }
                 }
