@@ -37,8 +37,66 @@ _RESERVED: dict[str, float] = {}  # library -> worst cases of the calls in fligh
 _TICKET: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar("cloud_spend_ticket", default=None)
 
 
-class CloudSpendRefusedError(RuntimeError):
+class RefusedForTheRun(RuntimeError):
+    """A refusal that holds for every call the run would make: a page loop stops at the first, says it once, in words
+    (`workflows/builder.py`, `refused_for_all`), instead of failing each page with the same sentence."""
+
+
+class CloudSpendRefusedError(RefusedForTheRun):
     """A cloud call refused because its worst case does not fit the project's cap. Nothing was sent."""
+
+
+class CloudModelUnpriced(RefusedForTheRun):
+    """A cloud call refused because the model has no listed price, so its cost cannot be held to the cap, and this project has
+    not accepted it. The words are for people; the way out is in fields (`action`, `route`, `provider`, `model`) for a client
+    to offer (`ai.where.accept-unpriced-cloud-model`, #5987)."""
+
+    action = "cloud.accept_unpriced"
+    route = "/api/recipes/cloud/accept-unpriced"
+
+    def __init__(self, message: str, provider: str = "", model: str = ""):
+        super().__init__(message)
+        self.provider, self.model = provider, model
+
+
+#: The `provider/model` keys this project accepted to call without a listed price: a file in the project folder, not Set Up's
+#: answers (a project with no Set Up must be able to accept, and accepting must not make one).
+ACCEPTED_FILE = "cloud_unpriced_accepted.json"
+
+
+def model_key(provider: str, model: str) -> str:
+    return f"{provider}/{model}"
+
+
+def accepted_models(library: str | Path) -> list[str]:
+    """The `provider/model` keys this project accepted to call without a listed price."""
+    try:
+        value = json.loads((Path(library) / ACCEPTED_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [str(m) for m in value] if isinstance(value, list) else []
+
+
+def set_accepted(library: str | Path, provider: str, model: str, accepted: bool) -> list[str]:
+    """Accept (or withdraw the acceptance of) one cloud model with no listed price; the whole list kept, atomically written.
+    Callers go through the audited action `cloud.accept_unpriced`, never here."""
+    path = Path(library) / ACCEPTED_FILE
+    with _LOCK:
+        kept = set(accepted_models(library))
+        (kept.add if accepted else kept.discard)(model_key(provider, model))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(sorted(kept)), encoding="utf-8")
+        tmp.replace(path)
+    return sorted(kept)
+
+
+def has_listed_price(provider: str, model: str) -> bool:
+    """Whether the price list has both an input and an output rate for this cloud model (`llm/usage.price_call`'s own rule)."""
+    from fichero_server.llm.usage import _registry_entry
+
+    entry = _registry_entry(model, provider) or {}
+    return entry.get("input_cost_per_token") is not None and entry.get("output_cost_per_token") is not None
 
 
 def _recipe_dir(library: str) -> Path:
@@ -76,12 +134,31 @@ def booked_usd(library: str, now: datetime | None = None) -> float:
     return float(data.get("usd", 0.0)) if data.get("month") == _month(now) else 0.0
 
 
-def _book(library: str, usd: float, now: datetime | None = None) -> None:
-    total = booked_usd(library, now) + usd
+def _ledger(library: str, now: datetime | None = None) -> dict:
+    try:
+        data = json.loads((_recipe_dir(library) / LEDGER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) and data.get("month") == _month(now) else {}
+
+
+def assumed(library: str, now: datetime | None = None) -> tuple[int, float]:
+    """(calls, dollars) this month that were booked at the assumed price of a model with no listed price: counted against the
+    cap, and listed apart so a person sees which spend is an assumption."""
+    data = _ledger(library, now)
+    return int(data.get("assumed_calls", 0)), float(data.get("assumed_usd", 0.0))
+
+
+def _book(library: str, usd: float, now: datetime | None = None, *, assumed_price: bool = False) -> None:
+    data = _ledger(library, now)
+    calls, assumed_usd = int(data.get("assumed_calls", 0)), float(data.get("assumed_usd", 0.0))
+    if assumed_price:
+        calls, assumed_usd = calls + 1, assumed_usd + usd
     path = _recipe_dir(library) / LEDGER
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"month": _month(now), "usd": round(total, 6)}), encoding="utf-8")
+    tmp.write_text(json.dumps({"month": _month(now), "usd": round(float(data.get("usd", 0.0)) + usd, 6),
+                               "assumed_calls": calls, "assumed_usd": round(assumed_usd, 6)}), encoding="utf-8")
     os.replace(tmp, path)
 
 
@@ -133,6 +210,12 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     if cap is None or (config is not None and provider_is_free(config.provider, None)):
         yield
         return
+    unpriced = config is not None and not has_listed_price(config.provider, config.model)
+    if unpriced and model_key(config.provider, config.model) not in accepted_models(library):
+        raise CloudModelUnpriced(
+            f"{config.model} ({config.provider}) has no listed price, so its cost cannot be held to this project's cloud "
+            "spending cap. Accept running it in this project (it is counted at an assumed price, and listed apart), or choose "
+            "a model with a price.", config.provider, config.model)
     worst = worst_case_usd(config, input_tokens) if config is not None else UNPRICED_CALL_USD
     while True:
         with _LOCK:
@@ -168,4 +251,20 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
         with _LOCK:
             _RESERVED[library] = max(0.0, _RESERVED.get(library, 0.0) - worst)
             if spent:
-                _book(library, spent)
+                _book(library, spent, assumed_price=unpriced)
+
+
+def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tuple[str, str]] | None = None) -> dict:
+    """Start's plan: the cap, what is booked this month, what it leaves, and the run's estimate beside them. `over` asks before
+    the run starts; an unknown estimate (a model with no listed price) is `unpriced`, asked about, never a $0. Models with no
+    price the project has not accepted are named in `unpriced_models`; spend booked at an assumed price is listed apart."""
+    cap = cap_usd(library) or 0.0
+    done = booked_usd(library)
+    remaining = max(0.0, cap - done)
+    accepted = accepted_models(library)
+    to_accept = sorted({model_key(provider, model) for provider, model in cloud_models or []
+                        if not has_listed_price(provider, model) and model_key(provider, model) not in accepted})
+    calls, usd = assumed(library)
+    return {"cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
+            "over": estimate_usd is not None and estimate_usd > remaining + 1e-9, "unpriced": estimate_usd is None,
+            "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}

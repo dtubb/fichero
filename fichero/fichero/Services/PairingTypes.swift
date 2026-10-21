@@ -5,7 +5,8 @@ struct PairingQRCodePayload: Codable {
     let version: Int
     let apiURL: String
     let pairCode: String
-    let expiresAt: Date
+    /// nil (the key left out) for an invitation that never expires; a decoder reads a missing key as never-expires.
+    let expiresAt: Date?
     /// Absent when the advertised host's TLS is terminated by a public CA — a
     /// `tailscale serve` endpoint — because the host does not hold that key and
     /// must not claim it (#5041). Present for an engine serving its own cert.
@@ -47,7 +48,8 @@ enum PairingQRCodePayloadDecoder {
 
 struct PairingCodeRecord: Codable {
     let code: String
-    let expiresAt: Date
+    /// nil when the invitation never expires (`never_expires` beside it in the engine's answer).
+    let expiresAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case code
@@ -130,15 +132,47 @@ final class PairingService {
         self.client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
     }
 
+    /// Share ONE folder of a project with a person who has an account (`sharing.settings.project-share-sheet`, #5967): the person
+    /// reaches that folder and what is under it, nothing beside it. The engine grants the role on the folder at once and answers
+    /// with a pairing code the person does not need (they already have an account).
+    func shareFolder(username: String, role: String, library: String, folderId: String) async throws {
+        let response = try await client.api.createPairingCodeApiPairCodePost(.init(body: .json(.init(
+            username: username,
+            role: role == "editor" ? .editor : .viewer,
+            library: library,
+            folderId: folderId
+        ))))
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            throw APIError.httpError(statusCode: 422, message: Self.validationWords(try? error.body.json))
+        case .undocumented(let statusCode, let payload):
+            // The engine refuses in words (the person already has the whole project, the folder is not in it, not the owner):
+            // 4xx other than 422 is not in the contract, so the body is read as the other pairing calls read it.
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
+        }
+    }
+
     func createPairingCode() async throws -> PairingCodeRecord {
         let response = try await client.api.createPairingCodeApiPairCodePost(.init())
         switch response {
         case .ok(let okResponse):
             let record = try okResponse.body.json
             return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
-        case .undocumented(let statusCode, _):
-            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        case .unprocessableContent(let error):
+            throw APIError.httpError(statusCode: 422, message: Self.validationWords(try? error.body.json))
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
         }
+    }
+
+    /// A 422's own messages ("a lifetime is for an invitation to a named person"), not the array's debug text.
+    private static func validationWords(_ body: Components.Schemas.HTTPValidationError?) -> String {
+        let words = (body?.detail ?? []).map(\.msg).joined(separator: "; ")
+        return words.isEmpty ? "The engine did not accept that request." : words
     }
 
     /// Sharing state from the engine: the detected `.ts.net` address and, when the engine cannot

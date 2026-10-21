@@ -42,6 +42,8 @@ class SidebarState {
     var selectedImportMode: IngestMode = .link
     var showingNewFolderDialog: Bool = false
     var newFolderParentId: String?
+    /// The folder whose Share… sheet is open (`sharing.settings.project-share-sheet`, #5967).
+    var folderToShare: FolderShareTarget?
     var newFolderCategory: ItemCategory?
     var newFolderName: String = ""
     var newFolderErrorMessage: String?
@@ -191,4 +193,13 @@ class SidebarState {
     private func saveLibraryExpansionStates() {
         EngineConfig.defaults.set(libraryExpansionStates, forKey: libraryExpansionKey)
     }
+}
+
+
+/// One folder of a project offered to the Share… sheet: its id (what the engine scopes the grant to) and its name (what the sheet says).
+struct FolderShareTarget: Identifiable, Equatable {
+    let libraryId: UUID
+    let folderId: String
+    let name: String
+    var id: String { folderId }
 }

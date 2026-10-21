@@ -45,7 +45,7 @@ struct ProjectRunStrip: Equatable {
     /// (`activity.run.progress-per-folder`): pure, so a test can build it.
     init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil) {
         self.jobId = jobId
-        let state = node?.state ?? (job?.state == .running ? "running" : "waiting")
+        let state = Self.effectiveState(nodeState: node?.state, jobState: job?.state)
         let ended = ["done", "failed", "cancelled"].contains(state)
         isLive = !ended
         if ended {
@@ -55,15 +55,38 @@ struct ProjectRunStrip: Equatable {
             case "cancelled": title = "Recipe run stopped"
             default: title = "Recipe run failed"
             }
-            detail = summary?.lines.joined(separator: " · ") ?? (node?.reason ?? "")
+            // No account of what it made: say so, never a bare "finished" (the tree read, which carries the summary, can fail
+            // while the jobs list already says the run ended).
+            detail = summary?.lines.joined(separator: " · ")
+                ?? [node?.reason, job?.reason].compactMap { $0 }.first { !$0.isEmpty }
+                ?? "What it made could not be read just now. Show Details has the log."
             failed = summary?.failed ?? []
             return
         }
         failed = []
+        if state == "stalled" {
+            title = ["Recipe run stalled", folders?.words].compactMap { $0 }.joined(separator: " · ")
+            detail = [job?.reason, node?.reason].compactMap { $0 }.first { !$0.isEmpty }
+                ?? "Nothing has moved for a while. Show Details has the log."
+            return
+        }
         let words = Self.liveWords(state: state, node: node, job: job)
         // How far the run is in folders, after its stage, for a run over more than one (#5540).
         title = [words.title, folders?.words].compactMap { $0 }.joined(separator: " · ")
         detail = words.detail
+    }
+
+    /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
+    /// `fetchRunTree`), so a run that has ended can still look running there while the jobs list, polled, already says it ended
+    /// or stalled: an end or a stall in the list wins over a tree that has not caught up. Pure, tested without a store.
+    nonisolated static func effectiveState(nodeState: String?, jobState: ActivityJob.State?) -> String {
+        if let nodeState, ["done", "failed", "cancelled"].contains(nodeState) { return nodeState }
+        switch jobState {
+        case .completed: return "done"
+        case .failed: return "failed"
+        case .stalled: return "stalled"
+        default: return nodeState ?? (jobState == .running ? "running" : "waiting")
+        }
     }
 
     /// A live run's title and line: its running stage by name, that stage's

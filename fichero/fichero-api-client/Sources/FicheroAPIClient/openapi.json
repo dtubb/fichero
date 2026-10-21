@@ -16487,6 +16487,70 @@
         }
       }
     },
+    "/api/recipes/cloud/accept-unpriced": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Accept Unpriced Cloud Model",
+        "description": "Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.",
+        "operationId": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptUnpricedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedUnpriced"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -48368,6 +48432,53 @@
         ],
         "title": "AcceptResponse"
       },
+      "AcceptUnpricedRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider",
+            "description": "the provider row id of the cloud model"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model",
+            "description": "the model id, as the refusal names it"
+          },
+          "withdraw": {
+            "type": "boolean",
+            "title": "Withdraw",
+            "description": "take the yes back: calls to it are refused again",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "AcceptUnpricedRequest",
+        "description": "One cloud model with no listed price, which this project accepts running (or withdraws that yes)."
+      },
+      "AcceptedUnpriced": {
+        "properties": {
+          "accepted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accepted",
+            "description": "every `provider/model` this project accepts running without a listed price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "AcceptedUnpriced"
+      },
       "AccessibleLibrary": {
         "properties": {
           "library_path": {
@@ -57775,6 +57886,71 @@
           "transport"
         ],
         "title": "ClientPresenceEntry"
+      },
+      "CloudCapLine": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd",
+            "description": "the project's cloud spending cap for a month (`answers.cloud_spend_cap_usd`), US$10 unless set"
+          },
+          "spent_usd": {
+            "type": "number",
+            "title": "Spent Usd",
+            "description": "what its cloud calls have cost this (UTC) month, assumed prices included"
+          },
+          "remaining_usd": {
+            "type": "number",
+            "title": "Remaining Usd",
+            "description": "what the cap leaves this month"
+          },
+          "estimate_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimate Usd",
+            "description": "this run's estimated cloud cost; null when a model has no listed price"
+          },
+          "over": {
+            "type": "boolean",
+            "title": "Over",
+            "description": "the estimate is more than the cap leaves: Start asks first"
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models",
+            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused until accepted"
+          },
+          "unpriced": {
+            "type": "boolean",
+            "title": "Unpriced",
+            "description": "the estimate is unknown (a cloud model with no listed price): asked about, never $0"
+          },
+          "assumed_calls": {
+            "type": "integer",
+            "title": "Assumed Calls",
+            "description": "calls this month booked at the assumed price of a model with no listed price",
+            "default": 0
+          },
+          "assumed_usd": {
+            "type": "number",
+            "title": "Assumed Usd",
+            "description": "what those calls were booked at: counted against the cap, listed apart",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "spent_usd",
+          "remaining_usd",
+          "over",
+          "unpriced"
+        ],
+        "title": "CloudCapLine",
+        "description": "The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."
       },
       "CloudOffer": {
         "properties": {
@@ -92660,6 +92836,11 @@
             "nullable": true,
             "description": "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"
           },
+          "cloud_cap": {
+            "$ref": "#/components/schemas/CloudCapLine",
+            "nullable": true,
+            "description": "the project's cloud spending cap against this run's estimate (#5987); Start is refused while the estimate is over it"
+          },
           "bakeoff_offer": {
             "$ref": "#/components/schemas/BakeoffOffer",
             "nullable": true,
@@ -92845,6 +93026,14 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project"
+          },
+          "accept_unpriced": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accept Unpriced",
+            "description": "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)"
           }
         },
         "additionalProperties": false,

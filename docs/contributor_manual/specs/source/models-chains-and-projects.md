@@ -4062,7 +4062,7 @@ Running and failure
   download's `job_id` to retry (`POST /api/activity/jobs/{job_id}/retry`), and `next_candidate`, the first other entry of the step's
   `chain` (local first; a cloud one carries `needs_permission` until pages may leave), chosen with
   `POST /api/recipes/project/steps/use-candidate` (`run_view.download_failures`;
-  `fichero-server/tests/unit/recipes/test_download_failed_actions_5352.py`). Not built: the buttons in the app.*
+  `fichero-server/tests/unit/recipes/test_download_failed_actions_5352.py`). Built (app, unbuilt; from 3d31c9a51): Retry and Use <the candidate's name> in the run summary, Use applying to every step of the row (`ActivityStore.useNextCandidate(steps:)`).*
 - `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.

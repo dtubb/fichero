@@ -484,7 +484,8 @@ dev = [
     "requests",
     "cryptography",
     "ruamel.yaml",
-    "openapi-python-client",
+    # 0.29.1+: earlier versions generate arbitrary code from a malicious OpenAPI document (Dependabot #41); needs Python 3.11+
+    "openapi-python-client>=0.29.1; python_version >= '3.11'",
     # #4337: the unit suite imports these at module scope (kg/ and knowledge/
     # tests, test_kg_untested_symbols.py), so a clean `pip install -e .[dev]`
     # could not even *collect* the suite — it only worked because the long-lived

@@ -9281,6 +9281,16 @@
         "response_model": "CheckResponse"
       },
       {
+        "method": "POST",
+        "path": "/recipes/cloud/accept-unpriced",
+        "operation_id": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
+        "summary": "Accept Unpriced Cloud Model",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AcceptUnpricedRequest",
+        "response_model": "AcceptedUnpriced"
+      },
+      {
         "method": "GET",
         "path": "/recipes/derived",
         "operation_id": "derived_facts_api_recipes_derived_get",

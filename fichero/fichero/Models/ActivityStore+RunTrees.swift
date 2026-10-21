@@ -92,11 +92,11 @@ extension ActivityStore {
         }
     }
 
-    /// The step takes the next candidate of its chain after a failed download (#5352). Returns the engine's
-    /// refusal, in its words, or nil.
-    func useNextCandidate(step: String, card: String) async -> String? {
+    /// Each step waiting on a failed download takes the next candidate of its chain (#5352). Returns the
+    /// engine's first refusal, in its words, or nil.
+    func useNextCandidate(steps: [String], card: String) async -> String? {
         do {
-            try await activityService.useCandidate(step: step, card: card)
+            for step in steps { try await activityService.useCandidate(step: step, card: card) }
             return nil
         } catch {
             return error.localizedDescription

@@ -10,6 +10,10 @@ extension ShareLibrarySheet {
         didShare = false
         pairingCode = nil
         defer { isSharing = false }
+        if let folder {
+            await shareFolder(folder)
+            return
+        }
         do {
             // Grant the role — the sheet's actual purpose. We deliberately IGNORE
             // the returned share_url: it is a loopback API URL that 401s and is
@@ -28,6 +32,26 @@ extension ShareLibrarySheet {
             loadSPKIPin()
             await mintPairingCodeIfPossible()
             await loadMembers()
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
+    /// One folder, not the project: the engine grants the role on that folder to a person who has an account, at once, and says no
+    /// in words to anything it cannot do (the person already has the whole project, the folder is not in it).
+    @MainActor
+    func shareFolder(_ folder: FolderShareTarget) async {
+        guard let username = usersStore.users.first(where: { $0.id == personChoice })?.username else {
+            shareError = "Choose a person who has an account."
+            return
+        }
+        do {
+            try await PairingService(apiRoot: EngineConfig.host).shareFolder(
+                username: username, role: role, library: library.url.path, folderId: folder.folderId)
+            didFolderShare = true
+            await loadMembers()
+        } catch APIError.httpError(_, let message) {
+            shareError = message  // the engine's own words, without the status prefix
         } catch {
             shareError = error.localizedDescription
         }

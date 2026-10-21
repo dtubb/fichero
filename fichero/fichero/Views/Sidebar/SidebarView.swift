@@ -152,10 +152,10 @@ struct SidebarView: View {
         nonmutating set { selectionState.selectedDestination = newValue }
     }
 
-    var body: some View {
-        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
-        if RenderDiagnostics.printChanges { Self._printChanges() }
-        return sidebarContent
+    /// The sidebar with its observers; the menu, alert and sheet modifiers follow in `body`. Split so the type-checker
+    /// sees two bounded chains, not one (builder RED at c34881647: SidebarView.swift:187 type-check time limit).
+    private var sidebarObserved: some View {
+        sidebarContent
             .sidebarStyle()
             // Reveal-in-sidebar (2026-08-23, Daniel: "sidebar should have the
             // appropriate folder selected, once library loads"): the restore
@@ -330,6 +330,12 @@ struct SidebarView: View {
                     await loadActivityData()
                 }
             }
+    }
+
+    var body: some View {
+        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
+        if RenderDiagnostics.printChanges { Self._printChanges() }
+        return sidebarObserved
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,
@@ -374,6 +380,12 @@ struct SidebarView: View {
             // presents, reached here from the library-header context menu.
             .sheet(item: $libraryToShare) { library in
                 ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+            }
+            // Share… on a FOLDER row (#5967): the same sheet, scoped to that folder.
+            .sheet(item: $sidebarState.folderToShare) { target in
+                if let library = libraryManager.getLibrary(id: target.libraryId) {
+                    ShareLibrarySheet(library: library, usersStore: appState.usersStore, folder: target)
+                }
             }
             // Edit Document Types… from the always-there project's empty-area menu: the same
             // sheet a project row's menu presents.
