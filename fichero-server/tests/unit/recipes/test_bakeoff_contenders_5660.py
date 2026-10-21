@@ -38,7 +38,7 @@ CLAUDE_HERE = "anthropic:claude-sonnet-4-5@"
 
 def _named(cloud_allowed=False):
     a = Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
-                materials=("handwriting",), mac_memory_gb=16, cloud_allowed=cloud_allowed)
+                materials=("handwriting",), mac_memory_gb=32, cloud_allowed=cloud_allowed)
     return {c["card"]: c for c in bakeoff.candidates(a, list(all_seed_cards()), volume=100)}
 
 

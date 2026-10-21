@@ -119,7 +119,7 @@ def folder(db):
 
 def _set_up(client, *, materials=("handwriting",)):
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": list(materials),
-               "pages": 1000}
+               "pages": 1000, "mac_memory_gb": 32}  # the 7B reader fits a 32 GB Mac, whatever Mac runs the test
     recipe = client.post("/api/recipes/assemble", json=answers)
     assert recipe.status_code == 200, recipe.text
     saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe.json()})
@@ -179,7 +179,7 @@ def test_tesseract_joins_for_print_and_never_for_handwriting():
     cards = list(all_seed_cards())
 
     def named(**answers):
-        a = Answers(purposes=("transcribe",), scripts=frozenset({"Latn"}), mac_memory_gb=16, **answers)
+        a = Answers(purposes=("transcribe",), scripts=frozenset({"Latn"}), mac_memory_gb=32, **answers)
         return {c["card"]: c for c in bakeoff.candidates(a, cards, volume=100)}
 
     on_print = named(languages=frozenset({"es"}), materials=("print",))
