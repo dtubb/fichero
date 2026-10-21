@@ -19,7 +19,7 @@ import re
 
 from PIL import Image
 
-from fichero_server.llm.working_lines import NO_WRITING_KEY
+from fichero_server.llm.working_lines import NO_WRITING_KEY, VISION_NOTHING_TWICE, reads_mostly_nothing
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
 from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
@@ -51,10 +51,6 @@ PAGE_CONTEXT = ("Before the {n} line images comes one more, first: the whole pag
                 "what the page is. It is for context only: do not read it, and do not count it in your answer. ")
 #: The page beside a batch is cut to this long side: enough to see the hand and the layout, cheap to send.
 PAGE_CONTEXT_SIDE = 768
-
-
-#: Why a line Apple Vision came back empty on is unread (`source.read.vision-empty-line-says-so`).
-VISION_RETURNED_NOTHING = "Apple Vision returned nothing for this line (it can read the same picture on another try)"
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
@@ -170,9 +166,8 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         if apple:
             text = " ".join((raw or "").split())
             if not text:
-                # Vision does not read one picture the same way twice (#5901): an empty answer is not "no writing". The line
-                # stays unread and says so; it is never marked looked-at.
-                why_not[indices[0]] = VISION_RETURNED_NOTHING
+                # Vision does not read one picture the same way twice (#5901): an empty answer is not "no writing".
+                vision_empty.add(indices[0])
                 return None
             return [text]
         answer = parse_answer(raw, len(indices))
@@ -185,6 +180,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         return answer
 
     looked: set[int] = set()  # lines the reader answered for, with or without words
+    vision_empty: set[int] = set()  # Apple Vision lines whose latest answer was empty
     why_not: dict[int, str] = {}  # a line asked on its own that came back unread, and what the model said (variant B)
 
     async def batch(indices: list[int]) -> list[str | None]:
@@ -200,13 +196,31 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     per_call = 1 if apple else lines_per_call(config)
     groups = request_groups(found, None if apple else granularity, per_call)
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
+    final_empty: set[int] = set()  # Apple Vision lines empty twice, not part of a failed page: final, with a reason
+    if apple and vision_empty:
+        # Once more, in this run (`source.read.vision-empty-line-says-so`): one empty answer is not evidence of a blank line.
+        again = sorted(vision_empty)
+        vision_empty.clear()
+        for n, second in zip(again, await asyncio.gather(*(ask([n]) for n in again))):
+            if second is not None:
+                readings[n] = second[0]
+        if vision_empty:
+            from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE, NOTHING_FOR_PAGE
+
+            if reads_mostly_nothing(len(vision_empty), len(found)):  # a hand it cannot read is not a blank page: stays unread
+                for n in vision_empty:
+                    why_not[n] = NOTHING_FOR_PAGE if len(vision_empty) == len(found) else MOSTLY_NOTHING_FOR_PAGE
+            else:
+                final_empty = set(vision_empty)
+                for n in final_empty:
+                    why_not[n] = VISION_NOTHING_TWICE
 
     boxes, texts, cursor = list(regions), [], 0
     flagged: list[ReadFlag] = []
     no_writing: list[str] = []  # looked at, nothing written: a ruled or blank line, read as such (#5758)
     for n, (box, text) in enumerate(zip(found, readings)):
         if text is None:
-            if n in looked and box.metadata.get("segment_id"):
+            if (n in looked or n in final_empty) and box.metadata.get("segment_id"):
                 no_writing.append(box.metadata["segment_id"])
             # Every line left without a reading, and why (#5758): the reader said no writing, or never answered.
             logger.debug("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,

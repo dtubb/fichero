@@ -219,6 +219,7 @@ class RecipeRunSummary(BaseModel):
                             "not counting a page the run left out as blank (#5705)")
     lines_unread: int = Field(default=0, description="the lines found on those pages that have no reading (#5758)")
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
+    lines_vision_could_not_read: int = Field(default=0, description="lines Apple Vision returned nothing for twice in one run: final, with a reason, not counted as lines the reader found no writing on (#5901)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
     download_failed: list[DownloadFailed] = Field(default_factory=list, description="steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)")
@@ -310,9 +311,16 @@ def lines_unread_why(db: Any, pages: list[str]) -> dict[str, int]:
 def lines_seen_blank(db: Any, pages: list[str]) -> int:
     """Lines a reader looked at and found no writing on, on pages that also have text: counted read, but shown, so
     a person can judge a reader that sees half a page as blank."""
-    from fichero_server.recipes.done import lines_state
+    from fichero_server.recipes.done import lines_state, vision_gave_up
 
-    return sum(lines_state(db, p)[2] for p in pages)
+    return sum(lines_state(db, p)[2] - vision_gave_up(db, p) for p in pages)
+
+
+def lines_vision_could_not_read(db: Any, pages: list[str]) -> int:
+    """Lines Apple Vision returned nothing for twice (#5901), on pages that are otherwise read."""
+    from fichero_server.recipes.done import vision_gave_up
+
+    return sum(vision_gave_up(db, p) for p in pages)
 
 
 def next_reader(recipe: dict | None, *, lines_found: int, lines_blank: int, pages_read_nothing: int,
@@ -385,6 +393,7 @@ class ReadingCounts:
     lines_unread: int
     lines_unread_why: dict[str, int]
     lines_seen_blank: int
+    lines_vision_could_not_read: int
     lines_found: int
     pages_read_nothing: int
     pages_dated: int
@@ -411,7 +420,8 @@ def reading_counts(db: Any, pages: list[str], blank: set[str]) -> ReadingCounts:
     dated = sum(1 for d in db.query_in(Document, "id", pages) if d.date_jdn is not None)
     return ReadingCounts(
         pages_fully_read=fully, lines_unread=sum(i.unread for i in by_page.values()), lines_unread_why=why,
-        lines_seen_blank=sum(i.blank for i in by_page.values()), lines_found=sum(i.found for i in by_page.values()),
+        lines_seen_blank=sum(i.blank for i in by_page.values()),
+        lines_vision_could_not_read=sum(i.vision for i in by_page.values()), lines_found=sum(i.found for i in by_page.values()),
         pages_read_nothing=failed, pages_dated=dated)
 
 
@@ -566,6 +576,8 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
                      f"{'came back empty on most lines for' if mostly else 'returned nothing for'}")
     if s.lines_seen_blank:
         lines.append(f"{_plural(s.lines_seen_blank, 'line')} the reader found no writing on")
+    if s.lines_vision_could_not_read:
+        lines.append(f"{_plural(s.lines_vision_could_not_read, 'line')} Vision could not read")
     if s.lines_unread:
         lines.append(f"{_plural(s.lines_unread, 'line')} {'has' if s.lines_unread == 1 else 'have'} no reading")
     if s.left_out:
@@ -618,7 +630,7 @@ def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[s
         made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
     setup = read_project_setup(runner._library(db))
     made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
-                                   lines_blank=counts.lines_seen_blank, pages_read_nothing=made.pages_read_nothing,
+                                   lines_blank=counts.lines_seen_blank + counts.lines_vision_could_not_read, pages_read_nothing=made.pages_read_nothing,
                                    cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
     from fichero_server.execution import jobs
 
@@ -661,7 +673,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         job_id=job_id, state=status["state"], finished=status["state"] in ("done", "failed", "cancelled"),
         pages=len(pages), pages_read=len(counts.pages_fully_read),
         lines_unread=counts.lines_unread, lines_unread_why=counts.lines_unread_why,
-        lines_seen_blank=counts.lines_seen_blank, pages_read_nothing=counts.pages_read_nothing,
+        lines_seen_blank=counts.lines_seen_blank, lines_vision_could_not_read=counts.lines_vision_could_not_read, pages_read_nothing=counts.pages_read_nothing,
         names=names, dates=dates, statements=statements, pages_dated=counts.pages_dated,
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),

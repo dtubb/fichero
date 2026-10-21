@@ -13,14 +13,15 @@ from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, 
 
 def _geometry(tmp_path, ids):
     path = tmp_path / "p.png"
-    Image.new("RGB", (400, 100), "white").save(path)
+    height = max(100, 30 * len(ids) + 20)  # a page of five lines or more is taller, so no box leaves the page
+    Image.new("RGB", (400, height), "white").save(path)
 
     def line(sid, y):
         poly = [[10, y], [390, y], [390, y + 20], [10, y + 20]]
-        return OCRGeometryBox(text="", bbox=[0.0, y / 100, 1.0, 0.2], level=OCRGeometryLevel.LINE, provider="kraken",
+        return OCRGeometryBox(text="", bbox=[0.0, y / height, 1.0, 20 / height], level=OCRGeometryLevel.LINE, provider="kraken",
                               model="m", source="working-pass",
                               metadata={"segment_id": sid, "polygon_px": poly, "baseline_px": [[10, y + 15], [390, y + 15]],
-                                        "pixel_frame": {"width": 400, "height": 100}})
+                                        "pixel_frame": {"width": 400, "height": height}})
 
     return str(path), OCRGeometryResult(text="", provider="kraken", model="m", boxes=[line(s, 10 + 30 * i) for i, s in
                                                                                      enumerate(ids)],

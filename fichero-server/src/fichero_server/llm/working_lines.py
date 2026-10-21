@@ -26,6 +26,9 @@ READ_ONTO_PASS = "read_onto_pass"
 #: mark it leaves on each segment so a second Start does not read it again (#5758).
 NO_WRITING_KEY = "lines_looked_no_writing"
 NO_WRITING_MARK = "read_no_writing"
+#: What a line says when Apple Vision returned nothing for it twice in one run (`source.read.vision-empty-line-says-so`): a
+#: reason, not a reading. The line is final (looked at, so the page is done), and counted on its own.
+VISION_NOTHING_TWICE = "Apple Vision returned nothing (twice)"
 #: Where a line with no baseline of its own (Apple Vision's boxes give none) is read along: this far down its
 #: box, the usual place of a baseline in a line's box.
 BASELINE_AT = 0.75
