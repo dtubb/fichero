@@ -93,13 +93,21 @@ def bound_project(library: str | Path | None) -> Iterator[None]:
 
 #: A scratch copy of some pages that a try runs on (`recipes/samples._run_one`) -> the real project it is a try for. The copy has
 #: no Set Up of its own, so a call made for it is judged by, and its spend counted against, the real project.
-_scratch_of: dict[Path, Path] = {}
+_scratch_of: dict[str, Path] = {}
+
+
+def _canon(path: str | Path) -> str:
+    """One spelling of a folder, the one the engine keys its open libraries by (`DatabaseManager._cache_key`: NFC + realpath),
+    so a path spelled `/var/…` or `/private/var/…` finds the same entry (## 790 LOW)."""
+    from fichero_server.db.manager import db_manager
+
+    return db_manager._cache_key(path)
 
 
 @contextlib.contextmanager
 def scratch_of(scratch: str | Path, real: str | Path) -> Iterator[None]:
     """For the length of the block, work bound to the folder `scratch` is for the project at `real`."""
-    key = Path(scratch)
+    key = _canon(scratch)
     _scratch_of[key] = Path(real)
     try:
         yield
@@ -110,7 +118,9 @@ def scratch_of(scratch: str | Path, real: str | Path) -> Iterator[None]:
 def bound_library() -> Path | None:
     """The project the work in hand is for: the bound folder, or the real project when that folder is a try's scratch copy."""
     bound = _project.get()
-    return _scratch_of.get(bound, bound) if bound is not None else None
+    if bound is None:
+        return None
+    return _scratch_of.get(_canon(bound), bound) if _scratch_of else bound
 
 
 def this_mac_line(memory_gb: float) -> str:
