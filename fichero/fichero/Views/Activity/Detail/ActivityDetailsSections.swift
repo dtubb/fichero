@@ -265,8 +265,8 @@ struct ActivityDetailsSummary: View {
                     Button("Retry") { perform(.retryDownload(jobId: row.retryJobId)) }
                         .controlSize(.small)
                         .accessibilityIdentifier("activity.details.summary.retryDownload")
-                    if let next = row.next, let step = row.steps.first {
-                        Button("Use \(next.name)") { perform(.useNextCandidate(step: step, card: next.card)) }
+                    if let next = row.next {
+                        Button("Use \(next.name)") { perform(.useNextCandidate(steps: row.steps, card: next.card)) }
                             .controlSize(.small)
                             .disabled(next.needsPermission)
                             .help(next.needsPermission

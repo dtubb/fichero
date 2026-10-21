@@ -162,8 +162,8 @@ struct ActivityDetailsView: View {
         case .retryDownload(let jobId):
             failure = await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
                 .map { "Couldn't retry the download: \($0)" }
-        case .useNextCandidate(let step, let card):
-            failure = await store.useNextCandidate(step: step, card: card)
+        case .useNextCandidate(let steps, let card):
+            failure = await store.useNextCandidate(steps: steps, card: card)
                 .map { "Couldn't use the next reader: \($0)" }
         case .openSetUp(let stage):
             if let libraryId = selection.libraryId {
