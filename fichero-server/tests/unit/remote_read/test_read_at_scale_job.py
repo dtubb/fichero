@@ -335,7 +335,8 @@ def _copies(db, *, may_stay):
 
     from fichero_server.recipes.project import write_project_setup
 
-    write_project_setup(Path(db.path).parent, {"purposes": ["transcribe"], "copies_may_stay_on_cluster": may_stay},
+    write_project_setup(Path(db.path).parent, {"purposes": ["transcribe"], "copies_may_stay_on_cluster": may_stay,
+                                          "cloud_allowed": True},  # a cluster run sends pages: the project says yes (#5368)
                         None)
 
 
