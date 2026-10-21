@@ -74,9 +74,11 @@ async def test_the_hosts_own_window_is_passed_through(app_db):
     await stream.aclose()
 
 
-async def test_the_workflow_run_stream_route_ends_for_a_revoked_guest(app_db, monkeypatch):
+async def test_the_workflow_run_stream_route_ends_for_a_revoked_guest(app_db, monkeypatch, tmp_path):
     hub = WorkflowEventHub()
-    monkeypatch.setattr(run_stream, "_get_workflow_state", lambda thread_id: {"events": hub})
+    # the run's own library (the stream is checked against it, #5967) comes from the state's db_path
+    state = {"events": hub, "db_path": str(tmp_path / "P.fichero" / "fichero.duckdb")}
+    monkeypatch.setattr(run_stream, "_get_workflow_state", lambda thread_id: state)
     guest = _device(app_db, "guest")
     response = await run_stream.stream_workflow_events("thread-1", _request(guest))
     stream = response.body_iterator
