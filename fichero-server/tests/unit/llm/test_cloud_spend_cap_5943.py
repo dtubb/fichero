@@ -184,11 +184,13 @@ def test_a_call_cancelled_after_it_was_sent_books_its_worst_case(tmp_path):
     assert spend._RESERVED[library] == pytest.approx(0.0)
 
 
-def test_a_model_with_no_listed_price_is_held_at_an_assumed_price_never_free(tmp_path):
+def test_a_model_with_no_listed_price_accepted_by_the_project_is_held_at_an_assumed_price_never_free(tmp_path):
     library = _project(tmp_path)
     config = LLMConfig(provider="openai", model="mystery", api_key="k")
+    spend.set_accepted(library, "openai", "mystery", True)
     run(_call(library, config=config, tokens=(10, 10)))
-    assert spend.booked_usd(library) == pytest.approx(spend.UNPRICED_CALL_USD)
+    assert spend.booked_usd(library) == pytest.approx(spend.UNPRICED_CALL_USD)  # counts against the cap, never free
+    assert spend.assumed(library) == (1, pytest.approx(spend.UNPRICED_CALL_USD))  # and listed apart: which spend is assumed
 
 
 def test_the_worst_case_output_is_the_models_catalogue_maximum_when_that_is_smaller(monkeypatch):
