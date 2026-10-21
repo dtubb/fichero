@@ -151,3 +151,15 @@ def test_the_certainty_bar_is_set_ups_answer_as_a_number_or_none_for_the_whole_p
     assert _certainty_bar({"job_answers": {"review_certainty_bar": "0.7"}}) == 0.7
     assert _certainty_bar({"job_answers": {"review_certainty_bar": "whole-page"}}) is None
     assert _certainty_bar({"job_answers": {"review_certainty_bar": "7"}}) is None and _certainty_bar(None) is None
+
+
+def test_only_a_card_that_runs_on_this_mac_is_free_a_cluster_or_gpu_service_is_unknown():
+    from types import SimpleNamespace
+
+    from fichero_server.recipes.step_choices import _cost
+
+    mac = _cost(SimpleNamespace(runs_on="this-mac"), 10)
+    assert mac["value"] == 0.0 and "free" in mac["from"]
+    for where in ("cluster", "gpu-service"):
+        c = _cost(SimpleNamespace(runs_on=where), 10)
+        assert c["value"] is None and c["basis"] == "unknown" and where in c["from"] and "free" not in c["from"]
