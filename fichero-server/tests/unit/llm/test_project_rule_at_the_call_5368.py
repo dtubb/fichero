@@ -84,3 +84,26 @@ def test_each_place_a_run_or_chat_starts_binds_its_project():
         tree = ast.parse((SRC / rel).read_text())
         fn = next(n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == fn_name)
         assert "bound_project(" in ast.unparse(fn), f"{rel}::{fn_name} must bind the project the work is for"
+
+
+def test_a_try_runs_on_a_scratch_copy_but_is_judged_by_the_real_projects_rule(tmp_path):
+    """Set Up's tries (`recipes/samples._run_one`) run on a scratch copy with no Set Up of its own (## 789 LOW)."""
+    real = _project(tmp_path, cloud_allowed=False)
+    scratch = tmp_path / "try.fichero"
+    scratch.mkdir()
+    with places.bound_project(scratch):
+        llm._enforce_local_only_provider(CLOUD, kind="chat")  # a copy alone caps nothing: why the try must name its project
+    with places.scratch_of(scratch, real):
+        assert places.bound_library() is None  # nothing bound outside a bound block
+        with places.bound_project(scratch):
+            assert places.bound_library() == real
+            with pytest.raises(LocalOnlyViolationError):
+                llm._enforce_local_only_provider(CLOUD, kind="chat")
+    with places.bound_project(scratch):
+        assert places.bound_library() == scratch  # the mapping ends with the try
+
+
+def test_the_try_names_its_real_project_for_the_copy():
+    tree = ast.parse((SRC / "recipes/samples.py").read_text())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_run_one")
+    assert "scratch_of(" in ast.unparse(fn)
