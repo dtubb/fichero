@@ -28,6 +28,8 @@ struct StepChoiceMenu: Equatable, Identifiable {
         let isAvailable: Bool
         let needs: [Need]
         let costUsd: Double?
+        /// The engine's own words for the figure (`cost_usd.from`: "free on this Mac", "the price list"), shown as sent.
+        let costWords: String?
         var id: String { card }
     }
 
@@ -67,13 +69,20 @@ struct StepChoiceMenu: Equatable, Identifiable {
         return words.isEmpty ? nil : words.joined(separator: "; ")
     }
 
-    /// Before Start, for these pages: a price when the engine has one, free only where it runs on this Mac (keyed on where
-    /// it runs, not on `local`: a cluster is local to the person and not free), else said not known.
+    /// Before Start, for these pages: the engine's words for the figure, as sent ("free on this Mac"), never rebuilt here
+    /// from where it runs; with a price and no words, the price; else said not known.
     func costText(of candidate: Candidate) -> String {
-        if let cost = candidate.costUsd {
-            return "About $" + cost.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US_POSIX")))
+        let words = candidate.costWords?.trimmingCharacters(in: .whitespaces) ?? ""
+        if !words.isEmpty {
+            if let cost = candidate.costUsd, cost > 0 { return words + ": " + Self.dollars(cost) }
+            return words.prefix(1).uppercased() + words.dropFirst()
         }
-        return candidate.runsOn.lowercased() == "this mac" ? "Free, on this Mac" : "Cost not known yet"
+        if let cost = candidate.costUsd { return Self.dollars(cost) }
+        return "Cost not known yet"
+    }
+
+    private static func dollars(_ cost: Double) -> String {
+        "About $" + cost.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US_POSIX")))
     }
 
     /// A row already in use has no "Use"; every other row has one, also one that needs something (the choice is kept and

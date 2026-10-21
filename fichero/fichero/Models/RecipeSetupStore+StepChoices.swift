@@ -1,0 +1,39 @@
+import Foundation
+import FicheroAPIClient
+
+/// The step menu's data and its two actions (`source.onboard.step-choice-overrides-the-pick`, #4951).
+extension RecipeSetupStore {
+    /// Each step of the shown plan that has a choice of model, from the engine's `StartPlan.step_choices`.
+    var stepMenus: [StepChoiceMenu] {
+        (startPlan?.stepChoices ?? []).map(StepChoiceMenu.init)
+    }
+
+    /// Use for This Step on a candidate of the menu; the plan is read again, since the choice changes what Start would run.
+    func choose(_ candidate: StepChoiceMenu.Candidate, forStep step: String) async {
+        await useCard(candidate.card, named: candidate.name, forStep: step)
+        await loadStartPlan(folderId: startPlanFolderId)
+    }
+
+    /// Take the step back to Set Up's pick (POST .../steps/use-setup-pick): the engine drops the person's override and
+    /// saves the recipe; the plan is read again.
+    func useSetupPick(step: String) async {
+        do {
+            switch try await client.api.useSetupPickForStepApiRecipesProjectStepsUseSetupPickPost(
+                body: .json(.init(step: step))
+            ) {
+            case .ok(let success):
+                if let recipe = try success.body.json.recipe {
+                    adoptEngineRecipe(try JSONEncoder().encode(recipe))
+                }
+            case .unprocessableContent(let error):
+                errorMessage = (try? error.body.json)?.detail?.description ?? "The engine would not take this step back to Set Up's pick."
+            case .undocumented(let code, _):
+                errorMessage = "Could not take this step back to Set Up's pick (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not take this step back to Set Up's pick: \(error.localizedDescription)"
+        }
+        await loadStartPlan(folderId: startPlanFolderId)
+    }
+}

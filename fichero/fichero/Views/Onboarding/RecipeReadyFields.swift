@@ -85,6 +85,7 @@ struct RecipeReadyFields: View {
             }
             RecipeStartFields(store: store, onFix: onFix, project: project)
             OfferedJobsList(store: store)
+            StepChoiceMenusView(store: store)
             HStack(alignment: .firstTextBaseline) {
                 if let why = store.startDisabledReason {
                     Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
