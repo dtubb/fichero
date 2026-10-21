@@ -12,6 +12,9 @@ import asyncio
 
 import fichero_server.llm as llm_module
 from fichero_server.llm import LLMConfig, _vision_cache_key
+import pytest
+
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
 
 
 def _cfg(**over):

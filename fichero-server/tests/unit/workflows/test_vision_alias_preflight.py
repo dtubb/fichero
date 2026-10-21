@@ -10,6 +10,9 @@ from fichero_server.workflows.types import NodeDef, WorkflowDef
 from fichero_server.workflows.validation import (
     validate_workflow_llm_preflight,
 )
+import pytest
+
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
 
 
 def _workflow_for(node: NodeDef) -> WorkflowDef:

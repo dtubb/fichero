@@ -20,6 +20,8 @@ from fichero_server.api.routes.workflow_execution.core import _validate_workflow
 from fichero_server.models import Workflow
 from fichero_server.workflows.types import WorkflowDef
 
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
+
 PRESETS = Path(__file__).resolve().parents[3] / "src" / "fichero_server" / "resources" / "default_workflows"
 
 
