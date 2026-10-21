@@ -574,7 +574,7 @@ def _local(plan: dict[str, Any]) -> bool:
 
 def _column(card: Any, plan: dict[str, Any]) -> dict[str, Any]:
     """A candidate's column, before it runs: the bake-off row's fields (`bakeoff._candidate`'s shape)."""
-    from fichero_server.recipes.bakeoff import _figure, reader_name
+    from fichero_server.recipes.bakeoff import reader_name
     from fichero_server.recipes.discovery import model_link
 
     local = _local(plan)
