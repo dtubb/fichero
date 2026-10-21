@@ -583,7 +583,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // The pairing surface is ShareSettingsView's Add Device sheet, which renders the PairingCardView
         // (defined in PairingCardView.swift) beside the Devices list (`sharing.settings.add-device-sheet`, #5928). No scanner.
         let shareSource = try Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift")
-        let remoteAccessSource = try Self.appSource("Views/Settings/Sharing/PairingCardView.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/Sharing/Pairing/PairingCardView.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
         XCTAssertTrue(shareSource.contains("SharingPaneText.addDevice"))

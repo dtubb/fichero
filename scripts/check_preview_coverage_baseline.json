@@ -199,7 +199,7 @@
   "Settings/SettingsGroupContainers.swift": "declares a View, no #Preview",
   "Settings/SettingsViewPanes.swift": "declares a View, no #Preview",
   "Settings/Sharing/InviteAccountSection.swift": "declares a View, no #Preview",
-  "Settings/Sharing/MacRemoteClientPairingSection.swift": "declares a View, no #Preview",
+  "Settings/Sharing/Pairing/MacRemoteClientPairingSection.swift": "declares a View, no #Preview",
   "Settings/Sharing/Share/ShareSettingsView.swift": "declares a View, no #Preview",
   "Settings/Snapshots/SnapshotsView.swift": "declares a View, no #Preview",
   "Settings/Tools/InstallToolsWindow.swift": "declares a View, no #Preview",
