@@ -24,9 +24,9 @@ def test_a_runtime_not_in_this_build_is_not_a_candidate():
     assert not any(c.id.startswith("tesseract:") for c in seed_cards())
 
 
-def test_spanish_letters_on_a_16gb_mac():
+def test_spanish_letters_on_a_32gb_mac():  # the 7B corrector does not fit 16 GB under the load gate
     # Correct is optional and joins only when asked (#5812, 0d2ddeeff).
-    m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=16,
+    m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=32,
                                  job_answers={CORRECT_QUESTION: True}), list(seed_cards())))
     assert m["find-lines"]["kraken"] == "blla"
     # PP-OCRv6, the reader with a published CER; fetched from Kraken's repository by its DOI.

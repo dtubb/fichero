@@ -147,6 +147,10 @@ def test_a_request_that_names_a_library_runs_under_that_project(tmp_path):
         library = _project(tmp_path, "cloud_allowed: false\n")
         TestClient(app).get("/api/__egress_probe", headers={"X-Fichero-Library-Path": library})
         TestClient(app).get("/api/__egress_probe")
+        from tests.route_inventory import api_routes  # FastAPI 0.141 nests included routers: walk the real surface
+
+        served = [r.path for r in api_routes(app)]
+        assert "/api/__egress_probe" in served and len(served) > 100, f"walked {len(served)} routes"  # an empty walk fails
     finally:
         app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/api/__egress_probe"]
     assert seen == [library, None]
