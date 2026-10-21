@@ -2118,7 +2118,7 @@ class HfSpend(BaseModel):
 
 
 class CloudCapLine(BaseModel):
-    """The project's cloud spend cap against this run's estimate (`ai.where.project-cloud-spend-cap`, #5943, #5987)."""
+    """The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."""
 
     cap_usd: float = Field(description="the project's cloud spending cap for a month (`answers.cloud_spend_cap_usd`), US$10 unless set")
     spent_usd: float = Field(description="what its cloud calls have cost this (UTC) month, assumed prices included")

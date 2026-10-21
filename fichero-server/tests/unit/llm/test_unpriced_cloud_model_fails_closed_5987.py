@@ -1,4 +1,4 @@
-"""`ai.where.project-cloud-spend-cap` + `ai.where.accept-unpriced-cloud-model` (#5987): a cloud call to a model with no listed price
+"""`ai.where.cloud-spend-cap` + `ai.where.accept-unpriced-cloud-model` (#5987): a cloud call to a model with no listed price
 is refused at the call unless the project accepted that provider + model; the refusal is plain words with the way out in fields,
 and it is one typed error that stops a page loop once; a reply that would not parse is still billed."""
 
