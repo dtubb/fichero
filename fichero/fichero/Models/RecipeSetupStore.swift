@@ -234,6 +234,7 @@ final class RecipeSetupStore {
             }
             if let savedRecipe = saved.recipe {
                 rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
+                savedRecipeData = try JSONEncoder().encode(savedRecipe)
                 recipe = try Self.convert(savedRecipe, to: Components.Schemas.AssembledRecipe.self)
             }
             await resolveNames()
@@ -250,13 +251,19 @@ final class RecipeSetupStore {
     @discardableResult
     func save() async -> Bool {
         do {
+            var kept: Components.Schemas.ProjectSetup.RecipePayload?
+            if recipe == nil, let saved = savedRecipeData {
+                NSLog("Fichero: no recipe in hand while saving the setup; keeping the project's saved recipe")
+                kept = try JSONDecoder().decode(Components.Schemas.ProjectSetup.RecipePayload.self, from: saved)
+            }
             let body = Components.Schemas.ProjectSetup(
                 answers: try JSONDecoder().decode(Components.Schemas.ProjectSetup.AnswersPayload.self,
                                                   from: answersToSave()),
-                recipe: try recipe.map { try recipePayload($0) }
+                recipe: try recipe.map { try recipePayload($0) } ?? kept
             )
             switch try await client.api.saveProjectSetupApiRecipesProjectPut(headers: .init(), body: .json(body)) {
             case .ok:
+                if let sent = body.recipe { savedRecipeData = try? JSONEncoder().encode(sent) }
                 return true
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description ?? "The engine refused to save this setup"
@@ -457,6 +464,9 @@ final class RecipeSetupStore {
     /// engine sent them) has them kept here and sent back with every save, so a save never drops
     /// a reader the person chose.
     @ObservationIgnored private var savedRecipeOverrides: Data?
+    /// The recipe the project has saved (read by `loadSaved`, or kept by the last `save`): the backstop for `save`, which
+    /// never sends `recipe: null` over it (a failed assemble leaves `recipe` nil, ## 923).
+    @ObservationIgnored private var savedRecipeData: Data?
 
     private func rememberOverrides(from recipeJSON: Data) {
         // `"overrides": null` arrives as NSNull, and `data(withJSONObject:)` RAISES an Objective-C
