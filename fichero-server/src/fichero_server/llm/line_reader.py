@@ -27,6 +27,10 @@ from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, 
 logger = logging.getLogger(__name__)
 
 LINES_PER_CALL = 8
+#: The most line pictures one call carries, whatever the granularity asks (`source.recipe.cloud-reads-lines-per-page`): a page
+#: of 120 lines is read in calls of at most this many. It keeps a call inside the providers' image limits (the page for
+#: context rides beside the crops) and its answer inside the output ceiling (`TOKENS_PER_LINE` x this + 32 is under 8,192).
+MAX_LINES_PER_CALL = 40
 #: Calls one page asks at once. A model this engine serves is bounded again, across every page and
 #: run, by what its memory allows (`llm.model_call_slot`, `local_inference.local_reads_at_once`:
 #: one at a time for a 3B on an 8 GB Mac, #5537); a cloud model keeps these four.
@@ -111,7 +115,12 @@ def request_groups(found: list[OCRGeometryBox], granularity: str | None, per_cal
     """The lines (indices into `found`) each call carries. `granularity` is how the bake-off measured the reader
     (#5722): "lines" one a call, "region" one region a call (a line names its region by `parent_box_index`), "page"
     all in one. None: `per_call` lines a call, as before; the other three are not cut to it, because the reader was
-    measured asking that way."""
+    measured asking that way. No call carries more than `MAX_LINES_PER_CALL` lines: a longer group is split in order."""
+    groups = _request_groups(found, granularity, per_call)
+    return [g[i:i + MAX_LINES_PER_CALL] for g in groups for i in range(0, len(g), MAX_LINES_PER_CALL)]
+
+
+def _request_groups(found: list[OCRGeometryBox], granularity: str | None, per_call: int) -> list[list[int]]:
     n = len(found)
     if granularity == "lines":
         return [[i] for i in range(n)]
