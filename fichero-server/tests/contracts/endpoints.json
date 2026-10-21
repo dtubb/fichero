@@ -3937,6 +3937,34 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{page_id}/compare-readers",
+        "operation_id": "get_compare_readers_api_documents__page_id__compare_readers_get",
+        "summary": "Get Compare Readers",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [
+          {
+            "name": "only_differing",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "readers",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "try_stage",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CompareReadersResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{page_id}/disagreement",
         "operation_id": "get_page_disagreement_api_documents__page_id__disagreement_get",
         "summary": "Get Page Disagreement",
@@ -8461,7 +8489,7 @@
         "summary": "Create Pairing Code",
         "path_params": [],
         "query_params": [],
-        "request_model": null,
+        "request_model": "PairCodeRequest",
         "response_model": "PairCodeResponse"
       },
       {
@@ -8505,6 +8533,28 @@
         "query_params": [],
         "request_model": "EnrollmentRequest",
         "response_model": "PairResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/invites",
+        "operation_id": "list_invites_api_pair_invites_get",
+        "summary": "List Invites",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[PairingInviteResponse]"
+      },
+      {
+        "method": "DELETE",
+        "path": "/pair/invites/{invite_id}",
+        "operation_id": "revoke_invite_api_pair_invites__invite_id__delete",
+        "summary": "Revoke Invite",
+        "path_params": [
+          "invite_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       },
       {
         "method": "PUT",
@@ -9231,6 +9281,16 @@
         "response_model": "CheckResponse"
       },
       {
+        "method": "POST",
+        "path": "/recipes/cloud/accept-unpriced",
+        "operation_id": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
+        "summary": "Accept Unpriced Cloud Model",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AcceptUnpricedRequest",
+        "response_model": "AcceptedUnpriced"
+      },
+      {
         "method": "GET",
         "path": "/recipes/derived",
         "operation_id": "derived_facts_api_recipes_derived_get",
@@ -9378,6 +9438,16 @@
         "query_params": [],
         "request_model": "ProjectSetup",
         "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/allow-cloud",
+        "operation_id": "allow_cloud_api_recipes_project_allow_cloud_post",
+        "summary": "Allow Cloud",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AllowCloudResult"
       },
       {
         "method": "GET",
@@ -9637,7 +9707,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "StageTryResult"
       },
       {
         "method": "POST",
@@ -9649,7 +9719,7 @@
         ],
         "query_params": [],
         "request_model": "TryStageRequest",
-        "response_model": null
+        "response_model": "StageTryResult"
       }
     ],
     "references": [

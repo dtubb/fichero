@@ -2928,6 +2928,17 @@
         "summary": "Create Pairing Code",
         "description": "Mint a short-lived one-time pairing code for the authenticated caller.",
         "operationId": "create_pairing_code_api_pair_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairCodeRequest",
+                "nullable": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2935,6 +2946,91 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PairCodeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/invites": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "List Invites",
+        "description": "The owner's list of unused invitations to named people, with their expiry (never the codes).",
+        "operationId": "list_invites_api_pair_invites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PairingInviteResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Invites Api Pair Invites Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/invites/{invite_id}": {
+      "delete": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Revoke Invite",
+        "description": "Revoke an unused invitation at any time, a never-expiring one too: the link stops working at once.",
+        "operationId": "revoke_invite_api_pair_invites__invite_id__delete",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Invite Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Revoke Invite Api Pair Invites  Invite Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5747,6 +5843,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DisagreementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{page_id}/compare-readers": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Get Compare Readers",
+        "description": "What this page's readers made of the same lines, for choosing between them (`source.compare.readers-answer`, #5900).\nRead-only. Per line: every reader's own text AS WRITTEN with the `representation_id` a pick sends to\n`POST /api/segments/{id}/readings/choice`, whether the readers differ, the words that differ, the line's picture, the\nreader whose reading counts now and whether a person made it. A line one reader read is listed with its one reading.\n`?readers=a,b` narrows to those readers (ids from the answer); `?only_differing=true` leaves out the lines where they\nagree; `?try_stage=read` answers the SAME shape from that stage's Try candidates instead of the page's own readings\n(`source.compare.try-candidates-same-shape`: no segment ids, nothing to pick). Agreement, never accuracy. An unknown\npage, or a stage with no Try, is 404.",
+        "operationId": "get_compare_readers_api_documents__page_id__compare_readers_get",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Page Id"
+            }
+          },
+          {
+            "name": "readers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Readers"
+            }
+          },
+          {
+            "name": "only_differing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Only Differing"
+            }
+          },
+          {
+            "name": "try_stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Try Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareReadersResponse"
                 }
               }
             }
@@ -14750,9 +14919,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Try Stage Api Recipes Stages  Stage  Try Post"
+                  "$ref": "#/components/schemas/StageTryResult"
                 }
               }
             }
@@ -14793,9 +14960,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Stage Try Result Api Recipes Stages  Stage  Try Get"
+                  "$ref": "#/components/schemas/StageTryResult"
                 }
               }
             }
@@ -15610,6 +15775,60 @@
         }
       }
     },
+    "/api/recipes/project/allow-cloud": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Allow Cloud",
+        "description": "The one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes.",
+        "operationId": "allow_cloud_api_recipes_project_allow_cloud_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllowCloudResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/start": {
       "get": {
         "tags": [
@@ -16251,6 +16470,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/cloud/accept-unpriced": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Accept Unpriced Cloud Model",
+        "description": "Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.",
+        "operationId": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptUnpricedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedUnpriced"
                 }
               }
             }
@@ -19154,7 +19437,7 @@
           "documents"
         ],
         "summary": "Copy Pages Into Project",
-        "description": "Copy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud\nagain (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then\ncopied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their\noriginals and removes the copies. A page that did not come down is not copied, and says why.",
+        "description": "Bring THIS project's own pages' linked originals into this project's package (#5669, ruled: the primary answer to\npages in iCloud). It is NOT a copy between projects: it acts only on pages of the project the call is made on (the\nlibrary header), copies each page's linked original FILE into that project's package (brought down from iCloud\nfirst, bounded), and repoints those same pages at their copy, so the project never depends on iCloud or the original\nfolder again. A page id of another project is answered \"no such page in this project\" and nothing is written. To copy\npages into another project, use `document.transfer` (`POST /api/documents/transfer`). Audited; undo puts the pages\nback on their originals and removes the copies. A page that did not come down is not copied, and says why.",
         "operationId": "copy_pages_into_project_api_documents_copy_into_project_post",
         "parameters": [
           {
@@ -48149,6 +48432,53 @@
         ],
         "title": "AcceptResponse"
       },
+      "AcceptUnpricedRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider",
+            "description": "the provider row id of the cloud model"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model",
+            "description": "the model id, as the refusal names it"
+          },
+          "withdraw": {
+            "type": "boolean",
+            "title": "Withdraw",
+            "description": "take the yes back: calls to it are refused again",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "AcceptUnpricedRequest",
+        "description": "One cloud model with no listed price, which this project accepts running (or withdraws that yes)."
+      },
+      "AcceptedUnpriced": {
+        "properties": {
+          "accepted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accepted",
+            "description": "every `provider/model` this project accepts running without a listed price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "AcceptedUnpriced"
+      },
       "AccessibleLibrary": {
         "properties": {
           "library_path": {
@@ -49395,6 +49725,25 @@
           "items"
         ],
         "title": "AllographListResponse"
+      },
+      "AllowCloudResult": {
+        "properties": {
+          "project": {
+            "type": "string",
+            "title": "Project",
+            "description": "the project (its library folder's name) whose pages may now go to a cloud model"
+          },
+          "cloud_allowed": {
+            "type": "boolean",
+            "title": "Cloud Allowed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "cloud_allowed"
+        ],
+        "title": "AllowCloudResult"
       },
       "AnchorBasis": {
         "type": "string",
@@ -53945,7 +54294,8 @@
               "remote-endpoints",
               "remote-compute",
               "transkribus",
-              "htr-united"
+              "htr-united",
+              "nothing-found"
             ],
             "title": "Source"
           },
@@ -57537,6 +57887,71 @@
         ],
         "title": "ClientPresenceEntry"
       },
+      "CloudCapLine": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd",
+            "description": "the project's cloud spending cap for a month (`answers.cloud_spend_cap_usd`), US$10 unless set"
+          },
+          "spent_usd": {
+            "type": "number",
+            "title": "Spent Usd",
+            "description": "what its cloud calls have cost this (UTC) month, assumed prices included"
+          },
+          "remaining_usd": {
+            "type": "number",
+            "title": "Remaining Usd",
+            "description": "what the cap leaves this month"
+          },
+          "estimate_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimate Usd",
+            "description": "this run's estimated cloud cost; null when a model has no listed price"
+          },
+          "over": {
+            "type": "boolean",
+            "title": "Over",
+            "description": "the estimate is more than the cap leaves: Start asks first"
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models",
+            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused until accepted"
+          },
+          "unpriced": {
+            "type": "boolean",
+            "title": "Unpriced",
+            "description": "the estimate is unknown (a cloud model with no listed price): asked about, never $0"
+          },
+          "assumed_calls": {
+            "type": "integer",
+            "title": "Assumed Calls",
+            "description": "calls this month booked at the assumed price of a model with no listed price",
+            "default": 0
+          },
+          "assumed_usd": {
+            "type": "number",
+            "title": "Assumed Usd",
+            "description": "what those calls were booked at: counted against the cap, listed apart",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "spent_usd",
+          "remaining_usd",
+          "over",
+          "unpriced"
+        ],
+        "title": "CloudCapLine",
+        "description": "The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."
+      },
       "CloudOffer": {
         "properties": {
           "job": {
@@ -57649,6 +58064,173 @@
           "id"
         ],
         "title": "ColumnNote"
+      },
+      "CompareLine": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id",
+            "description": "null in a Try (its lines are copies)"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox",
+            "description": "[x, y, width, height] in the page image's pixels"
+          },
+          "picture": {
+            "type": "string",
+            "nullable": true,
+            "title": "Picture",
+            "description": "a storage reference to the line's cut (`GET /api/segments/{id}/picture`), never a local path"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/CompareReading"
+            },
+            "type": "array",
+            "title": "Readings"
+          },
+          "agreement": {
+            "type": "number",
+            "nullable": true,
+            "title": "Agreement",
+            "description": "null with fewer than two readings or no words"
+          },
+          "differs": {
+            "type": "boolean",
+            "title": "Differs",
+            "description": "the readers' texts are not all the same once normalised; false with one reading"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/CompareWord"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "counting_reader_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Counting Reader Id",
+            "description": "the reader whose reading counts now"
+          },
+          "picked_by_person": {
+            "type": "boolean",
+            "title": "Picked By Person",
+            "description": "a person typed or chose the reading that counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order",
+          "readings",
+          "differs",
+          "words",
+          "picked_by_person"
+        ],
+        "title": "CompareLine"
+      },
+      "CompareReader": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "reader",
+              "person",
+              "candidate"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind"
+        ],
+        "title": "CompareReader"
+      },
+      "CompareReadersResponse": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/CompareReader"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "image_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Width"
+          },
+          "image_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Height"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CompareLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "readers",
+          "lines"
+        ],
+        "title": "CompareReadersResponse",
+        "description": "What several readers made of the same lines, for choosing between them. Agreement, never accuracy."
+      },
+      "CompareReading": {
+        "properties": {
+          "reader_id": {
+            "type": "string",
+            "title": "Reader Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "the reader's own text, AS WRITTEN: what a pick keeps"
+          },
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id",
+            "description": "the reading's id, what `reading.choose` takes; null in a Try (its pages are copies: there is no pick)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader_id",
+          "text"
+        ],
+        "title": "CompareReading"
       },
       "CompareReadingsRequest": {
         "properties": {
@@ -57768,6 +58350,42 @@
         ],
         "title": "CompareRequest",
         "description": "Request to compare models."
+      },
+      "CompareWord": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "char_start": {
+            "type": "integer",
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "title": "Char End"
+          },
+          "agreement": {
+            "type": "number",
+            "title": "Agreement"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/DisagreementVariant"
+            },
+            "type": "array",
+            "title": "Variants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "char_start",
+          "char_end",
+          "agreement",
+          "variants"
+        ],
+        "title": "CompareWord"
       },
       "ComparisonArtifactRefResponse": {
         "properties": {
@@ -75133,7 +75751,8 @@
               "remote-endpoints",
               "remote-compute",
               "transkribus",
-              "htr-united"
+              "htr-united",
+              "nothing-found"
             ],
             "title": "Source"
           },
@@ -75247,6 +75866,14 @@
             "$ref": "#/components/schemas/CandidateDownload",
             "nullable": true,
             "description": "the action that downloads its model, as the Start plan's downloads name it; null when there is nothing to download first (#5612)"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceOption"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "every place it can run, this Mac, Hugging Face Jobs and each cluster set up here, with what it needs there and, where it cannot, why in words; `blocked` is set where the model could run but the app cannot send there yet (#5976, #5238)"
           },
           "runs_where": {
             "$ref": "#/components/schemas/CandidatePlace",
@@ -77936,6 +78563,10 @@
             "type": "boolean",
             "title": "Is Open",
             "default": true
+          },
+          "synced_host": {
+            "$ref": "#/components/schemas/SyncedHost",
+            "nullable": true
           }
         },
         "type": "object",
@@ -78229,16 +78860,88 @@
         ],
         "title": "PageRangeUpsertRequest"
       },
+      "PairCodeRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor"
+            ],
+            "title": "Role",
+            "default": "viewer"
+          },
+          "library": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library",
+            "description": "the library the role is granted on, for a new person"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Expires In Days",
+            "description": "default 7"
+          },
+          "never_expires": {
+            "type": "boolean",
+            "title": "Never Expires",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PairCodeRequest"
+      },
       "PairCodeResponse": {
         "properties": {
           "code": {
             "type": "string",
             "title": "Code"
           },
+          "person": {
+            "type": "string",
+            "nullable": true,
+            "title": "Person"
+          },
+          "invite_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Invite Id"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Role"
+          },
+          "never_expires": {
+            "type": "boolean",
+            "title": "Never Expires",
+            "default": false
+          },
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Expires At"
+            "nullable": true,
+            "title": "Expires At",
+            "description": "none when the invitation never expires"
           },
           "tailnet_url": {
             "type": "string",
@@ -78253,8 +78956,7 @@
         },
         "type": "object",
         "required": [
-          "code",
-          "expires_at"
+          "code"
         ],
         "title": "PairCodeResponse"
       },
@@ -78297,6 +78999,11 @@
             "type": "string",
             "nullable": true,
             "title": "Password"
+          },
+          "new_password": {
+            "type": "string",
+            "nullable": true,
+            "title": "New Password"
           }
         },
         "type": "object",
@@ -78329,6 +79036,64 @@
           "expires_at"
         ],
         "title": "PairResponse"
+      },
+      "PairingInviteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "person": {
+            "type": "string",
+            "title": "Person"
+          },
+          "new_person": {
+            "type": "boolean",
+            "title": "New Person"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Role",
+            "description": "the role it gives; none: the person keeps the role they have"
+          },
+          "library": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder of the project it shares; none: the whole project"
+          },
+          "minted_by": {
+            "type": "string",
+            "title": "Minted By"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Expires At",
+            "description": "none when it never expires"
+          },
+          "never_expires": {
+            "type": "boolean",
+            "title": "Never Expires",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "person",
+          "new_person",
+          "minted_by"
+        ],
+        "title": "PairingInviteResponse",
+        "description": "An unused invitation, as the owner's list shows it (never the code)."
       },
       "PaleographyPresetResponse": {
         "properties": {
@@ -79169,6 +79934,48 @@
           "unknown"
         ],
         "title": "PlaceGeometryType"
+      },
+      "PlaceOption": {
+        "properties": {
+          "place": {
+            "type": "string",
+            "title": "Place",
+            "description": "this-mac, hf-jobs, cluster or provider"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "this Mac, Hugging Face Jobs, the cluster's name, or the provider"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "needs": {
+            "type": "string",
+            "title": "Needs",
+            "default": ""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "why it cannot run there, in words",
+            "default": ""
+          },
+          "blocked": {
+            "type": "string",
+            "title": "Blocked",
+            "description": "why the app cannot send there yet, though the model could run there",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "place",
+          "name",
+          "can"
+        ],
+        "title": "PlaceOption"
       },
       "PlaceToRun": {
         "properties": {
@@ -81570,6 +82377,12 @@
             "title": "Card",
             "description": "The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo."
           },
+          "base_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Base Model",
+            "description": "`vlm` only: the card is a PEFT adapter on this base model (a Hub repo); the Job loads the base, then the adapter on it (#5977)."
+          },
           "language": {
             "type": "string",
             "nullable": true,
@@ -81728,6 +82541,12 @@
             "type": "string",
             "title": "Representation Id",
             "description": "The reading to make the one that counts."
+          },
+          "expected_counting_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Expected Counting Id",
+            "description": "The reading that counted when you looked. When another counts now, the choice is refused (409, naming it) and nothing is written. Unset: no check."
           }
         },
         "additionalProperties": false,
@@ -91431,6 +92250,72 @@
         "title": "StageRegions",
         "description": "What a stage that finds regions with a YOLO layout model did (`prep.yolo.regions-card`, #5525)."
       },
+      "StageTryResult": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "waiting, running, done or failed"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stage"
+          },
+          "pages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "how": {
+            "type": "string",
+            "nullable": true,
+            "title": "How"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "bakeoff": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bakeoff"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/TryCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "left_out": {
+            "type": "string",
+            "nullable": true,
+            "title": "Left Out",
+            "description": "the sentence naming a frontier reader the Try's limit of three left out"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/BakeoffRecommendation",
+            "nullable": true,
+            "description": "once the Try has finished: what Set Up recommends, ranked by what each candidate really cost"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "StageTryResult",
+        "description": "A stage's sample result as its try left it; the per-page pictures and the like pass through untyped."
+      },
       "StartDownload": {
         "properties": {
           "runtime": {
@@ -91909,6 +92794,11 @@
             "nullable": true,
             "description": "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"
           },
+          "cloud_cap": {
+            "$ref": "#/components/schemas/CloudCapLine",
+            "nullable": true,
+            "description": "the project's cloud spending cap against this run's estimate (#5987); Start is refused while the estimate is over it"
+          },
           "bakeoff_offer": {
             "$ref": "#/components/schemas/BakeoffOffer",
             "nullable": true,
@@ -92094,6 +92984,14 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project"
+          },
+          "accept_unpriced": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accept Unpriced",
+            "description": "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)"
           }
         },
         "additionalProperties": false,
@@ -92881,6 +93779,36 @@
         ],
         "title": "SyncObjectModel",
         "description": "One syncable object in a manifest (typed for OpenAPI codegen)."
+      },
+      "SyncedHost": {
+        "properties": {
+          "hostURL": {
+            "type": "string",
+            "title": "Hosturl"
+          },
+          "hostName": {
+            "type": "string",
+            "title": "Hostname"
+          },
+          "person": {
+            "type": "string",
+            "title": "Person"
+          },
+          "hostEngineId": {
+            "type": "string",
+            "title": "Hostengineid"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hostURL",
+          "hostName",
+          "person",
+          "hostEngineId"
+        ],
+        "title": "SyncedHost",
+        "description": "Where a synced project's host is, and which person to ask for a pairing link. Never a secret."
       },
       "TableCellPlace": {
         "properties": {
@@ -96196,6 +97124,95 @@
           "count"
         ],
         "title": "TriggerResponseList"
+      },
+      "TryCandidate": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "local": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Local"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "title": "State"
+          },
+          "cer": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/TryCost",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "card"
+        ],
+        "title": "TryCandidate",
+        "description": "One column of a Try (the bake-off row's fields; the rest pass through untyped)."
+      },
+      "TryCost": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "nullable": true,
+            "title": "Value",
+            "description": "US dollars on the Try's pages; none when not known"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimate",
+              "upper bound",
+              "unknown"
+            ],
+            "title": "Basis",
+            "description": "measured: the provider's own usage (or free, on this Mac); estimate: the price list; upper bound: the most it can cost (variant A re-reads only the unsure lines, so it costs less); unknown: no price"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured",
+            "description": "true when `value` is what the run really cost",
+            "default": false
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why",
+            "description": "when `measured` is false for a run that called a model: why"
+          },
+          "from": {
+            "type": "string",
+            "nullable": true,
+            "title": "From",
+            "description": "where the figure comes from, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "basis"
+        ],
+        "title": "TryCost",
+        "description": "A candidate's cost on the Try's pages (#5922). `measured` is the contract; `why` is words for a person."
       },
       "TryStageRequest": {
         "properties": {

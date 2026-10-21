@@ -5757,6 +5757,25 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-compare-readers")
+    def documents_get_compare_readers_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+        only_differing: Optional[bool] = typer.Option(None, '--only-differing/--no-only-differing', help='Only Differing.'),
+        readers: Optional[str] = typer.Option(None, '--readers', help='Readers.'),
+        try_stage: Optional[str] = typer.Option(None, '--try-stage', help='Try Stage.'),
+    ) -> None:
+        """Get Compare Readers (GET /api/documents/{page_id}/compare-readers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{page_id}/compare-readers"
+            params = {
+                "only_differing": only_differing,
+                "readers": readers,
+                "try_stage": try_stage,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-page-disagreement")
     def documents_get_page_disagreement_get(
         ctx: typer.Context,
@@ -12218,6 +12237,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         code: str = typer.Option(..., '--code', help='Code.'),
         device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        new_password: Optional[str] = typer.Option(None, '--new-password', help='New Password.'),
         password: Optional[str] = typer.Option(None, '--password', help='Password.'),
         username: Optional[str] = typer.Option(None, '--username', help='Username.'),
     ) -> None:
@@ -12228,11 +12248,13 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "code": code,
                 "device_name": device_name,
+                "new_password": new_password,
                 "password": password,
                 "username": username,
             }, {
                 "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
                 "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "new_password": {'type': 'string', 'nullable': True, 'title': 'New Password', 'x-cli-required': False},
                 "password": {'type': 'string', 'nullable': True, 'title': 'Password', 'x-cli-required': False},
                 "username": {'type': 'string', 'nullable': True, 'title': 'Username', 'x-cli-required': False},
             }, required=True)
@@ -12242,12 +12264,36 @@ def register_generated_openapi_commands(
     @target_app.command("create-pairing-code")
     def pair_create_pairing_code_post(
         ctx: typer.Context,
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        expires_in_days: Optional[int] = typer.Option(None, '--expires-in-days', help='default 7.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)'),
+        library: Optional[str] = typer.Option(None, '--library', help='the library the role is granted on, for a new person.'),
+        never_expires: Optional[bool] = typer.Option(None, '--never-expires/--no-never-expires', help='Never Expires. Default: false.'),
+        role: Optional[str] = typer.Option(None, '--role', help='Role. One of: viewer, editor. Default: "viewer".'),
+        username: Optional[str] = typer.Option(None, '--username', help='Username.'),
     ) -> None:
         """Create Pairing Code (POST /api/pair/code)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/pair/code"
             params = None
-            return client.request("POST", endpoint_path, params=params)
+            payload = _build_json_payload({
+                "display_name": display_name,
+                "expires_in_days": expires_in_days,
+                "folder_id": folder_id,
+                "library": library,
+                "never_expires": never_expires,
+                "role": role,
+                "username": username,
+            }, {
+                "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "expires_in_days": {'type': 'integer', 'maximum': 3650.0, 'minimum': 1.0, 'nullable': True, 'title': 'Expires In Days', 'description': 'default 7', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)', 'x-cli-required': False},
+                "library": {'type': 'string', 'nullable': True, 'title': 'Library', 'description': 'the library the role is granted on, for a new person', 'x-cli-required': False},
+                "never_expires": {'type': 'boolean', 'title': 'Never Expires', 'default': False, 'x-cli-required': False},
+                "role": {'type': 'string', 'enum': ['viewer', 'editor'], 'title': 'Role', 'default': 'viewer', 'x-cli-required': False},
+                "username": {'type': 'string', 'nullable': True, 'title': 'Username', 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-devices")
@@ -12302,6 +12348,32 @@ def register_generated_openapi_commands(
                 "enrollment_secret": {'type': 'string', 'minLength': 1, 'title': 'Enrollment Secret', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-invites")
+    def pair_list_invites_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Invites (GET /api/pair/invites)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/invites"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("revoke-invite")
+    def pair_revoke_invite_delete(
+        ctx: typer.Context,
+        invite_id: str = typer.Argument(..., help='Invite Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Revoke Invite (DELETE /api/pair/invites/{invite_id})."""
+        if not yes:
+            typer.confirm("Delete pair?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/pair/invites/{invite_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-multiuser")
@@ -13021,6 +13093,7 @@ def register_generated_openapi_commands(
     @target_app.command("start")
     def reading_at_scale_start_post(
         ctx: typer.Context,
+        base_model: Optional[str] = typer.Option(None, '--base-model', help='`vlm` only: the card is a PEFT adapter on this base model (a Hub repo); the Job loads the base, then the adapter on it (#5977).'),
         card: str = typer.Option(..., '--card', help='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.'),
         expected_pages_per_second: Optional[float] = typer.Option(None, '--expected-pages-per-second', help="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took."),
         flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".'),
@@ -13041,6 +13114,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/reading-at-scale"
             params = None
             payload = _build_json_payload({
+                "base_model": base_model,
                 "card": card,
                 "expected_pages_per_second": expected_pages_per_second,
                 "flavor": flavor,
@@ -13056,6 +13130,7 @@ def register_generated_openapi_commands(
                 "target": target,
                 "timeout": timeout,
             }, {
+                "base_model": {'type': 'string', 'nullable': True, 'title': 'Base Model', 'description': '`vlm` only: the card is a PEFT adapter on this base model (a Hub repo); the Job loads the base, then the adapter on it (#5977).', 'x-cli-required': False},
                 "card": {'type': 'string', 'title': 'Card', 'description': 'The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.', 'x-cli-required': True},
                 "expected_pages_per_second": {'type': 'number', 'exclusiveMinimum': True, 'nullable': True, 'title': 'Expected Pages Per Second', 'description': "A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.", 'minimum': 0.0, 'x-cli-required': False},
                 "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard (ignored on a cluster).', 'default': 't4-small', 'x-cli-required': False},
@@ -13378,6 +13453,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("accept-unpriced-cloud-model")
+    def recipes_accept_unpriced_cloud_model_post(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='the model id, as the refusal names it.'),
+        provider: str = typer.Option(..., '--provider', help='the provider row id of the cloud model.'),
+        withdraw: Optional[bool] = typer.Option(None, '--withdraw/--no-withdraw', help='take the yes back: calls to it are refused again. Default: false.'),
+    ) -> None:
+        """Accept Unpriced Cloud Model (POST /api/recipes/cloud/accept-unpriced)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/cloud/accept-unpriced"
+            params = None
+            payload = _build_json_payload({
+                "model": model,
+                "provider": provider,
+                "withdraw": withdraw,
+            }, {
+                "model": {'type': 'string', 'minLength': 1, 'title': 'Model', 'description': 'the model id, as the refusal names it', 'x-cli-required': True},
+                "provider": {'type': 'string', 'minLength': 1, 'title': 'Provider', 'description': 'the provider row id of the cloud model', 'x-cli-required': True},
+                "withdraw": {'type': 'boolean', 'title': 'Withdraw', 'description': 'take the yes back: calls to it are refused again', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
@@ -13532,6 +13630,17 @@ def register_generated_openapi_commands(
                 "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'description': "The project's recipe, as POST /api/recipes/assemble returns it; null clears it.", 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("allow-cloud")
+    def recipes_allow_cloud_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Allow Cloud (POST /api/recipes/project/allow-cloud)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/allow-cloud"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("what-runs-by-itself")
@@ -13696,6 +13805,7 @@ def register_generated_openapi_commands(
     @target_app.command("start-project")
     def recipes_start_project_post(
         ctx: typer.Context,
+        accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13704,9 +13814,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/project/start"
             params = None
             payload = _build_json_payload({
+                "accept_unpriced": accept_unpriced,
                 "folder_id": folder_id,
                 "redo": redo,
             }, {
+                "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)
@@ -16214,6 +16326,7 @@ def register_generated_openapi_commands(
     def segments_choose_reading_post(
         ctx: typer.Context,
         segment_id: str = typer.Argument(..., help='Segment Id'),
+        expected_counting_id: Optional[str] = typer.Option(None, '--expected-counting-id', help='The reading that counted when you looked. When another counts now, the choice is refused (409, naming it) and nothing is written. Unset: no check.'),
         kind: str = typer.Option(..., '--kind', help='The kind of reading chosen (e.g. transcription).'),
         representation_id: str = typer.Option(..., '--representation-id', help='The reading to make the one that counts.'),
     ) -> None:
@@ -16222,9 +16335,11 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/segments/{segment_id}/readings/choice"
             params = None
             payload = _build_json_payload({
+                "expected_counting_id": expected_counting_id,
                 "kind": kind,
                 "representation_id": representation_id,
             }, {
+                "expected_counting_id": {'type': 'string', 'nullable': True, 'title': 'Expected Counting Id', 'description': 'The reading that counted when you looked. When another counts now, the choice is refused (409, naming it) and nothing is written. Unset: no check.', 'x-cli-required': False},
                 "kind": {'type': 'string', 'title': 'Kind', 'description': 'The kind of reading chosen (e.g. transcription).', 'x-cli-required': True},
                 "representation_id": {'type': 'string', 'title': 'Representation Id', 'description': 'The reading to make the one that counts.', 'x-cli-required': True},
             }, required=True)
