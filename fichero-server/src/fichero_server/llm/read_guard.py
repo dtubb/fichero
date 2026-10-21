@@ -207,3 +207,14 @@ __all__ = [
     "page_line_count",
     "read_flag_of",
 ]
+
+
+def typed_read_flag(holder: Any):
+    """`read_flag_of`, as the wire type (`ReadFlagInfo`: kind, reason) or None: the one reader the Document and the inspector
+    responses share."""
+    flag = read_flag_of(holder)
+    if not flag:
+        return None
+    from fichero_server.models import ReadFlagInfo
+
+    return ReadFlagInfo(kind=str(flag.get("kind") or ""), reason=str(flag.get("reason") or ""))

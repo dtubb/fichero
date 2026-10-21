@@ -245,6 +245,13 @@ class RunStatus(str, Enum):
 # =============================================================================
 
 
+class ReadFlagInfo(BaseModel):
+    """A read that is not trusted: `kind` in a word, `reason` in a sentence (the wire shape of `read_guard.ReadFlag`)."""
+
+    kind: str
+    reason: str
+
+
 class Document(BaseModel):
     """
     A node in the document hierarchy.
@@ -546,12 +553,17 @@ class Document(BaseModel):
     # from `additionalProperties`), so nothing there had to change.
     child_count: int = 0
 
+    # Why this page's read is not trusted, in a word and a sentence, or null (`read_guard.READ_FLAG_KEY` on the page's
+    # metadata, the one reader `read_guard.typed_read_flag`): the page-text repair marks a page `needs-re-reading` when a
+    # classifier's JSON had replaced its text and nothing is left to restore it from (#6002). Transient: filled per request.
+    read_flag: "ReadFlagInfo | None" = None
+
     # Fields that exist on the wire but never as columns. `Document` is both the
     # API response shape and the persisted row, so a per-request value like
     # `child_count` would otherwise become a real column holding a number that
     # goes stale the moment any child is added, moved or deleted. Honoured by
     # `db.transient_field_names` (CREATE TABLE, ALTER TABLE, and every write).
-    TRANSIENT_FIELDS: ClassVar[set[str]] = {"child_count"}
+    TRANSIENT_FIELDS: ClassVar[set[str]] = {"child_count", "read_flag"}
 
     # Case grouping: optional identifier to group documents into cases within
     # a folder (#1096). Catalogue tool groups documents by case_id and emits
