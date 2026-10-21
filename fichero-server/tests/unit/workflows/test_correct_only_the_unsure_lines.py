@@ -60,6 +60,21 @@ def _size(data_uri: str) -> tuple[int, int]:
 
 
 @pytest.mark.asyncio
+async def test_the_listing_the_bar_reads_carries_the_certainty_kraken_stored(page):
+    """The bar reads the listing's fourth column (`_only_unsure`); this pins that the listing the review builds for a page
+    states the certainty stored on each line's reading, as `0.95`, so a failure of the tests below names the listing."""
+    from fichero_server.tool_context import with_page_context
+    from fichero_server.workflows.tools.transcribe_review import _SHOWN_LINE, shows_segment_lines
+
+    _kraken_was_sure(page, [0.95, 0.30, None])
+    listed = with_page_context(None, page["src"]["documents"], page["src"]["files"], page["library"], confidence=True)
+    text = listed[0]
+    assert shows_segment_lines(listed), text
+    rows = [r for r in text.split("\n") if _SHOWN_LINE.match(r)]
+    assert [r.split(" | ", 4)[3] for r in rows] == ["0.95", "0.30", "-"], rows
+
+
+@pytest.mark.asyncio
 async def test_the_model_gets_each_unsure_lines_own_crop_never_the_page(page, monkeypatch):
     first, second, third = _lines(page)
     _kraken_was_sure(page, [0.95, 0.30, 0.50])

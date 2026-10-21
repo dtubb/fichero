@@ -1467,9 +1467,6 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     is no longer kept for them (a chat build kept before the reader rule is gone after the next search)."""
     if not languages:
         return
-    # Only a card with a Hugging Face repository pin is kept here: a TrOCR card pins `trocr` and a Kraken repository card
-    # `kraken_hf`, rediscovered by the next search (`hub_cards` rebuilds a kept row as a plain `hf` reader).
-    cards = [card for card in cards if "hf" in card.pin]
     data = _hub_file()
     found = cached_hub()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -1480,9 +1477,12 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
             if not row["found_for"]:
                 del found[repo]
     for card in cards:
-        key, repo = _hub_key(card), str(card.pin["hf"])
+        key, repo = _hub_key(card), _hub_repo(card)
         before = found.get(key) or {}
-        found[key] = {"repo": repo, "languages": sorted(card.languages) if card.languages else None,
+        # A TrOCR card pins `trocr` and a Kraken repository card `kraken_hf`: their row keeps the id, pin and jobs so the offline
+        # cache gives the same card back (`hub_cards`), not a plain `hf` reader.
+        own = {} if "hf" in card.pin else {"id": card.id, "pin": dict(card.pin), "jobs": sorted(card.jobs)}
+        found[key] = {**own, "repo": repo, "languages": sorted(card.languages) if card.languages else None,
                        "scripts": sorted(card.scripts) if card.scripts else None,
                        "material": sorted(card.material), "licence": card.licence, "note": card.note,
                        "offered_because": card.offered_because, "size_gb": card.size_gb,
@@ -1500,9 +1500,17 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
 def _hub_key(card: Card) -> str:
     """Where a kept Hub reader is filed: its repository, or `not-runnable:<repo>` for one this build cannot run, so
     the MLX conversion of a model and the model itself are both kept."""
+    repo = _hub_repo(card)
+    if "hf" not in card.pin:
+        return f"{'trocr' if 'trocr' in card.pin else 'kraken'}:{repo}"
     if card.runs_on == REMOTE_RUNS_ON:
-        return f"remote:{card.pin['hf']}"
-    return str(card.pin["hf"]) if card.runs_here else f"not-runnable:{card.pin['hf']}"
+        return f"remote:{repo}"
+    return repo if card.runs_here else f"not-runnable:{repo}"
+
+
+def _hub_repo(card: Card) -> str:
+    """The Hugging Face repository a card names, whichever runtime pin it carries (`hf`, `trocr`, `kraken_hf`)."""
+    return str(card.pin.get("hf") or card.pin.get("trocr") or card.pin.get("kraken_hf"))
 
 
 def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset(), *,
@@ -1521,10 +1529,11 @@ def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset
             continue
         if runnable_only and (not runs_here or remote):
             continue
+        own = row.get("pin") if isinstance(row.get("pin"), dict) and "hf" not in row["pin"] else None
         out.append(Card(
-            id=f"{'remote' if remote else 'mlx' if runs_here else 'hf'}:hf/{repo}@main",
-            pin={"hf": repo, "revision": "main"}, runs_on=runs_on, offered_only=remote,
-            jobs=READER_JOBS, runs_here=runs_here, cannot_run_because=str(row.get("cannot_run_because") or ""),
+            id=str(row["id"]) if own and row.get("id") else f"{'remote' if remote else 'mlx' if runs_here else 'hf'}:hf/{repo}@main",
+            pin=dict(own) if own else {"hf": repo, "revision": "main"}, runs_on=runs_on, offered_only=remote,
+            jobs=frozenset(row["jobs"]) if own and row.get("jobs") else READER_JOBS, runs_here=runs_here, cannot_run_because=str(row.get("cannot_run_because") or ""),
             scripts=frozenset(row["scripts"]) if row.get("scripts") else None,
             languages=_tags(row.get("languages")), material=frozenset(row.get("material") or ()),
             open_licence=_is_open(str(row.get("licence") or "")), trainable=not remote,
