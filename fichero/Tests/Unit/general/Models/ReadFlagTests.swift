@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import fichero
+@testable import Fichero
 
 @Suite("A page's read flag (#6003)")
 struct ReadFlagTests {
