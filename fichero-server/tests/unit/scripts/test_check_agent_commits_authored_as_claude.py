@@ -78,3 +78,13 @@ def test_a_range_git_cannot_read_fails_rather_than_passing(tmp_path):
     empty = tmp_path / "not-a-repo"
     empty.mkdir()
     assert _run(empty, None).returncode == 2
+
+
+def test_no_argument_and_no_origin_integration_skips_with_exit_0_but_a_given_range_still_fails(tmp_path):
+    """The gate runs every check with no argument; the M4 clones have no origin/integration (review 807)."""
+    repo, _ = _repo(tmp_path)
+    _commit(repo, "x", "x\n\nDirected-By: the maintainer", DANIEL)
+    skipped = _run(repo, None)
+    assert skipped.returncode == 0 and "SKIP" in skipped.stdout and "origin/integration" in skipped.stdout
+    assert _run(repo, "nosuchref..HEAD").returncode == 2
+    assert _run(repo, "HEAD~1..HEAD").returncode == 1  # a range that is given is judged

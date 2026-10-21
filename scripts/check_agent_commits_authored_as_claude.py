@@ -46,10 +46,19 @@ def offenders(rng: str, cwd: Path = ROOT) -> list[tuple[str, str, str]]:
             if AGENT_TRAILER.search(message) and author != CLAUDE]
 
 
+def _git_ok(*args: str) -> bool:
+    return subprocess.run(["git", *args], capture_output=True).returncode == 0
+
+
 def main(argv: list[str]) -> int:
     rng = argv[1] if len(argv) > 1 else DEFAULT_RANGE
+    # The gate runs every check with no argument; a clone with no origin/integration (the M4's) has no range to judge.
+    # A given range that cannot be read, or a directory that is not a repository, still fails (rc 2).
+    if len(argv) == 1 and _git_ok("rev-parse", "--git-dir") and not _git_ok("rev-parse", "--verify", "-q", "origin/integration"):
+        print("SKIP check_agent_commits_authored_as_claude: no origin/integration here; the push checklist passes base..tip")
+        return 0
     try:
-        bad = offenders(rng)
+        bad = offenders(rng, Path.cwd())  # the repository the caller is in (the push worktree), not this script's
     except RuntimeError as exc:
         print(f"FAIL check_agent_commits_authored_as_claude: {exc}")
         return 2
