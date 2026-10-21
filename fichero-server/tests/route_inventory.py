@@ -34,3 +34,25 @@ def api_routes(app: Any) -> list[Any]:
             elif original is not None:
                 out.append(original)
     return out
+
+
+#: The served surface is about 940 routes; a walk that sees fewer than this saw a router it did not unwrap.
+ROUTE_FLOOR = 500
+
+
+def served_routes(app: Any, floor: int = ROUTE_FLOOR) -> list[Any]:
+    """`api_routes(app)`, failing when it holds fewer than `floor` routes, so a guard that walks nothing (FastAPI 0.141
+    keeps included routers whole) fails instead of passing blind."""
+    routes = api_routes(app)
+    assert len(routes) >= floor, f"the walk saw {len(routes)} routes, fewer than {floor}: routers were not unwrapped"
+    return routes
+
+
+def router_routes(router: Any, floor: int) -> list[Any]:
+    """One module's `router.routes`, failing when it holds fewer than `floor` routes or any that is not a plain
+    `APIRoute` (an included sub-router FastAPI 0.141 keeps whole, which a walk would skip)."""
+    routes = list(router.routes)
+    assert len(routes) >= floor, f"the walk saw {len(routes)} routes, fewer than {floor}"
+    nested = [r for r in routes if not isinstance(r, APIRoute)]
+    assert not nested, f"routes a walk would skip (an included router kept whole): {nested[:3]}"
+    return routes

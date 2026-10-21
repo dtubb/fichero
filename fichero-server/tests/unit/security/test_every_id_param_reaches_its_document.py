@@ -54,9 +54,9 @@ def id_params_in_use() -> dict[str, set[str]]:
         params = getattr(spec, "params_model", None) or getattr(spec, "params", None)
         if isinstance(params, type) and issubclass(params, BaseModel):
             walk(params, f"action {action_name}")
-    from tests.route_inventory import api_routes
+    from tests.route_inventory import served_routes
 
-    for route in api_routes(api_main.app):  # every served route, not app.routes (FastAPI 0.141, #5674)
+    for route in served_routes(api_main.app):  # every served route, not app.routes (FastAPI 0.141, #5674)
         if isinstance(route, APIRoute):
             for param in route.dependant.path_params + route.dependant.query_params:
                 if _is_id(param.name):
