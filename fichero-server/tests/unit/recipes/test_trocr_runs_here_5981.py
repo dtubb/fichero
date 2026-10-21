@@ -59,7 +59,7 @@ def test_the_search_makes_a_trocr_card_that_runs_on_this_mac(monkeypatch):
     monkeypatch.setattr("fichero_server.api.routes.ai.models._fetch_hf_models", fake)
     found, _ = asyncio.run(discovery.search_hugging_face(frozenset({"zh"})))
     card = next(c for c in found if c.pin.get("trocr") == REPO)
-    assert card.runs_here and card.local and card.jobs == discovery.READER_JOBS
+    assert card.runs_here and card.local and card.jobs == frozenset({"read-a-line"})  # it reads the lines Kraken found, never a page
     assert "TrOCR" in card.offered_because and "Kraken" in card.offered_because and "safetensors" in card.offered_because
     monkeypatch.setattr(tr, "is_installed", lambda repo: False)
     assert discovery.candidate_installed(card) is False  # its safetensors download before the run asks for them

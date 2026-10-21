@@ -54,6 +54,11 @@ def hub(monkeypatch, tmp_path):
     return asked
 
 
+def _repo(card):
+    """The Hub repository a card names, whichever runtime pin it carries (a TrOCR card pins `trocr`, #5981)."""
+    return card.pin.get("hf") or card.pin.get("trocr") or card.pin.get("kraken_hf")
+
+
 def _search(languages):
     found, _ = asyncio.run(discovery.search_hugging_face(frozenset(languages)))
     return found
@@ -61,7 +66,7 @@ def _search(languages):
 
 def test_a_latin_project_finds_the_comma_reader_by_its_tags_and_it_runs_here(hub):
     found = _search({"la"})
-    by_repo = {c.pin["hf"]: c for c in found}
+    by_repo = {_repo(c): c for c in found}
     comma = by_repo[COMMA]
     assert comma.runs_here and comma.id == f"mlx:hf/{COMMA}@main"
     assert "in Fichero's MLX catalogue" in comma.offered_because and "lists Latin" in comma.offered_because
@@ -71,16 +76,17 @@ def test_a_latin_project_finds_the_comma_reader_by_its_tags_and_it_runs_here(hub
     gguf = by_repo[COMMA_GGUF]
     assert not gguf.runs_here and "GGUF build: cannot run yet" in gguf.offered_because
     # Ranked by language match, then downloads: the Latin readers before the German one with more downloads.
-    order = [c.pin["hf"] for c in found]
+    order = [_repo(c) for c in found]
     assert order.index(COMMA) < order.index(COMMA_GGUF) < order.index(KURRENT)
 
 
-def test_a_german_project_finds_trocr_kurrent_and_says_it_cannot_run_yet(hub):
+def test_a_german_project_finds_trocr_kurrent_and_it_runs_here_since_5981(hub):
+    """Was "cannot run yet" (#5660); #5981 made a TrOCR model a card that reads the lines Kraken found, on this Mac."""
     found = _search({"de"})
-    kurrent = next(c for c in found if c.pin["hf"] == KURRENT)
-    assert not kurrent.runs_here
-    assert "transformers only: cannot run yet" in kurrent.offered_because and "lists German" in kurrent.offered_because
-    assert found[0].pin["hf"] == KURRENT  # it lists the project's language: first
+    kurrent = next(c for c in found if _repo(c) == KURRENT)
+    assert kurrent.runs_here and kurrent.pin == {"trocr": KURRENT}
+    assert "TrOCR" in kurrent.offered_because and "lists German" in kurrent.offered_because
+    assert _repo(found[0]) == KURRENT  # it lists the project's language: first
     assert any(tags == ("de", "htr") for _task, tags, search in hub)
 
 
