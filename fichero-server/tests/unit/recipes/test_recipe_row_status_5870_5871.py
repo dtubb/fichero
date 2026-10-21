@@ -40,18 +40,24 @@ def test_a_step_that_makes_a_job_points_at_it_while_it_runs(monkeypatch, card):
     assert got["steps"][0]["child_id"] == "someone-elses-row"  # its newest unfinished job is its own (#5654)
 
 
-def _step(done: int, total: int):
-    return {"account": SimpleNamespace(pages_done=done, pages_total=total)}
+def _step(done: int, total: int, card: str = "workflow"):
+    return {"card": card, "account": SimpleNamespace(pages_done=done, pages_total=total)}
 
 
-def test_pages_done_sum_across_stages_and_do_not_reset_when_the_next_stage_starts():
-    read = {"steps": [_step(92, 92)]}
-    assert activity._recipe_pages_done(read) == 92
-    names = {"steps": [_step(92, 92), _step(0, 92)]}  # Names has just started: nothing resets
-    assert activity._recipe_pages_done(names) == 92 and activity._recipe_pages_in_all(names, 92) == 184
+def test_a_page_counts_once_across_stages_never_the_stages_added_up():
+    names = {"steps": [_step(92, 92), _step(0, 92)]}  # Reading done, Names just started: 0 of 92, not 92 of 184
+    assert activity._recipe_pages_done(names) == 0 and activity._recipe_pages_in_all(names, 92) == 92
+    three = {"steps": [_step(92, 92), _step(46, 92), _step(36, 92)]}
+    assert activity._recipe_pages_done(three) == 36 and activity._recipe_pages_in_all(three, 92) == 92  # "36 of 92"
 
 
-def test_a_stage_with_no_account_counts_nothing_and_the_runs_own_pages_stand():
-    status = {"steps": [{"account": None}, {}, _step(3, 10)]}
-    assert activity._recipe_pages_done(status) == 3
-    assert activity._recipe_pages_in_all(status, 92) == 92
+def test_a_stage_not_started_holds_the_row_at_zero_and_a_finished_run_reads_all():
+    waiting = {"steps": [_step(92, 92), {"card": "workflow", "account": None}]}
+    assert activity._recipe_pages_done(waiting) == 0
+    assert activity._recipe_pages_done({"steps": [_step(92, 92), _step(92, 92)]}) == 92
+    assert activity._recipe_pages_done({"steps": []}) == 0
+
+
+def test_a_step_with_no_workflow_account_does_not_hold_the_row_back():
+    status = {"steps": [_step(10, 92), {"card": "embed", "account": None}]}
+    assert activity._recipe_pages_done(status) == 10 and activity._recipe_pages_in_all(status, 0) == 92
