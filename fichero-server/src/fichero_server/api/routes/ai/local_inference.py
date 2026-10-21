@@ -253,14 +253,33 @@ def _stop_if_still_idle(manager: LocalInferenceServiceManager) -> None:
         asyncio.run(manager.stop())
 
 
+#: How long the lane's release waits for calls still using the served model before it leaves the server loaded, and how often it looks.
+SERVED_RELEASE_WAIT_SECONDS = 180.0
+_RELEASE_LOOK_AGAIN_SECONDS = 0.5
+
+
 def stop_served_models(reason: str = "") -> int:
     """Stop every model server the ENGINE started and that is running now; returns how many (`activity.lane.small-mac-one-heavy-model`).
 
     The model lane calls this before a heavy Kraken load on a Mac with 16 GB or less. The next request starts the server again
-    (30 to 300 s). A server the person runs themselves is theirs, never stopped here."""
+    (30 to 300 s). A server the person runs themselves is theirs, never stopped here. A server with a call still reading from it is not stopped
+    until the call ends (`SERVED_RELEASE_WAIT_SECONDS`); then it stays, with the reason logged, and the count excludes it."""
+    import time
+
+    from fichero_server.llm.local_inference import reads_in_flight
+
     stopped = 0
     for manager in list(_MANAGERS.values()):
         if not manager.profile.managed_by_app or not manager.process.is_running():
+            continue
+        # A call from outside the lane (a Set Up try, a chat) may be mid-read on this server: wait for the reads in flight to
+        # end, bounded, rather than kill them. Past the bound the server stays and the reason is said.
+        deadline = time.monotonic() + SERVED_RELEASE_WAIT_SECONDS
+        while (busy := reads_in_flight()) and time.monotonic() < deadline:
+            time.sleep(_RELEASE_LOOK_AGAIN_SECONDS)
+        if busy:
+            logger.warning("the served model of %s stays loaded: %d call(s) still using it after %.0f s (%s)",
+                           manager.profile.id, busy, SERVED_RELEASE_WAIT_SECONDS, reason)
             continue
         timer = _IDLE_TIMERS.pop(manager.profile.id, None)
         if timer is not None:
