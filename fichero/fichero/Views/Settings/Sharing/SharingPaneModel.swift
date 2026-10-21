@@ -18,6 +18,10 @@ enum SharingPaneText {
     /// The Devices list is there while sharing is on; with it off the pane is the switch and Connect only.
     static func showsDevices(isOn: Bool, engineIsLocal: Bool) -> Bool { isOn && engineIsLocal }
 
+    /// Connect to Another Mac… is always there: Sharing on or off, on a host or a guest (`sharing.connect-section-always-shown`,
+    /// #5893: it was hidden on a guest). The inputs are named so a later rule has to be written here and tested.
+    static func showsConnect(isOn: Bool, engineIsLocal: Bool) -> Bool { true }
+
     /// The one red line under the Address field: blank is fine (automatic); anything else must be https.
     static func addressProblem(_ draft: String) -> String? {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
