@@ -2117,6 +2117,23 @@ class HfSpend(BaseModel):
     sentence: str
 
 
+class CloudCapLine(BaseModel):
+    """The project's cloud spend cap against this run's estimate (`ai.where.project-cloud-spend-cap`, #5943, #5987)."""
+
+    cap_usd: float = Field(description="the project's cloud spending cap for a month (`answers.cloud_spend_cap_usd`), US$10 unless set")
+    spent_usd: float = Field(description="what its cloud calls have cost this (UTC) month, assumed prices included")
+    remaining_usd: float = Field(description="what the cap leaves this month")
+    estimate_usd: Optional[float] = Field(default=None, description="this run's estimated cloud cost; null when a model has no listed price")
+    over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
+    unpriced_models: list[str] = Field(default_factory=list, description=(
+        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be "
+        "held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused "
+        "until accepted"))
+    unpriced: bool = Field(description="the estimate is unknown (a cloud model with no listed price): asked about, never $0")
+    assumed_calls: int = Field(default=0, description="calls this month booked at the assumed price of a model with no listed price")
+    assumed_usd: float = Field(default=0.0, description="what those calls were booked at: counted against the cap, listed apart")
+
+
 class BuiltInStep(BaseModel):
     """A step that is built in: it runs nothing and needs nothing (#5816)."""
 
@@ -2145,6 +2162,8 @@ class StartPlan(BaseModel):
         "your own will need and how many the project has; not an offer (`source.onboard.train-path`)"))
     hf_spend: Optional[HfSpend] = Field(default=None, description=(
         "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"))
+    cloud_cap: Optional[CloudCapLine] = Field(default=None, description=(
+        "the project's cloud spending cap against this run's estimate (#5987); Start is refused while the estimate is over it"))
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
         "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
         "recipe has no reading step (#5660 item 7)"))
@@ -2242,6 +2261,20 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.train_offers import spend_this_month
 
     plan["hf_spend"] = spend_this_month(db, cap=cap)
+    from fichero_server.llm import spend as cloud_spend
+
+    cloud_models = [(str(w.get("provider_override") or ""), str(w.get("model_override") or ""))
+                    for w in plan["workflows"] if str(w.get("runs_on")).startswith("cloud") and w.get("model_override")]
+    plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"), cloud_models=cloud_models)
+    if plan["cloud_cap"]["unpriced_models"]:  # asked before the run: Start records the yes (`accept_unpriced`)
+        plan["refusals"] = [*plan["refusals"], "These cloud models have no listed price, so their cost cannot be held to your "
+                            f"project's cloud spending cap: {', '.join(plan['cloud_cap']['unpriced_models'])}. Press Start and "
+                            "accept running them (counted at an assumed price, and listed apart), or choose models with a price."]
+    if plan["cloud_cap"]["over"]:  # asked before the run, not after the money is gone (#5987)
+        line = plan["cloud_cap"]
+        plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
+                            f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
+                            "Raise the cap in Set Up, or choose a cheaper model."]
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
@@ -2333,6 +2366,10 @@ class StartParams(BaseModel):
     clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
                                 "Start may use, by name (the route's own, owner-only): the project's cluster binds "
                                 "only to one of them")
+    accept_unpriced: list[str] = Field(default_factory=list, description=(
+        "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
+        "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
+        "(`ai.where.accept-unpriced-cloud-model`)"))
 
 
 class StartRequest(BaseModel):
@@ -2344,6 +2381,10 @@ class StartRequest(BaseModel):
     folder_id: Optional[str] = Field(default=None, description=(
         "run the whole recipe on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); null: the whole project"))
+    accept_unpriced: list[str] = Field(default_factory=list, description=(
+        "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
+        "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
+        "(`ai.where.accept-unpriced-cloud-model`)"))
 
 
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
@@ -2371,7 +2412,8 @@ async def start_project(
     folder_id = request.folder_id if request else None
     try:
         registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
-                                              "clusters": _cluster_names(http)}, ctx)
+                                              "clusters": _cluster_names(http),
+                                              "accept_unpriced": request.accept_unpriced if request else []}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
@@ -2498,6 +2540,15 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
             raise ValueError(NO_MATERIAL)
+        if params.accept_unpriced:  # Start asked about cloud models with no price; this is the yes, by the one accept action
+            asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
+            unknown = [m for m in params.accept_unpriced if m not in asked]
+            if unknown:
+                raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
+            for key in params.accept_unpriced:
+                provider, _, model = key.partition("/")
+                registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner
@@ -2957,3 +3008,44 @@ async def use_bakeoff_choice(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
+
+
+class AcceptUnpricedRequest(BaseModel):
+    """One cloud model with no listed price, which this project accepts running (or withdraws that yes)."""
+
+    model_config = ConfigDict(extra="forbid")
+    provider: str = Field(min_length=1, description="the provider row id of the cloud model")
+    model: str = Field(min_length=1, description="the model id, as the refusal names it")
+    withdraw: bool = Field(default=False, description="take the yes back: calls to it are refused again")
+
+
+class AcceptedUnpriced(BaseModel):
+    accepted: list[str] = Field(description="every `provider/model` this project accepts running without a listed price")
+
+
+def _invert_accept(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("cloud.accept_unpriced", {"provider": after["provider"], "model": after["model"], "withdraw": not after["withdraw"]})
+
+
+@action("cloud.accept_unpriced", AcceptUnpricedRequest, domains=["project"], undoable=True, invert=_invert_accept)
+def _action_accept_unpriced(db: Database, params: AcceptUnpricedRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.llm import spend
+
+    library = _library(db)
+    before = spend.accepted_models(library)
+    kept = spend.set_accepted(library, params.provider, params.model, not params.withdraw)
+    mark = {"provider": params.provider, "model": params.model, "withdraw": params.withdraw}
+    return {"accepted": kept}, ChangeSpec(domains=["project"], target_ids=[], before={**mark, "withdraw": not params.withdraw,
+                                          "accepted": before}, after={**mark, "accepted": kept}, emit_type="project.cloud_accepted")
+
+
+@router.post("/cloud/accept-unpriced", response_model=AcceptedUnpriced)
+async def accept_unpriced_cloud_model(
+    request: AcceptUnpricedRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> AcceptedUnpriced:
+    """Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an
+    assumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the
+    one Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers."""
+    return AcceptedUnpriced(**registry.invoke(db, "cloud.accept_unpriced", request.model_dump(), ctx))
