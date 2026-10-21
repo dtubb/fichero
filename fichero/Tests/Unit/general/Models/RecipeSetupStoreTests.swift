@@ -877,4 +877,40 @@ extension URLRequest {
         #expect(calls == 0)
         #expect(store.errorMessage?.contains("Turn it on in Set Up") == true)
     }
+
+    /// WHY (## 923 backstop): when the project already has a saved recipe, no caller can wipe it by saving with no
+    /// recipe in hand; drafts before any recipe exists still save as they did.
+    @Test("save never sends recipe: null over a saved recipe; with none saved it saves the draft as before")
+    func saveKeepsASavedRecipe() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        for hasSaved in [true, false] {
+            var put: [String: Any]?
+            let store = makeStore { request in
+                let path = request.url?.path ?? ""
+                if request.httpMethod == "PUT" {
+                    put = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any]
+                    return Self.reply(request, 200, #"{"answers":{},"recipe":null}"#)
+                }
+                if path == "/api/recipes/project" {
+                    let recipe = hasSaved ? Self.recipeJSON : "null"
+                    return Self.reply(request, 200, #"{"answers":{},"recipe":"# + recipe + "}")
+                }
+                return Self.reply(request, 422, #"{"detail":{"sentence":"refused"}}"#)  // /assemble
+            }
+            await store.loadSaved()
+            store.languages = ["es"]
+            store.scripts = ["Latn"]
+            await store.assemble()  // refused: recipe is nil now
+            #expect(store.recipe == nil)
+
+            #expect(await store.save())
+
+            let sent = try #require(put)
+            if hasSaved {
+                #expect(sent["recipe"] is [String: Any], "the saved recipe is kept, not null")
+            } else {
+                #expect(sent["recipe"] == nil || sent["recipe"] is NSNull, "nothing saved: the draft saves as before")
+            }
+        }
+    }
 }
