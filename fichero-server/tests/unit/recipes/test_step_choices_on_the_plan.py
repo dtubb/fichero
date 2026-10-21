@@ -13,6 +13,15 @@ CLAUDE = "anthropic:claude@settings"
 
 
 @pytest.fixture
+def claude_row(app_db):
+    from fichero_server.models import Model, Provider, ProviderType
+
+    row = app_db.save_provider(Provider(name="Anthropic", provider_type=ProviderType("anthropic")))
+    app_db.save_model(Model(provider_id=row.id, name="Claude Sonnet", model_id="claude-sonnet-4-5"))
+    return row
+
+
+@pytest.fixture
 def project(client, with_material, mac):  # noqa: F811
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
                "mac_memory_gb": 32, "cloud_allowed": False}
@@ -64,3 +73,21 @@ def test_taking_back_a_step_already_on_set_ups_pick_is_refused_in_words(client, 
     r = client.post("/api/recipes/project/steps/use-setup-pick", json={"step": step})
     assert r.status_code == 422 and "already in use" in r.json()["detail"]
     assert client.post("/api/recipes/project/steps/use-setup-pick", json={"step": "nope"}).status_code == 422
+
+
+def test_every_candidate_the_plan_lists_can_be_chosen_cloud_readers_included(client, project, claude_row):
+    """The menu and `use-candidate` take cards from one list (`_offered_cards`): a listed candidate is never refused as 'not found'."""
+    choices = _plan(client)["step_choices"]
+    assert any(c["runs_on"].startswith("cloud:") for ch in choices for c in ch["candidates"]), "no cloud reader listed"
+    for choice in choices:
+        for candidate in choice["candidates"]:
+            r = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": candidate["card"]})
+            assert r.status_code == 200, (choice["step"], candidate["card"], r.text)
+
+
+def test_recommended_is_set_ups_pick_and_is_not_guessed_under_a_persons_choice(client, project):
+    choice = _read_choice(_plan(client))
+    assert [c["card"] for c in choice["candidates"] if c["recommended"]] == [choice["picked"]]
+    client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": CLAUDE})
+    under = _read_choice(_plan(client))
+    assert under["chosen_by"] == "person" and not any(c["recommended"] for c in under["candidates"])
