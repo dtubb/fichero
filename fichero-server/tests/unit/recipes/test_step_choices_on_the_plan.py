@@ -93,18 +93,32 @@ def test_recommended_is_set_ups_pick_and_is_not_guessed_under_a_persons_choice(c
     assert under["chosen_by"] == "person" and not any(c["recommended"] for c in under["candidates"])
 
 
-def test_each_candidate_carries_its_cost_for_the_set_before_start(client, project, claude_row):
+def test_each_candidate_carries_its_cost_for_the_set_before_start(client, project, claude_row, monkeypatch):
     """`cost_usd` is the TryCost shape: free on this Mac, the price list times the pages for a priced cloud model, unknown without a price."""
+    from fichero_server.recipes import routes
+
+    monkeypatch.setattr(routes, "_cloud_cost", lambda model, pages=1: 0.01 * pages)  # the price list knows the cloud models
     plan = _plan(client)
     pages = plan["estimate"]["pages"]
+    assert pages > 0, "the test project has no pages to price"
     candidates = _read_choice(plan)["candidates"]
     local = [c for c in candidates if c["local"]]
     assert local and all(c["cost_usd"] == {"value": 0.0, "basis": "estimate", "measured": False, "why": None,
                                            "from": "free on this Mac"} for c in local)
-    cloud = [c for c in candidates if not c["local"]]
-    assert cloud and all(c["cost_usd"] is None or c["cost_usd"]["basis"] in ("estimate", "unknown") for c in cloud)
-    priced = [c for c in cloud if c["cost_usd"] and c["cost_usd"]["basis"] == "estimate"]
-    assert not pages or all(c["cost_usd"]["value"] > 0 for c in priced)
+    priced = [c for c in candidates if not c["local"] and c["cost_usd"] and c["cost_usd"]["value"]]
+    assert priced, "no cloud candidate was priced"  # a test that prices nothing must fail, not pass vacuously
+    assert all(c["cost_usd"]["value"] == round(0.01 * pages, 2) and c["cost_usd"]["basis"] == "estimate" for c in priced)
+
+
+def test_the_cost_of_a_cloud_correction_of_the_unsure_lines_is_an_upper_bound():
+    from types import SimpleNamespace
+
+    from fichero_server.recipes.step_choices import _cost
+
+    card = SimpleNamespace(runs_on="cloud:anthropic", pin={"cloud": "anthropic", "model": "m"}, cost_per_page=0.02)
+    bound = _cost(card, 10, "kraken-then-cloud-corrects")
+    assert bound["basis"] == "upper bound" and bound["value"] == 0.2 and "unsure lines" in bound["from"]
+    assert _cost(card, 10, "cloud-reads-kraken-lines")["basis"] == "estimate"
 
 
 def test_a_cloud_choice_the_project_cannot_use_is_not_run_in_place_and_nothing_stands_in_for_it(client, project):

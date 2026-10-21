@@ -680,7 +680,7 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
     keyed = sorted((c for c in readers
                     if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in FRONTIER_PROVIDERS
                     and c.runs_on.split(":", 1)[1] in a.cloud_keys and job in c.jobs
-                    and _hard_constraints(job, c, a) is None), key=lambda c: (c.cost_per_page, c.id))
+                    and _hard_constraints(job, c, a) is None), key=lambda c: (_page_price(c) or float("inf"), c.id))  # by the price list: remote cards carry no cost_per_page
     if not keyed:
         return choice
     best = keyed[0]
