@@ -43,37 +43,71 @@ def _own_calls(fn):
             continue
         if isinstance(node, ast.Call):
             f = node.func
-            names.append(f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else "")
+            # `self.f()` is a method, whatever a module-level function of the same name does
+            names.append(f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute)
+                         and not (isinstance(f.value, ast.Name) and f.value.id in ("self", "cls")) else "")
         stack.extend(ast.iter_child_nodes(node))
-    return names, stack
+    return names
 
 
-def _entry_points():
-    """Every function of the spacy_* modules that reaches a pipeline (a load, or the turn) through the module's own calls."""
-    reaching = {"_pipeline", "_load_pipeline", "_load_named", "_turn"}
-    modules = [ast.parse((SRC / "knowledge" / f"{m}.py").read_text()) for m in ("spacy_ner", "spacy_svo")]
-    calls = {fn.name: set(_own_calls(fn)[0]) for tree in modules for fn in _functions(tree)}
+def _runs_spacy(src=SRC):
+    """The names of every function in the engine that runs a spaCy pipeline, by name: seeded from where a pipeline is loaded
+    (`load_spacy_pipeline`, a `spacy.load(...)` call), followed through the sync functions that call one to a fixed point,
+    across every module, and through `from m import f as g` aliases (a call is matched by its name, wherever it is read)."""
+    trees = [ast.parse(path.read_text()) for path in src.rglob("*.py")]
+    # Module-level functions only: a method is called by a name every class shares (`__init__`, `run`), which would sweep in the engine.
+    sync = [fn for tree in trees for fn in tree.body if isinstance(fn, ast.FunctionDef)]
+    defined_in = {}  # name -> the modules (last path part) that define it at module level
+    for path in src.rglob("*.py"):
+        for fn in ast.parse(path.read_text()).body:
+            if isinstance(fn, ast.FunctionDef):
+                defined_in.setdefault(fn.name, set()).add(path.stem)
+    # `from m import f as g`: g runs spaCy when f does AND m is a module that defines that f (not another `f`)
+    aliases = {a.asname: (a.name, (n.module or "").rsplit(".", 1)[-1]) for tree in trees for n in ast.walk(tree)
+               if isinstance(n, ast.ImportFrom) for a in n.names if a.asname}
+    reaching = {"load_spacy_pipeline"}
+    loaders = [fn for fn in sync if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "load"
+                                        and isinstance(n.func.value, ast.Name) and n.func.value.id == "spacy"
+                                        for n in ast.walk(fn))]
+    reaching |= {fn.name for fn in loaders}
+    calls = {}
+    for fn in sync:
+        calls.setdefault(fn.name, set()).update(_own_calls(fn))
     grew = True
     while grew:
         grew = False
+        reaching |= {alias for alias, (name, module) in aliases.items() if name in reaching and module in defined_in.get(name, ())}
         for name, called in calls.items():
             if name not in reaching and called & reaching:
                 reaching.add(name)
                 grew = True
-    return {n for n in reaching if not n.startswith("_")}
+    return reaching
 
 
 def test_no_async_function_runs_spacy_on_the_loop():
-    """The same rule as a guard: an `async def` in the engine calling any pipeline-reaching function of spacy_ner /
-    spacy_svo, or a sync helper that calls one (one level, by name), outside a nested function (what `asyncio.to_thread`
-    is handed) runs spaCy on the loop."""
-    entry = _entry_points()
-    assert {"extract_entities", "propose_triples", "predicate_problem"} <= entry, entry
-    trees = {path: ast.parse(path.read_text()) for path in SRC.rglob("*.py")
-             if path.name not in ("spacy_ner.py", "spacy_svo.py")}
-    reaching = set(entry)
-    for tree in trees.values():  # sync helpers that call one: `_spacy_page_claims`
-        reaching |= {fn.name for fn in _functions(tree) if isinstance(fn, ast.FunctionDef) and set(_own_calls(fn)[0]) & entry}
-    bad = [f"{path.relative_to(SRC)}:{fn.lineno} in {fn.name}" for path, tree in trees.items()
-           for fn in _functions(tree) if isinstance(fn, ast.AsyncFunctionDef) and set(_own_calls(fn)[0]) & reaching]
+    """The guard: an `async def` in the engine calling a function that runs a spaCy pipeline (found from the pipeline loads, to a
+    fixed point, across every module, through aliased imports), outside a nested function (what `asyncio.to_thread` is handed),
+    runs spaCy on the loop (`runtime.spacy.never-blocks`)."""
+    reaching = _runs_spacy()
+    assert {"extract_entities", "propose_triples", "predicate_problem", "_spacy_page_claims"} <= reaching, sorted(reaching)
+    bad = [f"{path.relative_to(SRC)}:{fn.lineno} in {fn.name}" for path in SRC.rglob("*.py")
+           for fn in _functions(ast.parse(path.read_text())) if isinstance(fn, ast.AsyncFunctionDef)
+           and set(_own_calls(fn)) & reaching]
     assert not bad, f"spaCy called on the event loop: {bad}"
+
+
+def _async_offenders(src):
+    reaching = _runs_spacy(src)
+    return [fn.name for path in src.rglob("*.py") for fn in _functions(ast.parse(path.read_text()))
+            if isinstance(fn, ast.AsyncFunctionDef) and set(_own_calls(fn)) & reaching]
+
+
+def test_the_guard_follows_helpers_across_modules_and_aliased_imports(tmp_path):
+    (tmp_path / "loader.py").write_text("import spacy\n\ndef open_it(name):\n    return spacy.load(name)\n")
+    (tmp_path / "mid.py").write_text("from loader import open_it\n\ndef parse(text):\n    return open_it('es')(text)\n\n"
+                                     "def twice(text):\n    return parse(text)\n")
+    (tmp_path / "use.py").write_text(
+        "from mid import twice as t\nimport mid\n\nasync def direct(x):\n    return mid.parse(x)\n\n"
+        "async def aliased(x):\n    return t(x)\n\nasync def threaded(x):\n    return await to_thread(t, x)\n\n"
+        "async def other(x):\n    return len(x)\n")
+    assert sorted(_async_offenders(tmp_path)) == ["aliased", "direct"]
