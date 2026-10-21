@@ -67,6 +67,27 @@ extension ActivityStore {
         }
     }
 
+    /// Whether the runs loaded so far may leave out runs that ended today: more exist, and the oldest loaded run is itself
+    /// from today (DONE TODAY would miss what is on the next page). A run whose date is unknown stops the paging: it
+    /// would never end (## 749).
+    func mayHaveMoreRunsToday(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard runsHasMore, !runs.isEmpty else { return false }
+        let dates = runs.map { $0.completedAt ?? $0.timestamp }
+        guard !dates.contains(where: { $0 == nil }), let oldest = dates.compactMap({ $0 }).min() else { return false }
+        return oldest >= calendar.startOfDay(for: now)
+    }
+
+    /// Page in older runs until the loaded ones reach back past today, so DONE TODAY is whole whether or not its rows are
+    /// drawn (the window's rows page the list only when they appear, and DONE TODAY is collapsed). Stops when a page adds
+    /// nothing.
+    func loadRunsForToday(library: LibraryManager.LibraryReference, now: Date = Date(), calendar: Calendar = .current) async {
+        while mayHaveMoreRunsToday(now: now, calendar: calendar) {
+            let before = historicalRunsFetched
+            await loadMoreRuns(library: library)
+            if historicalRunsFetched == before { return }
+        }
+    }
+
     /// Update ONE row in place by id, at its EXISTING array position (same
     /// identity for a future Table's selection/scroll); a run not yet
     /// present is appended. The only way `runs` content ever changes.
@@ -130,24 +151,39 @@ extension ActivityStore {
     /// (`library_outside_allowed_locations`, the roots check) is not the app's
     /// credentials, and any other coded refusal reads as the engine wrote it.
     static func runLoadFailureMessage(libraryName: String, error: Error) -> String {
-        let cause: String
-        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
-        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
-            cause = "the engine isn't allowed to open the project from where it's saved"
-        case .forbidden(_?, let message?):
-            cause = message
-        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
-            cause = "the engine refused the app's credentials"
-        case .engineUnreachable:
-            cause = "the engine could not be reached"
-        case let other:
-            cause = other.localizedDescription
-        }
+        let cause = failureCause(of: error)
         // The always-there project has no name: no "from" (never "from : …").
         guard let project = ActivityRun.projectLabel(libraryName) else {
             return "Couldn't load activity: \(cause)"
         }
         return "Couldn't load activity from \(project): \(cause)"
+    }
+
+    /// The cause of a failed read in words, the engine's own when it gave one.
+    static func failureCause(of error: Error) -> String {
+        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
+        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
+            "the engine isn't allowed to open the project from where it's saved"
+        case .forbidden(_?, let message?):
+            message
+        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
+            "the engine refused the app's credentials"
+        case .engineUnreachable:
+            "the engine could not be reached"
+        case let other:
+            other.localizedDescription
+        }
+    }
+
+    /// `failureCause(of:)`, but a refusal with a body says what the engine wrote in it (`{"detail": "The project is busy"}`),
+    /// never the client's generic "Server error".
+    static func engineCause(of error: Error) async -> String {
+        if let clientError = error as? ClientError, let body = clientError.responseBody,
+           let data = try? await Data(collecting: body, upTo: 1 << 16),
+           let words = EngineErrorDetail.message(from: data) {
+            return words
+        }
+        return failureCause(of: error)
     }
 
     private func liveRun(
@@ -200,7 +236,8 @@ extension ActivityStore {
             isLive: false,
             libraryId: library.id,
             libraryName: library.displayName,
-            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil
+            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil,
+            completedAt: summary.completedAt.flatMap(parseEngineDate)
         )
     }
 

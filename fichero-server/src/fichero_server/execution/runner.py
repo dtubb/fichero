@@ -29,6 +29,7 @@ from fichero_server.execution.cancellation import (
 from fichero_server.execution.run_log import BoundedLog, bounded_final_state
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
+from fichero_server.workflows.run_account import partial_words
 from fichero_server.workflows.run_steps import close_open_steps
 
 logger = logging.getLogger(__name__)
@@ -2018,6 +2019,9 @@ async def _run_workflow_body(
             end_usage_collection,
         )
 
+        from fichero_server.workflows.builder import TOP_RUN
+
+        TOP_RUN.set(thread_id)  # this run's task; a sub-workflow's pages count under it (#5933)
         _, usage_token = begin_usage_collection(usage_bucket)
         _, fallback_token = begin_fallback_collection(fallback_bucket)
         usage_cursor = 0
@@ -2049,8 +2053,14 @@ async def _run_workflow_body(
             # event (reachable even after registry eviction, and the one the
             # per-item boundary consults).
             if state.get("pause_requested") or pause_requested(thread_id):
-                await _finish_as_paused()
-                return
+                from fichero_server.workflows.builder import pages_reading
+
+                # Pages of a fan-out still reading are not cut off (#5932): returning here closes the stream and LangGraph
+                # cancels them, losing their paid reads and making Resume read them again. Keep driving the stream; the
+                # fan-out raises the pause (`except WorkflowPaused` below) once every page still reading has finished.
+                if not pages_reading(thread_id):
+                    await _finish_as_paused()
+                    return
 
             # #1127 — cancellation check. If the user POSTed
             # /threads/{id}/cancel, the cancel endpoint sets
@@ -2625,6 +2635,7 @@ async def _run_workflow_body(
             duration_ms=total_duration_ms,
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            partial=None if _all_files_failed else partial_words(final_state),
         )
 
     except WorkflowCancelled:

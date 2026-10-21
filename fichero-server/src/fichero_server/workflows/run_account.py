@@ -131,6 +131,26 @@ def _one_call_steps(state: dict[str, Any], fanned: dict[str, Any]) -> dict[str, 
     return found
 
 
+def _stopped_pages(state: dict[str, Any] | None) -> int:
+    """Pages a person stopped alone: counted from the cancelled results themselves, never as total - done - failed (a page a step
+    skips by design, or a step total above the files, would read as stopped)."""
+    state = state if isinstance(state, dict) else {}
+    steps = results_by_step(state, ())
+    steps.update(_one_call_steps(state, steps))
+    return len({item.get("index", item.get("file")) for items in steps.values() for item in items if item.get("cancelled")})
+
+
+def partial_words(state: dict[str, Any] | None) -> str | None:
+    """"Partial: N of M pages read (...)" for a run that finished with some pages failed or stopped, else None. The run's row
+    stays `done` and the reason carries the word, until a real partial state exists (#5937)."""
+    account = build_account(status="completed", reason=None, state=state)
+    stopped = _stopped_pages(state)
+    if not (account.pages_failed or stopped):
+        return None
+    lost = [f"{n} {word}" for n, word in ((account.pages_failed, "failed"), (stopped, "stopped")) if n]
+    return f"Partial: {account.pages_done} of {account.pages_total} pages read ({', '.join(lost)})"
+
+
 def build_account(*, status: str | None, reason: str | None, state: dict[str, Any] | None,
                   pending_writes: Iterable[Any] = (), started_at: datetime | None = None,
                   run_usage: dict[str, Any] | None = None, live_peaks: dict[str, int] | None = None,

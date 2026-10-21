@@ -140,3 +140,8 @@ def test_clip_leaves_a_plain_name_alone_and_empties_a_link():
     assert shf._clip("Daniel's MacBook Pro") == "Daniel's MacBook Pro"
     assert shf._clip("https://") == "https", "nothing link-like survives"
     assert shf._clip("   ") == ""
+
+
+@pytest.mark.parametrize("text", ["::////", ":::///////", "a:/:///b", "x://y", "https://"])
+def test_clip_never_leaves_a_link_even_when_removing_one_joins_another(text):
+    assert "://" not in shf._clip(text)

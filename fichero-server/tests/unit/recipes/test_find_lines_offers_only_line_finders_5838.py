@@ -33,4 +33,5 @@ def test_comparing_a_model_that_cannot_find_lines_is_refused_in_words(monkeypatc
 
     words = str(refused.value)
     assert "Opus (Anthropic) cannot do the step lines (find-lines)" in words
-    assert "Kraken and Apple Vision" in words and "cloud vision models cannot find lines" in words
+    assert "Apple Vision (print and typed pages only)" in words and "Kraken (handwriting and print)" in words
+    assert "cloud vision models cannot find lines" in words

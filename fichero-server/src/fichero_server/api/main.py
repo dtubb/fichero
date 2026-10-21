@@ -183,8 +183,13 @@ LIBRARY_NOT_A_PACKAGE = "library_not_a_package"
 
 
 def _rejected_library_path_payload(path: str) -> dict[str, str]:
-    """The 403 body for a rejected library path: the one accurate sentence and its machine code."""
+    """The 403 body for a rejected library path: the one accurate sentence and its machine code. This answer is made BEFORE
+    authentication, so it names no library of this host: a caller who sent a path this engine does not serve is told to ask the
+    host for its libraries once signed in (`GET /api/authz/libraries`, filtered to what the credential may open;
+    `sharing.guest-addresses-the-hosts-library`, #5965)."""
     detail = _rejected_library_path_detail(path)
+    if Path(path).expanduser().suffix == ".fichero":
+        detail += " If this device is connected to another Mac, ask that Mac for its libraries after signing in."
     code = LIBRARY_NOT_A_PACKAGE if Path(path).expanduser().suffix != ".fichero" else LIBRARY_OUTSIDE_ALLOWED_LOCATIONS
     return {"detail": detail, "code": code}
 

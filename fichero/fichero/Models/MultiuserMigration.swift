@@ -17,7 +17,8 @@ enum MultiuserMigration {
     static func note(for reason: String) -> String {
         // Dev Local pins the variable: its refusal names the environment, which the person cannot act on.
         if reason.contains("FICHERO_MULTIUSER") {
-            return "Multi-user was on before this update, but this engine was started with it fixed by its launcher, so it was not carried over."
+            return "Multi-user was on before this update, but this engine was started with it fixed by its launcher, "
+                + "so it was not carried over."
         }
         return "Multi-user was on before this update and could not be carried over: \(reason)"
     }

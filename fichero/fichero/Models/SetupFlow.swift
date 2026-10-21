@@ -57,7 +57,8 @@ enum SetupStep: Hashable, Identifiable {
 
     /// Set Up a Project's pages (`source.onboard.project.steps`): Your project for a new one (Project › Set Up… on an
     /// existing project starts at Add material), then one page per chosen stage, in the engine's order, then Ready
-    /// (training is not a step: the plan offers it once there is enough corrected work, #5804). `chosenStages` is in the engine's order already.
+    /// (training is not a step: the plan offers it once there is enough corrected work, #5804).
+    /// `chosenStages` is in the engine's order already.
     static func projectSteps(chosenStages: [String], isNewProject: Bool) -> [SetupStep] {
         (isNewProject ? [.project] : []) + [.addMaterial, .aboutMaterial, .stages]
             + chosenStages.map(SetupStep.stage) + [.ready]
@@ -67,7 +68,8 @@ enum SetupStep: Hashable, Identifiable {
     /// plan's training offers are.
     static let trainStage = "train"
 
-    /// The page Set Up opens on when a stage is asked for: Train a Model… and any other stage open Ready, whose plan lists each step with its fix, until Set Up has a page per stage (#5668, §7c);
+    /// The page Set Up opens on when a stage is asked for: Train a Model… and any other stage open Ready, whose plan lists
+    /// each step with its fix, until Set Up has a page per stage (#5668, §7c);
     /// none asked for opens the flow's first page (nil).
     static func opening(requestedStage: String?) -> SetupStep? {
         switch requestedStage {

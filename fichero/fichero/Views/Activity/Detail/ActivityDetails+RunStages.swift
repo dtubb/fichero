@@ -42,7 +42,7 @@ enum SetupStages {
 
 /// Where a stage of a recipe run got to (#5670).
 enum ActivityStageCardState: Equatable {
-    case done, partial, running, waiting, notRun, skipped, failed
+    case done, partial, running, waiting, notRun, skipped, failed, unknown
 }
 
 extension ActivityDetails {
@@ -64,6 +64,8 @@ extension ActivityDetails {
         let offersSetUp: Bool
         /// Its pages that failed, with Read Again.
         let failed: Summary.Failed?
+        /// How many of its pages failed (the stage bar draws a red tick for each).
+        let pagesFailed: Int
 
         var stateWords: String {
             switch state {
@@ -74,6 +76,7 @@ extension ActivityDetails {
             case .notRun: "Not run"
             case .skipped: "Skipped"
             case .failed: "Failed"
+            case .unknown: "Unknown"
             }
         }
     }
@@ -106,7 +109,8 @@ extension ActivityDetails {
                     let noun = failure.pagesFailed == 1 ? "page" : "pages"
                     return Summary.Failed(id: failure.threadId, text: "\(failure.pagesFailed) \(noun) failed",
                                           offer: failure.offer, threadId: failure.threadId)
-                }
+                },
+                pagesFailed: failedStage?.pagesFailed ?? 0
             )
         }
     }
@@ -116,9 +120,12 @@ extension ActivityDetails {
         if states.contains("failed") { return .failed }
         if states.contains("running") { return .running }
         if states.contains("waiting") { return .waiting }
-        if states.contains("partial") { return .partial }  // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
+        // some pages lost: never read as done (`activity.run.step-honest-about-lost-pages`)
+        if states.contains("partial") { return .partial }
         if states.contains(where: { $0 == "not run" || $0 == "cancelled" }) { return .notRun }
-        return .done
+        if states.contains("interrupted") { return .failed }
+        if states.allSatisfy({ ["done", "completed", "complete", "finished"].contains($0) }) { return .done }
+        return .unknown  // a state nobody here knows is never Done (#5957)
     }
 
     /// What a stage made, from the run's summary (the engine counts; this only words it).

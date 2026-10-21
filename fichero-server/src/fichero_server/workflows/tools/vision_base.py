@@ -125,6 +125,7 @@ from fichero_server.workflows.circuit_breaker import (  # noqa: E402
 )
 from fichero_server.media.image_flatten import flatten_for_opaque_format  # noqa: E402
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused  # noqa: E402
+from fichero_server.execution.jobs import JobCancelled  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -6075,7 +6076,7 @@ async def process_vision(
             )
             texts.append("")
             values.append(None)
-        except (WorkflowCancelled, WorkflowPaused):
+        except (WorkflowCancelled, WorkflowPaused, JobCancelled):
             # Stop and Pause are not failures (#4402): a page stopped or paused while it waited
             # for the lane must end the run as cancelled or paused, not as this file's error.
             raise
@@ -6192,7 +6193,7 @@ async def process_vision(
                 "output_files": [],
                 "page_records": [],
             }
-        except (WorkflowCancelled, WorkflowPaused):
+        except (WorkflowCancelled, WorkflowPaused, JobCancelled):
             raise  # Stop or Pause, not a crash: see `_process_file`
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an

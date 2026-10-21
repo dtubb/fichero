@@ -210,7 +210,7 @@ def _text(db: Any, page_id: str) -> str | None:
     return derived.text.strip() or None
 
 
-def _render(db: Any, export: dict[str, Any], unit: _Unit) -> bytes | None:
+def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[str, str]] | None = None) -> bytes | None:
     """The unit's file, or None when it has nothing to write (no page of it is read)."""
     fmt = export["format"]
     if fmt in PAGE_FORMATS:
@@ -240,7 +240,7 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit) -> bytes | None:
         out = Path(scratch) / "out.docx"
         export_word_docx(db, out, overwrite=True, package_path=_package(db), include_knowledge_graph=False,
                          documents=read, title=read[0].name if single else unit.name,
-                         text_for=lambda doc: texts[doc.id] or "")
+                         text_for=lambda doc: texts[doc.id] or "", skipped=left_out)
         return out.read_bytes()
 
 
@@ -280,14 +280,17 @@ def write(db: Any, subject: str) -> None:
     if export is None:
         return  # removed meanwhile
     folder = Path(export["folder"])
+    left_out: list[tuple[str, str]] = []
     if not folder.is_dir():
         raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
     for unit in _units(db, export):
         if key and unit.key != key:
             continue
-        data = _render(db, export, unit)
+        data = _render(db, export, unit, left_out)
         if data is not None:
             _put(db, export, unit.filename, data)
+    if left_out:  # the job finishes done and Activity says what it left out (#5966)
+        jobs.note_done(f"Partial: {len(left_out)} image(s) left out")
 
 
 def status(db: Any) -> list[dict[str, Any]]:

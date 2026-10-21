@@ -57,6 +57,8 @@ final class ActivityStore: ChangeEventConsumer {
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
     var runs: [ActivityRun] = []
+    /// A run's tree read that failed, by thread id, in words; cleared by the next read that works.
+    var treeReadFailures: [String: String] = [:]
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
     enum LoadSource: Int { case runs, jobs }
     private struct FailureKey: Hashable {

@@ -126,15 +126,18 @@ final class ActivityStoreRunsTests: XCTestCase {
     private static func runSummaryJSON(
         threadId: String,
         status: String = "completed",
-        startedAt: String = "2026-09-20T10:00:00Z"
+        startedAt: String = "2026-09-20T10:00:00Z",
+        completedAt: String? = nil
     ) -> [String: Any] {
-        [
+        var json: [String: Any] = [
             "thread_id": threadId,
             "workflow_id": "wf-1",
             "workflow_name": "Transcribe",
             "status": status,
             "started_at": startedAt
         ]
+        if let completedAt { json["completed_at"] = completedAt }
+        return json
     }
 
     private static func listResponseJSON(_ summaries: [[String: Any]]) -> Data {
@@ -195,6 +198,35 @@ final class ActivityStoreRunsTests: XCTestCase {
         // The first page's row is still the identical value: nothing re-fetched it.
         let stillThere = try! XCTUnwrap(store.runs.first { $0.runId == "t1" })
         XCTAssertEqual(stillThere.timestamp, firstPageRun.timestamp)
+    }
+
+    // MARK: - DONE TODAY needs the runs that ended today, drawn or not (## 749)
+
+    func testAFinishedRunKeepsItsEndAndLoadingForTodayPagesUntilThePastIsReached() async {
+        let store = Self.storeWithMockTransport()
+        let now = Date()
+        let iso = ISO8601DateFormatter()
+        let today = iso.string(from: now.addingTimeInterval(-60))
+        let longAgo = iso.string(from: now.addingTimeInterval(-10 * 86_400))
+        let firstPage = (1...50).map { Self.runSummaryJSON(threadId: "t\($0)", startedAt: today, completedAt: today) }
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 200, body: Self.listResponseJSON(firstPage))
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+        XCTAssertNotNil(store.runs.first?.completedAt, "a run carries the engine's end, with no tree loaded")
+        XCTAssertTrue(store.mayHaveMoreRunsToday(now: now), "every loaded run is from today and more exist")
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                 body: Self.listResponseJSON([Self.runSummaryJSON(threadId: "old", startedAt: longAgo, completedAt: longAgo)]))
+        ])
+        await store.loadRunsForToday(library: Self.testLibrary(), now: now)
+
+        XCTAssertEqual(store.runs.count, 51, "loadMoreRuns advanced by itself, with no row drawn")
+        XCTAssertFalse(store.mayHaveMoreRunsToday(now: now), "the oldest loaded run is from before today: enough")
+        // The finished run reaches DONE TODAY from the runs table alone (no tree).
+        let row = ActivityMonitorRow.run(try! XCTUnwrap(store.runs.first { $0.runId == "t1" }), tree: nil)
+        XCTAssertEqual(ActivityWindowGroups(rows: [row], now: now).doneToday.map(\.name), ["Transcribe"])
     }
 
     func testLoadMoreRunsIsANoOpWhenTheLastPageWasShort() async {

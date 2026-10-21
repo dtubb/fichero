@@ -30,11 +30,7 @@ struct ActivityDetailWindow: View {
                     // (#4284) -- a missing @Environment object is a fatal error, not a nil.
                     .libraryServiceEnvironment(library)
             } else {
-                ContentUnavailableView(
-                    "No Activity Selected",
-                    systemImage: "info.circle",
-                    description: Text("Double-click a row in the Activity window to see its details.")
-                )
+                Color.clear  // an empty details pane says nothing (`activity.window.no-empty-prose`)
             }
         }
         .navigationTitle("Activity Details")
