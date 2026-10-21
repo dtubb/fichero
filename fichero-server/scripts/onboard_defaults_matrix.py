@@ -164,7 +164,7 @@ def proposal(truth: dict[str, Any]) -> dict[str, Any]:
     try:
         recipe = _assemble(answers)
     except ValueError as exc:  # a language or script the registry refuses, said in words
-        return {"refused": str(exc), "steps": [], "direction": None}
+        return {"refused": str(exc), "steps": {}, "direction": None}
     steps = {}
     for step in recipe["steps"]:
         if step["job"] in ("find-regions", "find-lines", "read-a-line", "read-a-page"):
@@ -177,6 +177,14 @@ def proposal(truth: dict[str, Any]) -> dict[str, Any]:
             "direction": {s: default_direction(s) for s in truth["scripts"]}}
 
 
+def step_of(prop: dict[str, Any], job: str) -> dict[str, Any]:
+    """The proposal's step for `job`, whether `steps` is this script's dict by job or a recipe's own list; {} when there is none."""
+    steps = prop.get("steps") or {}
+    if isinstance(steps, list):
+        return next((s for s in steps if isinstance(s, dict) and s.get("job") == job), {})
+    return steps.get(job) or {}
+
+
 def judge(truth: dict[str, Any], prop: dict[str, Any]) -> str:
     """right? in one word: WRONG-direction, none-says-so (no reader and it says so), refused, ok (a reader whose card lists the
     scripts and the direction is the script's), or check (a person looks)."""
@@ -186,7 +194,7 @@ def judge(truth: dict[str, Any], prop: dict[str, Any]) -> str:
     derived = set((prop.get("direction") or {}).values())
     if derived and wanted not in derived and not (wanted == "ltr" and derived <= {"ltr"}):
         return "WRONG-direction"
-    reader = prop["steps"].get("read-a-line") or prop["steps"].get("read-a-page") or {}
+    reader = step_of(prop, "read-a-line") or step_of(prop, "read-a-page")
     if reader.get("card"):
         return "ok" if "layout-only" not in truth["classes"] else "check"
     return "none-says-so" if (reader.get("gap") or reader.get("problem")) else "check"
@@ -270,7 +278,7 @@ def report(rows: list[dict[str, Any]]) -> str:
     out = []
     for r in rows:
         t, p = r["truth"], r["proposed"]
-        reader = (p.get("steps", {}).get("read-a-line") or p.get("steps", {}).get("read-a-page") or {})
+        reader = step_of(p, "read-a-line") or step_of(p, "read-a-page")
         proposed = (f"{reader.get('card')} ({reader.get('runs_on')})" if reader.get("card")
                     else (p.get("refused") or reader.get("gap") or reader.get("problem") or "nothing"))
         best = None
@@ -327,7 +335,7 @@ def main() -> int:
             scores = read_pages(arm, pages, args.seed_reader)
             row["scores"][arm] = {"cer": mean(scores, "cer"), "wer": mean(scores, "wer"), "s_per_page": mean(
                 [{"s": float(x["seconds"])} for x in scores if "seconds" in x], "s"), "pages": scores}
-        reader = prop.get("steps", {}).get("read-a-line") or {}
+        reader = step_of(prop, "read-a-line")
         if reader.get("card") and "21788410" in str(reader["card"]) and "seed" in row["scores"]:
             row["scores"]["default"] = row["scores"]["seed"]  # the proposed reader IS the seed reader: same read
         if args.search:
@@ -342,4 +350,20 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Leave by the engine's fast exit (#5929): with torch loaded, the ordinary exit runs MPS's static destructors, which fault
+    # (SIGSEGV or abort) after the work is done, a finished run or a failed one alike.
+    import traceback
+
+    status = 1
+    try:
+        status = main()
+    except SystemExit as stop:
+        status = stop.code if isinstance(stop.code, int) else 1
+        if isinstance(stop.code, str):
+            print(stop.code, file=sys.stderr)
+    except BaseException:  # noqa: BLE001 -- the failure is printed, then the process still leaves cleanly
+        traceback.print_exc()
+    from fichero_server.core import fast_exit
+
+    fast_exit.leave(status)
+    sys.exit(status)

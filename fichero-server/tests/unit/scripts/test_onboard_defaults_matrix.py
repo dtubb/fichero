@@ -90,3 +90,19 @@ def test_apple_vision_stuck_stops_the_vision_arm_for_the_rest_of_the_run(tmp_pat
     again = m.read_pages("vision", pages, "reader")  # the next set of the run
     assert calls == ["a.png"] and all("not tried" in r["error"] for r in again)
     assert m.read_pages("seed", pages, "reader")[0].get("error", "").startswith("AppleVisionStuck") is False  # the seed arm still reads
+
+
+def test_a_refused_proposal_and_a_list_of_steps_are_both_read_without_error():
+    """The matrix died with AttributeError on `prop["steps"].get`: a refused proposal carried `[]`, and a recipe's own steps are a list."""
+    refused = {"refused": "no reader for this script", "steps": [], "direction": None}
+    assert m.step_of(refused, "read-a-line") == {}
+    assert m.judge({"direction": "ltr", "classes": []}, refused) == "refused"
+    listed = {"steps": [{"job": "read-a-line", "card": "kraken-x"}, {"job": "find-lines", "card": "blla"}]}
+    assert m.step_of(listed, "read-a-line")["card"] == "kraken-x"
+    assert m.step_of({"steps": {"read-a-page": {"card": "p"}}}, "read-a-page") == {"card": "p"}
+    assert m.step_of(listed, "read-a-page") == {}
+
+
+def test_the_script_ends_through_the_engines_fast_exit():
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "fast_exit.leave(" in source, "torch's MPS destructor faults at exit unless the process leaves by os._exit (#5929)"
