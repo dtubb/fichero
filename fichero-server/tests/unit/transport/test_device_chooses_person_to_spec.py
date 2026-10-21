@@ -32,7 +32,7 @@ def test_a_wrong_password_pairs_nothing(harness, monkeypatch):
 
 
 def test_choosing_a_person_needs_multi_user_on(harness):
-    assert _pair(harness, username="alice", password="x").status_code == 422
+    assert _pair(harness, username="alice", password="x").status_code == 409
 
 
 def test_multi_user_on_a_pairing_that_names_no_person_is_asked_who_it_is(harness, monkeypatch):

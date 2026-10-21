@@ -462,7 +462,7 @@ def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_cod
             app_db,
         )
 
-    assert exc.value.status_code == 422
+    assert exc.value.status_code == 400
     assert "ABCD-EFGH" in pairing._PAIRING_CODES
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
 
