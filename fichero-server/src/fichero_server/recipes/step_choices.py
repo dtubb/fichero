@@ -50,17 +50,35 @@ def _needs(card: Any, *, may_leave: bool) -> list[dict[str, str]]:
     return out
 
 
-def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | None, may_leave: bool) -> dict[str, Any]:
+def _cost(card: Any, pages: int | None) -> dict[str, Any] | None:
+    """The candidate's cost for the whole set before Start (an estimate from the price list; `TryCost`'s shape): free on this Mac,
+    the price per page times the pages for a priced cloud model, unknown for one with no listed price, none before the pages are counted."""
+    from fichero_server.recipes.assemble import _page_price
+
+    if not str(card.runs_on).startswith("cloud:"):
+        return {"value": 0.0, "basis": "estimate", "measured": False, "from": "free on this Mac"}
+    price = _page_price(card)
+    if not price:
+        return {"value": None, "basis": "unknown", "measured": False, "from": "no listed price"}
+    if not pages:
+        return None
+    return {"value": round(price * pages, 2), "basis": "estimate", "measured": False,
+            "from": f"the price list, {pages:,} {'page' if pages == 1 else 'pages'}"}
+
+
+def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | None, may_leave: bool,
+               pages: int | None = None) -> dict[str, Any]:
     needs = _needs(card, may_leave=may_leave)
     return {"card": card.id, "name": card.note.strip().rstrip(".") or card.id, "how": _how(card, job),
             "runs_on": card.runs_on, "local": not str(card.runs_on).startswith("cloud:"),
             "picked": card.id == picked, "recommended": card.id == recommended,
-            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": None,
+            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": _cost(card, pages),
             "measured": ("CER %.1f%% on your pages" % (card.cer_measured_here * 100)
                          if card.cer_measured_here is not None else "not yet measured on your pages")}
 
 
-def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, cards: list[Any], *, may_leave: bool) -> list[dict[str, Any]]:
+def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, cards: list[Any], *, may_leave: bool,
+                 pages: int | None = None) -> list[dict[str, Any]]:
     """One entry per choosable step of `recipe`: its candidates over `cards` (every card the finder knows, local and cloud)."""
     from fichero_server.recipes.discovery import step_candidates
 
@@ -78,7 +96,7 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
         recommended = None if override else own
         out.append({"step": step.get("id"), "job": job, "name": _STAGE_WORDS.get(job, job), "picked": picked,
                     "chosen_by": "person" if override else "setup",
-                    "candidates": [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave)
+                    "candidates": [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave, pages=pages)
                                    for c in listed]})
     return out
 

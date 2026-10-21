@@ -91,3 +91,17 @@ def test_recommended_is_set_ups_pick_and_is_not_guessed_under_a_persons_choice(c
     client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": CLAUDE})
     under = _read_choice(_plan(client))
     assert under["chosen_by"] == "person" and not any(c["recommended"] for c in under["candidates"])
+
+
+def test_each_candidate_carries_its_cost_for_the_set_before_start(client, project, claude_row):
+    """`cost_usd` is the TryCost shape: free on this Mac, the price list times the pages for a priced cloud model, unknown without a price."""
+    plan = _plan(client)
+    pages = plan["estimate"]["pages"]
+    candidates = _read_choice(plan)["candidates"]
+    local = [c for c in candidates if c["local"]]
+    assert local and all(c["cost_usd"] == {"value": 0.0, "basis": "estimate", "measured": False, "why": None,
+                                           "from": "free on this Mac"} for c in local)
+    cloud = [c for c in candidates if not c["local"]]
+    assert cloud and all(c["cost_usd"] is None or c["cost_usd"]["basis"] in ("estimate", "unknown") for c in cloud)
+    priced = [c for c in cloud if c["cost_usd"] and c["cost_usd"]["basis"] == "estimate"]
+    assert not pages or all(c["cost_usd"]["value"] > 0 for c in priced)
