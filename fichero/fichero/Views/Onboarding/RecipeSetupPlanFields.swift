@@ -120,8 +120,8 @@ struct RecipeMoneyAndPlaceFields: View {
                               format: .currency(code: "USD"))
                         .multilineTextAlignment(.trailing).frame(maxWidth: 90)
                         .focused($capFocused)
-                        .onSubmit { Task { _ = await store.save() } }
-                        .onChange(of: capFocused) { _, focused in if !focused { Task { _ = await store.save() } } }
+                        .onSubmit { Task { if store.recipe != nil { _ = await store.save() } } }
+                        .onChange(of: capFocused) { _, focused in if !focused, store.recipe != nil { Task { _ = await store.save() } } }
                 }
                 Text("$0 means paid offers stay offers: nothing paid starts without you. Spend shows against this on Start.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -129,7 +129,7 @@ struct RecipeMoneyAndPlaceFields: View {
             if let place = store.moneyAndPlace, !place.clusters.isEmpty {
                 Toggle("Working copies may stay on \(place.clusters.formatted(.list(type: .or))) for re-runs",
                        isOn: Binding(get: { store.copiesMayStay ?? place.copiesMayStayOnCluster },
-                                     set: { store.copiesMayStay = $0; Task { _ = await store.save() } }))
+                                     set: { store.copiesMayStay = $0; Task { if store.recipe != nil { _ = await store.save() } } }))
                 if store.copiesMayStay == nil {
                     Text("Following your answer about pages leaving this Mac.").font(.caption).foregroundStyle(.secondary)
                 }
