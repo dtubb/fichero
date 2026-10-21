@@ -150,3 +150,12 @@ struct ActivityFooterLine: View {
         .background(.regularMaterial)
     }
 }
+
+#Preview("A row's name and where it ran") {
+    let row = ActivityMonitorRow.job(
+        ActivityJob(id: "embed-1", taskType: "embedding", name: "Embedding queue", current: 4, total: 10,
+                    state: .waiting, reason: "Waiting: memory is tight"),
+        libraryId: nil, projectName: "Marshall Diaries")
+    return ActivityNameCell(row: row, showsProject: true)
+        .padding()
+}
