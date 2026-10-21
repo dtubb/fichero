@@ -360,7 +360,7 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     the recipe, like any other".
     WHY: setup's How it will be done screen proposes the recipe again each time it is shown; if that ignored
     the override, the reader the person chose would quietly revert to the rules' choice and Start would read
-    with a reader they turned down. A folder's choice stays an override and leaves the project's reader."""
+    with a reader they turned down. A folder's choice is refused until a run applies it (`source.recipe.per-folder`), so only the project's is kept."""
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
                "pages": 1000}
     _set_up(client)
