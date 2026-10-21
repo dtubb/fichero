@@ -40,11 +40,11 @@ enum SyncedHostAsk {
     /// The host's refusal, in words: which of wrong / used / expired the engine told (`POST /api/pair`).
     static func words(forStatus status: Int, detail: String?) -> String {
         switch (status, (detail ?? "").lowercased()) {
-        case (401, let d) where d.contains("invalid or expired"):
+        case (401, let text) where text.contains("invalid or expired"):
             return "That link was already used, has expired, or is not the host's. Ask for a new one."
-        case (401, let d) where d.hasPrefix("person required"):
+        case (401, let text) where text.hasPrefix("person required"):
             return "The host needs to know who you are. Ask them for a link made for you."
-        case (400, let d) where d.contains("https"):
+        case (400, let text) where text.contains("https"):
             return "The host is not reachable securely, so it will not pair."
         case (429, _):
             return "Too many tries. Wait a minute and paste the link again."
