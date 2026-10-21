@@ -62,3 +62,13 @@ def test_the_owners_session_is_not_honoured_elsewhere_while_off(harness, monkeyp
     owner, _ann = _people(harness, monkeypatch)
     who = signed_in_client(harness, owner)
     assert harness.client().get("/api/pair/devices", headers=who.headers).status_code == 401, "only the two steps, nothing else"
+
+
+def test_choosing_the_password_ends_the_owners_other_sessions_but_not_the_one_that_chose_it(harness, monkeypatch):
+    owner, _ann = _people(harness, monkeypatch)
+    mine = signed_in_client(harness, owner, name="this one")
+    other = signed_in_client(harness, owner, name="another device")
+    client = harness.client()
+    assert client.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}, headers=mine.headers).status_code == 200
+    assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=mine.headers).status_code == 200, "the same session carries on"
+    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=other.headers).status_code == 401, "the other one ended"

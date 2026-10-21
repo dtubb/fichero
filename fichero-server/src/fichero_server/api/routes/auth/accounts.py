@@ -830,7 +830,10 @@ def update_user(
 
     if body.password is not None:
         app_db.set_password(user_id, accounts.hash_password(body.password))
-        app_db.revoke_all_for_user(user_id)
+        # every other session ends; the one that made the change stays, so the owner who chose a password can turn Multi-user on
+        # with the same key session (`multiuser.owner-session-sets-the-switch`, #5908)
+        own = getattr(request.state, "session", None)
+        app_db.revoke_all_for_user(user_id, keep_token_hash=own.token_hash if own is not None and own.user_id == user_id else None)
         if user.is_owner:
             from fichero_server.security.multiuser import note_owner_password_set
 
