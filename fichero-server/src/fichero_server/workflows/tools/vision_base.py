@@ -3719,6 +3719,9 @@ def _write_joined_page_content(
                 )
                 continue
             doc.page_content = joined
+            from fichero_server.maintenance.page_text_repair import clear_needs_rereading
+
+            clear_needs_rereading(doc)  # the joined reading is the page's text again (#6002)
             doc.status = Status.processing
             doc.updated_at = utc_now()
             db.save(doc)
