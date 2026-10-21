@@ -808,10 +808,12 @@ class _PageGate:
         self._active = 0
         self._whole = False
         self._wanting_whole = 0
+        self.last_allowed: int | None = None  # the pages-at-once the newest page was admitted under (reader copies follow it)
 
     @contextlib.contextmanager
     def page(self, allowed: int = 1):
         with self._cond:
+            self.last_allowed = max(1, allowed)
             while self._whole or self._wanting_whole or self._active >= max(1, allowed):
                 self._cond.wait()
             self._active += 1
@@ -864,19 +866,28 @@ class _PageGate:
 
 _INFERENCE_LOCK = _PageGate()
 
-#: Pages read at once for a person-started (fast) run when this Mac's memory holds that many.
-PAGES_AT_ONCE = 2
+#: Held at two until #5929 closes and an M4 run at N=4 is clean. #5929 is torch's MPS destructor faulting when a process
+#: EXITS, after every row has printed (the M4 crash reports), not a fault in threads; whether N may rise on the bench
+#: evidence alone or waits for the exit fix is the manager's call. Then delete this and the `min` below, and N is the
+#: performance cores as the owner ruled (#5931, `source.read.pages-at-once-scales`).
+PAGES_AT_ONCE_GATE_5929 = 2
 
 
 def pages_at_once(person: bool) -> int:
-    """How many pages may be read at once (`source.read.two-pages-at-once`): `PAGES_AT_ONCE` for a person-started run
-    on the fast priority when there are cores for it and `page_fan_out` says the memory holds that many (so one on an
-    8 GB Mac); one for every automatic or background run."""
+    """How many pages may be read at once (`source.read.pages-at-once-scales`): on a Mac, the performance cores (gated at two
+    until #5929), held down by what the free memory carries (`page_fan_out`: 1.5 GB a page beyond the model, so one on an
+    8 GB Mac), for a person-started run on the fast priority; one for every automatic or background run, and one on a
+    cluster task or in a container (its parallelism is array tasks, `source.read.threads-fit-the-machine`)."""
     from fichero_server.core.compute_preferences import priority_for
+    from fichero_server.core.cores import cores_available, is_a_mac_pipeline_host
 
-    if priority_for(person) != "fast" or (os.cpu_count() or 1) < 4:
+    if priority_for(person) != "fast":
         return 1
-    return page_fan_out(PAGES_AT_ONCE)
+    cores, source = cores_available()
+    if not is_a_mac_pipeline_host(source):
+        return 1
+    return page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+
 
 #: The environment variables the thread pools around torch read when they load.
 _THREAD_POOL_ENV = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
@@ -993,6 +1004,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
             threads = max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
+            _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)
@@ -1028,6 +1040,20 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     if not ok:
         raise value  # type: ignore[misc]
     return value  # type: ignore[return-value]
+
+
+def _note_threads_chosen(threads: int, pipelines: int) -> None:
+    """The numbers chosen for this page, in the run's Activity details: where the cores came from, how many, how many pages
+    at once, and the torch threads each gets (`source.read.threads-fit-the-machine`, #5953)."""
+    from fichero_server.core.cores import cores_available
+    from fichero_server.execution import jobs
+
+    cores, source = cores_available()
+    try:
+        jobs.note_call_log(f"Threads: {threads} torch thread{'s' if threads != 1 else ''} a page; {cores} cores "
+                           f"available ({source}), {pipelines} page{'s' if pipelines != 1 else ''} at once")
+    except Exception:  # noqa: BLE001 -- a note never fails a page
+        logger.debug("could not note the thread numbers", exc_info=True)
 
 
 def _field(item: object, name: str) -> object:
@@ -1259,14 +1285,69 @@ def _line_confidence(record: object) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
-def _own_copy(task: object) -> object:
-    """This page's own reader (`source.read.two-pages-at-once`): Kraken keeps a page's state on the model object
-    (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber each
-    other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three). A deep copy is the
-    reader's 16M weights, about 60 MB, once a page."""
-    import copy
+class _ReaderPool:
+    """The readers pages read through (`runtime.kraken.no-reader-copy-per-page`, #5952). Kraken keeps a page's state on the
+    model object (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber
+    each other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three): each page in
+    flight needs a reader of its own. It used to be a fresh deep copy for every page (the reader's 16M weights, about 60 MB,
+    a page); now a copy is made once for each pipeline (at most as many as pages at once) and handed from page to page: a
+    page takes an idle copy, or makes one when none is idle, and gives it back when it ends well. A copy a failed page held is
+    dropped, not reused. The pool is a resident of its own (`_RESIDENT`), so it is freed with the model."""
 
-    return copy.deepcopy(task)
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._idle: list[object] = []
+        self._template: object | None = None
+        self.copies_made = 0
+        self.live = 0  # copies that exist: idle ones and those pages hold
+
+    def checkout(self, template: object) -> object:
+        import copy
+
+        with self._lock:
+            if self._template is not template:  # the model it was copied from is gone
+                self._idle.clear()
+                self.live = 0
+                self._template = template
+            if self._idle:
+                return self._idle.pop()
+            self.copies_made += 1
+            self.live += 1
+        return copy.deepcopy(template)
+
+    def checkin(self, reader: object, template: object, keep: int | None = None) -> None:
+        """A page ended well: its copy goes idle, unless more copies exist than `keep` (the pages at once now allowed): idle
+        copies are trimmed to `keep` as pages end, and this one is dropped when none are left to trim."""
+        with self._lock:
+            if self._template is not template:
+                return
+            while keep is not None and self.live > keep and self._idle:
+                self._idle.pop()
+                self.live -= 1
+            if keep is not None and self.live > keep:
+                self.live -= 1
+            else:
+                self._idle.append(reader)
+
+    def drop(self, template: object) -> None:
+        """A page failed holding a copy: it is not reused."""
+        with self._lock:
+            if self._template is template:
+                self.live -= 1
+
+
+@contextlib.contextmanager
+def _own_reader(model_path: str, load: Callable[[], object]):
+    """This page's own reader for `model_path`: an idle copy, or a new one only when every copy is in use."""
+    template = _resident("read", model_path, load)
+    pool = _resident("read-copies", model_path, _ReaderPool)
+    reader = pool.checkout(template)  # type: ignore[attr-defined]
+    try:
+        yield reader
+    except BaseException:
+        pool.drop(template)  # type: ignore[attr-defined]  # a failed page's copy is not reused
+        raise
+    pool.checkin(reader, template, _INFERENCE_LOCK.last_allowed)  # type: ignore[attr-defined]
 
 
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
@@ -1287,9 +1368,9 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
-        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
-        with _stage("recognise"):
-            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
+            with _stage("recognise"):
+                predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
     for index, line in enumerate(lines):
@@ -1366,11 +1447,9 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
             lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
                    for ln in usable],
             regions={}, line_orders=[])
-        # This page's own handle (`_own_copy`): two pages reading their found lines at once clobbered one reader's state
-        # ("list index out of range", M4 realrun 2026-10-20: the lines Find Regions keeps made Read take this path).
-        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
-        with _stage("recognise"):
-            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
+            with _stage("recognise"):
+                predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
                                      char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
                                      or None)
