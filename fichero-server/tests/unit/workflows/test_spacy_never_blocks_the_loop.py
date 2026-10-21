@@ -86,7 +86,8 @@ def _runs_spacy(src=SRC):
 
 def test_no_async_function_runs_spacy_on_the_loop():
     """The guard: an `async def` in the engine calling a function that runs a spaCy pipeline (found from the pipeline loads, to a
-    fixed point, across every module, through aliased imports), outside a nested function (what `asyncio.to_thread` is handed),
+    fixed point, across every module, through aliased imports; module-level functions only: a method is called by a name every class
+    shares, so following methods would need type information), outside a nested function (what `asyncio.to_thread` is handed),
     runs spaCy on the loop (`runtime.spacy.never-blocks`)."""
     reaching = _runs_spacy()
     assert {"extract_entities", "propose_triples", "predicate_problem", "_spacy_page_claims"} <= reaching, sorted(reaching)

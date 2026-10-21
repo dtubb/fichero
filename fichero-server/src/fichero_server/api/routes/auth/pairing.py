@@ -338,7 +338,7 @@ def _invited_person(request: Request, app_db: AppDatabase, username: str | None)
     if not (username or "").strip():
         return None
     if not _use_multiuser_auth():
-        raise HTTPException(status_code=422, detail="inviting a person needs Multi-user on")
+        raise HTTPException(status_code=409, detail="inviting a person needs Multi-user on")
     session_user = _current_session_user(request)
     if not (session_user and session_user.is_owner):
         # Not the ambient start-up key (loopback + bootstrap): inviting a person is an owner's act, signed in.
@@ -346,7 +346,7 @@ def _invited_person(request: Request, app_db: AppDatabase, username: str | None)
     person = app_db.get_user_by_username(username.strip())
     if person is None:
         if not _USERNAME.match(username.strip()):
-            raise HTTPException(status_code=422, detail="a username is letters, digits, . _ - (up to 64)")
+            raise HTTPException(status_code=400, detail="a username is letters, digits, . _ - (up to 64)")
         if app_db.username_taken(username):  # the same name in another case: not a new person, and not that one
             raise HTTPException(status_code=409, detail="a person with that name exists (it differs only in case): use their name exactly")
         return None
@@ -669,11 +669,11 @@ def create_pairing_code(
     new_name = named if named and invited is None else None
     person_name = invited.username if invited else new_name
     if person_name is None and (body.never_expires or body.expires_in_days is not None):
-        raise HTTPException(status_code=422, detail="a lifetime is for an invitation to a named person")
+        raise HTTPException(status_code=400, detail="a lifetime is for an invitation to a named person")
     library_path = None
     folder_id = (body.folder_id or "").strip() or None
     if folder_id and person_name is None:
-        raise HTTPException(status_code=422, detail="a folder is shared with a named person: name who it is for")
+        raise HTTPException(status_code=400, detail="a folder is shared with a named person: name who it is for")
     granted_role = None  # the role this invitation really gives; the answer, the list and the audit all say this
     if person_name is not None:
         from fichero_server.security import authz
@@ -688,15 +688,15 @@ def create_pairing_code(
             library_path = authz.normalize_library_path(library)
         if folder_id:
             if library_path is None:
-                raise HTTPException(status_code=422, detail="a folder is shared from a project: open it (or name it) and share again")
+                raise HTTPException(status_code=409, detail="a folder is shared from a project: open it (or name it) and share again")
             try:
                 authz.folder_of_library(library_path, folder_id)
             except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         if invited is None:
             if library_path is None:
                 raise HTTPException(
-                    status_code=422,
+                    status_code=409,
                     detail="a new person needs a library to be invited to: open one (or name it) and invite again",
                 )
             granted_role = body.role
@@ -746,7 +746,7 @@ def create_pairing_code(
         try:
             tailnet_url = validate_tailnet_url(tailnet_url)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            raise HTTPException(status_code=409, detail=str(exc)) from exc  # the host's own sharing address is not usable
     record = _PAIRING_CODES[code]
     if person_name:  # every mint is audited: who, for whom, what role on which library, until when (never the code)
         get_app_db().save_action_audit(ActionAudit(

@@ -24,3 +24,9 @@ def test_the_arms_alternate_their_order_on_each_repeat():
     bench.compare(lambda: order.append("page"), lambda: order.append("pipe"), 4)
     assert order[:2] == ["page", "pipe"]  # the warm-up
     assert order[2:] == ["page", "pipe", "pipe", "page", "page", "pipe", "pipe", "page"]
+
+
+def test_a_texts_folder_with_no_pages_says_so_and_exits(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["spacy_pipe_bench.py", "--texts", str(tmp_path)])
+    assert bench.main() == 1
+    assert "no *.txt pages" in capsys.readouterr().out

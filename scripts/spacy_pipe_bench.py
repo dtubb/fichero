@@ -66,7 +66,10 @@ def main() -> int:
 
     if args.texts:
         texts = [p.read_text() for p in sorted(Path(args.texts).glob("*.txt"))][: args.pages]
-        words = sum(len(t.split()) for t in texts) // max(1, len(texts))
+        if not texts:
+            print(f"no *.txt pages in {args.texts}: nothing to time")
+            return 1
+        words = sum(len(t.split()) for t in texts) // len(texts)
         print(f"{len(texts)} real pages from {args.texts}, about {words} words each, batch_size={args.batch_size}, median of {args.repeats}")
     else:
         texts = [passage(args.words, i) for i in range(args.pages)]
