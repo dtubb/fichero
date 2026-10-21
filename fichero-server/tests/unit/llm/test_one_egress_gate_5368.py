@@ -9,6 +9,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 from fichero_server import llm
 from fichero_server.llm import EgressRefusedError, LLMConfig, LocalOnlyViolationError
@@ -79,7 +80,12 @@ def test_a_project_that_has_not_said_yes_sends_nothing_on_any_path(tmp_path, sen
     assert "keeps its pages on this Mac" in words and "openai" in words and "Set Up" in words and "Proj" in words
 
 
-def test_a_project_that_said_yes_may_send(tmp_path, sent):
+def test_a_project_that_said_yes_may_send(tmp_path, sent, monkeypatch):
+    from fichero_server.llm import usage
+
+    # the spending cap refuses an unpriced model: the test model carries a listed price, the cap stays on
+    monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": {
+        "input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5})
     done = _under(_project(tmp_path, "cloud_allowed: true\n"))
     try:
         with pytest.raises(RuntimeError, match="fake provider was reached"):
@@ -156,7 +162,7 @@ def test_the_one_factory_builds_every_provider_client_and_the_gate_is_its_first_
     sdk = ("langchain_openai", "langchain_anthropic", "langchain_google_genai", "langchain_ollama", "langchain_groq",
            "langchain_mistralai", "openai", "anthropic")
     offenders = []
-    for path in SRC.rglob("*.py"):
+    for path in scan_rglob(SRC, "*.py"):
         if path == Path(llm.__file__):
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
