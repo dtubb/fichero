@@ -66,7 +66,7 @@ extension SidebarItemRow {
             lockedRowBadge
             trailingOpenAffordance
             #else
-            if rowIsLocked {
+            if rowIsLocked || rowReadFlag != nil {
                 Spacer(minLength: 4)
                 lockedRowBadge
             }
@@ -122,8 +122,22 @@ extension SidebarItemRow {
         return false
     }
 
+    var rowReadFlag: ReadFlag? {
+        if case .document(let doc) = item.itemType { return doc.readFlag }
+        return nil
+    }
+
     @ViewBuilder
     var lockedRowBadge: some View {
+        // A page whose read is not trusted carries the same mark as the library row and the Inspector (#6003).
+        if let flag = rowReadFlag {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(flag.note)
+                .accessibilityLabel(flag.note)
+                .accessibilityIdentifier("sidebar.row.readFlag")
+        }
         if rowIsLocked {
             Image(systemName: "lock.fill")
                 .font(.caption2)
