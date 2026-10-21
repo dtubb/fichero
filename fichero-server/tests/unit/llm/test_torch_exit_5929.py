@@ -19,11 +19,9 @@ import pytest
 pytestmark = pytest.mark.skipif(
     sys.platform != "darwin" or importlib.util.find_spec("torch") is None, reason="macOS with torch only (the M4)")
 
-TRIGGER = pytest.mark.xfail(reason="#5929: loading Kraken's model (vgsl builds a Core ML model) and running it on mps aborts "
-                                   "the process at exit on macOS 27 (SIGABRT, MetalShaderLibrary destructor); red until nothing "
-                                   "reaches `exit()` with it loaded", strict=True)
-UNKNOWN = pytest.mark.xfail(reason="#5929: which half of the trigger (the Core ML load or the mps forward) is not known; "
-                                   "reports XFAIL (it aborts) or XPASS (clean) without failing the run", strict=False)
+TRIGGER = pytest.mark.xfail(reason="#5929: loading Kraken's model (vgsl builds a Core ML model) aborts the process at exit on "
+                                   "macOS 27 (SIGABRT, MetalShaderLibrary destructor), on mps or the CPU; the engine's way out "
+                                   "(`core.fast_exit.leave`) is the fix, so the bare process stays an expected failure", strict=True)
 BLLA = ("import torch; from importlib import resources; from kraken.lib import vgsl; "
         "m = vgsl.TorchVGSLModel.load_model(resources.files('kraken').joinpath('blla.mlmodel')); ")
 BLLA_FORWARD = "m.nn.eval(); torch.no_grad().__enter__(); m.nn(torch.zeros(1, 3, 512, 512, device={device!r}))"
@@ -43,9 +41,10 @@ CASES = [
                  "l(torch.randn(10, 1, 16, device='mps'))[0].sum().item()", 0),
     # The trigger: Kraken's own segmenter loaded and run on mps, as the engine does when the person chose the GPU (exit -6).
     pytest.param("mps-kraken-blla", BLLA + "m.nn.to('mps'); " + BLLA_FORWARD.format(device="mps"), 0, marks=TRIGGER),
-    # Which half: the same load with the forward on the CPU (the engine's default device), and the load alone.
-    pytest.param("cpu-kraken-blla", BLLA + BLLA_FORWARD.format(device="cpu"), 0, marks=UNKNOWN),
-    pytest.param("kraken-load-only", BLLA.rstrip("; "), 0, marks=UNKNOWN),
+    # M4 2026-10-20: the same load with the forward on the CPU (the engine's default device), and the load alone, abort too:
+    # the trigger is the model load (vgsl + coremltools), not mps.
+    pytest.param("cpu-kraken-blla", BLLA + BLLA_FORWARD.format(device="cpu"), 0, marks=TRIGGER),
+    pytest.param("kraken-load-only", BLLA.rstrip("; "), 0, marks=TRIGGER),
     # The fix: the engine's way out (`fichero_server.core.fast_exit.leave`: every database closed, logs flushed, then
     # `os._exit`) leaves the process that took the trigger with its own status. Red until the module exists.
     ("mps-kraken-blla-left-by-the-engines-exit", "import sys; " + BLLA + "m.nn.to('mps'); " + BLLA_FORWARD.format(device="mps") + FAST_EXIT, 0),
