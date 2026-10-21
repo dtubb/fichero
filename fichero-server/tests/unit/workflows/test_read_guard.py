@@ -31,6 +31,8 @@ from fichero_server.llm.read_guard import (
     read_flag_of,
 )
 
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
+
 #: The measured loop, shaped as the model wrote it: a start of real text, then the loop.
 LOOP = "En la ciudad de Santa Fe a diez dias del mes de mayo " + "Vtho Vntoré " * 60
 #: A real notarial paragraph: formulae recur ("en la dicha ciudad", "dicho escribano") but never loop.
