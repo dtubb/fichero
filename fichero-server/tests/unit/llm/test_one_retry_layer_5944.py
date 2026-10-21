@@ -178,12 +178,15 @@ def test_a_chat_turn_that_gets_a_429_then_an_answer_is_answered(tmp_path, monkey
 
     from fichero_server.actions.registry import ActionContext
     from fichero_server.api.routes.system import chat
+    from fichero_server.llm import usage
 
     @contextlib.asynccontextmanager
     async def slot(config, *, library=None, subject=None):
         yield
 
     monkeypatch.setattr(llm, "_model_call_slot", slot)
+    monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": (
+        {"input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5} if model == "gpt-test" else None))  # a listed price: the cap stays
     tries = []
 
     class Model:

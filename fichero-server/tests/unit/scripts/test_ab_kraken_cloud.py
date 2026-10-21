@@ -387,6 +387,20 @@ def test_the_report_counts_each_arms_off_script_lines(tmp_path):
 OPENROUTER_MODELS = (ab.OPENROUTER_CLAUDE, ab.OPENROUTER_GEMINI, ab.OPENROUTER_QWEN)
 
 
+@pytest.fixture(autouse=True)
+def _vendored_price_table(monkeypatch):
+    """The arms are priced by the vendored registry snapshot, never by whatever a machine's downloaded cache or an
+    earlier test left in `_PRICE_TABLE` (the gate's M4 run read 'has no price' for rows the snapshot lists)."""
+    import json as _json
+    from importlib import resources
+
+    from fichero_server.llm import model_types
+
+    table = _json.loads((resources.files("fichero_server.resources") / "model_prices.json").read_text(encoding="utf-8"))
+    table.pop("sample_spec", None)
+    monkeypatch.setattr(model_types, "_PRICE_TABLE", table)
+
+
 @pytest.mark.parametrize("model", OPENROUTER_MODELS)
 def test_each_openrouter_arm_is_priced_by_the_registry(model):
     assert ab.cost_of("openrouter", model, 1000, 1000) is not None, f"{model} has no price: a cap cannot be kept"
