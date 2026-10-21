@@ -1467,6 +1467,9 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     is no longer kept for them (a chat build kept before the reader rule is gone after the next search)."""
     if not languages:
         return
+    # Only a card with a Hugging Face repository pin is kept here: a TrOCR card pins `trocr` and a Kraken repository card
+    # `kraken_hf`, rediscovered by the next search (`hub_cards` rebuilds a kept row as a plain `hf` reader).
+    cards = [card for card in cards if "hf" in card.pin]
     data = _hub_file()
     found = cached_hub()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
