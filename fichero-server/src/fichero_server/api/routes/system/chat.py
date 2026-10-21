@@ -824,6 +824,14 @@ async def chat(
     3. Calls LLM with context + query
     4. Returns response with source citations
     """
+    from fichero_server.recipes.places import bound_project  # noqa: PLC0415
+
+    # Every model call below is made for this project: the gate reads its own rule (`ai.where.egress-at-every-call`, #5368).
+    with bound_project(ctx.library_path):
+        return await _chat(request, db, ctx)
+
+
+async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatResponse:
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
