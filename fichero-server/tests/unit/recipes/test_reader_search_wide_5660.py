@@ -143,11 +143,17 @@ def test_the_finder_lists_the_remote_endpoints_every_time(client, claude_row):
     assert any(COMMA in c["id"] for c in r.json()["items"])
 
 
-def test_keeping_a_search_with_a_trocr_and_a_kraken_card_does_not_fail_on_hf(hub, tmp_path, monkeypatch):
+def test_the_offline_cache_gives_back_a_trocr_and_a_kraken_card_as_they_were(hub, tmp_path, monkeypatch):
     """The defaults matrix's search pass said "the Hugging Face search failed: 'hf'" on every set: `keep_hub` read `pin["hf"]` of a
-    TrOCR card (pin `trocr`) and a Kraken repository card (pin `kraken_hf`), which only carry their own key."""
+    TrOCR card (pin `trocr`) and a Kraken repository card (pin `kraken_hf`). Both are kept, with their own pin, and come back
+    from the offline cache the same (## 840)."""
+    from dataclasses import replace
+
     monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
     found = _search({"de"})
-    assert any("hf" not in c.pin for c in found), "the fixture must hold a card without an hf pin"
-    discovery.keep_hub(found, frozenset({"de"}))  # raised KeyError: 'hf'
-    assert all(c["repo"] for c in discovery.cached_hub().values())
+    trocr = next(c for c in found if "trocr" in c.pin)
+    kraken = replace(trocr, id="kraken:hf/acme/kraken-de@main", pin={"kraken_hf": "acme/kraken-de"}, jobs=frozenset({"read-a-line"}))
+    discovery.keep_hub([*found, kraken], frozenset({"de"}))  # raised KeyError: 'hf'
+    again = {c.id: c for c in discovery.hub_cards(frozenset({"de"}), runnable_only=False)}
+    assert again[trocr.id].pin == trocr.pin and again[trocr.id].jobs == trocr.jobs
+    assert again[kraken.id].pin == {"kraken_hf": "acme/kraken-de"} and again[kraken.id].jobs == frozenset({"read-a-line"})

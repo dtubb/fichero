@@ -476,6 +476,14 @@ _holding_read: ContextVar[bool] = ContextVar("fichero_holding_local_read", defau
 _READ_LOOK_AGAIN_SECONDS = 0.05
 
 
+def reads_in_flight() -> int:
+    """How many requests hold a read slot on the served model right now, across every run's loop: a page, a line reader's batch,
+    a Set Up try, a chat. The lane's release of the served model waits for them (`activity.lane.small-mac-one-heavy-model`)."""
+    with _reads_lock:
+        _readers.difference_update([t for t in _readers if t.done() or t.get_loop().is_closed()])
+        return len(_readers)
+
+
 @contextlib.asynccontextmanager
 async def local_read_slot(at_once: int):
     """Hold one of `at_once` slots on the local model server for one request (#5537). One count for

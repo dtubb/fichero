@@ -69,8 +69,9 @@ def _rows():
 
 @pytest.mark.xfail(strict=True, reason="source.recipe.kraken-reads-cloud-corrects-unsure: not offered as a choice in the Set Up plan (#4951, #5922)")
 def test_the_plan_lists_the_unsure_lines_option_beside_the_cloud_reader():
-    text = repr(_rows())
-    assert "unsure" in text and "claude-reader" in text
+    rows = _rows()
+    assert any(r.get("variant") == "kraken-then-cloud-unsure-lines" for r in rows), "no row carries the unsure-lines variant"
+    assert any(r["card"] == "claude-reader" for r in rows)
 
 
 @pytest.mark.xfail(strict=True, reason="source.onboard.step-candidates-on-the-plan: a candidate row names no place, need, cost or pick (#4951, #5922)")
