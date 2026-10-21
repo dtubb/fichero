@@ -1215,11 +1215,11 @@ and node, not by job); a retry action for failed pages.
 - `activity.details.state-says-why` — **[OK]** (#5561) the state line uses the table's State
   column words and adds the reason: a failed row its recorded cause, a waiting row the throttle's
   reason with the Mac reading it rests on, a running row what it is working on now. Built: the State column's words (`ActivityMonitorRow.stateText(phase:…)`), and a waiting row adds the Mac's reading (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
-- `activity.details.progress-counts` — **[OK]** (#5561, #5555) a row with pages shows pages
+- `activity.details.progress-counts` — **[PARTIAL]** (#5561, #5555; the recipe-row rule changed to counted-once and is unrun until the M4 runs `test_recipe_row_counts_each_page_once_5871.py`) a row with pages shows pages
   done, failed and left with the time left at the pace so far; a row with no pages shows no counts
   rather than "0 of 0". Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
-  A recipe run's row counts the pages of every stage it has started, not only the last (92 of 92 at Read does not read 0 of 92 when Names starts; Fable #13);
-  `fichero-server/tests/unit/recipes/test_recipe_row_progress_does_not_reset_per_stage_2026_10_20.py`.
+  A recipe run's row counts each page once across its stages (`activity.run.pages-counted-once`, #5959): the least of the workflow stages' pages, 0 while a stage has not started; never the stages added (Fable #13 summed them, 92 of 184);
+  `fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py`.
   A try's row has no child rows (its pages live in a scratch copy that is deleted when it ends), so it keeps the
   pages made and tried on its own detail and the tree reads them (Fable review 2026-10-19 #3, built 2026-10-20);
   `fichero-server/tests/unit/jobs/test_a_try_row_counts_its_pages_2026_10_20.py`.
@@ -1502,7 +1502,7 @@ and node, not by job); a retry action for failed pages.
 - `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
   `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). App half built, needs compile (Swift, HELD): `AppState.restartSentence(previousStall:)` appends "The last time it got stuck was <N>s in <module:function>." and the health read keeps `dependencies['previous_stall']` (the generated client's existing map, no regen) in `ConnectionPresentation.lastPreviousStall`; pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift`. LIMIT: the engine reports a stall only in the life AFTER it, so the sentence for the restart in progress cannot carry it (that engine is down); it is added to the NEXT restart sentence and logged when read. Whether the person should see it once the new engine is up (a line in Activity, once) is put to the lead.
   event loop. Already so on the chain head: the app-DB flag reads are cached (`is_paused`, `is_started`, the settings), auth waits off the
-  loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Added: the per-row reads (`name_and_pages`,
+  loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Route guard (#5860): `fichero-server/tests/unit/api/test_activity_jobs_off_the_loop_5860.py` (unrun on the Pro, M4): no database or queue call is made straight in the async route, and each named read goes through `to_thread`. Added: the per-row reads (`name_and_pages`,
   `_remote_row`), the process-tree walk (`ps`) and the machine readings run on threads too, and a battery reading taken on an event loop
   serves the last value and refreshes on a thread, so `pmset` is never waited for there. Pinned by
   `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py` (an AST check that no blocking reading is called in the

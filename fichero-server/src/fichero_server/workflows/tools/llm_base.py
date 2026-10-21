@@ -845,6 +845,7 @@ def _save_artifact_sync(
                 page_content_is_user_edited,
                 page_text_is_derived,
             )
+            from fichero_server.maintenance.page_text_repair import clear_needs_rereading
 
             # Ensure metadata is a mutable dict (NULL in DB parses as None)
             if not isinstance(doc.metadata, dict):
@@ -866,6 +867,7 @@ def _save_artifact_sync(
                 if script_note is not None:
                     doc.metadata["script_classification"] = script_note
                 doc.page_content = cleaned
+                clear_needs_rereading(doc)  # a read wrote the text: the repair's re-read mark is answered
                 # In-progress, NOT completed: a content-producing node may be
                 # one of several pipeline steps. The workflow boundary owns the
                 # flip to completed once the whole run finishes, so the green

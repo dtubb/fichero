@@ -76,7 +76,7 @@ async def test_propagate_single_page_writes_page_content():
             parent_id="parent-pdf",
             page_texts=["Single page OCR text"],
             library_path="/lib",
-        )
+        update_page_content=True)
 
     # page_content must be set on the page child
     assert page.page_content == "Single page OCR text", (
@@ -109,7 +109,7 @@ async def test_propagate_blank_single_page_skips_save():
             parent_id="p",
             page_texts=[""],
             library_path="/lib",
-        )
+        update_page_content=True)
 
     # Blank text → is_blank=True → no save, no embed, page_content untouched
     assert not db.saved, "#2249: blank page must not trigger a DB save"
@@ -144,7 +144,7 @@ async def test_propagate_non_blank_written_blank_skipped():
             parent_id="par",
             page_texts=["Real OCR text", ""],
             library_path="/lib",
-        )
+        update_page_content=True)
 
     # Non-blank page: page_content set AND embedded AND saved
     assert page_text.page_content == "Real OCR text", (

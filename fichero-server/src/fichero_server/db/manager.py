@@ -178,6 +178,15 @@ class DatabaseManager:
                     except Exception:
                         logger.exception("Catalogue narrative migration could not run")
 
+                    # A classifier's JSON that replaced a PDF page's text (the metadata-tools-never-write-page-text fix)
+                    # is replaced by the page's transcription: counted first, audited, a person's text never touched.
+                    try:
+                        from fichero_server.maintenance.page_text_repair import repair_on_open
+
+                        repair_on_open(db)
+                    except Exception:
+                        logger.exception("Page text repair could not run")
+
                     # Seed default workflow presets (Transcribe, Catalogue) into
                     # the GLOBAL library only (#4102) — they're app-level presets,
                     # and a per-library copy made the same "Default Workflows"

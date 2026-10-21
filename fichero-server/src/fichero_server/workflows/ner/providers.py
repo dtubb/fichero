@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -212,8 +213,13 @@ class SpacyNERProvider(BaseNERProvider):
         # "unknown, detect from the text" rather than a wrong forced model.
         effective_language = spacy_ner.normalize_language(language)
         # The pinned pipeline and no other (`runtime.spacy.pin-is-honoured`).
-        spans = spacy_ner.extract_entities(text, language=effective_language, model=self.model_name)
-        clustered = spacy_ner.cluster_aliases(spans)
+        # On a worker thread: the call waits for the spaCy turn and then runs the pipeline, either of which held the
+        # event loop (and every request on it) for as long as another page held the turn (`runtime.spacy.never-blocks`).
+        def _work():
+            found = spacy_ner.extract_entities(text, language=effective_language, model=self.model_name)
+            return found, spacy_ner.cluster_aliases(found)
+
+        spans, clustered = await asyncio.to_thread(_work)
         by_form = {(span.fichero_type, span.text): span for span in spans}
         records: list[ExtractedEntity] = []
         for canonical, aliases in clustered.items():

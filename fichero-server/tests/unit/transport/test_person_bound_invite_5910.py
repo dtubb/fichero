@@ -104,7 +104,7 @@ def test_naming_a_person_needs_multi_user_on(harness):
     """The mint is authenticated, so it may say why; the redeem never does (see the next test)."""
     with pytest.raises(HTTPException) as refused:
         pairing._invited_person(_FakeRequest(), harness.app_db, "alice")
-    assert refused.value.status_code == 422
+    assert refused.value.status_code == 409
 
 
 def test_a_code_that_names_no_person_is_as_before(harness, monkeypatch):
@@ -194,7 +194,7 @@ def test_an_invitation_that_never_expires_is_allowed_and_stays_good(harness, mon
 def test_a_lifetime_belongs_to_an_invitation_to_a_named_person(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     refused = _as(harness, "owner").post("/api/pair/code", json={"never_expires": True})
-    assert refused.status_code == 422
+    assert refused.status_code == 400
 
 
 def test_an_invitation_code_is_longer_than_the_ten_minute_code(harness, monkeypatch):
@@ -210,8 +210,8 @@ def test_a_new_person_sets_their_own_password_and_gets_the_role_on_the_library(h
     assert harness.app_db.get_user_by_username("carol") is None, "no account until the person accepts"
 
     no_password = _redeem(harness, minted["code"])
-    assert no_password.status_code == 422 and "password" in no_password.json()["detail"]
-    assert _redeem(harness, minted["code"], new_password="short").status_code == 422
+    assert no_password.status_code == 400 and "password" in no_password.json()["detail"]
+    assert _redeem(harness, minted["code"], new_password="short").status_code == 400
     assert harness.app_db.get_user_by_username("carol") is None and harness.app_db.list_devices() == []
 
     paired = _redeem(harness, minted["code"], new_password="a long secret")
@@ -325,7 +325,7 @@ def test_an_invitation_defaults_to_the_library_open_when_it_is_minted_and_the_pe
 def test_a_new_person_with_no_library_at_all_is_refused_at_the_mint_in_words(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     refused = _invite(harness, "carol", client=_as(harness, "owner", library=False))
-    assert refused.status_code == 422 and "library" in refused.json()["detail"]
+    assert refused.status_code == 409 and "library" in refused.json()["detail"]
     assert pairing._PAIRING_CODES == {}, "nothing was minted"
 
 
@@ -384,14 +384,14 @@ def test_a_code_being_redeemed_refuses_a_second_redeem_in_words_and_a_refusal_re
     assert busy.status_code == 409 and "being used right now" in busy.json()["detail"]
     assert pairing._PAIRING_CODES[code].claimed is True, "the loser never releases the winner's claim"
     pairing._PAIRING_CODES[code].claimed = False
-    assert _redeem(harness, code).status_code == 422 and pairing._PAIRING_CODES[code].claimed is False, "a refusal releases it"
+    assert _redeem(harness, code).status_code == 400 and pairing._PAIRING_CODES[code].claimed is False, "a refusal releases it"
     assert _redeem(harness, code, new_password="a long secret").status_code == 200
 
 
 def test_a_refused_redeem_hints_the_next_step_in_a_typed_header_not_in_prose(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     new = _redeem(harness, _invite(harness, "carol").json()["code"])
-    assert new.status_code == 422 and new.headers["X-Fichero-Pair-Next"] == "choose-password"
+    assert new.status_code == 400 and new.headers["X-Fichero-Pair-Next"] == "choose-password"
     existing = _redeem(harness, _invite(harness, "alice").json()["code"], bare=True)
     assert existing.status_code == 401 and existing.headers["X-Fichero-Pair-Next"] == "person-required"
 
