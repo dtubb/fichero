@@ -61,8 +61,8 @@ def models(root: Path) -> tuple[dict[str, set[str]], int]:
                 known.add(name)
                 grew = True
     found: dict[str, set[str]] = defaultdict(set)
-    for name, file, _bases in classes:
-        if name in known and name != "BaseModel":
+    for name, file, bases in classes:
+        if name != "BaseModel" and known & set(bases):  # this class derives from a model; a plain class of the same name is not one
             found[name].add(file)
     return found, scanned
 
