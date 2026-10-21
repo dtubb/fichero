@@ -300,6 +300,16 @@ class BackgroundLine(BaseModel):
     total: int = 0
 
 
+class UpNextItem(BaseModel):
+    """One piece of work not yet started (`activity.summary.up-next`, #5960), in the order the lanes will take it."""
+
+    id: str
+    name: str
+    stage: Optional[str] = Field(None, description="Set Up's stage it belongs to, by title; null for work that is none")
+    after: Optional[str] = Field(None, description="what it follows, when it waits for an earlier stage ('Read')")
+    why: str = Field(description="what it waits for, in words")
+
+
 class ActivitySummary(BaseModel):
     """The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):
     the live blocks, the background group, and how many ended runs are folded into History."""
@@ -307,6 +317,8 @@ class ActivitySummary(BaseModel):
     live: list[LiveBlock] = Field(default_factory=list)
     background: list[BackgroundLine] = Field(default_factory=list)
     history: int = 0
+    up_next: list[UpNextItem] = Field(default_factory=list, description=(
+        "work not yet started, in lane order, each with what it waits for (`activity.summary.up-next`, #5960)"))
 
 
 _LIVE_STATES = ("running", "waiting", "paused")
@@ -391,12 +403,29 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     return blocks
 
 
+def up_next(jobs: "list[BackgroundJob]") -> list[UpNextItem]:
+    """The waiting rows of the ordered list, each with what it waits for. A page's row under a run is the run's, not a line.
+
+    ponytail: `after` is read out of a reason that starts "after "; a row that waits for a lane or memory has none."""
+    from fichero_server.recipes.stages import stage_of
+
+    items = []
+    for job in jobs:
+        if job.state != "waiting" or job.parent_id or job.group != "live":
+            continue
+        stage = stage_of(job.task_type)
+        reason = job.reason or "in the queue"
+        items.append(UpNextItem(id=job.id, name=job.name, stage=stage.title if stage else None,
+                                after=reason[len("after "):] if reason.startswith("after ") else None, why=reason))
+    return items
+
+
 async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
                            statuses: "dict[str, dict[str, Any]] | None" = None) -> ActivitySummary:
     """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
     the window can only agree."""
     return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs),
-                           history=sum(1 for j in jobs if j.group == "earlier"))
+                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs))
 
 
 class BackgroundJobsResponse(BaseModel):
