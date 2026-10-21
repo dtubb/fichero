@@ -150,7 +150,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 ### F. iOS
 
 - `multiuser.ios-signs-in-with-the-synced-key` — **[GAP]** (→ #2403) the iPhone/iPad app reads the same synchronizable Keychain key (shared access group where needed), signs in by challenge to a library it has already paired, and shows "Sign in with another device" only when the key has not synced yet (iCloud Keychain off, or the first minutes after enabling). Test: (not yet written: Swift `iOSSignInTests` with a fake signer).
-- `multiuser.ios-no-local-engine-no-bootstrap` — **[OK]** iOS has no local engine, so there is no bootstrap, no first-run and no local-client approval; it is always a remote device client. Test: n/a (documented here so nobody adds one).
+- `multiuser.ios-no-local-engine-no-bootstrap` — **[PARTIAL]** (→ #2403) iOS has no local engine, so there is no bootstrap, no first-run and no local-client approval; it is always a remote device client. Test: n/a (documented here so nobody adds one).
 
 ### G. Migration of existing libraries and device tokens
 
