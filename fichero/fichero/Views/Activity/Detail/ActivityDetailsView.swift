@@ -31,11 +31,7 @@ struct ActivityDetailsView: View {
             if let details {
                 content(details)
             } else {
-                ContentUnavailableView(
-                    "Reading the Row",
-                    systemImage: "clock",
-                    description: Text("The engine has not answered for this row yet.")
-                )
+                Color.clear  // nothing yet means blank (`activity.window.no-empty-prose`)
             }
         }
         // The tree this row needs, read once; later reads are the table's own.

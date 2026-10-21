@@ -160,7 +160,6 @@ struct ActivityStatusToolbarItem: View {
             // rows themselves are the Activity window's.
             ActivityPopoverSummaryView(
                 summary: summary,
-                nothingElseRunning: !isImporting && activityStore.backendWork == nil,
                 openDetails: { jobId in
                     // A failure's row opens Activity's details for that job.
                     showPopover = false
