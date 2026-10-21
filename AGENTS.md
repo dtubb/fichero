@@ -169,7 +169,8 @@ removed; nothing had used them since early September):
   interactive session, logged to a file under `agent-work/status/` and stoppable by a `agent-work/STOP` file.
 - A worktree for work that must not touch the integration checkout is made by hand under
   `~/code/fichero-worktrees/<name>`, **from the branch's HEAD sha** (`git worktree add <path> <sha>`), never
-  from stale local `main` or `origin/main`, which would miss unpushed commits.
+  from stale local `main` or `origin/main`, which would miss unpushed commits. Right after `worktree add`, set its
+  author: `git -C <path> config --worktree user.name Claude && git -C <path> config --worktree user.email noreply@anthropic.com` (the repo default is the maintainer; without this, a commit that forgets `--author` is his).
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
   and **re-dispatches** the next batch. It checks in on workers about every 15 minutes.
@@ -623,7 +624,10 @@ human-authored commit.** The agent doing the work is the git *author* (Claude �
 `Claude <noreply@anthropic.com>`; another model → that model's name); the human who directed it is
 credited by a `Directed-By:` trailer, not by owning the authorship. This is what makes
 `git log --author=Claude` and GitHub's contributor view cleanly separate agent work from the
-maintainer's own edits — a `Co-Authored-By` line does not (it leaves the human as author):
+maintainer's own edits — a `Co-Authored-By` line does not (it leaves the human as author). Every agent worktree
+carries `user.name Claude` / `user.email noreply@anthropic.com` in its `--worktree` config, set at creation (the
+repo default is the maintainer, kept for his checkout, `owner` and `integration`); the `-c` form below covers a
+commit made anywhere else:
 
 ```bash
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
@@ -781,7 +785,7 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
 8. Never start a milestone more than one ahead of what the design lead is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. But once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`; structural changes (table renames, data backfills) belong in `db_migrations.py`.
 10. **New .swift files just work — do NOT register them.** The `Fichero` main target is a SYNCHRONIZED folder; running `scripts/add-swift-file.rb` on a file it already picked up creates a duplicate build-file warning. Never edit `project.pbxproj` by hand; use `git mv` for moves.
-11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>` (those are SEPARATE projects with their own remotes and uncommitted work). Remove ONLY with `git worktree remove --force <path>`. **NEVER `rm -rf` a `~/code/` path or glob-delete `~/code/fichero-*`.** Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. To build on un-pushed integration-branch state, create the worktree from that branch's HEAD sha explicitly (`git worktree add <path> <sha>`) — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
+11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main`, then at once `git -C <path> config --worktree user.name Claude && git -C <path> config --worktree user.email noreply@anthropic.com` — never as bare siblings `~/code/fichero-<name>` (those are SEPARATE projects with their own remotes and uncommitted work). Remove ONLY with `git worktree remove --force <path>`. **NEVER `rm -rf` a `~/code/` path or glob-delete `~/code/fichero-*`.** Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. To build on un-pushed integration-branch state, create the worktree from that branch's HEAD sha explicitly (`git worktree add <path> <sha>`) — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
 12. **No personal names in new or revised code, comments, commits, issues, milestones, or docs.** Speak in ROLES ("the design lead", "the maintainer", "the reviewer") or drop the "who" and keep the date + intent: `(<name>, 2026-08-27)` → `(2026-08-27)`. A name is acceptable ONLY where it materially improves clarity. Genericize an existing mention when you're already editing that file — never a big-bang sweep of the codebase.
 
 ---
