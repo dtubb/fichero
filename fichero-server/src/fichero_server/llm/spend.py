@@ -252,3 +252,19 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
             _RESERVED[library] = max(0.0, _RESERVED.get(library, 0.0) - worst)
             if spent:
                 _book(library, spent, assumed_price=unpriced)
+
+
+def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tuple[str, str]] | None = None) -> dict:
+    """Start's plan: the cap, what is booked this month, what it leaves, and the run's estimate beside them. `over` asks before
+    the run starts; an unknown estimate (a model with no listed price) is `unpriced`, asked about, never a $0. Models with no
+    price the project has not accepted are named in `unpriced_models`; spend booked at an assumed price is listed apart."""
+    cap = cap_usd(library) or 0.0
+    done = booked_usd(library)
+    remaining = max(0.0, cap - done)
+    accepted = accepted_models(library)
+    to_accept = sorted({model_key(provider, model) for provider, model in cloud_models or []
+                        if not has_listed_price(provider, model) and model_key(provider, model) not in accepted})
+    calls, usd = assumed(library)
+    return {"cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
+            "over": estimate_usd is not None and estimate_usd > remaining + 1e-9, "unpriced": estimate_usd is None,
+            "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}
