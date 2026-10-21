@@ -78,3 +78,9 @@ struct SyncedHostAskHost: ViewModifier {
         record = nil
     }
 }
+
+#Preview("Ask for the host's pairing link") {
+    SyncedHostAskSheet(
+        record: SyncedHostRecord(hostURL: "https://studio.local:8765", hostName: "Studio Mac", person: "Ana"),
+        onConnected: {}, onLater: {})
+}
