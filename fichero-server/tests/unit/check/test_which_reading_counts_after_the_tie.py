@@ -60,7 +60,8 @@ def _own_model_stores(tmp_path, monkeypatch):
 def _install(model: str) -> None:
     marker = kraken_runtime._marker_path(model)
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"model_path": "/models/mccatmus.mlmodel"}), encoding="utf-8")
+    (marker.parent / "mccatmus.mlmodel").write_bytes(b"model")  # installed means the file is there (#5857)
+    marker.write_text(json.dumps({"model_path": "mccatmus.mlmodel"}), encoding="utf-8")
 
 
 def _measure(db, page, model: str, reader_kind: str, *, damage: int) -> None:
