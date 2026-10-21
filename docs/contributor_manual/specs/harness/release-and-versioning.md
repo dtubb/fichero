@@ -239,6 +239,22 @@ evidence backs.
   release is about to publish to — `create-github-release.sh` already does this one; folding it
   into the same script keeps every update-readiness check in one place.
 
+## Release scope (owner ruling 2026-10-20)
+
+The next release is about three things, in this order; lane work is sorted by it:
+
+1. **Recipes with cloud AND local models.** Set Up recommends a reader wisely, weighing frontier models (Claude,
+   Gemini) with local ones on the project's own Try pages, with cost per page and per set
+   (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922); the bake-off is the first evidence.
+2. **Sharing**, between the owner's own Macs and with other people (the bar below, #5910).
+3. **Tahoe (macOS 26)**: APIs that exist only on macOS 27 are availability-gated, and the app launches and runs on
+   26 (#5730).
+
+After the release, in this order: the ACENet cluster and Hugging Face training working end to end, then the iPhone.
+
+- `release.scope.three-goals` — **[GAP]** (#5910, #5922, #5730) the release ships when goals 1-3 are met;
+  goal 2 is met by the sharing release bar below.
+
 ## Release bar: sharing (owner ruling 2026-10-20, #5910)
 
 The next release ships only when sharing works solidly. Every item below needs all three before it
@@ -256,6 +272,8 @@ while any box is open.
   - [ ] Two named people pair as themselves through person-bound invites (spec: `sharing.invite`, `multiuser.invite-registers-public-key`, #2403)
   - [ ] Activity reconnects after a Sharing switch (spec: `sharing.toggle-restarts-engine`, #5912)
   - [ ] No engine death on any Sharing or Multi-user switch (spec: `sharing.toggle-restarts-engine`, #5909)
+  - [ ] Another person sees only what the owner shared with them: a project or a folder in it, chosen on its Share… sheet (spec: `sharing.share-sheet-chooses-what`, #5967; owner ruling 2026-10-20)
+- `release.scope.next-release` — **[CONVENTION]** (#5910; owner ruling 2026-10-20) the next release is (1) recipes with cloud and local models, (2) sharing between the owner's own Macs and with other people (the bar above, #5910), and (3) Tahoe: macOS 26.0 is the floor, APIs only macOS 27 has are availability-gated, and the first launch on macOS 26 is on a Tahoe Mac after the release (no Mac here runs Tahoe). After it, in this order: local models working properly (Kraken, MLX, spaCy), then Hugging Face, then ACENet (Canadians and the owner), then the iPhone. Test: n/a (a plan; the release lane checks the bar above).
 
 ## Open questions
 
