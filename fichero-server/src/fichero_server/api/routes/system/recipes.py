@@ -1531,7 +1531,6 @@ async def model_candidates(
         candidate_download,
         candidate_installed,
         candidate_place,
-        remote_compute,
         STEP_SEARCHES,
         discover,
         egress_allowed,
@@ -2271,10 +2270,18 @@ class StartPlan(BaseModel):
         "(source.recipe.folder-scoped-start)"))
 
 
+def _offered_cards(a: Optional[Answers]) -> list[Any]:
+    """Every card a step's menu can list and `use-candidate` can take: the rules' cards, the text models the finder offers beyond
+    them, the person's cloud vision readers and the keyed cloud correctors. ONE list, so a candidate the plan lists can be chosen."""
+    from fichero_server.recipes.discovery import other_text_cards, remote_reader_cards
+
+    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *remote_reader_cards(),
+            *_cloud_correctors(a.cloud_keys if a else ())]
+
+
 def _step_choices_of(setup: dict[str, Any], *, may_leave: bool) -> list[dict[str, Any]]:
     """The plan's per-step candidates over every card the finder knows, local and cloud (`recipes/step_choices.py`). A project
     whose answers cannot be read has none (the plan says why elsewhere)."""
-    from fichero_server.recipes.discovery import other_text_cards, remote_reader_cards
     from fichero_server.recipes.step_choices import step_choices
 
     if not setup["recipe"]:
@@ -2283,9 +2290,7 @@ def _step_choices_of(setup: dict[str, Any], *, may_leave: bool) -> list[dict[str
         a = _answers(setup["answers"]) if setup["answers"] else None
     except ValueError:
         return []
-    cards = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *remote_reader_cards(),
-             *_cloud_correctors(a.cloud_keys if a else ())]
-    return step_choices(setup["recipe"], setup["answers"], cards, may_leave=may_leave)
+    return step_choices(setup["recipe"], setup["answers"], _offered_cards(a), may_leave=may_leave)
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
@@ -2607,13 +2612,11 @@ async def use_candidate_for_step(
         a = _answers(setup["answers"]) if setup["answers"] else None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    from fichero_server.recipes.discovery import other_text_cards
 
     # The rules' cards, and the text models the finder offers a person beyond them (#5660 item 4) that can run.
     # And the keyed cloud correctors: Correct's offer at Ready is taken here (#5677). A text card shares a corrector's
     # id, so the card that does the step's job is the one taken.
-    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here),
-               *_cloud_correctors(a.cloud_keys if a else ())]
+    offered = _offered_cards(a)
     job = next((s.get("job") for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == request.step), None)
     named = [c for c in offered if c.id == request.card]
     card = next((c for c in named if job in c.jobs), named[0] if named else None)

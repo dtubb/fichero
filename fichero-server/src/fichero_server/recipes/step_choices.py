@@ -39,6 +39,12 @@ def _needs(card: Any, *, may_leave: bool) -> list[dict[str, str]]:
             out.append({"kind": "permission", "words": "Allow pages to be sent to a cloud service for this project"})
         if str(card.id).endswith("@settings"):  # a provider with no row yet (remote_reader_cards)
             out.append({"kind": "key", "words": f"Add a {provider.capitalize()} key in Settings › AI"})
+        provider_model = (card.pin.get("cloud"), card.pin.get("model"))
+        if all(provider_model):
+            from fichero_server.llm.spend import has_listed_price
+
+            if not has_listed_price(*provider_model):  # accepted at Start (`accept_unpriced`), so it does not block the choice
+                out.append({"kind": "price", "words": "No listed price: Start asks you to accept it, counted at an assumed price"})
     elif getattr(card, "installed", None) is False:
         out.append({"kind": "download", "words": "Download the model first"})
     return out
@@ -49,7 +55,7 @@ def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | No
     return {"card": card.id, "name": card.note.strip().rstrip(".") or card.id, "how": _how(card, job),
             "runs_on": card.runs_on, "local": not str(card.runs_on).startswith("cloud:"),
             "picked": card.id == picked, "recommended": card.id == recommended,
-            "available": not needs, "needs": needs, "cost_usd": None,
+            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": None,
             "measured": ("CER %.1f%% on your pages" % (card.cer_measured_here * 100)
                          if card.cer_measured_here is not None else "not yet measured on your pages")}
 
@@ -67,9 +73,9 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
         own = (step.get("card") or {}).get("id")
         picked = (override or {}).get("card") or own
         listed = step_candidates(cards, job, frozenset({picked} if picked else ()))
-        # Set Up's own pick is the first candidate the rules keep (no `offered_only`); a person's choice is marked apart.
-        rules = next((c for c in listed if not c.offered_only and not _needs(c, may_leave=may_leave)), None)
-        recommended = (own if not override else (rules.id if rules else None))
+        # `recommended` is Set Up's pick, known only while it stands: under a person's choice the pick is not stored, so
+        # nothing is marked (taking the choice back, use-setup-pick, shows it again) rather than guessing one.
+        recommended = None if override else own
         out.append({"step": step.get("id"), "job": job, "name": _STAGE_WORDS.get(job, job), "picked": picked,
                     "chosen_by": "person" if override else "setup",
                     "candidates": [_candidate(c, job, picked=picked, recommended=recommended, may_leave=may_leave)

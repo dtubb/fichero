@@ -31,11 +31,14 @@ def test_a_cloud_reader_in_the_pool_makes_the_cloud_question_name_the_read_step(
     assert "read-a-line" in recipe["cloud_options"]  # assemble counts any cloud card it is given; the pool is what is short
 
 
-@pytest.mark.xfail(strict=True, reason="source.recipe.reader-pick-from-the-material: unmeasured, the specialist tier wins (#4951)")
-def test_handwriting_with_the_permission_and_a_key_picks_the_cloud_reader():
+def test_handwriting_with_the_permission_and_a_key_picks_the_cloud_reader_and_says_it_is_unmeasured():
+    """`source.recipe.reader-pick-from-the-material`: the cloud reader is the person's provider row (`readers`), the rules' pick is the chain's next."""
     answers = _handwriting(cloud_allowed=True, cloud_keys=("anthropic",))
-    step = next(s for s in assemble(answers, [*CARDS, CLOUD_READER])["steps"] if s["job"] == "read-a-line")
-    assert str(step["runs_on"]).startswith("cloud:")
+    step = next(s for s in assemble(answers, CARDS, readers=[CLOUD_READER])["steps"] if s["job"] == "read-a-line")
+    assert str(step["runs_on"]).startswith("cloud:") and any("unmeasured" in r for r in step["reasons"])
+    assert step["chain"] and not str(step["chain"][0]["runs_on"]).startswith("cloud:")
+    no_key = assemble(_handwriting(cloud_allowed=True), CARDS, readers=[CLOUD_READER])
+    assert next(s for s in no_key["steps"] if s["job"] == "read-a-line")["runs_on"] == "this-mac"
 
 
 def test_without_the_permission_or_for_print_the_local_pick_stands():
@@ -74,11 +77,7 @@ def test_the_plan_lists_the_unsure_lines_option_beside_the_cloud_reader():
     assert any(r["card"] == "claude-reader" for r in rows)
 
 
-@pytest.mark.xfail(strict=True, reason="source.onboard.step-candidates-on-the-plan: a candidate row names no place, need, cost or pick (#4951, #5922)")
-def test_each_step_lists_its_candidates_with_place_need_cost_and_one_pick():
-    rows = _rows()
-    assert rows and all({"where", "needs", "cost", "picked"} <= set(r) for r in rows)
-    assert sum(1 for r in rows if r["picked"]) == 1
+# The plan's per-step candidates are pinned in test_step_choices_on_the_plan.py (the settled `StartPlan.step_choices` shape).
 
 
 @pytest.mark.xfail(strict=True, reason="source.onboard.step-choice-overrides-the-pick: a saved cloud choice with no key is not yet said in place (#4951)")
