@@ -50,7 +50,7 @@ def _needs(card: Any, *, may_leave: bool) -> list[dict[str, str]]:
     return out
 
 
-def _cost(card: Any, pages: int | None) -> dict[str, Any] | None:
+def _cost(card: Any, pages: int | None, how: str = "") -> dict[str, Any] | None:
     """The candidate's cost for the whole set before Start (an estimate from the price list; `TryCost`'s shape): free on this Mac,
     the price per page times the pages for a priced cloud model, unknown for one with no listed price, none before the pages are counted."""
     from fichero_server.recipes.assemble import _page_price
@@ -62,8 +62,11 @@ def _cost(card: Any, pages: int | None) -> dict[str, Any] | None:
         return {"value": None, "basis": "unknown", "measured": False, "from": "no listed price"}
     if not pages:
         return None
-    return {"value": round(price * pages, 2), "basis": "estimate", "measured": False,
-            "from": f"the price list, {pages:,} {'page' if pages == 1 else 'pages'}"}
+    count = f"{pages:,} {'page' if pages == 1 else 'pages'}"
+    if how == "kraken-then-cloud-corrects":  # only the unsure lines are re-read, so the whole-page figure is the most it can cost
+        return {"value": round(price * pages, 2), "basis": "upper bound", "measured": False,
+                "from": f"the price list, at most {count} (only the unsure lines are sent)"}
+    return {"value": round(price * pages, 2), "basis": "estimate", "measured": False, "from": f"the price list, {count}"}
 
 
 def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | None, may_leave: bool,
@@ -72,7 +75,7 @@ def _candidate(card: Any, job: str, *, picked: str | None, recommended: str | No
     return {"card": card.id, "name": card.note.strip().rstrip(".") or card.id, "how": _how(card, job),
             "runs_on": card.runs_on, "local": not str(card.runs_on).startswith("cloud:"),
             "picked": card.id == picked, "recommended": card.id == recommended,
-            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": _cost(card, pages),
+            "available": not [n for n in needs if n["kind"] != "price"], "needs": needs, "cost_usd": _cost(card, pages, _how(card, job)),
             "measured": ("CER %.1f%% on your pages" % (card.cer_measured_here * 100)
                          if card.cer_measured_here is not None else "not yet measured on your pages")}
 
