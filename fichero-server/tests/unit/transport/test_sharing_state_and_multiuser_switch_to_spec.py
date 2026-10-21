@@ -117,6 +117,7 @@ def test_the_multiuser_answer_names_the_audit_row_for_undo(test_package, app_db,
     _an_owner_with_a_chosen_password(app_db)
     monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
     ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
-    answer = pairing.set_multiuser(SimpleNamespace(), pairing.MultiuserRequest(enabled=True), app_db,
+    owner_session = SimpleNamespace(state=SimpleNamespace(session=object()))  # the route wants the owner's signed-in session (#5908)
+    answer = pairing.set_multiuser(owner_session, pairing.MultiuserRequest(enabled=True), app_db,
                                    db_manager.get_database(test_package), ctx)
     assert answer.audit_id
