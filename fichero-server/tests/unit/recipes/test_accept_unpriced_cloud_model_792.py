@@ -87,3 +87,18 @@ def test_the_plan_line_names_unaccepted_models_and_lists_assumed_spend_apart(tmp
     assert line["assumed_usd"] == pytest.approx(spend.UNPRICED_CALL_USD)
     assert line["spent_usd"] == pytest.approx(spend.UNPRICED_CALL_USD) and line["cap_usd"] == 10.0
     assert spend.plan_line(library, estimate_usd=9.9)["over"] is True and line["over"] is False
+
+
+def test_an_acceptance_whose_audit_fails_is_not_kept(client, db, monkeypatch):
+    """The file is written inside the action, before the audit row commits: an audit that fails leaves no yes behind."""
+    from fichero_server.actions import audit_chain
+
+    library = _library(db)
+    assert client.post(ACCEPT, json={"provider": "acme", "model": "kept"}).status_code == 200
+
+    def audit_fails(*args, **kwargs):
+        raise RuntimeError("audit down")
+    monkeypatch.setattr(audit_chain, "save_chained_audit", audit_fails)  # the registry imports it per call
+    with pytest.raises(RuntimeError):
+        client.post(ACCEPT, json={"provider": "acme", "model": "lost"})
+    assert spend.accepted_models(library) == ["acme/kept"]

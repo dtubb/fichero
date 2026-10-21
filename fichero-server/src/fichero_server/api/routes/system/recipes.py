@@ -2387,10 +2387,6 @@ class StartParams(BaseModel):
     clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
                                 "Start may use, by name (the route's own, owner-only): the project's cluster binds "
                                 "only to one of them")
-    accept_unpriced: list[str] = Field(default_factory=list, description=(
-        "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
-        "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
-        "(`ai.where.accept-unpriced-cloud-model`)"))
 
 
 class StartRequest(BaseModel):
@@ -2410,6 +2406,24 @@ class StartRequest(BaseModel):
 
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
 NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
+
+
+def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
+    """Start's yes to the cloud models with no listed price it asked about (`StartRequest.accept_unpriced`): each by
+    `cloud.accept_unpriced`, the one accept action. Only a model the plan names can be accepted here."""
+    if not accepted:
+        return
+    try:
+        plan = _start_plan(db, folder_id, clusters=clusters)
+    except LookupError as exc:  # a folder not in the project
+        raise ValueError(str(exc)) from exc
+    asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
+    unknown = [m for m in accepted if m not in asked]
+    if unknown:
+        raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
+    for key in accepted:
+        provider, _, model = key.partition("/")
+        _invoke_accept(db, {"provider": provider, "model": model}, ctx)
 
 
 @router.post("/project/start", response_model=StartPlan, responses={422: {
@@ -2432,9 +2446,11 @@ async def start_project(
     The response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is."""
     folder_id = request.folder_id if request else None
     try:
+        # The yes to a cloud model with no price is its own audited action, taken BEFORE Start's: inside Start's
+        # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
+        _accept_asked(db, request.accept_unpriced if request else [], folder_id, _cluster_names(http), ctx)
         registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
-                                              "clusters": _cluster_names(http),
-                                              "accept_unpriced": request.accept_unpriced if request else []}, ctx)
+                                              "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
@@ -2562,15 +2578,6 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
             raise ValueError(NO_MATERIAL)
-        if params.accept_unpriced:  # Start asked about cloud models with no price; this is the yes, by the one accept action
-            asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
-            unknown = [m for m in params.accept_unpriced if m not in asked]
-            if unknown:
-                raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
-            for key in params.accept_unpriced:
-                provider, _, model = key.partition("/")
-                registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner
@@ -3061,6 +3068,20 @@ def _action_accept_unpriced(db: Database, params: AcceptUnpricedRequest, ctx: Ac
                                           "accepted": before}, after={**mark, "accepted": kept}, emit_type="project.cloud_accepted")
 
 
+def _invoke_accept(db: Database, params: dict, ctx: ActionContext):
+    """`cloud.accept_unpriced`, with the acceptance file put back if the action fails: the file is written inside the action,
+    before its audit row commits, so an audit that fails must not leave a yes with no record of who gave it."""
+    from fichero_server.llm import spend
+
+    library = _library(db)
+    before = spend.accepted_models(library)
+    try:
+        return registry.invoke(db, "cloud.accept_unpriced", params, ctx)
+    except BaseException:
+        spend.restore_accepted(library, before)
+        raise
+
+
 @router.post("/cloud/accept-unpriced", response_model=AcceptedUnpriced)
 async def accept_unpriced_cloud_model(
     request: AcceptUnpricedRequest,
@@ -3070,4 +3091,4 @@ async def accept_unpriced_cloud_model(
     """Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an
     assumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the
     one Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers."""
-    return AcceptedUnpriced(**registry.invoke(db, "cloud.accept_unpriced", request.model_dump(), ctx))
+    return AcceptedUnpriced(**_invoke_accept(db, request.model_dump(), ctx).result)
