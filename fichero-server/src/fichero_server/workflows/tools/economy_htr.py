@@ -137,7 +137,7 @@ def _load_trocr(model_id: str) -> tuple[Any, Any, str]:
     if model_id in _TROCR_CACHE:
         return _TROCR_CACHE[model_id]
     try:
-        import torch
+        import torch  # noqa: F401  (a presence check: the backend needs torch)
         from transformers import TrOCRProcessor, VisionEncoderDecoderModel
     except ImportError as exc:
         raise RuntimeError(
