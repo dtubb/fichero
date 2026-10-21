@@ -72,3 +72,14 @@ def test_choosing_the_password_ends_the_owners_other_sessions_but_not_the_one_th
     assert client.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}, headers=mine.headers).status_code == 200
     assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=mine.headers).status_code == 200, "the same session carries on"
     assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=other.headers).status_code == 401, "the other one ended"
+
+
+def test_an_owner_setting_another_owners_password_ends_all_of_that_persons_sessions(harness, monkeypatch):
+    owner, _ann = _people(harness, monkeypatch)
+    bo = harness.app_db.create_user(username="bo", display_name="Bo", password_hash=accounts.hash_password("x" * 8), is_owner=True)
+    mine = signed_in_client(harness, owner)
+    theirs = signed_in_client(harness, bo)
+    client = harness.client()
+    assert client.patch(f"/api/users/{bo.id}", json={"password": "set for them"}, headers=mine.headers).status_code == 200
+    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=theirs.headers).status_code == 401, "their session ended"
+    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=mine.headers).status_code != 401, "the admin's own stays"
