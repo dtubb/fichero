@@ -39,9 +39,12 @@ def test_main_starts_and_answers_health_on_its_socket():
     home = tempfile.mkdtemp(prefix="fem-")
     sock_dir = tempfile.mkdtemp(dir="/tmp", prefix="fem-")          # sun_path caps near 104 bytes
     sock_path = str(Path(sock_dir) / "e.sock")
+    # Its own state: the pytest process may hold app.duckdb at the inherited FICHERO_BASE_PATH (earlier tests open the app DB
+    # in-process), and a second process cannot lock it; nothing of the shell's or the suite's FICHERO_* reaches the engine.
     env = {
-        **os.environ,
+        **{key: value for key, value in os.environ.items() if not key.startswith("FICHERO_")},
         "HOME": home,
+        "FICHERO_BASE_PATH": home,
         "FICHERO_UDS_PATH": sock_path,
         "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-serves",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
