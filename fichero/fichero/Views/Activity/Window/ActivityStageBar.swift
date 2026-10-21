@@ -97,11 +97,11 @@ struct ActivityStageBar: View {
 private struct Hatch: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        var x = -rect.height
-        while x < rect.width {
-            path.move(to: CGPoint(x: x, y: rect.height))
-            path.addLine(to: CGPoint(x: x + rect.height, y: 0))
-            x += 4
+        var start = -rect.height
+        while start < rect.width {
+            path.move(to: CGPoint(x: start, y: rect.height))
+            path.addLine(to: CGPoint(x: start + rect.height, y: 0))
+            start += 4
         }
         return path
     }
