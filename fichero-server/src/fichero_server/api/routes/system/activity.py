@@ -857,15 +857,19 @@ def _cut(node: dict[str, Any], depth: int) -> None:
 
 
 def _recipe_pages_done(status: dict[str, Any]) -> int:
-    """A recipe run's pages done over every workflow stage it has started (#5615): the sum of the stages' run accounts,
-    so a 92-page recipe at Read 92 of 92 does not read 0 of 92 the moment Names starts (Fable review #13); 0 before
-    one starts."""
-    return sum(s["account"].pages_done for s in status["steps"] if s.get("account") is not None)
+    """A recipe run's pages done, each page counted ONCE (`activity.run.pages-counted-once`, #5959, #5871): a page is done when
+    every workflow stage has done it, so the run reads the least of its stages, and 0 while a stage has not started (a
+    92-page run over three stages reads "36 of 92", never "184 of 276"). The stage that is working is named by the row's
+    reason ("Reading lines: 46 of 92")."""
+    stages = [s for s in status["steps"] if s.get("card") == "workflow"]
+    if not stages or any(s.get("account") is None for s in stages):
+        return 0
+    return min(s["account"].pages_done for s in stages)
 
 
 def _recipe_pages_in_all(status: dict[str, Any], pages: int) -> int:
-    """The run's pages in all: its pages, or the stages' pages together once more than one stage has started."""
-    return max(pages, sum(s["account"].pages_total for s in status["steps"] if s.get("account") is not None))
+    """The run's pages in all: its own pages, or the most any one stage has (never the stages' pages added together)."""
+    return max([pages, *(s["account"].pages_total for s in status["steps"] if s.get("account") is not None)])
 
 
 async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:
