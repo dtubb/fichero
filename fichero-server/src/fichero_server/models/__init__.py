@@ -250,6 +250,7 @@ class ReadFlagInfo(BaseModel):
 
     kind: str
     reason: str
+    measure: dict[str, Any] | None = None  # what a flagged read measured (`read_guard.ReadFlag.measure`), when it says
 
 
 class Document(BaseModel):

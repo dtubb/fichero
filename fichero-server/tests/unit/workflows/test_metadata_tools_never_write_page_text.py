@@ -189,7 +189,7 @@ def test_a_later_successful_read_clears_the_needs_re_reading_flag_and_a_metadata
 def test_the_flag_is_typed_on_the_document_and_the_inspector_responses(client, db):
     page = _overwritten(db, transcript=False)
     page_text_repair.repair_on_open(db)
-    expected = {"kind": page_text_repair.NEEDS_REREADING,
+    expected = {"kind": page_text_repair.NEEDS_REREADING, "measure": None,
                 "reason": "a classifier's answer had replaced this page's text and no transcription or text layer is left "
                           "to restore it from: read the page again"}
     assert client.get(f"/api/documents/{page.id}").json()["read_flag"] == expected
@@ -206,3 +206,12 @@ def test_the_repair_queues_the_embed_and_does_not_run_it_inline(db, monkeypatch)
     monkeypatch.setattr(db, "embed", lambda *_a, **_k: pytest.fail("the repair embedded inline"), raising=False)
     page_text_repair.repair_on_open(db)
     assert queued == [[page.id]]
+
+
+def test_a_flagged_reads_measure_rides_on_the_typed_flag():
+    from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, typed_read_flag
+
+    flag = ReadFlag(kind="repetition", reason="the same phrase twelve times", measure={"repeats": 12})
+    holder = Document(name="p", doc_type=DocType.page, metadata={READ_FLAG_KEY: flag.as_data()})
+    info = typed_read_flag(holder)
+    assert (info.kind, info.reason, info.measure) == ("repetition", "the same phrase twelve times", {"repeats": 12})
