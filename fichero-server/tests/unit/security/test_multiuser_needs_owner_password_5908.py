@@ -59,7 +59,7 @@ def _update(app_db, monkeypatch, user_id, **fields):
     caller = fields.pop("caller", None) or next(u for u in app_db.list_users() if u.is_owner)
     start_up_key = fields.pop("bootstrap", False)
     request = SimpleNamespace(state=SimpleNamespace(
-        bootstrap_auth=start_up_key, session=None if start_up_key else object(), user=caller), headers={})
+        bootstrap_auth=start_up_key, session=None if start_up_key else SimpleNamespace(user_id=caller.id, token_hash="caller-session"), user=caller), headers={})
     return routes.update_user(request, user_id, routes.UpdateUserRequest(**fields), app_db)
 
 
