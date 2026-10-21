@@ -22,7 +22,7 @@ def _option(place: str, name: str, can: bool, needs: str = "", why: str = "", bl
 
 
 def _gb(value: float) -> str:
-    return f"{value:.0f} GB" if value >= 10 else f"{value:.1f} GB"
+    return f"{value:.0f} GB" if value >= 10 or value == int(value) else f"{value:.1f} GB"
 
 
 def _kind(card: Card) -> str:
