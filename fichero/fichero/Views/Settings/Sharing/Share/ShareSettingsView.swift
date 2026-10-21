@@ -194,8 +194,10 @@ struct ShareSettingsView: View {
             let also = selectedDevices.flatMap { devicesRevokedWith($0, in: pairedDevices) }
                 .filter { !selectedDevices.contains($0.id) }
             Text(also.isEmpty ? "They will no longer be able to connect."
-                 : "They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), "
-                 + "which will be removed too.")
+                 : """
+                   They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), \
+                   which will be removed too.
+                   """)
         }
     }
 
