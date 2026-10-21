@@ -52,9 +52,12 @@ def lane(monkeypatch):
     gate.set()
 
 
-def _memory(monkeypatch, *, free_gib: float, need_gib: float) -> None:
+def _memory(monkeypatch, *, free_gib: float, need_gib: float, physical_gib: float = 32) -> None:
+    """The free memory, the load's need, and the Mac's total (a 16 GB host and a 32 GB one decide differently: the tests never
+    depend on the machine they run on)."""
     from fichero_server.execution import throttle
 
+    monkeypatch.setattr(jobs, "_physical_memory_bytes", lambda: int(physical_gib * GIB), raising=False)
     monkeypatch.setattr(throttle, "memory_available_bytes", lambda: int(free_gib * GIB))
     monkeypatch.setattr(jobs, "_model_need_bytes", lambda _model: int(need_gib * GIB))
 
@@ -143,3 +146,31 @@ def test_a_person_job_for_another_model_goes_at_the_next_page_boundary_and_its_p
     # A,A then B means the lane handed back to A while b1/b2 were queued; this prints whether `loaded_model` was B at that pick).
     why = f"ran={lane.ran} loaded_at_run={lane.loaded_at_run} swaps={lane.swaps} picks={picks}"
     assert lane.ran == ["a1-hold", "person-b", "b1", "b2", "a2", "a3"], why  # the person's, B's queued pages, back to A
+
+
+def test_on_a_16_gb_mac_a_vlm_after_kraken_frees_kraken_however_much_looks_free(db, lane, monkeypatch):
+    """`activity.lane.small-mac-one-heavy-model`: at 16 GB or less never two heavy models, whatever macOS's 'free' says."""
+    _memory(monkeypatch, free_gib=20, need_gib=8, physical_gib=16)
+    jobs.enqueue(db, KRAKEN, "k1")
+    assert _wait_for(lambda: "k1" in lane.ran)
+    jobs.enqueue(db, VLM, "v1")
+    assert _wait_for(lambda: "v1" in lane.ran)
+    assert [s for s in lane.swaps if s.startswith("kraken:")], lane.swaps  # Kraken was freed before the served model ran
+
+
+def test_on_a_16_gb_mac_kraken_after_a_served_model_stops_the_served_model(db, lane, monkeypatch):
+    _memory(monkeypatch, free_gib=20, need_gib=2, physical_gib=16)
+    jobs.enqueue(db, VLM, "v1")
+    assert _wait_for(lambda: "v1" in lane.ran)
+    jobs.enqueue(db, KRAKEN, "k1")
+    assert _wait_for(lambda: "k1" in lane.ran)
+    assert [s for s in lane.swaps if s.startswith("local-model:")], lane.swaps  # the served model was stopped before Kraken loaded
+
+
+def test_on_a_32_gb_mac_both_still_stay_when_both_fit(db, lane, monkeypatch):
+    _memory(monkeypatch, free_gib=20, need_gib=2, physical_gib=32)
+    jobs.enqueue(db, VLM, "v1")
+    assert _wait_for(lambda: "v1" in lane.ran)
+    jobs.enqueue(db, KRAKEN, "k1")
+    assert _wait_for(lambda: "k1" in lane.ran)
+    assert lane.swaps == []
