@@ -91,15 +91,33 @@ def bound_project(library: str | Path | None) -> Iterator[None]:
         _project.reset(token)
 
 
+#: A scratch copy of some pages that a try runs on (`recipes/samples._run_one`) -> the real project it is a try for. The copy has
+#: no Set Up of its own, so a call made for it is judged by, and its spend counted against, the real project.
+_scratch_of: dict[Path, Path] = {}
+
+
+@contextlib.contextmanager
+def scratch_of(scratch: str | Path, real: str | Path) -> Iterator[None]:
+    """For the length of the block, work bound to the folder `scratch` is for the project at `real`."""
+    key = Path(scratch)
+    _scratch_of[key] = Path(real)
+    try:
+        yield
+    finally:
+        _scratch_of.pop(key, None)
+
+
 def bound_library() -> Path | None:
-    return _project.get()
+    """The project the work in hand is for: the bound folder, or the real project when that folder is a try's scratch copy."""
+    bound = _project.get()
+    return _scratch_of.get(bound, bound) if bound is not None else None
 
 
 def project_refusal(place: str) -> str | None:
     """Why the bound project's own rule keeps pages from `place`, in words, or None. A project that saved a Set Up and did not
     say its pages may leave this Mac keeps them here (the start-time rule, `may_leave_to`, read at the call); a project with no
     saved Set Up, and a call made for no project, are capped by the app's places alone."""
-    library = _project.get()
+    library = bound_library()
     if library is None or place == THIS_MAC:
         return None
     from fichero_server.recipes.project import read_project_setup

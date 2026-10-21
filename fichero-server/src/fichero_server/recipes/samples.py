@@ -17,6 +17,8 @@ that yes.
 
 from __future__ import annotations
 
+import contextlib
+
 import json
 import logging
 import shutil
@@ -893,6 +895,11 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     _say_on_row(db, job_id, stage_id, f"Copying the sample pages for {stage.title}")
     scratch = _folder(library) / f"{scratch_name}.fichero"
     shutil.rmtree(scratch, ignore_errors=True)
+    from fichero_server.recipes import places
+
+    # The copy has no Set Up: model calls made for it are judged by, and counted against, the real project (#5368, #5987).
+    real_project = contextlib.ExitStack()
+    real_project.enter_context(places.scratch_of(scratch, library))
     for sub in ("lance", "storage", "files"):
         (scratch / sub).mkdir(parents=True, exist_ok=True)
     try:
@@ -969,6 +976,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                 watcher.join()
         db_manager.close_database(scratch)
         shutil.rmtree(scratch, ignore_errors=True)
+        real_project.close()
     return out
 
 
