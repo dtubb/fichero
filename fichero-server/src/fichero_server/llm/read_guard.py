@@ -210,11 +210,13 @@ __all__ = [
 
 
 def typed_read_flag(holder: Any):
-    """`read_flag_of`, as the wire type (`ReadFlagInfo`: kind, reason) or None: the one reader the Document and the inspector
+    """`read_flag_of`, as the wire type (`ReadFlagInfo`: kind, reason, measure when it has one) or None: the one reader the Document and the inspector
     responses share."""
     flag = read_flag_of(holder)
     if not flag:
         return None
     from fichero_server.models import ReadFlagInfo
 
-    return ReadFlagInfo(kind=str(flag.get("kind") or ""), reason=str(flag.get("reason") or ""))
+    measure = flag.get("measure")
+    return ReadFlagInfo(kind=str(flag.get("kind") or ""), reason=str(flag.get("reason") or ""),
+                        measure=dict(measure) if isinstance(measure, dict) and measure else None)
