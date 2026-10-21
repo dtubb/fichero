@@ -211,7 +211,7 @@ class PairRequest(BaseModel):
     new_password: str | None = None
 
 
-class InviteResponse(BaseModel):
+class PairingInviteResponse(BaseModel):
     """An unused invitation, as the owner's list shows it (never the code)."""
 
     id: str
@@ -769,14 +769,14 @@ def create_pairing_code(
     )
 
 
-@router.get("/invites", response_model=list[InviteResponse])
-def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> list[InviteResponse]:
+@router.get("/invites", response_model=list[PairingInviteResponse])
+def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> list[PairingInviteResponse]:
     """The owner's list of unused invitations to named people, with their expiry (never the codes)."""
     _signed_in_owner(request)
     now = utc_now()
     _prune_pairing_codes(now)
     return [
-        InviteResponse(
+        PairingInviteResponse(
             id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role or None, library=r.library, folder_id=r.folder_id,
             minted_by=r.minted_by, expires_at=None if r.never_expires else r.expires_at, never_expires=r.never_expires,
         )
