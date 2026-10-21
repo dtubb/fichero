@@ -68,11 +68,10 @@ _CHAR_LOOP = re.compile(r"(.{2,30}?)\1{%d,}" % (CHAR_LOOP_MIN_REPEATS - 1), re.S
 
 def flag_words(flag: dict[str, Any]) -> dict[str, Any]:
     """The flag with its ``reason`` always in words: a flag of ANY kind (one a later check or repair adds) that carries none gets a
-    sentence made from its kind, so the app never has to name a kind it does not know."""
+    plain sentence (never the kind's id), so the app never has to name a kind it does not know."""
     if isinstance(flag.get("reason"), str) and flag["reason"].strip():
         return flag
-    kind = str(flag.get("kind") or "").replace("-", " ").replace("_", " ").strip()
-    return {**flag, "reason": f"this reading is flagged ({kind})" if kind else "this reading is flagged"}
+    return {**flag, "reason": "this reading is flagged: look it over before you rely on it"}
 
 
 @dataclass(frozen=True)

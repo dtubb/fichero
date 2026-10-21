@@ -2673,7 +2673,7 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.recipes.assemble import CORRECT_QUESTION
     from fichero_server.recipes.start import use_candidate
-    from fichero_server.recipes.step_choices import UNSURE_BECAUSE, UNSURE_ID, _kraken, _person_override
+    from fichero_server.recipes.step_choices import UNSURE_BECAUSE, UNSURE_ID, UNSURE_KEPT, _kraken, _person_override
 
     recipe = setup["recipe"] or {}
     step = next((st for st in recipe.get("steps") or [] if st.get("id") == request.step), None)
@@ -2684,6 +2684,7 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
     card = next((c for c in offered if c.id == wanted and str(c.runs_on).startswith("cloud:") and "correct" in c.jobs), None)
     if card is None:
         raise HTTPException(status_code=422, detail=f"{wanted} is not a cloud model Fichero has found here to correct with")
+    was_on = (setup["answers"].get("job_answers") or {}).get(CORRECT_QUESTION) is True  # the person's own answer, kept on take-back
     answers = {**setup["answers"], "job_answers": {**(setup["answers"].get("job_answers") or {}), CORRECT_QUESTION: True}}
     correct = next((st.get("id") for st in recipe.get("steps") or [] if st.get("job") == "correct"), "correct")
     kept = [copy.deepcopy(o) for o in recipe.get("overrides") or [] if o is not _person_override(recipe, correct)]
@@ -2693,7 +2694,7 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
         new_correct = next((st.get("id") for st in fresh.get("steps") or [] if st.get("job") == "correct"), None)
         if new_correct is None:
             raise ValueError("Set Up leaves Correct out for this project, so a model cannot be set to correct")
-        fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE)
+        fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE + (UNSURE_KEPT if was_on else ""))
         result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": fresh}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2718,7 +2719,7 @@ async def use_setup_pick_for_step(
     project's other choices stay. Saved through `project.save_setup` (audited, undoable). Refused (422) for a step the
     recipe lacks, or one already on Set Up's pick."""
     from fichero_server.recipes.assemble import CORRECT_QUESTION
-    from fichero_server.recipes.step_choices import _person_override, overrides_without, unsure_card
+    from fichero_server.recipes.step_choices import _person_override, overrides_without, unsure_card, unsure_set_correct_on
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -2727,10 +2728,13 @@ async def use_setup_pick_for_step(
         recipe0 = setup["recipe"] or {}
         step = next((st for st in recipe0.get("steps") or [] if st.get("id") == request.step), None)
         if step is not None and step.get("job") == "read-a-line" and unsure_card(recipe0):
-            # taking back "Kraken then a cloud correction": Correct goes off again (its question back to the default) with its override
+            # Taking the read step back drops ITS override too (a cloud reader chosen after the unsure choice goes), and the unsure
+            # choice with it: Correct as Set Up had it (its answer off again only when the choice itself turned it on).
             correct = next(st["id"] for st in recipe0["steps"] if st.get("job") == "correct")
-            kept = [copy.deepcopy(o) for o in recipe0.get("overrides") or [] if o is not _person_override(recipe0, correct)]
-            answers = {**answers, "job_answers": {k: v for k, v in (answers.get("job_answers") or {}).items() if k != CORRECT_QUESTION}}
+            drop = (_person_override(recipe0, correct), _person_override(recipe0, request.step))
+            kept = [copy.deepcopy(o) for o in recipe0.get("overrides") or [] if not any(o is d for d in drop)]
+            if unsure_set_correct_on(recipe0):
+                answers = {**answers, "job_answers": {k: v for k, v in (answers.get("job_answers") or {}).items() if k != CORRECT_QUESTION}}
         else:
             kept = overrides_without(setup["recipe"], request.step)
         recipe = await asyncio.to_thread(_assemble, answers or {}, library, overrides=kept)
