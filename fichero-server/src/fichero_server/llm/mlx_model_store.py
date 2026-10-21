@@ -157,6 +157,9 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
         note="The recipe rules' default corrector and page reader. Not yet run inside Fichero -- untested here.",
+        # Not measured: on the 16 GB Pro it read at 0.1 tok/s with swap full (2026-10-21), so it is never chosen to read pages on
+        # a Mac under 24 GB until it is measured (`runtime.mlx.seven-b-reader-needs-24gb`, #5641).
+        page_memory_bytes=24 * 1024**3,
     ),
     "Chandra-OCR": ManagedModelSpec(
         licence="OpenRAIL-M (modified)",
