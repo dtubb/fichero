@@ -1521,7 +1521,6 @@ async def model_candidates(
         candidate_download,
         candidate_installed,
         candidate_place,
-        remote_compute,
         STEP_SEARCHES,
         discover,
         egress_allowed,

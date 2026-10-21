@@ -34,14 +34,16 @@ _CONNECTION_ENV_VARS = (
 
 
 @pytest.fixture(autouse=True)
-def isolated_mcp_env(monkeypatch, tmp_path):
+def isolated_mcp_env(monkeypatch, tmp_path_factory):
     """Clear connection env vars, redirect credential files, reset _CONFIG."""
     from fichero_cli import client as client_module
     from fichero_mcp import server as mcp_server
 
     for name in _CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
-    token_path = tmp_path / "credentials" / ".api-key"
+    # Its own temp dir, never the test's tmp_path: in a combined run this autouse fixture also reaches server tests,
+    # and a `credentials` folder in their tmp_path breaks every test that lists it (the CLI's twin, 3202dcfa8).
+    token_path = tmp_path_factory.mktemp("mcp-credentials") / ".api-key"
     token_path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", token_path)
     monkeypatch.setattr(

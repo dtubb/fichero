@@ -40,6 +40,7 @@ import base64
 import io
 import json
 import os
+import re
 import stat
 import sys
 from dataclasses import dataclass, field
