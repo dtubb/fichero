@@ -26,6 +26,15 @@ _KEYS = {"script_type", "confidence", "notes", "needs_human_selection"}
 _TRANSCRIBING = ("transcription", "handwriting")
 
 
+def clear_needs_rereading(doc: Any) -> None:
+    """A successful read wrote this page's text: the repair's `needs-re-reading` mark no longer holds, so it goes (only that
+    kind: a flag some other check put on the page is that check's to clear)."""
+    meta = getattr(doc, "metadata", None)
+    flag = meta.get(READ_FLAG_KEY) if isinstance(meta, dict) else None
+    if isinstance(flag, dict) and flag.get("kind") == NEEDS_REREADING:
+        doc.metadata = {k: v for k, v in meta.items() if k != READ_FLAG_KEY}
+
+
 def is_classification_json(text: Any) -> bool:
     """True when the whole text is a classifier's answer: a JSON object with `script_type` and `confidence` and nothing else a
     transcription would carry."""

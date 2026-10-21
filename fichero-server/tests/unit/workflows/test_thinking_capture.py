@@ -40,7 +40,7 @@ class TestThinkingRidesThePageArtifact:
             artifact_type="transcription",
             llm_config=LLMConfig(provider="hf", model="think-1"),
             page_thinking=["reasoning for page 1", None],
-        )
+        update_page_content=True)
         assert ids, "propagation produced no artifacts"
 
         pages = sorted(
@@ -66,7 +66,7 @@ class TestThinkingRidesThePageArtifact:
             artifact_type="transcription",
             llm_config=LLMConfig(provider="hf", model="plain-1"),
             artifact_data={"target_format": "text"},
-        )
+        update_page_content=True)
         pages = db.query(Document, parent_id=pdf_with_pages.id)
         for page in pages:
             for art in db.query(Artifact, document_id=page.id):

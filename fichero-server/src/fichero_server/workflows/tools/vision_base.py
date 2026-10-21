@@ -3052,6 +3052,7 @@ async def _propagate_to_page_children(
         ConversionRefusal,
         is_converted,
     )
+    from fichero_server.maintenance.page_text_repair import clear_needs_rereading
     from fichero_server.workflows.curation_guard import page_content_is_user_edited, page_text_is_derived
 
     try:
@@ -3085,6 +3086,7 @@ async def _propagate_to_page_children(
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
                 page_doc.page_content = page_text
+                clear_needs_rereading(page_doc)  # a read wrote the text: the repair's re-read mark is answered
                 # In-progress, NOT completed: transcription is only the first
                 # pipeline step. The workflow boundary flips this to completed
                 # once ALL steps (NER / extract / KG) finish, so the page's

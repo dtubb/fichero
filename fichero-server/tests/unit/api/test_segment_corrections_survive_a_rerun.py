@@ -56,7 +56,7 @@ def _rerun_pdf_page_path(db, test_package, parent):
     return asyncio.run(_propagate_to_page_children(
         parent.id, ["brand new"], str(test_package), artifact_type="transcription",
         llm_config=CFG, page_geometries=[_new_result()],
-    ))
+    update_page_content=True))
 
 
 class TestAMovedBoxKeepsItsShape:

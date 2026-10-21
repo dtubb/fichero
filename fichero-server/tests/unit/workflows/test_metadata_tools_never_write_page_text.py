@@ -162,3 +162,25 @@ def test_the_repair_records_no_row_when_there_is_nothing_to_repair(db):
     _pdf_with_pages(db)
     page_text_repair.repair_on_open(db)
     assert _repair_rows(db) == []
+
+
+def test_a_later_successful_read_clears_the_needs_re_reading_flag_and_a_metadata_tool_does_not(db):
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.read_guard import read_flag_of
+
+    page = _overwritten(db, transcript=False)
+    page_text_repair.repair_on_open(db)
+    assert read_flag_of(db.get(Document, page.id)) is not None
+    parent_id = page.parent_id
+    llm = LLMConfig(provider="openai", model="gpt-5")
+    with patch("fichero_server.db.db_manager") as manager:
+        manager.get_database.return_value = db
+        asyncio.run(vision_base._propagate_to_page_children(  # a classifier again: nothing is written, the flag stays
+            parent_id, [CLASSIFICATION, CLASSIFICATION], "/lib.fichero", artifact_type="script_classification",
+            llm_config=llm, update_page_content=False))
+        assert read_flag_of(db.get(Document, page.id)) is not None
+        asyncio.run(vision_base._propagate_to_page_children(  # a real read: the text is written and the flag is answered
+            parent_id, [TRANSCRIPT, TRANSCRIPT], "/lib.fichero", artifact_type="transcription", llm_config=llm,
+            update_page_content=True))
+    again = db.get(Document, page.id)
+    assert again.page_content == TRANSCRIPT and read_flag_of(again) is None
