@@ -258,3 +258,8 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 - (#4219) Retire LibraryReference.deinit's scope stop so the nonisolated hole closes (deinit still present at LibraryManager.swift:481); a cleanup follow-up to the #4216 lock, Future
 - (#2162) iOS connection stack (NWBrowser discovery, QR scan, Keychain token, SPKI-pinned URLSession, optional mTLS/UDS); later with the iPhone/iPad app.
 - (#3778) iOS-initiated pairing (tap discovered Mac, Mac shows number, enter it); blocked on the SPKI pinning question.
+
+## Release rows without a spec line before (clerk, 2026-10-21; iPhone; draft from the issue text)
+
+- `release.issue-5964` — **[GAP]** (#5964) iPhone: the other panes are reachable; the views show words, not blank or disabled, when the engine refuses. Test: (not yet written: a test citing #5964); no [OK] until a passing test and an M4 run are cited.
+- `release.issue-5999` — **[GAP]** (#5999) iPhone: when the server is not connecting, a reconnect and a change-server action are reachable. Test: (not yet written: a test citing #5999); no [OK] until a passing test and an M4 run are cited.
