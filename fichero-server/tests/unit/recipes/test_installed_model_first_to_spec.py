@@ -39,13 +39,13 @@ class _Store(MLXModelStore):
 
 @pytest.fixture
 def mac(monkeypatch, tmp_path):
-    """A 16 GB Apple-silicon Mac with no MLX model installed; `mac.store.installed` changes that."""
+    """A 32 GB Apple-silicon Mac (the 7B reader fits it, not a 16 GB one) with no MLX model installed; `mac.store.installed` changes that."""
     from fichero_server.llm import local_model_choice
 
     store = _Store(tmp_path / "mlx", set())
     monkeypatch.setattr("fichero_server.llm.local_model_facts.get_local_inference_capabilities",
                         lambda: LocalInferenceCapabilities(system="Darwin", machine="arm64", is_apple_silicon=True,
-                                                           physical_memory_bytes=16 * 1024**3,
+                                                           physical_memory_bytes=32 * 1024**3,
                                                            macos_version="26.0"))
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(local_model_choice, "_store", lambda: store)
