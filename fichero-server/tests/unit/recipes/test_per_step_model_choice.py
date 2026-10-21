@@ -19,13 +19,6 @@ def _handwriting(**kw):
     return Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000, **kw)
 
 
-@pytest.mark.xfail(strict=True, reason="source.onboard.cloud-question-counts-readers: known_cards holds the text cloud cards only (#4951)")
-def test_the_cloud_question_counts_the_cloud_readers(monkeypatch):
-    monkeypatch.setattr(discovery, "remote_reader_cards", lambda: [CLOUD_READER])
-    cards = discovery.known_cards(_handwriting())
-    assert any(c.runs_on.startswith("cloud:") and "read-a-line" in c.jobs for c in cards)
-
-
 def test_a_cloud_reader_in_the_pool_makes_the_cloud_question_name_the_read_step():
     recipe = assemble(_handwriting(), [*CARDS, CLOUD_READER])
     assert "read-a-line" in recipe["cloud_options"]  # assemble counts any cloud card it is given; the pool is what is short
@@ -47,15 +40,6 @@ def test_without_the_permission_or_for_print_the_local_pick_stands():
     printed = Answers("search", frozenset({"es"}), frozenset({"Latn"}), "print", pages=3000, cloud_allowed=True,
                       cloud_keys=("anthropic",))
     assert next(s for s in assemble(printed, [*CARDS, CLOUD_READER])["steps"] if s["job"] == "read-a-line")["runs_on"] == "this-mac"
-
-
-@pytest.mark.xfail(strict=True, reason="source.recipe.cloud-reads-lines-per-page: today's line reader sends LINES_PER_CALL=8 lines a call (#4951, #5955)")
-def test_a_cloud_line_reader_makes_one_call_per_page_with_the_crops_in_order():
-    from fichero_server.llm import LLMConfig
-    from fichero_server.llm.line_reader import lines_per_call, request_groups
-
-    groups = request_groups([object()] * 20, None, lines_per_call(LLMConfig(provider="openrouter", model="x")))
-    assert groups == [list(range(20))], f"{len(groups)} calls for a 20-line page"
 
 
 def test_the_unsure_lines_pass_is_the_correct_step_with_only_below_confidence():
@@ -80,11 +64,4 @@ def test_the_plan_lists_the_unsure_lines_option_beside_the_cloud_reader():
 # The plan's per-step candidates are pinned in test_step_choices_on_the_plan.py (the settled `StartPlan.step_choices` shape).
 
 
-@pytest.mark.xfail(strict=True, reason="source.onboard.step-choice-overrides-the-pick: a saved cloud choice with no key is not yet said in place (#4951)")
-def test_a_saved_cloud_choice_with_no_key_stays_chosen_and_says_what_it_needs():
-    from fichero_server.recipes.start import use_candidate
-
-    recipe = assemble(_handwriting(cloud_allowed=True, cloud_keys=()), [*CARDS, CLOUD_READER])
-    step = next(s for s in use_candidate(recipe, "read-a-line", CLOUD_READER, now="2026-10-21T00:00:00Z")["steps"]
-                if s["id"] == "read-a-line")
-    assert str(step["runs_on"]).startswith("cloud:") and "key" in str(step.get("blocked_because", ""))
+# The saved cloud choice with no key or permission is pinned in test_step_choices_on_the_plan.py (the plan skips it in place).

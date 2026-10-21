@@ -79,3 +79,15 @@ def test_a_local_reader_with_no_chosen_granularity_sets_none():
             "model": {"hf": "mlx-community/Qwen2.5-VL-3B-Instruct-4bit", "revision": "main"}}
     run = next(r for r in plan_start(_recipe(step), stays_local=False)["runs"] if r["job"] == "read-a-line")
     assert "read_granularity" not in (run.get("tool_config") or {}).get("transcribe", {})
+
+
+@pytest.mark.parametrize("granularity", ["page", "region", "lines", None])
+def test_no_call_carries_more_than_the_ceiling_of_lines_and_every_line_is_asked_once(granularity):
+    """`source.recipe.cloud-reads-lines-per-page`: a page of 100 lines is split across calls in reading order above the ceiling."""
+    boxes = [OCRGeometryBox(text="", bbox=[0, 0, 1, 1], level=OCRGeometryLevel.LINE, provider="kraken", model="blla",
+                            source="kraken-blla", metadata={"parent_box_index": 0}) for _ in range(100)]
+    groups = line_reader.request_groups(boxes, granularity, 8)
+    assert all(len(g) <= line_reader.MAX_LINES_PER_CALL for g in groups)
+    assert [i for g in groups for i in g] == list(range(100))
+    if granularity == "page":
+        assert [len(g) for g in groups] == [40, 40, 20]
