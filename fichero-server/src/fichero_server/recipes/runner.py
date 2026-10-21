@@ -868,13 +868,28 @@ def _folders_words(detail: dict[str, Any]) -> str:
     return f"{detail.get('folders_done', 0)} of {total} {'folder' if total == 1 else 'folders'} done"
 
 
+def _served_steps(cards: list[dict[str, Any]]) -> list[tuple[int, str]]:
+    """(index, model id) of the cards the engine's served model runs."""
+    return [(i, str(c["model_override"])) for i, c in enumerate(cards)
+            if (c.get("provider_override") or "").lower() == "omlx" and c.get("model_override")]
+
+
+def _let_go_after_the_last_served_step(job_id: str, cards: list[dict[str, Any]], index: int) -> None:
+    """The hold ends with the batch's last step that uses the served model, not at the batch's end: the steps after it
+    (embedding, the tail) have no use for it, and the lane may need the memory."""
+    served = _served_steps(cards)
+    module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
+    if module is not None and served and index > served[-1][0]:
+        module.let_go_served_models(job_id)
+
+
 @contextlib.contextmanager
-def _holding_the_served_model(job_id: str):
+def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
     """The engine's served model is not idle-stopped while a batch runs: spaCy's steps sit between two of its users
     (`source.recipe.step-major-per-batch`). Let go at the batch's end; nothing is held if no server was ever started."""
     module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
     if module is not None:
-        module.hold_served_models(job_id)
+        module.hold_served_models(job_id, {m for _, m in _served_steps(cards)})
     try:
         yield
     finally:
@@ -911,7 +926,7 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     for number, batch in enumerate(batches):
         if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
             continue
-        with _holding_the_served_model(job_id):  # one MLX load per batch, kept through spaCy's steps
+        with _holding_the_served_model(job_id, cards):  # one MLX load per batch, kept through spaCy's steps
             problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
         if _stop_asked(job_id):  # a person's Stop ends the run after this batch; a failure does not (#5540)
             break
@@ -1042,6 +1057,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
     here = [{"state": state or "waiting"} for state in states]
     problems: list[str] = []
     for index, (card, step) in enumerate(zip(cards, steps)):
+        _let_go_after_the_last_served_step(job_id, cards, index)
         if states[index] is not None:  # done on this batch before an interruption
             continue
         named = ", ".join(card["steps"])

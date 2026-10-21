@@ -31,16 +31,17 @@ def test_the_idle_stop_waits_while_a_run_holds_the_model(monkeypatch):
     stopped, rearmed = [], []
 
     class Manager:
-        profile = type("P", (), {"id": "m", "managed_by_app": True})()
+        profile = type("P", (), {"id": "m", "managed_by_app": True, "model_id": "mlx-a"})()
         process = type("Proc", (), {"is_running": staticmethod(lambda: True)})()
 
         async def stop(self):
             stopped.append(1)
 
     manager = Manager()
+    manager.profile.model_id = "mlx-a"
     monkeypatch.setitem(local_inference._MANAGERS, "m", manager)
     monkeypatch.setattr(local_inference, "_stop_when_idle", lambda m: rearmed.append(m))
-    local_inference.hold_served_models("run-1")
+    local_inference.hold_served_models("run-1", {"mlx-a"})
     try:
         local_inference._stop_if_still_idle(manager)
         assert stopped == [] and rearmed == [manager]
@@ -50,21 +51,41 @@ def test_the_idle_stop_waits_while_a_run_holds_the_model(monkeypatch):
     assert stopped == [1]
 
 
-def test_a_run_holds_the_served_model_for_every_card_of_every_batch_and_lets_go_after(client, db, archive, steps, monkeypatch):
-    """The hold covers each card of each batch (lines, names, ...) and is gone when the run ends."""
+def test_a_hold_is_for_the_models_it_names(monkeypatch):
+    """## 849 LOW: a run holding model A does not keep a server serving model B loaded."""
+    local_inference.hold_served_models("run-1", {"mlx-a"})
+    try:
+        assert local_inference.served_models_held("mlx-a") and not local_inference.served_models_held("mlx-b")
+    finally:
+        local_inference.let_go_served_models("run-1")
+    assert not local_inference.served_models_held()
+
+
+def _run_with_served_step_at(index, client, archive, steps, monkeypatch):
     from fichero_server.recipes import runner
 
     monkeypatch.setattr(runner, "BATCH_PAGE_LIMIT", 1)
+    monkeypatch.setattr(runner, "_served_steps", lambda cards: [(index, "mlx-a")])
     held = []
     run_card = steps.run
 
     def seen(db, card, documents, parent):
-        held.append(local_inference.served_models_held())
+        held.append(local_inference.served_models_held("mlx-a"))
         return run_card(db, card, documents, parent)
 
     monkeypatch.setattr(runner, "_run_workflow", seen)
     _save(client)
     run = _finished(client, _start(client, folder_id=archive["B"])["started"]["job_id"])
+    assert run["state"] == "done", run
+    assert not local_inference.served_models_held()  # gone when the run ends
+    return held
 
-    assert run["state"] == "done" and held == [True] * 4, held
-    assert not local_inference.served_models_held()
+
+def test_a_run_holds_the_served_model_through_the_last_step_that_uses_it(client, db, archive, steps, monkeypatch):
+    """The served model is used by the second card (names, standing in for the last MLX text step): held for both cards of both batches."""
+    assert _run_with_served_step_at(1, client, archive, steps, monkeypatch) == [True] * 4
+
+
+def test_the_hold_ends_after_the_last_served_step_not_at_the_batch_end(client, db, archive, steps, monkeypatch):
+    """## 849 LOW: when only the first card uses the served model, the second card (and what follows) runs without the hold."""
+    assert _run_with_served_step_at(0, client, archive, steps, monkeypatch) == [True, False, True, False]
