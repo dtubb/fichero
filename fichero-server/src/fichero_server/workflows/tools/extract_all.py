@@ -616,8 +616,8 @@ async def _extract_claims_for_entity(
                 # in the Caciques library, grounding caught 2 and this caught
                 # 16 — together, all 17. Free, deterministic, 21 ms a page,
                 # and silent when spaCy is not installed.
-                rejection = predicate_problem(
-                    entity_name, verb, chunk_text, speaker=speaker
+                rejection = await asyncio.to_thread(
+                    predicate_problem, entity_name, verb, chunk_text, speaker=speaker
                 )
             if rejection:
                 logger.info(
@@ -868,7 +868,7 @@ async def _extract_page_claims_by_entity(
         verb, obj = trim_predicate(page_claim.get("verb", ""), page_claim.get("object", ""))
         if claim_rejection(entity.name, verb, obj, page_text) is not None:
             continue
-        if predicate_problem(entity.name, verb, page_text, speaker=speaker):
+        if await asyncio.to_thread(predicate_problem, entity.name, verb, page_text, speaker=speaker):
             continue
         place = (page_claim.get("place") or "").strip()
         if place and ungrounded_span(place, page_text):

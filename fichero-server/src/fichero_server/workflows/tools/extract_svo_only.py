@@ -400,7 +400,9 @@ async def extract_svo_only(
                 document_context or None,
             )
             if parser:
-                claims_call = resolved(_spacy_page_claims(record["text"], getattr(llm_config, "model", "") or ""))
+                # On a worker thread: the parse waits for the spaCy turn (`runtime.spacy.never-blocks`).
+                claims_call = resolved(await asyncio.to_thread(
+                    _spacy_page_claims, record["text"], getattr(llm_config, "model", "") or ""))
             else:
                 claims_call = _extract_page_claims(record["text"], llm_config, page_instructions, extraction_sem)
         date_items, page_claims = await asyncio.gather(ask_dates() if asks_dates else nothing(), claims_call)
@@ -477,7 +479,7 @@ async def extract_svo_only(
                 # the page text, then the deterministic grammar gate.
                 if claim_rejection(entity.name, verb, obj, record["text"]) is not None:
                     continue
-                if predicate_problem(entity.name, verb, record["text"], speaker=speaker):
+                if await asyncio.to_thread(predicate_problem, entity.name, verb, record["text"], speaker=speaker):
                     continue
                 # Scope is claim-only and MUST be grounded: an inferred date or
                 # place is a guess wearing a fact's clothes (the timeline plots
