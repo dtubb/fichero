@@ -2038,6 +2038,16 @@ class AppleVisionTimeout(RuntimeError):
     """A page's Apple Vision call did not return in time; that page fails, the run goes on."""
 
 
+#: Calls that timed out and still sit inside Apple's recogniser (it cannot be interrupted) before a new call is refused at once.
+#: Each such call is a thread and its memory for as long as Apple holds it; a few are a bad moment, many are a wedged recogniser.
+APPLE_VISION_STUCK_CEILING = 4
+
+
+class AppleVisionStuck(AppleVisionTimeout):
+    """Too many earlier calls are still inside Apple's recogniser, which cannot be interrupted: this call was refused at once, not
+    after its own deadline (`compute.apple-vision.bounded-and-deadlined`, #5392). A timeout, so its handlers catch it."""
+
+
 def _apple_vision_deadline() -> float:
     try:
         return max(30.0, float(os.environ.get("FICHERO_APPLE_VISION_TIMEOUT", "300")))
@@ -2064,32 +2074,69 @@ def apple_vision_reads_at_once() -> int:
     return 1 if short else APPLE_VISION_CONCURRENCY
 
 
+class _AppleVisionCall:
+    """One Apple Vision page call, as the gate follows it."""
+
+    def __init__(self) -> None:
+        self.abandoned = threading.Event()  # the caller no longer wants it: a call not yet started never starts
+        self.running = False  # holds a slot, inside the recogniser
+        self.returned = False
+        self.counted = False  # timed out while inside: its slot was freed and it is counted in `stuck`
+
+
 class _AppleVisionGate:
     """The engine-wide gate every Apple Vision call passes (#5392): no more than
     `apple_vision_reads_at_once()` in flight, asked again while a page waits, so a page that would be
-    the second waits while memory is short. A page abandoned before its turn never starts."""
+    the second waits while memory is short. A page abandoned before its turn never starts.
+
+    A call that times out while inside the recogniser cannot be stopped, but it no longer holds a slot: `timed_out` frees it at
+    once and counts the call in `stuck` until it returns (if it ever does). While `stuck` is at the ceiling a new call is refused
+    at once with `AppleVisionStuck`."""
 
     def __init__(self) -> None:
         self._cond = threading.Condition()
         self.in_flight = 0
+        self.stuck = 0
 
-    def acquire(self, timeout: float, abandoned: threading.Event) -> bool:
+    def refuse_if_wedged(self) -> None:
+        if self.stuck >= APPLE_VISION_STUCK_CEILING:
+            raise AppleVisionStuck(
+                f"Apple Vision is stuck: {self.stuck} earlier calls did not return in time and still sit inside Apple's text "
+                "recogniser, which cannot be interrupted. This call was not sent. Restart the engine to clear it."
+            )
+
+    def acquire(self, timeout: float, call: _AppleVisionCall) -> bool:
         end = time.monotonic() + timeout
         with self._cond:
             while self.in_flight >= 1 and self.in_flight >= apple_vision_reads_at_once():
                 left = end - time.monotonic()
-                if left <= 0 or abandoned.is_set():
+                if left <= 0 or call.abandoned.is_set():
                     return False
                 self._cond.wait(min(left, _APPLE_VISION_LOOK_AGAIN_SECONDS))
-            if abandoned.is_set():
+            if call.abandoned.is_set():
                 return False
             self.in_flight += 1
+            call.running = True
             return True
 
-    def release(self) -> None:
+    def release(self, call: _AppleVisionCall) -> None:
         with self._cond:
-            self.in_flight -= 1
+            call.returned = True
+            if call.counted:
+                self.stuck -= 1  # it came back after all; its slot was freed when it timed out
+            else:
+                self.in_flight -= 1
             self._cond.notify_all()
+
+    def timed_out(self, call: _AppleVisionCall) -> None:
+        """The caller gave up. A call inside the recogniser frees its slot and is counted as stuck; one that never started, or
+        already came back, holds nothing."""
+        with self._cond:
+            if call.running and not call.returned and not call.counted:
+                call.counted = True
+                self.in_flight -= 1
+                self.stuck += 1
+                self._cond.notify_all()  # a page waiting for a slot may take it now
 
 
 _APPLE_VISION_GATE = _AppleVisionGate()
@@ -2105,55 +2152,59 @@ def _apple_vision_timeout(deadline: float) -> AppleVisionTimeout:
 
 def _start_apple_vision_page(fn, args, deadline: float):
     """Start one Apple Vision call on its own daemon thread, behind the gate; returns its future and
-    the event that abandons it. A daemon thread, not the event loop's executor: a call stuck in
-    Apple's recogniser cannot be interrupted, and an executor thread would hold the engine's exit."""
+    the call the gate follows. A daemon thread, not the event loop's executor: a call stuck in
+    Apple's recogniser cannot be interrupted, and an executor thread would hold the engine's exit.
+    Raises `AppleVisionStuck` at once while too many abandoned calls are still inside the recogniser."""
+    _APPLE_VISION_GATE.refuse_if_wedged()
     future: concurrent.futures.Future = concurrent.futures.Future()
-    abandoned = threading.Event()
+    call = _AppleVisionCall()
 
     def run() -> None:
         if not future.set_running_or_notify_cancel():
             return
         try:
-            if not _APPLE_VISION_GATE.acquire(deadline, abandoned):
+            if not _APPLE_VISION_GATE.acquire(deadline, call):
                 future.set_exception(_apple_vision_timeout(deadline))
                 return
             try:
-                result = None if abandoned.is_set() else fn(*args)
+                result = None if call.abandoned.is_set() else fn(*args)
             finally:
-                _APPLE_VISION_GATE.release()
+                _APPLE_VISION_GATE.release(call)
             future.set_result(result)
         except BaseException as exc:  # noqa: BLE001 -- handed to the caller's thread
             future.set_exception(exc)
 
     threading.Thread(target=run, name="apple-vision-page", daemon=True).start()
-    return future, abandoned
+    return future, call
 
 
 async def _apple_vision_call(fn, *args):
     """Run one Apple Vision page call through the engine-wide gate, with a deadline that covers
     waiting for the gate too. A call stuck in Apple's recogniser cannot be interrupted, so it is
-    abandoned: this page raises AppleVisionTimeout by name and the run continues (#5392)."""
+    abandoned: its slot is freed, this page raises AppleVisionTimeout by name and the run continues (#5392)."""
     deadline = _apple_vision_deadline()
-    future, abandoned = _start_apple_vision_page(fn, args, deadline)
+    future, call = _start_apple_vision_page(fn, args, deadline)
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=deadline)
     except asyncio.TimeoutError as exc:
+        _APPLE_VISION_GATE.timed_out(call)
         raise _apple_vision_timeout(deadline) from exc
     finally:
-        abandoned.set()  # cancelled (the run's Stop) or timed out before its turn: it never starts
+        call.abandoned.set()  # cancelled (the run's Stop) or timed out before its turn: it never starts
 
 
 def _apple_vision_call_sync(fn, *args):
     """`_apple_vision_call` for a caller off the event loop (economy HTR, the page splitter's own
     detection): the same gate and the same deadline."""
     deadline = _apple_vision_deadline()
-    future, abandoned = _start_apple_vision_page(fn, args, deadline)
+    future, call = _start_apple_vision_page(fn, args, deadline)
     try:
         return future.result(timeout=deadline)
     except concurrent.futures.TimeoutError as exc:
+        _APPLE_VISION_GATE.timed_out(call)
         raise _apple_vision_timeout(deadline) from exc
     finally:
-        abandoned.set()
+        call.abandoned.set()
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:

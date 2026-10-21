@@ -192,7 +192,8 @@ def judge(truth: dict[str, Any], prop: dict[str, Any]) -> str:
     return "none-says-so" if (reader.get("gap") or reader.get("problem")) else "check"
 
 
-#: Set (once) by the first Apple Vision timeout of this process; the vision arm reads nothing after it.
+#: Set (once) by the first AppleVisionStuck of this process (the engine's gate refuses at once past its ceiling of abandoned calls,
+#: #5392); the vision arm reads nothing after it. A single timeout does not set it: the engine frees that call's slot.
 _VISION_STUCK: list[str] = []
 #: Each Apple Vision call here is one small line picture: a minute is long. The engine's default is 300 s a call, and a stuck call
 #: costs that for every line behind it (the 06:20 to 06:31 stall of the 2026-10-21 run).
@@ -207,7 +208,7 @@ def read_pages(arm: str, pages: list[tuple[Path, Path | None]], seed_reader: str
     rows = []
     for image, xml in pages:
         if arm == "vision" and _VISION_STUCK:
-            rows.append({"page": image.name, "error": f"AppleVisionTimeout: not tried: {_VISION_STUCK[0]}"})
+            rows.append({"page": image.name, "error": f"AppleVisionStuck: not tried: {_VISION_STUCK[0]}"})
             continue
         truth = page_truth(xml) if xml else {"text": "", "lines": 0, "languages": []}
         began = time.perf_counter()
@@ -224,10 +225,10 @@ def read_pages(arm: str, pages: list[tuple[Path, Path | None]], seed_reader: str
                          **error_rates(truth["text"], read), "truth_lines": truth["lines"]})
         except Exception as exc:  # noqa: BLE001 -- a page that fails is a result, in words
             rows.append({"page": image.name, "error": f"{type(exc).__name__}: {str(exc)[:160]}"})
-            if type(exc).__name__ == "AppleVisionTimeout" and not _VISION_STUCK:
+            if type(exc).__name__ == "AppleVisionStuck" and not _VISION_STUCK:
                 # The call that timed out is abandoned, not ended: it keeps its slot of the engine's Apple Vision gate (#5392), so
                 # every later call would wait out its own deadline for nothing. Stop asking, say so, and go on with the other arm.
-                _VISION_STUCK.append("an earlier Apple Vision call never returned and holds the gate (#5392); the vision arm is "
+                _VISION_STUCK.append("Apple Vision is stuck (several calls never returned, #5392); the vision arm is "
                                      "skipped for the rest of this run. Run it again in a fresh process")
                 print(f"! vision arm stopped: {_VISION_STUCK[0]}", flush=True)
     return rows
