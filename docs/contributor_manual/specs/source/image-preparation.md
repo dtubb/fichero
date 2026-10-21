@@ -164,6 +164,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
   lines are read, never found again, #5487) instead of segmenting every page a second time (about 40 s a page on
   the MacBook Air: an hour on 92 pages). While it runs, the run says how far it is: "Running step find-regions:
   23 of 92 pages, about 18 min left". *Test:* `fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`.
+- `prep.regions.one-implementation` — **[GAP]** (#5962; owner ruling 2026-10-20) there is ONE Find Regions code path: the recipe card and the workflow node call the same function, and any duplicate is deleted or made to call it. Test (to write): the recipe's find-regions step and the workflow node produce the same regions for the same page through one function (a guardrail that names it as the only implementation).
 - `prep.yolo.fine-tune-from-corrected-regions` — **[PARTIAL]** (#5525, #5397) **Built 2026-10-10 (this Mac):** `training/yolo_set.py` and `training/yolo_local.py`, started by `POST /api/training/regions/here` (so the MCP tool and the CLI command); the real trainer ran on the GPU (two epochs, 11 s). Pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`. *Not yet: the Hugging Face path, the bake-off adopting it, a Train button in the app.* the regions a person corrects
   become a training set (exported as YOLO labels by `formats/yolo.py`, the same set builder as Kraken's,
   #5513), and the stock model is fine-tuned on it with Ultralytics, on this Mac or as a Hugging Face job.
