@@ -6,7 +6,8 @@ extension StepChoiceMenu {
     init(_ choice: Components.Schemas.StepChoice) {
         self.init(
             step: choice.step, name: choice.name, chosenBy: choice.chosenBy.rawValue == "person" ? .person : .setup,
-            candidates: choice.candidates.map { candidate in
+            job: choice.job, inPlan: choice.inPlan ?? true, wording: choice.wording, certaintyBar: choice.certaintyBar,
+            turnOnWords: choice.turnOn?.words, candidates: choice.candidates.map { candidate in
                 Candidate(
                     card: candidate.card, name: candidate.name, runsOn: candidate.runsOn, isLocal: candidate.local,
                     isPicked: candidate.picked, isRecommended: candidate.recommended, isAvailable: candidate.available,

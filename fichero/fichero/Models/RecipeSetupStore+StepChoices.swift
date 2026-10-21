@@ -14,6 +14,12 @@ extension RecipeSetupStore {
         await loadStartPlan(folderId: startPlanFolderId)
     }
 
+    /// Bring a step that is not in the plan in, by Set Up's own answer (`turn_on`); the plan is read again.
+    func turnOn(_ menu: StepChoiceMenu) async {
+        await turnOn(job: menu.job)
+        await loadStartPlan(folderId: startPlanFolderId)
+    }
+
     /// Take the step back to Set Up's pick (POST .../steps/use-setup-pick): the engine drops the person's override and
     /// saves the recipe; the plan is read again.
     func useSetupPick(step: String) async {

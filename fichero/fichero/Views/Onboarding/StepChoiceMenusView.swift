@@ -25,6 +25,13 @@ private struct StepChoiceMenuSection: View {
     var body: some View {
         DisclosureGroup(menu.name) {
             VStack(alignment: .leading, spacing: 6) {
+                if let wording = menu.wording { Text(wording).font(.callout) }
+                if let bar = menu.certaintyBarText { Text(bar).font(.callout).foregroundStyle(.secondary) }
+                if let title = menu.turnOnTitle {
+                    Button(title) { Task { await store.turnOn(menu) } }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("setup.ready.stepChoice.\(menu.step).turnOn")
+                }
                 ForEach(menu.candidates) { candidate in
                     StepChoiceCandidateRow(menu: menu, candidate: candidate, store: store)
                 }

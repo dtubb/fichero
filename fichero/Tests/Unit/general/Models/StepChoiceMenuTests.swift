@@ -71,4 +71,19 @@ struct StepChoiceMenuTests {
         #expect(menu([]).needsWords(of: odd) == "needs a licence")
         #expect(odd.needs.first?.kind != .price)
     }
+
+    @Test("a step not in the plan offers the engine's turn-on words, not Use, and says its wording and bar")
+    func stepNotInThePlan() {
+        let off = StepChoiceMenu(step: "correct", name: "Correct", chosenBy: .setup, inPlan: false,
+                                 wording: "Kraken reads; a cloud model corrects only the lines Kraken is unsure of", certaintyBar: 0.8,
+                                 turnOnWords: "Have a second model check the reading, in Set Up",
+                                 candidates: [candidate("claude", local: false, cost: 0.4)])
+        #expect(off.turnOnTitle == "Have a second model check the reading, in Set Up")
+        #expect(!off.canUse(off.candidates[0]))
+        #expect(off.certaintyBarText == "Lines the reader is under 80% sure of are corrected")
+        let on = menu([candidate("claude", local: false)])
+        #expect(on.turnOnTitle == nil)
+        #expect(on.canUse(on.candidates[0]))
+        #expect(on.certaintyBarText == nil)
+    }
 }
