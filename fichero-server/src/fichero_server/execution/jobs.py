@@ -2469,7 +2469,7 @@ _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
 SWITCH_AFTER_QUIET_SECONDS = 20.0
 #: A job whose release of the loaded model found a call still using it asks again this often, for this long, then goes back to waiting.
 RELEASE_RETRY_SECONDS = 1.0
-RELEASE_KEEP_WAITING_SECONDS = 300.0
+RELEASE_KEEP_WAITING_SECONDS = 120.0  # one no-progress window of a local read (## 847: 300 s held a Stop too long)
 #: How many times one claim makes a scan again because the lane moved during it (`activity.lane.one-model-at-a-time`, #5920).
 MAX_RESCANS = 8
 
@@ -3234,6 +3234,10 @@ class _Scheduler:
         library_token = set_library(key)
         try:
             if held is not None:
+                with self._lock:
+                    stopped_meanwhile = job_id in self._stopping
+                if stopped_meanwhile:  # Stop during the release wait ends the page stopped, not deferred (## 847)
+                    raise PageStopped(stopped_by(job_id))
                 raise JobDeferred(held)  # back to waiting with its reason; it asks again soon
             result = self._work(db, job_id, kind, subject, handed_in)
             with self._lock:

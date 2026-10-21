@@ -1481,10 +1481,13 @@ async def _model_call_slot(config: LLMConfig, *, library: str | None = None,
             except Exception as exc:
                 raise _stopped_answering(exc) or exc
             return
-        from fichero_server.llm.local_inference import local_read_slot
+        from fichero_server.llm.local_inference import local_read_slot, releases_ended
 
         at_once = _local_reads_at_once(config)
+        released = releases_ended()
         async with (local_read_slot(at_once) if at_once else contextlib.nullcontext()):
+            if releases_ended() != released:  # the lane stopped the server while this call waited: ready it again (## 847)
+                await _ensure_managed_local_provider_ready(config)
             try:
                 yield
             except Exception as exc:

@@ -195,3 +195,17 @@ def test_on_a_16_gb_mac_kraken_does_not_load_beside_a_served_model_that_could_no
     stuck["on"] = False  # the call ended: the next try frees it and Kraken goes on
     assert _wait_for(lambda: "k1" in lane.ran)
     assert lane.swaps.count("tried") >= 2  # it asked again, and the second try freed it
+
+
+def test_a_stop_during_the_release_wait_ends_the_page_stopped_not_deferred(db, lane, monkeypatch):
+    """## 847: a person's Stop on a job waiting for the served model to let go ends it cancelled ("Stopped"), not back in the queue."""
+    _memory(monkeypatch, free_gib=20, need_gib=2, physical_gib=16)
+    jobs.enqueue(db, VLM, "v1")
+    assert _wait_for(lambda: "v1" in lane.ran)
+    monkeypatch.setattr(jobs, "RELEASE_RETRY_SECONDS", 0.05)
+    monkeypatch.setitem(jobs._RELEASE, "local-model", lambda reason="": (lane.swaps.append("tried"), False)[1])
+    job_id = jobs.enqueue(db, KRAKEN, "k1")
+    assert _wait_for(lambda: "tried" in lane.swaps)
+    jobs._scheduler.mark_stopping(db, job_id)  # what Stop does to a page that is running
+    assert _wait_for(lambda: db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])[0] == "cancelled")
+    assert "k1" not in lane.ran
