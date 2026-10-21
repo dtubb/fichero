@@ -152,10 +152,10 @@ struct SidebarView: View {
         nonmutating set { selectionState.selectedDestination = newValue }
     }
 
-    var body: some View {
-        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
-        if RenderDiagnostics.printChanges { Self._printChanges() }
-        return sidebarContent
+    /// The sidebar with its observers; the menu, alert and sheet modifiers follow in `body`. Split so the type-checker
+    /// sees two bounded chains, not one (builder RED at c34881647: SidebarView.swift:187 type-check time limit).
+    private var sidebarObserved: some View {
+        sidebarContent
             .sidebarStyle()
             // Reveal-in-sidebar (2026-08-23, Daniel: "sidebar should have the
             // appropriate folder selected, once library loads"): the restore
@@ -330,6 +330,12 @@ struct SidebarView: View {
                     await loadActivityData()
                 }
             }
+    }
+
+    var body: some View {
+        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
+        if RenderDiagnostics.printChanges { Self._printChanges() }
+        return sidebarObserved
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,
