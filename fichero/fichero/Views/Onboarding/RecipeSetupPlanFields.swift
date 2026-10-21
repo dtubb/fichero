@@ -280,7 +280,6 @@ struct RecipeStartFields: View {
     }
 }
 
-
 #Preview("Questions under a purpose") {
     VStack(alignment: .leading, spacing: 12) {
         JobQuestionFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), job: "find-names-tag-words")

@@ -2,7 +2,6 @@ import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
 
-
 /// Languages or scripts, type-to-find only (#5479, ruled 2026-10-05: no Browse… and no
 /// alphabetical list): typing shows the engine registry's matches in a dropdown under the field;
 /// a pick becomes a token (its name shown, its tag or code saved); several at once; × removes.
