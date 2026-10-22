@@ -136,12 +136,18 @@ def test_no_cloud_embeddings_client_exists_and_a_new_one_must_be_gated():
 _NET = {("httpx", "get"), ("httpx", "post"), ("httpx", "Client"), ("httpx", "AsyncClient"), ("httpx", "request"),
         ("httpx", "stream"), ("aiohttp", "ClientSession"), ("requests", "get"), ("requests", "post"),
         ("requests", "request"), ("request", "urlopen"), ("urllib", "urlopen")}
+#: huggingface_hub's network calls, by name (bare, or on the module: `hf_hub_download(...)`, `hub.snapshot_download(...)`) and
+#: any method of an `HfApi()` (`HfApi().model_info(...)`, or `api.list_models(...)` where `api = HfApi()`); the generic method names
+#: (`model_info`, `list_models`) are caught only on an HfApi, since other classes have them.
+_HUB_CALLS = {"hf_hub_download", "snapshot_download", "hf_hub_url", "list_repo_files", "list_repo_tree", "get_hf_file_metadata"}
 _GATES = ("check_egress", "_enforce_local_only_provider")
 
 #: Not gated, each with why. None carries what the person's library holds off this Mac.
 _OWN_FETCH = "Fichero's own fetch (models, registries, catalogues): no library content"
 _SENDS_A_KEY = "sends the API key to the provider the person set up, to list or test models: no library content"
 _FETCHES_THE_SOURCE = "fetches FROM the source the person is importing; sends only that source's own URLs"
+_HUB_FETCH = "downloads weights or a model card from the Hugging Face Hub: sends only the repo id, no library content"
+_CONFIRMED_UPLOAD = "the person's own upload to their private dataset: refused unless the yes names the line count (never automatic)"
 _LOOPBACK = "talks to a model server on this Mac"
 ALLOWED = {
     "api/routes/ai/models.py::_fetch_hf_models": _OWN_FETCH,
@@ -155,6 +161,16 @@ ALLOWED = {
     "api/routes/ai/provider_models.py::_live_google_models": _SENDS_A_KEY,
     "api/routes/ai/provider_models.py::list_models_for_provider": _SENDS_A_KEY,
     "llm/__init__.py::_get_shared_httpx_async_client": "built only by _build_langchain_model, which has the gate",
+    "llm/kraken_runtime.py::hub_files": _HUB_FETCH,
+    "llm/mlx_model_store.py::_run_download_in_process": _HUB_FETCH,
+    "llm/mlx_model_store.py::fetch": _HUB_FETCH,
+    "llm/trocr_runtime.py::_snapshot": _HUB_FETCH,
+    "llm/trocr_runtime.py::hub_info": _HUB_FETCH,
+    "llm/whisper_runtime.py::download_whisper_model": _HUB_FETCH,
+    "llm/yolo_runtime.py::download": _HUB_FETCH,
+    "recipes/discovery.py::_fetch_card_text": _HUB_FETCH,
+    "remote_read/runner.py::vlm_reader": _HUB_FETCH,
+    "training/bakeoff_lines.py::push_private_dataset": _CONFIRMED_UPLOAD,
     "llm/kraken_runtime.py::record_files": _OWN_FETCH,
     "llm/local_inference.py::get_json": _LOOPBACK,
     "llm/local_models.py::download_spacy_pipeline": _OWN_FETCH,
@@ -176,7 +192,18 @@ def _network_functions() -> set[str]:
                 # a name that only appears in a string, gated nothing).
                 gate_lines = [n.lineno for n in ast.walk(fn) if isinstance(n, ast.Call)
                               and getattr(n.func, "id", getattr(n.func, "attr", "")) in _GATES]
+                hub_apis = {t.id for a in ast.walk(fn) if isinstance(a, ast.Assign) and isinstance(a.value, ast.Call)
+                            and getattr(a.value.func, "id", getattr(a.value.func, "attr", "")) == "HfApi"
+                            for t in a.targets if isinstance(t, ast.Name)}
                 for n in ast.walk(fn):
+                    if isinstance(n, ast.Call) and not (gate_lines and min(gate_lines) < n.lineno):
+                        f = n.func
+                        named = getattr(f, "id", getattr(f, "attr", ""))
+                        on_api = (isinstance(f, ast.Attribute) and (
+                            (isinstance(f.value, ast.Call) and getattr(f.value.func, "id", getattr(f.value.func, "attr", "")) == "HfApi")
+                            or (isinstance(f.value, ast.Name) and f.value.id in hub_apis)))
+                        if named in _HUB_CALLS or on_api:
+                            found.add(f"{path.relative_to(SRC)}::{fn.name}")
                     if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                             and isinstance(n.func.value, (ast.Name, ast.Attribute))):
                         base = n.func.value.id if isinstance(n.func.value, ast.Name) else n.func.value.attr
