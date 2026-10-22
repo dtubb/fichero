@@ -6,28 +6,19 @@
 
 What changed since 2026.10.11, the day before.
 
-- Recipes choose the model for each step: the app suggests one for the step and your pages, and on a 16 GB Mac it keeps to what the Mac can hold at once.
-- Starting a run no longer fails after a restart of the engine.
-- Activity shows what each run is doing, what is waiting and why, and what is done, in one place.
-- When a provider refuses a request because of a quota or a missing key, Fichero says so in plain words and says what to do.
-- Uploading a dataset checks the privacy setting first: nothing leaves this Mac unless you allow it for that upload.
+- Recipes choose the model for each step: Fichero proposes one for the step and your pages, and you can change it. On a 16 GB Mac, Fichero keeps to what the Mac can hold at once.
+- The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does.
+- Activity shows one row per run, with a stage bar; problems show first, and a partly done run says it is partial and why.
+- When a provider refuses a request, Fichero says which of three things happened and what to do: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
 - Stalls in the engine leave one record of the threads' stacks, not a stream of them.
 
-**Models for each step.** Each step of a recipe names the model it will use. Fichero proposes one for the step
-from the pages in the project, and you can change it. On a 16 GB Mac, Fichero runs one large model at a time
-and says which one is loaded, so the Mac does not run out of memory.
+**Models for each step.** Each step of a recipe names the model it will use. Fichero proposes one for the step from the pages in the project, and you can change it. On a 16 GB Mac, Fichero runs one large model at a time, so the Mac does not run out of memory.
 
-**Activity.** A run is one row with one bar and one button. Stop on a page skips that page and the run goes on;
-Stop on a run stops all of it. Retry on a page reads only that page, inside its run. A failed or partly done
-run says which part failed and why.
+**Activity.** A run is one row with one stage bar. Problems show first. A partly done run says it is partial, and why.
 
-**Quotas and keys.** A refused request says whether the cause is a quota, a missing key, or the request itself,
-and what to do next. Nothing is retried in a loop that spends money.
+**Quotas and keys.** A refused request says which of three things happened, and what to do next: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
 
-**Uploads and privacy.** Uploading a dataset to a cloud model asks the privacy setting first, the same as every other
-upload. The answer you give for one upload does not carry over to the next.
-
-**Under the hood.** The engine starts reliably after an update. Stalls leave one record of the threads' stacks.
+**Under the hood.** The engine starts reliably after an update: a rare start failure, when two of its parts opened the app database at the same moment, is fixed. Stalls leave one record of the threads' stacks.
 
 ## 2026.10.11
 

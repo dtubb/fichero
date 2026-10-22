@@ -3,10 +3,9 @@
 ## 2026-10-22
 
 - Recipes: a model is proposed for each step from the project's pages; on a 16 GB Mac one large model runs at a time.
-- Engine: starting a recipe run after a restart no longer fails.
-- Activity: one row per run with one bar and one button; Stop on a page or a run; Retry on a page inside its run; a partly done run says which part failed.
-- Cloud refusals (quota, missing key) are said in plain words with the next step.
-- Dataset upload to a cloud model passes the privacy check first; the answer covers that upload only.
+- Engine: a rare start failure, when two parts opened the app database at once, is fixed.
+- Activity: one row per run with a stage bar; problems first; a partly done run says it is partial and why.
+- Cloud refusals say which of three causes (out of credit, key refused, slow down) and what to do.
 - Engine stall watchdog writes one stack record per stall.
 
 ## 2026-10-11
