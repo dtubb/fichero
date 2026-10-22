@@ -39,4 +39,12 @@ struct ErrorStatusCellWordsTests {
         #expect(cell == "Could not read a page.")
         #expect(!cell.contains("/Users"))
     }
+
+    @Test("a multi-line error shows its first line only, with a path in it worded away")
+    func firstLineOnly() {
+        let error = "Provider call failed for /Users/maya/Marshall Diaries/p12.jpg\nTraceback (most recent call last):\n  File x.py"
+        let cell = ErrorStatusCell.cellText(error)
+        #expect(cell == "Provider call failed for a page")
+        #expect(!cell.contains("Traceback"))
+    }
 }
