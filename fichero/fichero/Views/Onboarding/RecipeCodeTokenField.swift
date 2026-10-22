@@ -131,3 +131,15 @@ private struct FlowTokens: View {
         }
     }
 }
+
+#Preview("Languages and writing systems") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    store.languages = ["es", "la"]
+    store.scripts = ["Latn"]
+    return VStack(alignment: .leading, spacing: 12) {
+        CodeTokenField(store: store, scripts: false)
+        CodeTokenField(store: store, scripts: true)
+    }
+    .padding()
+    .frame(width: 360)
+}

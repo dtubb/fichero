@@ -75,3 +75,18 @@ private struct StepChoiceCandidateRow: View {
         }
     }
 }
+
+#Preview("A step with a pick and a person's choice") {
+    let menu = StepChoiceMenu(
+        step: "read", name: "Read", chosenBy: .person, job: "transcribe",
+        candidates: [
+            .init(card: "kraken:catmus", name: "Kraken · CATMuS", runsOn: "this-mac", isLocal: true, isPicked: false,
+                  isRecommended: true, isAvailable: true, needs: [], costUsd: nil, costWords: nil),
+            .init(card: "cloud:claude", name: "Claude", runsOn: "cloud:anthropic", isLocal: false, isPicked: true,
+                  isRecommended: false, isAvailable: false,
+                  needs: [.init(kind: .permission, words: "Pages may not leave this Mac yet.")], costUsd: 4.2, costWords: "Estimate")
+        ])
+    return StepChoiceMenuSection(menu: menu, store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
+        .padding()
+        .frame(width: 460)
+}
