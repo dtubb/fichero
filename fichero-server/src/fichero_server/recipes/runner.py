@@ -271,7 +271,6 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         _load_step_workflow,
         _record_step_run_accepted,
         _run_step_workflow,
-        _step_run_outcome,
         _validate_step_workflow,
     )
     from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
