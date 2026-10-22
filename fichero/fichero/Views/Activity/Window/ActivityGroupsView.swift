@@ -100,7 +100,8 @@ struct ActivityGroupsView: View {
             }
             if let button = row.oneButton {
                 Button { perform(button, row) } label: { Label(label(button), systemImage: symbol(button)) }
-                    .labelStyle(button == .retry || button == .show ? .titleOnly : .iconOnly)
+                    .labelStyle(TitleOrIconLabelStyle(showsTitle: button == .retry || button == .show))
+                    .accessibilityLabel(label(button))
                     .buttonStyle(.borderless)
                     .help("\(label(button)) \(row.name)")
                     .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(label(button).lowercased())")
@@ -154,4 +155,12 @@ struct ActivityGroupsView: View {
         },
         clearFailed: {}, clearFinished: {}, delete: { _ in })
         .frame(width: 420, height: 320)
+}
+
+/// `.titleOnly` or `.iconOnly` chosen per button (a ternary cannot mix the two style types).
+private struct TitleOrIconLabelStyle: LabelStyle {
+    let showsTitle: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        if showsTitle { configuration.title } else { configuration.icon }
+    }
 }
