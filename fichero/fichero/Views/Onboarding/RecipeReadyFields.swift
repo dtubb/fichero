@@ -124,3 +124,11 @@ struct RecipeReadyFields: View {
         return await store.start()
     }
 }
+
+#Preview("Ready, nothing planned yet") {
+    ScrollView {
+        RecipeReadyFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), onFix: { _ in })
+            .padding()
+    }
+    .frame(width: 480, height: 520)
+}
