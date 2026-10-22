@@ -1154,9 +1154,11 @@ async def lifespan(app: FastAPI):
     mcp_tools_started = asyncio.create_task(_load_mcp_tools())
 
     _api_stamp("lifespan pre-yield complete")
-    yield
-    _loop_watch.set()
-    loop_lag.stop_watchdog()
+    try:
+        yield
+    finally:  # a body that raises (a failed or timed-out test, a crashed server) must not leave the watcher and its dump timer running (#6007)
+        _loop_watch.set()
+        loop_lag.stop_watchdog()
     signal_sse_shutdown()
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
