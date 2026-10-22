@@ -145,7 +145,8 @@ def test_release_stops_page_jobs_which_carry_on_when_it_opens_again(project, mon
     # Opening the project again wakes the job scheduler, whose lane thread claims the first waiting job (waiting -> running)
     # within moments: on a loaded Mac the read below could land after that claim and see 'running'. This test is about what
     # `resume` leaves at the next open, so the scheduler is not woken; "carrying on" is the scheduler's own tests.
-    monkeypatch.setattr(jobs._scheduler, "wake", lambda *a, **k: None)
+    woke: list[str | None] = []
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key=None, *a, **k: woke.append(key))  # a spy: the wake stays pinned
 
     body = _release(TestClient(app), package).json()
 
@@ -154,6 +155,7 @@ def test_release_stops_page_jobs_which_carry_on_when_it_opens_again(project, mon
     assert stopped == [db_manager._cache_key(package)], "the project's job threads were not stopped"
     states = dict(db_manager.get_database(package).execute_fetchall("SELECT id, state FROM jobs"))
     assert states == {"j1": "waiting", "j2": "waiting"}, "jobs must carry on at the next open"
+    assert woke == [db_manager._cache_key(package)], "opening the project again must wake the scheduler for it, once"
 
 
 def test_release_stops_a_waiting_conversion_without_a_snapshot(project, monkeypatch):
