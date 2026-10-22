@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import importlib.util
 import time
 from pathlib import Path
 
@@ -12,6 +13,12 @@ from fichero_server.workflows.ner.providers import SpacyNERProvider
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 SPACY_CALLS = {"extract_entities", "cluster_aliases"}
+
+
+# scripts/ is not a package: load the repo's scan helper by path, so a nested worktree is never walked (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location("_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 
 def test_the_loop_keeps_answering_while_spacy_is_held_up(monkeypatch):
@@ -54,11 +61,11 @@ def _runs_spacy(src=SRC):
     """The names of every function in the engine that runs a spaCy pipeline, by name: seeded from where a pipeline is loaded
     (`load_spacy_pipeline`, a `spacy.load(...)` call), followed through the sync functions that call one to a fixed point,
     across every module, and through `from m import f as g` aliases (a call is matched by its name, wherever it is read)."""
-    trees = [ast.parse(path.read_text()) for path in src.rglob("*.py")]
+    trees = [ast.parse(path.read_text()) for path in scan_files.scan_rglob(src, "*.py")]
     # Module-level functions only: a method is called by a name every class shares (`__init__`, `run`), which would sweep in the engine.
     sync = [fn for tree in trees for fn in tree.body if isinstance(fn, ast.FunctionDef)]
     defined_in = {}  # name -> the modules (last path part) that define it at module level
-    for path in src.rglob("*.py"):
+    for path in scan_files.scan_rglob(src, "*.py"):
         for fn in ast.parse(path.read_text()).body:
             if isinstance(fn, ast.FunctionDef):
                 defined_in.setdefault(fn.name, set()).add(path.stem)
@@ -91,7 +98,7 @@ def test_no_async_function_runs_spacy_on_the_loop():
     runs spaCy on the loop (`runtime.spacy.never-blocks`)."""
     reaching = _runs_spacy()
     assert {"extract_entities", "propose_triples", "predicate_problem", "_spacy_page_claims"} <= reaching, sorted(reaching)
-    bad = [f"{path.relative_to(SRC)}:{fn.lineno} in {fn.name}" for path in SRC.rglob("*.py")
+    bad = [f"{path.relative_to(SRC)}:{fn.lineno} in {fn.name}" for path in scan_files.scan_rglob(SRC, "*.py")
            for fn in _functions(ast.parse(path.read_text())) if isinstance(fn, ast.AsyncFunctionDef)
            and set(_own_calls(fn)) & reaching]
     assert not bad, f"spaCy called on the event loop: {bad}"
@@ -99,7 +106,7 @@ def test_no_async_function_runs_spacy_on_the_loop():
 
 def _async_offenders(src):
     reaching = _runs_spacy(src)
-    return [fn.name for path in src.rglob("*.py") for fn in _functions(ast.parse(path.read_text()))
+    return [fn.name for path in scan_files.scan_rglob(src, "*.py") for fn in _functions(ast.parse(path.read_text()))
             if isinstance(fn, ast.AsyncFunctionDef) and set(_own_calls(fn)) & reaching]
 
 

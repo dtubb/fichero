@@ -2,14 +2,23 @@
 per-thread page notes, the load lock and the idle release."""
 from __future__ import annotations
 
+import importlib.util
+
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
 from fichero_server.llm import kraken_runtime as kr
 
 GIB = 1024**3
+
+
+# scripts/ is not a package: load the repo's scan helper by path, so a nested worktree is never walked (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location("_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 
 def _in_threads(n, target):
@@ -383,7 +392,7 @@ def test_every_name_the_engine_takes_from_kraken_runtime_exists():
 
     src = Path(kr.__file__).parent.parent
     wanted: dict[str, set[str]] = {}
-    for path in src.rglob("*.py"):
+    for path in scan_files.scan_rglob(src, "*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         aliases = {"kraken_runtime"}
         for node in ast.walk(tree):
