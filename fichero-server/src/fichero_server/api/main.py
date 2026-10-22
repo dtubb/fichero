@@ -1183,7 +1183,7 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
     from fichero_server.api.change_stream import signal_sse_shutdown
 
-    signal_sse_shutdown()
+    await _step("signal the SSE streams", signal_sse_shutdown)
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
     # connections to close" blocked on any live run and the app SIGKILLed us
