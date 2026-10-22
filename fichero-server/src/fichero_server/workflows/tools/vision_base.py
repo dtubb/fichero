@@ -2768,6 +2768,10 @@ def _refusal_of(exc: BaseException) -> dict[str, Any]:
 VISION_ERROR_TIMEOUT = "timeout"
 #: 429 / quota / breaker-open. Retrying now makes it worse.
 VISION_ERROR_RATE_LIMITED = "rate_limited"
+#: The provider has no credit for this key (402, insufficient quota): adding credit helps, waiting does not.
+VISION_ERROR_NO_CREDIT = "no_credit"
+#: The provider refused the API key (401): checking the key helps, waiting does not.
+VISION_ERROR_KEY_REFUSED = "key_refused"
 #: The model answered, and the answer was empty. Not an error we can retry away.
 VISION_ERROR_EMPTY = "empty"
 #: Boxes were the POINT of the run (Detect Regions VLM), the model answered and
@@ -2817,8 +2821,8 @@ def classify_vision_failure(exc: BaseException | None) -> str:
     """
     if exc is None:
         return VISION_ERROR_EMPTY
-    if isinstance(exc, ProviderRateLimitedError):
-        return VISION_ERROR_RATE_LIMITED
+    if isinstance(exc, ProviderRateLimitedError):  # by TYPE, and by the cause the dead provider kept (## 950)
+        return {"quota": VISION_ERROR_NO_CREDIT, "key": VISION_ERROR_KEY_REFUSED}.get(exc.cause, VISION_ERROR_RATE_LIMITED)
     if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
         return VISION_ERROR_TIMEOUT
     haystack = f"{type(exc).__name__} {exc}".lower()
@@ -2855,9 +2859,11 @@ def describe_vision_failure(kind: str, *, detail: str | None = None) -> str:
             "timeout or try again when the provider is less loaded"
         ),
         VISION_ERROR_RATE_LIMITED: (
-            "the provider rate-limited this run — re-run it later; retrying "
-            "now holds the circuit breaker open for every other file"
+            "the provider asked us to slow down — run it again in a few minutes; "
+            "retrying now only keeps it refusing every other page"
         ),
+        VISION_ERROR_NO_CREDIT: "the provider has no credit left for this key — add credit there, or choose another model",
+        VISION_ERROR_KEY_REFUSED: "the provider refused the API key — check the key in Settings, or choose another model",
         VISION_ERROR_EMPTY: (
             "the model answered with nothing at all, twice — it may be unable "
             "to read this hand; try a stronger vision model"
