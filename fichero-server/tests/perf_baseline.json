@@ -64,6 +64,16 @@
     "mb": 2012.7,
     "note": "first recorded run"
   },
+  "mem::session::tests/unit/api/test_provider_actions.py,tests/unit/api/test_provider_change_broadcast.py,tests/unit/api/test_provider_models_omlx_fastfail.py,tests/unit/api/test_provider_seed_after_yield.py,tests/unit/api/test_query_ratchet_workflow_endpoints.py": {
+    "commit": "f7b531841",
+    "mb": 418.6,
+    "note": "first recorded run"
+  },
+  "mem::session::tests/unit/api/test_query_ratchet_workflow_endpoints.py": {
+    "commit": "f7b531841",
+    "mb": 366.5,
+    "note": "first recorded run"
+  },
   "mem::session::tests/unit/llm/test_lang_detect.py": {
     "commit": "9c137cfd0",
     "mb": 226.7,
@@ -132,6 +142,11 @@
   "queries.GET./api/health": {
     "commit": "107c1c884",
     "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/providers/models/{provider_type}": {
+    "commit": "f7b531841",
+    "count": 1,
     "note": "first recorded run"
   },
   "queries.GET./api/registry": {
@@ -2539,15 +2554,25 @@
     "ms": 29.7,
     "note": "first recorded run"
   },
+  "test::tests/unit/api/test_provider_models_omlx_fastfail.py::test_down_omlx_still_lists_store_models_and_fails_fast": {
+    "commit": "f7b531841",
+    "ms": 499.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/api/test_provider_seed_after_yield.py::test_provider_seed_and_collapse_run_before_yield[asyncio]": {
+    "commit": "f7b531841",
+    "ms": 465.3,
+    "note": "first recorded run"
+  },
   "test::tests/unit/api/test_query_ratchet_workflow_endpoints.py::TestQueryRatchetSeesRealTaskQueueTraffic::test_list_tasks_through_a_real_queue_is_counted": {
     "commit": "18917fe1f",
     "ms": 69.7,
     "note": "tightened from 79.5 ms"
   },
   "test::tests/unit/api/test_query_ratchet_workflow_endpoints.py::TestTheGuardHasTeeth::test_bypassing_connect_utc_is_caught_as_zero": {
-    "commit": "18917fe1f",
-    "ms": 67.4,
-    "note": "tightened from 87.3 ms"
+    "commit": "f7b531841",
+    "ms": 51.0,
+    "note": "tightened from 67.4 ms"
   },
   "test::tests/unit/api/test_research_agents_api.py::test_browser_navigate_sandbox_blocked": {
     "commit": "18917fe1f",
