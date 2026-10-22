@@ -63,8 +63,17 @@ DEFAULT_BREAKER_COOLDOWN = 30.0
 CAUSES = ("rate-limit", "quota", "key")
 
 
+#: How a provider is written to a person (the id is lower case: "openai", "huggingface").
+PROVIDER_NAMES = {
+    "openai": "OpenAI", "anthropic": "Anthropic", "google": "Google", "gemini": "Google Gemini", "openrouter": "OpenRouter",
+    "huggingface": "Hugging Face", "azure": "Azure OpenAI", "mistral": "Mistral", "cohere": "Cohere", "groq": "Groq",
+    "xai": "xAI", "deepseek": "DeepSeek", "together": "Together AI", "perplexity": "Perplexity", "ollama": "Ollama",
+}
+
+
 def _provider_name(provider: str) -> str:
-    return (provider or "the provider").strip().capitalize() or "The provider"
+    key = (provider or "").strip().lower()
+    return PROVIDER_NAMES.get(key) or key.capitalize() or "The provider"
 
 
 class ProviderRateLimitedError(RuntimeError):
@@ -149,6 +158,13 @@ def retry_after_seconds(exc: BaseException) -> float | None:
     return min(max(seconds, 0.0), RETRY_AFTER_CAP)
 
 
+#: The words of a provider that has no credit, and of one that refused the key (a refusal that reached us as text only, a
+#: wrapper having dropped the status). ONE list for `classify_provider_error` and `fatal_cause`, so they cannot disagree.
+NO_CREDIT_WORDS = ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits")
+KEY_REFUSED_WORDS = ("invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized", "invalid x-api-key",
+                     "authentication_error")
+
+
 def classify_provider_error(exc: BaseException) -> str:
     """Classify a provider exception as ``"slow-down"``, ``"transient"``, ``"fatal"`` or ``"terminal"``
     (`ai.where.one-retry-policy`, #5944).
@@ -167,10 +183,7 @@ def classify_provider_error(exc: BaseException) -> str:
         text = _extract_exc_message(exc).lower()
     except Exception:  # pragma: no cover - classification must never crash
         text = str(exc).lower()
-    if status in (401, 402) or any(
-            k in text for k in ("insufficient_quota", "insufficient quota", "key limit", "credit balance", "out of credits",
-                            # a refused key that reached us as text only (a wrapper that dropped the status)
-                            "invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized")):
+    if status in (401, 402) or any(k in text for k in (*NO_CREDIT_WORDS, *KEY_REFUSED_WORDS)):
         return "fatal"
     try:
         is_quota, _status, _detail = _is_provider_quota_error(exc)
@@ -187,10 +200,6 @@ def classify_provider_error(exc: BaseException) -> str:
     return "terminal"
 
 
-_KEY_WORDS = ("invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized", "invalid x-api-key",
-              "authentication_error")
-
-
 def fatal_cause(exc: BaseException) -> str:
     """For a `fatal` error (`classify_provider_error`): `"key"` when the provider refused the key (401 or its words), else
     `"quota"` (no credit: 402, insufficient_quota, a key limit)."""
@@ -201,7 +210,7 @@ def fatal_cause(exc: BaseException) -> str:
         text = _extract_exc_message(exc).lower()
     except Exception:  # pragma: no cover - classification must never crash
         text = str(exc).lower()
-    if status == 401 or any(k in text for k in _KEY_WORDS):
+    if status == 401 or any(k in text for k in KEY_REFUSED_WORDS):
         return "key"
     return "quota"
 

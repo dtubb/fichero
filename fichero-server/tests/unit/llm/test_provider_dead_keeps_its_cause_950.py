@@ -119,3 +119,18 @@ def test_vision_classes_a_dead_provider_by_cause_and_never_retries_it(error, kin
     assert not any(word in sentence.lower() for word in INTERNALS)
     if kind != vb.VISION_ERROR_RATE_LIMITED:
         assert "wait" not in sentence.lower() and "later" not in sentence.lower()
+
+
+def test_a_provider_is_written_the_way_a_person_writes_it():
+    """## 967: 'OpenAI', never 'Openai'."""
+    assert "OpenAI" in cb.ProviderKeyRefusedError("openai", failures=1).args[0]
+    assert "Hugging Face" in cb.ProviderQuotaExhaustedError("huggingface", failures=1).args[0]
+    assert "Somenewprovider" in cb.ProviderRateLimitedError("somenewprovider", failures=1).args[0]  # an unknown id still reads
+
+
+@pytest.mark.parametrize("text", [*cb.NO_CREDIT_WORDS, *cb.KEY_REFUSED_WORDS])
+def test_classify_and_fatal_cause_agree_on_every_word_they_know(text):
+    """## 967: one list; a word that makes an error fatal always has a cause, and the key words are keys."""
+    error = _Http(400, text)
+    assert cb.classify_provider_error(error) == "fatal"
+    assert cb.fatal_cause(error) == ("key" if text in cb.KEY_REFUSED_WORDS else "quota")
