@@ -93716,6 +93716,28 @@
             "title": "Chosen By",
             "description": "setup: Set Up's pick stands; person: they chose another (POST .../steps/use-setup-pick takes it back)"
           },
+          "in_plan": {
+            "type": "boolean",
+            "title": "In Plan",
+            "description": "false for a step the recipe does not have yet but that is listed so it can be found: Correct beside a Kraken reader; `turn_on` says how to bring it in",
+            "default": true
+          },
+          "wording": {
+            "type": "string",
+            "nullable": true,
+            "title": "Wording",
+            "description": "the sentence to show for the step when it is not a plain model choice"
+          },
+          "certainty_bar": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty Bar",
+            "description": "Correct beside a Kraken reader: Set Up's certainty-bar answer, the lines under it are the ones corrected; null: no bar chosen"
+          },
+          "turn_on": {
+            "$ref": "#/components/schemas/StepTurnOn",
+            "nullable": true
+          },
           "candidates": {
             "items": {
               "$ref": "#/components/schemas/StepCandidate"
@@ -93977,6 +93999,30 @@
           "local_search"
         ],
         "title": "StepTool"
+      },
+      "StepTurnOn": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "the job answer to set"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer",
+          "value",
+          "words"
+        ],
+        "title": "StepTurnOn",
+        "description": "How to bring a step into the plan: Set Up's own answer, nothing new to send (PUT /api/recipes/project with the answer)."
       },
       "StepUpdateRequest": {
         "properties": {
