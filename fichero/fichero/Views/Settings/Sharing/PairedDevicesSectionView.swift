@@ -54,6 +54,8 @@ struct PairedDevicesSectionView: View {
     }
 }
 
+#if canImport(AppKit)  // PairingCardView is macOS-only
+
 #Preview("Pairing card: engine not running") {
     PairingCardView(
         pairingCode: nil, qrCodeImage: nil, publicURL: nil, inviteLink: nil,
@@ -73,6 +75,8 @@ struct PairedDevicesSectionView: View {
     .padding()
     .frame(width: 420)
 }
+
+#endif
 
 #Preview("Connected devices: empty") {
     Form {
