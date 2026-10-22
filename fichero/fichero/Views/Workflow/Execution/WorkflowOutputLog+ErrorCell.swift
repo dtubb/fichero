@@ -78,8 +78,8 @@ struct ErrorStatusCell: View {
     /// What the cell says: the engine's first sentence AS SENT, for every error (`ai.where.dead-provider-says-why`, ## 950,
     /// ## 972). The app keeps no labels of its own ("No credits", "Rate limit" were guesses from substrings of the engine's
     /// prose, which a reword silently broke); the status carries the message only, with no error kind to switch on. The full
-    /// message stays in the popover and the tooltip.
+    /// message stays in the popover and the tooltip. A file path never reaches the cell (`worded`: "a page", "a file").
     nonisolated static func cellText(_ error: String) -> String {
-        ActivityPopoverSummary.firstSentence(error)
+        ActivityPopoverSummary.firstSentence(ActivityPopoverSummary.worded(error))
     }
 }
