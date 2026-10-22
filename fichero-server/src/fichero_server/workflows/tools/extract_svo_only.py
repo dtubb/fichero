@@ -67,7 +67,7 @@ from fichero_server.workflows.tools.extractors import (
 )
 from fichero_server.workflows.tools.date_extract import volume_years_for
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
-from fichero_server.workflows.tools._together import ahead, extract_width
+from fichero_server.workflows.tools._together import ahead_of_run, extract_width
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
 from fichero_server.workflows.types import DataType, PortDef, State
@@ -408,7 +408,7 @@ async def extract_svo_only(
         return {"speaker": speaker, "entity_by_norm": entity_by_norm, "date_items": date_items or [],
                 "page_claims": page_claims}
 
-    async for (index, record), pre in ahead(enumerate(records), start, max_in_flight):
+    async for (index, record), pre in ahead_of_run(enumerate(records), start, max_in_flight):
         doc_id = record["doc_id"]
         doc_name = record.get("doc_name") or doc_id or f"document-{index + 1}"
         if pre.get("uncertain"):

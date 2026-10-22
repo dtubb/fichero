@@ -21,6 +21,26 @@ else
   PYTHON_BIN="python3"
 fi
 
+print_help() {
+  echo "Usage: $0 [--no-sync] [--fast] [--reload] [--uds[=/path]]"
+  echo
+  echo "Refuses to start without FICHERO_BASE_PATH (a scratch folder). The owner alone runs on the real app"
+  echo "state on purpose, with FICHERO_ALLOW_REAL_STATE=1 set by hand."
+  echo "Default starts uvicorn without reload so the real app DuckDB is opened"
+  echo "by one process only. Use --reload only with an isolated/test database."
+  echo "--uds serves the engine on a Unix-domain socket (dev fast loop)."
+  echo "  Default socket = the app container's tmp/fichero.sock — the SAME"
+  echo "  path the 'Fichero (Dev Local)' scheme dials via"
+  echo "  FICHERO_FORCE_UDS_PATH (#4222). Override with --uds=/path or"
+  echo "  FICHERO_UDS_PATH. A Dev Embedded app spawns its OWN engine on this"
+  echo "  socket — quit it first (pgrep -fl 'Fichero Server')."
+}
+
+# --help answers before anything runs: it needs no Python, so it works wherever the script can be read.
+for arg in "$@"; do
+  case $arg in --help|-h) print_help; exit 0 ;; esac
+done
+
 # A dev engine never takes the owner's real libraries for its state (runtime.dev-engine-refuses-real-data).
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m fichero_server.security.real_data_guard "${FICHERO_BASE_PATH:-}" || exit 1
 
@@ -39,21 +59,7 @@ for arg in "$@"; do
     # remote-access/TLS prep below. `--uds=/path` overrides the socket path.
     --uds) UDS_MODE=true ;;
     --uds=*) UDS_MODE=true; FICHERO_UDS_PATH="${arg#--uds=}" ;;
-    --help|-h)
-      echo "Usage: $0 [--no-sync] [--fast] [--reload] [--uds[=/path]]"
-      echo
-      echo "Refuses to start without FICHERO_BASE_PATH (a scratch folder). The owner alone runs on the real app"
-      echo "state on purpose, with FICHERO_ALLOW_REAL_STATE=1 set by hand."
-      echo "Default starts uvicorn without reload so the real app DuckDB is opened"
-      echo "by one process only. Use --reload only with an isolated/test database."
-      echo "--uds serves the engine on a Unix-domain socket (dev fast loop)."
-      echo "  Default socket = the app container's tmp/fichero.sock — the SAME"
-      echo "  path the 'Fichero (Dev Local)' scheme dials via"
-      echo "  FICHERO_FORCE_UDS_PATH (#4222). Override with --uds=/path or"
-      echo "  FICHERO_UDS_PATH. A Dev Embedded app spawns its OWN engine on this"
-      echo "  socket — quit it first (pgrep -fl 'Fichero Server')."
-      exit 0
-      ;;
+    --help|-h) print_help; exit 0 ;;
   esac
 done
 

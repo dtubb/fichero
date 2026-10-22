@@ -77,7 +77,8 @@ async def test_the_saved_reading_keeps_krakens_lines_and_the_teachers_words(test
     words = iter(["el engaño de lo que se compra", None, "por la mitad mas o menos"])
 
     async def teacher(images, prompt, config, **_):
-        return "[" + ", ".join('"%s"' % w if w else "null" for w in (next(words) for _ in images)) + "]"
+        shown = len(images) - (1 if str(prompt).startswith("Before the ") else 0)  # variant B: the page comes first, unread
+        return "[" + ", ".join('"%s"' % w if w else "null" for w in (next(words) for _ in range(shown))) + "]"
 
     monkeypatch.setattr(llm, "vision", teacher)
     result = await _run(library, doc)
@@ -106,8 +107,9 @@ async def test_an_answer_that_does_not_match_line_for_line_is_asked_again_one_li
     asked = []
 
     async def teacher(images, prompt, config, **_):
-        asked.append(len(images))
-        if len(images) > 1:
+        shown = len(images) - (1 if str(prompt).startswith("Before the ") else 0)  # variant B: the page comes first, unread
+        asked.append(shown)
+        if shown > 1:
             return '["only two", "answers"]'  # three pictures, two answers: which is which?
         return '["line %d"]' % len(asked)
 

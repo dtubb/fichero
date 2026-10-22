@@ -20,6 +20,18 @@ from fichero_server.execution import jobs
 from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
     _execute, _status, _tree, _wait_for, make_page_sets, no_embedding_model)
 
+pytestmark = pytest.mark.usefixtures("lane_cloud_yes")
+
+
+@pytest.fixture
+def lane_cloud_yes(project_says_yes, monkeypatch):
+    """These tests are about the LANE, with stub cloud models: the test project says yes to cloud models and the stub models carry a
+    listed price, so the one egress gate and the spending cap (#5368) let the call through. Never use it in a cap or egress test."""
+    from fichero_server.llm import usage
+
+    monkeypatch.setattr(usage, "_registry_entry", lambda model, provider="": {
+        "input_cost_per_token": 1e-6, "output_cost_per_token": 1e-5})
+
 
 @pytest.fixture
 def pages(db, tmp_path):
@@ -140,10 +152,13 @@ def test_activity_run_lane_cap_per_mac__text_calls_of_three_runs_share_one_cap(c
     assert cloud.peak <= 2
 
 
-def test_activity_pause_per_job__stopping_the_run_reaches_its_next_text_calls(client, workflow, pages, cloud):
+def test_activity_pause_per_job__stopping_the_run_reaches_its_next_text_calls(client, workflow, pages, cloud, monkeypatch):
     """Behaviour `activity.pause.per-job` ("Cancel on any row, applying to its children"): with the
     first call held, Stop on the run row ends the run, and none of its later calls reaches the
-    model (the entity reader asks about its letters one after another, each through the lane)."""
+    model. The entity reader now asks pages together (`runtime.cloud-extractors.pages-together`, 10 in flight for a hosted
+    model, so all three letters would be in flight before Stop); the width is one here, which is the case this pins: Stop
+    is asked before every new call."""
+    monkeypatch.setenv("FICHERO_EXTRACT_MAX_IN_FLIGHT", "1")
     cloud.gate = threading.Event()
     run = _execute(client, workflow, pages)
     assert cloud.first_call.wait(30)
@@ -152,3 +167,45 @@ def test_activity_pause_per_job__stopping_the_run_reaches_its_next_text_calls(cl
     assert _wait_for(lambda: _status(client, run) == "cancelled")
     time.sleep(0.3)
     assert cloud.calls == 1
+
+
+def test_activity_pause_per_job__no_new_text_call_starts_after_stop_at_the_default_width(monkeypatch):
+    """`runtime.cloud-extractors.pages-together` (## 941): 30 letters at the default width (10 for a hosted model). Ten calls are in
+    flight; the run is stopped; as they land the loop must not ask for the next letter: no cloud page leaves this Mac after
+    Stop, and the step ends with the Stop (not as a part-done answer). The extractors take their Stop from the run
+    (`_together.ahead_of_run`); the run's stop is faked here, and the loop is the real one."""
+    import asyncio
+
+    from fichero_server.execution.cancellation import WorkflowCancelled
+    from fichero_server.workflows.tools import _together
+
+    stopped = [False]
+    monkeypatch.setattr(_together, "this_run_stopped", lambda: WorkflowCancelled("run") if stopped[0] else None)
+    started: list[int] = []
+
+    async def start(item: int) -> int:
+        started.append(item)
+        await asyncio.sleep(0)
+        return item
+
+    async def consume() -> list[int]:
+        seen: list[int] = []
+        async for item, _answer in _together.ahead_of_run(range(30), start, _together.CLOUD_WIDTH):
+            seen.append(item)
+            stopped[0] = True  # the person presses Stop while the first ten are in flight
+        return seen
+
+    with pytest.raises(WorkflowCancelled):
+        asyncio.run(consume())
+    assert len(started) == _together.CLOUD_WIDTH, f"{len(started)} calls started; only the window of ten may"
+
+
+def test_both_extractors_take_their_stop_from_the_run():
+    """The loop of `extract_entities_only` and `extract_svo_only` is `ahead_of_run`, never a bare `ahead` with no stop."""
+    import inspect
+
+    from fichero_server.workflows.tools import extract_entities_only, extract_svo_only
+
+    for module in (extract_entities_only, extract_svo_only):
+        source = inspect.getsource(module)
+        assert "ahead_of_run(" in source and " ahead(" not in source, module.__name__

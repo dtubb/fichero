@@ -9,7 +9,6 @@ server answers and counts every request, so the tests say exactly what crossed t
 from __future__ import annotations
 
 import json
-import time
 from io import BytesIO
 
 import pytest
@@ -24,19 +23,26 @@ def _fetcher(server):
     return PoliteFetcher(get=server.get, sleep=lambda s: None)
 
 
-def test_thirty_thousand_canvases_import_quickly_as_references_and_again_make_nothing(db):
+def test_thirty_thousand_canvases_import_quickly_as_references_and_again_make_nothing(db, monkeypatch):
     """`iiif.scale.million-pages`, at 30,000 canvases, built here, never fetched from the network."""
     manifest = _manifest3("big", 30_000)
     server = FakeIIIFServer({manifest["id"]: manifest})
     said = []
 
-    started = time.monotonic()
+    writes: list[int] = []
+    real_save_many = db.save_many
+
+    def counted(rows, *a, **k):
+        writes.append(len(rows))
+        return real_save_many(rows, *a, **k)
+
+    monkeypatch.setattr(db, "save_many", counted)
     done = iiif_source.import_source(db, manifest["id"], fetcher=_fetcher(server), say=said.append)
-    took = time.monotonic() - started
 
     assert done["added"] == 30_000 and done["canvases"] == 30_000
     assert server.requests == [manifest["id"]]  # the manifest only: no image fetched
-    assert took < 30, f"took {took:.0f} s"  # one insert per 1,000 rows: ~5 s here
+    # "quickly" is a count, not a clock (a loaded Mac takes any number of seconds): one insert per 1,000 rows, never one per row
+    assert sum(writes) >= 30_000 and max(writes) <= iiif_source.BATCH and len(writes) <= 31, writes[:5]
     pages = db.query(Document, parent_id=done["folder_id"])
     assert len(pages) == 30_000 and all(not p.path for p in pages[:50])
     page = next(p for p in pages if p.metadata["iiif_id"] == f"{HOST}/big/canvas/12345")

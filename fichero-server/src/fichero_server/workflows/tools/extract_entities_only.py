@@ -38,7 +38,7 @@ from fichero_server.workflows.tools.extract_all import (
 )
 from fichero_server.workflows.tools.extractors import _SECTIONS, name_spans, write_mentions
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
-from fichero_server.workflows.tools._together import ahead, extract_width
+from fichero_server.workflows.tools._together import ahead_of_run, extract_width
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
 from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
@@ -457,7 +457,7 @@ async def extract_entities_only(
                 )
         return {"resolution": resolution, "extraction": extraction}
 
-    async for (index, record), pre in ahead(enumerate(records), start, max_in_flight):
+    async for (index, record), pre in ahead_of_run(enumerate(records), start, max_in_flight):
         processed += 1
         doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
         await emit_progress_event(

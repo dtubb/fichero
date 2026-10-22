@@ -155,14 +155,17 @@ ALLOWED = {
     "api/routes/ai/provider_models.py::_live_google_models": _SENDS_A_KEY,
     "api/routes/ai/provider_models.py::list_models_for_provider": _SENDS_A_KEY,
     "llm/__init__.py::_get_shared_httpx_async_client": "built only by _build_langchain_model, which has the gate",
+    "llm/kraken_runtime.py::hub_files": _OWN_FETCH,  # a Kraken repository's file list from the Hub (a model's metadata)
     "llm/kraken_runtime.py::record_files": _OWN_FETCH,
     "llm/local_inference.py::get_json": _LOOPBACK,
     "llm/local_models.py::download_spacy_pipeline": _OWN_FETCH,
     "llm/model_downloads.py::_open": _OWN_FETCH,
     "llm/model_types.py::_refresh_registry_cache": _OWN_FETCH,
     "llm/script_coverage.py::_http_get_bytes": _OWN_FETCH,
+    "llm/trocr_runtime.py::hub_info": _OWN_FETCH,  # a TrOCR repository's commit and files from the Hub
     "loaders/iiif_loader.py::load": _FETCHES_THE_SOURCE,
     "media/iiif_fetch.py::urllib_get": _FETCHES_THE_SOURCE,
+    "recipes/discovery.py::_fetch_card_text": _OWN_FETCH,  # a model card's README from the Hub, behind the model search's own check
     "recipes/htr_united.py::_fetch_catalogue": _OWN_FETCH,
 }
 

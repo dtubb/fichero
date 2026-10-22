@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import BaseModel, Field
 
+
 from fichero_server.llm import (
     AppleUnavailableError,
     GuardrailViolationError,
@@ -35,6 +36,8 @@ from fichero_server.llm import (
     chat_structured,
     chat_structured_with_fallback,
 )
+
+pytestmark = pytest.mark.usefixtures("cloud_call_project")  # a cloud call runs under a project that said yes (the one egress gate, #5368)
 
 
 # =============================================================================
@@ -641,7 +644,11 @@ class TestProviderQuotaHandling:
 
     @pytest.mark.asyncio
     async def test_chat_structured_raises_typed_quota_error_once(self):
+        from fichero_server.llm import retry
+        from fichero_server.workflows.circuit_breaker import ProviderRateLimitedError
+
         _PROVIDER_QUOTA_HITS.clear()
+        retry._DEAD.clear()  # the one retry layer remembers a provider whose key was refused (#5944); this test starts clean
         cfg = LLMConfig(provider="openrouter", model="gpt-5")
 
         quota_error = self._QuotaError()
@@ -657,8 +664,10 @@ class TestProviderQuotaHandling:
              patch("fichero_server.llm.logger.warning") as warn:
             with pytest.raises(ProviderQuotaError, match="Provider openrouter quota/limit hit"):
                 await chat_structured(prompt="x", schema=_Result, config=cfg)
-            with pytest.raises(ProviderQuotaError):
+            # the 403 marked the provider dead for a while: the next call fails fast, typed, without reaching the model (#5944)
+            with pytest.raises(ProviderRateLimitedError):
                 await chat_structured(prompt="y", schema=_Result, config=cfg)
+        retry._DEAD.clear()
 
         assert warn.call_count == 1
         assert tracker.log.call_count == 1

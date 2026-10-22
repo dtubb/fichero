@@ -15,11 +15,24 @@ from types import SimpleNamespace
 import pytest
 
 from fichero_server.models import Model, Provider, ProviderType
-from tests.unit.recipes.test_installed_model_first_to_spec import LINES, READ, mac  # noqa: F401
+from tests.unit.recipes.test_installed_model_first_to_spec import LINES, READ  # noqa: F401
+from tests.unit.recipes.test_installed_model_first_to_spec import mac as mac_32_gb  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save, engine, pages  # noqa: F401
 
 EIGHT = "mlx-community/Qwen3-VL-8B-Instruct-4bit"
 CORRECT = {"id": "correct", "job": "correct", "model": {"hf": EIGHT, "revision": "main"}, "runs_on": "this-mac"}
+
+
+@pytest.fixture
+def mac(mac_32_gb, monkeypatch):  # noqa: F811
+    """The 16 GB Mac this file is about (the shared fixture's Mac is a 32 GB one, where the 8B runs and nothing needs another
+    place): same store, same runtime, less memory."""
+    from fichero_server.llm.local_inference import LocalInferenceCapabilities
+
+    monkeypatch.setattr("fichero_server.llm.local_model_facts.get_local_inference_capabilities",
+                        lambda: LocalInferenceCapabilities(system="Darwin", machine="arm64", is_apple_silicon=True,
+                                                           physical_memory_bytes=16 * 1024**3, macos_version="26.0"))
+    return mac_32_gb
 
 
 @pytest.fixture

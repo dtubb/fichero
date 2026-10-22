@@ -16,7 +16,9 @@ import pytest
 from fichero_server.execution import jobs
 from tests.unit.jobs.test_run_tree_rolls_up import _workflow
 from tests.unit.jobs.test_runs_are_jobs import _execute, _status, _tree, _wait_for, no_embedding_model  # noqa: F401
-from tests.unit.jobs.test_text_calls_on_the_lane import ChatModel, page_sets, pages  # noqa: F401
+from tests.unit.jobs.test_text_calls_on_the_lane import ChatModel, lane_cloud_yes, page_sets, pages  # noqa: F401
+
+pytestmark = pytest.mark.usefixtures("lane_cloud_yes")
 
 
 class HeldModel(ChatModel):

@@ -40,7 +40,8 @@ async def _read(pg, monkeypatch, *, provider, model, answer, **extra):
 
     async def vision(images, prompt, config, **kw):
         calls.append(len(images))
-        return answer(len(images), len(calls))
+        shown = len(images) - (1 if str(prompt).startswith("Before the ") else 0)  # variant B: the page comes first, unread
+        return answer(shown, len(calls))
 
     monkeypatch.setattr(llm, "vision", vision)
     result = await transcribe(
@@ -75,7 +76,8 @@ async def test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_wo
     words = ["qwen uno", "qwen dos", "qwen tres"]
     result = await _read(page, monkeypatch, provider=MODEL[0], model=MODEL[1], vision_mode="llm", force_ocr=True,
                          answer=lambda n, call: json.dumps(words[:n]))
-    assert sum(result["calls"]) == 3 and max(result["calls"]) <= 8
+    # three line pictures, none twice, and the whole page ONCE beside them for context (variant B, #5894), not read
+    assert result["calls"] == [len(words) + 1] and max(result["calls"]) <= 9
     assert _tied(page, words) == [[w] for w in words]
     assert [p.id for p in _passes(page)] == before
 
