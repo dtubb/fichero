@@ -2435,13 +2435,20 @@ class AppDatabase:
 
 # Global app database instance
 _app_db: AppDatabase | None = None
+_app_db_create_lock = threading.Lock()
 
 
 def get_app_db() -> AppDatabase:
-    """Get or create the global app database instance."""
+    """Get or create the global app database instance.
+
+    Created under a lock: at engine start the warm-up thread and the lifespan both ask for it, and two
+    AppDatabase()s at once run the schema setup on two connections ("Catalog write-write conflict").
+    """
     global _app_db
     if _app_db is None:
-        _app_db = AppDatabase()
+        with _app_db_create_lock:
+            if _app_db is None:
+                _app_db = AppDatabase()
     return _app_db
 
 
