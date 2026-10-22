@@ -170,6 +170,10 @@ PYTEST_CMD=("${PYTHON_BIN}" -m pytest)
 if [[ -x ".venv/bin/pytest" ]]; then
   PYTEST_CMD=(".venv/bin/pytest")
 fi
+# The gate's timeout method is `thread` (#6007, superseding the "signal, NOT thread" of #5071 in verify_python.sh): signal is one
+# shot of SIGALRM that cannot run while another thread holds the GIL, and the api part hung twice at ~41% with it. Thread fires and
+# prints every thread's stack; the first timeout ends the run, which for a gate is a failure anyway. Do not flip it back without #6007.
+PYTEST_CMD+=(--timeout-method=thread)
 
 RUFF_CMD=("${PYTHON_BIN}" -m ruff)
 if ! "${PYTHON_BIN}" -c "import ruff" >/dev/null 2>&1; then

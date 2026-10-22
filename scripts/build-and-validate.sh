@@ -70,7 +70,7 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 if [ -x "$PYTHON_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$PYTHON_BIN" -m pytest \
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$PYTHON_BIN" -m pytest --timeout-method=thread \
     fichero-server/tests/unit/ \
     --ignore=fichero-server/tests/unit/_archived \
     -q 2>&1; then

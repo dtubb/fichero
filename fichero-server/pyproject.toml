@@ -518,7 +518,10 @@ tmp_path_retention_count = "1"
 # A hung test fails with its stack instead of stalling the gate: the unit step twice hit its
 # 3 h watchdog on one order-dependent hang with no name attached. 300 s clears the slowest
 # honest test (engine spawn + 30 s health wait + a minute idle). "signal" fails only that test
-# and the run goes on; "thread" ends the whole process on the first timeout.
+# and the run goes on; "thread" ends the whole process on the first timeout. "signal" stays the default for a person's own run
+# (#5071); the GATES override it with --timeout-method=thread (scripts/gate, verify_python.sh, verify_all.sh, build-and-validate.sh)
+# because signal is a one-shot SIGALRM that cannot run while another thread holds the GIL: the api part hung twice at ~41% and
+# --timeout=300 never fired (#6007). Do not change a gate back to signal without reading #6007.
 timeout = 300
 timeout_method = "signal"
 markers = [

@@ -26,13 +26,16 @@ run "ruff" "$RUFF" check fichero-server/src/
 # 2. Backend unit tests (includes the mocked CLI unit tests).
 #    `-k "not embedding"` skips tests that need an unavailable fastembed model
 #    (env limitation, not a code bug). Drop the filter if the model is present.
-#    --timeout-method=signal, NOT thread (#5071): a thread-method timeout cannot
-#    interrupt a wait on a lock (`acquire_lock_timed`), so a deadlock stalled the
-#    gate silently for 90 minutes; the signal method raises in the stuck thread and
-#    pytest prints EVERY thread's stack, naming the two that were waiting on each other.
-#    A real hang becomes one failing test with a stack and the rest of the suite still
-#    runs. 300s per test is a ceiling, not a measurement: lower it once the slowest
-#    test in the gate is known.
+#    --timeout-method=thread (#6007, which SUPERSEDES the "signal, NOT thread" of #5071 for this gate): #5071 chose
+#    signal because a deadlock on a lock (`acquire_lock_timed`) stalled the gate for 90 minutes and signal raises in
+#    the stuck main thread, so the rest of the suite still ran. #6007 found the other side: signal is ONE shot of
+#    SIGALRM that runs only when the main thread can take the GIL, so the api part hung twice at ~41% (main thread
+#    waiting for the GIL, 99% CPU) and `--timeout=300` never fired; `thread` fired and also prints every thread's
+#    stack (what #5071 needed), at the price that the first timeout ends this process. For a gate that price is
+#    right: a timed-out test fails the gate anyway, and a hang that never fires costs the whole run. A person's own
+#    run keeps `signal` (fichero-server/pyproject.toml), where carrying on after one timeout is the point.
+#    Do not flip it back without reading #6007. 300s per test is a ceiling, not a measurement: lower it once the
+#    slowest test in the gate is known.
 #    -m "not timing" excludes assertions whose subject is a DURATION. They are
 #    not optional and not flaky: the spec calls the usability bound "a measured
 #    number, not a comment". They are excluded HERE because this gate runs beside
@@ -45,7 +48,7 @@ run "backend unit" "$PYTEST" fichero-server/tests/unit/ \
   fichero-cli/tests/ fichero-mcp/tests/ \
   --ignore=fichero-server/tests/unit/_archived -q -k "not embedding" \
   -m "not timing" \
-  --timeout=300 --timeout-method=signal
+  --timeout=300 --timeout-method=thread
 
 # Say what this gate does NOT cover, so the exclusion can't quietly become
 # invisible coverage loss (#4174). tests/perf is ~73% of a whole-tree run.
