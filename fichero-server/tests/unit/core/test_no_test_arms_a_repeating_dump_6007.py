@@ -23,7 +23,10 @@ def test_nothing_arms_a_repeating_dump_and_the_watcher_arms_only_behind_the_swit
     for path in [*scan_files.scan_rglob(ROOT / "src", "*.py"), *scan_files.scan_rglob(ROOT / "tests", "*.py")]:
         if path == Path(__file__):
             continue
-        for node in ast.walk(ast.parse(path.read_text())):
+        text = path.read_text()
+        if "dump_traceback_later" not in text:  # a text prefilter: parsing every source and test file took most of the test's time
+            continue
+        for node in ast.walk(ast.parse(text)):
             if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "dump_traceback_later":
                 if any(k.arg == "repeat" and not (isinstance(k.value, ast.Constant) and k.value.value is False) for k in node.keywords):
                     armed.add(str(path.relative_to(ROOT)))

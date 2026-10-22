@@ -21,6 +21,8 @@ fichero/Tests/Unit/general/App/SparkleLinkageTests.swift
 fichero/Tests/Unit/general/App/WindowlessFileCommandsTests.swift
 fichero/Tests/Unit/general/AppSourceTests.swift
 fichero/Tests/Unit/general/Engine/EmbeddedEngineVersionCheckTests.swift
+# absence scan: no Activity view says a sentence the spec bans (activity.window.no-empty-prose)
+fichero/Tests/Unit/general/Models/ActivityNoEmptyProseTests.swift
 fichero/Tests/Unit/general/Models/ActivityStoreTests.swift
 fichero/Tests/Unit/general/Models/ArtifactTests.swift
 fichero/Tests/Unit/general/Models/CanvasLayoutOptimisticPublishTests.swift
@@ -82,6 +84,8 @@ fichero/Tests/Unit/general/Services/ToolbarActivityStoreInjectionTests.swift
 fichero/Tests/Unit/general/Services/UDSSocketProbeTests.swift
 fichero/Tests/Unit/general/Services/WebContentProcessRecoveryTests.swift
 fichero/Tests/Unit/general/Services/WorkflowStreamServiceFailureTests.swift
+# absence scan: no Swift file passes or stores the retired This network choice (#5897)
+fichero/Tests/Unit/general/Sharing/ShareOnChoiceTests.swift
 fichero/Tests/Unit/general/Transport/EmbeddedBackendServiceStartGuardTests.swift
 fichero/Tests/Unit/general/Transport/EntityServiceTransportRoutingTests.swift
 fichero/Tests/Unit/general/Transport/PairingTransportTests.swift

@@ -358,7 +358,9 @@ def test_a_rejected_path_carries_a_code_apart_from_a_membership_denial():
     at all, and another person's library (`library_access_denied`), must never read as it."""
     outside = api_main._rejected_library_path_payload("/Users/real-user/X.fichero")
     assert outside["code"] == "library_outside_allowed_locations"
-    assert outside["detail"] == api_main._rejected_library_path_detail("/Users/real-user/X.fichero")
+    # #5965: the pre-auth body adds a sign-in hint for a .fichero path, after the one accurate sentence
+    assert outside["detail"].startswith(api_main._rejected_library_path_detail("/Users/real-user/X.fichero"))
+    assert "after signing in" in outside["detail"]
     not_a_package = api_main._rejected_library_path_payload("/Users/real-user/notes.txt")
     assert not_a_package["code"] == "library_not_a_package"
     assert "library_access_denied" not in {outside["code"], not_a_package["code"]}

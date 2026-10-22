@@ -69,30 +69,6 @@ struct PairedDevicesSectionView: View {
     }
 }
 
-#if canImport(AppKit)  // PairingCardView is macOS-only
-
-#Preview("Pairing card: engine not running") {
-    PairingCardView(
-        pairingCode: nil, qrCodeImage: nil, publicURL: nil, inviteLink: nil,
-        isGeneratingPairingCode: false, blocker: .engineNotRunning, errorMessage: nil,
-        isResolving: false, onResolve: { _ in }, copiedInvite: false, onCopyInvite: {}
-    )
-    .padding()
-    .frame(width: 420)
-}
-
-#Preview("Pairing card: working") {
-    PairingCardView(
-        pairingCode: nil, qrCodeImage: nil, publicURL: nil, inviteLink: nil,
-        isGeneratingPairingCode: true, blocker: nil, errorMessage: nil,
-        isResolving: false, onResolve: { _ in }, copiedInvite: false, onCopyInvite: {}
-    )
-    .padding()
-    .frame(width: 420)
-}
-
-#endif
-
 #Preview("Connected devices: empty") {
     Form {
         Section("Connected Devices") {
