@@ -101,16 +101,16 @@ struct ActivityDetailsStageCards: View {
     ScrollView {
         ActivityDetailsStageCards(cards: [
             .init(id: "prepare-images", title: "Prepare Images", state: .done, done: 92, total: 92, made: [],
-                  why: nil, offersSetUp: false, failed: nil),
+                  why: nil, offersSetUp: false, failed: nil, pagesFailed: 0),
             .init(id: "read", title: "Read", state: .done, done: 91, total: 92, made: ["Read 91 of 92 pages"],
                   why: nil, offersSetUp: false,
-                  failed: .init(id: "w1", text: "1 page failed", offer: "Read Again", threadId: "w1")),
+                  failed: .init(id: "w1", text: "1 page failed", offer: "Read Again", threadId: "w1"), pagesFailed: 1),
             .init(id: "names", title: "Names", state: .done, done: 92, total: 92,
-                  made: ["73 People · 69 Places · 18 Organisations"], why: nil, offersSetUp: false, failed: nil),
+                  made: ["73 People · 69 Places · 18 Organisations"], why: nil, offersSetUp: false, failed: nil, pagesFailed: 0),
             .init(id: "dates", title: "Dates & Times", state: .done, done: 92, total: 92, made: ["0 dates"],
-                  why: nil, offersSetUp: false, failed: nil),
+                  why: nil, offersSetUp: false, failed: nil, pagesFailed: 0),
             .init(id: "statements", title: "Statements", state: .skipped, done: 0, total: 0, made: [],
-                  why: "No model for Find statements.", offersSetUp: true, failed: nil)
+                  why: "No model for Find statements.", offersSetUp: true, failed: nil, pagesFailed: 0)
         ], perform: { _ in }, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) })
         .padding()
     }
