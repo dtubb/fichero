@@ -52,18 +52,19 @@ def test_an_init_that_runs_over_is_killed_and_fails_in_words(forked, monkeypatch
 
 def test_the_watchdog_is_armed_at_startup_and_rearmed_by_the_heartbeat(monkeypatch):
     calls: list[tuple[float, bool]] = []
+    monkeypatch.setenv("FICHERO_LOOP_DUMP", "1")  # the suite switches the watcher's dump off (tests/conftest.py, #6007); this test is of the dump
     monkeypatch.setattr(faulthandler, "dump_traceback_later",
                         lambda seconds, repeat=False, file=None, exit=False: calls.append((seconds, repeat)))
     monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", lambda: None)
 
     async def go() -> None:
         stop = loop_lag.start(asyncio.get_running_loop(), ping_seconds=0.05, dump_seconds=7, dump_file=io.StringIO())
-        assert calls == [(7, True)]  # armed at startup
+        assert calls == [(7, False)]  # armed at startup, one-shot (#6008: a repeating timer outlived its test and hung a gate part)
         await asyncio.sleep(0.3)
         stop.set()
 
     asyncio.run(go())
-    assert len(calls) >= 3 and all(c == (7, True) for c in calls)  # and re-armed by the loop's heartbeat
+    assert len(calls) >= 3 and all(c == (7, False) for c in calls)  # and re-armed by the loop's heartbeat
 
 
 def test_a_child_that_dies_between_batches_is_replaced_on_the_next_embed(forked, monkeypatch):
