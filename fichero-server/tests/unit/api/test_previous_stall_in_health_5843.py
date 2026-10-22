@@ -20,12 +20,36 @@ from fichero_server.models import HealthResponse
 def _state(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
     startup_warnings.set_previous_stall(None)
+    before = {t for t in threading.enumerate() if t.name == "loop-lag-watch"}
     yield
+    # A watcher's last act is clear_stall(), which reads FICHERO_BASE_PATH: join it while this test's value is still set, not after
+    # monkeypatch has put back another test's (#6007, ## 991). Only the watchers THIS test started: one it does not own (the session
+    # client's, an earlier leak) is not its to wait for (## 994).
+    for watcher in [t for t in threading.enumerate() if t.name == "loop-lag-watch" and t not in before]:
+        watcher.join(5)
+        assert not watcher.is_alive(), "a loop-lag watcher outlived its test"
     startup_warnings.set_previous_stall(None)
 
 
-def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
+@pytest.fixture
+def loop_and_sink():
+    """An event loop and a file for the watcher's dump, both closed after the test (#6007): the test left them open, and its
+    `dump_file` stayed referenced by a repeating dump timer armed process-wide."""
+    import faulthandler
+
     loop = asyncio.new_event_loop()
+    sink = open("/dev/null", "w")
+    try:
+        yield loop, sink
+    finally:
+        if loop_lag._dump_enabled():  # a run without the suite's switch: put back what the watcher armed
+            faulthandler.cancel_dump_traceback_later()
+        loop.close()
+        sink.close()
+
+
+def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path, loop_and_sink):
+    loop, sink = loop_and_sink
     ready = threading.Event()
     release = threading.Event()
 
@@ -41,7 +65,7 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
 
     # start the watcher from inside the loop thread, as the lifespan does
     async def boot():
-        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, record_seconds=0.1, dump_file=open("/dev/null", "w"))
+        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, record_seconds=0.1, dump_file=sink)
 
     def run():
         asyncio.set_event_loop(loop)
@@ -105,3 +129,34 @@ def test_a_stall_with_no_engine_frame_is_named_by_its_innermost_frame():
         return loop_lag.culprit(sys._getframe())
 
     assert outer() == f"{__name__}:outer"
+
+
+def test_the_loop_watcher_leaves_the_suites_hang_dump_alone_when_told_to(monkeypatch):
+    """`FICHERO_LOOP_DUMP=0` (set for the whole suite): starting, pinging and stopping the watcher make no call on faulthandler's one
+    process-wide dump timer, so the suite's own hang dump stays armed. Without it the engine re-arms it every heartbeat."""
+    import faulthandler
+
+    calls = []
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda *a, **k: calls.append("arm"))
+    monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", lambda: calls.append("cancel"))
+
+    def run_one_ping() -> None:
+        loop = asyncio.new_event_loop()
+        try:
+            async def boot():
+                stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=600)
+                await asyncio.sleep(0.2)  # several heartbeats
+                stop.set()
+                loop_lag.stop_watchdog()
+
+            loop.run_until_complete(boot())
+        finally:
+            loop.close()
+
+    monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
+    run_one_ping()
+    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0"
+    monkeypatch.delenv("FICHERO_LOOP_DUMP")
+    run_one_ping()
+    assert "arm" in calls and "cancel" in calls, "the engine's default (a dump armed per heartbeat) must stay"
+

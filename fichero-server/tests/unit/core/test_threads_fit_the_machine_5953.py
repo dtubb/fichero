@@ -5,12 +5,24 @@ host's `os.cpu_count` is never a thread count."""
 
 from __future__ import annotations
 
+import importlib.util
+
 import ast
 from pathlib import Path
 
 import pytest
 
 from fichero_server.core import cores
+
+
+# scripts/ is not a package: load the repo's scan helper by path, so a nested worktree is never walked (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location("_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
+
+
+#: The real reader, kept before the fixture below replaces `cores.cgroup_cores` with a fake for every test: the tests of the reader itself call this.
+REAL_CGROUP_CORES = cores.cgroup_cores
 
 
 @pytest.fixture(autouse=True)
@@ -60,16 +72,16 @@ def test_the_source_order_is_slurm_then_the_container_then_the_mac_then_the_allo
 def test_the_container_quota_is_quota_over_period_rounded_up_and_max_is_none(tmp_path, text, expected):
     path = tmp_path / "cpu.max"
     path.write_text(text)
-    assert cores.cgroup_cores(v2=path, v1_quota=tmp_path / "no", v1_period=tmp_path / "no") == expected
+    assert REAL_CGROUP_CORES(v2=path, v1_quota=tmp_path / "no", v1_period=tmp_path / "no") == expected
 
 
 def test_a_version_one_cgroup_is_read_too_and_minus_one_is_no_quota(tmp_path):
     quota, period = tmp_path / "q", tmp_path / "p"
     period.write_text("100000\n")
     quota.write_text("300000\n")
-    assert cores.cgroup_cores(v2=tmp_path / "none", v1_quota=quota, v1_period=period) == 3
+    assert REAL_CGROUP_CORES(v2=tmp_path / "none", v1_quota=quota, v1_period=period) == 3
     quota.write_text("-1\n")
-    assert cores.cgroup_cores(v2=tmp_path / "none", v1_quota=quota, v1_period=period) is None
+    assert REAL_CGROUP_CORES(v2=tmp_path / "none", v1_quota=quota, v1_period=period) is None
 
 
 @pytest.mark.parametrize("value", ["0", "-2", "many", ""])
@@ -117,7 +129,7 @@ def test_no_thread_number_is_taken_from_the_hosts_cpu_count():
     a number that sizes threads or pipelines."""
     src = Path(cores.__file__).parent.parent
     offenders = []
-    for path in src.rglob("*.py"):
+    for path in scan_files.scan_rglob(src, "*.py"):
         rel = str(path.relative_to(src))
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Attribute) and node.attr == "cpu_count" and getattr(node.value, "id", "") == "os":
