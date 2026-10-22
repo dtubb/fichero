@@ -2437,17 +2437,11 @@ class AppDatabase:
 _app_db: AppDatabase | None = None
 
 
-_app_db_creation = threading.Lock()
-
-
 def get_app_db() -> AppDatabase:
-    """Get or create the global app database instance. Created once, under a lock: two threads on a cold process (the lifespan and a
-    worker) each built an AppDatabase, and the second one's schema setup failed with a DuckDB write-write conflict on the same file (#6007)."""
+    """Get or create the global app database instance."""
     global _app_db
     if _app_db is None:
-        with _app_db_creation:
-            if _app_db is None:
-                _app_db = AppDatabase()
+        _app_db = AppDatabase()
     return _app_db
 
 
