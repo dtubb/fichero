@@ -328,11 +328,10 @@ class TestGlobalRegistryHeaderless:
             assert {library["path"] for library in body["libraries"]} == set(
                 db_manager.open_library_paths()
             )
-            assert {
-                "id": str(library_path),
-                "path": str(library_path),
-                "is_open": True,
-            } in body["libraries"]
+            entry = next(library for library in body["libraries"] if library["path"] == str(library_path))
+            assert entry["id"] == str(library_path) and entry["is_open"] is True
+            # a project nobody synced from a host names none (`sharing.synced-project-names-its-host`, #5898): the field is there, null
+            assert entry["synced_host"] is None
 
             db_manager.close_database(library_path)
             closed = global_client.get("/api/registry/open")
