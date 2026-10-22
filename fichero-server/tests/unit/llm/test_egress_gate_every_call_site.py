@@ -147,7 +147,6 @@ _OWN_FETCH = "Fichero's own fetch (models, registries, catalogues): no library c
 _SENDS_A_KEY = "sends the API key to the provider the person set up, to list or test models: no library content"
 _FETCHES_THE_SOURCE = "fetches FROM the source the person is importing; sends only that source's own URLs"
 _HUB_FETCH = "downloads weights or a model card from the Hugging Face Hub: sends only the repo id, no library content"
-_CONFIRMED_UPLOAD = "the person's own upload to their private dataset: refused unless the yes names the line count (never automatic)"
 _LOOPBACK = "talks to a model server on this Mac"
 ALLOWED = {
     "api/routes/ai/models.py::_fetch_hf_models": _OWN_FETCH,
@@ -170,7 +169,6 @@ ALLOWED = {
     "llm/yolo_runtime.py::download": _HUB_FETCH,
     "recipes/discovery.py::_fetch_card_text": _HUB_FETCH,
     "remote_read/runner.py::vlm_reader": _HUB_FETCH,
-    "training/bakeoff_lines.py::push_private_dataset": _CONFIRMED_UPLOAD,
     "llm/kraken_runtime.py::record_files": _OWN_FETCH,
     "llm/local_inference.py::get_json": _LOOPBACK,
     "llm/local_models.py::download_spacy_pipeline": _OWN_FETCH,
