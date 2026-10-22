@@ -151,12 +151,14 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// "Failed: the provider refused this letter", "Waiting: memory is tight",
     /// "Running: Entities". The reason is the point of a failed row.
     var stateText: String {
-        Self.stateText(phase: phase, reason: reason, workingOn: workingOn, account: account)
+        Self.stateText(phase: phase, reason: reason, workingOn: workingOn, account: account,
+                       transientState: transientState, unknownState: unknownState)
     }
 
     /// The State column's words, shared with the details view so the two never
     /// word a row differently (`activity.details.state-says-why`, #5561).
-    static func stateText(phase: Phase, reason: String?, workingOn: String?, account: ActivityRunAccount?) -> String {
+    static func stateText(phase: Phase, reason: String?, workingOn: String?, account: ActivityRunAccount?,
+                          transientState: String? = nil, unknownState: String? = nil) -> String {
         // An interrupted run says so, and when ("Interrupted: the engine stopped at 14:05, …").
         if let account, account.interrupted, let why = account.reason ?? reason {
             return why
