@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-22
+
+- Recipes: a model is proposed for each step from the project's pages; on a 16 GB Mac one large model runs at a time.
+- Engine: starting a recipe run after a restart no longer fails.
+- Activity: one row per run with one bar and one button; Stop on a page or a run; Retry on a page inside its run; a partly done run says which part failed.
+- Cloud refusals (quota, missing key) are said in plain words with the next step.
+- Dataset upload to a cloud model passes the privacy check first; the answer covers that upload only.
+- Engine stall watchdog writes one stack record per stall.
+
 ## 2026-10-11
 
 - Trash per project (engine and app): list with what/when/who/where, Put Back, Empty Trash… asks first and names moved items; knowledge on trashed pages hidden (#2077).
