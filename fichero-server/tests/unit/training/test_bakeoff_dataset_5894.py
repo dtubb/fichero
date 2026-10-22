@@ -214,3 +214,24 @@ def test_crops_are_named_by_number_so_a_page_name_with_glob_characters_still_upl
 
     assert all(any(fnmatch.fnmatchcase(f, pattern) for pattern in staged.files) for f in staged.files), \
         "every staged file matches its own allow_pattern"
+
+
+def test_a_push_meets_the_egress_gate_before_any_hub_call(tmp_path, monkeypatch):
+    """The lines are the person's own library content leaving for Hugging Face (## 985): local-only mode, or places without
+    Hugging Face, refuse in words before the Hub API is touched."""
+    from fichero_server.core.egress import EgressRefused
+    from fichero_server.recipes import places
+
+    staged = _staged(tmp_path)
+    api = Api()
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+    with pytest.raises(EgressRefused, match="Local-only mode"):
+        bl.push_private_dataset(staged, "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "0")
+    monkeypatch.setattr(places, "get_places", lambda: ["this-mac", "cloud"])
+    with pytest.raises(EgressRefused, match="do not include Hugging Face"):
+        bl.push_private_dataset(staged, "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+    assert api.names() == [], "no Hub call was made before the refusal"
+    monkeypatch.setattr(places, "get_places", lambda: ["this-mac", "huggingface"])
+    bl.push_private_dataset(staged, "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+    assert "upload_folder" in api.names()

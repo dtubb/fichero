@@ -2772,7 +2772,7 @@ The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; 
   `_build_langchain_model`; translation, audio and the Hugging Face API where their client is built; cloud OCR through the same
   check). Everything else that opens a connection meets `core/egress.check_egress` (the local-only setting and the Set Up
   answer, per place: `cloud` or `another-mac`): the geocoder, Wikidata, the authority refreshers, Crossref and Open Library,
-  the research web tools (the agent's queries), and the copy to another Mac (`transfer/machines.client`). A refusal is in words
+  the research web tools (the agent's queries), and the copy to another Mac (`transfer/machines.client`). The bake-off's push of line crops and readings to the person's private Hugging Face dataset (`training/bakeoff_lines.push_private_dataset`) meets it first, for the `huggingface` place, before any Hub call or token check (`fichero-server/tests/unit/training/test_bakeoff_dataset_5894.py::test_a_push_meets_the_egress_gate_before_any_hub_call`, ## 985). A refusal is in words
   (403 for a route; a lookup that degrades, geocoding and DOI/ISBN, returns nothing and says why in the log). Pinned by
   `fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`: an AST scan of every function in the package that opens a
   connection (httpx, aiohttp, requests, urllib) fails unless the gate (`check_egress` / `_enforce_local_only_provider`) is CALLED in it before its first network call, or it is listed in `ALLOWED` with its reason (Fichero's own
