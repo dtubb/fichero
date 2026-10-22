@@ -100,8 +100,22 @@ def take_previous_stall() -> str | None:
         return None
 
 
+def _dump_enabled() -> bool:
+    """`FICHERO_LOOP_DUMP=0` leaves faulthandler's one process-wide dump timer alone. A test run sets it: the suite arms that
+    timer itself for a hung part, and the engine's re-arming every heartbeat would replace it (the watcher still logs and
+    records a stall)."""
+    return os.environ.get("FICHERO_LOOP_DUMP", "1") != "0"
+
+
+def _cancel_dump() -> None:
+    if _dump_enabled():
+        faulthandler.cancel_dump_traceback_later()
+
+
 def _arm_dump(seconds: float, file) -> None:
     """(Re)arm faulthandler's C watchdog: it needs no GIL, so it fires even when a C call holds the GIL for minutes."""
+    if not _dump_enabled():
+        return
     faulthandler.cancel_dump_traceback_later()
     faulthandler.dump_traceback_later(seconds, repeat=True, file=file)
 
@@ -136,7 +150,7 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
             try:
                 loop.call_soon_threadsafe(heartbeat, answered)
             except RuntimeError:  # the loop is closed: nothing left to watch
-                faulthandler.cancel_dump_traceback_later()
+                _cancel_dump()
                 clear_stall()
                 return
             if answered.wait(slow_seconds):
@@ -159,4 +173,4 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
 
 def stop_watchdog() -> None:
     """Engine stop: no stack dump after the loop is gone."""
-    faulthandler.cancel_dump_traceback_later()
+    _cancel_dump()

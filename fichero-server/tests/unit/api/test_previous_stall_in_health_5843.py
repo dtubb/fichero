@@ -105,3 +105,33 @@ def test_a_stall_with_no_engine_frame_is_named_by_its_innermost_frame():
         return loop_lag.culprit(sys._getframe())
 
     assert outer() == f"{__name__}:outer"
+
+
+def test_the_loop_watcher_leaves_the_suites_hang_dump_alone_when_told_to(monkeypatch):
+    """`FICHERO_LOOP_DUMP=0` (set for the whole suite): starting, pinging and stopping the watcher make no call on faulthandler's one
+    process-wide dump timer, so the suite's own hang dump stays armed. Without it the engine re-arms it every heartbeat."""
+    import faulthandler
+
+    calls = []
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda *a, **k: calls.append("arm"))
+    monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", lambda: calls.append("cancel"))
+
+    def run_one_ping() -> None:
+        loop = asyncio.new_event_loop()
+        try:
+            async def boot():
+                stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=600)
+                await asyncio.sleep(0.2)  # several heartbeats
+                stop.set()
+                loop_lag.stop_watchdog()
+
+            loop.run_until_complete(boot())
+        finally:
+            loop.close()
+
+    monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
+    run_one_ping()
+    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0"
+    monkeypatch.delenv("FICHERO_LOOP_DUMP")
+    run_one_ping()
+    assert "arm" in calls and "cancel" in calls, "the engine's default (a dump armed per heartbeat) must stay"
