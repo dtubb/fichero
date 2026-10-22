@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import logging
 from types import SimpleNamespace
 
@@ -102,6 +103,16 @@ def test_a_heavy_model_waits_while_kraken_pages_are_in_flight_even_after_the_qui
     monkeypatch.setitem(jobs.KINDS, "t-light", jobs.Kind(run=lambda d, s: order.append("light"), model=None))
 
     jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None).result(30)
+    # The lane's thread is still finishing its look after that job: a claim begun before the next two rows exist reads them
+    # with the hold it worked out then. Wait for the lane to go quiet, then state the premise: Kraken is its loaded model,
+    # used just now.
+    lane = jobs._scheduler.lanes[jobs.KINDS["find-lines"].lane]
+    give_up = time.monotonic() + 10
+    while (lane.threads or lane.running) and time.monotonic() < give_up:
+        time.sleep(0.01)
+    assert not (lane.threads or lane.running), "the lane never went quiet"
+    monkeypatch.setattr(lane, "loaded_model", "kraken:blla")
+    monkeypatch.setattr(lane, "loaded_used_at", time.monotonic())
     monkeypatch.setattr(vision_base._KrakenPageGate, "in_flight", 1)  # the run's next page is on its way
     embed = jobs.enqueue_many(db, "t-embed", ["page"])[0]
     jobs.enqueue_many(db, "t-light", ["page"])[0].result(30)
