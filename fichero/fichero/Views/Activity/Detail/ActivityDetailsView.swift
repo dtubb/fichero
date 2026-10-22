@@ -23,6 +23,8 @@ struct ActivityDetailsView: View {
     @Environment(AppState.self) private var appState
     @State private var trace: TraceSubject?
     @State private var actionFailure: String?
+    /// The stage the page dots show; nil: each page's worst state across stages (`activity.window.page-grid`).
+    @State private var gridStage: String?
 
     private var details: ActivityDetails? { ActivityDetails(store: store, selection: selection) }
 
@@ -44,6 +46,11 @@ struct ActivityDetailsView: View {
         }
         // The tree this row needs, read once; later reads are the table's own.
         .task(id: selection) { await store.loadDetails(jobId: selection.jobId) }
+        // A recipe run's page dots, read again when its row changes (`activity.window.page-grid`).
+        .task(id: "\(details?.logKey ?? "")|\(gridStage ?? "")") {
+            if let details, !details.stageCards.isEmpty { await store.loadPageGrid(jobId: details.jobId, stage: gridStage) }
+        }
+        .onChange(of: selection) { _, _ in gridStage = nil }
         .sheet(item: $trace) { subject in
             RunTraceSheet(threadId: subject.threadId)
         }
@@ -73,6 +80,21 @@ struct ActivityDetailsView: View {
                     if !details.stages.isEmpty {
                         ActivityDetailsStages(stages: details.stages)
                     }
+                }
+                // The chooser stays while the chosen stage has no dots yet, so All stages is always one pick away.
+                let ran = ActivityPageGrid.stagesThatRan(details.stageCards)
+                if ran.count > 1 {
+                    Picker("Stage", selection: $gridStage) {
+                        Text("All stages").tag(String?.none)
+                        ForEach(ran) { Text($0.title).tag(String?.some($0.id)) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityIdentifier("activity.details.pageGrid.stage")
+                }
+                if let grid = store.pageGrids[ActivityStore.pageGridKey(jobId: details.jobId, stage: gridStage)], !grid.pages.isEmpty {
+                    ActivityPageGridView(grid: grid, open: { UIVerbs.openNode($0) },
+                                         showAll: { ids in Task { await perform(.showPages(documentIds: ids), details) } })
                 }
                 if !details.failedPages.isEmpty {
                     ActivityDetailsFailedPages(details: details)

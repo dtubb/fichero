@@ -59,6 +59,8 @@ final class ActivityStore: ChangeEventConsumer {
     var runs: [ActivityRun] = []
     /// A run's tree read that failed, by thread id, in words; cleared by the next read that works.
     var treeReadFailures: [String: String] = [:]
+    /// A run's page dots, by the run's job id (`activity.window.page-grid`).
+    var pageGrids: [String: ActivityPageGrid] = [:]
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
     enum LoadSource: Int { case runs, jobs }
     private struct FailureKey: Hashable {
