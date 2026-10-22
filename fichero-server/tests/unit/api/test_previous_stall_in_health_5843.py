@@ -20,10 +20,12 @@ from fichero_server.models import HealthResponse
 def _state(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
     startup_warnings.set_previous_stall(None)
+    before = {t for t in threading.enumerate() if t.name == "loop-lag-watch"}
     yield
     # A watcher's last act is clear_stall(), which reads FICHERO_BASE_PATH: join it while this test's value is still set, not after
-    # monkeypatch has put back another test's (#6007, ## 991).
-    for watcher in [t for t in threading.enumerate() if t.name == "loop-lag-watch"]:
+    # monkeypatch has put back another test's (#6007, ## 991). Only the watchers THIS test started: one it does not own (the session
+    # client's, an earlier leak) is not its to wait for (## 994).
+    for watcher in [t for t in threading.enumerate() if t.name == "loop-lag-watch" and t not in before]:
         watcher.join(5)
         assert not watcher.is_alive(), "a loop-lag watcher outlived its test"
     startup_warnings.set_previous_stall(None)
@@ -153,7 +155,7 @@ def test_the_loop_watcher_leaves_the_suites_hang_dump_alone_when_told_to(monkeyp
 
     monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
     run_one_ping()
-    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0 (a stall test with a dump file included)"
+    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0"
     monkeypatch.delenv("FICHERO_LOOP_DUMP")
     run_one_ping()
     assert "arm" in calls and "cancel" in calls, "the engine's default (a dump armed per heartbeat) must stay"
