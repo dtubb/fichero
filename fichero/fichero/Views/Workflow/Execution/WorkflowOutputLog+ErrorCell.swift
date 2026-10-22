@@ -16,7 +16,7 @@ struct ErrorStatusCell: View {
                     .foregroundColor(.red)
                     .font(.caption2)
                 if let error = error {
-                    Text(simplifyError(error))
+                    Text(Self.cellText(error))
                         .font(.caption2)
                         .foregroundColor(.red)
                         .lineLimit(1)
@@ -75,26 +75,12 @@ struct ErrorStatusCell: View {
         .frame(minWidth: 300, maxWidth: 450)
     }
 
-    /// Extract the key part of an error message for display
-    func simplifyError(_ error: String) -> String {
-        if error.contains("402") || error.lowercased().contains("insufficient credits") {
-            return "No credits"
-        }
-        if error.contains("401") || error.lowercased().contains("unauthorized") {
-            return "Auth error"
-        }
-        if error.contains("timeout") || error.contains("timed out") {
-            return "Timeout"
-        }
-        if error.contains("429") || error.lowercased().contains("rate limit") {
-            return "Rate limit"
-        }
-        if error.contains("500") || error.contains("internal server") {
-            return "Server error"
-        }
-        if error.count > 15 {
-            return String(error.prefix(12)) + "..."
-        }
-        return error
+    /// What the cell says: the engine's first sentence AS SENT, for every error (`ai.where.dead-provider-says-why`, ## 950,
+    /// ## 972). The app keeps no labels of its own ("No credits", "Rate limit" were guesses from substrings of the engine's
+    /// prose, which a reword silently broke); the status carries the message only, with no error kind to switch on. The full
+    /// message stays in the popover and the tooltip. A file path never reaches the cell (`worded`: "a page", "a file").
+    nonisolated static func cellText(_ error: String) -> String {
+        // First sentence first: `worded` collapses newlines, which would defeat the first-line cut.
+        ActivityPopoverSummary.worded(ActivityPopoverSummary.firstSentence(error))
     }
 }

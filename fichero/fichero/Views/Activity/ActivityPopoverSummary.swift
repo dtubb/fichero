@@ -235,7 +235,7 @@ struct ActivityPopoverSummary: Equatable {
 
     /// A cause's first sentence: up to its first full stop followed by a space, or its first line (the engine's own
     /// words; nothing is rewritten).
-    static func firstSentence(_ text: String) -> String {
+    nonisolated static func firstSentence(_ text: String) -> String {
         let line = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? text
         if let stop = line.range(of: ". ") { return String(line[..<stop.lowerBound]) + "." }
         return line.trimmingCharacters(in: .whitespaces)
@@ -243,7 +243,7 @@ struct ActivityPopoverSummary: Equatable {
 
     /// A reason in words, without file paths or file names (#5666): a path or an image's name becomes
     /// "a page", any other file's "a file", so an error reads as what happened, not where on disk.
-    static func worded(_ text: String) -> String {
+    nonisolated static func worded(_ text: String) -> String {
         let image = "jpe?g|png|tiff?|heic|gif|bmp|webp|jp2|pdf"
         var words = text
         let rules: [(String, String)] = [
