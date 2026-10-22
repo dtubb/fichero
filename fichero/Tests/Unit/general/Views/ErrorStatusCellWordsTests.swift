@@ -2,8 +2,8 @@
 //  ErrorStatusCellWordsTests.swift
 //  FicheroTests
 //
-//  ai.where.dead-provider-says-why (## 950): a dead provider's cause (no credit, a refused key, a rate limit) shows in the
-//  engine's words as sent, never in a label the app made up.
+//  ai.where.dead-provider-says-why (## 950, ## 972): the error cell says the engine's first sentence as sent, for every
+//  error; the app keeps no labels of its own.
 //
 
 @testable import Fichero
@@ -15,20 +15,20 @@ struct ErrorStatusCellWordsTests {
         let noCredit = "Openrouter has no credit left for this key. Add credit at Openrouter, or choose another model in Settings."
         let refused = "Anthropic refused the API key. Check the key in Settings › AI, or choose another model."
         let slow = "Gemini is asking us to slow down, so this step stopped for now. Run it again in a few minutes."
-        #expect(ErrorStatusCell.simplifyError(noCredit) == "Openrouter has no credit left for this key.")
-        #expect(ErrorStatusCell.simplifyError(refused) == "Anthropic refused the API key.")
-        #expect(ErrorStatusCell.simplifyError(slow) == "Gemini is asking us to slow down, so this step stopped for now.")
+        #expect(ErrorStatusCell.cellText(noCredit) == "Openrouter has no credit left for this key.")
+        #expect(ErrorStatusCell.cellText(refused) == "Anthropic refused the API key.")
+        #expect(ErrorStatusCell.cellText(slow) == "Gemini is asking us to slow down, so this step stopped for now.")
     }
 
-    @Test("the vision tool's own sentence for a kind is shown as sent too")
-    func visionSentence() {
-        let words = "the provider has no credit left for this key — add credit there, or choose another model"
-        #expect(ErrorStatusCell.simplifyError(words) == words)
+    @Test("a reworded engine message is still shown as sent: no substring guess to break")
+    func rewordsAreSafe() {
+        #expect(ErrorStatusCell.cellText("Your balance is empty. Top it up.") == "Your balance is empty.")
     }
 
-    @Test("the other errors keep their short labels")
-    func others() {
-        #expect(ErrorStatusCell.simplifyError("HTTP 500 internal server error") == "Server error")
-        #expect(ErrorStatusCell.simplifyError("timed out after 30 s") == "Timeout")
+    @Test("every error is the engine's words, never an app label")
+    func noAppLabels() {
+        for error in ["HTTP 402 insufficient credits", "401 unauthorized", "timed out after 30 s", "429 rate limit", "500 internal server error"] {
+            #expect(ErrorStatusCell.cellText(error) == error, "\(error)")
+        }
     }
 }
