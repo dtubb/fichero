@@ -167,3 +167,45 @@ def test_activity_pause_per_job__stopping_the_run_reaches_its_next_text_calls(cl
     assert _wait_for(lambda: _status(client, run) == "cancelled")
     time.sleep(0.3)
     assert cloud.calls == 1
+
+
+def test_activity_pause_per_job__no_new_text_call_starts_after_stop_at_the_default_width(monkeypatch):
+    """`runtime.cloud-extractors.pages-together` (## 941): 30 letters at the default width (10 for a hosted model). Ten calls are in
+    flight; the run is stopped; as they land the loop must not ask for the next letter: no cloud page leaves this Mac after
+    Stop, and the step ends with the Stop (not as a part-done answer). The extractors take their Stop from the run
+    (`_together.ahead_of_run`); the run's stop is faked here, and the loop is the real one."""
+    import asyncio
+
+    from fichero_server.execution.cancellation import WorkflowCancelled
+    from fichero_server.workflows.tools import _together
+
+    stopped = [False]
+    monkeypatch.setattr(_together, "this_run_stopped", lambda: WorkflowCancelled("run") if stopped[0] else None)
+    started: list[int] = []
+
+    async def start(item: int) -> int:
+        started.append(item)
+        await asyncio.sleep(0)
+        return item
+
+    async def consume() -> list[int]:
+        seen: list[int] = []
+        async for item, _answer in _together.ahead_of_run(range(30), start, _together.CLOUD_WIDTH):
+            seen.append(item)
+            stopped[0] = True  # the person presses Stop while the first ten are in flight
+        return seen
+
+    with pytest.raises(WorkflowCancelled):
+        asyncio.run(consume())
+    assert len(started) == _together.CLOUD_WIDTH, f"{len(started)} calls started; only the window of ten may"
+
+
+def test_both_extractors_take_their_stop_from_the_run():
+    """The loop of `extract_entities_only` and `extract_svo_only` is `ahead_of_run`, never a bare `ahead` with no stop."""
+    import inspect
+
+    from fichero_server.workflows.tools import extract_entities_only, extract_svo_only
+
+    for module in (extract_entities_only, extract_svo_only):
+        source = inspect.getsource(module)
+        assert "ahead_of_run(" in source and " ahead(" not in source, module.__name__
