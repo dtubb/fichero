@@ -2559,10 +2559,8 @@ def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
     from fichero_server.db.manager import db_manager
 
     family = _family(lane.loaded_model)
-    if family == "kraken":
-        vision = sys.modules.get("fichero_server.workflows.tools.vision_base")
-        if vision is not None and vision._KrakenPageGate.in_flight > 0:
-            return True
+    if family == "kraken" and _kraken_pages_in_flight():
+        return True
     prefixes = ([KRAKEN_MODEL_PREFIX] if family == "kraken" else
                 [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if family == "local-model" else
                 [family] if family else [])
@@ -2576,6 +2574,12 @@ def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
                 f"AND ({like}) LIMIT 1", [utc_now(), *[p + "%" for p in prefixes]]):
             return True
     return False
+
+
+def _kraken_pages_in_flight() -> bool:
+    """Whether a Kraken run has a page inside or waiting for its gate: part of what a claim's hold is worked out from."""
+    vision = sys.modules.get("fichero_server.workflows.tools.vision_base")
+    return vision is not None and vision._KrakenPageGate.in_flight > 0
 
 
 def _heavy_switch(loaded: str | None, model: str | None) -> bool:
@@ -2950,11 +2954,11 @@ class _Scheduler:
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             rescans = 0
             while True:
-                before = (lane.loaded_model, frozenset(lane.running))
+                before = (lane.loaded_model, frozenset(lane.running), _kraken_pages_in_flight())
                 picked = self._next(lane, background=held is None)
                 if picked is None:
                     break
-                if (lane.loaded_model, frozenset(lane.running)) != before:
+                if (lane.loaded_model, frozenset(lane.running), _kraken_pages_in_flight()) != before:
                     rescans += 1
                     if rescans > MAX_RESCANS:  # a lane that keeps moving: look again in a moment, never spin (## 608)
                         lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
