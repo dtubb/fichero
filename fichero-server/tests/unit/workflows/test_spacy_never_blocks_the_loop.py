@@ -112,3 +112,22 @@ def test_the_guard_follows_helpers_across_modules_and_aliased_imports(tmp_path):
         "async def aliased(x):\n    return t(x)\n\nasync def threaded(x):\n    return await to_thread(t, x)\n\n"
         "async def other(x):\n    return len(x)\n")
     assert sorted(_async_offenders(tmp_path)) == ["aliased", "direct"]
+
+
+def test_the_loop_keeps_answering_while_the_transformers_provider_loads_and_runs(monkeypatch):
+    """The sibling of the spaCy case (#5956 audit): the Transformers NER provider loaded its model and ran its pipeline on the loop."""
+    from fichero_server.workflows.ner.providers import TransformersNERProvider
+
+    monkeypatch.setattr(TransformersNERProvider, "_load_pipeline", lambda self: time.sleep(0.6) or (lambda text: time.sleep(0.6) or []))
+
+    async def go() -> float:
+        worst, last = 0.0, time.monotonic()
+        work = asyncio.create_task(TransformersNERProvider().extract("Don Juan de Mosquera vendió una casa."))
+        while not work.done():
+            await asyncio.sleep(0.02)
+            now = time.monotonic()
+            worst, last = max(worst, now - last), now
+        await work
+        return worst
+
+    assert asyncio.run(go()) < 0.3, "the event loop was held while the Transformers provider loaded or ran"

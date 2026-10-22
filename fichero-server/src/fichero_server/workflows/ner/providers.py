@@ -278,7 +278,7 @@ class TransformersNERProvider(BaseNERProvider):
             return []
 
         try:
-            pipeline = self._load_pipeline()
+            pipeline = await asyncio.to_thread(self._load_pipeline)  # imports and loads weights: off the loop
         except Exception as exc:
             logger.warning(
                 "transformers ner unavailable (%s) — falling back to no results",
@@ -287,7 +287,7 @@ class TransformersNERProvider(BaseNERProvider):
             return []
 
         try:
-            results = pipeline(text)
+            results = await asyncio.to_thread(pipeline, text)  # a model forward pass: off the loop (`runtime.spacy.never-blocks` family)
         except Exception as exc:
             logger.warning("transformers ner call failed: %s", exc)
             return []
