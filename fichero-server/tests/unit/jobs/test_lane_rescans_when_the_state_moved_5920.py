@@ -8,12 +8,26 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from fichero_server.execution import jobs
 
 KRAKEN, VLM = "kraken-page-rs", "vlm-page-rs"
 
 
-def test_a_scan_that_straddles_a_finish_is_made_again(db, monkeypatch):
+@pytest.fixture
+def lane(monkeypatch):
+    """The model lane with its state set by the test and put back after it (## 987): its libraries and running set are copies
+    the test may change, and its loaded model and clock go through monkeypatch."""
+    model_lane = jobs._scheduler.lanes["local-ml"]
+    monkeypatch.setattr(model_lane, "libraries", set(model_lane.libraries))
+    monkeypatch.setattr(model_lane, "running", dict(model_lane.running))
+    monkeypatch.setattr(model_lane, "loaded_model", model_lane.loaded_model)
+    monkeypatch.setattr(model_lane, "loaded_used_at", model_lane.loaded_used_at)
+    return model_lane
+
+
+def test_a_scan_that_straddles_a_finish_is_made_again(db, lane, monkeypatch):
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # no lane thread of its own: the test claims by hand
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")
     monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 0.05)
@@ -22,7 +36,6 @@ def test_a_scan_that_straddles_a_finish_is_made_again(db, monkeypatch):
     monkeypatch.setitem(jobs.KINDS, VLM, jobs.Kind(run=noop, model="omlx:big-vlm", lane="local-ml", name="VLM page"))
     jobs.enqueue(db, KRAKEN, "a2")
     jobs.enqueue(db, VLM, "b1")
-    lane = jobs._scheduler.lanes["local-ml"]
     lane.libraries.add(jobs._key(db))
     lane.running["person-b"] = "omlx:big-vlm"  # the person's job, running; the lane is full
     lane.loaded_model = "kraken:blla"  # its _run has not yet made the VLM the loaded model
@@ -46,7 +59,7 @@ def test_a_scan_that_straddles_a_finish_is_made_again(db, monkeypatch):
     assert claimed is not None and claimed[2][2] == "b1", f"the lane acted on the stale choice: {claimed and claimed[2][2]}"
 
 
-def test_a_scan_that_straddles_a_kraken_page_taking_up_is_made_again(db, monkeypatch):
+def test_a_scan_that_straddles_a_kraken_page_taking_up_is_made_again(db, lane, monkeypatch):
     """The page gate is part of what a hold is worked out from (## 983): a scan that saw no Kraken page in flight, and finished
     after a run took one up, chose from an idle state that no longer holds, so it is made again and the heavy model waits."""
     from fichero_server.workflows.tools import vision_base
@@ -60,7 +73,6 @@ def test_a_scan_that_straddles_a_kraken_page_taking_up_is_made_again(db, monkeyp
     monkeypatch.setitem(jobs.KINDS, "t-light", jobs.Kind(run=noop, model=None, lane="local-ml", name="Light"))
     jobs.enqueue(db, "t-heavy", "h1")
     jobs.enqueue(db, "t-light", "l1")
-    lane = jobs._scheduler.lanes["local-ml"]
     lane.libraries.add(jobs._key(db))
     lane.loaded_model = "kraken:blla"
     lane.loaded_used_at = time.monotonic()
