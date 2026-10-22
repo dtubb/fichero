@@ -142,6 +142,10 @@ def test_release_stops_page_jobs_which_carry_on_when_it_opens_again(project, mon
     stopped: list[str | None] = []
     real_stop = jobs.stop
     monkeypatch.setattr(jobs, "stop", lambda key, *a, **k: stopped.append(key) or real_stop(key, *a, **k))
+    # Opening the project again wakes the job scheduler, whose lane thread claims the first waiting job (waiting -> running)
+    # within moments: on a loaded Mac the read below could land after that claim and see 'running'. This test is about what
+    # `resume` leaves at the next open, so the scheduler is not woken; "carrying on" is the scheduler's own tests.
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda *a, **k: None)
 
     body = _release(TestClient(app), package).json()
 
