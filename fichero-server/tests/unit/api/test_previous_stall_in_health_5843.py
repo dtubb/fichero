@@ -21,6 +21,11 @@ def _state(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
     startup_warnings.set_previous_stall(None)
     yield
+    # A watcher's last act is clear_stall(), which reads FICHERO_BASE_PATH: join it while this test's value is still set, not after
+    # monkeypatch has put back another test's (#6007, ## 991).
+    for watcher in [t for t in threading.enumerate() if t.name == "loop-lag-watch"]:
+        watcher.join(5)
+        assert not watcher.is_alive(), "a loop-lag watcher outlived its test"
     startup_warnings.set_previous_stall(None)
 
 
@@ -148,26 +153,8 @@ def test_the_loop_watcher_leaves_the_suites_hang_dump_alone_when_told_to(monkeyp
 
     monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
     run_one_ping()
-    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0"
+    assert calls == [], "the watcher touched the suite's hang dump while FICHERO_LOOP_DUMP=0 (a stall test with a dump file included)"
     monkeypatch.delenv("FICHERO_LOOP_DUMP")
     run_one_ping()
     assert "arm" in calls and "cancel" in calls, "the engine's default (a dump armed per heartbeat) must stay"
 
-
-def test_the_stall_test_leaves_no_dump_timer_armed_by_the_watcher(loop_and_sink, monkeypatch):
-    """Under the suite's `FICHERO_LOOP_DUMP=0` a watcher started with a dump file arms nothing, so the stall test cannot replace the
-    suite's own hang dump (#6007)."""
-    import faulthandler
-
-    armed = []
-    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda *a, **k: armed.append(a))
-    monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
-    loop, sink = loop_and_sink
-
-    async def boot():
-        stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=600, dump_file=sink)
-        await asyncio.sleep(0.1)
-        stop.set()
-
-    loop.run_until_complete(boot())
-    assert armed == []
