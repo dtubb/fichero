@@ -71,3 +71,40 @@ async def test_the_projects_are_checkpointed_and_closed_when_the_lifespan_ends_b
     assert seen[:4] == ["checkpoint", "app-db", "close", "unload"], seen  # the failing app-db step did not stop the rest
     assert "close" in seen and "unload" in seen, "a step after the failing one was skipped"
     assert seen.index("checkpoint") < seen.index("close") < seen.index("unload"), "the normal order (projects first) changed"
+
+
+@pytest.mark.timeout(60, method="thread")
+@pytest.mark.asyncio
+async def test_a_cancelled_lifespan_still_checkpoints_and_closes_the_projects(monkeypatch) -> None:
+    """## 993: the product case of ## 990: the lifespan task is cancelled while the server runs (a forced shutdown), so a CancelledError
+    reaches the `yield`. The whole shutdown still runs, and the first step failing (the SSE signal) does not skip the databases."""
+    import asyncio
+
+    from fichero_server.db.manager import db_manager
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    seen: list[str] = []
+    real_checkpoint, real_close = db_manager.checkpoint_all, db_manager.close_all
+    monkeypatch.setattr(db_manager, "checkpoint_all", lambda: seen.append("checkpoint") or real_checkpoint())
+    monkeypatch.setattr(db_manager, "close_all", lambda: seen.append("close") or real_close())
+
+    def fail_sse():
+        seen.append("sse")
+        raise RuntimeError("the stream registry is gone")
+
+    monkeypatch.setattr("fichero_server.api.change_stream.signal_sse_shutdown", fail_sse)
+    running = asyncio.Event()
+
+    async def serve():
+        async with api_main.lifespan(api_main.app):
+            running.set()
+            await asyncio.sleep(60)
+
+    task = asyncio.create_task(serve())
+    await asyncio.wait_for(running.wait(), 30)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert seen[0] == "sse" and "checkpoint" in seen and seen.index("checkpoint") < seen.index("close"), seen
