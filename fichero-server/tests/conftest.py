@@ -81,6 +81,8 @@ os.environ.setdefault("FICHERO_EMBED_IN_PROCESS", "1")
 # use or on battery, and every queued model job would wait. tests/unit/jobs turns it on and fakes
 # the signals.
 os.environ.setdefault("FICHERO_JOB_THROTTLE", "0")
+# The engine's loop watcher must not re-arm faulthandler's one process-wide dump timer, which the suite arms for a hung part.
+os.environ.setdefault("FICHERO_LOOP_DUMP", "0")
 # Nor jobs run at background QoS: on a busy machine (a build beside the suite) a background thread is
 # starved to many times its time, and a test waiting on a job's file times out. The QoS a kind
 # declares is pinned by tests/unit/core/test_background_compute.py, which turns this back on.
