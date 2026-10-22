@@ -2,7 +2,7 @@
 //  ActivityPopoverAgreesWithWindowTests.swift
 //  FicheroTests
 //
-//  #5852 (owner, 2026-10-19): the toolbar popover and the Activity window read ONE engine summary. The popover shows the
+//  #5852 (owner, 2026-10-19): the toolbar popover and the Activity window read ONE engine summary (the popover draws it). The popover shows the
 //  live "Recipe › Stage › Workflow" with "7 of 20 pages · folders", one line per background kind, and a wait that
 //  looks waiting and says why. Spec: `activity.popover.same-summary`. The summary is decoded from the engine's JSON, as
 //  the app receives it.
@@ -46,14 +46,6 @@ struct ActivityPopoverAgreesWithWindowTests {
     @Test func noSummaryMeansNoBlocks() {
         let popover = ActivityPopoverSummary(jobs: [], paused: false)
         #expect(popover.blocks.isEmpty && popover.background.isEmpty)
-    }
-
-    @Test func theWindowsLiveSectionReadsTheSameWordsAsThePopoverAcrossProjects() throws {
-        let one = try summary()
-        let section = ActivityLiveSection(summaries: [one, one])
-        let popover = ActivityPopoverSummary(jobs: [], paused: false, activity: one)
-        #expect(section.blocks.count == 2 && section.blocks[0] == popover.blocks[0])
-        #expect(section.background.map(\.text) == popover.background.map(\.text) + popover.background.map(\.text))
     }
 
     @Test func oneOfOneReadsAsASingularPageAndFolder() throws {

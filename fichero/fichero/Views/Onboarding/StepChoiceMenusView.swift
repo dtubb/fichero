@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// Each step's model menu under the plan: Set Up's pick first and marked, "Use" on any other, the need said in place
@@ -74,4 +75,25 @@ private struct StepChoiceCandidateRow: View {
             }
         }
     }
+}
+
+/// The preview's fixture, in named, typed pieces: a nested literal of `.init`s is more than the type checker will take.
+private enum StepChoiceMenuFixture {
+    static let local = StepChoiceMenu.Candidate(
+        card: "kraken:catmus", name: "Kraken · CATMuS", runsOn: "this-mac", isLocal: true, isPicked: false,
+        isRecommended: true, isAvailable: true, needs: [], costUsd: nil, costWords: nil)
+    static let permission = StepChoiceMenu.Need(kind: .permission, words: "Pages may not leave this Mac yet.")
+    static let cloud = StepChoiceMenu.Candidate(
+        card: "cloud:claude", name: "Claude", runsOn: "cloud:anthropic", isLocal: false, isPicked: true,
+        isRecommended: false, isAvailable: false, needs: [permission], costUsd: 4.2, costWords: "Estimate")
+    static let candidates: [StepChoiceMenu.Candidate] = [local, cloud]
+    static let menu = StepChoiceMenu(step: "read", name: "Read", chosenBy: .person, job: "transcribe", candidates: candidates)
+}
+
+#Preview("A step with a pick and a person's choice") {
+    let client: FicheroClient = FicheroClient(libraryPath: nil)
+    let store: RecipeSetupStore = RecipeSetupStore(client: client)
+    StepChoiceMenuSection(menu: StepChoiceMenuFixture.menu, store: store)
+        .padding()
+        .frame(width: 460)
 }
