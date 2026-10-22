@@ -16,7 +16,7 @@ struct ErrorStatusCell: View {
                     .foregroundColor(.red)
                     .font(.caption2)
                 if let error = error {
-                    Text(simplifyError(error))
+                    Text(Self.simplifyError(error))
                         .font(.caption2)
                         .foregroundColor(.red)
                         .lineLimit(1)
@@ -75,8 +75,16 @@ struct ErrorStatusCell: View {
         .frame(minWidth: 300, maxWidth: 450)
     }
 
-    /// Extract the key part of an error message for display
-    func simplifyError(_ error: String) -> String {
+    /// The words a dead provider's cause is told in (`ai.where.dead-provider-says-why`, ## 950): no credit, a refused key, a
+    /// rate limit. The engine words them (naming the provider and the fix), so the cell shows them as sent, never a label of
+    /// the app's own; these are the phrases that mark the three.
+    static let deadProviderMarks = ["no credit left", "refused the api key", "asking us to slow down", "asked us to slow down"]
+
+    /// Extract the key part of an error message for display. A dead provider's error is the engine's first sentence as sent.
+    nonisolated static func simplifyError(_ error: String) -> String {
+        if deadProviderMarks.contains(where: { error.lowercased().contains($0) }) {
+            return ActivityPopoverSummary.firstSentence(error)
+        }
         if error.contains("402") || error.lowercased().contains("insufficient credits") {
             return "No credits"
         }
