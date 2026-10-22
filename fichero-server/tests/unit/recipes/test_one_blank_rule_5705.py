@@ -70,7 +70,7 @@ def test_a_left_out_page_is_said_once_with_a_true_reason_and_the_counts_add_up(d
     # A blank page an earlier run gave a reading: it is left out of this one, and not counted as read.
     db.save(Artifact(document_id=next(iter(blank)), artifact_type="transcription", content="-", model="m",
                      provider="openrouter"))
-    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent: ("thread", "done", None))
+    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent, adopt=None: ("thread", "done", None))
     card = {"steps": ["read"], "job": "read-a-line", "card": "workflow", "workflow": "w", "workflow_id": "w",
             "provider_override": None, "model_override": None, "takes": ["lines"], "gives": ["line_readings"]}
     job_id = runner.enqueue(db, {"runs": [card], "skipped": []}, documents=list(ids.values()), started_by="owner")

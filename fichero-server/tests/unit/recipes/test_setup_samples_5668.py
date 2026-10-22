@@ -130,7 +130,7 @@ def test_names_is_tried_on_a_copy_of_the_samples_and_the_project_is_untouched(cl
     library = Path(db.path).parent
     ran_in = []
 
-    def fake_names_run(copy, card, documents, parent):
+    def fake_names_run(copy, card, documents, parent, adopt=None):
         """The names workflow, faked: it finds a person on the first page it is given, in the db it is given."""
         ran_in.append((Path(copy.path).parent, list(documents), card["steps"]))
         copy.save(KnowledgeEntity(canonical_name="Juan de la Cruz", entity_type="person"))

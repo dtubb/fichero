@@ -47,7 +47,7 @@ def test_names_skips_a_page_read_too_uncertainly_and_says_why(db, tmp_path, monk
 
     ran_on = []
     monkeypatch.setattr(runner, "_run_workflow",
-                        lambda db_, card, documents, parent: ran_on.extend(documents) or ("thread", "done", None))
+                        lambda db_, card, documents, parent, adopt=None: ran_on.extend(documents) or ("thread", "done", None))
     job_id = runner.enqueue(db, {"runs": [NAMES], "skipped": []}, documents=[poor.id, good.id], started_by="owner")
     _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
     (step,) = runner.run(db, subject)["steps"]
