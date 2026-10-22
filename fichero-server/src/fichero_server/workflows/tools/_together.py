@@ -34,6 +34,22 @@ def extract_width(llm_config: Any) -> int:
     return CLOUD_WIDTH if _is_remote_model(llm_config) else LOCAL_WIDTH
 
 
+def this_run_stopped() -> BaseException | None:
+    """The Stop or Pause the node being run was asked for (`WorkflowCancelled` / `WorkflowPaused`), else None: the `stop` an
+    extractor hands `ahead`, so no new call starts after Stop, and the exception it raises once the loop ends early."""
+    from fichero_server.execution.cancellation import (
+        WorkflowCancelled, WorkflowPaused, cancellation_requested, pause_requested)
+    from fichero_server.workflows.node_context import get_current_node
+
+    node = get_current_node()
+    run_id = (node.run_id or None) if node else None
+    if run_id and cancellation_requested(run_id):
+        return WorkflowCancelled(run_id)
+    if run_id and pause_requested(run_id):
+        return WorkflowPaused(run_id)
+    return None
+
+
 async def ahead(items: Iterable[T], start: Callable[[T], Awaitable[R]], width: int,
                 stop: Callable[[], bool] | None = None) -> AsyncIterator[tuple[T, R]]:
     """Yield (item, start(item)'s result) in the order of `items`, with up to `width` calls in flight. `items` is read lazily,
@@ -57,3 +73,13 @@ async def ahead(items: Iterable[T], start: Callable[[T], Awaitable[R]], width: i
         for _item, call in window:
             call.cancel()
             call.add_done_callback(lambda done: done.cancelled() or done.exception())  # a call nobody awaits is not reported
+
+
+async def ahead_of_run(items: Iterable[T], start: Callable[[T], Awaitable[R]], width: int) -> AsyncIterator[tuple[T, R]]:
+    """`ahead` for a step run by a workflow: no new call starts once the run is stopped or paused, and the step then ends with
+    that Stop (it never reports a part-done list as its whole answer)."""
+    async for pair in ahead(items, start, width, lambda: this_run_stopped() is not None):
+        yield pair
+    stopped = this_run_stopped()
+    if stopped is not None:
+        raise stopped
