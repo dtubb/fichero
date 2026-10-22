@@ -16,7 +16,7 @@ struct ErrorStatusCell: View {
                     .foregroundColor(.red)
                     .font(.caption2)
                 if let error = error {
-                    Text(Self.simplifyError(error))
+                    Text(Self.cellText(error))
                         .font(.caption2)
                         .foregroundColor(.red)
                         .lineLimit(1)
@@ -75,34 +75,11 @@ struct ErrorStatusCell: View {
         .frame(minWidth: 300, maxWidth: 450)
     }
 
-    /// The words a dead provider's cause is told in (`ai.where.dead-provider-says-why`, ## 950): no credit, a refused key, a
-    /// rate limit. The engine words them (naming the provider and the fix), so the cell shows them as sent, never a label of
-    /// the app's own; these are the phrases that mark the three.
-    static let deadProviderMarks = ["no credit left", "refused the api key", "asking us to slow down", "asked us to slow down"]
-
-    /// Extract the key part of an error message for display. A dead provider's error is the engine's first sentence as sent.
-    nonisolated static func simplifyError(_ error: String) -> String {
-        if deadProviderMarks.contains(where: { error.lowercased().contains($0) }) {
-            return ActivityPopoverSummary.firstSentence(error)
-        }
-        if error.contains("402") || error.lowercased().contains("insufficient credits") {
-            return "No credits"
-        }
-        if error.contains("401") || error.lowercased().contains("unauthorized") {
-            return "Auth error"
-        }
-        if error.contains("timeout") || error.contains("timed out") {
-            return "Timeout"
-        }
-        if error.contains("429") || error.lowercased().contains("rate limit") {
-            return "Rate limit"
-        }
-        if error.contains("500") || error.contains("internal server") {
-            return "Server error"
-        }
-        if error.count > 15 {
-            return String(error.prefix(12)) + "..."
-        }
-        return error
+    /// What the cell says: the engine's first sentence AS SENT, for every error (`ai.where.dead-provider-says-why`, ## 950,
+    /// ## 972). The app keeps no labels of its own ("No credits", "Rate limit" were guesses from substrings of the engine's
+    /// prose, which a reword silently broke); the status carries the message only, with no error kind to switch on. The full
+    /// message stays in the popover and the tooltip.
+    nonisolated static func cellText(_ error: String) -> String {
+        ActivityPopoverSummary.firstSentence(error)
     }
 }
