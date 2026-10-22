@@ -911,7 +911,7 @@ def _gate_multiuser_env() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    from fichero_server.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
+    from fichero_server.api.change_stream import reset_sse_shutdown
     from fichero_server.api.uds_claim import claim_uds_path, uds_path_of_this_process
 
     # FIRST, before anything is written (2026-09-28): another engine live on this socket means
@@ -1231,6 +1231,8 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
             app.state.bonjour_advertiser.stop()
 
     async def stop_tailscale() -> None:
+        from fichero_server.security import tailscale_serve  # lazy, as at start: app-import budget (#3950)
+
         tailscale_serve.stop_for_engine(await tailnet_forward, log=logger)
 
     async def stop_warm_up() -> None:
