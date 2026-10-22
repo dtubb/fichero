@@ -53,6 +53,6 @@ struct ActivityOpenedRunTests {
         #expect(sections.components(separatedBy: #"Button("Read them again")"#).count == 2, "exactly one such button")
         let view = try source("Views/Activity/Detail/ActivityDetailsView.swift")
         #expect(view.contains("ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))"))
-        #expect(view.contains("hidesReadAgain: !details.failedPages.isEmpty"))
+        #expect(view.contains("hidesReadAgain: !details.failedPages.isEmpty && runTarget(details).readAgainLabel != nil"))
     }
 }

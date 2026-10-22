@@ -105,8 +105,10 @@ struct ActivityDetailsView: View {
                 if !details.failedPages.isEmpty {
                     ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))
                 }
+                // The failed-pages section carries Read Again when it has the button; the actions row says it otherwise.
                 ActivityDetailsActions(
-                    details: details, hidesReadAgain: !details.failedPages.isEmpty, run: runTarget(details),
+                    details: details, hidesReadAgain: !details.failedPages.isEmpty && runTarget(details).readAgainLabel != nil,
+                    run: runTarget(details),
                     perform: { action in Task { await perform(action, details) } }
                 )
                 if details.isLive {
