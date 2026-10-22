@@ -1,3 +1,13 @@
+### 2026.10.22
+
+What changed since 2026.10.11, the day before.
+
+- Recipes choose a model for each step, and on a 16 GB Mac one large model runs at a time.
+- Starting a recipe run after a restart works.
+- Activity shows one row per run, with Stop and Retry where they belong.
+- A refused cloud request says whether it was a quota or a missing key, and what to do next.
+- Uploading a dataset to a cloud model asks the privacy setting first.
+
 ### 2026.10.11
 
 What changed since 2026.10.10, the day before.

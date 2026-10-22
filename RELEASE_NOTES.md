@@ -2,6 +2,33 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.22
+
+What changed since 2026.10.11, the day before.
+
+- Recipes choose the model for each step: the app suggests one for the step and your pages, and on a 16 GB Mac it keeps to what the Mac can hold at once.
+- Starting a run no longer fails after a restart of the engine.
+- Activity shows what each run is doing, what is waiting and why, and what is done, in one place.
+- When a provider refuses a request because of a quota or a missing key, Fichero says so in plain words and says what to do.
+- Uploading a dataset checks the privacy setting first: nothing leaves this Mac unless you allow it for that upload.
+- Stalls in the engine leave one record of the threads' stacks, not a stream of them.
+
+**Models for each step.** Each step of a recipe names the model it will use. Fichero proposes one for the step
+from the pages in the project, and you can change it. On a 16 GB Mac, Fichero runs one large model at a time
+and says which one is loaded, so the Mac does not run out of memory.
+
+**Activity.** A run is one row with one bar and one button. Stop on a page skips that page and the run goes on;
+Stop on a run stops all of it. Retry on a page reads only that page, inside its run. A failed or partly done
+run says which part failed and why.
+
+**Quotas and keys.** A refused request says whether the cause is a quota, a missing key, or the request itself,
+and what to do next. Nothing is retried in a loop that spends money.
+
+**Uploads and privacy.** Uploading a dataset to a cloud model asks the privacy setting first, the same as every other
+upload. The answer you give for one upload does not carry over to the next.
+
+**Under the hood.** The engine starts reliably after an update. Stalls leave one record of the threads' stacks.
+
 ## 2026.10.11
 
 What changed since 2026.10.10, the day before.
