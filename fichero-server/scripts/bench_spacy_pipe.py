@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""spaCy `nlp(text)` per page against `nlp.pipe(texts, batch_size=32)` (`runtime.spacy.batches-and-never-blocks`, design
+"""spaCy `nlp(text)` per page against `nlp.pipe(texts, batch_size=32)` (`runtime.spacy.batched-and-off-the-loop`, design
 `step-major-design-2026-10-21.md` Proposal B). The engine reads names with one `nlp(text)` call per page; the micro-batcher
 is built only if `pipe` beats that by >= 1.5x (the lead's rule), so this prints the ratio and exits 0 only then.
 
