@@ -86,6 +86,7 @@ def _transcription_of(db: Any, doc: Any) -> tuple[str, str]:
 
 def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[str, Any]:
     """Restore the pages whose text is a classifier's JSON. Returns the counts and ids (`restored`, `flagged`, `left_edited`); `flagged` pages are marked unless `dry_run`."""
+    from fichero_server.db import document_tree
     from fichero_server.models import Document
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
@@ -93,9 +94,7 @@ def repair_classification_page_text(db: Any, *, dry_run: bool = False) -> dict[s
     flagged: list[str] = []
     newly_flagged: list[str] = []
     left_edited: list[str] = []
-    rows = db.execute_fetchall(
-        "SELECT id FROM documents WHERE page_content LIKE '%script_type%' AND deleted_at IS NULL")
-    for (doc_id,) in rows:
+    for doc_id in document_tree.live_page_ids_mentioning(db, "script_type"):
         doc = db.get(Document, doc_id)
         if doc is None or not is_classification_json(doc.page_content):
             continue
