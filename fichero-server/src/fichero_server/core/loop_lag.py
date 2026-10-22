@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 PING_SECONDS = 0.5
 SLOW_SECONDS = 1.0
 #: A loop that has not run its heartbeat for this long gets every thread's stack dumped ONCE; the next heartbeat after the loop answers
-#: arms it again (#5847, #6007: a repeating dump kept walking live frames at 99% CPU and spun the api part of the gate).
+#: arms it again (#5847, #6008: a repeating dump kept walking live frames at 99% CPU and spun the api part of the gate).
 DUMP_SECONDS = 30.0
 #: While a hold lasts, its record is rewritten this often (seconds held, the frame the loop is in now), so an engine killed
 #: after a long hold leaves the long figure, not the first one (## 517).
@@ -116,7 +116,7 @@ def _cancel_dump() -> None:
 def _arm_dump(seconds: float, file) -> None:
     """(Re)arm faulthandler's C watchdog: it needs no GIL, so it fires even when a C call holds the GIL for minutes. One-shot
     (`repeat=False`): one stack dump per stall. A repeating dump walks every thread's live frames every `seconds` for as long as the
-    loop is held, and that walk looped at 99% CPU in the gate (#6007); the heartbeat that follows the loop answering arms it again."""
+    loop is held, and that walk looped at 99% CPU in the gate (#6008, found in #6007); the heartbeat that follows the loop answering arms it again."""
     if not _dump_enabled():
         return
     faulthandler.cancel_dump_traceback_later()

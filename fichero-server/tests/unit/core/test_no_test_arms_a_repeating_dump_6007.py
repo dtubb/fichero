@@ -30,7 +30,7 @@ def test_nothing_arms_a_repeating_dump_and_the_watcher_arms_only_behind_the_swit
 
 def test_the_watchers_dump_is_one_shot_per_stall(monkeypatch):
     """The product's `_arm_dump` arms `repeat=False`: a stall over `DUMP_SECONDS` gets one dump, and the heartbeat after the loop answers
-    arms the next (#6007)."""
+    arms the next (#6008, found in #6007)."""
     import faulthandler
 
     from fichero_server.core import loop_lag
