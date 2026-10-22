@@ -47,7 +47,7 @@ def test_the_plan_lists_the_candidates_of_a_step_and_marks_exactly_one(client, p
     assert sum(c["recommended"] for c in choice["candidates"]) == 1
     claude = next(c for c in choice["candidates"] if c["card"] == CLAUDE)
     assert claude["how"] == "cloud-reads-kraken-lines" and not claude["local"] and not claude["available"]
-    assert {n["kind"] for n in claude["needs"]} == {"permission", "key"}  # listed greyed, with what it needs, never hidden
+    assert {n["kind"] for n in claude["needs"]} >= {"permission", "key"}  # (a price may be listed too) listed greyed, with what it needs, never hidden
 
 
 def test_a_choice_is_kept_as_the_persons_and_taking_it_back_restores_set_ups_pick(client, project):
@@ -165,7 +165,7 @@ def test_only_a_card_that_runs_on_this_mac_is_free_a_cluster_or_gpu_service_is_u
     for where, words in (("cluster", "a cluster"), ("gpu-service", "a GPU service")):
         c = _cost(SimpleNamespace(runs_on=where), 10)
         assert c["value"] is None and c["basis"] == "unknown" and words in c["from"] and "free" not in c["from"]
-        assert where not in c["from"], "an internal id is not words"
+        assert f"runs on {where}" not in c["from"], "an internal id is not words"  # ("a cluster" holds the word)
 
 
 def _unsure(plan):
