@@ -63,17 +63,13 @@ DEFAULT_BREAKER_COOLDOWN = 30.0
 CAUSES = ("rate-limit", "quota", "key")
 
 
-#: How a provider is written to a person (the id is lower case: "openai", "huggingface").
-PROVIDER_NAMES = {
-    "openai": "OpenAI", "anthropic": "Anthropic", "google": "Google", "gemini": "Google Gemini", "openrouter": "OpenRouter",
-    "huggingface": "Hugging Face", "azure": "Azure OpenAI", "mistral": "Mistral", "cohere": "Cohere", "groq": "Groq",
-    "xai": "xAI", "deepseek": "DeepSeek", "together": "Together AI", "perplexity": "Perplexity", "ollama": "Ollama",
-}
-
-
 def _provider_name(provider: str) -> str:
+    """How a provider is written to a person: the catalogue's own name (`llm/providers.py`), else the id capitalised."""
+    from fichero_server.llm.providers import get_provider_info
+
     key = (provider or "").strip().lower()
-    return PROVIDER_NAMES.get(key) or key.capitalize() or "The provider"
+    info = get_provider_info(key) if key else None
+    return (info.name if info else None) or key.capitalize() or "The provider"
 
 
 class ProviderRateLimitedError(RuntimeError):
