@@ -6,6 +6,7 @@ import json
 from unittest.mock import MagicMock
 
 
+from fichero_server.db import Database
 from fichero_server.db.embeddings import EMBEDDING_MODEL_ID_FIELD, EMBEDDINGS_TABLE, DatabaseEmbeddingMixin
 from fichero_server.models import Document
 
@@ -44,6 +45,7 @@ class _Lib(DatabaseEmbeddingMixin):
     """The mixin with a recording embedder and an in-memory vector table."""
 
     MODEL = "model-A"
+    _embedding_text_for_document = Database._embedding_text_for_document  # the real rule for what text a page embeds; it lives on Database, the mixin's host
 
     def __init__(self):
         self.store: list[dict] = []
