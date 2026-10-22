@@ -19,6 +19,11 @@ enum ActivityLogFilter: String, CaseIterable, Identifiable {
     /// The levels the engine counts as a problem (`_PROBLEM_LEVELS`).
     static let problemLevels: Set<String> = ["warning", "error", "critical"]
 
+    /// "3 problems" for the closed Log disclosure; nil when there are none.
+    static func problemCountWords(_ count: Int) -> String? {
+        count > 0 ? "\(count) \(count == 1 ? "problem" : "problems")" : nil
+    }
+
     static func hasProblems(_ lines: [ActivityJobLogLine]) -> Bool {
         lines.contains { problemLevels.contains($0.level) }
     }
@@ -30,4 +35,13 @@ enum ActivityLogFilter: String, CaseIterable, Identifiable {
 
     /// What shows when the person has not chosen: Problems while the log has any, else All.
     static func automatic(hasProblems: Bool) -> ActivityLogFilter { hasProblems ? .problems : .all }
+}
+
+/// Whether the live log follows its newest line (`activity.window.open-a-run`): while the run is live, the Log is
+/// open and the person has not scrolled up from the end. Pure, so the rule is checked without a scroll view.
+enum ActivityLogFollow {
+    static func shouldFollow(isLive: Bool, isOpen: Bool, atEnd: Bool) -> Bool { isLive && isOpen && atEnd }
+
+    /// Scroll to the end of the page with the newest line (the log is the page's last section).
+    static let endAnchor = "activity.log.end"
 }

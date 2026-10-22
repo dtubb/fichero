@@ -151,7 +151,7 @@ extension ActivityDetails {
         let owningRun = runRow?.kind == .run ? runRow : nil
 
         heading = Self.heading(row: row, node: node)
-        subheading = [projectName, row.model, Self.startedByWords(startedBy)].compactMap { value in
+        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started)].compactMap { value in
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
@@ -281,6 +281,14 @@ extension ActivityDetails {
         case .job:
             return node?.displayName ?? row.name
         }
+    }
+
+    /// When it started, in this Mac's time: "at 14:02" for today, "21 Oct, 14:02" for another day (`activity.window.open-a-run`:
+    /// the subtitle says who started the run and when); nil when the start is not known.
+    static func startedAtWords(_ date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard let date else { return nil }
+        let time = date.formatted(date: .omitted, time: .shortened)
+        return calendar.isDate(date, inSameDayAs: now) ? "at \(time)" : "\(date.formatted(.dateTime.day().month(.abbreviated))), \(time)"
     }
 
     /// Who or what started it, in words; nil for the run's own rows ("workflow").

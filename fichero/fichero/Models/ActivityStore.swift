@@ -160,6 +160,8 @@ final class ActivityStore: ChangeEventConsumer {
     var jobLogs: [String: [ActivityJobLogLine]] = [:]
     /// Whether a row's log has a warning or an error (the filter row's default); read with the log.
     var jobLogHasProblems: [String: Bool] = [:]
+    /// How many problems a row's log has (a Problems read counts its lines), for the closed Log disclosure.
+    var jobLogProblemCount: [String: Int] = [:]
     /// The jobs queued behind a kind's row, by kind (`activity.window.expands-to-pages`, #5839).
     var queuedItems: [String: [ActivityQueuedItem]] = [:]
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed

@@ -290,6 +290,8 @@ extension ActivityStore {
             // Whether the log has a problem is known from a read of all the lines; a Problems read is all problems.
             let problems = problemsOnly ? !lines.isEmpty : ActivityLogFilter.hasProblems(lines)
             if jobLogHasProblems[jobId] != problems { jobLogHasProblems[jobId] = problems }
+            let count = problemsOnly ? lines.count : lines.filter { ActivityLogFilter.problemLevels.contains($0.level) }.count
+            if !developer, jobLogProblemCount[jobId] != count { jobLogProblemCount[jobId] = count }
         } catch {
             log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
         }

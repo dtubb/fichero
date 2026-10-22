@@ -68,6 +68,8 @@ struct ActivityDetailsProgress: View {
 /// The failed pages under the row, by name, each with its reason.
 struct ActivityDetailsFailedPages: View {
     let details: ActivityDetails
+    /// The run's ONE Read-them-again for these pages (`activity.window.open-a-run`); nil: the row offers nothing to read again.
+    var readAgain: ActivityRunMenuTarget?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -86,6 +88,12 @@ struct ActivityDetailsFailedPages: View {
                 Text("and \(details.failedCount - details.failedPages.count) more")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+            if let readAgain, readAgain.readAgainLabel != nil {
+                Button("Read them again") { readAgain.readAgain() }
+                    .controlSize(.small)
+                    .help(readAgain.readAgainLabel ?? "")
+                    .accessibilityIdentifier("activity.details.failedPages.readAgain")
             }
         }
         .accessibilityIdentifier("activity.details.failedPages")
@@ -126,14 +134,17 @@ struct ActivityDetailsQueuedPages: View {
 /// The row's actions; one that does not apply is absent, not disabled.
 struct ActivityDetailsActions: View {
     let details: ActivityDetails
+    /// True while the failed-pages section carries the run's Read Again: it is said once, there.
+    var hidesReadAgain = false
     /// Stop and Read Again: the same items the Activity table and Project › Activity render (#5652).
     let run: ActivityRunMenuTarget
     let perform: (ActivityDetails.Action) -> Void
 
     var body: some View {
-        if !details.actions.isEmpty {
+        let shown = hidesReadAgain ? details.actions.filter { if case .readAgain = $0 { false } else { true } } : details.actions
+        if !shown.isEmpty {
             HStack(spacing: 8) {
-                ForEach(details.actions, id: \.self) { action in
+                ForEach(shown, id: \.self) { action in
                     Group {
                         switch action {
                         case .control(.stop): ActivityStopMenuItem(target: run)

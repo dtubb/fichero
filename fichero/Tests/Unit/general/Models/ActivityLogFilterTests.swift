@@ -41,4 +41,19 @@ struct ActivityLogFilterTests {
         #expect(ActivityLogFilter.effective(chosen: nil, developer: false, hasProblems: true) == .problems)
         #expect(ActivityLogFilter.effective(chosen: nil, developer: false, hasProblems: false) == .all)
     }
+
+    @Test("the live log follows its newest line only while live, open and at the end")
+    func follows() {
+        #expect(ActivityLogFollow.shouldFollow(isLive: true, isOpen: true, atEnd: true))
+        #expect(!ActivityLogFollow.shouldFollow(isLive: true, isOpen: true, atEnd: false), "the person scrolled up")
+        #expect(!ActivityLogFollow.shouldFollow(isLive: true, isOpen: false, atEnd: true), "the Log is closed")
+        #expect(!ActivityLogFollow.shouldFollow(isLive: false, isOpen: true, atEnd: true), "a finished run's log stays put")
+    }
+
+    @Test("the closed Log says how many problems it has, and nothing when none")
+    func problemCount() {
+        #expect(ActivityLogFilter.problemCountWords(0) == nil)
+        #expect(ActivityLogFilter.problemCountWords(1) == "1 problem")
+        #expect(ActivityLogFilter.problemCountWords(3) == "3 problems")
+    }
 }

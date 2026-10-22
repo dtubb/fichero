@@ -25,6 +25,9 @@ struct ActivityDetailsView: View {
     @State private var actionFailure: String?
     /// The stage the page dots show; nil: each page's worst state across stages (`activity.window.page-grid`).
     @State private var gridStage: String?
+    /// The live log follows its newest line while the Log is open and the page is scrolled to the end (`ActivityLogFollow`).
+    @State private var atEnd = true
+    @AppStorage("activity.opened.log") private var logOpen = false
 
     private var details: ActivityDetails? { ActivityDetails(store: store, selection: selection) }
 
@@ -58,9 +61,12 @@ struct ActivityDetailsView: View {
     }
 
     private func content(_ details: ActivityDetails) -> some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ActivityDetailsHeading(details: details)
+                let bar = ActivityStageBar.segments(of: details.stageCards)
+                if !bar.isEmpty { ActivityStageBar(segments: bar) }
                 if let counts = details.counts {
                     ActivityDetailsProgress(counts: counts)
                 }
@@ -97,10 +103,10 @@ struct ActivityDetailsView: View {
                                          showAll: { ids in Task { await perform(.showPages(documentIds: ids), details) } })
                 }
                 if !details.failedPages.isEmpty {
-                    ActivityDetailsFailedPages(details: details)
+                    ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))
                 }
                 ActivityDetailsActions(
-                    details: details, run: runTarget(details),
+                    details: details, hidesReadAgain: !details.failedPages.isEmpty, run: runTarget(details),
                     perform: { action in Task { await perform(action, details) } }
                 )
                 if details.isLive {
@@ -123,13 +129,37 @@ struct ActivityDetailsView: View {
                 if let kind = ActivityStore.queuedKind(ofRowId: details.jobId) {
                     ActivityDetailsQueuedPages(store: store, kind: kind, rowId: details.jobId)
                 }
-                ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey)
+                // Details and Log are closed until opened and remembered (`activity.window.open-a-run`).
                 if !details.resources.isEmpty {
-                    ActivityDetailsResources(resources: details.resources)
+                    ActivityDetailsDisclosure("Details", key: "activity.opened.details") {
+                        ActivityDetailsResources(resources: details.resources, titled: false)
+                    }
                 }
+                ActivityDetailsDisclosure("Log", detail: ActivityLogFilter.problemCountWords(store.jobLogProblemCount[details.jobId] ?? 0),
+                                          key: "activity.opened.log") {
+                    ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey, titled: false)
+                }
+                Color.clear.frame(height: 1).id(ActivityLogFollow.endAnchor)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Whether the person is at the end of the page: scrolling up stops the following, scrolling back down resumes it.
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 24
+        } action: { _, nowAtEnd in
+            atEnd = nowAtEnd
+        }
+        // The live log follows its newest line (`activity.window.open-a-run`); a finished run's stays put.
+        .onChange(of: store.jobLogs[details.jobId]?.last?.id) { _, _ in
+            if ActivityLogFollow.shouldFollow(isLive: details.isLive, isOpen: logOpen, atEnd: atEnd) {
+                proxy.scrollTo(ActivityLogFollow.endAnchor, anchor: .bottom)
+            }
+        }
+        // The closed Log still counts its problems: a Problems read, once per change of the row.
+        .task(id: details.logKey) {
+            if !logOpen { await store.loadJobLog(jobId: details.jobId, problemsOnly: true) }
+        }
         }
     }
 
@@ -216,6 +246,8 @@ struct ActivityDetailsLog: View {
     let isLive: Bool
     /// Changes when the row changes (`ActivityDetails.logKey`): the log is read again then, and only then.
     let refreshKey: String
+    /// With its own "Log" heading; false inside a disclosure that already says it.
+    var titled = true
     @Environment(ActivityStore.self) private var store
     /// The filter row: Problems · All · Everything. Until the person chooses, Problems while the log has any problem, else All;
     /// Everything is the Developer level (`activity.log.developer-level`).
@@ -231,7 +263,7 @@ struct ActivityDetailsLog: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Log").font(.headline)
+                if titled { Text("Log").font(.headline) }
                 Spacer()
                 Picker("Show", selection: Binding(get: { filter }, set: { chosen = $0; developer = $0.developer })) {
                     ForEach(ActivityLogFilter.allCases) { Text($0.rawValue).tag($0) }
@@ -256,20 +288,13 @@ struct ActivityDetailsLog: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollViewReader { proxy in
-                    List(lines) { line in
+                // The page is ONE scroll view: the log is not a list inside another scroll (`activity.window.open-a-run`).
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(lines) { line in
                         Text(line.plainText)
                             .font(.callout.monospaced())
                             .foregroundStyle(line.level == "error" ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
                             .textSelection(.enabled)
-                            .id(line.id)
-                    }
-                    .listStyle(.plain)
-                    .frame(minHeight: 120, idealHeight: 220, maxHeight: 320)
-                    .onAppear { scrollToEnd(proxy) }
-                    .onChange(of: lines.count) { _, _ in
-                        // Following the end while the row runs; a finished row's log stays put.
-                        if isLive { scrollToEnd(proxy) }
                     }
                 }
             }
@@ -280,10 +305,6 @@ struct ActivityDetailsLog: View {
         .task(id: "\(refreshKey)|\(filter.rawValue)") {
             await store.loadJobLog(jobId: jobId, developer: filter.developer, problemsOnly: filter.problemsOnly)
         }
-    }
-
-    private func scrollToEnd(_ proxy: ScrollViewProxy) {
-        if let last = lines.last?.id { proxy.scrollTo(last, anchor: .bottom) }
     }
 
     private func copyToPasteboard(_ text: String) {
@@ -315,10 +336,11 @@ struct ActivityDetailsLogPane: View {
 /// did not measure is left out.
 private struct ActivityDetailsResources: View {
     let resources: [ActivityDetails.Resource]
+    var titled = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Resources").font(.headline)
+            if titled { Text("Resources").font(.headline) }
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 2) {
                 ForEach(resources) { resource in
                     GridRow {
