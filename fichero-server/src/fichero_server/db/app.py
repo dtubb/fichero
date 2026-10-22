@@ -2443,6 +2443,7 @@ def get_app_db() -> AppDatabase:
 
     Created under a lock: at engine start the warm-up thread and the lifespan both ask for it, and two
     AppDatabase()s at once run the schema setup on two connections ("Catalog write-write conflict").
+    The lock is plain, so nothing under AppDatabase.__init__ may call get_app_db (it would deadlock).
     """
     global _app_db
     if _app_db is None:
