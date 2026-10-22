@@ -18,7 +18,7 @@ What changed since 2026.10.11, the day before.
 
 **Quotas and keys.** A refused request says which of three things happened, and what to do next: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
 
-**Under the hood.** The engine starts reliably after an update: a rare start failure, when two of its parts opened the app database at the same moment, is fixed. Stalls leave one record of the threads' stacks.
+**Under the hood.** The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does. Stalls leave one record of the threads' stacks.
 
 ## 2026.10.11
 
