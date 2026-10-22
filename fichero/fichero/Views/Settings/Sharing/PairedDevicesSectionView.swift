@@ -1,6 +1,21 @@
 import FicheroAPIClient
 import SwiftUI
 
+/// The still-active devices that revoking `id` also revokes: the ones it paired, and theirs (#5351).
+func devicesRevokedWith(_ id: String, in devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
+    var out: [PairedDeviceRecord] = []
+    var frontier = [id]
+    while let next = frontier.popLast() {
+        let kids = devices.filter { candidate in
+            !candidate.revoked && candidate.pairedByDeviceId == next && candidate.id != id
+                && !out.contains { $0.id == candidate.id }
+        }
+        out += kids
+        frontier += kids.map(\.id)
+    }
+    return out
+}
+
 /// Connected devices, with a named empty state — a device list that simply isn't
 /// there when empty teaches the user nothing (#3769 blank-space rule).
 struct PairedDevicesSectionView: View {

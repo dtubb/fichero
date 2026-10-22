@@ -59,21 +59,6 @@ func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRec
     devices.filter { !$0.revoked }
 }
 
-/// The still-active devices that revoking `id` also revokes: the ones it paired, and theirs (#5351).
-func devicesRevokedWith(_ id: String, in devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
-    var out: [PairedDeviceRecord] = []
-    var frontier = [id]
-    while let next = frontier.popLast() {
-        let kids = devices.filter { candidate in
-            !candidate.revoked && candidate.pairedByDeviceId == next && candidate.id != id
-                && !out.contains { $0.id == candidate.id }
-        }
-        out += kids
-        frontier += kids.map(\.id)
-    }
-    return out
-}
-
 /// The one pairing card. Four states, none of them blank: READY (QR + link),
 /// PREPARING (progress), BLOCKED (named cause + its cure), and — only ever
 /// alongside one of those — an error line.
