@@ -24,7 +24,7 @@ def test_a_blank_sheet_left_out_of_reading_is_named_with_why(client, db, tmp_pat
     _folder, ids = _project(db, tmp_path, pages)
     versos = {ids[p.id] for p in pages if p.blank}
     assert versos and finddocs_job.blank_versos(db, list(ids.values())) == versos
-    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent: ("thread", "done", None))
+    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent, adopt=None: ("thread", "done", None))
     card = {"steps": ["read"], "job": "read-a-line", "card": "workflow", "workflow": "w", "workflow_id": "w",
             "provider_override": None, "model_override": None, "takes": ["lines"], "gives": ["line_readings"]}
     job_id = runner.enqueue(db, {"runs": [card], "skipped": []}, documents=list(ids.values()), started_by="owner")

@@ -42,7 +42,7 @@ def test_a_page_a_step_ran_on_and_found_nothing_on_is_done_next_time(db, tmp_pat
     pages = istmina_box()[0][:4]
     _folder, ids = _project(db, tmp_path, pages)
     written = [ids[p.id] for p in pages if not p.blank]
-    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent: ("thread", "done", None))
+    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent, adopt=None: ("thread", "done", None))
     monkeypatch.setattr(runner, "_run_prepare", lambda db_, documents, parent, step: (None, "done", None))
     for card in (NAMES, PREPARE):
         assert split_done(db, card, written)[1] == 0, "nothing done before the run"

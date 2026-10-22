@@ -64,7 +64,7 @@ class Steps:
         self.stop_at: tuple[str, int] | None = None  # a person presses Stop on the run as this call runs
         self.accounts: dict[str, object] = {}  # child -> its run account
 
-    def run(self, db, card, documents, parent):
+    def run(self, db, card, documents, parent, adopt=None):
         step = card["steps"][0]
         self.reasons.append(jobs.read_job(db, parent)["reason"])
         calls = sum(1 for s, _ in self.ran if s == step)
