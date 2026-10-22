@@ -59,14 +59,22 @@ DEFAULT_BREAKER_THRESHOLD = 5
 DEFAULT_BREAKER_COOLDOWN = 30.0
 
 
-class ProviderRateLimitedError(RuntimeError):
-    """Raised when a provider's circuit breaker is OPEN — fail fast.
+#: Why a provider cannot answer: it asked us to slow down, it has no credit, or it refused the key.
+CAUSES = ("rate-limit", "quota", "key")
 
-    Subsequent files for the rate-limited provider raise this *without*
-    calling the provider, so a long run does not silently burn the rest of
-    its calls against a dead provider. The message is deliberately loud so
-    it surfaces in the per-file error and the aggregated run error.
-    """
+
+def _provider_name(provider: str) -> str:
+    return (provider or "the provider").strip().capitalize() or "The provider"
+
+
+class ProviderRateLimitedError(RuntimeError):
+    """A provider that cannot answer is failed fast, without calling it, so a long run does not burn the rest of its calls
+    against it. The subclasses keep the CAUSE (`ai.where.dead-provider-says-why`, ## 950): this class is the rate limit
+    (the provider asked us to slow down: waiting helps); `ProviderQuotaExhaustedError` (no credit: adding credit helps) and
+    `ProviderKeyRefusedError` (the key was refused: checking it helps) are what a person with no credit or a bad key gets, in
+    words that name the provider and the fix, never the breaker's internals. The class stays the one the callers catch."""
+
+    cause = "rate-limit"
 
     def __init__(
         self,
@@ -78,12 +86,45 @@ class ProviderRateLimitedError(RuntimeError):
         self.provider = provider
         self.failures = failures
         self.detail = detail
-        super().__init__(
-            f"Provider {provider} rate-limited, circuit open after "
-            f"{failures} consecutive quota/rate-limit failures — skipping "
-            "remaining files for this provider this run. Set a different "
-            "$large provider in Settings or wait for the quota to reset."
-        )
+        super().__init__(self.words(provider))
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return (f"{name} is asking us to slow down, so this step stopped for now. Run it again in a few minutes, "
+                "or choose another model in Settings.")
+
+
+class ProviderQuotaExhaustedError(ProviderRateLimitedError):
+    """The provider has no credit left for this key (HTTP 402, insufficient_quota, a key limit)."""
+
+    cause = "quota"
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return f"{name} has no credit left for this key. Add credit at {name}, or choose another model in Settings."
+
+
+class ProviderKeyRefusedError(ProviderRateLimitedError):
+    """The provider refused the API key (HTTP 401, an invalid key)."""
+
+    cause = "key"
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return f"{name} refused the API key. Check the key in Settings › AI, or choose another model."
+
+
+_BY_CAUSE: dict[str, type[ProviderRateLimitedError]] = {
+    "rate-limit": ProviderRateLimitedError, "quota": ProviderQuotaExhaustedError, "key": ProviderKeyRefusedError}
+
+
+def provider_stopped_error(provider: str, cause: str = "rate-limit", *, failures: int = 1,
+                           detail: str | None = None) -> ProviderRateLimitedError:
+    """The error for a provider that cannot answer, of the class that names its cause."""
+    return _BY_CAUSE.get(cause, ProviderRateLimitedError)(provider, failures=failures, detail=detail)
 
 
 #: The longest a provider's Retry-After is waited for: a provider asking for more is waited for this long, then tried again
@@ -146,6 +187,25 @@ def classify_provider_error(exc: BaseException) -> str:
     return "terminal"
 
 
+_KEY_WORDS = ("invalid api key", "invalid_api_key", "incorrect api key", "401 unauthorized", "invalid x-api-key",
+              "authentication_error")
+
+
+def fatal_cause(exc: BaseException) -> str:
+    """For a `fatal` error (`classify_provider_error`): `"key"` when the provider refused the key (401 or its words), else
+    `"quota"` (no credit: 402, insufficient_quota, a key limit)."""
+    from fichero_server.llm import _extract_exc_message, _extract_exc_status_code
+
+    status = _extract_exc_status_code(exc)
+    try:
+        text = _extract_exc_message(exc).lower()
+    except Exception:  # pragma: no cover - classification must never crash
+        text = str(exc).lower()
+    if status == 401 or any(k in text for k in _KEY_WORDS):
+        return "key"
+    return "quota"
+
+
 def compute_backoff_delay(
     attempt: int,
     *,
@@ -170,6 +230,7 @@ class _ProviderState:
     consecutive_failures: int = 0
     opened_at: float | None = None
     last_detail: str | None = None
+    last_cause: str = "rate-limit"
 
 
 class ProviderCircuitBreaker:
@@ -222,10 +283,9 @@ class ProviderCircuitBreaker:
                     provider or "unknown",
                 )
                 return
-            raise ProviderRateLimitedError(
-                provider or "unknown",
-                failures=st.consecutive_failures,
-                detail=st.last_detail,
+            raise provider_stopped_error(
+                provider or "unknown", st.last_cause,
+                failures=st.consecutive_failures, detail=st.last_detail,
             )
 
     async def record_success(self, provider: str | None) -> None:
@@ -257,6 +317,7 @@ class ProviderCircuitBreaker:
                 self._states[key] = st
             st.consecutive_failures += 1
             st.last_detail = detail
+            st.last_cause = "rate-limit"
             if st.consecutive_failures >= self.threshold and st.opened_at is None:
                 st.opened_at = time.monotonic()
                 logger.error(
@@ -268,13 +329,14 @@ class ProviderCircuitBreaker:
                 )
             return st.opened_at is not None
 
-    async def trip(self, provider: str | None, *, detail: str | None = None) -> None:
-        """Open the breaker for ``provider`` now: it cannot answer this run (no credit, a refused key)."""
+    async def trip(self, provider: str | None, *, detail: str | None = None, cause: str = "quota") -> None:
+        """Open the breaker for ``provider`` now: it cannot answer this run (no credit, a refused key), and it keeps why."""
         key = self._key(provider)
         async with self._lock:
             st = self._states.setdefault(key, _ProviderState())
             st.consecutive_failures = max(st.consecutive_failures, self.threshold)
             st.last_detail = detail
+            st.last_cause = cause
             if st.opened_at is None:
                 st.opened_at = time.monotonic()
                 logger.error("Circuit OPEN for provider %s: %s", provider or "unknown", detail or "it cannot answer")
@@ -326,7 +388,7 @@ async def call_with_breaker(
         except Exception as exc:
             kind = classify_provider_error(exc)
             if kind == "fatal":
-                await breaker.trip(provider, detail=str(exc))
+                await breaker.trip(provider, detail=str(exc), cause=fatal_cause(exc))
                 raise
             if kind == "terminal":
                 raise
