@@ -24,8 +24,25 @@ def _state(tmp_path, monkeypatch):
     startup_warnings.set_previous_stall(None)
 
 
-def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
+@pytest.fixture
+def loop_and_sink():
+    """An event loop and a file for the watcher's dump, both closed after the test (#6007): the test left them open, and its
+    `dump_file` stayed referenced by a repeating dump timer armed process-wide."""
+    import faulthandler
+
     loop = asyncio.new_event_loop()
+    sink = open("/dev/null", "w")
+    try:
+        yield loop, sink
+    finally:
+        if loop_lag._dump_enabled():  # a run without the suite's switch: put back what the watcher armed
+            faulthandler.cancel_dump_traceback_later()
+        loop.close()
+        sink.close()
+
+
+def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path, loop_and_sink):
+    loop, sink = loop_and_sink
     ready = threading.Event()
     release = threading.Event()
 
@@ -41,7 +58,7 @@ def test_a_stall_is_written_while_held_and_gone_once_the_loop_answers(tmp_path):
 
     # start the watcher from inside the loop thread, as the lifespan does
     async def boot():
-        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, record_seconds=0.1, dump_file=open("/dev/null", "w"))
+        return loop_lag.start(loop, ping_seconds=0.05, slow_seconds=0.2, dump_seconds=600, record_seconds=0.1, dump_file=sink)
 
     def run():
         asyncio.set_event_loop(loop)
@@ -135,3 +152,22 @@ def test_the_loop_watcher_leaves_the_suites_hang_dump_alone_when_told_to(monkeyp
     monkeypatch.delenv("FICHERO_LOOP_DUMP")
     run_one_ping()
     assert "arm" in calls and "cancel" in calls, "the engine's default (a dump armed per heartbeat) must stay"
+
+
+def test_the_stall_test_leaves_no_dump_timer_armed_by_the_watcher(loop_and_sink, monkeypatch):
+    """Under the suite's `FICHERO_LOOP_DUMP=0` a watcher started with a dump file arms nothing, so the stall test cannot replace the
+    suite's own hang dump (#6007)."""
+    import faulthandler
+
+    armed = []
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda *a, **k: armed.append(a))
+    monkeypatch.setenv("FICHERO_LOOP_DUMP", "0")
+    loop, sink = loop_and_sink
+
+    async def boot():
+        stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=600, dump_file=sink)
+        await asyncio.sleep(0.1)
+        stop.set()
+
+    loop.run_until_complete(boot())
+    assert armed == []
