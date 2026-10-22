@@ -2,6 +2,24 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.22
+
+What changed since 2026.10.11, the day before.
+
+- Recipes choose the model for each step: Fichero proposes one for the step and your pages, and you can change it. On a 16 GB Mac, Fichero keeps to what the Mac can hold at once.
+- The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does.
+- Activity shows one row per run, with a stage bar; problems show first, and a partly done run says it is partial and why.
+- When a provider refuses a request, Fichero says which of three things happened and what to do: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
+- Stalls in the engine leave one record of the threads' stacks, not a stream of them.
+
+**Models for each step.** Each step of a recipe names the model it will use. Fichero proposes one for the step from the pages in the project, and you can change it. On a 16 GB Mac, Fichero runs one large model at a time, so the Mac does not run out of memory.
+
+**Activity.** A run is one row with one stage bar. Problems show first. A partly done run says it is partial, and why.
+
+**Quotas and keys.** A refused request says which of three things happened, and what to do next: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
+
+**Under the hood.** The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does. Stalls leave one record of the threads' stacks.
+
 ## 2026.10.11
 
 What changed since 2026.10.10, the day before.
