@@ -16,6 +16,7 @@ Environment Variables:
 """
 
 import asyncio
+import inspect
 import threading
 import functools
 import hashlib
@@ -1154,10 +1155,35 @@ async def lifespan(app: FastAPI):
     mcp_tools_started = asyncio.create_task(_load_mcp_tools())
 
     _api_stamp("lifespan pre-yield complete")
-    yield
-    _loop_watch.set()
-    loop_lag.stop_watchdog()
-    signal_sse_shutdown()
+    try:
+        yield
+    finally:  # however the server ends (a body that raises, a cancelled lifespan at a forced shutdown) the whole teardown runs (#6007)
+        _loop_watch.set()
+        loop_lag.stop_watchdog()
+        await _teardown(
+            app, parent_watcher=parent_watcher, periodic_snapshot_task=periodic_snapshot_task,
+            bonjour_started=bonjour_started, tailnet_forward=tailnet_forward,
+            mcp_tools_started=mcp_tools_started, warm_started=warm_started)
+
+
+async def _step(what: str, step) -> None:
+    """One shutdown step. A failure is logged and the next step still runs: a project's WAL left to replay at the next open (DuckDB
+    1.4+ has written stale indexes on that replay) is worse than a failed Bonjour stop (#6007, ## 990)."""
+    try:
+        result = step()
+        if inspect.isawaitable(result):
+            await result
+    except Exception:  # noqa: BLE001 -- logged; the steps after it must still run
+        logger.exception("Shutdown step '%s' failed; carrying on with the rest", what)
+
+
+async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bonjour_started, tailnet_forward,
+                    mcp_tools_started, warm_started) -> None:
+    """The lifespan's shutdown, in the order a normal quit has always had: live runs paused and streams closed, the projects
+    checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
+    from fichero_server.api.change_stream import signal_sse_shutdown
+
+    await _step("signal the SSE streams", signal_sse_shutdown)
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
     # connections to close" blocked on any live run and the app SIGKILLed us
@@ -1165,20 +1191,25 @@ async def lifespan(app: FastAPI):
     # orphaning an in-flight run with no terminal event.
     from fichero_server.execution.runner import close_all_event_hubs_for_shutdown, pause_live_runs_for_shutdown
 
-    _paused_runs = await pause_live_runs_for_shutdown()
-    if _paused_runs:
-        logger.info("Shutdown: paused %d live run(s) at their last checkpoint; Resume carries them on (#5357).",
-                    _paused_runs)
-    _closed_hubs = close_all_event_hubs_for_shutdown()
-    if _closed_hubs:
-        logger.info(
-            "Shutdown: closed %d live workflow event stream(s) so connections "
-            "can drain; their runs will be reconciled from the persisted "
-            "record by the client (#4346/#4349).",
-            _closed_hubs,
-        )
-    parent_watcher.cancel()
-    await stop_periodic_snapshot_task(periodic_snapshot_task)
+    async def pause_runs() -> None:
+        paused = await pause_live_runs_for_shutdown()
+        if paused:
+            logger.info("Shutdown: paused %d live run(s) at their last checkpoint; Resume carries them on (#5357).", paused)
+
+    def close_hubs() -> None:
+        closed = close_all_event_hubs_for_shutdown()
+        if closed:
+            logger.info(
+                "Shutdown: closed %d live workflow event stream(s) so connections "
+                "can drain; their runs will be reconciled from the persisted "
+                "record by the client (#4346/#4349).",
+                closed,
+            )
+
+    await _step("pause live runs", pause_runs)
+    await _step("close event streams", close_hubs)
+    await _step("stop the parent watcher", parent_watcher.cancel)
+    await _step("stop the periodic snapshot", lambda: stop_periodic_snapshot_task(periodic_snapshot_task))
     # The projects close FIRST, straight after the last thing that writes to them: the app gives the engine
     # about two seconds after SIGTERM before SIGKILL (`TerminationDeadlinePolicy.quit`), and closing last --
     # after Bonjour, Tailscale and unloading local models -- meant most quits never got here, leaving every
@@ -1186,29 +1217,38 @@ async def lifespan(app: FastAPI):
     logger.info("Fichero API shutting down: closing projects")
     from fichero_server.db.app import checkpoint_app_db
 
-    db_manager.checkpoint_all()  # first, fast: stopping runs below can outlast the app's wait
-    checkpoint_app_db()
-    db_manager.close_all()
+    await _step("checkpoint the projects", db_manager.checkpoint_all)  # first, fast: stopping runs below can outlast the app's wait
+    await _step("checkpoint the app database", checkpoint_app_db)
+    await _step("close the projects", db_manager.close_all)
+
     # Await the start before stopping: a short-lived process (a test, a failed
     # launch) can reach shutdown while the executor has not run yet, and the
     # advertiser would then register AFTER we tried to stop it — a zombie that
     # outlives the engine. Awaiting costs nothing once it has already run.
-    await bonjour_started
-    if app.state.bonjour_advertiser is not None:
-        app.state.bonjour_advertiser.stop()
-    tailscale_serve.stop_for_engine(await tailnet_forward, log=logger)
-    # #4690: CANCEL rather than await — this task may be parked forever on
-    # `_first_registry_200_signal.wait()` (a short-lived process that never
-    # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
-    # would hang shutdown on traffic that may never come.
-    mcp_tools_started.cancel()
-    warm_started.cancel()
-    with suppress(asyncio.CancelledError):
-        await warm_started
-    await shutdown_managed_local_inference_services()
-    # Anything that opened a project during the steps above is closed too (close_all is idempotent).
-    db_manager.close_all()
+    async def stop_bonjour() -> None:
+        await bonjour_started
+        if app.state.bonjour_advertiser is not None:
+            app.state.bonjour_advertiser.stop()
 
+    async def stop_tailscale() -> None:
+        tailscale_serve.stop_for_engine(await tailnet_forward, log=logger)
+
+    async def stop_warm_up() -> None:
+        # #4690: CANCEL rather than await — this task may be parked forever on
+        # `_first_registry_200_signal.wait()` (a short-lived process that never
+        # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
+        # would hang shutdown on traffic that may never come.
+        mcp_tools_started.cancel()
+        warm_started.cancel()
+        with suppress(asyncio.CancelledError):
+            await warm_started
+
+    await _step("stop Bonjour", stop_bonjour)
+    await _step("stop Tailscale serve", stop_tailscale)
+    await _step("stop the warm-up", stop_warm_up)
+    await _step("unload local models", shutdown_managed_local_inference_services)
+    # Anything that opened a project during the steps above is closed too (close_all is idempotent).
+    await _step("close the projects again", db_manager.close_all)
 
 app = FastAPI(
     title="Fichero API",
