@@ -3,10 +3,15 @@ firing, faulthandler walking another thread's live frames at 99% CPU with its du
 from __future__ import annotations
 
 import ast
+import importlib.util
 import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+# scripts/ is not a package: load the repo's scan helper by path, so a nested worktree is never walked (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location("_scan_files", Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py")
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 
 def test_the_suite_runs_with_the_loop_dump_switched_off():
@@ -14,15 +19,15 @@ def test_the_suite_runs_with_the_loop_dump_switched_off():
 
 
 def test_nothing_arms_a_repeating_dump_and_the_watcher_arms_only_behind_the_switch():
-    armed = []
-    for path in [*(ROOT / "src").rglob("*.py"), *(ROOT / "tests").rglob("*.py")]:
+    armed = set()
+    for path in [*scan_files.scan_rglob(ROOT / "src", "*.py"), *scan_files.scan_rglob(ROOT / "tests", "*.py")]:
         if path == Path(__file__):
             continue
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "dump_traceback_later":
                 if any(k.arg == "repeat" and not (isinstance(k.value, ast.Constant) and k.value.value is False) for k in node.keywords):
-                    armed.append(str(path.relative_to(ROOT)))
-    assert armed == [], f"a repeating faulthandler dump is armed (one stack dump per stall, #6007): {armed}"
+                    armed.add(str(path.relative_to(ROOT)))
+    assert armed == set(), f"a repeating faulthandler dump is armed (one stack dump per stall, #6007): {armed}"
     watcher = (ROOT / "src/fichero_server/core/loop_lag.py").read_text()
     arm = watcher[watcher.index("def _arm_dump"):]
     assert arm.index("_dump_enabled()") < arm.index("dump_traceback_later"), "the watcher arms the dump before checking the switch"
@@ -42,3 +47,33 @@ def test_the_watchers_dump_is_one_shot_per_stall(monkeypatch):
     loop_lag._arm_dump(30.0, None)
     assert len(armed) == 1 and armed[0][0] == 30.0
     assert armed[0][1].get("repeat") is False, f"the dump repeats: {armed}"
+
+
+def test_each_heartbeat_arms_a_fresh_one_shot_so_a_second_stall_is_dumped_too(monkeypatch):
+    """The re-arm (## 997): a one-shot dump fires once per stall, so every heartbeat must put a new one in place. Two heartbeats cancel
+    the old timer and arm a new non-repeating one each time; a loop that answers, then stalls again, is dumped again (#6008)."""
+    import asyncio
+    import faulthandler
+
+    from fichero_server.core import loop_lag
+
+    events = []
+    monkeypatch.setenv("FICHERO_LOOP_DUMP", "1")
+    monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", lambda: events.append("cancel"))
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda seconds, **kw: events.append(("arm", seconds, kw.get("repeat"))))
+    loop = asyncio.new_event_loop()
+    try:
+        async def beat_twice():
+            stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=30.0)
+            events.clear()  # the arm made at start
+            await asyncio.sleep(0.25)  # the watcher pings every 20 ms: several heartbeats ran on this loop
+            stop.set()
+
+        loop.run_until_complete(beat_twice())
+    finally:
+        loop.close()
+        loop_lag.stop_watchdog()
+    arms = [e for e in events if e != "cancel"]
+    assert len(arms) >= 2, f"fewer than two heartbeats re-armed the dump: {events}"
+    assert all(a == ("arm", 30.0, False) for a in arms), f"a re-arm was not a fresh one-shot: {arms}"
+    assert events.count("cancel") >= len(arms), "a re-arm did not cancel the timer it replaced"
