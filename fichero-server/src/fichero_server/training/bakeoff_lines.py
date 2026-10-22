@@ -169,11 +169,15 @@ def stage_dataset(winning: Winning, pages_dir: str | Path, out_dir: str | Path,
 
 def push_private_dataset(staged: Staged, repo_id: str, *, token: str, confirmed_lines: int | None,
                          api: Any | None = None) -> Pushed:
-    """Send a staged folder to a private dataset. Every refusal comes first and nothing leaves until all have passed: no
+    """Send a staged folder to a private dataset. Every refusal comes first and nothing leaves until all have passed: the project's places or
+    local-only mode, no
     token, a token that may not write, a dataset that exists and is public, one that is not private once created, or a
     yes that does not name the number of lines. The dataset is created private and there is no way to ask otherwise."""
+    from fichero_server.core.egress import check_egress
     from fichero_server.training.hf_jobs import HuggingFaceTokenRejected, NoHuggingFaceToken, _lacks
 
+    # The first refusal: these are the person's line crops and readings, leaving for Hugging Face (## 985).
+    check_egress("huggingface", what="these lines", to="Hugging Face")
     if not token:
         raise NoHuggingFaceToken("No Hugging Face token: add one in Settings (AI providers, Hugging Face). It needs "
                                  "permission to write to your repositories.")
