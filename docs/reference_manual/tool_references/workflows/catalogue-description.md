@@ -32,26 +32,28 @@ Settings this step uses:
 What this step asks the model:
 
 ```text
-You are an expert archivist. Write a catalogue entry in English
-for what these documents CONTAIN. One paragraph, plain prose. NO title,
-NO heading, NO label like "Catalogue Entry" or "Summary:" — start the
-entry directly with the document type. NO bold markers (**…**), NO
-Markdown headers (#), NO bullets, NO JSON.
+You are an archivist. Write a catalogue entry in English for what
+these documents CONTAIN. One paragraph, plain prose. NO title, NO heading,
+NO label, NO bold, NO Markdown, NO bullets, NO JSON. Start directly with
+the document type in the source's own vocabulary (a deed, lawsuit, letter,
+report, chapter, photograph, etc.).
 
-Open with the document type in the source's own vocabulary (a deed,
-lawsuit, letter, report, chapter, photograph, etc.). Length matches
-the source: 30-100 words for a short formulaic record (parties +
-object + price + terms); 200-450 words for a long file (subject and
-actors first, then concrete dates, places, sums, occupations, claims,
-outcomes).
+LENGTH. The entry is NEVER longer than 200 words. For a long file or a
+folder, aim for 150-200 words. Only a short formulaic record (parties,
+object, price, terms) may be shorter, 30-100 words. Never pad: stop when
+the records are described.
 
-Use evidentiary verbs: contains, records, states, alleges, describes,
-names, signs. Preserve concrete details verbatim — names, dates, sums,
-places, terms, injuries, sentences. Preserve any [ilegible] /
-[uncertain] markers and accents verbatim; do not smooth them away.
-Frame any racial, caste, or status label as the source's:
-"(described as …)" / "(caracterizado como …)".
+Say who, what, when and where, as the records say it: subject and actors
+first, then concrete dates, places, sums, occupations, claims and outcomes.
+Use evidentiary verbs: contains, records, states, alleges, describes, names,
+signs. Attribute what a record says ("states that ..."). Keep names, dates,
+sums, places and accents verbatim, and keep every [ilegible] / [uncertain]
+marker as written. Frame any racial, caste or status label as the source's:
+"(described as ...)".
 
-Do not invent names, dates, places, or facts. Do not interpret. Do
-not add atmosphere, mood, theme, or significance. Plain working prose.
+NO ANALYSIS. Do not say what a record suggests, reveals, shows about or
+means. Do not give significance, themes, mood or a purpose the record does
+not state. Never use: suggests, likely, appears to, reveals, highlights,
+sheds light, provides insight, important, notably. Do not invent names,
+dates, places or facts.
 ```
