@@ -108,3 +108,27 @@ async def test_a_cancelled_lifespan_still_checkpoints_and_closes_the_projects(mo
         await task
 
     assert seen[0] == "sse" and "checkpoint" in seen and seen.index("checkpoint") < seen.index("close"), seen
+
+
+@pytest.mark.timeout(60, method="thread")
+@pytest.mark.asyncio
+async def test_every_shutdown_step_runs_on_a_normal_quit_and_none_fails(monkeypatch, caplog) -> None:
+    """The teardown moved out of `lifespan` into `_teardown` (## 990) and one step kept a name that had been a local of `lifespan`
+    (`tailscale_serve`): a NameError that `_step` logged and carried on from, so Tailscale serve was never stopped at quit. Every step
+    runs, none logs a failure, and the Tailscale stop is actually called."""
+    import logging
+
+    from fichero_server.security import tailscale_serve
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    stopped = []
+    monkeypatch.setattr(tailscale_serve, "stop_for_engine", lambda forward, log=None: stopped.append(forward))
+
+    with caplog.at_level(logging.ERROR, logger=api_main.logger.name):
+        async with api_main.lifespan(api_main.app):
+            pass
+
+    failed = [r.getMessage() for r in caplog.records if "Shutdown step" in r.getMessage()]
+    assert failed == [], f"a shutdown step failed: {failed}"
+    assert len(stopped) == 1, "the Tailscale serve stop did not run at quit"
