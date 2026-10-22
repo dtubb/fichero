@@ -11,7 +11,9 @@ from fichero_server.workflows import registry
 def test_every_registered_tool_takes_inputs_and_state():
     registry._ensure_tools_loaded()
     wrong = {name: fn.__name__ for name, fn in registry._TOOLS.items()
-             if not {"inputs", "state"} <= set(inspect.signature(inspect.unwrap(fn)).parameters)}
+             # the shipped tools only: other tests register probe tools of their own in the same registry
+             if fn.__module__.startswith("fichero_server.workflows.tools")
+             and not {"inputs", "state"} <= set(inspect.signature(inspect.unwrap(fn)).parameters)}
     assert wrong == {}, f"a registered tool cannot take inputs/state (a helper under its decorator?): {wrong}"
 
 
