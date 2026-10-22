@@ -1,3 +1,12 @@
+### 2026.10.22
+
+What changed since 2026.10.11, the day before.
+
+- Recipes choose a model for each step, and on a 16 GB Mac one large model runs at a time.
+- The engine no longer fails to start when two of its parts open the app database at once.
+- Activity shows one row per run, with a stage bar; problems show first.
+- A refused cloud request says whether it was out of credit, a refused key, or a slow-down, and what to do.
+
 ### 2026.10.11
 
 What changed since 2026.10.10, the day before.

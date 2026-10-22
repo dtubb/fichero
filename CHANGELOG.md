@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-22
+
+- Recipes: a model is proposed for each step from the project's pages; on a 16 GB Mac one large model runs at a time.
+- Engine: a rare start failure, when two parts opened the app database at once, is fixed.
+- Activity: one row per run with a stage bar; problems first; a partly done run says it is partial and why.
+- Cloud refusals say which of three causes (out of credit, key refused, slow down) and what to do.
+- Engine stall watchdog writes one stack record per stall.
+
 ## 2026-10-11
 
 - Trash per project (engine and app): list with what/when/who/where, Put Back, Empty Trash… asks first and names moved items; knowledge on trashed pages hidden (#2077).
