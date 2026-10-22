@@ -345,22 +345,6 @@ final class RecipeSetupStore {
     /// closes onto it (#5576, `source.onboard.auto.lands-on-the-run`).
     var startedRunJobId: String? { startPlan?.started?.jobId }
 
-    // MARK: What will not run (#5573, `source.onboard.auto.plan-shows-what-will-not-run`)
-
-    /// The steps Start skips, each with the engine's why and its fix (`fix`), as the plan has them.
-    var skippedSteps: [Components.Schemas.SkippedStep] { startPlan?.skipped ?? [] }
-
-    /// The steps that run nothing on purpose, each with the engine's sentence (#5816): shown as built in, never as a
-    /// problem. Absent in an older engine's plan, so none.
-    var builtInSteps: [Components.Schemas.BuiltInStep] { startPlan?.builtIn ?? [] }
-
-    /// The models the plan's steps need that are not on this Mac, each with its size and the download.
-    var downloads: [Components.Schemas.StartDownload] { startPlan?.downloads ?? [] }
-
-    /// The models the plan's steps are pinned to that this Mac cannot run, each with the free places offered
-    /// instead (#5592, `ai.where.fallback-free-and-asked`).
-    var elsewhere: [Components.Schemas.StartElsewhere] { startPlan?.elsewhere ?? [] }
-
     /// A skipped step by its title in the recipe ("Find names"), else by its id.
     func title(ofStepId step: String) -> String {
         guard let found = recipe?.steps.first(where: { $0.id == step }) else { return title(ofJob: step) }
@@ -638,6 +622,22 @@ extension RecipeSetupStore {
 
 // Behaviour over the stored answers above, in an extension so the class body holds the state.
 extension RecipeSetupStore {
+    // MARK: What will not run (#5573, `source.onboard.auto.plan-shows-what-will-not-run`)
+
+    /// The steps Start skips, each with the engine's why and its fix (`fix`), as the plan has them.
+    var skippedSteps: [Components.Schemas.SkippedStep] { startPlan?.skipped ?? [] }
+
+    /// The steps that run nothing on purpose, each with the engine's sentence (#5816): shown as built in, never as a
+    /// problem. Absent in an older engine's plan, so none.
+    var builtInSteps: [Components.Schemas.BuiltInStep] { startPlan?.builtIn ?? [] }
+
+    /// The models the plan's steps need that are not on this Mac, each with its size and the download.
+    var downloads: [Components.Schemas.StartDownload] { startPlan?.downloads ?? [] }
+
+    /// The models the plan's steps are pinned to that this Mac cannot run, each with the free places offered
+    /// instead (#5592, `ai.where.fallback-free-and-asked`).
+    var elsewhere: [Components.Schemas.StartElsewhere] { startPlan?.elsewhere ?? [] }
+
     // MARK: Languages and scripts (#5479)
 
     /// One answer from setup's language or script search, as the field shows it.
