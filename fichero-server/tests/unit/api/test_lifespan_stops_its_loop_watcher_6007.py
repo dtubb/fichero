@@ -37,3 +37,37 @@ async def test_a_body_that_raises_still_stops_the_loop_watcher(monkeypatch) -> N
     while _watchers() - before and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not (_watchers() - before), "a loop-lag watcher was left running after the body raised"
+
+
+@pytest.mark.timeout(60, method="thread")
+@pytest.mark.asyncio
+async def test_the_projects_are_checkpointed_and_closed_when_the_lifespan_ends_badly(monkeypatch) -> None:
+    """## 990: the rest of the shutdown was skipped when an exception or a cancel reached the `yield`, leaving every project's WAL to
+    replay at the next open. A raising body now still checkpoints and closes the projects, and one failing step does not skip the rest."""
+    from fichero_server.db.manager import db_manager
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    seen: list[str] = []
+    real_checkpoint, real_close = db_manager.checkpoint_all, db_manager.close_all
+    monkeypatch.setattr(db_manager, "checkpoint_all", lambda: seen.append("checkpoint") or real_checkpoint())
+    monkeypatch.setattr(db_manager, "close_all", lambda: seen.append("close") or real_close())
+
+    async def unload_models():
+        seen.append("unload")
+
+    monkeypatch.setattr(api_main, "shutdown_managed_local_inference_services", unload_models)
+
+    def fail_checkpoint_of_the_app_db():
+        seen.append("app-db")
+        raise RuntimeError("the app database is busy")
+
+    monkeypatch.setattr("fichero_server.db.app.checkpoint_app_db", fail_checkpoint_of_the_app_db)
+
+    with pytest.raises(RuntimeError, match="the body failed"):
+        async with api_main.lifespan(api_main.app):
+            raise RuntimeError("the body failed")
+
+    assert seen[:4] == ["checkpoint", "app-db", "close", "unload"], seen  # the failing app-db step did not stop the rest
+    assert "close" in seen and "unload" in seen, "a step after the failing one was skipped"
+    assert seen.index("checkpoint") < seen.index("close") < seen.index("unload"), "the normal order (projects first) changed"
