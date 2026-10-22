@@ -787,7 +787,7 @@ cmd_engine() {
       n=$((n + 1))
       # shellcheck disable=SC2086  # a shard is a space-separated list of paths
       run_gated "engine-pytest $n/$total" "${GATE_TIMEOUT_ENGINE:-2700}" \
-        env PYTHONPATH=fichero-server/src "$py" -m pytest -rf $shard
+        env PYTHONPATH=fichero-server/src "$py" -m pytest -rf --timeout-method=thread $shard
       rc=$?
       if [[ $rc -ne 0 && $first_rc -eq 0 ]]; then first_rc=$rc; first_verdict="$GATE_LAST_VERDICT"; fi
     done
@@ -795,7 +795,7 @@ cmd_engine() {
     return "$first_rc"
   fi
   run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
-    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf --timeout-method=thread "${args[@]}"
 }
 
 cmd_perf() {
@@ -807,7 +807,7 @@ cmd_perf() {
   local args=("$@")
   [[ ${#args[@]} -gt 0 ]] || args=(fichero-server/tests/perf/)
   run_gated "perf-pytest" "${GATE_TIMEOUT_PERF:-5400}" \
-    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf --timeout-method=thread "${args[@]}"
 }
 
 cmd_ui() {
@@ -903,7 +903,7 @@ cmd_transport() {
   # the acceptance test for the transport nobody was sure worked.
   local py rc=0 verdict=""; py="$(find_python)"
   run_gated "transport-python" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
-    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf \
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf --timeout-method=thread \
       fichero-server/tests/integration/test_transport_matrix.py \
       fichero-server/tests/integration/test_transport_round_trips.py \
     || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
