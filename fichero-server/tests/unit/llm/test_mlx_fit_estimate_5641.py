@@ -45,8 +45,11 @@ def test_on_an_8_gb_mac_the_3b_fits_and_the_7b_wont_fit_in_words():
     assert "8.0 GB" in seven.reason and "6.0 GB" in seven.reason  # this Mac's memory, and what it can give a model
 
 
-def test_on_a_16_gb_mac_the_7b_fits_and_a_model_whose_note_wants_more_is_tight():
-    assert fit_estimate(SEVEN_B, physical_memory=16 * GB).word == FITS
+def test_on_a_16_gb_mac_the_7b_is_tight_because_its_page_floor_is_24_gb_and_on_32_gb_it_fits():
+    """The 7B card's page floor is 24 GB (#5641): on 16 GB the finder says "tight" (it loads for text; the floor is in its note),
+    on 32 GB it fits. The cand 15 finder goes further and refuses it as a PAGE reader on 16 GB (`reads_pages`)."""
+    assert fit_estimate(SEVEN_B, physical_memory=16 * GB).word == TIGHT
+    assert fit_estimate(SEVEN_B, physical_memory=32 * GB).word == FITS
     eight = fit_estimate(EIGHT_B, physical_memory=16 * GB)  # its note: reading a page needs a 24 GB Mac
     assert eight.word == TIGHT and "it runs" in eight.reason
 
