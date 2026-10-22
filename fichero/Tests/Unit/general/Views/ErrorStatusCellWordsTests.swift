@@ -31,4 +31,12 @@ struct ErrorStatusCellWordsTests {
             #expect(ErrorStatusCell.cellText(error) == error, "\(error)")
         }
     }
+
+    @Test("a file path in the error never reaches the cell")
+    func noPaths() {
+        let error = "Could not read /Users/maya/Marshall Diaries/p12.jpg. The model returned nothing."
+        let cell = ErrorStatusCell.cellText(error)
+        #expect(cell == "Could not read a page.")
+        #expect(!cell.contains("/Users"))
+    }
 }
