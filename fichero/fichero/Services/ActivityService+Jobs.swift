@@ -28,10 +28,11 @@ extension ActivityService {
     /// `GET /api/activity/jobs/{id}/log` (#5561): the lines the engine wrote
     /// for this row and the rows under it, newest last. `nil` when the project
     /// has no job by that id (a job of its own the job table has no row for).
-    func getJobLog(id: String, developer: Bool = false) async throws -> [ActivityJobLogLine]? {
+    func getJobLog(id: String, developer: Bool = false, problemsOnly: Bool = false) async throws -> [ActivityJobLogLine]? {
         // The person's log by default; the Developer level adds the debug lines (`activity.log.developer-level`).
         let response = try await client.api.getJobLogApiActivityJobsJobIdLogGet(
-            path: .init(jobId: id), query: .init(detail: developer ? .developer : .person))
+            path: .init(jobId: id),
+            query: .init(detail: developer ? .developer : .person, level: problemsOnly ? .problems : .all))
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.lines?.enumerated().map { ActivityJobLogLine(index: $0.offset, $0.element) } ?? []

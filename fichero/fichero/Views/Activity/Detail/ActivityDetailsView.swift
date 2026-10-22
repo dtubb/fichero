@@ -217,8 +217,14 @@ struct ActivityDetailsLog: View {
     /// Changes when the row changes (`ActivityDetails.logKey`): the log is read again then, and only then.
     let refreshKey: String
     @Environment(ActivityStore.self) private var store
-    /// The Developer level (`activity.log.developer-level`): off, the log is the person's own; on, it adds the debug lines.
+    /// The filter row: Problems · All · Everything. Until the person chooses, Problems while the log has any problem, else All;
+    /// Everything is the Developer level (`activity.log.developer-level`).
+    @State private var chosen: ActivityLogFilter?
+    /// The person's Everything choice is remembered, as the old Developer toggle was (`activity.log.developer-level`).
     @AppStorage("activity.log.developer") private var developer = false
+    private var filter: ActivityLogFilter {
+        ActivityLogFilter.effective(chosen: chosen, developer: developer, hasProblems: store.jobLogHasProblems[jobId] ?? false)
+    }
 
     private var lines: [ActivityJobLogLine] { store.jobLogs[jobId] ?? [] }
 
@@ -227,11 +233,15 @@ struct ActivityDetailsLog: View {
             HStack {
                 Text("Log").font(.headline)
                 Spacer()
-                Toggle("Developer", isOn: $developer)
-                    .setupCheckbox()  // a checkbox on the Mac, a switch on iOS
-                    .controlSize(.small)
-                    .help("Also show the debug lines: when each step started, what a row waited for, a server's output")
-                    .accessibilityIdentifier("activity.details.log.developer")
+                Picker("Show", selection: Binding(get: { filter }, set: { chosen = $0; developer = $0.developer })) {
+                    ForEach(ActivityLogFilter.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .controlSize(.small)
+                .help("Problems: warnings and errors. All: the log. Everything: also the debug lines, as a developer reads them")
+                .accessibilityIdentifier("activity.details.log.filter")
                 Button {
                     copyToPasteboard(lines.map(\.plainText).joined(separator: "\n"))
                 } label: {
@@ -265,7 +275,11 @@ struct ActivityDetailsLog: View {
             }
         }
         .accessibilityIdentifier("activity.details.log")
-        .task(id: "\(refreshKey)|\(developer)") { await store.loadJobLog(jobId: jobId, developer: developer) }
+        // A choice is about one row's log: another row starts from the default again (Everything stays, remembered).
+        .onChange(of: jobId) { _, _ in chosen = nil }
+        .task(id: "\(refreshKey)|\(filter.rawValue)") {
+            await store.loadJobLog(jobId: jobId, developer: filter.developer, problemsOnly: filter.problemsOnly)
+        }
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {

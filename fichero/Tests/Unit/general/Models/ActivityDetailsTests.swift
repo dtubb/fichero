@@ -423,6 +423,29 @@ final class ActivityDetailsTests: XCTestCase {
         XCTAssertEqual(ActivityStore.pageGridKey(jobId: "run", stage: "read"), "run|read")
     }
 
+    func testActivityDetailsLog_theStoreKnowsWhetherARowsLogHasAProblem() async throws {
+        // WHY (`activity.log.problems-first`): the filter row defaults to Problems while the log has a warning or an error;
+        // a read of all the lines says so, and a Problems read (all problems) keeps it.
+        let store = Self.storeWithMockTransport()
+        func stub(_ level: String) -> Stub {
+            Stub(pathSuffix: "/api/activity/jobs/page-1/log", method: "GET", status: 200, body: Data("""
+            {"job_id": "page-1", "lines": [{"level": "\(level)", "message": "m", "job_id": "page-1"}]}
+            """.utf8))
+        }
+        MockTransportURLProtocol.reset([stub("info")])
+        await store.loadJobLog(jobId: "page-1")
+        XCTAssertEqual(store.jobLogHasProblems["page-1"], false)
+
+        MockTransportURLProtocol.reset([stub("warning")])
+        await store.loadJobLog(jobId: "page-1")
+        XCTAssertEqual(store.jobLogHasProblems["page-1"], true)
+
+        MockTransportURLProtocol.reset([stub("warning")])
+        await store.loadJobLog(jobId: "page-1", problemsOnly: true)
+        XCTAssertEqual(store.jobLogHasProblems["page-1"], true, "a Problems read that returns lines")
+        XCTAssertTrue(MockTransportURLProtocol.recorded().first?.url?.query?.contains("level=problems") == true)
+    }
+
     // MARK: - activity.details.one-mount: a job of its own has details
 
     func testActivityDetailsOneMount_aJobOfItsOwnHasDetailsLikeAnyRun() async throws {
