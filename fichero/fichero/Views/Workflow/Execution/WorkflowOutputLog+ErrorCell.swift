@@ -80,6 +80,7 @@ struct ErrorStatusCell: View {
     /// prose, which a reword silently broke); the status carries the message only, with no error kind to switch on. The full
     /// message stays in the popover and the tooltip. A file path never reaches the cell (`worded`: "a page", "a file").
     nonisolated static func cellText(_ error: String) -> String {
-        ActivityPopoverSummary.firstSentence(ActivityPopoverSummary.worded(error))
+        // First sentence first: `worded` collapses newlines, which would defeat the first-line cut.
+        ActivityPopoverSummary.worded(ActivityPopoverSummary.firstSentence(error))
     }
 }
