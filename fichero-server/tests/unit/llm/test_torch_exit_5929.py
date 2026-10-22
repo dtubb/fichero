@@ -3,7 +3,7 @@ reports show torch's MPS shader-library destructor aborting in `exit()` (SIGABRT
 M4 2026-10-20: importing torch, asking whether MPS exists, leaving by `SystemExit`, `empty_cache`, a tensor, a matmul, a conv2d
 and a bidirectional LSTM on mps ALL exit 0 (plain cases here, kept as proof). The one that aborts (exit -6) is Kraken's own
 segmenter loaded (vgsl builds a Core ML model; coremltools warns "Error compiling model") and run on mps (`mps-kraken-blla`,
-strict xfail). Which half matters is open: `cpu-kraken-blla` and `kraken-load-only` report XFAIL or XPASS without failing the
+xfail, not strict: it aborts on the M4 only). Which half matters is open: `cpu-kraken-blla` and `kraken-load-only` report XFAIL or XPASS without failing the
 run. The fix is the engine's exit (`fichero_server.core.fast_exit.leave`: every database closed, logs flushed, then
 `os._exit`), and its case runs the trigger and leaves through it. One tiny process per case; M4 only."""
 
@@ -21,7 +21,8 @@ pytestmark = pytest.mark.skipif(
 
 TRIGGER = pytest.mark.xfail(reason="#5929: loading Kraken's model (vgsl builds a Core ML model) aborts the process at exit on "
                                    "macOS 27 (SIGABRT, MetalShaderLibrary destructor), on mps or the CPU; the engine's way out "
-                                   "(`core.fast_exit.leave`) is the fix, so the bare process stays an expected failure", strict=True)
+                                   "(`core.fast_exit.leave`) is the fix, so the bare process stays an expected failure. NOT strict: the abort is the M4's "
+                                   "(its torch, its OS build); the Pro's process exits 0 (XPASS), which is not a failure", strict=False)
 BLLA = ("import torch; from importlib import resources; from kraken.lib import vgsl; "
         "m = vgsl.TorchVGSLModel.load_model(resources.files('kraken').joinpath('blla.mlmodel')); ")
 BLLA_FORWARD = "m.nn.eval(); torch.no_grad().__enter__(); m.nn(torch.zeros(1, 3, 512, 512, device={device!r}))"
@@ -53,5 +54,7 @@ CASES = [
 
 @pytest.mark.parametrize(("name", "code", "expected"), CASES)
 def test_a_process_that_imported_torch_exits_as_its_program_says(name, code, expected):
+    if "kraken" in code and importlib.util.find_spec("kraken") is None:
+        pytest.skip("Kraken is not installed in this Python (the engine's venv has it)")
     done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, timeout=120)
     assert done.returncode == expected, f"{name}: exit {done.returncode} (negative = signal)\n{done.stderr.decode()[-400:]}"
