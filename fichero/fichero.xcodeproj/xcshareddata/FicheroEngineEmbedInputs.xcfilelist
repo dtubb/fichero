@@ -169,6 +169,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/actions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/actions_registry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/activity.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/activity_pages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/agent_memory.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/bookmarks.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/changes.py
@@ -225,6 +226,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/cores.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/egress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/failure_text.py
@@ -365,6 +367,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/wikidata_enrich.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_guided_schemas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_translation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/catalogue_lint.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/egress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/failed_fetches.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/kraken_runtime.py
@@ -417,6 +420,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/conversion_on_open.py
+$(SRCROOT)/../fichero-server/src/fichero_server/maintenance/page_text_repair.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/project_conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/reanchor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/mcp/__init__.py
@@ -519,6 +523,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/topics.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/stages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/step_choices.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
@@ -613,8 +618,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyri
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyriacWestern.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v3.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.icns
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.png
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_folders.json
