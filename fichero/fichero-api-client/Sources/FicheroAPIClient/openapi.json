@@ -83533,10 +83533,11 @@
               "shipped",
               "installed",
               "kraken-repository",
-              "hugging-face"
+              "hugging-face",
+              "remote"
             ],
             "title": "Source",
-            "description": "where the card came from: the shipped seed, an installed model's own metadata, Kraken's model repository or a Hugging Face search (GET /api/recipes/candidates)",
+            "description": "where the card came from: the shipped seed, an installed model's own metadata, Kraken's model repository a Hugging Face search (GET /api/recipes/candidates) or a cloud provider row in Settings (remote)",
             "default": "shipped"
           }
         },

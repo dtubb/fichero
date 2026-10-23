@@ -449,7 +449,7 @@ def remote_reader_cards() -> list[Card]:
                 continue
             out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
-                            runs_on=f"cloud:{ptype}", note=f"{model.name or model.model_id} ({row.name})",
+                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {model.name or model.model_id}",
                             source="remote", offered_only=True,
                             offered_because=f"a vision model at your remote endpoint {row.name}"))
     if not any(c.pin["cloud"] == "anthropic" for c in out):

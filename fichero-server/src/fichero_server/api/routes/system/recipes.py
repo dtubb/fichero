@@ -178,9 +178,10 @@ class RecipeCard(BaseModel):
     cer_measured_here: Optional[float] = None
     cer_published: Optional[float] = None
     trainable: bool = False
-    source: Literal["shipped", "installed", "kraken-repository", "hugging-face"] = Field(
+    source: Literal["shipped", "installed", "kraken-repository", "hugging-face", "remote"] = Field(
         default="shipped", description="where the card came from: the shipped seed, an installed model's own "
-        "metadata, Kraken's model repository or a Hugging Face search (GET /api/recipes/candidates)")
+        "metadata, Kraken's model repository, a Hugging Face search (GET /api/recipes/candidates) or a cloud provider "
+        "row in Settings (remote)")
 
 
 class NearestReader(BaseModel):
@@ -1579,6 +1580,11 @@ async def model_candidates(
 
         # Only a model that does the step's job: a cloud model added by hand is not a line finder (#5838).
         cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id and job in c.jobs][:1]
+    # Filtered to the project (owner 2026-10-23): a model refused for the script is not listed at all, so a Chinese reader
+    # shows only for Chinese. One for another language or material stays, ranked last: a Latin reader often reads a
+    # neighbouring language, and the finder asks with one material where a project may have several. The step's own
+    # model stays, said as refused.
+    cards = [c for c in cards if c.id == chosen_id or (_refusal(job, c, a, material) or ("",))[0] not in _OFF_PROJECT]
     kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
                   key=lambda c: rank_key(job, c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
@@ -1649,11 +1655,27 @@ async def model_candidates(
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
-    ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
+    ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
         search_job=SearchJob(id=search["id"], state=search["state"], reason=search.get("reason"))
         if search else None)
+
+
+#: The refusal that means a model is not for this project's pages, so the finder leaves it out.
+_OFF_PROJECT = frozenset({"no-model-for-script"})
+
+
+def _offered_order(card: Any) -> tuple[int, str]:
+    """The frontier cloud readers (Gemini, Claude) top the list, likely the best (owner 2026-10-23); after the ranked
+    models, the other cloud models grouped by provider, then the rest. ponytail: by provider only; a per-language cloud ranking (Loove's coverage) is the upgrade."""
+    from fichero_server.recipes.assemble import FRONTIER_PROVIDERS
+
+    runs_on = str(card.runs_on)
+    if not runs_on.startswith("cloud:"):
+        return (2, "")
+    provider = runs_on.split(":", 1)[1]
+    return (0 if provider in FRONTIER_PROVIDERS else 1, provider)
 
 
 # =============================================================================
