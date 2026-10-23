@@ -87,4 +87,12 @@ struct StepChoiceMenuTests {
         #expect(on.canUse(on.candidates[0]))
         #expect(on.certaintyBarText == nil)
     }
+
+    @Test("a cloud candidate waiting on the project's permission makes the menu offer Allow Cloud; none waiting, none offered")
+    func allowCloudOffered() {
+        let permission = StepChoiceMenu.Need(kind: .permission, words: "Allow pages to be sent to a cloud service for this project")
+        #expect(menu([candidate("kraken", picked: true, recommended: true),
+                      candidate("gemini", local: false, available: false, needs: [permission])]).needsCloudPermission)
+        #expect(!menu([candidate("kraken", picked: true, recommended: true), candidate("gemini", local: false)]).needsCloudPermission)
+    }
 }

@@ -112,6 +112,10 @@ struct StepChoiceMenu: Equatable, Identifiable {
     /// A step not in the plan has no "Use" (the engine would refuse it, 422): it offers the engine's turn-on words instead.
     func canUse(_ candidate: Candidate) -> Bool { inPlan && !candidate.isPicked }
 
+    /// A cloud candidate here waits on the project's permission: the menu offers the one click that allows it
+    /// (`POST /project/allow-cloud` via `RecipeSetupStore.allowCloud`), first, so the cloud rows can be used.
+    var needsCloudPermission: Bool { given.contains { $0.needs.contains { $0.kind == .permission } } }
+
     /// The turn-on button's words, only for a step that is not in the plan and has a way in.
     var turnOnTitle: String? { inPlan ? nil : turnOnWords }
 
