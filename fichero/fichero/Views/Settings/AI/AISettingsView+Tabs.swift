@@ -37,6 +37,7 @@ extension AISettingsView {
     @ViewBuilder
     var defaultsTab: some View {
         Form {
+            CloudAccessSection()
             languageSection
 
             Section("Text") {

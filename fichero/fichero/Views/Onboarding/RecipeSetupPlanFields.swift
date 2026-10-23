@@ -73,31 +73,25 @@ struct JobQuestionFields: View {
     }
 }
 
-/// The one cloud question (`source.onboard.cloud-asked-once`), asked only when
-/// the proposed recipe has a step a cloud model would also fit; otherwise it
-/// says plainly that everything runs here. Changing it re-proposes the recipe.
+/// The project's cloud switch (`source.onboard.cloud-asked-once`), always asked; under it, what each step a cloud
+/// model would fit would send. Changing it re-proposes the recipe.
 struct RecipeCloudQuestion: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
-        if store.asksCloudQuestion {
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudAllowed)
-                    .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
-                Text("""
-                    Cloud models often read difficult hands better. Off: every page stays on this Mac. \
-                    Change it any time in the Inspector.
-                    """)
-                    .font(.caption).foregroundStyle(.secondary)
-                // What would be sent, to whom, how many pages and the estimate: the engine's words, per step.
-                ForEach(store.cloudOfferSentences, id: \.self) { sentence in
-                    Text(sentence).font(.caption).foregroundStyle(.secondary)
-                }
+        // Always shown, so a project can turn cloud on before any step offers a cloud model.
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudAllowed)
+                .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
+            Text("""
+                Cloud models often read difficult hands better. Off: every page stays on this Mac. \
+                Change it any time in the Inspector.
+                """)
+                .font(.caption).foregroundStyle(.secondary)
+            // What would be sent, to whom, how many pages and the estimate: the engine's words, per step.
+            ForEach(store.cloudOfferSentences, id: \.self) { sentence in
+                Text(sentence).font(.caption).foregroundStyle(.secondary)
             }
-        } else {
-            Label("Everything runs on this Mac.", systemImage: "desktopcomputer")
-                .font(.callout)
-                .foregroundStyle(.secondary)
         }
     }
 }
