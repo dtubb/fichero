@@ -22,3 +22,10 @@ def test_frontier_cloud_readers_sort_first():
 
     cards = [NS(runs_on="this-mac"), NS(runs_on="cloud:openrouter"), NS(runs_on="cloud:google")]
     assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]
+
+
+def test_gemini_and_claude_are_the_frontier_tier():
+    from fichero_server.recipes.discovery import reader_tier
+
+    tier = lambda runs_on: reader_tier(NS(pin={"cloud": "x", "model": "m"}, runs_on=runs_on), "read-a-line")  # noqa: E731
+    assert (tier("cloud:google"), tier("cloud:anthropic"), tier("cloud:openrouter")) == ("frontier", "frontier", "general")
