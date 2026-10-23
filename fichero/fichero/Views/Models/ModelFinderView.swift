@@ -44,17 +44,13 @@ struct ModelFinderView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(ModelFinderTiers.groups(store.candidates)) { group in
+            ForEach(ModelFinderTiers.groups(store.candidates.filter(Self.worthListing))) { group in
                 if let title = group.title {
                     Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
                 ForEach(group.candidates, id: \.id) { candidate in
                     ModelFinderCard(candidate: candidate, store: store, step: step)
                 }
-            }
-            // Ground-truth datasets, not readers: below the readers, so the readers lead.
-            ForEach(store.htrUnited.datasets, id: \.key) { dataset in
-                HtrUnitedDatasetRow(dataset: dataset)
             }
         }
         .task(id: query) { await store.load(query) }
@@ -250,6 +246,14 @@ struct ModelFinderCard: View {
         candidate.availability == .notHere
     }
 
+    /// Only what is worth using is listed (owner 2026-10-23): the step's own model, one a press uses or downloads, a
+    /// cloud reader waiting on the project's permission, or one that needs a key in Settings › AI. A refused card with
+    /// nothing to press is left out, as are HTR-United's datasets (training data with no action here yet).
+    static func worthListing(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        candidate.chosen == true || offersUse(candidate) || offersDownload(candidate) || needsPermission(candidate)
+            || asksForSettings(candidate)
+    }
+
     /// The rules refused it (`refused`: not enough memory, not the project's language, it runs in the cloud and
     /// pages stay here): nothing offers to use it, so a card never says "cannot" beside a button that does. A licence
     /// that is not open is the one refusal a press answers (choosing it accepts the licence, #5660 item 2).
@@ -365,26 +369,6 @@ extension ModelFinderStore {
     .frame(width: 320, height: 200)
 }
 
-/// One HTR-United ground-truth dataset the engine kept for the project (#5571): what it may be used as, or the
-/// licence to accept first. Taking one into the project is not built (`source.find.htr-united-and-tessdata`).
-private struct HtrUnitedDatasetRow: View {
-    let dataset: Components.Schemas.HtrUnitedDataset
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(dataset.title).font(.callout)
-            Text(detail).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var detail: String {
-        let uses = dataset._as.map { $0 == "test-set" ? "test set" : $0 }
-        let says = uses.isEmpty
-            ? (dataset.accept ?? "Accept \(dataset.licence.name) to use it")
-            : "Can be used as " + uses.formatted(.list(type: .and))
-        return "HTR-United · \(says)"
-    }
-}
 
 private extension Components.Schemas.HtrUnitedDataset {
     /// A missing url is stored as "", so the title joins it to tell two datasets apart.
