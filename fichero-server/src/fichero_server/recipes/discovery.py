@@ -427,6 +427,7 @@ def remote_reader_cards() -> list[Card]:
     from fichero_server.db.app import get_app_db
     from fichero_server.llm import LLMConfig
     from fichero_server.llm.places import PROVIDER, place_of
+    from fichero_server.llm.providers import get_provider_info
 
     out: list[Card] = []
     try:
@@ -438,8 +439,13 @@ def remote_reader_cards() -> list[Card]:
         ptype = row.provider_type.value
         if not row.enabled or place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base)) != PROVIDER:
             continue
+        info = get_provider_info(ptype)
+        provider_vision = bool(info and info.supports_vision)
         for model in app_db.list_models(row.id):
-            if not model.enabled or not ("vision" in (model.capabilities or []) or ptype == "anthropic"):
+            # The tri-state rule (`llm._configured_vision_model_suggestions`): a model saved with no capabilities, as a
+            # Gemini model added with a key is, inherits its provider's vision support.
+            caps = [str(c).strip().lower() for c in (model.capabilities or [])]
+            if not model.enabled or not ("vision" in caps or (not caps and provider_vision) or ptype == "anthropic"):
                 continue
             out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
