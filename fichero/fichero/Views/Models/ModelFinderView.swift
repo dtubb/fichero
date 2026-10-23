@@ -24,11 +24,8 @@ struct ModelFinderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            ForEach(store.sources, id: \.source) { source in
-                Text(ModelFinderStore.sourceLine(source))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            // ponytail: the per-source counts (Zenodo, Hugging Face, …) are not shown, only the models worth using
+            // (owner 2026-10-23); a failed search still says so below.
             if let failure = store.searchFailure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.callout)
