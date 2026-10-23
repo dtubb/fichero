@@ -15,3 +15,10 @@ def test_uncapped_models_inherit_provider_vision(monkeypatch):
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: db)
     ids = {c.pin["model"] for c in discovery.remote_reader_cards() if c.pin["cloud"] != "anthropic"}
     assert ids == {"qwen/qwen3-vl", "gemini-2.5-pro"}
+
+
+def test_frontier_cloud_readers_sort_first():
+    from fichero_server.api.routes.system.recipes import _offered_order
+
+    cards = [NS(runs_on="this-mac"), NS(runs_on="cloud:openrouter"), NS(runs_on="cloud:google")]
+    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]
