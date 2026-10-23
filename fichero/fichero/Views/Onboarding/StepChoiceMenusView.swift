@@ -27,6 +27,11 @@ private struct StepChoiceMenuSection: View {
         DisclosureGroup(menu.name) {
             VStack(alignment: .leading, spacing: 6) {
                 if let wording = menu.wording { Text(wording).font(.callout) }
+                if menu.needsCloudPermission {
+                    Button("Allow Cloud for This Project") { Task { await store.allowCloud() } }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("setup.ready.stepChoice.\(menu.step).allowCloud")
+                }
                 if let bar = menu.certaintyBarText { Text(bar).font(.callout).foregroundStyle(.secondary) }
                 if let title = menu.turnOnTitle {
                     Button(title) { Task { await store.turnOn(menu) } }
