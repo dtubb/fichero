@@ -1812,7 +1812,7 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
 #: A local vision model up to this size is a small one; a larger one is a general model (`source.recipe.reader-tiers`).
 SMALL_VLM_GB = 8.0
 
-TIER_WORDS = {"specialist": "Specialist line reader", "small-vlm": "Small vision model, on this Mac",
+TIER_WORDS = {"frontier": "Frontier cloud model", "specialist": "Specialist line reader", "small-vlm": "Small vision model, on this Mac",
               "general": "General model"}
 
 
@@ -1829,7 +1829,11 @@ def reader_tier(card: Card, job: str) -> str | None:
         if not card.size_gb:
             return None  # its size is not stated: no tier is invented for it
         return "small-vlm" if card.size_gb <= SMALL_VLM_GB else "general"
-    return "general"  # a cloud or remote model, Apple Vision (built in, one reader for every script)
+    from fichero_server.recipes.assemble import FRONTIER_PROVIDERS
+
+    if str(card.runs_on).startswith("cloud:") and str(card.runs_on).split(":", 1)[1] in FRONTIER_PROVIDERS:
+        return "frontier"  # Gemini, Claude: likely the best reader, shown first (owner 2026-10-23)
+    return "general"  # another cloud or remote model, Apple Vision (built in, one reader for every script)
 
 
 def _print_baselines(seed: list[Card], job: str, a: Answers) -> list[Card]:

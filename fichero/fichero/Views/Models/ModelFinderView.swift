@@ -29,9 +29,6 @@ struct ModelFinderView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            ForEach(store.htrUnited.datasets, id: \.key) { dataset in
-                HtrUnitedDatasetRow(dataset: dataset)
-            }
             if let failure = store.searchFailure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -54,6 +51,10 @@ struct ModelFinderView: View {
                 ForEach(group.candidates, id: \.id) { candidate in
                     ModelFinderCard(candidate: candidate, store: store, step: step)
                 }
+            }
+            // Ground-truth datasets, not readers: below the readers, so the readers lead.
+            ForEach(store.htrUnited.datasets, id: \.key) { dataset in
+                HtrUnitedDatasetRow(dataset: dataset)
             }
         }
         .task(id: query) { await store.load(query) }

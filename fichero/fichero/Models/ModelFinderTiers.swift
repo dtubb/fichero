@@ -16,8 +16,8 @@ enum ModelFinderTiers {
         }
     }
 
-    /// The order the tiers are shown in.
-    static let order = ["specialist", "small-vlm", "general"]
+    /// The order the tiers are shown in: frontier cloud models (Gemini, Claude) first, likely the best.
+    static let order = ["frontier", "specialist", "small-vlm", "general"]
 
     /// The person's choice and a result measured on their pages override the tier (`source.recipe.reader-tiers`): those
     /// rows head the list ungrouped, in the engine's order, whatever tier they are in.
