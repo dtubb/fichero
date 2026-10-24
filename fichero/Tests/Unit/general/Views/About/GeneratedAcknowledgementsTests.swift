@@ -34,6 +34,15 @@ struct GeneratedAcknowledgementsTests {
         #expect(rows[2].url == URL(string: "https://github.com/sparkle-project/Sparkle"), "a pin links to its repository")
     }
 
+    @Test("a click opens a web page: the licence link, else the project page, never a file inside the bundle (#6011)")
+    func destination() throws {
+        let rows = try GeneratedAcknowledgements.parse(Data(Self.json.utf8), resources: Self.resources)
+        #expect(rows[0].destination == URL(string: "https://pypi.org/project/duckdb/"), "a bundled licence file falls back to the project page")
+        #expect(rows[1].destination == rows[1].url)
+        #expect(rows[2].destination == rows[2].licenceText, "a licence link is opened as it is")
+        #expect(rows.allSatisfy { !$0.destination.isFileURL })
+    }
+
     @Test("a file of another format, or a layer this app does not know, is refused, never read as this one")
     func refusals() {
         let other = #"{"format": "fichero-acknowledgements-v2", "components": []}"#
