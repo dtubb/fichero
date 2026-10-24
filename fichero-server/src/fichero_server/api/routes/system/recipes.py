@@ -321,6 +321,18 @@ class CloudOffer(BaseModel):
     sentence: str = Field(description="the above in one sentence, as setup shows it under the question")
 
 
+class InferredLanguage(BaseModel):
+    """What "Not sure" was worked out to from the sample pages (`source.onboard.project.about-material`): the person confirms or changes it."""
+
+    code: Optional[str] = Field(default=None, description="the language tag worked out; null when the pages did not say")
+    name: Optional[str] = Field(default=None, description="its name, for the sentence")
+    script: Optional[str] = Field(default=None, description="the script code worked out (ISO 15924); null when the pages did not say")
+    from_: str = Field(default="pages", alias="from", description="where it was worked out from: pages")
+    sentence: str = Field(description="what the stage pages say: 'Language worked out from your pages: Spanish ... Change it if that is wrong.'")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -338,6 +350,9 @@ class AssembledRecipe(BaseModel):
     changes: list[RecipeChange] = Field(default_factory=list, description=(
         "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written "
         "(source.onboard.regen-shows-diff)"))
+    inferred_language: Optional[InferredLanguage] = Field(default=None, description=(
+        "set when the answers said 'Not sure' (languages ['und'], no scripts): the language and script worked out from the sample "
+        "pages, with the sentence the stage pages show; null otherwise"))
     gaps: list[str]
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
@@ -1007,6 +1022,9 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
     For a project with a saved recipe, its overrides come with the recipe and each project-scope one
     sets its step's reader (`bakeoff.apply_project_overrides`, the path Use This takes), so proposing
     the recipe again never undoes a reader the person chose; folder overrides stay overrides."""
+    from fichero_server.db.manager import db_manager
+    from fichero_server.recipes import language_guess
+
     if answers.get("loose_pages") is None and library is not None:
         # Default on for a project that holds a folder of loose page images (§7b, "Everything automatic after
         # Start": a box is organised as a stage of the run); an answer of False turns it off.
@@ -1024,6 +1042,12 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
 
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
+    inferred = None
+    if language_guess.unsure(normalise_answers(answers, strict=True)):
+        # "Not sure" (`und`, no script): worked out from the sample pages, said on the recipe; the rules see what was found.
+        inferred = language_guess.infer(db_manager.get_database(str(library)), library) if library is not None else None
+        if inferred is not None and inferred["code"]:
+            answers = {**answers, "languages": [inferred["code"]], "scripts": [inferred["script"]] if inferred["script"] else []}
     a = _answers(answers)
     if library is not None:
         from dataclasses import replace
@@ -1034,6 +1058,8 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
         if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
             a = replace(a, noise_band=band["value"])
     recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys), readers=_readers_with_a_row())
+    if inferred is not None:
+        recipe["inferred_language"] = inferred
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
     if kept:
@@ -1109,7 +1135,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
 
     a = normalise_answers(answers, strict=True)
     return Answers(
-        purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
+        purposes=tuple(a["purposes"]), languages=frozenset(t for t in a.get("languages") or () if t != "und"),  # "Not sure" is no language to the rules
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
         pages=a.get("pages") or 0, cloud_allowed=places.may_leave_to(a, "cloud"),
@@ -1175,6 +1201,7 @@ async def assemble_recipe(
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], cloud_offer=[CloudOffer(**o) for o in recipe.get("cloud_offer") or []], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"), changes=_changes(library, recipe),
+        inferred_language=recipe.get("inferred_language"),
     )
 
 
@@ -2377,7 +2404,7 @@ def _offered_cards(a: Optional[Answers]) -> list[Any]:
     seen = {c.id for c in correctors}
     readers = [replace(c, jobs=c.jobs | {"correct"}) if c.jobs & {"read-a-line", "read-a-page"} else c
                for c in remote_reader_cards() if c.id not in seen]
-    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here), *correctors, *readers]
+    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here or str(c.runs_on).startswith("cloud:")), *correctors, *readers]
 
 
 def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None,

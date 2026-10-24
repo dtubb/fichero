@@ -51785,6 +51785,11 @@
             "title": "Changes",
             "description": "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written (source.onboard.regen-shows-diff)"
           },
+          "inferred_language": {
+            "$ref": "#/components/schemas/InferredLanguage",
+            "nullable": true,
+            "description": "set when the answers said 'Not sure' (languages ['und'], no scripts): the language and script worked out from the sample pages, with the sentence the stage pages show; null otherwise"
+          },
           "gaps": {
             "items": {
               "type": "string"
@@ -69273,6 +69278,45 @@
         ],
         "title": "IncomingTransfer",
         "description": "The sending engine opens a copy on this one: what will arrive, from where (`transfer.machine.carriers-reused`)."
+      },
+      "InferredLanguage": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "title": "Code",
+            "description": "the language tag worked out; null when the pages did not say"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name",
+            "description": "its name, for the sentence"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script",
+            "description": "the script code worked out (ISO 15924); null when the pages did not say"
+          },
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "where it was worked out from: pages",
+            "default": "pages"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "what the stage pages say: 'Language worked out from your pages: Spanish ... Change it if that is wrong.'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence"
+        ],
+        "title": "InferredLanguage",
+        "description": "What \"Not sure\" was worked out to from the sample pages (`source.onboard.project.about-material`): the person confirms or changes it."
       },
       "IngestCancelResponse": {
         "properties": {
