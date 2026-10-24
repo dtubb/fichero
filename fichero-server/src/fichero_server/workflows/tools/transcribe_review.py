@@ -335,7 +335,7 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         page = db.get(Document, str(doc_id))
         texts = counting_texts(db, rows.lines)
         with Image.open(page.path) as img:
-            width, height = img.size
+            width, height = rows.page_size(img)
         # a forced re-run (`skip_if_artifact_exists` False) asks every unsure line again
         done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
                 if inputs.get("skip_if_artifact_exists", True) else set())
@@ -346,7 +346,7 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
             result["results"].append({"file": file_path, "text": "", "value": None,
                                       "lines": "every unsure line was already answered by this model"})
             continue
-        got, missing = await re_ask(page.path, asked, "", llm_config,
+        got, missing = await re_ask(page.path, asked, "", llm_config, frame=rows.frame,
                                     batch=lines_per_request_for(str(llm_config.model)) or LINES_PER_CALL,
                                     language=language)
         name = getattr(page, "name", None) or doc_id
@@ -588,10 +588,10 @@ async def _re_ask_pages(result: dict[str, Any], artifact_ids: list[str], library
                 answered[head.strip()] = rest.strip()
         left = [r for r in rows.lines if r.id not in answered]
         with Image.open(page.path) as img:
-            width, height = img.size
+            width, height = rows.page_size(img)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
                  for r in left]
-        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config,
+        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config, frame=rows.frame,
                                 batch=lines_per_request_for(str(getattr(llm_config, "model", ""))) or LINES_PER_CALL)
         if missing:
             model = f"{llm_config.provider}/{llm_config.model}"

@@ -33,6 +33,7 @@ from typing import Any
 
 from fichero_server.db.storage import resolve_source
 from fichero_server.execution import jobs
+from fichero_server.media.upright import frame_of
 from fichero_server.models.checking import CheckRunRequest
 
 KIND = "check-lines"
@@ -180,7 +181,7 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
         except ExportRefused as exc:
             missing.append({"document_id": doc.id, "why": str(exc)})
             return
-        reads = kraken_runtime.read_given_lines(photo, model_path, lines)
+        reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=frame_of(*(segments[ln["id"]].metadata for ln in lines[:1])))
         for line, scored in zip(lines, flag_lines(lines, reads)):
             segment = segments[line["id"]]
             if not line["text"] or line["text"].casefold() == "null":

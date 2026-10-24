@@ -25,7 +25,6 @@ are not built yet; `flags_checked` names the flags this set was checked for.
 from __future__ import annotations
 
 import json
-import shutil
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
@@ -380,7 +379,11 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
         stem = Path(image_name).stem
         if out is not None:
             (out / f"{stem}.xml").write_text(content, encoding="utf-8")
-            shutil.copy2(source, out / image_name)
+            from fichero_server.media.upright import copy_in_frame, frame_of
+            from fichero_server.models.segments import Segment
+
+            first = next(iter(db.query(Segment, pass_id=chosen.id) or []), None)
+            copy_in_frame(source, out / image_name, frame_of(first.metadata if first is not None else None))
         result.pages.append(SetPage(document_id=page.id, name=page.name, xml=f"{stem}.xml",
                                     image=image_name, pass_id=chosen.id, lines=lines))
     if out is not None:

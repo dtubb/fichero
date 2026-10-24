@@ -1108,20 +1108,7 @@ def text_direction(direction: str | None) -> dict[str, str]:
     return {"text_direction": KRAKEN_TEXT_DIRECTIONS[direction]} if direction in KRAKEN_TEXT_DIRECTIONS else {}
 
 
-def upright(image: Any) -> Any:
-    """The page as a person sees it, RGB: the camera's EXIF Orientation applied once (`prep.image.one-upright-frame`,
-    Test 14). Thumbnail, Preview, the reader's crops and the segmenter's geometry all use this frame, so lines found
-    here sit on the page shown."""
-    from PIL import Image, ImageOps
-
-    out: Image.Image = ImageOps.exif_transpose(image) or image
-    return out if out.mode == "RGB" else out.convert("RGB")
-
-
-def upright_size(image: Any) -> tuple[int, int]:
-    """(width, height) of the page in the upright frame, from the header alone: orientations 5-8 turn it a quarter."""
-    width, height = image.size
-    return (height, width) if (image.getexif().get(0x0112, 1) or 1) in (5, 6, 7, 8) else (width, height)
+from fichero_server.media.upright import FRAME_UPRIGHT, mark, open_in_frame, upright, upright_size  # noqa: E402,F401  (one frame; media/upright.py)
 
 
 def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[str, object]:
@@ -1443,8 +1430,8 @@ def _usable(lines: list[dict[str, object]]) -> list[dict[str, object]]:
     return [ln for ln in lines if len(ln.get("baseline") or []) >= 2 and len(ln.get("polygon") or []) >= 3]
 
 
-def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[str, object]]) -> list[str]:
-    from PIL import Image
+def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[str, object]],
+                    frame: str | None = None) -> list[str]:
     from kraken.configs import RecognitionInferenceConfig
     from kraken.containers import BaselineLine, Segmentation
     from kraken.tasks import RecognitionTaskModel
@@ -1455,16 +1442,16 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
     def pts(points: object) -> list[list[int]]:
         return [[int(x), int(y)] for x, y in points]  # type: ignore[union-attr]
 
-    with Image.open(image_path) as image:
-        image = upright(image)
-        segmentation = Segmentation(
-            type="baselines", imagename=str(image_path), text_direction="horizontal-lr", script_detection=False,
-            lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
-                   for ln in usable],
-            regions={}, line_orders=[])
-        with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
-            with _stage("recognise"):
-                predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+    # The page in the frame the given lines were measured on (`media/upright.py`): raw unless marked upright.
+    image = open_in_frame(image_path, frame, mode="RGB")
+    segmentation = Segmentation(
+        type="baselines", imagename=str(image_path), text_direction="horizontal-lr", script_detection=False,
+        lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
+               for ln in usable],
+        regions={}, line_orders=[])
+    with _own_reader(model_path, lambda: RecognitionTaskModel.load_model(model_path)) as net:
+        with _stage("recognise"):
+            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
                                      char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
                                      or None)
@@ -1478,6 +1465,7 @@ def read_given_lines(
     lines: list[dict[str, object]],
     *,
     run_call: Callable[[Callable[[], _T]], _T] | None = None,
+    frame: str | None = None,
 ) -> list[ReadLine]:
     """Read lines already found (each `{"id", "baseline", "polygon"}` in page pixels) with a reader,
     on their own baselines and outlines, without finding lines again: Kraken's rough read of each line,
@@ -1488,7 +1476,7 @@ def read_given_lines(
     caller = run_call or _kraken_call
     token = _WANTED.set({"read": model_path})
     try:
-        return caller(lambda: _read_given_raw(image_path, model_path, lines))
+        return caller(lambda: _read_given_raw(image_path, model_path, lines, frame))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
         raise
     except Exception as exc:
@@ -1771,6 +1759,7 @@ def geometry_from_segmentation(
             )
         )
 
+    mark(boxes)
     return OCRGeometryResult(
         text="",
         provider=_PROVIDER,
@@ -1778,7 +1767,7 @@ def geometry_from_segmentation(
         boxes=boxes,
         source="kraken-blla",
         rendition_id=rendition_id,
-        metadata={"pixel_frame": {"width": width, "height": height}},
+        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT},
     )
 
 
@@ -1896,6 +1885,7 @@ def recognize_to_geometry(
             source="kraken-htr",
         )
 
+    mark(boxes)
     return OCRGeometryResult(
         text="\n".join(texts),
         provider=_PROVIDER,
@@ -1903,7 +1893,7 @@ def recognize_to_geometry(
         boxes=boxes,
         source="kraken-htr",
         rendition_id=rendition_id,
-        metadata={"pixel_frame": {"width": width, "height": height}},
+        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT},
     )
 
 
