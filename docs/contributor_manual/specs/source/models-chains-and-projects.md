@@ -4079,6 +4079,9 @@ Trying another option
   honouring a folder override.* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
+- `source.try.bakeoff-hidden-until-corrected` — **[PARTIAL]** (#6016; built, uncompiled) The comparison block shows only once the project has
+  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and onboarding (Set Up) never
+  shows it: it lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown

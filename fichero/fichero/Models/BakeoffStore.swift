@@ -70,6 +70,10 @@ final class BakeoffStore {
     /// refused, and none is under way. Until the engine has said so, there is no button.
     var canRun: Bool { refusal == nil && readiness?.ready == true && !isStarting && !isRunning }
 
+    /// The block shows only once there is something to compare on: a comparison kept, or enough corrected lines. A new
+    /// project, with neither (or before the engine has answered), shows nothing (`source.try.bakeoff-hidden-until-corrected`, #6016).
+    var isShown: Bool { comparison != nil || readiness?.ready == true }
+
     /// What stands in place of the button, once, in the engine's words: its refusal of a start,
     /// or, before anything is pressed, how many more corrected lines it needs.
     var notReadySentence: String? {
