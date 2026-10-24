@@ -469,4 +469,19 @@ final class ModelFinderStoreTests: XCTestCase {
         _ = await store.save()
         XCTAssertEqual(try put()["cloud_allowed"] as? Bool, true, "the person's own answer is sent")
     }
+
+    /// ## 1103: a default pick is marked chosen but saved nowhere, so Use for This Step stays on it; the step's saved reader
+    /// has none.
+    func testUseForThisStepStaysOnADefaultPickButNotOnASavedReader() async throws {
+        func card(chosen: Bool, defaultPick: Bool) async throws -> Components.Schemas.ModelCandidate {
+            let json = FinderJSON.shipped.dropLast() + #","chosen":\#(chosen),"default_pick":\#(defaultPick)}"#
+            FinderMockURLProtocol.reset { _ in (200, FinderJSON.list([String(json)])) }
+            let store = ModelFinderStore(client: makeClient())
+            await store.load(Self.query)
+            return try XCTUnwrap(store.candidates.first)
+        }
+        XCTAssertFalse(ModelFinderCard.offersUseForThisStep(try await card(chosen: true, defaultPick: false)), "the saved reader")
+        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(try await card(chosen: true, defaultPick: true)), "a default: Use saves it")
+        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(try await card(chosen: false, defaultPick: false)))
+    }
 }

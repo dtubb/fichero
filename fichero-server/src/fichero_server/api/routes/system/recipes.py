@@ -1414,6 +1414,9 @@ class ModelCandidate(BaseModel):
     chosen: bool = Field(default=False, description=(
         "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); "
         "listed first (#5660 item 8)"))
+    default_pick: bool = Field(default=False, description=(
+        "with `chosen`: no reader is saved for the step, and this is the top-ranked model that runs here at no cost, shown as "
+        "chosen by default; Use for This Step still saves it (`source.find.free-local-model-is-the-default-pick`)"))
 
 
 class HtrUnitedLicence(BaseModel):
@@ -1634,12 +1637,12 @@ async def model_candidates(
                   key=lambda c: rank_key(job, c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
     # No reader chosen for the step (nothing saved yet, or the project's recipe has no such step): the top-ranked model that runs
-    # on this Mac at no cost is already the pick, not waiting for a click (`source.find.free-local-model-is-the-default-pick`).
+    # on this Mac at no cost (a download is free: the plan offers it) is already the pick, not waiting for a click (`source.find.free-local-model-is-the-default-pick`).
     # A person's own choice, and the recipe's, win: they are `chosen_id`.
     pick = chosen_id
     if pick is None and kept:
         top = kept[0]
-        if top.local and candidate_installed(top) and not needs_permission(top, a):
+        if top.local and not needs_permission(top, a):
             pick = top.id
 
     def refused(c: Any) -> Optional[str]:
@@ -1706,7 +1709,7 @@ async def model_candidates(
         installed=candidate_installed(c), download=downloads[c.id],
         places=[PlaceOption(**o) for o in places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=cluster_names)],
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
-        availability_words=availability_words(c), chosen=c.id == pick, fit=fit(c),
+        availability_words=availability_words(c), chosen=c.id == pick, default_pick=chosen_id is None and c.id == pick, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
     ) for c in sorted(cards, key=lambda c: (c.id != pick, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it

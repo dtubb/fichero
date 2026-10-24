@@ -225,7 +225,7 @@ struct ModelFinderCard: View {
                     .help("Download it to this Mac; Activity shows the download")
                 }
             }
-            if let step, !Self.isChosen(candidate), Self.offersUse(candidate),
+            if let step, Self.offersUseForThisStep(candidate), Self.offersUse(candidate),
                !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
@@ -303,6 +303,12 @@ struct ModelFinderCard: View {
     /// The step's reader now (`chosen`, with `step`): marked, and offered no Use for This Step.
     static func isChosen(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.chosen == true
+    }
+
+    /// Use for This Step is offered on every card but the step's saved reader: a default pick is marked chosen yet saved
+    /// nowhere, so Use stays on it (`source.find.free-local-model-is-the-default-pick`).
+    static func offersUseForThisStep(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        !isChosen(candidate) || candidate.defaultPick == true
     }
 
     /// Why discovery offers it, when that says more than where it stands: a found reader's reason ("reads

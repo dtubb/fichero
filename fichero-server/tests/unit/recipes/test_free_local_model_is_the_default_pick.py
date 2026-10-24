@@ -34,3 +34,27 @@ def test_the_recipes_own_reader_still_wins(client, project):  # noqa: F811
 def test_exactly_one_is_ever_marked(client, with_material, mac):  # noqa: F811
     for job in ("find-lines", "find-regions", "read-a-line"):
         assert sum(i["chosen"] for i in _items(client, job)) <= 1
+
+
+def test_the_default_is_flagged_so_it_can_still_be_saved(client, with_material, mac):  # noqa: F811
+    default = [i for i in _items(client, "find-lines") if i["chosen"]]
+    assert [i["default_pick"] for i in default] == [True], "no step reader saved: the marked one is a default"
+
+
+def test_a_real_choice_is_not_flagged_as_a_default(client, project):  # noqa: F811
+    real = _items(client, "find-lines", step="find-lines")
+    assert [(i["id"], i["default_pick"]) for i in real if i["chosen"]] == [(KRAKEN_LINES, False)]
+
+
+def test_the_default_is_the_pick_assemble_makes(client, with_material, mac):  # noqa: F811
+    """One answer to "which model does this step use": the finder's default and the assembled recipe's step card agree, for
+    every step the recipe has."""
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "mac_memory_gb": 32, "cloud_allowed": False}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    for step in recipe["steps"]:
+        card = (step.get("card") or {}).get("id")
+        if not card or step["job"] not in ("find-lines", "read-a-line"):
+            continue
+        marked = [i["id"] for i in _items(client, step["job"]) if i["chosen"]]
+        assert marked == [card], f"{step['job']}: the finder defaults to {marked}, assemble picks {card}"
