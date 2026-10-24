@@ -95,6 +95,10 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         # other artifact, with no by-name query. Baselined, not deleted — the
         # rows are user-visible, they are simply not fetched by type.
         "catalogue.chunk",
+        # "catalogue.narrative": the Catalogue stage's description reading of a folder. The app shows it generically
+        # (the Artifacts inspector lists every artifact by its own type, `ArtifactListView`, and `ReaderFolderProxy`
+        # resolves the folder's catalogue artifact), never by a by-name query. Generic read, not a dead feature.
+        "catalogue.narrative",
         # "dates" (#3322): a per-document provenance record of historical-date
         # extraction. The QUERYABLE surface is the Document date_* columns
         # (sort/filter read those); the artifact rides the generic artifact
