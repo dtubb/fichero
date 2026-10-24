@@ -716,6 +716,9 @@ def _with_directions(
     settled, inherited = settle_neutral_directions(directions, neutral, blocks, sizes)
     return [
         {**line, "direction": direction,
+         # The version the page saw, which a Reader edit that leaves the line out is checked against
+         # (`representation.create_many` refuses the whole edit as stale when the line moved since).
+         "version": rows[str(line["segment_id"])].version if str(line["segment_id"]) in rows else None,
          # Said, not left to look like the line's own answer (#5172): the line has no letters.
          **({"direction_basis": f"inherited from the {where}: no letters, only digits or marks"}
             if where else {})}

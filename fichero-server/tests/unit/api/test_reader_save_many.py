@@ -102,7 +102,8 @@ def test_a_deletion_across_lines_joins_head_and_tail_and_leaves_the_swallowed_li
     got = _edited_lines(html, text, now, lines)
     head, tail = text[a["char_start"]:a["char_start"] + 2], text[c["char_start"] + 2:c["char_end"]]
     assert got["readings"][0]["segmentId"] == a["segment_id"] and got["readings"][0]["text"] == head + tail
-    assert got["leftOut"] == [b["segment_id"], c["segment_id"]]
+    assert got["leftOut"] == [{"segmentId": b["segment_id"], "expectedVersion": b["version"]},
+                              {"segmentId": c["segment_id"], "expectedVersion": c["version"]}]
     for line in got["lines"]:   # the map still names each surviving line's own text in the edited page
         expected = got["readings"][0]["text"] if line["segment_id"] == a["segment_id"] else \
             text[next(i for i in lines if i["segment_id"] == line["segment_id"])["char_start"]:
@@ -119,7 +120,7 @@ def test_a_line_deleted_entirely_is_left_out_with_no_reading(db, client):
     a = lines[1]
     now = text[:a["char_start"]] + text[a["char_end"]:]
     got = _edited_lines(html, text, now, lines)
-    assert got["readings"] == [] and got["leftOut"] == [a["segment_id"]]
+    assert got["readings"] == [] and got["leftOut"] == [{"segmentId": a["segment_id"], "expectedVersion": a["version"]}]
 
 
 @needs_node
@@ -134,3 +135,24 @@ def test_a_paste_of_several_lines_is_refused_and_the_page_says_so(db, client):
     assert "refused" in got
     # the silent revert is gone: the commit's refusal branch shows a notice
     assert 'id="edit-notice"' in html and "showEditNotice(" in html
+
+
+def test_a_line_changed_after_the_page_was_drawn_refuses_the_edit(db, client):
+    """The version a left-out line is checked against is the one the page SAW (its line map), so a
+    change made after drawing refuses the whole edit instead of leaving out a newer line."""
+    from fichero_server.actions.registry import registry
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    doc_id = _import(db, ARABIC)
+    lines = _lines(client, doc_id)
+    assert all(isinstance(line["version"], int) for line in lines)
+    drawn = lines[1]["version"]
+    registry.invoke(db, "segment.update_many", {"updates": [
+        {"segment_id": lines[1]["segment_id"], "expected_version": drawn, "is_furniture": False}]}, BOOT)
+    answer = client.post("/api/content-representations/batch", json={
+        "readings": [{"document_id": doc_id, "segment_id": lines[0]["segment_id"], "kind": "transcription",
+                      "content": "must not be written"}],
+        "left_out": [{"segment_id": lines[1]["segment_id"], "expected_version": drawn}],
+    })
+    assert answer.status_code == 409
+    assert "must not be written" not in document_text(db, doc_id).text

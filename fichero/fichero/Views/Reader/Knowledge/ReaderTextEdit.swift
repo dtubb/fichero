@@ -24,7 +24,7 @@ import OpenAPIRuntime
 enum ReaderTextEdit {
     enum Message: Equatable {
         case edited(pageId: String, segmentId: String, text: String, basedOn: String?)
-        case editedMany(pageId: String, segmentId: String, readings: [LineReading], leftOut: [String])
+        case editedMany(pageId: String, segmentId: String, readings: [LineReading], leftOut: [LeftOutLine])
         case split(pageId: String, segmentId: String, offset: Int)
         case join(pageId: String, segmentId: String, intoSegmentId: String)
 
@@ -33,6 +33,12 @@ enum ReaderTextEdit {
             let segmentId: String
             let text: String
             let basedOn: String?
+        }
+
+        /// A line a `readingEdits` batch leaves out, with the version the PAGE saw when it was drawn.
+        struct LeftOutLine: Equatable {
+            let segmentId: String
+            let expectedVersion: Int
         }
 
         var pageId: String {
@@ -62,8 +68,13 @@ enum ReaderTextEdit {
                 guard let id = item["segmentId"] as? String, let text = item["text"] as? String else { return nil }
                 return .init(segmentId: id, text: text, basedOn: item["basedOn"] as? String)
             }
-            let leftOut = body["leftOut"] as? [String] ?? []
-            guard !edits.isEmpty || !leftOut.isEmpty else { return nil }
+            // A line with no version the page saw makes no message: it could not be checked.
+            let rawLeftOut = body["leftOut"] as? [[String: Any]] ?? []
+            let leftOut = rawLeftOut.compactMap { item -> Message.LeftOutLine? in
+                guard let id = item["segmentId"] as? String, let version = item["expectedVersion"] as? Int else { return nil }
+                return .init(segmentId: id, expectedVersion: version)
+            }
+            guard leftOut.count == rawLeftOut.count, !edits.isEmpty || !leftOut.isEmpty else { return nil }
             return .editedMany(pageId: pageId, segmentId: segmentId, readings: edits, leftOut: leftOut)
         case "lineSplit":
             guard let offset = body["offset"] as? Int else { return nil }
@@ -86,15 +97,10 @@ enum ReaderTextEdit {
     }
 
     /// `readingEdits` as `representation.create_many`: the readings as `readingEdit` makes them, and each
-    /// left-out line with the version the list said (a stale one refuses the whole edit, 409). Nil when a
-    /// left-out line is not in `segments` or has no version.
-    static func newReadings(for message: Message, segments: [Segment]) -> NewReadingsParams? {
+    /// left-out line with the version THE PAGE SAW when it was drawn -- never a fresh one, so a line changed
+    /// after the page was drawn refuses the whole edit (409) instead of being left out over a newer change.
+    static func newReadings(for message: Message) -> NewReadingsParams? {
         guard case .editedMany(let pageId, _, let readings, let leftOut) = message else { return nil }
-        var lines: [NewReadingsParams.LeftOut] = []
-        for id in leftOut {
-            guard let version = segments.first(where: { $0.id == id })?.version else { return nil }
-            lines.append(.init(segmentId: id, expectedVersion: version))
-        }
         return NewReadingsParams(
             readings: readings.map {
                 NewReadingParams(
@@ -102,7 +108,7 @@ enum ReaderTextEdit {
                     correctsRepresentationId: $0.basedOn, expectedCountingId: $0.basedOn
                 )
             },
-            leftOut: lines
+            leftOut: leftOut.map { .init(segmentId: $0.segmentId, expectedVersion: $0.expectedVersion) }
         )
     }
 
