@@ -22,6 +22,10 @@
    "derived_from_artifact_id": null,
    "pair_id": null,
    "pair_role": null,
+   "producer_model": null,
+   "producer_provider": null,
+   "producer_run_id": null,
+   "producer_step": null,
    "retracted": false,
    "source_anchor": {
     "document_id": "doc-0001",
@@ -64,6 +68,10 @@
    "derived_from_artifact_id": null,
    "pair_id": null,
    "pair_role": null,
+   "producer_model": null,
+   "producer_provider": null,
+   "producer_run_id": null,
+   "producer_step": null,
    "retracted": false,
    "source_anchor": {
     "document_id": "doc-0001",
