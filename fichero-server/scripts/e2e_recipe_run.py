@@ -76,7 +76,10 @@ def main() -> int:
     ep = start_engine(transport="uds", log_dir=str(out))
     try:
         headers = {"Authorization": f"Bearer {ep.token}"}
-        library = str(out / "e2e.fichero")
+        import tempfile
+
+        library = str(Path(tempfile.mkdtemp(prefix="e2e_", dir="/tmp")) / "e2e.fichero")  # /tmp is an allowed library root
+        report["library"] = library
         headers["X-Fichero-Library-Path"] = library
         with httpx.Client(timeout=120, headers=headers, **ep.httpx_kwargs()) as client:
             client.post("/api/library", json={"path": library}).raise_for_status()
