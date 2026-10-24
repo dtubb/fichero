@@ -323,9 +323,9 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
             counts["no_lines"] += 1
             continue
         with Image.open(photo) as image:
-            width, height = float(image.width), float(image.height)
+            width, height = found.page_size(image)  # in the frame the lines were measured on
         lines = [in_pixels(row, width, height) for row in found.lines]
-        reads = kraken_runtime.read_given_lines(photo, model_path, lines)
+        reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1

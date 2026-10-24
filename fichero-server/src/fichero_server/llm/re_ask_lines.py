@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from PIL import Image
+from fichero_server.media.upright import open_in_frame
 
 from fichero_server.llm.line_reader import (
     CONCURRENT_CALLS,
@@ -46,13 +46,12 @@ def _prompt(texts: list[str], page_answer: str, language: str | None = None) -> 
 
 
 async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str, config, batch: int = 8,
-                 language: str | None = None) -> tuple[dict[str, str], list[str]]:
+                 language: str | None = None, frame: str | None = None) -> tuple[dict[str, str], list[str]]:
     """`lines`: {'id', 'text', 'polygon'} (pixels) for the lines to ask again. Returns ({id: text} for every
     line answered, [ids still unanswered])."""
     from fichero_server import llm
 
-    page = Image.open(image_path)
-    page.load()
+    page = open_in_frame(image_path, frame)  # the frame the lines' polygons were measured on (`media/upright.py`)
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
     async def ask(group: list[dict[str, Any]]) -> list[str | None] | None:

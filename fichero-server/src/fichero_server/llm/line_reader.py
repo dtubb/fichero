@@ -25,6 +25,7 @@ from fichero_server.llm.working_lines import NO_WRITING_KEY, VISION_NOTHING_TWIC
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
 from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
+from fichero_server.media.upright import frame_of, open_in_frame
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +177,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     if apple:
         config = LLMConfig(provider="apple", model="apple-vision")
 
-    page = Image.open(image_path)
-    page.load()
+    page = open_in_frame(image_path, frame_of(lines.metadata, *(b.metadata for b in lines.boxes[:1])))
     found = [b for b in lines.boxes if b.metadata.get("polygon_px") and b.level == OCRGeometryLevel.LINE]
     # Kraken's regions are kept, first, as the lines' parents (#5487); a line names its region by position.
     kept = [(i, b) for i, b in enumerate(lines.boxes) if b.level != OCRGeometryLevel.LINE]

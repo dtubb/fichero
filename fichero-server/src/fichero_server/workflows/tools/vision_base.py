@@ -4911,7 +4911,7 @@ async def process_vision(
                     from fichero_server.llm import working_lines as _wl
 
                     with _Image.open(image_path) as _im:
-                        _w, _h = float(_im.width), float(_im.height)
+                        _w, _h = found.page_size(_im)  # in the frame the lines were measured on (`media/upright.py`)
                     if not kraken_recognition_model:
                         from fichero_server.llm.line_reader import read_lines
 
@@ -4936,8 +4936,8 @@ async def process_vision(
                     _px = [_wl.in_pixels(row, _w, _h) for row in found.lines]
                     _texts = await run_on_lane(
                         library_path, "read-a-line", subject, model=f"{_provider}:{_stamp}", run_id=task_id,
-                        fn=(lambda: _tr.read_lines(image_path, _trocr_repo, _px)) if _trocr_repo
-                        else (lambda: _kr.read_given_lines(image_path, _model_path, _px)),
+                        fn=(lambda: _tr.read_lines(image_path, _trocr_repo, _px, frame=found.frame)) if _trocr_repo
+                        else (lambda: _kr.read_given_lines(image_path, _model_path, _px, frame=found.frame)),
                     )
                     _boxes, _joined, _cursor, _blank = [], [], 0, []
                     for _box, _text in zip(geometry.boxes, _texts):

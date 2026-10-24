@@ -34,17 +34,16 @@ def repo_of(reader_id: str | None) -> str | None:
     return f"{match.group(1)}/{match.group(2)}" if match else None
 
 
-def read_lines(image_path: str | Path, repo: str, lines: list[dict[str, Any]]) -> list[str]:
+def read_lines(image_path: str | Path, repo: str, lines: list[dict[str, Any]], *, frame: str | None = None) -> list[str]:
     """The text of each line (`{"id", "polygon"}` in page pixels), in the order given; "" for a line with no outline.
     Blocking and heavy: call it on the model lane."""
-    from PIL import Image
-
     from fichero_server.media.image_flatten import flatten_for_opaque_format
+    from fichero_server.media.upright import open_in_frame
     from fichero_server.workflows.tools import economy_htr
 
     out = [""] * len(lines)
-    with tempfile.TemporaryDirectory(prefix="trocr-lines-") as folder, Image.open(image_path) as page:
-        page.load()
+    with tempfile.TemporaryDirectory(prefix="trocr-lines-") as folder:
+        page = open_in_frame(image_path, frame)  # the frame the lines were measured on
         paths: list[str] = []
         slots: list[int] = []
         for slot, line in enumerate(lines):

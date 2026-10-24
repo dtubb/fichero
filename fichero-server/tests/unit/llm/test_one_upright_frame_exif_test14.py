@@ -47,7 +47,9 @@ def test_the_thumbnail_and_the_segmenter_share_one_frame(tmp_path):
 
 def test_every_kraken_image_open_goes_through_upright():
     source = inspect.getsource(kraken_runtime)
-    assert source.count("Image.open(image_path)") == source.count("image = upright(image)") >= 3
+    # The segmenter opens the page upright; the reader of given lines opens it in the frame its lines say.
+    assert source.count("Image.open(image_path)") == source.count("image = upright(image)") == 2
+    assert 'open_in_frame(image_path, frame, mode="RGB")' in source
 
 
 @pytest.mark.parametrize("orientation", [1, 6])

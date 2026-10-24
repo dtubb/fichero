@@ -500,6 +500,8 @@ def segment_from_box(
         metadata["raw_baseline_px"] = box.metadata.get("baseline_px")
     if "pixel_frame" in box.metadata:
         metadata["raw_pixel_frame"] = box.metadata.get("pixel_frame")
+    if box.metadata.get("frame"):  # measured on the upright page (`media/upright.py`); no marker = the file's raw pixels
+        metadata["frame"] = box.metadata["frame"]
     # A line a recognising reader gave no text for was looked at: it carries that, and why, so it is not 'unread'
     # with no reason (#5758). A segmenter alone reads nothing, so its lines carry no mark.
     if box.source == "kraken-htr" and str(box.level) == "line" and not (box.text or "").strip():
