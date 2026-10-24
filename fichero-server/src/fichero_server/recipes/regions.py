@@ -91,12 +91,12 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
         path = _resolve_abs_path(doc, library) if doc is not None else ""
         rendered, page_index = None, None
-        if doc is not None and doc.parent_id and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
+        if doc is not None and getattr(doc, "parent_id", None) and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
             parent = db.get(Document, doc.parent_id)
             parent_path = _resolve_abs_path(parent, library) if parent is not None else ""
             if parent_path.lower().endswith(".pdf"):
                 path = parent_path
-        if path.lower().endswith(".pdf") and doc is not None and doc.parent_id and doc.sequence:
+        if path.lower().endswith(".pdf") and doc is not None and getattr(doc, "parent_id", None) and getattr(doc, "sequence", None):
             from fichero_server.workflows.tools.vision_base import _render_pdf_page_to_temp_png
 
             page_index = int(doc.sequence) - 1
