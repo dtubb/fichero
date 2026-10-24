@@ -716,8 +716,8 @@ CLOUD_TEXT_JOBS = ("translate-transliterate-normalise", "describe-for-the-catalo
 
 def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
     """With the cloud allowed and a key set, Translate, Catalogue and Correct take the CHEAPEST adequate cloud text model, where no
-    local model fits (a good-enough local model, even one still to download, wins: it is free and the pages stay here). Adequate:
-    a keyed provider's model that writes text (a generative text card, or a vision model that reads and so writes) and has a LISTED
+    local model fits (a good-enough installed local model wins: it is free and the pages stay here). Adequate:
+    a keyed provider's card that already carries the job (Correct stays on the frontier list) and has a LISTED
     price: the cap cannot be held to a model with none. The price shows in the plan before Start and the project's monthly cap
     applies to every call. Never a silent substitute: the reasons name the model, its price and that the rules picked it."""
     if job not in CLOUD_TEXT_JOBS or not a.cloud_allowed or not a.cloud_keys:
@@ -727,22 +727,22 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
     fits = [c for c in pool
             if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys
             and not c.cannot_run_because
-            and ({"find-statements", "split-into-entries"} <= c.jobs or c.jobs & {"read-a-line", "read-a-page"} or job in c.jobs)
+            and job in c.jobs
             and _page_price(c) is not None]
     if not fits:
         return choice
     ranked = sorted(fits, key=lambda c: (_page_price(c), c.id))
     best = ranked[0]
     provider = best.runs_on.split(":", 1)[1]
-    from dataclasses import replace
-
-    card = replace(best, jobs=best.jobs | {job})
     price = _page_price(best)
     reasons = [f"no local model fits, so the rules took the cheapest cloud text model whose provider has a key here: "
-               f"{best.note or best.id} at {provider}, about ${price:.4f} a call by the price list",
+               f"{best.note or best.id} at {provider}, about ${price:.4f} a page by the price list",
                "its pages leave this Mac (you allowed the cloud); the project's monthly spending cap applies to every call",
                "you can choose another model on this step"]
-    return Choice(job, card, reasons=reasons, chain=[replace(c, jobs=c.jobs | {job}) for c in ranked[1:]])
+    if job == "describe-for-the-catalogue":
+        reasons[0] = reasons[0].replace("a page by", "a folder by")
+    # the fallback chain stays with the chosen provider: a page never goes to a second provider after a failure
+    return Choice(job, best, reasons=reasons, chain=[c for c in ranked[1:] if c.runs_on == best.runs_on])
 
 
 def _chosen(choice: Choice) -> dict[str, Any]:

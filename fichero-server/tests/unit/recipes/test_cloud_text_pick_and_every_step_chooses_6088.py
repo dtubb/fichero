@@ -45,6 +45,16 @@ def test_with_the_cloud_allowed_and_a_key_the_cheapest_cloud_text_model_is_picke
     assert step["uses_cloud"] is True and "cheapest cloud text model" in " ".join(step["reasons"])
 
 
+def test_correct_takes_the_frontier_row_over_a_cheaper_non_frontier_one():
+    from dataclasses import replace
+
+    flash = replace(CHEAP, jobs=TEXT - {"correct"})  # a non-frontier row: no Correct
+    steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("google", "anthropic")}, cloud_text=[DEAR, flash])
+    assert steps["correct"]["model"] == {"cloud": "anthropic", "model": "fake-opus"}
+    assert steps["translate-transliterate-normalise"]["model"] == {"cloud": "google", "model": "fake-flash"}
+    assert all(c["runs_on"] == "cloud:anthropic" for c in steps["correct"]["chain"])
+
+
 def test_a_provider_without_a_key_is_never_picked():
     steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("anthropic",)}, cloud_text=[DEAR, CHEAP])
     assert steps["describe-for-the-catalogue"]["model"] == {"cloud": "anthropic", "model": "fake-opus"}
