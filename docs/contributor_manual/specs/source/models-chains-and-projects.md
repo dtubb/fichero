@@ -4856,6 +4856,11 @@ Each is described in the paragraph named; the id lets a test cite it.
   (`inspectorColumnBounds()`), outside every environment and geometry wrapper, and nothing else sets that column's width. Audited 2026-10-24: no workspace
   (`WorkspaceMount`, `BuiltInWorkspaceLayout`, `WorkspaceSplitStack`) owns the real Inspector (its `.inspector` pane is a centre-pane placeholder; the saved
   `inspectorWidth` is only clamped, never applied) (`InspectorPaneWidthTests.swift`). Dragging it must not hang the app (P0, the owner's log: onChange updated multiple times per frame): the window-width reading that drives column visibility is applied once the width has settled (150 ms), the first reading at once (`WindowWidthSettle`), and a pane's frame is recorded only when it changed (`WindowWidthSettleTests.swift`).
-- `source.inspector.order-tab-keeps-the-tabs` — **[PARTIAL]** (owner bug, built, uncompiled; cause from reading, not reproduced) Choosing a line in the Inspector's Order tab never replaces the Source section's tab bar
+- `source.inspector.order-tab-keeps-the-tabs` — **[PARTIAL]** (#6073; owner bug, built, uncompiled; cause from reading, not reproduced) Choosing a line in the Inspector's Order tab never replaces the Source section's tab bar
   (Content, Info, Outline, Order): the hold on what the Inspector shows is kept when the Preview hands the same lines back in another order (compared as a set),
   so there is always a way back to Content (`LineRevealTests.swift`).
+- `source.preview.draws-what-a-run-wrote` — **[PARTIAL]** (#6072; owner bug 2026-10-24, IMG_007 of a recipe-run project; built, uncompiled; cause from reading, not reproduced) A page already open in the Preview draws the lines a
+  recipe run wrote for it, with no reopen: a finished run emits ONE `artifact.updated` event, which moves the artifact generation and re-fires the overlay's
+  load, but the `SegmentStore` reacts to segment and pass events only, so the load returned the list held from before the run (nothing). The overlay's load now carries
+  the artifact generation (`load(documentId:seeingArtifactRevision:)`): a moved generation re-reads the page, the same generation does not (`SegmentStoreTests.swift`;
+  the Order tab, which loads on appear, always showed the lines, which is why the Inspector and the Lines pane had them and the Preview did not).
