@@ -16,7 +16,7 @@ struct CodeTokenField: View {
     @State private var matches: [RecipeSetupStore.CodeChoice] = []
 
     private var title: String { scripts ? "Writing system" : "Languages" }
-    private var codes: [String] { scripts ? store.scripts : store.languages }
+    private var codes: [String] { scripts ? store.scripts : store.namedLanguages }
     private var unchosen: [RecipeSetupStore.CodeChoice] { matches.filter { !codes.contains($0.code) } }
 
     var body: some View {

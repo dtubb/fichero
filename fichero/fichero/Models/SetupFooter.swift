@@ -39,9 +39,12 @@ struct SetupFooter: Equatable {
     /// Your Material's Continue waits for material, and says so (#5813, ruled 2026-10-19).
     static let addYourPages = "Add your pages to continue"
 
+    /// About the Material's Continue waits for an answer to Languages: a language, or Not sure (never blank).
+    static let chooseTheLanguage = "Choose the language, or Not sure, to continue"
+
     /// `hasMaterial`: the project has material (a file or folder added, or pages already counted).
     static func of(_ step: SetupStep, in steps: [SetupStep], mode: FirstRunWindow.Mode,
-                   projectChosen: Bool, hasMaterial: Bool = true) -> SetupFooter {
+                   projectChosen: Bool, hasMaterial: Bool = true, hasLanguage: Bool = true) -> SetupFooter {
         let isLast = step == steps.last
         let primary: Choice
         var leading: Choice?
@@ -71,6 +74,7 @@ struct SetupFooter: Equatable {
             leading = Choice(title: mode == .setUp ? "Close" : "Cancel", action: .close)
         }
         return SetupFooter(leading: leading, showsBack: step != steps.first, primary: primary,
-                           waitsFor: step == .addMaterial && !hasMaterial ? addYourPages : nil)
+                           waitsFor: step == .addMaterial && !hasMaterial ? addYourPages
+                               : step == .aboutMaterial && !hasLanguage ? chooseTheLanguage : nil)
     }
 }
