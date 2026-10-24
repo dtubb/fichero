@@ -13,14 +13,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_CACHE: dict[str, tuple[tuple[int, int], bool]] = {}  # setup.yaml path -> (mtime, allowed): the file is read when it changes
+_CACHE: dict[str, tuple[tuple[int, int], bool | None]] = {}  # setup.yaml path -> (mtime, the project's own answer, None when it has not given one): the file is read when it changes
 
 
 def project_allows_leaving(library: str | None) -> bool:
-    """Whether the project at `library` has said that its pages may go to a cloud model. False when the project has not said yes (no setup saved, an unreadable file, an answer that is not
-    a yes): a refusal never depends on a file being well formed. With no library the answer is no."""
+    """Whether the project at `library` has said that its pages may go to a cloud model. A project that has not answered for
+    itself (no setup saved, or no `cloud_allowed` in it) starts from the app's own yes to the cloud
+    (`recipes.places.inherits_cloud`); an answer that is not a yes, or a file that cannot be read, is no: a refusal never
+    depends on a file being well formed. With no library the answer is no."""
     if not library:
         return False
+    from fichero_server.recipes.places import project_says_cloud
     from fichero_server.recipes.project import FOLDER
 
     path = Path(library) / FOLDER / "setup.yaml"
@@ -28,20 +31,21 @@ def project_allows_leaving(library: str | None) -> bool:
         st = path.stat()
         mtime = (st.st_mtime_ns, st.st_size)
     except OSError:
-        return False
+        return project_says_cloud(None)  # no setup saved: a new project, from the app's setting
     key = str(path)
     hit = _CACHE.get(key)
     if hit and hit[0] == mtime:
-        return hit[1]
+        return project_says_cloud(hit[1])
     try:
         import yaml
 
         answers = yaml.safe_load(path.read_text(encoding="utf-8"))
-        allowed = isinstance(answers, dict) and answers.get("cloud_allowed") is True
+        said = answers.get("cloud_allowed") if isinstance(answers, dict) else False
+        allowed = said if isinstance(said, bool) or said is None else False  # anything but yes, no or absent is no
     except Exception:  # noqa: BLE001 -- unreadable means not a yes
         allowed = False
     _CACHE[key] = (mtime, allowed)
-    return allowed
+    return project_says_cloud(allowed)
 
 
 def current_library() -> str | None:

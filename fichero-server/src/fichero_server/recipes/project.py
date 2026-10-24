@@ -39,6 +39,12 @@ def read_project_setup(library: Path) -> dict[str, Any]:
         path = _path(library, part)
         out[part] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
     out["answers"] = normalise(out["answers"], strict=False)
+    if out["answers"] is not None and "cloud_allowed" not in out["answers"]:
+        # A project that never answered the cloud question starts from the app's setting; shown, not written, so the
+        # app's later change still reaches it until the project answers (`source.onboard.new-project-inherits-the-cloud-setting`).
+        from fichero_server.recipes.places import inherits_cloud
+
+        out["answers"] = {**out["answers"], "cloud_allowed": inherits_cloud()}
     return out
 
 

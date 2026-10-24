@@ -147,7 +147,7 @@ def training_stays_local(answers: dict[str, Any] | None) -> tuple[bool, str | No
     if not places.allows("huggingface"):
         return True, ("Hugging Face is not among your places, and this training runs only on Hugging Face Jobs. Allow it in "
                       "Fichero \u203a Set Up Fichero\u2026, under where models may run, or choose a training that runs here.")
-    if not (answers or {}).get("cloud_allowed"):
+    if not places.project_says_cloud((answers or {}).get("cloud_allowed")):
         return True, ("Your pages stay on this Mac, and this training runs only on Hugging Face Jobs. Allow this project's "
                       "pages to leave this Mac for Hugging Face, or choose a training that runs here.")
     return False, None

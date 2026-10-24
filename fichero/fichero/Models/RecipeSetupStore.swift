@@ -259,6 +259,8 @@ final class RecipeSetupStore {
             if let answers = saved.answers {
                 savedAnswers = try JSONEncoder().encode(answers)
                 apply(try Self.convert(answers, to: RecipeSetupAnswers.self))
+            } else {
+                await inheritCloudFromApp()
             }
             if let savedRecipe = saved.recipe {
                 rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
@@ -271,6 +273,19 @@ final class RecipeSetupStore {
             NSLog("Fichero: reading the project's setup failed: %@", String(describing: error))
             errorMessage = "Could not read this project's setup: \(error.inWords)"
         }
+    }
+
+    /// A project with nothing saved starts from the app's own yes to the cloud (Settings > AI, where models may run), not
+    /// closed per project; the person may then be stricter (`source.onboard.new-project-inherits-the-cloud-setting`).
+    private func inheritCloudFromApp() async {
+        guard case .ok(let success)? = try? await client.api.getPlacesApiRecipesPlacesGet(),
+              let view = try? success.body.json else { return }
+        cloudAllowed = Self.inheritedCloud(places: view.places, answered: view.answered)
+    }
+
+    /// The app's yes, said: answered where models may run, and a cloud AI service among the places.
+    nonisolated static func inheritedCloud(places: [String], answered: Bool) -> Bool {
+        answered && places.contains(WhereTheWorkRuns.cloud.rawValue)
     }
 
     /// Save the answers and the proposed recipe on the project. Saving is not

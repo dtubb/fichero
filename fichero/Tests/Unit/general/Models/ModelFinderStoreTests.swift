@@ -420,4 +420,29 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate").count, 2)
         XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
+
+    /// WHY (`source.onboard.new-project-inherits-the-cloud-setting`): a project with nothing saved starts from the app's
+    /// yes to the cloud, not closed; one with saved answers keeps its own (the engine fills a missing one).
+    func testANewProjectStartsFromTheAppsCloudSetting() async throws {
+        func serve(places: String) {
+            FinderMockURLProtocol.reset { request in
+                switch request.url?.path {
+                case "/api/recipes/project": return (200, #"{"answers":null,"recipe":null}"#)
+                case "/api/recipes/places":
+                    return (200, #"{"places":\#(places),"answered":true,"memory_gb":16,"this_mac":"This Mac"}"#)
+                default: return (200, "{}")
+                }
+            }
+        }
+        serve(places: #"["this-mac","cloud"]"#)
+        let inheriting = RecipeSetupStore(client: makeClient())
+        await inheriting.loadSaved()
+        XCTAssertTrue(inheriting.cloudAllowed, "the app allows a cloud AI service: a new project starts from it")
+
+        serve(places: #"["this-mac"]"#)
+        let closed = RecipeSetupStore(client: makeClient())
+        await closed.loadSaved()
+        XCTAssertFalse(closed.cloudAllowed)
+        XCTAssertFalse(RecipeSetupStore.inheritedCloud(places: ["this-mac", "cloud"], answered: false), "not answered: nothing to inherit")
+    }
 }

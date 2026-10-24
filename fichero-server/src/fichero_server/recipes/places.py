@@ -56,10 +56,24 @@ def allows(place: str, places: list[str] | None = None) -> bool:
     return place == THIS_MAC or said is None or place in said
 
 
+def inherits_cloud() -> bool:
+    """The app's own yes to the cloud, said: the person answered where models may run and ticked a cloud AI service. A
+    project that has not answered for itself starts from it (`source.onboard.new-project-inherits-the-cloud-setting`);
+    an unanswered app, or one without the cloud, gives a project nothing to inherit."""
+    return "cloud" in (get_places() or ())
+
+
+def project_says_cloud(said: Any) -> bool:
+    """A project's own yes to pages leaving, or, when it has not answered (no `cloud_allowed` at all), the app's. A project
+    that answered no stays no: it may be stricter than the app, never looser."""
+    return said if isinstance(said, bool) else inherits_cloud()
+
+
 def may_leave_to(answers: dict[str, Any] | None, place: str) -> bool:
-    """Whether a project's pages may go to `place`: the project said so AND the app allows the place. Read where pages
-    would actually leave, never at read time, so no save can narrow a project's stored answer."""
-    return bool((answers or {}).get("cloud_allowed")) and allows(place)
+    """Whether a project's pages may go to `place`: the project said so (or has not said and the app has) AND the app
+    allows the place. Read where pages would actually leave, never at read time, so no save can narrow a project's stored
+    answer."""
+    return project_says_cloud((answers or {}).get("cloud_allowed")) and allows(place)
 
 
 #: Each place in the person's words, for a refusal.
