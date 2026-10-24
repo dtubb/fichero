@@ -1,6 +1,7 @@
 import FicheroAPIClient
 import Foundation
 import Observation
+import OSLog
 
 /// The single owner of a document's segments and passes (source-model App
 /// slice A, #4954: `source.app.one-segment-store`). The ONLY caller of
@@ -288,11 +289,28 @@ extension SegmentStore: ChangeEventConsumer {
         }
     }
 
+    private static let log = Logger(subsystem: "app.fichero.fichero", category: "SegmentStore")
+
     private func repatch(_ segmentId: String) {
-        Task { [weak self] in
-            guard let self else { return }
-            let replacement = try? await self.service.segment(id: segmentId)
-            self.patch(segmentId: segmentId, with: replacement)
+        Task { [weak self] in await self?.reread(segmentId: segmentId) }
+    }
+
+    /// Re-read one held segment after an event named it. A row is replaced only by the engine's own answer for it. A
+    /// failed read (a busy engine, a timeout) keeps the row held, and a segment the engine no longer resolves (a delete)
+    /// re-reads the whole page: the engine renumbers `box_index` 0..<count, and a row spliced out here left a gap that
+    /// made `SegmentDisplay.geometry(from:)` refuse the whole pass, so a page whose lines were being read drew no boxes
+    /// while the Lines pane (a fresh load) still listed them.
+    func reread(segmentId: String) async {
+        guard let documentId = segmentsByDocument.first(where: { $0.value.contains { $0.id == segmentId } })?.key else { return }
+        do {
+            if let replacement = try await service.segment(id: segmentId) {
+                patch(segmentId: segmentId, with: replacement)
+            } else {
+                await load(documentId: documentId, force: true)
+            }
+        } catch {
+            if error.isCancellationError { return }
+            Self.log.error("segment \(segmentId, privacy: .public) not re-read: \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -231,6 +231,56 @@ final class SegmentStoreTests: XCTestCase {
         XCTAssertEqual(store.revision(for: "doc-1"), before + 1, "surfaces observing the store refresh")
     }
 
+    // MARK: - an event's re-read never leaves a gap in a page's boxes (owner bug 1, 2026-10-24)
+
+    private static func threeLines() -> [[String: Any]] {
+        (0..<3).map { Self.segmentJSON(id: "seg-\($0 + 1)", documentId: "doc-1", passId: "pass-1", boxIndex: $0, text: "t") }
+    }
+
+    /// A busy engine fails the one-segment read an event asked for: the row stays held, so the page still draws all its
+    /// boxes (a dropped row left `boxIndex` 0, 2 and `SegmentDisplay` refused the whole pass).
+    func testAFailedSegmentRereadKeepsTheRowAndThePageStillDraws() async throws {
+        let store = Self.storeWithMockTransport()
+        let list = Stub(pathContains: "/api/segments/document/doc-1", method: "GET", status: 200,
+                        body: Self.listResponseJSON(documentId: "doc-1", passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+                                                    segments: Self.threeLines()))
+        let busy = Stub(pathContains: "/api/segments/seg-2", method: "GET", status: 500, body: Data(#"{"detail":"busy"}"#.utf8))
+        MockTransportURLProtocol.reset([list, busy])
+        await store.load(documentId: "doc-1")
+
+        await store.reread(segmentId: "seg-2")
+
+        XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["seg-1", "seg-2", "seg-3"])
+        let drawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-1", store: store), "the page drew nothing")
+        XCTAssertEqual(drawn.geometry.boxes.count, 3)
+    }
+
+    /// The engine no longer has the segment (a delete): the page is read again, so its boxes are the engine's
+    /// renumbered 0..<count and the pass is still drawn.
+    func testAGoneSegmentRereadsThePageSoTheBoxIndexesStayContiguous() async throws {
+        let store = Self.storeWithMockTransport()
+        let list = Stub(pathContains: "/api/segments/document/doc-1", method: "GET", status: 200,
+                        body: Self.listResponseJSON(documentId: "doc-1", passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+                                                    segments: Self.threeLines()))
+        MockTransportURLProtocol.reset([list])
+        await store.load(documentId: "doc-1")
+
+        let gone = Stub(pathContains: "/api/segments/seg-2", method: "GET", status: 422, body: Data(#"{"detail":"gone"}"#.utf8))
+        let renumbered = Stub(
+            pathContains: "/api/segments/document/doc-1", method: "GET", status: 200,
+            body: Self.listResponseJSON(
+                documentId: "doc-1", passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+                segments: [Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "t"),
+                           Self.segmentJSON(id: "seg-3", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "t")]))
+        MockTransportURLProtocol.reset([gone, renumbered])
+
+        await store.reread(segmentId: "seg-2")
+
+        XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["seg-1", "seg-3"])
+        let drawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-1", store: store), "the page drew nothing")
+        XCTAssertEqual(drawn.geometry.boxes.count, 2)
+    }
+
     // MARK: - a forced second load replaces in place, not a merge
 
     func testForceReloadReplacesADocumentsEntryRatherThanMerging() async throws {
