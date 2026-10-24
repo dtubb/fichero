@@ -199,7 +199,7 @@ class TestShippedPrompts:
         from fichero_server.workflows.tools.catalogue import _build_prompt
         out = _build_prompt("Spanish")
         assert "Spanish" in out
-        assert "expert archivist" in out
+        assert "You are an archivist" in out  # narrative_v3 (#5968) is concise and never analyses: it dropped the 'expert'
         assert "[ilegible]" in out
 
 

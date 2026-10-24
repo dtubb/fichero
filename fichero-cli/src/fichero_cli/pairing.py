@@ -231,7 +231,7 @@ def pair(
             if reply.status_code == 401 and next_step == NEXT_PERSON:
                 username, password = ask_person()
                 reply = http.post("/api/pair", json={**body, "username": username, "password": password})
-            elif reply.status_code == 422 and next_step == NEXT_NEW_PASSWORD:
+            elif reply.status_code in (400, 422) and next_step == NEXT_NEW_PASSWORD:  # the host answers 400 (its own refusal of a missing or short password)
                 reply = http.post("/api/pair", json={**body, "new_password": ask_new_password()})
     except httpx.ConnectError as exc:
         text = f"{exc} {exc.__cause__ or ''}".lower()

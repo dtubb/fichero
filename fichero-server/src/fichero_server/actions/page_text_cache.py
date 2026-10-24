@@ -455,13 +455,12 @@ def queue_reembed_batches(db: Any, document_ids: list[str], *, started_by: str) 
 def _reembed_batch(db: Any, subject: str) -> None:
     import json
 
+    from fichero_server.db import document_tree
     from fichero_server.importers.derivatives import _embed_gate
     from fichero_server.models import Document
 
-    row = db.execute_fetchone(
-        "SELECT detail FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",  # the subject is unique to a batch
-        [REEMBED_KIND, subject])
-    ids = (json.loads(row[0] or "{}") if row else {}).get("documents") or []
+    detail = document_tree.latest_job_detail(db, REEMBED_KIND, subject)  # the subject is unique to a batch
+    ids = (json.loads(detail or "{}") if detail is not None else {}).get("documents") or []
     docs = [d for d in (db.get(Document, i) for i in ids) if d is not None and d.page_content]
     if docs:
         with _embed_gate:
