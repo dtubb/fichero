@@ -4080,8 +4080,7 @@ Trying another option
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
 - `source.try.bakeoff-hidden-until-corrected` — **[PARTIAL]** (#6016; built, uncompiled) The comparison block shows only once the project has
-  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and onboarding (Set Up) never
-  shows it: it lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
+  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and Set Up never shows the block: it shows one plain line under Compare instead ("Reads your pages with each candidate, side by side. It can run after N corrected lines on M pages."); the block lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
 - `source.library.no-children-poll-of-a-project` — **[PARTIAL]** (#6026; built, uncompiled) The pending-status refresh (live update and the 15 s
   fallback poll) asks the engine for the children of a document only: a pane that lists a project's top level (sidebar id
   "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
