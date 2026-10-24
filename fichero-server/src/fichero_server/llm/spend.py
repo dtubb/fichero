@@ -203,11 +203,11 @@ def _ask_run_to_pause() -> str | None:
 
 
 @contextlib.asynccontextmanager
-async def holding(config, library: str | None, *, input_tokens: int | None = None) -> AsyncIterator[None]:
+async def holding(config, library: str | None, *, input_tokens: int | None = None, calls: int = 1) -> AsyncIterator[None]:
     """Hold the call's worst case against the project's cap from the moment it is about to be sent until it ends, then
     release it and book the cost. Waits while the cap is reachable only because of calls in flight; refuses (and asks a
     run to pause) when the booked spend plus this call's worst case does not fit. A call under no library and a call that
-    costs nothing (on this Mac) pass."""
+    costs nothing (on this Mac) pass. A batch holds `calls` worst cases at once, like the calls it is."""
     from fichero_server.llm.usage import provider_is_free
 
     cap = cap_usd(library)
@@ -220,7 +220,7 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
             f"{config.model} ({config.provider}) has no listed price, so its cost cannot be held to this project's cloud "
             "spending cap. Accept running it in this project (it is counted at an assumed price, and listed apart), or choose "
             "a model with a price.", config.provider, config.model)
-    worst = worst_case_usd(config, input_tokens) if config is not None else UNPRICED_CALL_USD
+    worst = (worst_case_usd(config, input_tokens) if config is not None else UNPRICED_CALL_USD) * max(1, calls)
     while True:
         with _LOCK:
             booked, reserved = booked_usd(library), _RESERVED.get(library, 0.0)
@@ -244,13 +244,17 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     except asyncio.CancelledError:
         outcome = "cancelled"  # sent, and nobody knows what the provider billed
         raise
+    except Exception as exc:
+        if isinstance(exc, TimeoutError) or isinstance(exc.__cause__, TimeoutError):  # the "provider hang" wrappers chain it
+            outcome = "timed out"  # sent, the wall clock gave up: the provider may still bill it, so the reservation is booked
+        raise
     finally:
         _TICKET.reset(token)
         known = [c for c in ticket if c == c]  # not NaN
         priced_all = len(known) == len(ticket)
         if outcome == "failed":
             spent = sum(known) if priced_all else worst
-        else:  # answered or cancelled: what was reported, else the worst case, never free
+        else:  # answered, cancelled or timed out: what was reported, else the worst case, never free
             spent = sum(known) if (known and priced_all) else worst
         with _LOCK:
             _RESERVED[library] = max(0.0, _RESERVED.get(library, 0.0) - worst)
