@@ -15,8 +15,9 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action
-from fichero_server.api.main import get_library_database
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
+from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
@@ -222,6 +223,37 @@ def _action_withdraw_many(db: Database, params: FactIdsParams, ctx: ActionContex
 @action("editorial.restore_many", FactIdsParams, domains=["editorial", "segment"], undoable=False)
 def _action_restore_many(db: Database, params: FactIdsParams, ctx: ActionContext):
     return _set_facts_withdrawn(db, params.fact_ids, False)
+
+
+def live_facts(db: Database, segment_id: str) -> list[EditorialFact]:
+    return [f for f in db.query(EditorialFact, segment_id=segment_id) if f.withdrawn_at is None]
+
+
+class EditorialActionAnswer(BaseModel):
+    ok: bool
+    result: dict[str, Any]
+    audit_id: Optional[str] = None
+
+
+@router.post("/many", response_model=EditorialActionAnswer)
+async def record_many(
+    body: EditorialRecordManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> EditorialActionAnswer:
+    """One whole-segment fact on several segments (the Inspector's multi-selection): one audit id, one undo."""
+    result = registry.invoke(db, "editorial.record_many", body.model_dump(mode="json"), ctx)
+    return EditorialActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
+
+
+@router.post("/withdraw-many", response_model=EditorialActionAnswer)
+async def withdraw_many(
+    body: FactIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> EditorialActionAnswer:
+    result = registry.invoke(db, "editorial.withdraw_many", body.model_dump(mode="json"), ctx)
+    return EditorialActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
 class EditorialListResponse(BaseModel):

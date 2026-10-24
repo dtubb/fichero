@@ -6098,7 +6098,7 @@
           "source-settings"
         ],
         "summary": "Resolve Source Settings",
-        "description": "`GET /api/source-settings/resolve` \u2014 the three facts and the encoding, each\nwith the rung that answered (`source.lang.says-where-from`).\n\nFor ONE selection, not for a list: resolving every segment of a page here\nwould be one walk per row, which is why the seam carries what is SET and this\nanswers what is RESOLVED.",
+        "description": "`GET /api/source-settings/resolve` \u2014 the three facts and the encoding, each\nwith the rung that answered (`source.lang.says-where-from`).\n\nFor ONE selection; a multi-selection asks `POST /api/source-settings/resolve-many`, one request for all of it.",
         "operationId": "resolve_source_settings_api_source_settings_resolve_get",
         "parameters": [
           {
@@ -6148,6 +6148,49 @@
             }
           }
         }
+      }
+    },
+    "/api/source-settings/resolve-many": {
+      "post": {
+        "tags": [
+          "source-settings"
+        ],
+        "summary": "Resolve Many",
+        "description": "`POST /api/source-settings/resolve-many` \u2014 the resolved settings, hands, certainty and rights of a whole\nmulti-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. Every\nid must exist (404 names the first that does not). Ceiling: one walk per segment inside the engine, not per request.",
+        "operationId": "resolve_many_api_source_settings_resolve_many_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveManyParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedMany"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-fichero-reads": true
       }
     },
     "/api/source-settings": {
@@ -10281,6 +10324,70 @@
         }
       }
     },
+    "/api/rights/many": {
+      "post": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Set Rights Many",
+        "description": "The same record on several targets (the Inspector's multi-selection): one audit id, one undo, all or nothing.",
+        "operationId": "set_rights_many_api_rights_many_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RightsSetManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rights/{record_id}/withdraw": {
       "post": {
         "tags": [
@@ -10603,6 +10710,133 @@
         }
       }
     },
+    "/api/hands/attributions/many": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Attribute Segments",
+        "description": "One hand on several segments (the Inspector's multi-selection): one audit id, one undo.",
+        "operationId": "attribute_segments_api_hands_attributions_many_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandAttributeManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/attributions/withdraw-many": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Withdraw Attributions",
+        "operationId": "withdraw_attributions_api_hands_attributions_withdraw_many_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributionIdsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hands/attributions/{attribution_id}/withdraw": {
       "post": {
         "tags": [
@@ -10734,6 +10968,133 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttributionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/editorial/many": {
+      "post": {
+        "tags": [
+          "editorial"
+        ],
+        "summary": "Record Many",
+        "description": "One whole-segment fact on several segments (the Inspector's multi-selection): one audit id, one undo.",
+        "operationId": "record_many_api_editorial_many_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditorialRecordManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorialActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/editorial/withdraw-many": {
+      "post": {
+        "tags": [
+          "editorial"
+        ],
+        "summary": "Withdraw Many",
+        "operationId": "withdraw_many_api_editorial_withdraw_many_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactIdsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorialActionAnswer"
                 }
               }
             }
@@ -51968,6 +52329,25 @@
         ],
         "title": "AttributesResponse"
       },
+      "AttributionIdsParams": {
+        "properties": {
+          "attribution_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Attribution Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attribution_ids"
+        ],
+        "title": "AttributionIdsParams"
+      },
       "AttributionListResponse": {
         "properties": {
           "items": {
@@ -63209,6 +63589,30 @@
         "title": "EdgeDef",
         "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node."
       },
+      "EditorialActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "EditorialActionAnswer"
+      },
       "EditorialFact": {
         "properties": {
           "id": {
@@ -63342,6 +63746,55 @@
           "items"
         ],
         "title": "EditorialListResponse"
+      },
+      "EditorialRecordManyParams": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Segment Ids"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EditorialFactKind"
+          },
+          "extent": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Extent"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Reason"
+          },
+          "place": {
+            "type": "string",
+            "maxLength": 40,
+            "nullable": true,
+            "title": "Place"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids",
+          "kind"
+        ],
+        "title": "EditorialRecordManyParams",
+        "description": "One whole-segment fact (no span: a stretch is measured on one reading, and a selection has no one reading) on each of\nseveral segments, e.g. the Inspector's Certainty set on a multi-selection."
       },
       "EffectiveAttributesResponse": {
         "properties": {
@@ -66173,6 +66626,25 @@
         "title": "ExtractTextResponse",
         "description": "Response from text extraction."
       },
+      "FactIdsParams": {
+        "properties": {
+          "fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Fact Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fact_ids"
+        ],
+        "title": "FactIdsParams"
+      },
       "FailedPage": {
         "properties": {
           "page": {
@@ -67748,6 +68220,37 @@
           "result"
         ],
         "title": "HandActionAnswer"
+      },
+      "HandAttributeManyParams": {
+        "properties": {
+          "hand_id": {
+            "type": "string",
+            "title": "Hand Id"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Segment Ids"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hand_id",
+          "segment_ids"
+        ],
+        "title": "HandAttributeManyParams"
       },
       "HandAttributeParams": {
         "properties": {
@@ -86291,6 +86794,25 @@
         "title": "ResearchTask",
         "description": "Concrete unit of work within a plan."
       },
+      "ResolveManyParams": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Segment Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids"
+        ],
+        "title": "ResolveManyParams"
+      },
       "ResolveRequest": {
         "properties": {
           "doi": {
@@ -86416,6 +86938,35 @@
           "resolvedDocumentId"
         ],
         "title": "ResolvedLocation"
+      },
+      "ResolvedMany": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentSettingsRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "mixed": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Mixed"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "mixed"
+        ],
+        "title": "ResolvedMany"
       },
       "ResolvedPrototypeResponse": {
         "properties": {
@@ -86753,6 +87304,68 @@
         ],
         "title": "RightsRecord"
       },
+      "RightsSetManyParams": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/RightsTargetRef"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Targets",
+            "description": "the segments, documents or folders the same record is set on"
+          },
+          "holders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Holders"
+          },
+          "consent": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Consent"
+          },
+          "conditions": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Conditions"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "model_use": {
+            "$ref": "#/components/schemas/ModelUse",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "RightsSetManyParams"
+      },
       "RightsSetParams": {
         "properties": {
           "target_kind": {
@@ -86821,6 +87434,24 @@
           "segment"
         ],
         "title": "RightsTarget"
+      },
+      "RightsTargetRef": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RightsTarget"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "RightsTargetRef"
       },
       "RollbackRequest": {
         "properties": {
@@ -90362,6 +90993,63 @@
           "expected_version"
         ],
         "title": "SegmentRestoreVersionBody"
+      },
+      "SegmentSettingsRead": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "settings": {
+            "items": {
+              "$ref": "#/components/schemas/SettingResolution"
+            },
+            "type": "array",
+            "title": "Settings"
+          },
+          "hand_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hand Ids"
+          },
+          "certainty": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Certainty"
+          },
+          "rights_record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rights Record Ids"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted"
+          },
+          "model_use": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Use"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "settings",
+          "hand_ids",
+          "certainty",
+          "rights_record_ids",
+          "restricted"
+        ],
+        "title": "SegmentSettingsRead",
+        "description": "What the Inspector shows for ONE segment of a multi-selection."
       },
       "SegmentSpec": {
         "properties": {
