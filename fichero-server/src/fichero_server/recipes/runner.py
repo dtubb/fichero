@@ -1091,6 +1091,7 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
                            for card in cards]
         detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
     steps = detail["steps"]
+    _read_old_shapes(steps)
     tree = _tree(db)
     batches = _batches(tree, _units(db, detail.get("documents"), detail.get("folder_id"), tree), BATCH_PAGE_LIMIT)
     detail["batches_total"] = len(batches)
@@ -1479,6 +1480,15 @@ def doing_words(card: dict[str, Any]) -> str:
 _CARDS_WITH_A_JOB = ("workflow", "check", "find-documents", "entries")
 
 
+def _read_old_shapes(steps: list[dict[str, Any]]) -> None:
+    """A run saved while Leave Out wrote its account under `left_out` (the list of pages left out as blank, #5691) holds a dict
+    there: read it as `leave_out`, as it is written now, and `left_out` as the empty list. `status` only reads (the stored row is
+    never rewritten); a run carried on (`_run`) takes the new shape on its next checkpoint, before `_add` touches the key."""
+    for step in steps:
+        if isinstance(step.get("left_out"), dict):
+            step["leave_out"], step["left_out"] = step["left_out"], []
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
     has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
@@ -1488,11 +1498,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     detail = json.loads(row["detail"] or "{}")
     steps = detail.get("steps") or [{"steps": c["steps"], "card": c["card"], "state": "waiting", "child_id": None}
                                     for c in detail.get("runs", [])]
-    for step in steps:
-        if isinstance(step.get("left_out"), dict):
-            # A run saved while Leave Out wrote its account under `left_out` (the list of pages left out as blank, #5691): read as
-            # `leave_out`, as it is now written. Read side only; the stored row is never rewritten.
-            step["leave_out"], step["left_out"] = step["left_out"], []
+    _read_old_shapes(steps)
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
