@@ -214,7 +214,8 @@ def test_kraken_then_a_cloud_correction_is_refused_in_words_when_kraken_is_not_t
 def test_each_candidate_lists_every_place_it_can_run(client, project, claude_row):
     """`places`: the finder's `PlaceOption`s (`where_it_runs`), a cloud model at its provider, Kraken here and at Hugging Face Jobs."""
     candidates = _read_choice(_plan(client))["candidates"]
-    cloud = next(c for c in candidates if c["card"] == CLAUDE)
+    # with the person's own Claude row, the listed card is that model's (`anthropic:<model>@<provider row>`), not the generic one
+    cloud = next(c for c in candidates if c["runs_on"].startswith("cloud:") and not c["card"].startswith("corrects-unsure:"))
     assert [p["place"] for p in cloud["places"]] == ["provider"] and cloud["places"][0]["name"] == "anthropic"
     kraken = next(c for c in candidates if c["how"] == "kraken")
     assert [p["place"] for p in kraken["places"]][:2] == ["this-mac", "hf-jobs"] and kraken["places"][0]["can"]
