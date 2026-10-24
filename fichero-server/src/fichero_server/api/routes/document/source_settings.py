@@ -505,8 +505,9 @@ def resolve_many(
     db: Database = Depends(get_library_database),
 ) -> ResolvedMany:
     """`POST /api/source-settings/resolve-many` — the resolved settings, hands, certainty and rights of a whole
-    multi-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. Every
-    id must exist (404 names the first that does not). Ceiling: one walk per segment inside the engine, not per request."""
+    multi-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. An id that
+    does not exist, or is on a page the caller may not read, is left out and counted in `withheld` (never a 404: that would
+    say which ids exist behind a denied page). Ceiling: one walk per segment inside the engine, not per request."""
     from fichero_server.api.routes.document.editorial import live_facts
     from fichero_server.api.routes.document.hands import live_attributions
     from fichero_server.api.routes.document.rights import effective_rights, records_on
@@ -515,14 +516,14 @@ def resolve_many(
     rows = {}
     for segment_id in ids:
         row = db.get(Segment, segment_id)
-        if row is None or row.deleted_at is not None:
-            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
-        rows[segment_id] = row
+        if row is not None and row.deleted_at is None:
+            rows[segment_id] = row
     readable = set(readable_documents(request, x_fichero_library_path, sorted({r.document_id for r in rows.values()})))
+    # A line that does not exist and a line on a page the caller may not read are the same answer (left out, counted in
+    # `withheld`): no 404 for the one and not the other, which would tell a caller which ids exist behind a denied page.
+    ids = [i for i in ids if i in rows and rows[i].document_id in readable]
     items = []
     for segment_id in ids:
-        if rows[segment_id].document_id not in readable:
-            continue
         resolved = _resolved_for(db, segment_id, None)
         effective = effective_rights(db, "segment", segment_id)
         items.append(SegmentSettingsRead(
@@ -544,7 +545,7 @@ def resolve_many(
     mixed["certainty"] = differs([sorted(map(repr, i.certainty)) for i in items])
     mixed["model_use"] = differs([i.model_use for i in items])
     mixed["restricted"] = differs([i.restricted for i in items])
-    return ResolvedMany(items=items, mixed=mixed, withheld=len(ids) - len(items))
+    return ResolvedMany(items=items, mixed=mixed, withheld=len(set(params.segment_ids)) - len(items))
 
 
 class SourceSettingWrite(BaseModel):

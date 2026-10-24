@@ -488,5 +488,11 @@
   "POST /api/auth/local-clients/requests/{request_id}/decision": "the owner's Allow/Deny of a request; reversed by revoking the client, not by undo (slice 6a, #2403)",
   "POST /api/auth/local-clients/register": "the allowed program registers its own key; reversed by revoking the client (slice 6a, #2403)",
   "PUT /api/auth/local-clients/switches": "the two local-client switches; set back by the owner, not an undoable library change (slice 6a, #2403)",
-  "POST /api/recipes/project/allow-cloud": "undoable in the engine (project.allow_cloud, audited with an inverse that restores the setup), undone from the audit; the app has no view of the one-click Allow yet to register it (#5368, waits on an owner question)"
+  "POST /api/recipes/project/allow-cloud": "undoable in the engine (project.allow_cloud, audited with an inverse that restores the setup), undone from the audit; the app has no view of the one-click Allow yet to register it (#5368, waits on an owner question)",
+  "POST /api/hands/attributions/many": "undoable in the engine (hand.attribute_many, audited, one audit id with an inverse: hand.unattribute_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
+  "POST /api/hands/attributions/withdraw-many": "undoable in the engine (hand.unattribute_many, audited, one audit id with an inverse: hand.reattribute_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
+  "POST /api/editorial/many": "undoable in the engine (editorial.record_many, audited, one audit id with an inverse: editorial.withdraw_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
+  "POST /api/editorial/withdraw-many": "undoable in the engine (editorial.withdraw_many, audited, one audit id with an inverse: editorial.restore_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
+  "POST /api/rights/many": "undoable in the engine (rights.set_many, audited, one audit id with an inverse: rights.withdraw_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
+  "POST /api/source-settings/resolve-many": "read-only: resolves the settings, hands, certainty and rights of a multi-selection and writes nothing, so there is nothing to undo (#6082)"
 }

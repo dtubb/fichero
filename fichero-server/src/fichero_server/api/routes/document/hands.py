@@ -157,8 +157,9 @@ class AttributionIdParams(BaseModel):
 
 
 def _invert_hand_unattribute(before, after, ctx: ActionContext):
+    # Only a judgement THIS step withdrew is put back: one already withdrawn before is not revived by undoing a second withdraw.
     attribution_id = (after or {}).get("attribution_id")
-    return ("hand.reattribute", {"attribution_id": attribution_id}) if attribution_id else None
+    return ("hand.reattribute", {"attribution_id": attribution_id}) if attribution_id and (after or {}).get("changed", True) else None
 
 
 def _attribution(db: Database, attribution_id: str) -> HandAttribution:
@@ -173,12 +174,14 @@ def _attribution(db: Database, attribution_id: str) -> HandAttribution:
 def _action_hand_unattribute(db: Database, params: AttributionIdParams, ctx: ActionContext):
     """Withdraw one judgement. The others on the segment stand."""
     attribution = _attribution(db, params.attribution_id)
-    attribution.withdrawn_at = utc_now()
-    db.save(attribution)
+    changed = attribution.withdrawn_at is None
+    if changed:
+        attribution.withdrawn_at = utc_now()
+        db.save(attribution)
     spec = ChangeSpec(
         domains=["hand", "segment"], target_ids=[attribution.id, attribution.segment_id],
-        before={"attribution_id": attribution.id, "withdrawn": False},
-        after={"attribution_id": attribution.id, "withdrawn": True}, emit_type="hand.unattributed",
+        before={"attribution_id": attribution.id, "withdrawn": not changed},
+        after={"attribution_id": attribution.id, "withdrawn": True, "changed": changed}, emit_type="hand.unattributed",
     )
     return {"attribution_id": attribution.id, "withdrawn": True}, spec
 
@@ -252,16 +255,21 @@ class AttributionIdsParams(BaseModel):
 
 def _set_withdrawn_many(db: Database, ids: list[str], withdrawn: bool, emit: str):
     attributions = [_attribution(db, i) for i in dict.fromkeys(ids)]  # all found first, then all written
+    # Only the judgements this step changes are written and listed: undoing it must not revive one already withdrawn before.
+    changing = [a for a in attributions if (a.withdrawn_at is None) == withdrawn]
     now = utc_now()
-    for attribution in attributions:
+    for attribution in changing:
         attribution.withdrawn_at = now if withdrawn else None
-    db.save_many(attributions)
-    found = [a.id for a in attributions]
-    return {"attribution_ids": found, "withdrawn": withdrawn}, ChangeSpec(
-        domains=["hand", "segment"], target_ids=found + sorted({a.segment_id for a in attributions}),
-        before={"attribution_ids": found, "withdrawn": not withdrawn},
-        after={"attribution_ids": found, "withdrawn": withdrawn}, emit_type=emit,
-        segment_ids=sorted({a.segment_id for a in attributions}),
+    if changing:
+        db.save_many(changing)
+    changed = [a.id for a in changing]
+    segment_ids = sorted({a.segment_id for a in changing})
+    documents = sorted({seg.document_id for seg in (db.get(Segment, i) for i in segment_ids) if seg is not None})
+    return {"attribution_ids": changed, "withdrawn": withdrawn}, ChangeSpec(
+        domains=["hand", "segment"], target_ids=changed + segment_ids,
+        before={"attribution_ids": changed, "withdrawn": not withdrawn},
+        after={"attribution_ids": changed, "withdrawn": withdrawn}, emit_type=emit,
+        segment_ids=segment_ids, document_ids=documents,
     )
 
 

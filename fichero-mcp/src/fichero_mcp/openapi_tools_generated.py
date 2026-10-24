@@ -8061,7 +8061,7 @@ def fichero_source_settings_resolve_many(
     *,
     segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
 ) -> Any:
-    'Resolve Many\n\n`POST /api/source-settings/resolve-many` — the resolved settings, hands, certainty and rights of a whole\nmulti-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. Every\nid must exist (404 names the first that does not). Ceiling: one walk per segment inside the engine, not per request.\n\nRoute: POST /api/source-settings/resolve-many (toolset `source-settings`; reads).'
+    'Resolve Many\n\n`POST /api/source-settings/resolve-many` — the resolved settings, hands, certainty and rights of a whole\nmulti-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. An id that\ndoes not exist, or is on a page the caller may not read, is left out and counted in `withheld` (never a 404: that would\nsay which ids exist behind a denied page). Ceiling: one walk per segment inside the engine, not per request.\n\nRoute: POST /api/source-settings/resolve-many (toolset `source-settings`; reads).'
     return _rt.call("POST", "/api/source-settings/resolve-many", json=_rt.body({"segment_ids": segment_ids}))
 
 

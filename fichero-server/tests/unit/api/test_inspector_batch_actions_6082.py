@@ -111,5 +111,43 @@ def test_resolve_many_reads_a_selection_in_one_request_and_says_what_is_mixed(db
     assert {s["key"] for s in body["items"][0]["settings"]} == {"language", "script", "direction", "encoding"}
 
 
-def test_resolve_many_404s_a_missing_line(db, client):
-    assert client.post("/api/source-settings/resolve-many", json={"segment_ids": ["nope"]}).status_code == 404
+def test_resolve_many_counts_a_missing_line_as_withheld_not_a_404(db, client):
+    line = _lines(db)[0]
+    body = client.post("/api/source-settings/resolve-many", json={"segment_ids": [line.id, "nope"]}).json()
+    assert [i["segment_id"] for i in body["items"]] == [line.id] and body["withheld"] == 1
+
+
+def test_undoing_a_withdraw_does_not_revive_what_was_withdrawn_before(db, client):
+    lines, hand = _lines(db), _hand(client)
+    ids = client.post("/api/hands/attributions/many", json={"hand_id": hand, "segment_ids": [s.id for s in lines[:2]]}).json()["result"]["attribution_ids"]
+    client.post(f"/api/hands/attributions/{ids[0]}/withdraw")  # the first is withdrawn on its own
+    both = client.post("/api/hands/attributions/withdraw-many", json={"attribution_ids": ids}).json()
+    assert client.post(f"/api/actions/audit/{both['audit_id']}/undo").status_code == 200
+    live = {a.id for a in _live(db, HandAttribution) if a.hand_id == hand}
+    assert live == {ids[1]}, "undo revived the judgement that was withdrawn before the step"
+    again = client.post(f"/api/hands/attributions/{ids[0]}/withdraw").json()  # a second single withdraw of the same one
+    client.post(f"/api/actions/audit/{again['audit_id']}/undo")
+    assert ids[0] not in {a.id for a in _live(db, HandAttribution)}
+
+
+def test_the_same_holds_for_rights_and_editorial(db, client):
+    lines = _lines(db)
+    rec = client.post("/api/rights/many", json={"targets": [{"kind": "segment", "id": s.id} for s in lines[:2]], "holders": ["x"]}).json()["result"]["record_ids"]
+    client.post(f"/api/rights/{rec[0]}/withdraw")
+    gone = client.post(f"/api/rights/{rec[0]}/withdraw").json()
+    client.post(f"/api/actions/audit/{gone['audit_id']}/undo")
+    assert rec[0] not in {r.id for r in _live(db, RightsRecord)}
+    facts = client.post("/api/editorial/many", json={"segment_ids": [s.id for s in lines[:2]], "kind": "unclear"}).json()["result"]["fact_ids"]
+    client.post("/api/editorial/withdraw-many", json={"fact_ids": facts[:1]})
+    both = client.post("/api/editorial/withdraw-many", json={"fact_ids": facts}).json()
+    client.post(f"/api/actions/audit/{both['audit_id']}/undo")
+    assert {f.id for f in _live(db, EditorialFact)} >= {facts[1]} and facts[0] not in {f.id for f in _live(db, EditorialFact)}
+
+
+def test_unattribute_many_names_the_pages_it_touched(db, client):
+    from fichero_server.api.routes.document.hands import _set_withdrawn_many
+
+    lines, hand = _lines(db), _hand(client)
+    ids = client.post("/api/hands/attributions/many", json={"hand_id": hand, "segment_ids": [s.id for s in lines]}).json()["result"]["attribution_ids"]
+    _result, spec = _set_withdrawn_many(db, ids, True, "hand.unattributed")
+    assert spec.document_ids == sorted({s.document_id for s in lines})

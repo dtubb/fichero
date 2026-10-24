@@ -226,11 +226,12 @@ def _records(db: Database, ids: list[str]) -> list[RightsRecord]:
         invert=lambda before, after, ctx: ("rights.restore_many", {"record_ids": after["record_ids"]}) if (after or {}).get("record_ids") else None)
 def _action_rights_withdraw_many(db: Database, params: RightsRecordIdsParams, ctx: ActionContext):
     """The inverse of `rights.set_many`: withdraw several records in one audited step (all found first, then all written)."""
-    records = _records(db, params.record_ids)
+    records = [r for r in _records(db, params.record_ids) if r.withdrawn_at is None]  # one withdrawn before is not revived by undo
     now = utc_now()
     for record in records:
         record.withdrawn_at = now
-    db.save_many(records)
+    if records:
+        db.save_many(records)
     ids = [r.id for r in records]
     return {"record_ids": ids, "withdrawn": True}, ChangeSpec(
         domains=["rights"], target_ids=ids, before={"record_ids": ids, "withdrawn": False},
@@ -239,10 +240,11 @@ def _action_rights_withdraw_many(db: Database, params: RightsRecordIdsParams, ct
 
 @action("rights.restore_many", RightsRecordIdsParams, domains=["rights"], undoable=False)
 def _action_rights_restore_many(db: Database, params: RightsRecordIdsParams, ctx: ActionContext):
-    records = _records(db, params.record_ids)
+    records = [r for r in _records(db, params.record_ids) if r.withdrawn_at is not None]
     for record in records:
         record.withdrawn_at = None
-    db.save_many(records)
+    if records:
+        db.save_many(records)
     ids = [r.id for r in records]
     return {"record_ids": ids, "withdrawn": False}, ChangeSpec(
         domains=["rights"], target_ids=ids, before={"record_ids": ids, "withdrawn": True},
@@ -256,8 +258,9 @@ class RightsRecordIdParams(BaseModel):
 
 
 def _invert_rights_withdraw(before, after, ctx: ActionContext):
+    # A record already withdrawn before this step is not revived by undoing it.
     record_id = (after or {}).get("record_id")
-    return ("rights.restore", {"record_id": record_id}) if record_id else None
+    return ("rights.restore", {"record_id": record_id}) if record_id and (after or {}).get("changed", True) else None
 
 
 @action("rights.withdraw", RightsRecordIdParams, domains=["rights"], undoable=True, invert=_invert_rights_withdraw)
@@ -265,12 +268,14 @@ def _action_rights_withdraw(db: Database, params: RightsRecordIdParams, ctx: Act
     record = db.get(RightsRecord, params.record_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Rights record not found: {params.record_id}")
-    record.withdrawn_at = utc_now()
-    db.save(record)
+    changed = record.withdrawn_at is None
+    if changed:
+        record.withdrawn_at = utc_now()
+        db.save(record)
     spec = ChangeSpec(
         domains=["rights"], target_ids=[record.id],
-        before={"record_id": record.id, "withdrawn": False},
-        after={"record_id": record.id, "withdrawn": True},
+        before={"record_id": record.id, "withdrawn": not changed},
+        after={"record_id": record.id, "withdrawn": True, "changed": changed},
         emit_type="rights.withdrawn",
     )
     return {"record_id": record.id, "withdrawn": True}, spec
