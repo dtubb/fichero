@@ -451,6 +451,9 @@ def _nearest(job: str, cards: list[Card], a: Answers, material: str) -> list[dic
         if refused[0] != "no-model-for-script":
             why, tier = refused[1], 0
         elif {_family(s) for s in card.scripts} & families:
+            if (material == "handwriting" and card.handwriting_scripts is not None
+                    and not {_family(s) for s in card.handwriting_scripts} & families):
+                continue  # lists the related script for print only: not "nearest" to a handwritten project (#6071)
             # Named by the scripts it states, a whole (Japanese) rather than its parts (Han, kana).
             parts = {p for s in card.scripts for p in _PARTS.get(s, ())}
             shown = sorted(card.scripts - parts)[:2]
