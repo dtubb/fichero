@@ -498,6 +498,16 @@ _CODE_FENCE_OPEN = re.compile(r"\A`{3,}[a-zA-Z0-9_+\-]*\s*\n")
 _CODE_FENCE_CLOSE = re.compile(r"\n`{3,}\s*\Z")
 
 
+def message_text(content: Any) -> Any:
+    """A model message's content as one string: Gemini 3 answers as a LIST of text parts, not a string, so every place that takes a
+    reply's text goes through this (a part of any other kind leaves the list as it is; a string is returned unchanged)."""
+    if isinstance(content, list) and content and all(
+        isinstance(p, str) or (isinstance(p, dict) and p.get("type") == "text") for p in content
+    ):
+        return "".join(p if isinstance(p, str) else str(p.get("text", "")) for p in content)
+    return content
+
+
 def _strip_outer_code_fences(content: Any) -> Any:
     """Strip a single outer markdown code fence from an LLM string response.
 
@@ -508,11 +518,7 @@ def _strip_outer_code_fences(content: Any) -> Any:
     Returns non-string values unchanged so multimodal / structured-output
     responses pass through untouched.
     """
-    if isinstance(content, list) and content and all(
-        isinstance(p, str) or (isinstance(p, dict) and p.get("type") == "text") for p in content
-    ):
-        # Gemini 3 answers as a list of text parts, not one string: join them (a part of any other kind leaves the list as it is).
-        content = "".join(p if isinstance(p, str) else str(p.get("text", "")) for p in content)
+    content = message_text(content)
     if not isinstance(content, str):
         return content
     text = content.strip()
@@ -2575,8 +2581,9 @@ async def _stream_chat_langchain(
     """Stream chat response using LangChain."""
     async with _remote_llm_call_slot(config):
         async for chunk in model.astream(messages):
-            if chunk.content:
-                yield chunk.content
+            text = message_text(chunk.content)
+            if text:
+                yield text
 
 
 def _convert_to_langchain_messages(messages: list[dict]) -> list:
@@ -3333,7 +3340,7 @@ async def chat_with_tools(
         tool_calls = response.tool_calls
 
     return {
-        "content": response.content,
+        "content": message_text(response.content),
         "tool_calls": tool_calls,
     }
 
