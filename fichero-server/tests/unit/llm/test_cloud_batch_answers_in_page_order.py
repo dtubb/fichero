@@ -62,4 +62,36 @@ def test_a_batch_out_of_order_is_asked_line_by_line_and_every_reading_lands_on_i
 
 def test_answers_with_nothing_to_compare_are_believed():
     assert line_reader.answers_follow_order(["a", None], [None, "b"])
-    assert not line_reader.answers_follow_order(["la huerta del convento"], ["Pedro Alvarado vive en el"])
+    assert line_reader.answers_follow_order(["la huerta del convento"], ["Pedro Alvarado vive en el"])  # one line: nothing to place it against
+
+
+def test_a_correct_batch_passes_even_when_the_reference_reads_badly():
+    """The check is relative (each answer matches its own line's reference better than its neighbours'), so a hand the reference
+    reads poorly does not send a correct page line by line."""
+    noisy = ["Pe4ro Alv rado v ve", "pu blo de R0 Cl", "hace m chos an s", "la hu rta d l con"]
+    assert line_reader.answers_follow_order(TEXTS, noisy)
+    assert not line_reader.answers_follow_order(TEXTS[1:] + TEXTS[:1], noisy)  # shifted a line: the neighbour's reference fits better
+
+
+def test_the_probe_answers_are_reused_when_the_order_fails_and_the_reasked_batch_is_counted(monkeypatch, tmp_path):
+    path, geometry = _page(tmp_path)
+    read, calls = _run(monkeypatch, tmp_path, scramble=True)
+    # the batch, the first and last line as probes, then only the two lines not yet asked alone (was four)
+    assert len(calls) == 1 + 2 + 2
+    assert [read[f"s{i}"] for i in range(4)] == TEXTS
+
+
+def test_the_page_says_how_many_batches_were_asked_again(monkeypatch, tmp_path):
+    path, geometry = _page(tmp_path)
+    page = Image.open(path)
+    by_picture = {line_reader._crop_data_uri(page, b.metadata["polygon_px"]): TEXTS[i] for i, b in enumerate(geometry.boxes)}
+
+    async def model(images, prompt, config, **_):
+        shown = [by_picture[i] for i in images if i in by_picture]
+        if len(shown) > 1:
+            shown = shown[2:] + shown[:2]
+        return "[" + ", ".join(f'"{t}"' for t in shown) + "]"
+
+    monkeypatch.setattr(llm, "vision", model)
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page", page_context=True))
+    assert out.metadata["batches_reasked_by_order"] == 1 and out.metadata["lines_reasked_by_order"] == 4

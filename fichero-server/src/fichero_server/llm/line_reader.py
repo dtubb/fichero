@@ -34,10 +34,6 @@ LINES_PER_CALL = 16
 #: of 120 lines is read in calls of at most this many. It keeps a call inside the providers' image limits (the page for
 #: context rides beside the crops) and its answer inside the output ceiling (`TOKENS_PER_LINE` x this + 32 is under 8,192).
 MAX_LINES_PER_CALL = 40
-#: How alike (0 to 1, `difflib` ratio on letters without accents or capitals) a batch's answers must be to the same lines
-#: asked one at a time, or to Kraken's own reading of them, for the batch's ORDER to be believed
-#: (`source.recipe.cloud-reads-lines-per-page`): a page beside the lines can lead a model to answer the page, not the lines.
-ORDER_MIN_SIMILARITY = 0.5
 #: Calls one page asks at once. A model this engine serves is bounded again, across every page and
 #: run, by what its memory allows (`llm.model_call_slot`, `local_inference.local_reads_at_once`:
 #: one at a time for a 3B on an 8 GB Mac, #5537); a cloud model keeps these four.
@@ -69,13 +65,22 @@ def _letters(text: str | None) -> str:
     return "".join(c for c in folded if c.isalnum())
 
 
+def _alike(answers: list[str | None], references: list[str | None], shift: int) -> float | None:
+    """The mean letter similarity (`difflib` ratio, 0 to 1) of each answer to the reference `shift` lines further on; None with nothing to compare."""
+    pairs = [(a, references[i + shift]) for i, a in enumerate(answers) if 0 <= i + shift < len(references)]
+    ratios = [difflib.SequenceMatcher(None, _letters(a), _letters(r)).ratio() for a, r in pairs if _letters(a) and _letters(r)]
+    return sum(ratios) / len(ratios) if ratios else None
+
+
 def answers_follow_order(answers: list[str | None], references: list[str | None]) -> bool:
-    """Whether a batch's answers sit on the lines they were asked for: each answer, in order, is alike enough (`ORDER_MIN_SIMILARITY`
-    on average) to the reference reading of its own line. Pairs where either side says nothing are not compared; with none
-    to compare the batch is believed."""
-    ratios = [difflib.SequenceMatcher(None, _letters(a), _letters(r)).ratio()
-              for a, r in zip(answers, references) if _letters(a) and _letters(r)]
-    return not ratios or sum(ratios) / len(ratios) >= ORDER_MIN_SIMILARITY
+    """Whether a batch's answers sit on the lines they were asked for: each answer matches the reference reading of its OWN
+    line at least as well as that of the line before or after (a relative test: a hand the reference reads badly still passes,
+    where an absolute floor would send a correct page line by line). Pairs where either side says nothing are not compared;
+    with nothing to compare the batch is believed."""
+    own = _alike(answers, references, 0)
+    if own is None:
+        return True
+    return all(own >= other for shift in (-1, 1) if (other := _alike(answers, references, shift)) is not None)
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
@@ -209,18 +214,26 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                                    else "the model gave no answer")
         return answer
 
+    reasked: list[int] = []  # the size of each batch that answered out of order and was asked line by line
+
+    async def _done(value):
+        return value
+
     looked: set[int] = set()  # lines the reader answered for, with or without words
     vision_empty: set[int] = set()  # Apple Vision lines whose latest answer was empty
     why_not: dict[int, str] = {}  # a line asked on its own that came back unread, and what the model said (variant B)
 
+    probed: dict[int, list[str | None] | None] = {}  # lines already asked alone as the order check's reference: not asked twice
+
     async def in_order(indices: list[int], answer: list[str | None]) -> bool:
         """A batch asked with the page beside it is checked against a reference reading of its lines (`answers_follow_order`):
-        Kraken's own reading where the line carries one, else the first and last line asked alone."""
+        Kraken's own reading where the line carries one, else the first and last line asked alone (kept in `probed`)."""
         refs: list[str | None] = [found[i].text or None for i in indices]
         if not any(refs):
             probes = sorted({0, len(indices) - 1})
             singles = await asyncio.gather(*(ask([indices[k]], with_page=False) for k in probes))
             for k, single in zip(probes, singles):
+                probed[indices[k]] = single
                 refs[k] = single[0] if single else None
         return answers_follow_order(answer, refs)
 
@@ -229,9 +242,11 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         if answer is not None and page_uri and len(indices) > 1 and not await in_order(indices, answer):
             logger.info("line reader %s: a batch of %d lines answered out of order on %s; asked line by line",
                         config.model, len(indices), image_path)
+            reasked.append(len(indices))
             answer = None
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading
-            singles = await asyncio.gather(*(ask([i], with_page=False) for i in indices))
+            singles = list(await asyncio.gather(*(
+                _done(probed[i]) if i in probed else ask([i], with_page=False) for i in indices)))
             answer = [s[0] if s else None for s in singles]
             looked.update(i for i, s in zip(indices, singles) if s is not None)
         elif answer is not None:
@@ -299,6 +314,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                   if n in why_not and n not in looked}
     page_metadata = {**lines.metadata, "lines_unanswered": unanswered, "lines_found_by": "kraken", "lines_found": len(found),
                      "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
+                     "batches_reasked_by_order": len(reasked), "lines_reasked_by_order": sum(reasked),
                      NO_WRITING_KEY: no_writing}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.
