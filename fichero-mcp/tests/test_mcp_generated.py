@@ -16,7 +16,6 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 import httpx
 import pytest
@@ -208,6 +207,9 @@ def test_main_narrows_the_toolsets(monkeypatch):
     tools, not add to them."""
     monkeypatch.setattr(mcp_server.mcp, "run", lambda *a, **k: None)
     monkeypatch.setattr("sys.argv", ["fichero-mcp", "--toolsets", "hpc"])
+    # `main` probes the engine's health at startup (5b28e99f7): a stubbed transport answers it, so the test never dials an address
+    # that could be a live engine, the owner's included.
+    monkeypatch.setattr(mcp_server, "_client", _transport_client(lambda request: httpx.Response(200, json={"status": "healthy"})))
     try:
         mcp_server.main()
         names = _names(mcp_server.mcp)
