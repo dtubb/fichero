@@ -34,4 +34,19 @@ struct InspectorLanguageTests {
         #expect(never[0].value == "Not determined")
         #expect(InspectorLanguage.origin(source: "metadata", level: "page") == "from the file, on the page")
     }
+
+    /// WHY (#6082): with 3 lines selected the section described their common parent; it must describe the lines.
+    @Test("a selection reads Mixed where the lines differ, and the value where they agree")
+    func selectionMixed() {
+        let one = [setting("language", "es", source: "user", level: "segment"), setting("direction", "ltr", source: "fallback")]
+        let two = [setting("language", "la", source: "user", level: "segment"), setting("direction", "ltr", source: "fallback")]
+        let rows = InspectorLanguage.rows(selection: [one, two, one])
+        #expect(rows.map(\.key) == ["language", "direction"])
+        #expect(rows[0].value == InspectorLanguage.mixed && rows[0].origin == "differs between the selected lines")
+        #expect(rows[1].value == "Left to Right", "the lines agree: the value, not Mixed")
+        #expect(InspectorLanguage.rows(selection: [one]) == InspectorLanguage.rows(one), "one line is its own rows")
+        let missing = InspectorLanguage.rows(selection: [one, [setting("direction", "ltr", source: "fallback")]])
+        #expect(missing.first { $0.key == "language" }?.value == InspectorLanguage.mixed, "a line without the fact differs")
+        #expect(InspectorLanguage.rows(selection: []).isEmpty)
+    }
 }
