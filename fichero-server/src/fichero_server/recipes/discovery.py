@@ -441,7 +441,7 @@ def frontier_catalog_models(provider: str) -> list[str]:
     for family in FRONTIER_FAMILIES:
         words = family.split("-")
         fits = [m for m in listed if all(w in m.casefold() for w in words)
-                and not any(x in m.casefold() for x in ("codex", "image", "tts", "audio", "live", "lite", "mini", "nano"))]
+                and not any(x in m.casefold() for x in ("codex", "image", "tts", "audio", "live", "lite", "-mini", "-nano"))]
         if fits:
             out.append(max(fits, key=version))
     return out
