@@ -57,6 +57,12 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Settings/AI/AISettingsView+Tabs.swift": (
+        "#6022 — false positive, NOT dead: this file's only own type, CloudAccessSection, is used "
+        "by AISettingsView.defaultsTab in this same file (an extension of AISettingsView); the scanner "
+        "reads the file as dead because the type name never appears in another file. It lives here, "
+        "not in its own file, so an Xcode that has not re-read the synchronized folder still builds (022dbff41)."
+    ),
     "Views/Shell/ContentView/Layout/ContentView+WindowEnvironment.swift": (
         "#4902 — false positive, NOT dead: WindowEnvironmentModifier IS used, but only "
         "indirectly — three boundaries (ContentView+Navigation.swift:154, PaneSpec.swift:313, "
