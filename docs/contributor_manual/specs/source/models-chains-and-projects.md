@@ -4259,7 +4259,7 @@ Finding models
   (`POST /api/local-models/download/{runtime}/{model}`, the runtime and model its `download` names; the
   card then says Downloading… and Activity shows the job); **Use for This Step** in Set Up… on any
   candidate, through `POST /api/recipes/project/steps/use-candidate` (setup's own `useCandidate`, which
-  replaces the step in place); and **Search Online** for the whole list (`online=true`). The card says
+  replaces the step in place); and the finder **searches online as it opens** for the whole list (`online=true`), gated by the engine: a local-only project or no project stops it, and the card says so (no press is needed). The card says
   whether the model is on this Mac (`installed`) and where it runs (`runs_where`) in words, and Find a
   Reader… is offered on the steps whose job reads the material (`JobInfo.reads_material`), never a list
   the app keeps. **Built 2026-10-08 (app, #5612), not yet seen:** `ModelFinderStore.download`,
@@ -4788,6 +4788,7 @@ Each is described in the paragraph named; the id lets a test cite it.
   Cand 16 (#6031): HTR-United datasets are no longer shown in the finder; they will appear where the datasets are shown (not built). Not yet run.
 - `source.recipe.cloud-vision-inherits-provider` — **[PARTIAL]** (#6031) a cloud model saved with no capabilities inherits its provider's vision support for reader cards; the card reads 'provider: model'. Test: fichero-server/tests/unit/test_remote_reader_cards_inherit_vision.py, not yet run.
 - `source.find.worth-listing-engine` — **[PARTIAL]** (#6031) the engine lists only what is worth using: a card refused for the project's script or language is not listed (the chosen model excepted), and the per-tier cap is set by the engine. Test: not yet written (a Latin project is not offered a Han reader). 
+- `source.find.key-offers-frontier-models` — **[PARTIAL]** (#6031; reviewer ## 1027) a provider key with no saved model offers that provider's newest frontier vision models per family, read from the vendored price list (no network); the Claude placeholder is not shown when Claude comes through another provider. Test: fichero-server/tests/unit/test_remote_reader_cards_inherit_vision.py::test_a_key_with_no_saved_model_offers_the_newest_frontier_models, not yet run.
 - `source.train.on-the-persons-corrections` — **[OK]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
   model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
   first way is "Fine-tune a Kraken reader on the lines you corrected" (teacher `person`, this Mac or Hugging Face Jobs),
