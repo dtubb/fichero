@@ -68,7 +68,8 @@ def test_pages_reading_at_pause_finish_and_nothing_is_read_twice(client, workflo
     assert not any(p["reason"] and "run had ended" in p["reason"] for p in page_rows), "a paused run's page is never 'run had ended'"
     assert model.calls == 2, "the page reading at Pause finished; nothing else started"
 
-    assert client.put(f"/api/activity/jobs/{run}/paused", json={"paused": False}).status_code == 200
+    # A paused run is resumed with its own Resume (the run's row refuses the plain un-pause: it restarts from its checkpoint).
+    assert client.post(f"/api/workflow-execution/threads/{run}/resume", json={}).status_code in (200, 202)
     model.gates[2].set()
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"))
     assert _status(client, run) == "completed"
