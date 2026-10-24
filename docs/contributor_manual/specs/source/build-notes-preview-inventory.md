@@ -30,6 +30,10 @@ on disk 2026-09-27 on `spec/page-model`.
 **The quiet bottom bar**: the **What to show** menu (`ReaderToolbar.whatToShowMenu`): Show
 Annotations, Show Word Bounding Boxes, Show Regions, Show Text Inline, and **Edit Segments** (the
 mode, #5114).
+<!-- spec: source.preview.what-to-show-always-there -->
+The **What to show** glyph is on the bar for every page, with or without regions, boxes or annotations (#6010):
+on the placeholder bar of a page still loading, or whose original did not load, it is greyed and its menu
+says "Nothing to display yet"; it never goes missing.
 
 **The zoom cluster** (bottom right, `PreviewZoomMapCluster`): zoom − / + / 100% / fit, mini-map,
 loupe and magnifier toggles; their sizes and locks are settings, not visible switches.

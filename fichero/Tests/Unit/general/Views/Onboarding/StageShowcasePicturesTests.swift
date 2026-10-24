@@ -183,3 +183,14 @@ private final class CompareTryProtocol: URLProtocol {
     }
     override func stopLoading() {}
 }
+
+/// #6015: Compare on These Pages saves the screen's choices before the engine tries (it reads the saved setup).
+struct CompareSavesTheScreenFirstTests {
+    @Test func theCompareButtonsSaveBeforeTrying() throws {
+        let samples = try AppSource.text("Views/Onboarding/Stages/SetupStageSamples.swift")
+        #expect(samples.contains("await !saveFirst()"))
+        #expect(!samples.contains("{ Task { await store.tryIt("), "a Compare button tries without saving the screen's choices first")
+        let page = try AppSource.text("Views/Onboarding/Stages/SetupStagePage.swift")
+        #expect(page.contains("saveFirst: { await store.save() }"))
+    }
+}

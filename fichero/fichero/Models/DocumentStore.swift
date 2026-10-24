@@ -613,7 +613,9 @@ final class DocumentStore {
 
     /// Get cached children or load from backend.
     func children(of documentId: String) async -> [Document] {
-        if let cached = childrenCache[documentId] {
+        // An empty cached list is asked again: a folder opened before its items arrived (an import under way) otherwise
+        // stayed blank in the Source pane for good (#6032).
+        if let cached = childrenCache[documentId], !cached.isEmpty {
             return cached
         }
 

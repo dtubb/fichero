@@ -3342,6 +3342,9 @@ Setup
   pipeline installed on this Mac for the project's language is a card for Find names (beside the shipped small
   one, and the text models already here), so a Names try compares them by default; one not installed is not a
   candidate. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
+- `source.onboard.stages.try-reads-the-screen` — **[PARTIAL]** (#6015; built, uncompiled) Compare on These Pages (and Compare, at That Cost) first
+  saves the setup as it is on screen, then asks the engine to try; the engine reads the saved setup, so a step just ticked is never
+  answered "not chosen". A save the engine refuses is shown and no try starts (`SetupStagesTests.swift`).
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage. **Order
@@ -4077,6 +4080,17 @@ Trying another option
   honouring a folder override.* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
+- `source.try.bakeoff-hidden-until-corrected` — **[PARTIAL]** (#6016; built, uncompiled) The comparison block shows only once the project has
+  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and onboarding (Set Up) never
+  shows it: it lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
+- `source.library.no-children-poll-of-a-project` — **[PARTIAL]** (#6026; built, uncompiled) The pending-status refresh (live update and the 15 s
+  fallback poll) asks the engine for the children of a document only: a pane that lists a project's top level (sidebar id
+  "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
+- `source.library.folder-canvas-after-items-arrive` — **[PARTIAL]** (#6032; built, uncompiled, cause a hypothesis: not reproduced) A folder selected in
+  the Items pane previews as its canvas once it has items; an empty children list cached before they arrived is asked again, not kept.
+- `source.find.cloud-card-says-it-once` — **[PARTIAL]** (#6033; built, uncompiled) A cloud card that needs the permission shows one line, the
+  permission one with its Allow Cloud Models action; the engine's refusal ("it runs in the cloud and this project keeps pages on this Mac")
+  is not repeated under it (`CloudNeedsPermissionCardTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown

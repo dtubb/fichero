@@ -365,6 +365,19 @@ struct BakeoffStoreTests {
         #expect(store.canRun, "offered again once there are enough corrected lines")
     }
 
+    /// #6016: a new project (no comparison, too few corrected lines) shows no block at all; it appears with enough lines.
+    @Test func theBlockIsHiddenUntilThereAreCorrectedLines() async {
+        var readiness = Self.readinessJSON(lines: 0, pages: 0)
+        let client = makeClient { request in Self.reply(request, 200, Self.list(nil, readiness: readiness)) }
+        let store = BakeoffStore(client: client)
+        #expect(!store.isShown, "nothing before the engine has answered")
+        await store.loadLatest()
+        #expect(!store.isShown, "a new project has nothing to compare on")
+        readiness = Self.readinessJSON(lines: 132, pages: 3)
+        await store.loadLatest()
+        #expect(store.isShown)
+    }
+
     // MARK: #5660 item 7: every kind of reader, WER, and the line finders
 
     /// The two comparisons as `GET …/bakeoffs` lists them, newest first: the line finders', then the readers'.

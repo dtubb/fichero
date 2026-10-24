@@ -8,7 +8,17 @@ struct SetupStageSamples: View {
     @State var store: SetupStageTryStore
     /// Use This One, per model, from the compare window (the use-candidate route); nil where a step cannot take it.
     var useThis: ((StageCandidate) -> Void)?
+    /// Keeps the choices on screen on the project before a try: the engine tries what the saved setup has chosen, so a
+    /// step just ticked is "not chosen" until this runs (`source.onboard.stages.try-reads-the-screen`, #6015). False: do not try.
+    var saveFirst: (() async -> Bool)?
     @State private var comparing: ComparedPage?
+
+    private func compare(costOK: Bool = false) {
+        Task {
+            if let saveFirst, await !saveFirst() { return }
+            await store.tryIt(costOK: costOK)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -34,7 +44,7 @@ struct SetupStageSamples: View {
                 }
             }
             HStack(alignment: .firstTextBaseline) {
-                Button("Compare on These Pages") { Task { await store.tryIt() } }
+                Button("Compare on These Pages") { compare() }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
                 if store.isTrying || store.result?.isUnderWay == true { ProgressView().controlSize(.small) }
                 if let words = store.result?.underWayWords {
@@ -51,7 +61,7 @@ struct SetupStageSamples: View {
             }
             if let costQuestion = store.costQuestion {
                 Text(costQuestion).font(.callout).foregroundStyle(.secondary)
-                Button("Compare, at That Cost") { Task { await store.tryIt(costOK: true) } }
+                Button("Compare, at That Cost") { compare(costOK: true) }
             }
             if let refusal = store.refusal {
                 Label(refusal, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
