@@ -97,14 +97,13 @@ struct ModelFinderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
+                // The selection, visible: a filled radio glyph on the chosen row, an empty one on the rest.
+                Image(systemName: Self.isChosen(candidate) ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(Self.isChosen(candidate) ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityLabel(Self.isChosen(candidate) ? "In use for this step" : "Not in use")
                 Text(candidate.shortName ?? candidate.name).font(.headline).help(candidate.name)
                 Spacer()
                 actions
-            }
-            if Self.isChosen(candidate) {
-                Label("In use for this step", systemImage: "checkmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.tint)
             }
             if let why = Self.whyOffered(candidate) {
                 Text(why).font(.callout)
@@ -157,7 +156,8 @@ struct ModelFinderCard: View {
             }
         }
         .padding(8)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+        .background(Self.isChosen(candidate) ? AnyShapeStyle(.tint.opacity(0.15)) : AnyShapeStyle(.quaternary.opacity(0.4)),
+                    in: RoundedRectangle(cornerRadius: 8))
         // A model that won't fit is greyed out with its reason, never hidden (#5641).
         .foregroundStyle(Self.wontFit(candidate, in: store.candidates) || Self.needsPermission(candidate) ? .secondary : .primary)
     }
