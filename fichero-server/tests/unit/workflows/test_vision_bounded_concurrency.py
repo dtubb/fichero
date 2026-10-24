@@ -21,7 +21,6 @@ on the loop's concurrency/ordering/error semantics.
 from __future__ import annotations
 
 import asyncio
-import time
 
 import pytest
 
@@ -113,9 +112,7 @@ async def test_files_overlap_and_peak_inflight_capped_by_semaphore(tmp_path):
         finally:
             inflight -= 1
 
-    start = time.perf_counter()
     result = await _run(files, _vision)
-    elapsed = time.perf_counter() - start
 
     # Cap respected: never more than VISION_FAN_OUT_CONCURRENCY in flight.
     assert peak <= VISION_FAN_OUT_CONCURRENCY, (
@@ -123,11 +120,7 @@ async def test_files_overlap_and_peak_inflight_capped_by_semaphore(tmp_path):
     )
     # Concurrency engaged: at least 2 ran at once (not strictly sequential).
     assert peak >= 2, f"expected overlap, peak in-flight was {peak}"
-    # Overlap proven by wall time: ~ceil(8/4)*0.05 = 0.10s, never ~0.40s serial.
-    serial = n_files * per_file
-    assert elapsed < serial * 0.6, (
-        f"elapsed {elapsed:.3f}s looks serial (serial would be ~{serial:.3f}s)"
-    )
+    # Overlap is the peak in flight above, not the wall time: a loaded gate stretched a 0.10 s run past the serial bound.
     # All files produced a result.
     assert len(result["texts"]) == n_files
 

@@ -1689,6 +1689,8 @@ class TestProcessVisionSave:
                 # #5522: Apple Vision is recognition, not a model's read, so
                 # nothing is checked and no page carries a flag.
                 page_flags=None,
+                # The tool's own setting rides through: this one (`update_page_content=False`) never writes a page's text.
+                update_page_content=False,
             )
             geometries = mock_propagate.await_args.kwargs["page_geometries"]
             assert len(geometries) == 2
