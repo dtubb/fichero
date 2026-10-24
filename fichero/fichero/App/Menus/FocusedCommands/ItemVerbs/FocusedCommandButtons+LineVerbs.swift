@@ -13,11 +13,14 @@ struct LineVerbsTarget: Equatable {
     var correct: (@MainActor () -> Void)?
     var open: (@MainActor () -> Void)?
     var createNamedOrder: (@MainActor () -> Void)?
+    /// Delete the selected lines (`source.editor.delete-selected-lines`): one audited batch, one ⌘Z.
+    var delete: (@MainActor () -> Void)?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.segment?.id == rhs.segment?.id && lhs.segment?.kind == rhs.segment?.kind
             && (lhs.correct != nil) == (rhs.correct != nil) && (lhs.open != nil) == (rhs.open != nil)
             && (lhs.createNamedOrder != nil) == (rhs.createNamedOrder != nil)
+            && (lhs.delete != nil) == (rhs.delete != nil)
     }
 }
 
@@ -29,6 +32,11 @@ extension FocusedValues {
 enum LineVerbs {
     static let correctTitle = "Correct This Line…"
     static let createNamedOrderTitle = "Create Named Order"
+    static let deleteTitle = "Delete Lines"
+
+    static func deleteReason(_ target: LineVerbsTarget?) -> String? {
+        target?.delete == nil ? "Select a line in the Reader or the Order list" : nil
+    }
 
     static func correctReason(_ target: LineVerbsTarget?) -> String? {
         guard let segment = target?.segment else { return "Select a line in the Reader or the Order list" }
@@ -67,6 +75,16 @@ struct OpenSegmentMenuItem: View {
     }
 }
 
+struct DeleteLinesMenuItem: View {
+    let target: LineVerbsTarget?
+
+    var body: some View {
+        Button(LineVerbs.deleteTitle) { target?.delete?() }
+            .help("Delete the selected lines; \u{2318}Z brings them back")
+            .disabled(LineVerbs.deleteReason(target) != nil)
+    }
+}
+
 struct CreateNamedOrderMenuItem: View {
     let target: LineVerbsTarget?
 
@@ -88,5 +106,7 @@ struct FocusedLineVerbButtons: View {
         if target != nil, let reason = LineVerbs.openReason(target) { Text(reason) }
         CreateNamedOrderMenuItem(target: target)
         if let reason = LineVerbs.createNamedOrderReason(target) { Text(reason) }
+        DeleteLinesMenuItem(target: target)
+        if let reason = LineVerbs.deleteReason(target) { Text(reason) }
     }
 }
