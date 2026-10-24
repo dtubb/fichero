@@ -121,37 +121,40 @@ def materialize_region_crop(
         raise RegionCropUnavailable(f"parent image missing on disk: {source}")
 
     try:
-        from PIL import Image
+        from PIL import Image  # noqa: F401
     except ImportError as exc:  # pragma: no cover - environment
         raise RegionCropUnavailable(f"Pillow unavailable: {exc}") from exc
 
+    from fichero_server.media.upright import open_in_frame, region_frame
+
     try:
-        with Image.open(source) as image:
-            width, height = image.size
-            x, y, w, h = region.rect
-            box = (
-                int(round(x * width)), int(round(y * height)),
-                int(round((x + w) * width)), int(round((y + h) * height)),
+        # The parent in the frame the region was measured on (`media/upright.py`): raw unless the region says upright.
+        image = open_in_frame(source, region_frame(region))
+        width, height = image.size
+        x, y, w, h = region.rect
+        box = (
+            int(round(x * width)), int(round(y * height)),
+            int(round((x + w) * width)), int(round((y + h) * height)),
+        )
+        if box[2] <= box[0] or box[3] <= box[1]:
+            raise RegionCropUnavailable(
+                f"{document.id}'s region is empty at the parent's size "
+                f"({width}x{height}): {region.rect}"
             )
-            if box[2] <= box[0] or box[3] <= box[1]:
-                raise RegionCropUnavailable(
-                    f"{document.id}'s region is empty at the parent's size "
-                    f"({width}x{height}): {region.rect}"
-                )
-            cropped = image.crop(box)
-            crop_width, crop_height = cropped.size
+        cropped = image.crop(box)
+        crop_width, crop_height = cropped.size
 
-            import tempfile
+        import tempfile
 
-            suffix = source.suffix or ".png"
-            with tempfile.TemporaryDirectory() as staging:
-                staged = Path(staging) / f"{document.id}_region{suffix}"
-                cropped.save(staged)
+        suffix = source.suffix or ".png"
+        with tempfile.TemporaryDirectory() as staging:
+            staged = Path(staging) / f"{document.id}_region{suffix}"
+            cropped.save(staged)
 
-                from fichero_server.importers.ingest import _copy_to_library
+            from fichero_server.importers.ingest import _copy_to_library
 
-                package = Path(library_path) if library_path else None
-                stored = _copy_to_library(staged, package)
+            package = Path(library_path) if library_path else None
+            stored = _copy_to_library(staged, package)
     except RegionCropUnavailable:
         raise
     except Exception as exc:

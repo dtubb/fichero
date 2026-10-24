@@ -746,6 +746,8 @@ def _region_in_parent(
         rect=[left / width, top / height, box_width / width, box_height / height],
         confidence=RegionConfidence.measured,
         method=method,
+        # Measured on the EXIF-honouring image `_load_source_image` gives (the page as shown): upright, not the raw file.
+        frame="upright",
     )
 
 
