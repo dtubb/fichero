@@ -35,6 +35,8 @@ extension ContentView {
     }
 
     private func applyWindowWidth(_ newWidth: Double) {
+        // A divider drag may have started in the 150 ms since the reading: the same guard as at the reading.
+        guard !dividerDragInFlight else { return }
         guard WindowWidthSettle.isNewWidth(newWidth, since: measuredWindowWidth) else { return }
         measuredWindowWidth = newWidth
         updateColumnVisibility()
