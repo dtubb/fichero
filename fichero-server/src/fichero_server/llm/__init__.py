@@ -508,6 +508,11 @@ def _strip_outer_code_fences(content: Any) -> Any:
     Returns non-string values unchanged so multimodal / structured-output
     responses pass through untouched.
     """
+    if isinstance(content, list) and content and all(
+        isinstance(p, str) or (isinstance(p, dict) and p.get("type") == "text") for p in content
+    ):
+        # Gemini 3 answers as a list of text parts, not one string: join them (a part of any other kind leaves the list as it is).
+        content = "".join(p if isinstance(p, str) else str(p.get("text", "")) for p in content)
     if not isinstance(content, str):
         return content
     text = content.strip()
