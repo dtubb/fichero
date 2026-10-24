@@ -76778,6 +76778,12 @@
             "title": "Chosen",
             "description": "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); listed first (#5660 item 8)",
             "default": false
+          },
+          "default_pick": {
+            "type": "boolean",
+            "title": "Default Pick",
+            "description": "with `chosen`: no reader is saved for the step, and this is the top-ranked model that runs here at no cost, shown as chosen by default; Use for This Step still saves it (`source.find.free-local-model-is-the-default-pick`)",
+            "default": false
           }
         },
         "type": "object",
