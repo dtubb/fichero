@@ -178,8 +178,9 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `library open` and MCP `fichero_use_library` resolve a name through `GET /api/registry/resolve`
   (404 naming the known projects; 409 naming the paths when two share the name). Pinned by
   `fichero-server/tests/unit/api/test_run_model_trained_id.py`,
-  `fichero-server/tests/unit/api/test_resolve_project_by_name.py`, A name the registry kept with its package's extension ("Test 14.fichero") resolves by the shown name too (owner 2026-10-24; `fichero-server/tests/unit/api/test_resolve_name_kept_with_extension.py`).
+  `fichero-server/tests/unit/api/test_resolve_project_by_name.py`,
   `fichero-server/tests/unit/cli/test_cli_commands.py` and `fichero-mcp/tests/test_mcp_server.py`.
+  A name the registry kept with its package's extension ("Test 14.fichero") resolves by the shown name too (owner 2026-10-24; `fichero-server/tests/unit/api/test_resolve_name_kept_with_extension.py`).
 - `openapi.cli.path-ids-positional` **[OK]** (#5584) every path parameter of a generated command
   is positional (`fichero docs get-children <doc_id>`, as `docs get <doc_id>`), and every
   body field and query parameter an option. The MCP tools take every argument by name, the path's
