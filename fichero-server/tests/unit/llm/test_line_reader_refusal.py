@@ -75,7 +75,7 @@ def test_the_page_rides_once_per_request_reduced_beside_the_batch_of_lines(monke
     import base64
     import io
 
-    call, *checks = _calls(monkeypatch, tmp_path, ["a", "b", "c"])
+    call, *checks = _calls(monkeypatch, tmp_path, ["a", "b", "c"], page_context=True)
     assert len(checks) == 2 and all(len(c["images"]) == 1 for c in checks), "then the first and last line alone, to check the order"
     assert len(call["images"]) == 4, "the page, then the three lines"
     with Image.open(io.BytesIO(base64.b64decode(call["images"][0].split(",", 1)[1]))) as page:
@@ -100,7 +100,7 @@ def test_a_line_asked_again_on_its_own_does_not_carry_the_page(monkeypatch, tmp_
 
     monkeypatch.setattr(llm, "vision", fake_vision)
     path, geometry = _geometry(tmp_path, ["a", "b"])
-    asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x")))
+    asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), page_context=True))
     batch, *retries = seen
     assert len(batch["images"]) == 3 and len(retries) == 2
     assert all(len(r["images"]) == 1 and not r["prompt"].startswith("Before") for r in retries)
@@ -122,3 +122,10 @@ def test_the_line_says_why_it_is_unread_after_the_page_is_written(db):
     assert unread_reasons(db, page)[first.id] == reason
     mark_unread_reasons(db, {first.id: reason})
     assert db.get(Segment, first.id).version == before + 1, "the same reason twice is one change"
+
+
+def test_the_page_does_not_ride_unless_asked(monkeypatch, tmp_path):
+    """Measured 2026-10-24 on a cloud reader (`source.recipe.cloud-reads-lines-per-page`): the page beside the lines cost more and made a
+    batch answer out of order, so a cloud reader's lines go without it by default."""
+    [call] = _calls(monkeypatch, tmp_path, ["a", "b", "c"])
+    assert len(call["images"]) == 3 and not call["prompt"].startswith("Before")

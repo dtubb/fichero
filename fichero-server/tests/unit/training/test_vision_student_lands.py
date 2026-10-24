@@ -86,12 +86,12 @@ def test_the_conversion_is_mlx_vlm_four_bit_in_the_mlx_runtime(monkeypatch, tmp_
 
 def test_the_line_reader_asks_a_student_one_line_at_a_time(store, tmp_path):
     """WHY: the student learned to read one picture per question; asked eight at once it is asked a
-    task it never learned. Any other model keeps the reader's batch of eight."""
+    task it never learned. Any other model keeps the reader's batch (`LINES_PER_CALL`)."""
     model_id = land_vision_student(_job_output(tmp_path), job_id="j1", name="sergio", card=CARD,
                                    convert=_fake_convert)
     assert line_reader.lines_per_call(SimpleNamespace(provider="omlx", model=model_id)) == 1
     assert line_reader.lines_per_call(SimpleNamespace(provider="omlx", model=f"omlx/{model_id}")) == 1
-    assert line_reader.lines_per_call(SimpleNamespace(provider="openrouter", model="google/gemini-3-flash-preview")) == 8
+    assert line_reader.lines_per_call(SimpleNamespace(provider="openrouter", model="google/gemini-3-flash-preview")) == line_reader.LINES_PER_CALL
 
 
 def test_one_card_two_builds_the_hf_weights_for_linux_and_mlx_for_this_mac(store, tmp_path):
