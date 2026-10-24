@@ -1716,11 +1716,13 @@ def for_the_project(cards: list[Any], job: str, a: Any, material: str, chosen_id
     return [c for c in cards if c.id == chosen_id or fits(c)]
 
 
-def _offered_order(card: Any) -> tuple[int, str]:
-    """The person's cloud models top the list, likely the best readers (owner 2026-10-23), grouped by provider; then the
-    rest. ponytail: by provider only; a per-language cloud ranking (Loove's coverage) is the upgrade."""
+def _offered_order(card: Any) -> tuple[int, int, str]:
+    """The person's cloud models top the list, likely the best readers (owner 2026-10-23), in their frontier family's
+    expected order (`frontier_rank`), then by provider; then the rest."""
+    from fichero_server.recipes.discovery import frontier_rank
+
     runs_on = str(card.runs_on)
-    return (0, runs_on.split(":", 1)[1]) if runs_on.startswith("cloud:") else (1, "")
+    return (0, frontier_rank(card), runs_on.split(":", 1)[1]) if runs_on.startswith("cloud:") else (1, 0, "")
 
 
 # =============================================================================
