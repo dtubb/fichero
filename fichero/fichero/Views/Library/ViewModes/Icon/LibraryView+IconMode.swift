@@ -106,7 +106,12 @@ extension LibraryView {
             // in a narrow sidebar grid the ceiling stays small. Cell width is
             // 100 * scale + ~16 padding, so max ≈ (width - 32) / 100.
             let pinchMax = max(1.0, min(5.0, Double((geometry.size.width - 32) / 100)))
-            let filmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: effectiveIconScale)
+            // Strip or grid is decided on the PERSISTED scale, never the live pinch value: the two are different view
+            // types (LazyHGrid / LazyVGrid) under a different scroll axis, and swapping them while the magnification
+            // gesture on this same container is live replaces the view its recognizer belongs to mid-callback
+            // (owner crash 2026-10-24, an exclusivity trap in a gesture callback). A pinch resizes tiles; the layout
+            // follows when the hands come off.
+            let filmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: iconViewScale)
             ScrollViewReader { proxy in
                 ScrollView(filmstrip ? .horizontal : .vertical) {
                     iconLayout(filmstrip: filmstrip, itemMin: itemMin, itemMax: itemMax) {
