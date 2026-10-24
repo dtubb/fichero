@@ -66,6 +66,7 @@ def main() -> int:
     ap.add_argument("--plan-only", action="store_true")
     ap.add_argument("--library", help="an existing .fichero package to open (a copy of an earlier run's): the pages are not imported again")
     ap.add_argument("--no-start", action="store_true", help="import and set up, do not press Start (then --extra can still run)")
+    ap.add_argument("--keys", default="anthropic,google", help="providers whose key is read here and given to the temp engine (--cloud)")
     ap.add_argument("--language", default="la")
     ap.add_argument("--script", default="Latn")
     ap.add_argument("--purposes", default="transcribe,translate-normalise,entities,statements,search,catalogue")
@@ -84,6 +85,19 @@ def main() -> int:
         report["library"] = library
         headers["X-Fichero-Library-Path"] = library
         with httpx.Client(timeout=120, headers=headers, **ep.httpx_kwargs()) as client:
+            if args.cloud:
+                # The app owns the keychain and pushes a key to its engine over the authenticated transport, held in memory
+                # (#4534). This stands in for the app: the key is read here and sent to the throwaway engine, never printed or kept.
+                from fichero_server.llm import get_api_key
+
+                supplied = []
+                for provider in args.keys.split(","):
+                    key = get_api_key(provider)
+                    if key:
+                        client.post(f"/api/providers/{provider}/api-key", json={"api_key": key}).raise_for_status()
+                        supplied.append(provider)
+                    del key
+                report["keys_supplied_for"] = supplied
             client.post("/api/library", json={"path": library}).raise_for_status()
             report["engine_log"] = ep.log_path
             if not args.library:
@@ -95,8 +109,13 @@ def main() -> int:
             assembled = r.json()
             report["assembled_steps"] = [s.get("job") for s in assembled.get("steps", [])]
             report["assembled_notes"] = {k: assembled.get(k) for k in ("gaps", "by_hand", "left_off", "removed")}
-            # Answers alone: the engine assembles and stores the recipe itself (#5747), as Set Up's Continue does.
-            r = client.put("/api/recipes/project", json={"answers": {k: body[k] for k in ("purposes", "languages", "scripts", "materials", "cloud_allowed", "pages")}})
+            answers = {k: body[k] for k in ("purposes", "languages", "scripts", "materials", "cloud_allowed", "pages")}
+            if args.library:
+                # A library carried over from another machine holds that machine's recipe: assemble again here, with the keys here.
+                r = client.put("/api/recipes/project", json={"answers": answers, "recipe": assembled})
+            else:
+                # Answers alone: the engine assembles and stores the recipe itself (#5747), as Set Up's Continue does.
+                r = client.put("/api/recipes/project", json={"answers": answers})
             r.raise_for_status()
             if args.cloud:
                 client.post("/api/recipes/project/allow-cloud").raise_for_status()
