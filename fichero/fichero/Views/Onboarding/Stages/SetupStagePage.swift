@@ -12,6 +12,8 @@ struct SetupStagePage: View {
     var onFix: ((String) -> Void)?
     var bakeoff: BakeoffSection.Context?
     var project: LibraryManager.LibraryReference?
+    /// Change… on the "worked out from your pages" line: back to About the Material, where Languages is answered.
+    var onChangeLanguage: (() -> Void)?
 
     /// The stage's try on the samples, shared by the picture at the top and the samples below.
     @State private var tryStore: SetupStageTryStore?
@@ -144,6 +146,16 @@ struct SetupStagePage: View {
     @ViewBuilder
     private var whoRunsIt: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // "Not sure" on About the Material: the language the engine worked out from the sample pages, said
+            // here on every stage page with the way back to change it (`source.onboard.project.about-material-language`).
+            if let sentence = Self.inferredSentence(store.recipe) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(sentence).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    Button("Change\u{2026}") { onChangeLanguage?() }
+                        .buttonStyle(.link)
+                        .accessibilityIdentifier("setup.stage.changeLanguage")
+                }
+            }
             Text("Which model does it").font(.headline)
             if let recipe = store.recipe {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
@@ -158,6 +170,15 @@ struct SetupStagePage: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// The "worked out from your pages" sentence of a plan whose answers said Not sure; nil for any other plan, and for
+    /// an empty sentence (never a blank line). Pure, for the tests.
+    static func inferredSentence(_ recipe: Components.Schemas.AssembledRecipe?) -> String? {
+        guard let sentence = recipe?.inferredLanguage?.sentence, !sentence.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return nil
+        }
+        return sentence
     }
 
     /// Why no model is proposed on this page, in words: no language answered (go back, or Not sure), else the
