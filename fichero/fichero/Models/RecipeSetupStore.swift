@@ -406,6 +406,10 @@ final class RecipeSetupStore {
     /// `source.onboard.auto.installed-model-first`): the engine sets it on the steps that waited for
     /// the download and saves the recipe; the changed steps replace theirs in place, and Ready reads
     /// the plan again because the recipe changed.
+    /// A step's reader changed by any road (Use for This Step, Use Instead, back to Set Up's pick, a step turned on): the
+    /// one place the revision the finder and the stage page read candidates again on is moved (## 1097).
+    func readerChanged() { choiceRevision += 1 }
+
     func useInstead(_ download: Components.Schemas.StartDownload,
                     _ installed: Components.Schemas.StartInstead) async {
         do {
@@ -416,6 +420,7 @@ final class RecipeSetupStore {
                 if let recipe = try success.body.json.recipe {
                     adoptEngineRecipe(try JSONEncoder().encode(recipe))
                 }
+                readerChanged()
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description
                     ?? "The engine would not use \(installed.name)."
@@ -446,7 +451,7 @@ final class RecipeSetupStore {
                 if let recipe = try success.body.json.recipe {
                     adoptEngineRecipe(try JSONEncoder().encode(recipe))
                 }
-                choiceRevision += 1
+                readerChanged()
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description
                     ?? "The engine would not use \(candidate.name) for this step."

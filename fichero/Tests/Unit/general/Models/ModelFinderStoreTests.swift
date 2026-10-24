@@ -421,6 +421,25 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
 
+    /// WHY (## 1097): every road that changes a step's reader moves `choiceRevision` through `readerChanged()`, so the
+    /// finder reads its candidates again; a refused one moves nothing.
+    func testBackToSetupPicksPickMovesTheChoiceRevision() async {
+        FinderMockURLProtocol.reset { request in
+            if request.url?.path == "/api/recipes/project/steps/use-setup-pick" {
+                if FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-setup-pick").count > 1 {
+                    return (422, #"{"detail":"no"}"#)
+                }
+                return (200, #"{"answers":null,"recipe":null}"#)
+            }
+            return (200, FinderJSON.list([FinderJSON.shipped]))
+        }
+        let setup = RecipeSetupStore(client: makeClient())
+        await setup.useSetupPick(step: "read")
+        XCTAssertEqual(setup.choiceRevision, 1)
+        await setup.useSetupPick(step: "read")
+        XCTAssertEqual(setup.choiceRevision, 1, "a refused one moves nothing")
+    }
+
     /// WHY (`source.onboard.new-project-inherits-the-cloud-setting`): a project that has not answered starts from the app's
     /// yes, as the ENGINE says it (`cloud_inherited`); the app keeps no copy of the rule, and one that answered keeps its own.
     func testANewProjectStartsFromTheCloudSettingTheEngineReports() async throws {
