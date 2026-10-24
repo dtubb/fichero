@@ -89,8 +89,9 @@ async def _find_regions_with_kraken(files: list, documents: list, state: State) 
     db = db_manager.get_database(state.get("library_path", ""))
     run_id = state.get("task_id") or ""
     # Stop ends it before the next page, and the throttle's and progress words reach the run's row, as in a recipe.
+    created: list[str] = []  # the artifacts this run made, so the runner tells the app which to refresh (#4890)
     account = await asyncio.to_thread(
-        regions.find_regions, db, ids, run_id, "kraken:blla", provider="kraken",
+        regions.find_regions, db, ids, run_id, "kraken:blla", provider="kraken", created=created,
         stop=lambda: cancellation_requested(run_id),
         say=(lambda words: jobs.say(db, run_id, words)) if run_id else None,
         person=jobs.current_job_is_a_persons())
@@ -99,7 +100,7 @@ async def _find_regions_with_kraken(files: list, documents: list, state: State) 
     # `results` and `processed_count` as the node always gave them: the builder caches a result that has results and
     # counts the pages the node did.
     result: dict[str, Any] = {
-        "files": files, "documents": documents, "regions_found": account, "artifacts": [],
+        "files": files, "documents": documents, "regions_found": account, "artifacts": created,
         "results": [{"document_id": i} for i in ids] if account["pages"] else [],
         "processed_count": account["pages"],
     }
