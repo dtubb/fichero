@@ -66,3 +66,12 @@ def test_only_rows_worth_using_are_listed_five_a_tier():
                                          row("perm", tier="cloud", perm=True)]
     ids = [r.id for r in worth_listing(rows)]
     assert ids == ["0", "1", "2", "3", "4", "chosen", "licence", "perm"]
+
+
+def test_a_key_with_no_saved_model_offers_the_newest_frontier_models(monkeypatch):
+    from fichero_server.recipes.discovery import frontier_catalog_models
+
+    listed = [{"model_id": m, "supports_vision": True} for m in
+              ("claude-4-opus-20250514", "claude-opus-4-7", "gemini-3-flash", "gemini-3.1-flash-image-preview")]
+    monkeypatch.setattr("fichero_server.llm.model_types.list_models_for_provider", lambda p: listed)
+    assert frontier_catalog_models("x") == ["claude-opus-4-7", "gemini-3-flash"]  # a date is no version; no image model

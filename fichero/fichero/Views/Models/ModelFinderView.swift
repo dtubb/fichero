@@ -208,7 +208,11 @@ struct ModelFinderCard: View {
                !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
-                    Task { await step.setup.useCandidate(candidate, forStep: step.id) }
+                    // Read again after the choice, so the card moves to the top marked "In use for this step" at once.
+                    Task {
+                        await step.setup.useCandidate(candidate, forStep: step.id)
+                        if let query = store.query { await store.load(query) }
+                    }
                 }
                 .controlSize(.small)
                 .help("Use it for this step; a model still to download is then a download Start offers")
