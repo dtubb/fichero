@@ -4021,6 +4021,16 @@
     ],
     "editorial": [
       {
+        "method": "POST",
+        "path": "/editorial/many",
+        "operation_id": "record_many_api_editorial_many_post",
+        "summary": "Record Many",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EditorialRecordManyParams",
+        "response_model": "EditorialActionAnswer"
+      },
+      {
         "method": "GET",
         "path": "/editorial/segment/{segment_id}",
         "operation_id": "facts_of_segment_api_editorial_segment__segment_id__get",
@@ -4031,6 +4041,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EditorialListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/editorial/withdraw-many",
+        "operation_id": "withdraw_many_api_editorial_withdraw_many_post",
+        "summary": "Withdraw Many",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FactIdsParams",
+        "response_model": "EditorialActionAnswer"
       }
     ],
     "entities": [
@@ -4980,6 +5000,26 @@
         "path_params": [],
         "query_params": [],
         "request_model": "HandAttributeParams",
+        "response_model": "HandActionAnswer"
+      },
+      {
+        "method": "POST",
+        "path": "/hands/attributions/many",
+        "operation_id": "attribute_segments_api_hands_attributions_many_post",
+        "summary": "Attribute Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HandAttributeManyParams",
+        "response_model": "HandActionAnswer"
+      },
+      {
+        "method": "POST",
+        "path": "/hands/attributions/withdraw-many",
+        "operation_id": "withdraw_attributions_api_hands_attributions_withdraw_many_post",
+        "summary": "Withdraw Attributions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AttributionIdsParams",
         "response_model": "HandActionAnswer"
       },
       {
@@ -10466,6 +10506,16 @@
       },
       {
         "method": "POST",
+        "path": "/rights/many",
+        "operation_id": "set_rights_many_api_rights_many_post",
+        "summary": "Set Rights Many",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RightsSetManyParams",
+        "response_model": "RightsAnswer"
+      },
+      {
+        "method": "POST",
         "path": "/rights/{record_id}/withdraw",
         "operation_id": "withdraw_rights_api_rights__record_id__withdraw_post",
         "summary": "Withdraw Rights",
@@ -11476,6 +11526,16 @@
         ],
         "request_model": null,
         "response_model": "ResolvedSourceSettings"
+      },
+      {
+        "method": "POST",
+        "path": "/source-settings/resolve-many",
+        "operation_id": "resolve_many_api_source_settings_resolve_many_post",
+        "summary": "Resolve Many",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ResolveManyParams",
+        "response_model": "ResolvedMany"
       }
     ],
     "sources": [

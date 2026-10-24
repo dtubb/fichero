@@ -294,6 +294,19 @@ def test_a_hand_lists_only_what_the_caller_may_read(denied_and_allowed, db):
     assert len(body["items"]) == 1 and body["withheld"] == 1
 
 
+def test_resolve_many_leaves_out_a_line_on_a_denied_page_and_counts_it(denied_and_allowed, db):
+    """`POST /api/source-settings/resolve-many` names lines in a body, which the GET sweep cannot see (#6082): a denied page's
+    line is left out and counted, and a missing id answers the same (no existence probe)."""
+    client, headers, denied, allowed = denied_and_allowed
+    lines = [_make_segment(db, document_id=doc.id, pass_id=_make_pass(db, doc.id).id, rect=[0.1, 0.1, 0.2, 0.05])
+             for doc in (denied, allowed)]
+    response = client.post("/api/source-settings/resolve-many",
+                           json={"segment_ids": [lines[0].id, lines[1].id, "nope"]}, headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [i["segment_id"] for i in body["items"]] == [lines[1].id] and body["withheld"] == 2
+
+
 def test_a_bookmark_to_a_denied_page_does_not_hand_it_over(denied_and_allowed, db):
     client, headers, denied, allowed = denied_and_allowed
     for doc, expected in ((denied, 403), (allowed, 200)):

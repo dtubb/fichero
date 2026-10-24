@@ -2736,12 +2736,33 @@ def fichero_segments_get_page_disagreement(
     return _rt.call("GET", f"/api/documents/{page_id}/disagreement")
 
 
+def fichero_editorial_record_many(
+    *,
+    certainty: Annotated[Optional[float], Field(description='Certainty.')] = None,
+    extent: Annotated[Optional[str], Field(description='Extent.')] = None,
+    kind: Annotated[str, Field(description="What an editor can say about a stretch of text. An open list is a question for the maintainer; these are the spec's seven. One of: unclear, lost, restored, supplied, superfluous, deleted, added.")],
+    place: Annotated[Optional[str], Field(description='Place.')] = None,
+    reason: Annotated[Optional[str], Field(description='Reason.')] = None,
+    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+) -> Any:
+    "Record Many\n\nOne whole-segment fact on several segments (the Inspector's multi-selection): one audit id, one undo.\n\nRoute: POST /api/editorial/many (toolset `editorial`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/editorial/many", json=_rt.body({"certainty": certainty, "extent": extent, "kind": kind, "place": place, "reason": reason, "segment_ids": segment_ids}))
+
+
 def fichero_editorial_facts_of_segment(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
 ) -> Any:
     "Facts Of Segment\n\nA segment's live editorial facts, and its counting reading drawn with them.\n\nRoute: GET /api/editorial/segment/{segment_id} (toolset `editorial`; reads)."
     return _rt.call("GET", f"/api/editorial/segment/{segment_id}")
+
+
+def fichero_editorial_withdraw_many(
+    *,
+    fact_ids: Annotated[list[Any], Field(description='Fact Ids.')],
+) -> Any:
+    'Withdraw Many\n\nRoute: POST /api/editorial/withdraw-many (toolset `editorial`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/editorial/withdraw-many", json=_rt.body({"fact_ids": fact_ids}))
 
 
 def fichero_entities_list(
@@ -3349,6 +3370,24 @@ def fichero_hands_attribute_segment(
 ) -> Any:
     'Attribute Segment\n\nRoute: POST /api/hands/attributions (toolset `hands`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/hands/attributions", json=_rt.body({"certainty": certainty, "hand_id": hand_id, "segment_id": segment_id}))
+
+
+def fichero_hands_attribute_segments(
+    *,
+    certainty: Annotated[Optional[float], Field(description='Certainty.')] = None,
+    hand_id: Annotated[str, Field(description='Hand Id.')],
+    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+) -> Any:
+    "Attribute Segments\n\nOne hand on several segments (the Inspector's multi-selection): one audit id, one undo.\n\nRoute: POST /api/hands/attributions/many (toolset `hands`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/hands/attributions/many", json=_rt.body({"certainty": certainty, "hand_id": hand_id, "segment_ids": segment_ids}))
+
+
+def fichero_hands_withdraw_attributions(
+    *,
+    attribution_ids: Annotated[list[Any], Field(description='Attribution Ids.')],
+) -> Any:
+    'Withdraw Attributions\n\nRoute: POST /api/hands/attributions/withdraw-many (toolset `hands`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/hands/attributions/withdraw-many", json=_rt.body({"attribution_ids": attribution_ids}))
 
 
 def fichero_hands_withdraw_attribution(
@@ -7241,6 +7280,21 @@ def fichero_rights_get_effective(
     return _rt.call("GET", "/api/rights/effective", params={"target_id": target_id, "target_kind": target_kind})
 
 
+def fichero_rights_set_many(
+    *,
+    conditions: Annotated[Optional[str], Field(description='Conditions.')] = None,
+    consent: Annotated[Optional[dict[str, Any]], Field(description='Consent.')] = None,
+    holders: Annotated[Optional[list[Any]], Field(description='Holders.')] = None,
+    labels: Annotated[Optional[list[Any]], Field(description='Labels.')] = None,
+    model_use: Annotated[Optional[str], Field(description='Where a segment may be sent (`source.rights.model-use`), strictest first. One of: none, local, cloud.')] = None,
+    readers: Annotated[Optional[list[Any]], Field(description='Readers.')] = None,
+    restricted: Annotated[Optional[bool], Field(description='Restricted. Default: false.')] = None,
+    targets: Annotated[list[Any], Field(description='the segments, documents or folders the same record is set on.')],
+) -> Any:
+    "Set Rights Many\n\nThe same record on several targets (the Inspector's multi-selection): one audit id, one undo, all or nothing.\n\nRoute: POST /api/rights/many (toolset `rights`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/rights/many", json=_rt.body({"conditions": conditions, "consent": consent, "holders": holders, "labels": labels, "model_use": model_use, "readers": readers, "restricted": restricted, "targets": targets}))
+
+
 def fichero_rights_withdraw(
     *,
     record_id: Annotated[str, Field(description='Record Id')],
@@ -7999,8 +8053,16 @@ def fichero_source_settings_resolve(
     document_id: Annotated[Optional[str], Field(description='The document, when no segment')] = None,
     segment_id: Annotated[Optional[str], Field(description='The segment to resolve for')] = None,
 ) -> Any:
-    'Resolve Source Settings\n\n`GET /api/source-settings/resolve` — the three facts and the encoding, each\nwith the rung that answered (`source.lang.says-where-from`).\n\nFor ONE selection, not for a list: resolving every segment of a page here\nwould be one walk per row, which is why the seam carries what is SET and this\nanswers what is RESOLVED.\n\nRoute: GET /api/source-settings/resolve (toolset `source-settings`; reads).'
+    'Resolve Source Settings\n\n`GET /api/source-settings/resolve` — the three facts and the encoding, each\nwith the rung that answered (`source.lang.says-where-from`).\n\nFor ONE selection; a multi-selection asks `POST /api/source-settings/resolve-many`, one request for all of it.\n\nRoute: GET /api/source-settings/resolve (toolset `source-settings`; reads).'
     return _rt.call("GET", "/api/source-settings/resolve", params={"document_id": document_id, "segment_id": segment_id})
+
+
+def fichero_source_settings_resolve_many(
+    *,
+    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+) -> Any:
+    'Resolve Many\n\n`POST /api/source-settings/resolve-many` — the resolved settings, hands, certainty and rights of a whole\nmulti-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. An id that\ndoes not exist, or is on a page the caller may not read, is left out and counted in `withheld` (never a 404: that would\nsay which ids exist behind a denied page). Ceiling: one walk per segment inside the engine, not per request.\n\nRoute: POST /api/source-settings/resolve-many (toolset `source-settings`; reads).'
+    return _rt.call("POST", "/api/source-settings/resolve-many", json=_rt.body({"segment_ids": segment_ids}))
 
 
 def fichero_sources_list(
@@ -9335,7 +9397,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_rollup", "documents", "GET", "/api/documents/{document_id}/rollup", fichero_documents_rollup),
     GeneratedTool("fichero_segments_get_compare_readers", "segments", "GET", "/api/documents/{page_id}/compare-readers", fichero_segments_get_compare_readers),
     GeneratedTool("fichero_segments_get_page_disagreement", "segments", "GET", "/api/documents/{page_id}/disagreement", fichero_segments_get_page_disagreement),
+    GeneratedTool("fichero_editorial_record_many", "editorial", "POST", "/api/editorial/many", fichero_editorial_record_many),
     GeneratedTool("fichero_editorial_facts_of_segment", "editorial", "GET", "/api/editorial/segment/{segment_id}", fichero_editorial_facts_of_segment),
+    GeneratedTool("fichero_editorial_withdraw_many", "editorial", "POST", "/api/editorial/withdraw-many", fichero_editorial_withdraw_many),
     GeneratedTool("fichero_entities_list", "entities", "GET", "/api/entities", fichero_entities_list),
     GeneratedTool("fichero_entities_upsert", "entities", "POST", "/api/entities", fichero_entities_upsert),
     GeneratedTool("fichero_entities_get_alias_map", "entities", "GET", "/api/entities/alias-map", fichero_entities_get_alias_map),
@@ -9399,6 +9463,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hands_list", "hands", "GET", "/api/hands", fichero_hands_list),
     GeneratedTool("fichero_hands_create", "hands", "POST", "/api/hands", fichero_hands_create),
     GeneratedTool("fichero_hands_attribute_segment", "hands", "POST", "/api/hands/attributions", fichero_hands_attribute_segment),
+    GeneratedTool("fichero_hands_attribute_segments", "hands", "POST", "/api/hands/attributions/many", fichero_hands_attribute_segments),
+    GeneratedTool("fichero_hands_withdraw_attributions", "hands", "POST", "/api/hands/attributions/withdraw-many", fichero_hands_withdraw_attributions),
     GeneratedTool("fichero_hands_withdraw_attribution", "hands", "POST", "/api/hands/attributions/{attribution_id}/withdraw", fichero_hands_withdraw_attribution),
     GeneratedTool("fichero_hands_of_segment", "hands", "GET", "/api/hands/segment/{segment_id}", fichero_hands_of_segment),
     GeneratedTool("fichero_hands_everything_in_a", "hands", "GET", "/api/hands/{hand_id}/attributions", fichero_hands_everything_in_a),
@@ -9807,6 +9873,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_research_execute_web_search", "research", "POST", "/api/research/tools/web-search", fichero_research_execute_web_search),
     GeneratedTool("fichero_rights_set", "rights", "POST", "/api/rights", fichero_rights_set),
     GeneratedTool("fichero_rights_get_effective", "rights", "GET", "/api/rights/effective", fichero_rights_get_effective),
+    GeneratedTool("fichero_rights_set_many", "rights", "POST", "/api/rights/many", fichero_rights_set_many),
     GeneratedTool("fichero_rights_withdraw", "rights", "POST", "/api/rights/{record_id}/withdraw", fichero_rights_withdraw),
     GeneratedTool("fichero_sandbox_create_security_scoped_access", "sandbox", "POST", "/api/sandbox/security-scoped-access", fichero_sandbox_create_security_scoped_access),
     GeneratedTool("fichero_schedules_list", "schedules", "GET", "/api/schedules", fichero_schedules_list),
@@ -9882,6 +9949,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_signs_withdraw", "signs", "POST", "/api/signs/{sign_id}/withdraw", fichero_signs_withdraw),
     GeneratedTool("fichero_source_settings_put", "source-settings", "PUT", "/api/source-settings", fichero_source_settings_put),
     GeneratedTool("fichero_source_settings_resolve", "source-settings", "GET", "/api/source-settings/resolve", fichero_source_settings_resolve),
+    GeneratedTool("fichero_source_settings_resolve_many", "source-settings", "POST", "/api/source-settings/resolve-many", fichero_source_settings_resolve_many),
     GeneratedTool("fichero_sources_list", "sources", "GET", "/api/sources", fichero_sources_list),
     GeneratedTool("fichero_sources_upsert", "sources", "POST", "/api/sources", fichero_sources_upsert),
     GeneratedTool("fichero_sources_delete", "sources", "DELETE", "/api/sources/{source_id}", fichero_sources_delete),

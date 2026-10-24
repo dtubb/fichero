@@ -5835,6 +5835,38 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='editorial')
         existing_apps['editorial'] = target_app
 
+    @target_app.command("record-many")
+    def editorial_record_many_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='Certainty.'),
+        extent: Optional[str] = typer.Option(None, '--extent', help='Extent.'),
+        kind: str = typer.Option(..., '--kind', help="What an editor can say about a stretch of text. An open list is a question for the maintainer; these are the spec's seven. One of: unclear, lost, restored, supplied, superfluous, deleted, added."),
+        place: Optional[str] = typer.Option(None, '--place', help='Place.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Reason.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='Segment Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Record Many (POST /api/editorial/many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/editorial/many"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "extent": extent,
+                "kind": kind,
+                "place": place,
+                "reason": reason,
+                "segment_ids": segment_ids,
+            }, {
+                "certainty": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "extent": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Extent', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['unclear', 'lost', 'restored', 'supplied', 'superfluous', 'deleted', 'added'], 'title': 'EditorialFactKind', 'description': "What an editor can say about a stretch of text. An open list is a question for the maintainer;\nthese are the spec's seven.", 'x-cli-required': True},
+                "place": {'type': 'string', 'maxLength': 40, 'nullable': True, 'title': 'Place', 'x-cli-required': False},
+                "reason": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("facts-of-segment")
     def editorial_facts_of_segment_get(
         ctx: typer.Context,
@@ -5845,6 +5877,23 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/editorial/segment/{segment_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw-many")
+    def editorial_withdraw_many_post(
+        ctx: typer.Context,
+        fact_ids: list[str] = typer.Option(..., '--fact-ids', help='Fact Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Withdraw Many (POST /api/editorial/withdraw-many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/editorial/withdraw-many"
+            params = None
+            payload = _build_json_payload({
+                "fact_ids": fact_ids,
+            }, {
+                "fact_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Fact Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('entities')
@@ -7129,6 +7178,46 @@ def register_generated_openapi_commands(
                 "certainty": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
                 "hand_id": {'type': 'string', 'title': 'Hand Id', 'x-cli-required': True},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("attribute-segments")
+    def hands_attribute_segments_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='Certainty.'),
+        hand_id: str = typer.Option(..., '--hand-id', help='Hand Id.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='Segment Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Attribute Segments (POST /api/hands/attributions/many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hands/attributions/many"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "hand_id": hand_id,
+                "segment_ids": segment_ids,
+            }, {
+                "certainty": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "hand_id": {'type': 'string', 'title': 'Hand Id', 'x-cli-required': True},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw-attributions")
+    def hands_withdraw_attributions_post(
+        ctx: typer.Context,
+        attribution_ids: list[str] = typer.Option(..., '--attribution-ids', help='Attribution Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Withdraw Attributions (POST /api/hands/attributions/withdraw-many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hands/attributions/withdraw-many"
+            params = None
+            payload = _build_json_payload({
+                "attribution_ids": attribution_ids,
+            }, {
+                "attribution_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Attribution Ids', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -15286,6 +15375,44 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("set-many")
+    def rights_set_many_post(
+        ctx: typer.Context,
+        conditions: Optional[str] = typer.Option(None, '--conditions', help='Conditions.'),
+        consent: Optional[str] = typer.Option(None, '--consent', help='Consent. JSON.'),
+        holders: Optional[list[str]] = typer.Option(None, '--holders', help='Holders. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        labels: Optional[list[str]] = typer.Option(None, '--labels', help='Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        model_use: Optional[str] = typer.Option(None, '--model-use', help='Where a segment may be sent (`source.rights.model-use`), strictest first. One of: none, local, cloud.'),
+        readers: Optional[list[str]] = typer.Option(None, '--readers', help='Readers. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        restricted: Optional[bool] = typer.Option(None, '--restricted/--no-restricted', help='Restricted. Default: false.'),
+        targets: str = typer.Option(..., '--targets', help='the segments, documents or folders the same record is set on. JSON.'),
+    ) -> None:
+        """Set Rights Many (POST /api/rights/many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/rights/many"
+            params = None
+            payload = _build_json_payload({
+                "conditions": conditions,
+                "consent": consent,
+                "holders": holders,
+                "labels": labels,
+                "model_use": model_use,
+                "readers": readers,
+                "restricted": restricted,
+                "targets": targets,
+            }, {
+                "conditions": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Conditions', 'x-cli-required': False},
+                "consent": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Consent', 'x-cli-required': False},
+                "holders": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Holders', 'x-cli-required': False},
+                "labels": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Labels', 'x-cli-required': False},
+                "model_use": {'type': 'string', 'enum': ['none', 'local', 'cloud'], 'title': 'ModelUse', 'description': 'Where a segment may be sent (`source.rights.model-use`), strictest first.', 'x-cli-required': False},
+                "readers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Readers', 'x-cli-required': False},
+                "restricted": {'type': 'boolean', 'title': 'Restricted', 'default': False, 'x-cli-required': False},
+                "targets": {'items': {'$ref': '#/components/schemas/RightsTargetRef'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Targets', 'description': 'the segments, documents or folders the same record is set on', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("withdraw")
     def rights_withdraw_post(
         ctx: typer.Context,
@@ -16914,6 +17041,23 @@ def register_generated_openapi_commands(
                 "segment_id": segment_id,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("resolve-many")
+    def source_settings_resolve_many_post(
+        ctx: typer.Context,
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='Segment Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Resolve Many (POST /api/source-settings/resolve-many)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/source-settings/resolve-many"
+            params = None
+            payload = _build_json_payload({
+                "segment_ids": segment_ids,
+            }, {
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 500, 'minItems': 1, 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('sources')
