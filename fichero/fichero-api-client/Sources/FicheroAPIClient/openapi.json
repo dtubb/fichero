@@ -90175,6 +90175,12 @@
             "nullable": true,
             "title": "Is Furniture"
           },
+          "left_out_reason": {
+            "type": "string",
+            "maxLength": 60,
+            "nullable": true,
+            "title": "Left Out Reason"
+          },
           "language": {
             "type": "string",
             "nullable": true,

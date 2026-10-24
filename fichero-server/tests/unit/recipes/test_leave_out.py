@@ -61,9 +61,8 @@ def test_a_vertical_line_is_judged_by_its_thinner_side():
     assert decide(columns, page_box=PAGE) == {}
 
 
-def test_the_stage_marks_without_deleting_and_a_second_run_marks_nothing_new(client, db):
-    """Through the real store: the row stays, `is_furniture` is set, the reason is on it, and the run is repeatable."""
-    from fichero_server.models import Document, DocType, FileType, Segment, Status
+def _page_with_a_bed_line(db, *, bed_provenance=None):
+    from fichero_server.models import Document, DocType, FileType, Status
 
     doc = Document(name="page.jpg", doc_type=DocType.file, file_type=FileType.image, path="/path/page.jpg",
                    status=Status.completed, metadata={"page_box": [0.05, 0.0, 0.95, 1.0]})
@@ -71,8 +70,18 @@ def test_the_stage_marks_without_deleting_and_a_second_run_marks_nothing_new(cli
     made = []
     for ln in [*_page(), {"id": "bed", "x": 0.0, "y": 0.4, "w": 0.06, "h": 0.04, "confidence": 0.9}]:
         row = _segment(doc.id, ln)
+        if ln["id"] == "bed" and bed_provenance is not None:
+            row.provenance_kind = bed_provenance
         db.save(row)
         made.append(row)
+    return doc, made
+
+
+def test_the_stage_marks_without_deleting_and_a_second_run_marks_nothing_new(client, db):
+    """Through the real store: the row stays, `is_furniture` is set, the reason is on it, and the run is repeatable."""
+    from fichero_server.models import Segment
+
+    doc, made = _page_with_a_bed_line(db)
     account = leave_out.leave_out_pages(db, [doc.id], "run-1")
     assert account["left_out"] == 1 and account["why"] == {OFF_THE_PAGE: 1} and account["pages"] == 1
     rows = {r.id: r for r in db.query(Segment, document_id=doc.id)}
@@ -81,6 +90,52 @@ def test_the_stage_marks_without_deleting_and_a_second_run_marks_nothing_new(cli
     assert bed.is_furniture and bed.deleted_at is None and bed.metadata["left_out"]["why"] == OFF_THE_PAGE
     assert not any(r.is_furniture for r in rows.values() if r.id != bed.id)
     assert leave_out.leave_out_pages(db, [doc.id], "run-2")["left_out"] == 0
+
+
+def test_the_marks_are_one_audited_step_that_undo_takes_back(client, db):
+    """## 1108: written through `segment.update_many`, one audit row for the batch, so it is one undo and the change events
+    flow; not rows saved behind the action layer's back."""
+    from fichero_server.models import ActionAudit, Segment
+
+    doc, made = _page_with_a_bed_line(db)
+    speck = _segment(doc.id, {"id": "speck", "x": 0.5, "y": 0.5, "w": 0.004, "h": 0.004, "confidence": 0.9})
+    db.save(speck)
+    assert leave_out.leave_out_pages(db, [doc.id], "run-1")["left_out"] == 2
+    audits = [a for a in db.query(ActionAudit) if a.action_name == "segment.update_many"]
+    assert len(audits) == 1, "one audit row for the whole batch"
+    undone = client.post(f"/api/actions/audit/{audits[0].id}/undo")
+    assert undone.status_code == 200, undone.text
+    assert not any(r.is_furniture for r in db.query(Segment, document_id=doc.id)), "one undo brings both back"
+
+
+def test_a_line_a_person_brought_back_is_not_left_out_again(client, db):
+    """## 1108: restore -> re-run keeps it. `segment.update` with is_furniture false is a person's restore."""
+    from fichero_server.models import Segment
+
+    doc, made = _page_with_a_bed_line(db)
+    leave_out.leave_out_pages(db, [doc.id], "run-1")
+    bed = db.get(Segment, made[-1].id)
+    r = client.post("/api/actions/invoke", json={"name": "segment.update", "params": {
+        "segment_id": bed.id, "expected_version": bed.version, "is_furniture": False}})
+    assert r.status_code == 200, r.text
+    assert db.get(Segment, bed.id).metadata.get("kept_by_person") is True
+    assert leave_out.leave_out_pages(db, [doc.id], "run-2")["left_out"] == 0
+    assert not db.get(Segment, bed.id).is_furniture
+
+
+def test_a_line_a_person_drew_is_never_left_out(client, db):
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    doc, made = _page_with_a_bed_line(db, bed_provenance=ProvenanceKind.human)
+    assert leave_out.leave_out_pages(db, [doc.id], "run-1")["left_out"] == 0
+
+
+def test_the_page_image_is_opened_only_when_a_line_could_be_judged_for_bleed(client, db, monkeypatch):
+    opened = []
+    monkeypatch.setattr(leave_out, "_open", lambda path: opened.append(path))
+    doc, _ = _page_with_a_bed_line(db)
+    leave_out.leave_out_pages(db, [doc.id], "run-1")
+    assert opened == [], "every line is sure: nothing for the bleed rule to judge, so no image is read"
 
 
 def _segment(document_id, ln):
