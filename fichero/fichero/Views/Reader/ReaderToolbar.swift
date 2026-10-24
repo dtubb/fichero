@@ -216,59 +216,69 @@ struct ReaderToolbar: View {
     /// not an eye, so "choose what this surface displays" reads the same in
     /// both windows. Four display switches, nothing else: the ⓘ entry went
     /// because the inspector has its own affordances.
-    @ViewBuilder
+    /// Whether the What to show menu has anything to switch: false on the placeholder bar of a page still loading (or whose
+    /// original failed to load), which holds the bar's geometry with the glyph in place, greyed (`source.preview.what-to-show-always-there`, #6010).
+    nonisolated static func whatToShowHasSwitches(hasTextBoxes: Bool, hasAnnotations: Bool, hasImage: Bool) -> Bool {
+        hasTextBoxes || hasAnnotations || hasImage
+    }
+
+    private var whatToShowHasSwitches: Bool {
+        Self.whatToShowHasSwitches(hasTextBoxes: textBoxesEnabled != nil, hasAnnotations: annotationsEnabled != nil,
+                                   hasImage: imageEnabled != nil)
+    }
+
     private var whatToShowMenu: some View {
-        if textBoxesEnabled != nil || annotationsEnabled != nil || imageEnabled != nil {
-            Menu {
-                if let imageEnabled {
-                    Toggle("Show Image", isOn: imageEnabled)
-                        .help("Off, only the overlays are drawn -- boxes, lines and marks on a blank page")
-                        .accessibilityIdentifier("previewShowImage")
-                    Divider()
-                }
-                if let annotationsEnabled {
-                    Toggle("Show Annotations", isOn: annotationsEnabled)
-                }
-                if let textBoxesEnabled {
-                    Toggle("Show Word Bounding Boxes", isOn: textBoxesEnabled)
-                }
-                if let regionsEnabled {
-                    Toggle("Show Regions", isOn: regionsEnabled)
-                }
-                if let inlineTextEnabled {
-                    Toggle("Show Text Inline", isOn: inlineTextEnabled)
-                }
-                if !regionLegend.isEmpty {
-                    Divider()
-                    // The legend (#5426): each region's hue, its gradient from first line to last.
-                    Section("Region Colours") {
-                        ForEach(Array(regionLegend.enumerated()), id: \.offset) { position, hue in
-                            Label {
-                                Text("Region \(position + 1)")
-                            } icon: {
-                                SelectionStyle.regionLegendSwatch(hue: hue)
-                            }
-                        }
-                        Text("The shade is the reading order: the first line darkest.")
-                    }
-                }
-                if let segmentEditingEnabled {
-                    Divider()
-                    Toggle("Edit Segments", isOn: segmentEditingEnabled)
-                        .help("Draw, move, join and delete segments on this page. Off, the page is for reading.")
-                        .accessibilityIdentifier("previewEditSegments")
-                }
-            } label: {
-                Image(systemName: "switch.2")
-                    .foregroundStyle(.secondary)
-                    .readerIconTarget()
+        Menu {
+            if !whatToShowHasSwitches { Text("Nothing to display yet") }
+            if let imageEnabled {
+                Toggle("Show Image", isOn: imageEnabled)
+                    .help("Off, only the overlays are drawn -- boxes, lines and marks on a blank page")
+                    .accessibilityIdentifier("previewShowImage")
+                Divider()
             }
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Choose what this page displays — the image, annotations, word boxes, regions, inline text")
-            .accessibilityLabel("What to show")
-            .accessibilityIdentifier("previewWhatToShow")
+            if let annotationsEnabled {
+                Toggle("Show Annotations", isOn: annotationsEnabled)
+            }
+            if let textBoxesEnabled {
+                Toggle("Show Word Bounding Boxes", isOn: textBoxesEnabled)
+            }
+            if let regionsEnabled {
+                Toggle("Show Regions", isOn: regionsEnabled)
+            }
+            if let inlineTextEnabled {
+                Toggle("Show Text Inline", isOn: inlineTextEnabled)
+            }
+            if !regionLegend.isEmpty {
+                Divider()
+                // The legend (#5426): each region's hue, its gradient from first line to last.
+                Section("Region Colours") {
+                    ForEach(Array(regionLegend.enumerated()), id: \.offset) { position, hue in
+                        Label {
+                            Text("Region \(position + 1)")
+                        } icon: {
+                            SelectionStyle.regionLegendSwatch(hue: hue)
+                        }
+                    }
+                    Text("The shade is the reading order: the first line darkest.")
+                }
+            }
+            if let segmentEditingEnabled {
+                Divider()
+                Toggle("Edit Segments", isOn: segmentEditingEnabled)
+                    .help("Draw, move, join and delete segments on this page. Off, the page is for reading.")
+                    .accessibilityIdentifier("previewEditSegments")
+            }
+        } label: {
+            Image(systemName: "switch.2")
+                .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Choose what this page displays — the image, annotations, word boxes, regions, inline text")
+        .accessibilityLabel("What to show")
+        .accessibilityIdentifier("previewWhatToShow")
+        .disabled(!whatToShowHasSwitches)
     }
 
     /// Filter, placeholder (2026-08-31): the glyph and the far-right seat are
