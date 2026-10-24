@@ -420,4 +420,53 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate").count, 2)
         XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
+
+    /// WHY (`source.onboard.new-project-inherits-the-cloud-setting`): a project that has not answered starts from the app's
+    /// yes, as the ENGINE says it (`cloud_inherited`); the app keeps no copy of the rule, and one that answered keeps its own.
+    func testANewProjectStartsFromTheCloudSettingTheEngineReports() async throws {
+        func serve(project: String) {
+            FinderMockURLProtocol.reset { request in
+                request.url?.path == "/api/recipes/project" ? (200, project) : (200, "{}")
+            }
+        }
+        serve(project: #"{"answers":null,"recipe":null,"cloud_inherited":true}"#)
+        let inheriting = RecipeSetupStore(client: makeClient())
+        await inheriting.loadSaved()
+        XCTAssertTrue(inheriting.cloudAllowed)
+
+        serve(project: #"{"answers":null,"recipe":null,"cloud_inherited":false}"#)
+        let closed = RecipeSetupStore(client: makeClient())
+        await closed.loadSaved()
+        XCTAssertFalse(closed.cloudAllowed)
+
+        serve(project: #"{"answers":{"cloud_allowed":false},"recipe":null,"cloud_inherited":false}"#)
+        let answered = RecipeSetupStore(client: makeClient())
+        await answered.loadSaved()
+        XCTAssertFalse(answered.cloudAllowed, "a project that answered no stays no")
+    }
+
+    /// WHY (## 1102): the inherited yes is shown, never saved. A first ordinary Set Up save while the project only
+    /// inherits sends no `cloud_allowed` (else the app's setting freezes as the project's own answer); once the person
+    /// has answered, it is sent.
+    func testASaveSendsCloudAllowedOnlyOnceTheProjectHasAnswered() async throws {
+        func put() throws -> [String: Any] {
+            let body = try XCTUnwrap(FinderMockURLProtocol.requests(to: "/api/recipes/project").last { $0.method == "PUT" }?.body)
+            let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            return try XCTUnwrap(sent["answers"] as? [String: Any])
+        }
+        FinderMockURLProtocol.reset { request in
+            request.url?.path == "/api/recipes/project"
+                ? (200, #"{"answers":null,"recipe":null,"cloud_inherited":true}"#) : (200, "{}")
+        }
+        let store = RecipeSetupStore(client: makeClient())
+        await store.loadSaved()
+        XCTAssertTrue(store.cloudAllowed, "shown as the app's setting")
+        XCTAssertFalse(store.cloudAnswered)
+        _ = await store.save()
+        XCTAssertNil(try put()["cloud_allowed"], "the inherited yes is not the project's answer")
+
+        store.cloudChoice = true
+        _ = await store.save()
+        XCTAssertEqual(try put()["cloud_allowed"] as? Bool, true, "the person's own answer is sent")
+    }
 }

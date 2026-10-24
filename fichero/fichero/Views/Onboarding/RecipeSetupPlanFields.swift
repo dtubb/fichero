@@ -81,7 +81,7 @@ struct RecipeCloudQuestion: View {
     var body: some View {
         // Always shown, so a project can turn cloud on before any step offers a cloud model.
         VStack(alignment: .leading, spacing: 2) {
-            Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudAllowed)
+            Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudChoice)
                 .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
             Text("""
                 Cloud models often read difficult hands better. Off: every page stays on this Mac. \

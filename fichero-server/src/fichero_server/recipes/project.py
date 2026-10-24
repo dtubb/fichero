@@ -39,6 +39,11 @@ def read_project_setup(library: Path) -> dict[str, Any]:
         path = _path(library, part)
         out[part] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
     out["answers"] = normalise(out["answers"], strict=False)
+    # Beside the answers, never in them: a save writes the answers back, and an inherited yes written there would freeze the
+    # app's setting at the moment of the save and audit a yes nobody gave (`source.onboard.new-project-inherits-the-cloud-setting`).
+    from fichero_server.recipes.places import inherits_cloud
+
+    out["cloud_inherited"] = "cloud_allowed" not in (out["answers"] or {}) and inherits_cloud()
     return out
 
 

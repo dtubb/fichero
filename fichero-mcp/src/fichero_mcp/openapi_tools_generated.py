@@ -6511,7 +6511,7 @@ def fichero_recipes_put_places(
 
 def fichero_recipes_get_project_setup(
 ) -> Any:
-    "Get Project Setup\n\nThe open project's saved setup answers and recipe.\n\nRoute: GET /api/recipes/project (toolset `recipes`; reads)."
+    "Get Project Setup\n\nThe open project's saved setup answers and recipe, and whether it inherits the app's cloud setting.\n\nRoute: GET /api/recipes/project (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/project")
 
 
