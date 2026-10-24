@@ -95,7 +95,8 @@ def test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_
     choice = _read_choice(_plan(client))
     by_id = {c.id: c for c in _offered_cards(None)}
     listed = [c["card"] for c in choice["candidates"] if not c["card"].startswith("corrects-unsure:")]
-    assert all(does_the_step(by_id[card], "read-a-line") for card in listed if card in by_id)
+    assert listed and all(card in by_id for card in listed), listed  # a list to check, every card found: not vacuous
+    assert all(does_the_step(by_id[card], "read-a-line") for card in listed)
     assert not any(card.startswith("apple:vision/") or "-VL-" in card for card in listed), listed
     claude = next(c for c in choice["candidates"] if c["runs_on"].startswith("cloud:") and not c["card"].startswith("corrects-unsure:"))
     assert claude["how"] == "cloud-reads-kraken-lines"
