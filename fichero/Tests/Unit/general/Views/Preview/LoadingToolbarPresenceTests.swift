@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Fichero
 
 /// #Every-Frame-Perfect: the bottom reader toolbar must exist from the FIRST
 /// frame of an image preview. It used to mount only inside ZoomableImagePreview
