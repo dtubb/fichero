@@ -11,6 +11,10 @@ import OpenAPIRuntime
 ///   correct. `basedOn` is also the stale check's token (#5001, `expected_counting_id`): if another
 ///   reading counts by the time it lands, the engine refuses with 409 and the page is told
 ///   (`staleScript`), the typed words kept. No `basedOn`, no check.
+/// - `readingEdits` {pageId, segmentId, edits:[{segmentId, text, basedOn}], leftOut:[segmentId]}: a Reader
+///   edit that reached several lines, or emptied one, as ONE `representation.create_many` (one audit id,
+///   one undo). Each edit is a reading as above; each `leftOut` line is marked left out (never deleted).
+///   `segmentId` is the first line it touched, for routing the answer.
 /// - `lineSplit` {pageId, segmentId, offset}: Return inside a line is `segment.split {at_offset}`. The
 ///   ENGINE cuts the reading and the box at that character, along the line's direction (`cut:
 ///   estimated`) -- one implementation of the cut, not one here too. The app's job is the offset: the
@@ -20,18 +24,26 @@ import OpenAPIRuntime
 enum ReaderTextEdit {
     enum Message: Equatable {
         case edited(pageId: String, segmentId: String, text: String, basedOn: String?)
+        case editedMany(pageId: String, segmentId: String, readings: [LineReading], leftOut: [String])
         case split(pageId: String, segmentId: String, offset: Int)
         case join(pageId: String, segmentId: String, intoSegmentId: String)
 
+        /// One line's new reading inside a `readingEdits` batch.
+        struct LineReading: Equatable {
+            let segmentId: String
+            let text: String
+            let basedOn: String?
+        }
+
         var pageId: String {
             switch self {
-            case .edited(let pageId, _, _, _), .split(let pageId, _, _), .join(let pageId, _, _): pageId
+            case .edited(let pageId, _, _, _), .editedMany(let pageId, _, _, _), .split(let pageId, _, _), .join(let pageId, _, _): pageId
             }
         }
 
         var segmentId: String {
             switch self {
-            case .edited(_, let segmentId, _, _), .split(_, let segmentId, _), .join(_, let segmentId, _): segmentId
+            case .edited(_, let segmentId, _, _), .editedMany(_, let segmentId, _, _), .split(_, let segmentId, _), .join(_, let segmentId, _): segmentId
             }
         }
     }
@@ -45,6 +57,14 @@ enum ReaderTextEdit {
         case "readingEdit":
             guard let text = body["text"] as? String else { return nil }
             return .edited(pageId: pageId, segmentId: segmentId, text: text, basedOn: body["basedOn"] as? String)
+        case "readingEdits":
+            let edits = (body["edits"] as? [[String: Any]] ?? []).compactMap { item -> Message.LineReading? in
+                guard let id = item["segmentId"] as? String, let text = item["text"] as? String else { return nil }
+                return .init(segmentId: id, text: text, basedOn: item["basedOn"] as? String)
+            }
+            let leftOut = body["leftOut"] as? [String] ?? []
+            guard !edits.isEmpty || !leftOut.isEmpty else { return nil }
+            return .editedMany(pageId: pageId, segmentId: segmentId, readings: edits, leftOut: leftOut)
         case "lineSplit":
             guard let offset = body["offset"] as? Int else { return nil }
             return .split(pageId: pageId, segmentId: segmentId, offset: offset)
@@ -62,6 +82,27 @@ enum ReaderTextEdit {
         return NewReadingParams(
             documentId: pageId, segmentId: segmentId, kind: "transcription", content: text,
             correctsRepresentationId: basedOn, expectedCountingId: basedOn
+        )
+    }
+
+    /// `readingEdits` as `representation.create_many`: the readings as `readingEdit` makes them, and each
+    /// left-out line with the version the list said (a stale one refuses the whole edit, 409). Nil when a
+    /// left-out line is not in `segments` or has no version.
+    static func newReadings(for message: Message, segments: [Segment]) -> NewReadingsParams? {
+        guard case .editedMany(let pageId, _, let readings, let leftOut) = message else { return nil }
+        var lines: [NewReadingsParams.LeftOut] = []
+        for id in leftOut {
+            guard let version = segments.first(where: { $0.id == id })?.version else { return nil }
+            lines.append(.init(segmentId: id, expectedVersion: version))
+        }
+        return NewReadingsParams(
+            readings: readings.map {
+                NewReadingParams(
+                    documentId: pageId, segmentId: $0.segmentId, kind: "transcription", content: $0.text,
+                    correctsRepresentationId: $0.basedOn, expectedCountingId: $0.basedOn
+                )
+            },
+            leftOut: lines
         )
     }
 
@@ -217,6 +258,21 @@ struct NewReadingParams: Encodable, Equatable {
         try container.encodeIfPresent(correctsRepresentationId, forKey: .correctsRepresentationId)
         try container.encodeIfPresent(expectedCountingId, forKey: .expectedCountingId)
     }
+}
+
+/// `representation.create_many` from the Reader: the readings, and the lines whose text was deleted entirely.
+struct NewReadingsParams: Encodable, Equatable {
+    struct LeftOut: Encodable, Equatable {
+        let segmentId: String
+        let expectedVersion: Int
+
+        enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
+    }
+
+    let readings: [NewReadingParams]
+    let leftOut: [LeftOut]
+
+    enum CodingKeys: String, CodingKey { case readings, leftOut = "left_out" }
 }
 
 /// `segment.split` from the Reader: where to cut, in the engine's code points; the engine does the rest.

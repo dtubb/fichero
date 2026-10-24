@@ -70,3 +70,67 @@ def test_one_stale_line_refuses_the_whole_edit(db, client):
 
 def test_an_empty_batch_is_refused(client):
     assert client.post("/api/content-representations/batch", json={}).status_code == 422
+
+
+# ---- the page's half: a multi-line deletion becomes one batch, a refusal is said ----
+
+import json  # noqa: E402
+import shutil  # noqa: E402
+
+import pytest  # noqa: E402
+
+from tests.unit.api.test_reader_directions import _page_functions  # noqa: E402
+from tests.unit.api.test_reader_line_map import _node  # noqa: E402
+
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run the page's own script")
+
+
+def _edited_lines(html, before, now, lines):
+    return _node(_page_functions(html) + f"""
+console.log(JSON.stringify(editedLines({json.dumps(before)}, {json.dumps(now)}, {json.dumps(lines)})));
+""")
+
+
+@needs_node
+def test_a_deletion_across_lines_joins_head_and_tail_and_leaves_the_swallowed_lines_out(db, client):
+    doc_id = _import(db, ARABIC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    lines, text = page["lines"], page["content"]
+    a, b, c = lines[1], lines[2], lines[3]
+    now = text[:a["char_start"] + 2] + text[c["char_start"] + 2:]   # from inside line 1 to inside line 3
+    got = _edited_lines(html, text, now, lines)
+    head, tail = text[a["char_start"]:a["char_start"] + 2], text[c["char_start"] + 2:c["char_end"]]
+    assert got["readings"][0]["segmentId"] == a["segment_id"] and got["readings"][0]["text"] == head + tail
+    assert got["leftOut"] == [b["segment_id"], c["segment_id"]]
+    for line in got["lines"]:   # the map still names each surviving line's own text in the edited page
+        expected = got["readings"][0]["text"] if line["segment_id"] == a["segment_id"] else \
+            text[next(i for i in lines if i["segment_id"] == line["segment_id"])["char_start"]:
+                 next(i for i in lines if i["segment_id"] == line["segment_id"])["char_end"]]
+        assert now[line["char_start"]:line["char_end"]] == expected
+
+
+@needs_node
+def test_a_line_deleted_entirely_is_left_out_with_no_reading(db, client):
+    doc_id = _import(db, ARABIC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    lines, text = page["lines"], page["content"]
+    a = lines[1]
+    now = text[:a["char_start"]] + text[a["char_end"]:]
+    got = _edited_lines(html, text, now, lines)
+    assert got["readings"] == [] and got["leftOut"] == [a["segment_id"]]
+
+
+@needs_node
+def test_a_paste_of_several_lines_is_refused_and_the_page_says_so(db, client):
+    doc_id = _import(db, ARABIC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    lines, text = page["lines"], page["content"]
+    a, b = lines[1], lines[2]
+    now = text[:a["char_start"] + 1] + "x\ny" + text[b["char_start"] + 1:]
+    got = _edited_lines(html, text, now, lines)
+    assert "refused" in got
+    # the silent revert is gone: the commit's refusal branch shows a notice
+    assert 'id="edit-notice"' in html and "showEditNotice(" in html

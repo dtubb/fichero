@@ -41,6 +41,16 @@ struct ReaderTextEditRunner {
                     "representation.create", params: params, actionName: "Typing", actionsService: actionsService,
                     steps: steps, afterChange: refresh
                 ).resultId
+            case .editedMany:
+                // Fresh versions: a line's number is what the engine compares (409 when stale, whole edit).
+                await store.load(documentId: pageId, force: true)
+                guard let params = ReaderTextEdit.newReadings(for: edit, segments: store.segments(documentId: pageId)) else {
+                    throw SegmentEdit.Refusal.versionUnknown
+                }
+                try await AuditedAction.run(
+                    "representation.create_many", params: params, actionName: "Typing", actionsService: actionsService,
+                    steps: steps, afterChange: refresh
+                )
             case .split(_, let id, _):
                 // Fresh: a readingEdit posted just before the split changed the line's text and version.
                 await store.load(documentId: pageId, force: true)

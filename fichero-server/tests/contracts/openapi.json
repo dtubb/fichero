@@ -73627,6 +73627,30 @@
         "title": "LineLeftOut",
         "description": "A line whose text was deleted entirely: marked left out, never deleted."
       },
+      "LineLeftOutResult": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "from_version": {
+            "type": "integer",
+            "title": "From Version"
+          },
+          "to_version": {
+            "type": "integer",
+            "title": "To Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "from_version",
+          "to_version"
+        ],
+        "title": "LineLeftOutResult",
+        "description": "A line left out by a Reader edit: its version before and after, which undo restores."
+      },
       "LinkListResponse": {
         "properties": {
           "end_id": {
@@ -85647,8 +85671,7 @@
           },
           "left_out": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/LineLeftOutResult"
             },
             "type": "array",
             "title": "Left Out"
