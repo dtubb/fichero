@@ -68,7 +68,7 @@ import asyncio  # noqa: E402
 
 def sentences(n_words: int) -> str:
     """Sentences of ten words each, n_words in all."""
-    return " ".join(f"{' '.join(['word'] * 9)}{i}." for i in range(n_words // 10))
+    return " ".join(f"{' '.join(['word'] * 9)} w{i}." for i in range(n_words // 10))  # nine words, then a tenth that ends it
 
 
 def test_a_banned_word_inside_a_quotation_is_the_records_own():
