@@ -5,7 +5,6 @@ latency stands for the cloud; 40 pages at width 10 take about 0.8 s, not 8 s."""
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
 
 import pytest
@@ -36,11 +35,9 @@ def test_forty_calls_at_width_ten_take_a_fifth_of_the_time_and_come_back_in_orde
     async def run():
         return [(n, got) async for n, got in ahead(range(40), call, 10)]
 
-    began = time.monotonic()
     got = asyncio.run(run())
     assert got == [(n, n * 2) for n in range(40)], "results out of page order"
-    assert time.monotonic() - began < 2.0, "40 x 200 ms at width 10 should be about 0.8 s"
-    assert peak <= 10, "more than the width in flight"
+    assert 8 <= peak <= 10, f"at width 10 the calls overlap and never exceed the width (peak in flight {peak})"  # not wall time: a loaded gate stretches it
 
 
 def test_a_call_that_fails_fails_at_its_own_page_and_the_rest_are_cancelled():
@@ -125,10 +122,15 @@ def test_extract_entities_asks_forty_pages_together_and_writes_them_in_page_orde
     library_path, _db = _library(tmp_path, "ent", 40)
     monkeypatch.setattr(ent, "configured_policy", lambda: parse_policy(None))
     asked, written = [], []
+    inflight, peak = 0, 0
 
     async def fake(**kwargs):
+        nonlocal inflight, peak
         asked.append(kwargs["prompt"])
+        inflight += 1
+        peak = max(peak, inflight)
         await asyncio.sleep(LATENCY)
+        inflight -= 1
         return _EntitiesOnly()
 
     async def progress(callback, event, *rest, **kw):
@@ -138,11 +140,10 @@ def test_extract_entities_asks_forty_pages_together_and_writes_them_in_page_orde
     monkeypatch.setattr(ent, "chat_structured_with_fallback", fake)
     monkeypatch.setattr(ent, "emit_progress_event", progress)
     documents, state = _inputs(library_path, 40, "ent-together")
-    began = time.monotonic()
     result = asyncio.run(ent.extract_entities_only(documents, state, LLMConfig(provider="fake", model="fake-model")))
     assert result["summary"]["documents_processed"] == 40
     assert len(asked) == 40
-    assert time.monotonic() - began < 2.0, "pages were asked one after another"
+    assert peak >= 8, f"pages were asked one after another (peak in flight {peak})"
     assert written == [f"Extract Entities p{i:02d}.txt" for i in range(40)], "write order changed"
 
 
@@ -187,10 +188,15 @@ def _table_run(monkeypatch, units, stop_after=None):
     from fichero_server.recipes import table
 
     asked = []
+    flight = {"now": 0, "peak": 0}
+    _table_run.flight = flight  # the last run's peak in flight, for a test that asks whether the units were asked together
 
     async def fake(prompt, schema, config, system=None, use_case=None):
         asked.append(prompt)
+        flight["now"] += 1
+        flight["peak"] = max(flight["peak"], flight["now"])
         await asyncio.sleep(LATENCY)
+        flight["now"] -= 1
         if "boom" in prompt:
             raise RuntimeError("model said no")
         return prompt
@@ -218,9 +224,8 @@ def test_the_table_step_asks_its_units_together_and_lands_them_in_unit_order(mon
     units = _units(40)
     units[7].text = "boom"
     units[9].text = ""
-    began = time.monotonic()
     account, asked, landed = _table_run(monkeypatch, units)
-    assert time.monotonic() - began < 2.0
+    assert _table_run.flight["peak"] >= 8, f"units were asked one after another (peak in flight {_table_run.flight['peak']})"
     assert landed == [u.name for i, u in enumerate(units) if i not in (7, 9)], "landing order changed"
     assert (account["asked"], account["failed"], account["without_text"]) == (39, 1, 1)
     assert account["errors"] == ["u07: model said no"]
@@ -269,9 +274,14 @@ def test_the_diary_step_asks_forty_pages_together_and_splits_them_in_page_order(
     from fichero_server.workflows.tools import diary_entries as diary
 
     applied = []
+    inflight, peak = 0, 0
 
     async def ask(page, llm_config, prompt):
+        nonlocal inflight, peak
+        inflight += 1
+        peak = max(peak, inflight)
         await asyncio.sleep(LATENCY)
+        inflight -= 1
         if page.id == "p05":
             raise ValueError("page p05 says no")
         return SimpleNamespace(entries=[])
@@ -283,9 +293,8 @@ def test_the_diary_step_asks_forty_pages_together_and_splits_them_in_page_order(
     monkeypatch.setattr(diary, "_ask_for_split", ask)
     monkeypatch.setattr(diary, "split_page_into_entries", split)
     pages = [SimpleNamespace(id=f"p{i:02d}", page_content="texto", name=f"p{i:02d}") for i in range(40)]
-    began = time.monotonic()
     created, totals, errors, lines = asyncio.run(diary.split_pages_into_entries(None, pages, object()))
-    assert time.monotonic() - began < 2.0
+    assert peak >= 8, f"pages were asked one after another (peak in flight {peak})"
     assert [p for p, _ in applied] == [f"p{i:02d}" for i in range(40) if i != 5], "order changed"
     assert all(had for _p, had in applied), "a page was asked again inline"
     assert errors == ["page p05 says no"]
