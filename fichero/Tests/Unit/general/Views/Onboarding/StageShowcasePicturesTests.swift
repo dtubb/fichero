@@ -207,3 +207,11 @@ struct CompareSideBySideInlineTests {
         #expect(shared.contains("readings?.first?.text"), "each column shows the model's reading under its picture")
     }
 }
+
+/// ## 1033: Set Up's Compare line needs readiness, so its branch loads it.
+struct SetUpCompareLineLoadsReadinessTests {
+    @Test func theLineBranchLoadsTheStore() throws {
+        let steps = try AppSource.text("Views/Onboarding/RecipeStepsView.swift")
+        #expect(steps.contains("context.store.loadLatest()"))
+    }
+}
