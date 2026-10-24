@@ -144,6 +144,28 @@ def _resolve_entry(model: str) -> dict[str, Any] | None:
     return entry
 
 
+#: Models a provider has stopped serving that the price list (refreshed from litellm) does not mark: the bare model name ->
+#: what the provider said. A rule that picks by price must never choose one (#6096: Google 404s "no longer available to new
+#: users" for gemini-2.5-flash, the cheapest Gemini on the list, so every page failed).
+RETIRED_MODELS: dict[str, str] = {
+    "gemini-2.5-flash": "Google: no longer available to new users (2026-10, #6096)",
+}
+
+
+def retired_because(model: str, today: str | None = None) -> str | None:
+    """Why `model` (bare or provider-prefixed) can no longer be called, or None: listed in RETIRED_MODELS, or its price-list
+    entry's `deprecation_date` has passed."""
+    import datetime
+
+    bare = model.split("/")[-1]
+    if bare in RETIRED_MODELS:
+        return RETIRED_MODELS[bare]
+    when = (_resolve_entry(model) or {}).get("deprecation_date")
+    if when and str(when) <= (today or datetime.date.today().isoformat()):
+        return f"retired by its provider on {when} (price list)"
+    return None
+
+
 # =============================================================================
 # Model Info & Costs
 # =============================================================================

@@ -148,3 +148,22 @@ def test_every_step_that_needs_a_model_lists_a_choice(client, with_material, mac
     cannot = {"find-the-script", "refine-shapes", "find-signs", "find-a-tables-cells", "trace-a-drawing", "identify-signs",
               "transcribe-speech"}
     assert set(empty) == cannot, f"steps that cannot choose a model: {sorted(empty)} (expected {sorted(cannot)})"
+
+
+@pytest.mark.parametrize("job", STEPS)
+def test_a_retired_model_is_never_picked_however_cheap(job):
+    """#6096: the cheapest model on the price list may be one its provider no longer serves; the pick skips it, whether we
+    list it as retired (gemini-2.5-flash) or its price-list deprecation date has passed."""
+    retired = _cloud("google", "gemini-2.5-flash", 0.0001)
+    steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("google", "anthropic")}, cloud_text=[DEAR, retired, CHEAP])
+    assert steps[job]["model"] == {"cloud": "google", "model": "fake-flash"}
+    assert all(c["model"] != {"cloud": "google", "model": "gemini-2.5-flash"} for c in steps[job].get("chain", []))
+
+
+def test_a_price_list_deprecation_date_that_has_passed_retires_a_model(monkeypatch):
+    from fichero_server.llm import model_types
+
+    monkeypatch.setattr(model_types, "_resolve_entry", lambda m: {"deprecation_date": "2026-06-01"} if "old" in m else {})
+    assert model_types.retired_because("google/old-flash", today="2026-10-24")
+    assert model_types.retired_because("google/old-flash", today="2026-05-01") is None
+    assert model_types.retired_because("gemini/gemini-2.5-flash") and model_types.retired_because("new-flash") is None

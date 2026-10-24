@@ -940,6 +940,7 @@ def requeue(db: "Database", job_id: str, *, reason: str) -> None:
 
 def parent_of(db: "Database", job_id: str) -> str | None:
     """The job a job runs under (a recipe step's run under its recipe run), or None."""
+    _ensure(db)
     row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [job_id])
     return row[0] if row and row[0] else None
 

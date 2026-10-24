@@ -720,6 +720,8 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
     a keyed provider's card that already carries the job (Correct stays on the frontier list) and has a LISTED
     price: the cap cannot be held to a model with none. The price shows in the plan before Start and the project's monthly cap
     applies to every call. Never a silent substitute: the reasons name the model, its price and that the rules picked it."""
+    from fichero_server.llm.model_types import retired_because
+
     if job not in CLOUD_TEXT_JOBS or not a.cloud_allowed or not a.cloud_keys:
         return choice
     if choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud")):
@@ -728,7 +730,8 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
             if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys
             and not c.cannot_run_because
             and job in c.jobs
-            and _page_price(c) is not None]
+            and _page_price(c) is not None
+            and not retired_because(c.pin.get("model") or "")]  # #6096: a retired model fails every page
     if not fits:
         return choice
     ranked = sorted(fits, key=lambda c: (_page_price(c), c.id))
