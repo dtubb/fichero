@@ -1245,11 +1245,19 @@ async def create_representation_route(
     return ContentRepresentation.model_validate(result.result)
 
 
+class LineLeftOutResult(BaseModel):
+    """A line left out by a Reader edit: its version before and after, which undo restores."""
+
+    segment_id: str
+    from_version: int
+    to_version: int
+
+
 class RepresentationCreateManyResponse(BaseModel):
     """The readings written, the lines left out, and the audit id of the ONE undo step."""
 
     representations: list[ContentRepresentation]
-    left_out: list[dict]
+    left_out: list[LineLeftOutResult]
     audit_id: str
 
 
@@ -1266,6 +1274,6 @@ async def create_representations_batch_route(
         raise _as_http_error(exc) from exc
     return RepresentationCreateManyResponse(
         representations=[ContentRepresentation.model_validate(r) for r in result.result["representations"]],
-        left_out=result.result["left_out"],
+        left_out=[LineLeftOutResult(**item) for item in result.result["left_out"]],
         audit_id=result.audit_id,
     )
