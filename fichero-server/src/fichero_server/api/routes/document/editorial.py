@@ -157,6 +157,73 @@ def _action_restore(db: Database, params: FactIdParams, ctx: ActionContext):
     )
 
 
+class EditorialRecordManyParams(BaseModel):
+    """One whole-segment fact (no span: a stretch is measured on one reading, and a selection has no one reading) on each of
+    several segments, e.g. the Inspector's Certainty set on a multi-selection."""
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
+    kind: EditorialFactKind
+    extent: Optional[str] = Field(default=None, max_length=_WORDS_CAP)
+    reason: Optional[str] = Field(default=None, max_length=_WORDS_CAP)
+    place: Optional[str] = Field(default=None, max_length=40)
+    certainty: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+
+
+def _invert_record_many(before, after, ctx: ActionContext):
+    ids = (after or {}).get("fact_ids")
+    return ("editorial.withdraw_many", {"fact_ids": ids}) if ids else None
+
+
+@action("editorial.record_many", EditorialRecordManyParams, domains=["editorial", "segment"], undoable=True,
+        invert=_invert_record_many)
+def _action_record_many(db: Database, params: EditorialRecordManyParams, ctx: ActionContext):
+    """One fact on several segments: ONE audit row, ONE undo, all or nothing (every segment is checked first)."""
+    segments = [_live_segment(db, sid) for sid in dict.fromkeys(params.segment_ids)]
+    fields = params.model_dump(exclude={"segment_ids"})
+    facts = [EditorialFact(segment_id=seg.id, **fields, provenance_kind=provenance_kind_from_ctx(ctx),
+                           created_by=ctx.actor or None) for seg in segments]
+    db.save_many(facts)
+    ids = [f.id for f in facts]
+    return {"fact_ids": ids}, ChangeSpec(
+        domains=["editorial", "segment"], target_ids=ids + [seg.id for seg in segments], before=None,
+        after={"fact_ids": ids}, emit_type="editorial.recorded",
+        document_ids=sorted({seg.document_id for seg in segments}), segment_ids=[seg.id for seg in segments])
+
+
+class FactIdsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fact_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+def _set_facts_withdrawn(db: Database, ids: list[str], withdrawn: bool):
+    pairs = [_live_fact(db, i) for i in dict.fromkeys(ids)]
+    now = utc_now()
+    for fact, _segment in pairs:
+        fact.withdrawn_at = now if withdrawn else None
+    db.save_many([fact for fact, _ in pairs])
+    found = [fact.id for fact, _ in pairs]
+    segs = sorted({seg.id for _, seg in pairs})
+    return {"fact_ids": found, "withdrawn": withdrawn}, ChangeSpec(
+        domains=["editorial", "segment"], target_ids=found + segs, before={"fact_ids": found, "withdrawn": not withdrawn},
+        after={"fact_ids": found, "withdrawn": withdrawn},
+        emit_type="editorial.withdrawn" if withdrawn else "editorial.recorded",
+        document_ids=sorted({seg.document_id for _, seg in pairs}), segment_ids=segs)
+
+
+@action("editorial.withdraw_many", FactIdsParams, domains=["editorial", "segment"], undoable=True,
+        invert=lambda before, after, ctx: ("editorial.restore_many", {"fact_ids": after["fact_ids"]})
+        if (after or {}).get("fact_ids") else None)
+def _action_withdraw_many(db: Database, params: FactIdsParams, ctx: ActionContext):
+    return _set_facts_withdrawn(db, params.fact_ids, True)
+
+
+@action("editorial.restore_many", FactIdsParams, domains=["editorial", "segment"], undoable=False)
+def _action_restore_many(db: Database, params: FactIdsParams, ctx: ActionContext):
+    return _set_facts_withdrawn(db, params.fact_ids, False)
+
+
 class EditorialListResponse(BaseModel):
     items: list[EditorialFact]
     #: The counting transcription, as the editor prints it: its text with the live facts about it

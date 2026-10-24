@@ -313,6 +313,17 @@ async def set_rights(
     return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
+@router.post("/many", response_model=RightsAnswer)
+async def set_rights_many(
+    body: RightsSetManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RightsAnswer:
+    """The same record on several targets (the Inspector's multi-selection): one audit id, one undo, all or nothing."""
+    result = registry.invoke(db, "rights.set_many", body.model_dump(mode="json"), ctx)
+    return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
+
+
 @router.post("/{record_id}/withdraw", response_model=RightsAnswer)
 async def withdraw_rights(
     record_id: str,
