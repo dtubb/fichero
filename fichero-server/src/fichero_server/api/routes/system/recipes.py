@@ -2422,12 +2422,13 @@ def _offered_cards(a: Optional[Answers]) -> list[Any]:
 
 
 def _also_rewrites(card: Any) -> Any:
-    """A text-only model (a job a text model does, no page reading) also corrects and translates, for the step menus."""
+    """A GENERATIVE text model (an MLX or served LLM, Apple Intelligence, a cloud chat model) also corrects and translates, for the
+    step menus. Not spaCy, whose pipelines only tag names, nor the parser's statements: they are told apart by the job only a
+    generative model does (`split-into-entries`) beside `find-statements`, which a model that writes text carries and the parser's
+    subject-verb-object cards do not."""
     from dataclasses import replace
 
-    from fichero_server.recipes.discovery import TEXT_MODEL_JOBS
-
-    if card.jobs & TEXT_MODEL_JOBS and not card.jobs & {"read-a-line", "read-a-page"}:
+    if {"split-into-entries", "find-statements"} <= card.jobs and not card.jobs & {"read-a-line", "read-a-page"}:
         return replace(card, jobs=card.jobs | {"correct", "translate-transliterate-normalise"})
     return card
 
