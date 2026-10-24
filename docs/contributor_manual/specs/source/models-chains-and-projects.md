@@ -4100,6 +4100,8 @@ Trying another option
   moves a row to the head of the list (`ModelFinderTiersTests.swift`).
 - `source.find.allow-cloud-once` — **[PARTIAL]** (#6044, Set Up review item 7; built, uncompiled) Beside a Set Up step the finder shows Allow Cloud Models once, above the
   tier that holds cards waiting on the permission, not on every cloud card (`CloudNeedsPermissionCardTests.swift`).
+- `source.onboard.stages.not-in-plan-says-so` — **[PARTIAL]** (#6039, Set Up review item 2; built, uncompiled) A stage page whose plan has no step for the stage says
+  "<Stage> is not in this plan yet." where its models would be listed, never nothing (`StageShowcasePicturesTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown

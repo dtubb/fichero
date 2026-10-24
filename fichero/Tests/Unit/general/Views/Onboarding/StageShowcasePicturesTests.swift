@@ -215,3 +215,10 @@ struct SetUpCompareLineLoadsReadinessTests {
         #expect(steps.contains("context.store.loadLatest()"))
     }
 }
+
+/// Set Up review item 2: a plan with no step for the stage says so.
+struct StageNotInPlanTests {
+    @Test func theWordsNameTheStage() {
+        #expect(SetupStagePage.notInPlanWords(stage: "Find Regions") == "Find Regions is not in this plan yet.")
+    }
+}
