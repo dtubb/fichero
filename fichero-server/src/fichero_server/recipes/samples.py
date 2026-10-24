@@ -513,7 +513,8 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     a = _answers(setup["answers"] or {})
     found, _ = discover(a, online=False, job=job)
     own_card = (step.get("card") or {}).get("id") if isinstance(step.get("card"), dict) else None
-    found = step_candidates(found, job, frozenset({own_card} if own_card else ()),
+    kept = frozenset({own_card} if own_card else ()) | frozenset(wanted or ())  # a card the person asked to compare stays
+    found = step_candidates(found, job, kept,
                             step.get("model") if isinstance(step.get("model"), dict) else None)  # Find a Reader's list: page readers, cloud and remote ones included (#5808)
     by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
     for i in wanted or []:  # a variant-A id names the frontier card it re-reads with

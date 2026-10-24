@@ -2128,14 +2128,27 @@ def model_link(card: Card) -> str | None:
     return None
 
 
+def does_the_step(card: Card, job: str) -> bool:
+    """Whether a card does a step's job: the ONE rule behind both what a step's menu lists (`step_candidates`) and what
+    `use-candidate` accepts (`recipes/start.py::use_candidate`), so a listed model is never one the press refuses (#5808).
+    A reader of whole pages that runs somewhere else (a cloud vision model, a model on the person's other computer) also
+    reads the line step's lines: it is sent Kraken's line pictures (`cloud-reads-kraken-lines`). One on this Mac (Apple's
+    recognition, a local vision model) does not do the line step."""
+    if job in card.jobs:
+        return True
+    return job == "read-a-line" and "read-a-page" in card.jobs and card.runs_on != "this-mac"
+
+
 def step_candidates(cards: list[Card], job: str, own_ids: frozenset[str] = frozenset(),
                     own_pin: dict | None = None) -> list[Card]:
     """The one list of a step's candidates (#5808, `source.find.one-candidate-source`), for Find a Reader, the stage
-    page and Compare alike: the cards naming the job, and for the line step the page readers too (a vision model or
-    Apple's recognition reads the lines' pictures: offered, the person's to choose), every model once."""
+    page and Compare alike: the cards that do the job (`does_the_step`), every model once. For the line step that
+    includes the page readers that run elsewhere (offered, the person's to choose), not the ones on this Mac, except the
+    step's own card."""
     from dataclasses import replace
 
     if job == "read-a-line":
-        cards = [c if job in c.jobs or "read-a-page" not in c.jobs else replace(c, jobs=c.jobs | {job}, offered_only=True)
-                 for c in cards]
+        # the step's own card stays listed even when it is a page reader on this Mac (a recipe saved with one keeps working)
+        cards = [c if job in c.jobs or not (does_the_step(c, job) or c.id in own_ids)
+                 else replace(c, jobs=c.jobs | {job}, offered_only=True) for c in cards]
     return dedupe_cards([c for c in cards if job in c.jobs], own_ids, own_pin)

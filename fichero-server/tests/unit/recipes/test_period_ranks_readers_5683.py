@@ -43,9 +43,10 @@ def test_the_recipe_reads_the_saved_period(client, with_material, mac):
     assert any("period" in reason for reason in read["reasons"]), read["reasons"]
 
 
-def test_apple_vision_is_offered_for_the_line_step_without_a_rule_rank(client, mac):
-    apple = _candidates(client)[APPLE]
-    assert apple["rule_rank"] is None and apple["in_recipe_rules"] is False
+def test_apple_vision_is_a_page_step_reader_and_not_a_line_step_candidate(client, mac):
+    """Ruling B (#5808): a step lists only what `use-candidate` accepts, and Apple's recognition reads whole pages on this Mac."""
+    assert APPLE not in _candidates(client)
+    assert APPLE in _candidates(client, job="read-a-page")
 
 
 def test_the_cards_state_their_period():

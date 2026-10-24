@@ -41,7 +41,10 @@ def test_the_candidates_for_read_include_one_of_each_reader_kind_available():
              source="remote-endpoints", offered_only=True),
     ]
     ids = {c.id for c in step_candidates(found, "read-a-line")}
-    assert ids == {c.id for c in found}, "a page reader reads the line step's lines too: nothing is dropped"
+    # the line step lists what `use-candidate` accepts (`does_the_step`): a page reader that runs elsewhere (a cloud model, one
+    # on the person's other computer) reads Kraken's lines and stays; one on this Mac (Apple's recognition, a local vision
+    # model) does not do the line step
+    assert ids == {"kraken:catmus@1", "ppocr:latin@1", "anthropic:claude@x", "remote:studio@1"}
     # a job a card does not name is never a candidate for it
     assert {c.id for c in step_candidates(found, "find-lines")} == set()
 
