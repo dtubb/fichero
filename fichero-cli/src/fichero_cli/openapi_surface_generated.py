@@ -13439,6 +13439,7 @@ def register_generated_openapi_commands(
         period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: str = typer.Option(..., '--scripts', help='Scripts.'),
         step: Optional[str] = typer.Option(None, '--step', help='Step.'),
+        worth_only: Optional[bool] = typer.Option(None, '--worth-only/--no-worth-only', help='Worth Only.'),
     ) -> None:
         """Model Candidates (GET /api/recipes/candidates)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13453,6 +13454,7 @@ def register_generated_openapi_commands(
                 "period": period,
                 "scripts": scripts,
                 "step": step,
+                "worth_only": worth_only,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

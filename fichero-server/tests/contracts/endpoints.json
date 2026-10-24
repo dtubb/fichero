@@ -9298,6 +9298,11 @@
             "name": "step",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "worth_only",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
