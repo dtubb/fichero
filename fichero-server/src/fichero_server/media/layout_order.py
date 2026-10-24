@@ -16,7 +16,8 @@ from __future__ import annotations
 from typing import Any
 
 #: The kinds that sit BESIDE the body and are read after the block they sit beside.
-MARGINALIA = frozenset({"marginalia", "margin", "marginal"})
+#: Kraken's `marginalia`, and SegmOnto's margin and numbering zones (what imported PAGE files call them).
+MARGINALIA = frozenset({"marginalia", "margin", "marginal", "margintextzone", "marginzone", "numberingzone"})
 #: Each box's core, the middle of its extent, is what must not overlap for a cut: lines whose outlines
 #: touch still have a gap between their cores.
 _CORE = 0.15

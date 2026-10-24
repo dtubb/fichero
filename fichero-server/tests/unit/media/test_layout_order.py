@@ -82,3 +82,39 @@ def test_find_regions_geometry_lists_regions_and_their_lines_in_reading_order():
     assert [round(b.bbox[1], 2) for b in regions] == [0.05, 0.52], "the top block is region 1"
     assert [round(b.bbox[1], 2) for b in lines] == [0.08, 0.56], "and its line comes first"
     assert [b.metadata["line_index"] for b in lines] == [0, 1]
+
+
+def test_the_read_path_joins_its_transcript_in_reading_order(monkeypatch):
+    """`recognize_to_geometry`: the text a Read saves follows the order too, not the segmenter's."""
+    from fichero_server.llm import kraken_runtime
+
+    def poly(x0, y0, x1, y1):
+        return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    payload = {"width": 1000, "height": 1000, "regions": [
+        {"id": "second", "type": "text", "polygon": poly(50, 520, 900, 900)},
+        {"id": "first", "type": "text", "polygon": poly(50, 50, 900, 400)}],
+        "lines": [
+            {"region": "second", "polygon": poly(60, 560, 880, 620), "baseline": [], "text": "Secretaría de la Alcaldía"},
+            {"region": "first", "polygon": poly(60, 80, 880, 140), "baseline": [], "text": "Francisco Mina es vecino"}]}
+    monkeypatch.setattr(kraken_runtime, "recognize_lines", lambda *args, **kwargs: payload)
+    result = kraken_runtime.recognize_to_geometry("page.png", "model.mlmodel")
+    assert result.text == "Francisco Mina es vecino\nSecretaría de la Alcaldía"
+    lines = [b for b in result.boxes if b.text]
+    assert [b.text for b in lines] == ["Francisco Mina es vecino", "Secretaría de la Alcaldía"]
+    assert lines[0].char_start == 0 and lines[1].char_start == len("Francisco Mina es vecino") + 1
+
+
+def test_plain_find_lines_orders_an_rtl_page_right_to_left(monkeypatch):
+    """`segment_to_geometry` passes the page's direction on: two columns of an rtl page come right column first."""
+    from fichero_server.llm import kraken_runtime
+
+    def poly(x0, y0, x1, y1):
+        return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    payload = {"width": 1000, "height": 1000, "regions": [], "lines": [
+        {"region": None, "polygon": poly(50, 100, 400, 800), "baseline": []},      # left column
+        {"region": None, "polygon": poly(600, 100, 950, 800), "baseline": []}]}   # right column
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda *args, **kwargs: payload)
+    rtl = kraken_runtime.segment_to_geometry("page.png", direction="rtl")
+    ltr = kraken_runtime.segment_to_geometry("page.png")
+    assert [round(b.bbox[0], 2) for b in rtl.boxes] == [0.6, 0.05]
+    assert [round(b.bbox[0], 2) for b in ltr.boxes] == [0.05, 0.6]
