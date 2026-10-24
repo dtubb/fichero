@@ -82,6 +82,7 @@ def test_start_records_the_first_yes_and_can_be_taken_back(client, db, test_pack
     started = r.json()["started"]
     assert started["recipe_id"] == "t/kraken" and started["recipe_version"] == "0.2.0"
     assert started["workflows"] == ["Transcribe (Kraken)"] and started["started_at"]
+    assert r.json()["step_choices"] == []  # the menus are for before Start: the answer stays small on any catalogue
     assert (Path(test_package) / "recipe" / "started.yaml").is_file()
     [audit] = [a for a in db.query(ActionAudit) if a.action_name == "project.start"]
     assert client.post(f"/api/actions/audit/{audit.id}/undo").status_code == 200
