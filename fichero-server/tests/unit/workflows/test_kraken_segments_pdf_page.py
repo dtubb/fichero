@@ -120,12 +120,14 @@ async def test_kraken_segments_a_pdf_page_child_in_the_right_frame(
 
     seen_paths: list[str] = []
 
-    def _fake_segment(image_path, rendition_id=None, home=None):
+    def _fake_segment(image_path, **kwargs):
         seen_paths.append(image_path)
-        return _kraken_geometry()
+        return {}
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(kraken_runtime, "segment_to_geometry", _fake_segment)
+        # The node's Kraken path is the recipe's one Find Regions (#5962): its lowest seams are the segmenter and the geometry built from it.
+        mp.setattr(kraken_runtime, "segment_lines", _fake_segment)
+        mp.setattr(kraken_runtime, "geometry_from_segmentation", lambda payload, **kw: _kraken_geometry())
         result = await detect_regions(
             inputs={
                 "files": src["files"],
@@ -207,7 +209,8 @@ async def test_kraken_pdf_page_emits_artifact_updated_naming_it(
     import fichero_server.llm.kraken_runtime as kraken_runtime
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(kraken_runtime, "segment_to_geometry", lambda *a, **k: _kraken_geometry())
+        mp.setattr(kraken_runtime, "segment_lines", lambda *a, **k: {})
+        mp.setattr(kraken_runtime, "geometry_from_segmentation", lambda payload, **kw: _kraken_geometry())
         result = await detect_regions(
             inputs={"files": src["files"], "documents": src["documents"], "provider": "kraken"},
             state={"library_path": library_path, "task_id": None},
