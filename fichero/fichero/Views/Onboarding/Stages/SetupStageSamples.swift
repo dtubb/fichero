@@ -92,7 +92,7 @@ struct SetupStageSamples: View {
             // (#6034), counts under each; the page's name opens it larger in the compare window (#6047, #5856).
             ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
                 let here = compared.filter { $0.perPage?.contains { $0.id == pageId } == true }
-                if here.count > 1 {
+                if !here.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Button { comparing = ComparedPage(id: pageId) } label: {
                             Text(store.name(of: pageId)).font(.callout.weight(.medium))
