@@ -116,7 +116,17 @@ struct ModelFinderCard: View {
                 // Beside a Set Up step the answer is one press away: the same fix as the toggle's.
                 if let step {
                     // A real button, not greyed with the card: the one press that makes the card usable.
-                    Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
+                    // Allowed, the list is read again with the yes, so the cloud cards become usable at once.
+                    Button("Allow Cloud Models") {
+                        Task {
+                            await step.setup.allowCloud()
+                            if let query = store.query {
+                                var allowed = query
+                                allowed.cloudAllowed = true
+                                await store.load(allowed)
+                            }
+                        }
+                    }
                         .controlSize(.small)
                         .foregroundStyle(.primary)
                 }
