@@ -127,8 +127,9 @@ STEP_ORDER: tuple[str, ...] = (
     # Organise reads the names and dates found (ruled 2026-10-10): parties group the documents, dates order them.
     "find-documents-in-a-folder",
     "find-statements", "link-to-authorities", "place-in-a-gazetteer", "pull-out-passages",
-    "describe-for-the-catalogue", "extract-to-a-table", "make-a-vector", "train-a-model", "check",
+    "extract-to-a-table", "make-a-vector", "train-a-model", "check",
     "export", "publish",
+    "describe-for-the-catalogue",  # the folder's description is the last stage (`catalogue.folder-description-fields`)
 )
 assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())
 #: The jobs a layer added later can turn on (`source.onboard.add-layer`), in order.

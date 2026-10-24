@@ -82,3 +82,16 @@ def test_the_description_is_held_to_the_one_length_setting(db, monkeypatch):
     catalogue_step.describe_folders(db, pages, CONFIG, run_id=None)
     art = catalogue_step._latest(db, _box)
     assert len(art.content.split()) <= catalogue_step.FOLDER_DESCRIPTION_MAX_WORDS
+
+
+def test_the_catalogue_step_is_the_last_of_the_step_order():
+    from fichero_server.recipes.assemble import STEP_ORDER
+
+    assert STEP_ORDER[-1] == "describe-for-the-catalogue"
+
+
+def test_the_start_plan_runs_it_as_a_catalogue_card_with_the_steps_model():
+    from fichero_server.recipes import start
+
+    assert start.OTHER_CARDS["describe-for-the-catalogue"] == "catalogue"
+    assert "describe-for-the-catalogue" not in start.BY_HAND_FIX
