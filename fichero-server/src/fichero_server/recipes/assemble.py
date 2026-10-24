@@ -130,7 +130,9 @@ STEP_ORDER: tuple[str, ...] = (
     # Organise reads the names and dates found (ruled 2026-10-10): parties group the documents, dates order them.
     "find-documents-in-a-folder",
     "find-statements", "link-to-authorities", "place-in-a-gazetteer", "pull-out-passages",
-    "describe-for-the-catalogue", "extract-to-a-table", "make-a-vector", "train-a-model", "check",
+    "extract-to-a-table", "make-a-vector", "train-a-model", "check",
+    # The last of the work steps, but before the exports: a kept export and the site carry this run's descriptions.
+    "describe-for-the-catalogue",
     "export", "publish",
 )
 assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())

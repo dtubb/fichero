@@ -683,6 +683,23 @@ def _run_entries(db: Any, card: dict[str, Any], documents: list[str], parent: st
     return None, "done", None
 
 
+def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                   step: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """The Catalogue stage (`catalogue.folder-description-fields`, #6087): a description on each folder above the run's
+    pages, deepest first, redone only where what it covers changed. The step's account (`catalogue`) counts them."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.recipes.catalogue_step import describe_folders
+
+    step["catalogue"] = account = describe_folders(
+        db, documents, LLMConfig(provider=card["provider"], model=card["model"]), run_id=parent,
+        stop=lambda: _stop_asked(parent))
+    if _stop_asked(parent):
+        return None, "cancelled", "Stopped by you"
+    if account["failed"]:
+        return None, "failed", "; ".join(account["failed"])
+    return None, "done", None
+
+
 def _run_prepare(db: Any, documents: list[str], parent: str,
                  step: dict[str, Any]) -> tuple[str | None, str, str | None]:
     """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
@@ -1230,12 +1247,16 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             _note_batch(step, batch, "not run", None, blocked)
             problems.append(f"step {named} not run: {blocked}")
             continue
-        if card["card"] == "publish" and not final:  # the site is the whole project: written once, at the end
+        if card["card"] in ("publish", "catalogue") and not final:  # written once, at the end, over the whole run
             continue
         scratch: dict[str, Any] = {}
         # The pages are worked out now, so pages a split made earlier in this batch are among them.
         documents = _card_pages(db, card, batch["units"], tree)
-        if not redo.intersection(card["steps"]):
+        if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
+            from fichero_server.recipes.done import pages_for
+
+            documents = pages_for(db, card, detail.get("documents"))
+        elif not redo.intersection(card["steps"]):
             documents, scratch["already_done"] = split_done(db, card, documents)
         if documents and _reads_page_images(card.get("job")):
             # A recording is not a page: the steps that read page images leave it out and say so, instead of
@@ -1333,6 +1354,8 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
         child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
     elif card["card"] == "entries":
         child, state, why = _run_entries(db, card, documents, job_id, scratch)
+    elif card["card"] == "catalogue":
+        child, state, why = _run_catalogue(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
         child, state, why = _run_prepare(db, documents, job_id, scratch)
     elif card["card"] == "leave-out":
