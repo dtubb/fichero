@@ -441,6 +441,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/rendition_order.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/segment_pictures.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment_service.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/upright.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/activity_records.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
