@@ -274,3 +274,24 @@ def test_the_unsure_choice_is_kept_as_typed_fields_on_the_override_not_as_words(
     override = next(o for o in r.json()["recipe"]["overrides"] if o["step"] != step)
     assert override["unsure"] is True and override["correct_was_on"] is False and override["card"] == CLAUDE
     assert override["because"].startswith("Kraken reads") and "already on" not in override["because"]
+
+
+@pytest.fixture
+def names_project(client, with_material, mac):  # noqa: F811
+    answers = {"purposes": ["transcribe", "entities"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "mac_memory_gb": 32, "cloud_allowed": False}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe}).status_code == 200
+    return recipe
+
+
+def test_names_and_correct_each_list_candidates_with_a_cloud_model_named_where_it_needs_a_key(client, names_project):
+    """Test 13: the Names stage offered spaCy only and Correct nothing: a text step lists spaCy and the cloud text models (greyed with
+    what they need), and Correct, when it is not in the plan, is listed with the way to turn it on whether or not Kraken reads."""
+    plan = _plan(client)
+    names = next(c for c in plan["step_choices"] if c["job"] == "find-names-tag-words")
+    assert any(c["card"].startswith("spacy:") for c in names["candidates"])
+    cloud = [c for c in names["candidates"] if not c["local"]]
+    assert cloud and all({n["kind"] for n in c["needs"]} & {"permission", "key"} for c in cloud)
+    correct = next(c for c in plan["step_choices"] if c["job"] == "correct")
+    assert correct["in_plan"] is False and correct["turn_on"] and correct["candidates"]
