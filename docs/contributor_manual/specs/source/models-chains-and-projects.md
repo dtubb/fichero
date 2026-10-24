@@ -4851,3 +4851,8 @@ Each is described in the paragraph named; the id lets a test cite it.
   never fetched or sized twice for two views; the engine keeps one thumbnail size and one display size per document (`ensure_thumbnail`, `ensure_display`),
   stale variants removed. Audit 2026-10-24 on 642b08687: every view uses `LibraryImageView` or `StorageService` except the web scheme handler
   (`StorageResourceLoader`, bytes only, no decoded copy) (`StorageDisplayImageCacheTests.swift`).
+- `source.shell.inspector-column-resizable` — **[PARTIAL]** (#6009; built, uncompiled, cause not reproduced) The docked Inspector column can be dragged wider and narrower
+  (`ContentView.inspectorMinWidth` 220 to `inspectorMaxWidth` 800, ideal 270): its bounds are the LAST modifier on the content handed to `.inspector`
+  (`inspectorColumnBounds()`), outside every environment and geometry wrapper, and nothing else sets that column's width. Audited 2026-10-24: no workspace
+  (`WorkspaceMount`, `BuiltInWorkspaceLayout`, `WorkspaceSplitStack`) owns the real Inspector (its `.inspector` pane is a centre-pane placeholder; the saved
+  `inspectorWidth` is only clamped, never applied) (`InspectorPaneWidthTests.swift`).

@@ -85,11 +85,6 @@ extension ContentView {
                     }
                     #endif
                 }
-                .inspectorColumnWidth(
-                    min: CGFloat(ContentView.inspectorMinWidth),
-                    ideal: CGFloat(ContentView.defaultInspectorWidth),
-                    max: CGFloat(ContentView.inspectorMaxWidth)
-                )
             #endif
         } else {
             // Compact width (iPhone): the adaptive presenter routes the
@@ -99,5 +94,24 @@ extension ContentView {
             // owns the stack-vs-docked choice outside this builder.
             detailView
         }
+    }
+}
+
+extension View {
+    /// The docked inspector column's width bounds, applied as the LAST modifier on the content handed to `.inspector`
+    /// (`ContentView+RootLayout`), outside every environment and geometry wrapper: SwiftUI reads the bounds from the
+    /// inspector content's own root, so under wrappers they were ignored and the column could not be dragged
+    /// (`source.shell.inspector-column-resizable`, #6009).
+    @ViewBuilder
+    func inspectorColumnBounds() -> some View {
+        #if os(visionOS)
+        self
+        #else
+        inspectorColumnWidth(
+            min: CGFloat(ContentView.inspectorMinWidth),
+            ideal: CGFloat(ContentView.defaultInspectorWidth),
+            max: CGFloat(ContentView.inspectorMaxWidth)
+        )
+        #endif
     }
 }
