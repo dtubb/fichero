@@ -1082,6 +1082,7 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
     import copy
 
     from fichero_server.recipes.bakeoff import apply_project_overrides
+    from fichero_server.recipes.discovery import does_the_step
 
     if not recipe:
         raise ValueError("this project has no recipe yet: run setup first")
@@ -1089,7 +1090,7 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
     step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
     if step is None:
         raise ValueError(f"this project's recipe has no step {step_id!r}")
-    if step.get("job") not in card.jobs:
+    if not does_the_step(card, step.get("job")):
         raise ValueError(f"{card.note.strip().rstrip('.') or card.id} does not do the step {step_id!r} "
                          f"({step.get('job')}): it does {', '.join(sorted(card.jobs)) or 'no job'}")
     because = because or f"chosen by you from the models found ({card.offered_because or card.source})"
