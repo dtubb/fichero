@@ -182,8 +182,12 @@ async def test_a_vision_model_reads_the_pages_lines_too(page, monkeypatch):
     await _transcribe(page)
     (lines_pass,) = _passes(page)
 
+    checks = iter(['["primera"]', '["tercera"]'])  # the batch's first and last line asked alone, to check its order
+
     async def teacher(images, prompt, config, **_):
         shown = len(images) - (1 if str(prompt).startswith("Before the ") else 0)  # variant B: the page comes first, unread
+        if shown == 1:
+            return next(checks)
         return '["primera", null, "tercera"]' if shown == 3 else "[" + ", ".join(['"x"'] * shown) + "]"
 
     monkeypatch.setattr(llm, "vision", teacher)
