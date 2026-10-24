@@ -169,6 +169,8 @@ def by_hand(job: str) -> dict[str, str]:
             "fix": BY_HAND_FIX.get(job, _NO_TOOL_YET)}
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
+#: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
+CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
 
 
 def _preset(name: str) -> dict | None:
@@ -1291,7 +1293,8 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
         "lines and the cost it really had")
 
 
-def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None) -> dict[str, Any]:
+def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
+             catalogue: list[dict[str, Any]] = (), folders: int = 0) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`).
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
@@ -1319,6 +1322,18 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
                      "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_to_send": to_send,
                      "lines_to_send_kind": send_kind, "lines_basis": send_basis})
+        total = None if total is None or cost is None else total + cost
+    for run in catalogue:  # the Catalogue step: one call a folder, its pages' readings cut to a budget (`recipes/catalogue_step.py`)
+        cost = _priced({**run, "model_override": run.get("model"), "provider_override": run.get("provider")}, 0)
+        if str(run.get("runs_on") or "").startswith("cloud"):
+            from fichero_server.workflows.model_comparison import estimate_cost
+
+            cost = estimate_cost(run.get("model") or "", folders * CATALOGUE_TOKENS_IN, folders * CATALOGUE_TOKENS_OUT,
+                                 provider=run.get("provider") or "")
+        rows.append({"workflow": "Catalogue", "steps": run["steps"], "where": run["runs_on"], "pages": folders,
+                     "cost_usd": cost, "basis": "unpriced" if cost is None else "free on this Mac" if not str(run["runs_on"]).startswith("cloud") else "the model's listed rate",
+                     "memory": None, "calls_per_page": 1, "lenses": [], "certainty_bar": None, "lines_to_send": None,
+                     "lines_to_send_kind": None, "lines_basis": None})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 

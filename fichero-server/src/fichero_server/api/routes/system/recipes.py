@@ -1065,7 +1065,10 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
         band = read_noise_band(library)
         if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
             a = replace(a, noise_band=band["value"])
-    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys), readers=_readers_with_a_row())
+    from fichero_server.recipes.discovery import other_text_cards
+
+    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys), readers=_readers_with_a_row(),
+                      cloud_text=[c for c in other_text_cards() if str(c.runs_on).startswith("cloud:")])
     if inferred is not None:
         recipe["inferred_language"] = inferred
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
@@ -2487,6 +2490,18 @@ def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[
                         places_of=lambda c: places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=clusters))
 
 
+def _catalogue_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The plan's Catalogue runs, priced by `estimate` (one call a folder, before Start)."""
+    return [r for r in runs if r.get("card") == "catalogue"]
+
+
+def _folders_covering(db: Database, page_ids: list[str]) -> int:
+    """How many folders a Catalogue run over these pages describes (each folder above them, once)."""
+    from fichero_server.recipes.catalogue_step import folders_covering
+
+    return len(folders_covering(db, page_ids)) if page_ids else 0
+
+
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
                 ) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
@@ -2512,7 +2527,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
-    plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]))
+    plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
+                                catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
@@ -2590,8 +2606,11 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["runs"], plan["skipped"] = started["runs"], started["skipped"]
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
-    plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
+    from fichero_server.recipes.done import material
+
+    plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=_catalogue_runs(plan["runs"]),
+                                   folders=_folders_covering(db, material(db, within)["ids"])), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
 
 
