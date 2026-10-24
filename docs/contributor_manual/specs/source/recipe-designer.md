@@ -11,7 +11,7 @@
 > needed and why); **"Reading the numbers"** (CER, WER, line recall, the noise band, the insertion rate
 > and why a large cloud model may invent text); **"Costs while it runs"**; **"Sharing a recipe"** (what a
 > recipe file holds and never holds, starting from one, following a published one).
-> Status: DRAFT — awaiting the owner's approval before tests or code. No milestone exists yet; create
+> Status: APPROVED 2026-10-24 (rulings below). Create
 > `recipe-designer` on approval and point its description here.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
@@ -325,9 +325,8 @@ are a candidate list (`source.recipe.line-finders-are-a-candidate-list` (P),
 - `designer.layout.measures` [MISSING] (#6052) — the measures are line recall and extra lines
   (`bakeoff.score_lines`) and, where region truth exists, mean best IoU per region with a class recall;
   the compare says "lines found 212 of 218 · 3 extra · blocks IoU 0.81 · 4 s/page".
-- `designer.layout.one-page` [PROPOSED] (#6052) — merge the two pages into one, "Find the layout",
-  with one drawn result. Everything above works with two pages; this asks the owner whether one page
-  reads better (open question 1).
+- `designer.layout.one-page` [MISSING] (#6052) — Find Regions and Find Lines are one page, "Find the
+  layout", with one drawn result (ruled 2026-10-24).
 
 **Read.** Exists: one candidate list per step, a step lists only what it can take, and **a page reader on
 this Mac (Apple's recognition, a local vision model) is not a line step's candidate**
@@ -513,9 +512,10 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
 - `designer.compare.re-runs-when-answers-change` [MISSING] (#6052) — a change to the material answers
   re-runs the compare once the person leaves the page, counted against the same caps.
 - `designer.compare.capped` [MISSING] (#6052) — a compare that includes a cloud candidate is priced first
-  (`bakeoff.next_run`) and held under `places.auto_compare_cap_usd` (default US$0.50 a stage, US$2 a
-  project), itself inside the project cloud cap once built (`training.cost.app-and-project-caps` (G),
-  build order step 6); the dearest cloud candidate over the cap is left out and named.
+  (`bakeoff.next_run`) and spends from the project cloud cap (`training.cost.app-and-project-caps` (G),
+  build order step 6), with no cap of its own; the automatic run leaves out, and names, the dearest
+  cloud candidate that would pass what is left, and a pressed Compare that would pass it asks first in
+  a confirming dialog (ruled 2026-10-24).
 - `designer.compare.side-by-side-text` [MISSING] (#6052) — the page image beside one column per
   candidate, text aligned to Kraken's lines, lines differing from the best highlighted and inserted
   words marked where there is truth; for the layout stages the blocks and lines drawn; the caption
@@ -850,23 +850,29 @@ every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()`
 15. Later milestone: the recipe search (catalogue first, then the convention), publish and follow.
 16. Fill the rest of the table; refresh one family at a time per model release.
 
-## Open questions for the creative director
+## Rulings (owner, 2026-10-24)
 
-1. One page "Find the layout" or the two pages as today (`designer.layout.one-page`).
-2. The auto-compare caps: US$0.50 a stage and US$2 a project, or a share of the project cloud cap once
-   it is built.
-3. The teaching thresholds: 500 checked lines for a Kraken fine-tune, the lines of 200 pages for a
-   LoRA, and how they sit beside the volume rule's 5,000 pages.
+The spec is approved to build in the build order. Benchmark spend: the first four rows (about US$5)
+only. Questions 1–3 and 5–9 are ruled as follows; question 4 stays open.
+
+1. One page, "Find the layout" (`designer.layout.one-page` is ruled; build it at step 11).
+2. The automatic compare spends from the project cloud cap, not a cap of its own; a press of
+   Compare that would go past what is left asks first, in a confirming dialog.
+3. 500 checked lines for a Kraken fine-tune, the lines of 200 pages for a LoRA, or the volume rule's
+   5,000 pages, whichever comes first.
+5. NonCommercial sets are measured locally and never shipped.
+6. The four card texts and the teaching offer are approved as written.
+7. The first draft's ids are retired once the clerk confirms nothing cites them.
+8. The five built-in recipes are approved, each from a public set.
+9. The `fichero-recipes` catalogue waits; the recipe search stays a later milestone.
+
+Set Up screens items 5, 9 and 13 (appendix): one "Choose a model…" on every model step; Ready as one
+line per step with Change…; the duplicate grey example line removed (one is kept).
+
+## Open question for the creative director
+
 4. The dictionary-word rule for "lines changed beyond the CER" (needs a word list per language; none
    for Latin abbreviations); until ruled it stays [PROPOSED] and the insertion rate is the one number.
-5. NonCommercial Test Corpus sets: this spec defaults to "measured locally, never shipped" per the
-   corpus rule; say if a numbers-only exception is wanted.
-6. The on-screen wording of the four cards and the teaching offer: approve, or edit here before the
-   String Catalog takes it.
-7. The retired ids of the first draft (change 8): confirm no test or issue cites them.
-8. The first built-in recipes: confirm the five kinds, each from a public set.
-9. The `fichero-recipes` catalogue repository: create it under the maintainer's account or a project
-   organisation, and who checks submissions; until it exists the recipe search is deferred.
 
 ## Appendix: screens review facts (2026-10-24, read from the code; inlined so nothing cites a local note)
 
