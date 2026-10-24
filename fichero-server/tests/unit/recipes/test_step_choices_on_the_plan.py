@@ -47,7 +47,7 @@ def test_the_plan_lists_the_candidates_of_a_step_and_marks_exactly_one(client, p
     assert sum(c["recommended"] for c in choice["candidates"]) == 1
     claude = next(c for c in choice["candidates"] if c["card"] == CLAUDE)
     assert claude["how"] == "cloud-reads-kraken-lines" and not claude["local"] and not claude["available"]
-    assert {n["kind"] for n in claude["needs"]} >= {"permission", "key"}  # (a price may be listed too) listed greyed, with what it needs, never hidden
+    assert {n["kind"] for n in claude["needs"]} == {"permission", "key", "price"}  # listed greyed, with what it needs, never hidden
 
 
 def test_a_choice_is_kept_as_the_persons_and_taking_it_back_restores_set_ups_pick(client, project):
@@ -83,6 +83,24 @@ def test_every_candidate_the_plan_lists_can_be_chosen_cloud_readers_included(cli
         for candidate in (c for c in choice["candidates"] if not c["card"].startswith("corrects-unsure:")):  # its own test below
             r = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": candidate["card"]})
             assert r.status_code == 200, (choice["step"], candidate["card"], r.text)
+
+
+def test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_stays(client, project, claude_row):
+    """#5808, ruling B: a page reader (Apple Vision, a local vision model) does not read lines, so it is not the line step's
+    candidate (`discovery.does_the_step`, the one rule the menu and `use-candidate` share); a cloud reader that reads Kraken's
+    lines (the person's Claude row) is listed AND accepted for read-a-line."""
+    from fichero_server.recipes.discovery import does_the_step
+    from fichero_server.api.routes.system.recipes import _offered_cards
+
+    choice = _read_choice(_plan(client))
+    by_id = {c.id: c for c in _offered_cards(None)}
+    listed = [c["card"] for c in choice["candidates"] if not c["card"].startswith("corrects-unsure:")]
+    assert all(does_the_step(by_id[card], "read-a-line") for card in listed if card in by_id)
+    assert not any(card.startswith("apple:vision/") or "-VL-" in card for card in listed), listed
+    claude = next(c for c in choice["candidates"] if c["runs_on"].startswith("cloud:") and not c["card"].startswith("corrects-unsure:"))
+    assert claude["how"] == "cloud-reads-kraken-lines"
+    taken = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": claude["card"]})
+    assert taken.status_code == 200, taken.text
 
 
 def test_recommended_is_set_ups_pick_and_is_not_guessed_under_a_persons_choice(client, project):

@@ -1,8 +1,11 @@
 """An image an export cannot read fails only its page, says why, and is listed (#5966, `source.export.unreadable-image-fails-only-its-page`)."""
 from __future__ import annotations
 
+import sys
 import unicodedata
 from pathlib import Path
+
+import pytest
 
 
 from fichero_server.export_service import export_markdown_folder, export_word_docx
@@ -52,6 +55,7 @@ def test_a_word_export_writes_the_rest_and_says_where_the_image_would_be(db, tmp
     assert "Texto del folio" in xml and "not found" in xml
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="APFS (macOS) resolves a path in either Unicode normalisation; other file systems do not")
 def test_a_linked_source_with_accents_dollar_parentheses_and_a_long_name_resolves_in_either_normalisation(db, tmp_path):
     from fichero_server.db.storage import resolve_source
 

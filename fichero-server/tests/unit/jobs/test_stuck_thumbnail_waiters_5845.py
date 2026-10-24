@@ -68,9 +68,8 @@ def test_a_cancelled_set_aside_job_offers_nothing(client, db):
                [jobs.set_aside_reason(3), job_id])
     assert client.post(f"/api/activity/jobs/{job_id}/cancel").json()["state"] == "cancelled"
     row = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}.get(job_id)
-    # the jobs list shows a running, waiting, paused or failed job, not a cancelled one: no row, so no Resume to offer; if a
-    # later list does carry it, the row must still offer nothing
-    assert row is None or (row["state"] == "cancelled" and row["offer"] is None), row
+    # the jobs list shows a running, waiting, paused or failed job, never a cancelled one: no row, so no Resume to offer
+    assert row is None
 
 
 def test_stopping_a_waiting_job_works_through_the_route_the_app_calls(client, db):
