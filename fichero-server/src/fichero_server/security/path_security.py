@@ -473,7 +473,12 @@ def is_owner_granted_folder(path: str | Path) -> bool:
 
 
 def _within_owner_granted_folder(candidate: Path) -> bool:
+    import unicodedata
+
     _load_owner_grants()  # once per process; the loader returns at once after its first success
+    # The grants are kept NFC (`owner_folder_grant_key`); a path from Finder may come decomposed (NFD), so "Peña" in
+    # one form never matched the other and a granted folder's file was refused (owner 2026-10-24).
+    candidate = Path(unicodedata.normalize("NFC", str(candidate)))
     return any(candidate.is_relative_to(Path(folder)) for folder in tuple(_OWNER_GRANTED_FOLDERS))
 
 
