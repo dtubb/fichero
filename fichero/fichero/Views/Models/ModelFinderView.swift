@@ -150,7 +150,7 @@ struct ModelFinderCard: View {
                     .foregroundStyle(failed ? .orange : .secondary)
                     .textSelection(.enabled)
             }
-            if let refused = candidate.refused, !Self.cannotRunHere(candidate) {
+            if let refused = Self.refusedLine(candidate) {
                 Label(refused, systemImage: "xmark.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -232,6 +232,13 @@ struct ModelFinderCard: View {
     /// A cloud reader the person has not yet allowed (`needs_permission`, #5768): shown greyed, never pressed.
     static func needsPermission(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.needsPermission == true
+    }
+
+    /// The engine's refusal under the card, said once: a card that needs the cloud permission already says so, with its
+    /// action, so the same refusal in the engine's words is not repeated under it (`source.find.app-card-says`, #6033).
+    static func refusedLine(_ candidate: Components.Schemas.ModelCandidate) -> String? {
+        guard !cannotRunHere(candidate), !needsPermission(candidate) else { return nil }
+        return candidate.refused
     }
 
     static let permissionWords = "Needs permission: pages would leave this Mac."
