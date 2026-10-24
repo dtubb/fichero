@@ -149,13 +149,23 @@ struct SetupStagePage: View {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
                                 onlyJobs: Set(stage.jobs), candidatesOf: stepCandidates)
             } else {
+                // No plan was assembled: the steps are named, never offered as radio rows that look like a model
+                // choice, and the reason is said (`source.onboard.project.about-material`: never a silent empty proposal).
                 ForEach(stage.jobs, id: \.self) { job in
-                    Label(store.jobs[job]?.name ?? job, systemImage: "circle").font(.callout)
+                    Text(store.jobs[job]?.name ?? job).font(.callout)
                 }
-                Text("The model for each step is proposed once the material's languages and scripts are known.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(Self.noProposalReason(languages: store.languages, error: store.errorMessage))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Why no model is proposed on this page, in words: no language answered (go back, or Not sure), else the
+    /// engine's own refusal, else that the plan is still being made.
+    static func noProposalReason(languages: [String], error: String?) -> String {
+        if languages.isEmpty { return "No models are proposed yet: answer Languages on About the Material (or choose Not sure)." }
+        if let error, !error.isEmpty { return "No models are proposed yet: \(error)" }
+        return "No models are proposed yet: the plan for this material is still being made."
     }
 
     /// The answer a question shows: what the person gave, else what the engine has (this project's answer, else

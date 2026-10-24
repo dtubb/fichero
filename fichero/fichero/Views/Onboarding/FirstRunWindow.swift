@@ -293,7 +293,8 @@ extension FirstRunWindow {
     /// the default button at the far right. Regular push buttons, no icons.
     private var footer: some View {
         let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none,
-                                   hasMaterial: store?.hasMaterial ?? false)
+                                   hasMaterial: store?.hasMaterial ?? false,
+                                   hasLanguage: store?.languageWait == nil)
         let waits = model.waitsFor ?? (step == .ready ? store?.startDisabledReason : nil)
         return HStack {
             if let leading = model.leading {
