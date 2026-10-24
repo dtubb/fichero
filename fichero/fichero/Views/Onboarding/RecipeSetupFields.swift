@@ -209,7 +209,7 @@ struct RecipeAboutFields: View {
             }
             CodeTokenField(store: store, scripts: false)
             // Languages is required, and one answer is "Not sure": Fichero then works the language and writing
-            // system out from the sample pages and says so on each stage page (`source.onboard.project.about-material`).
+            // system out from the sample pages and says so on each stage page (`source.onboard.project.about-material-language`).
             Toggle("Not sure", isOn: Binding(get: { store.languagesNotSure }, set: { store.setLanguagesNotSure($0) }))
                 .setupCheckbox()
             if store.languagesNotSure {
