@@ -45,7 +45,7 @@ def _run(monkeypatch, tmp_path, scramble):
         return "[" + ", ".join(f'"{t}"' for t in shown) + "]"
 
     monkeypatch.setattr(llm, "vision", model)
-    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page"))
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page", page_context=True))
     return {b.metadata["segment_id"]: b.text for b in out.boxes}, calls
 
 
