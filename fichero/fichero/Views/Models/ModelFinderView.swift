@@ -224,7 +224,7 @@ struct ModelFinderCard: View {
                !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
-                    // Read again after the choice, so the card moves to the top marked "In use for this step" at once.
+                    // Read again after the choice, so the card shows its filled radio glyph and tint at once, in its own tier.
                     Task {
                         await step.setup.useCandidate(candidate, forStep: step.id)
                         if let query = store.query { await store.load(query) }
