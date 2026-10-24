@@ -309,3 +309,34 @@ def test_choosing_apple_vision_for_the_line_step_starts_a_run_that_reads_kraken_
     run = next(w for w in _plan(client)["workflows"] if choice["step"] in w["steps"])
     assert run["provider_override"] == "apple" and run["model_override"] == "apple-vision", run
     assert "kraken" in str(run.get("workflow", "")).lower() or run.get("workflow_id"), run
+
+
+def test_correct_and_translate_list_every_text_model_not_one_qwen(client, project, claude_row):
+    """#6089, #6090: the Correct and Translate steps offered one Qwen. A text model (a cloud model of a provider row here) is a
+    candidate for both, on the menu; the rules still do not choose it."""
+    from fichero_server.api.routes.system import recipes as routes
+
+    cards = routes._offered_cards(None)
+    for job in ("correct", "translate-transliterate-normalise"):
+        listed = [c for c in cards if job in c.jobs]
+        assert any(str(c.runs_on).startswith("cloud:") and "claude-sonnet" in c.id for c in listed), job
+        assert len({c.id for c in listed}) >= 2, job
+
+
+def test_spacy_is_not_offered_for_correct_or_translate_and_use_candidate_refuses_it(client, project):
+    """## 1098: spaCy only tags names; it must not be a candidate for the two rewriting steps (it would fail at run time)."""
+    from fichero_server.api.routes.system import recipes as routes
+
+    cards = routes._offered_cards(None)
+    spacy = [c for c in cards if str(c.id).startswith("spacy:")]
+    assert spacy, "the fixture should know a spaCy card"
+    for c in spacy:
+        assert "correct" not in c.jobs and "translate-transliterate-normalise" not in c.jobs, c.id
+    plan = client.get("/api/recipes/project/start").json()
+    for choice in plan["step_choices"]:
+        if choice["job"] in ("correct", "translate-transliterate-normalise"):
+            assert not [c for c in choice["candidates"] if str(c["card"]).startswith(("spacy:", "corrects-unsure:spacy"))]
+    step = next((c["step"] for c in plan["step_choices"] if c["job"] == "correct"), None)
+    if step:
+        refused = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": spacy[0].id})
+        assert refused.status_code >= 400, refused.text

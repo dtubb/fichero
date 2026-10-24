@@ -2420,7 +2420,23 @@ def _offered_cards(a: Optional[Answers]) -> list[Any]:
     seen = {c.id for c in correctors}
     readers = [replace(c, jobs=c.jobs | {"correct"}) if c.jobs & {"read-a-line", "read-a-page"} else c
                for c in remote_reader_cards() if c.id not in seen]
-    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here or str(c.runs_on).startswith("cloud:")), *correctors, *readers]
+    # A text model rewrites a reading too (#6089, #6090): every text model the finder knows, installed MLX, Apple Intelligence and the
+    # person's cloud models alike, is a candidate for Correct and for Translate, not only the frontier providers' (their cards
+    # already say so) and the seed's one Qwen. Offered, never chosen by the rules: these jobs are added only here, on the menu.
+    text = (*known_cards(a), *(c for c in other_text_cards() if c.runs_here or str(c.runs_on).startswith("cloud:")))
+    return [*(_also_rewrites(c) for c in text), *correctors, *readers]
+
+
+def _also_rewrites(card: Any) -> Any:
+    """A GENERATIVE text model (an MLX or served LLM, Apple Intelligence, a cloud chat model) also corrects and translates, for the
+    step menus. Not spaCy, whose pipelines only tag names, nor the parser's statements: they are told apart by the job only a
+    generative model does (`split-into-entries`) beside `find-statements`, which a model that writes text carries and the parser's
+    subject-verb-object cards do not."""
+    from dataclasses import replace
+
+    if {"split-into-entries", "find-statements"} <= card.jobs and not card.jobs & {"read-a-line", "read-a-page"}:
+        return replace(card, jobs=card.jobs | {"correct", "translate-transliterate-normalise"})
+    return card
 
 
 def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None,
