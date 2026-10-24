@@ -4102,6 +4102,8 @@ Trying another option
   tier that holds cards waiting on the permission, not on every cloud card (`CloudNeedsPermissionCardTests.swift`).
 - `source.onboard.stages.not-in-plan-says-so` — **[PARTIAL]** (#6039, Set Up review item 2; built, uncompiled) A stage page whose plan has no step for the stage says
   "<Stage> is not in this plan yet." where its models would be listed, never nothing (`StageShowcasePicturesTests.swift`).
+- `source.find.nothing-found-engine-words` — **[PARTIAL]** (#6045, Set Up review item 8; built, uncompiled) With no model listed, the finder shows the engine's
+  `nothing-found` source sentence for any job, else the job's own wording (`ModelsUXTests.swift`). The engine adds the row for jobs other than readers (r1).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
