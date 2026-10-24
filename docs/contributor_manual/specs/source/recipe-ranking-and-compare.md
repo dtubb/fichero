@@ -29,26 +29,26 @@ Files: `fichero-server/src/fichero_server/recipes/assemble.py` (`_rank_key`, `_c
 
 ## Behaviors
 
-- `recipe.rank.one-rule-every-step` [PARTIAL] — every step ranks candidates by the same order: measured on the person's
+- `recipe.rank.one-rule-every-step` [PARTIAL] (#6052) — every step ranks candidates by the same order: measured on the person's
   pages, else the vendored default for the language and script, then coverage, card fit, tier, cost, speed.
-- `recipe.rank.measure-per-step` [MISSING] — each step names its measure (read: CER; find lines: line recall; find
+- `recipe.rank.measure-per-step` [MISSING] (#6052) — each step names its measure (read: CER; find lines: line recall; find
   names: F1; correct: agreement) and its ground truth in one short table.
-- `recipe.rank.reasons-in-words` [PARTIAL] — each candidate row says why it is ranked where it is, in words; the best,
+- `recipe.rank.reasons-in-words` [PARTIAL] (#6052) — each candidate row says why it is ranked where it is, in words; the best,
   the cheapest and the fastest are labelled on every row.
-- `recipe.default.measured-per-language` [MISSING] — a vendored default per language and script, from the Test Corpus
+- `recipe.default.measured-per-language` [MISSING] (#6052) — a vendored default per language and script, from the Test Corpus
   sets, with its corpus, licence and measured value written beside it; no default without a measurement.
-- `recipe.compare.auto-on-open` [MISSING] — when a step first has two or more candidates on the person's pages, Compare
+- `recipe.compare.auto-on-open` [MISSING] (#6052) — when a step first has two or more candidates on the person's pages, Compare
   runs by itself and says what it measured; it does not wait for a press.
-- `recipe.compare.cost-before-run` [PARTIAL] — the estimated cost and time are shown before an automatic Compare starts;
+- `recipe.compare.cost-before-run` [PARTIAL] (#6052) — the estimated cost and time are shown before an automatic Compare starts;
   time is predicted per set, not only cost.
-- `recipe.compare.side-by-side-text` [MISSING] — results show the candidates' text beside the page image, not only counts.
-- `recipe.compare.says-what-it-could-not-measure` [PARTIAL] — a Compare that cannot measure (no corrected lines, no ground
+- `recipe.compare.side-by-side-text` [MISSING] (#6052) — results show the candidates' text beside the page image, not only counts.
+- `recipe.compare.says-what-it-could-not-measure` [PARTIAL] (#6052) — a Compare that cannot measure (no corrected lines, no ground
   truth on the pages) says so in plain words and names what would let it measure.
-- `recipe.review.own-stage` [MISSING] — review is its own stage with a kind (palaeographer lenses, by kind), its level
+- `recipe.review.own-stage` [MISSING] (#6052) — review is its own stage with a kind (palaeographer lenses, by kind), its level
   and a measured gain; proposals are a separate pass from the review.
-- `recipe.coverage.before-cer` [PARTIAL] — a candidate that cannot write the script or language is filtered before any
+- `recipe.coverage.before-cer` [PARTIAL] (#6052) — a candidate that cannot write the script or language is filtered before any
   CER is compared (Loove coverage as a filter, not a score).
-- `recipe.regions.one-stage` [PARTIAL] — Find Regions and Find Lines are one stage, "Find the layout"; Kraken's
+- `recipe.regions.one-stage` [PARTIAL] (#6052) — Find Regions and Find Lines are one stage, "Find the layout"; Kraken's
   segmentation runs once when both steps are Kraken.
 
 ## Test matrix
@@ -75,9 +75,9 @@ Cited, not restated (see `compute/distillation.md` and `compute/jobs-and-fine-tu
 `distill.adopt.within-bar`, `distill.train.card-names-teacher`, `distill.job.any-model-job`, `compute.tune.loop-is-one-visible-cycle`.
 
 Behaviors (new, this section):
-- `source.recipe.distil-after-frontier` [MISSING] — a DISTIL step's frontier model reads the first pages, and the person's checked or corrected pages become training lines.
-- `source.recipe.distil-measured-before-switching` [MISSING] — the trained local model is measured against the frontier model and the shipped Kraken readers on held-out pages; the switch happens only within the noise band.
-- `source.recipe.distil-switch-says-cost` [MISSING] — before the run: frontier spend on the first pages, training time and place, the predicted saving; after the switch: the local model's cost per page, and the measured spend.
-- `source.recipe.distil-stays-frontier-says-why` [MISSING] — when the local model is not within the band, the run carries on with the frontier model and says why in words.
+- `source.recipe.distil-after-frontier` [MISSING] (#6052) — a DISTIL step's frontier model reads the first pages, and the person's checked or corrected pages become training lines.
+- `source.recipe.distil-measured-before-switching` [MISSING] (#6052) — the trained local model is measured against the frontier model and the shipped Kraken readers on held-out pages; the switch happens only within the noise band.
+- `source.recipe.distil-switch-says-cost` [MISSING] (#6052) — before the run: frontier spend on the first pages, training time and place, the predicted saving; after the switch: the local model's cost per page, and the measured spend.
+- `source.recipe.distil-stays-frontier-says-why` [MISSING] (#6052) — when the local model is not within the band, the run carries on with the frontier model and says why in words.
 
 Test (to write): fichero-server/tests/unit/recipes/ (a DISTIL case per behaviour), not yet written.
