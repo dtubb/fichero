@@ -4092,7 +4092,7 @@ Trying another option
   is not repeated under it (`CloudNeedsPermissionCardTests.swift`).
 - `source.onboard.stages.compare-side-by-side-inline` — **[PARTIAL]** (#6034; built, uncompiled) After Compare on These Pages, each sample page shows
   the candidates side by side on it, right under the button: the page's picture with each model's lines drawn on it and its reading under it,
-  Use This One per column; then the plain list of counts per page, which opens the page's window (`StageShowcasePicturesTests.swift`).
+  Use This One per column; the counts under each column; the page's name opens its window (`StageShowcasePicturesTests.swift`).
 - `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
   runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for Find Regions and Correct. The two ids are named in the app until
   the registry carries `offers_finder` on `JobInfo` (engine, then regenerate) (`StageShowcasePicturesTests.swift`).

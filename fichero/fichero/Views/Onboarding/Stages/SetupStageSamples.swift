@@ -85,32 +85,24 @@ struct SetupStageSamples: View {
         if let error = result.failure {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
         }
-        // Each model's counts on each page, side by side; a page opens the compare window (#5856).
+        // Each model beside the others on each page (#6034).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
         if compared.count > 1 {
             // First the candidates side by side on each page, the picture with each one's lines and its reading
-            // (#6034); then the plain list, each page opening the compare window.
+            // (#6034), counts under each; the page's name opens it larger in the compare window (#6047, #5856).
             ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
                 let here = compared.filter { $0.perPage?.contains { $0.id == pageId } == true }
                 if here.count > 1 {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(store.name(of: pageId)).font(.callout.weight(.medium))
+                        Button { comparing = ComparedPage(id: pageId) } label: {
+                            Text(store.name(of: pageId)).font(.callout.weight(.medium))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open this page larger, to compare the models on it")
                         StageCompareColumns(pageId: pageId, candidates: here, useThis: useThis,
                                             pictureWidth: 160...260)
                     }
                     .accessibilityIdentifier("setup.compare.sideBySide")
-                }
-            }
-            ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
-                let counts = result.sideBySide(pageId: pageId)
-                if !counts.isEmpty {
-                    Button { comparing = ComparedPage(id: pageId) } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(store.name(of: pageId)).font(.callout.weight(.medium))
-                            Text(counts).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
                 }
             }
         }

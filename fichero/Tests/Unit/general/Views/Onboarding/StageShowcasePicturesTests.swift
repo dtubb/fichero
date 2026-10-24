@@ -197,11 +197,11 @@ struct CompareSavesTheScreenFirstTests {
 
 /// #6034: Compare on These Pages shows the candidates side by side on each page, then the plain list.
 struct CompareSideBySideInlineTests {
-    @Test func theSideBySideComesBeforeTheList() throws {
+    @Test func theSideBySideReplacesTheTextRows() throws {
         let samples = try AppSource.text("Views/Onboarding/Stages/SetupStageSamples.swift")
-        let columns = try #require(samples.range(of: "StageCompareColumns(pageId:"))
-        let list = try #require(samples.range(of: "comparing = ComparedPage(id: pageId)"))
-        #expect(columns.lowerBound < list.lowerBound, "the plain list comes after the side-by-side")
+        #expect(samples.contains("StageCompareColumns(pageId:"))
+        #expect(!samples.contains("result.sideBySide(pageId:"), "the per-page text count rows are back (#6047)")
+        #expect(samples.contains("comparing = ComparedPage(id: pageId)"), "the page still opens the compare window")
         let shared = try AppSource.text("Views/Onboarding/Stages/StageCompareWindow.swift")
         #expect(shared.contains("struct StageCompareColumns"))
         #expect(shared.contains("readings?.first?.text"), "each column shows the model's reading under its picture")
