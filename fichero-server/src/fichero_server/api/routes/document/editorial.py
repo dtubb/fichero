@@ -130,8 +130,9 @@ def _live_fact(db: Database, fact_id: str) -> tuple[EditorialFact, Segment]:
 
 
 def _invert_withdraw(before, after, ctx: ActionContext):
+    # A fact already withdrawn before this step is not revived by undoing it.
     fact_id = (after or {}).get("fact_id")
-    return ("editorial.restore", {"fact_id": fact_id}) if fact_id else None
+    return ("editorial.restore", {"fact_id": fact_id}) if fact_id and (after or {}).get("changed", True) else None
 
 
 @action("editorial.withdraw", FactIdParams, domains=["editorial", "segment"], undoable=True,
@@ -139,11 +140,13 @@ def _invert_withdraw(before, after, ctx: ActionContext):
 def _action_withdraw(db: Database, params: FactIdParams, ctx: ActionContext):
     """Withdraw a fact: kept in the record, no longer drawn."""
     fact, segment = _live_fact(db, params.fact_id)
-    fact.withdrawn_at = utc_now()
-    db.save(fact)
+    changed = fact.withdrawn_at is None
+    if changed:
+        fact.withdrawn_at = utc_now()
+        db.save(fact)
     return {"fact_id": fact.id, "withdrawn": True}, _spec(
-        fact, segment, before={"fact_id": fact.id, "withdrawn": False},
-        after={"fact_id": fact.id, "withdrawn": True}, emit="editorial.withdrawn",
+        fact, segment, before={"fact_id": fact.id, "withdrawn": not changed},
+        after={"fact_id": fact.id, "withdrawn": True, "changed": changed}, emit="editorial.withdrawn",
     )
 
 
@@ -200,10 +203,13 @@ class FactIdsParams(BaseModel):
 
 def _set_facts_withdrawn(db: Database, ids: list[str], withdrawn: bool):
     pairs = [_live_fact(db, i) for i in dict.fromkeys(ids)]
+    # Only the facts this step changes are written and listed: undoing it must not revive one withdrawn before.
+    pairs = [(fact, seg) for fact, seg in pairs if (fact.withdrawn_at is None) == withdrawn]
     now = utc_now()
     for fact, _segment in pairs:
         fact.withdrawn_at = now if withdrawn else None
-    db.save_many([fact for fact, _ in pairs])
+    if pairs:
+        db.save_many([fact for fact, _ in pairs])
     found = [fact.id for fact, _ in pairs]
     segs = sorted({seg.id for _, seg in pairs})
     return {"fact_ids": found, "withdrawn": withdrawn}, ChangeSpec(
