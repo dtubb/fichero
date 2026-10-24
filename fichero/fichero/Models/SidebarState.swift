@@ -195,7 +195,6 @@ class SidebarState {
     }
 }
 
-
 /// One folder of a project offered to the Share… sheet: its id (what the engine scopes the grant to) and its name (what the sheet says).
 struct FolderShareTarget: Identifiable, Equatable {
     let libraryId: UUID

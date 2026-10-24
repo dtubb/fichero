@@ -135,7 +135,9 @@ extension InspectorTab {
 extension View {
     /// Record where this pane sits in the window, for the screenshot verb (`WindowState.paneFrames`).
     func recordsPaneFrame(_ key: String, in windowState: WindowState) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { if windowState.paneFrames[key] != $0 { windowState.paneFrames[key] = $0 } }
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            if windowState.paneFrames[key] != frame { windowState.paneFrames[key] = frame }
+        }
             .onDisappear { windowState.paneFrames[key] = nil }
     }
 }

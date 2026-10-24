@@ -1,5 +1,5 @@
-import Foundation
 import FicheroAPIClient
+import Foundation
 
 /// The step menu's data and its two actions (`source.onboard.step-choice-overrides-the-pick`, #4951).
 extension RecipeSetupStore {
