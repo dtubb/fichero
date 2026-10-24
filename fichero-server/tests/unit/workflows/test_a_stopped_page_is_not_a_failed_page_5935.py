@@ -57,8 +57,9 @@ async def _fan_out(tmp_path, answer):
 
     async def fake_process_vision(**kwargs):
         calls.append(1)
+        n = len(calls)  # this call's number, taken before the yield: pages overlap, and the first to resume would read the last number
         await asyncio.sleep(0)
-        return answer(len(calls))
+        return answer(n)
 
     library_path, _pdf, db = _library(tmp_path)
     graph = build_graph(_fan_out_workflow(), skip_cache=True)
@@ -70,6 +71,14 @@ async def _fan_out(tmp_path, answer):
         patch("fichero_server.workflows.tools.transcribe.process_vision", new=fake_process_vision),
     ):
         return await asyncio.wait_for(graph.ainvoke(state), timeout=60)
+
+
+def _step_results(final) -> list[dict]:
+    """The step's per-page results as the run account reads them: the state's outputs drop the per-file `results` once a node is
+    done (`compact_output_for_state`), the fan-out's own record of each page stays."""
+    from fichero_server.workflows.run_account import results_by_step
+
+    return results_by_step(final, ())["transcribe"]
 
 
 def _ok(n):
@@ -88,7 +97,7 @@ async def test_a_page_stopped_alone_is_skipped_cancelled_and_the_run_completes(t
         final = await _fan_out(tmp_path, answer)
     except SystemicErrorDetected as exc:  # pragma: no cover -- the failure this pins
         pytest.fail(f"a stopped page aborted the run: {exc}")
-    results = final["outputs"]["transcribe"]["results"]
+    results = _step_results(final)
     cancelled = [r for r in results if r.get("cancelled")]
     assert len(cancelled) == 1
     assert not [r for r in results if r.get("error") and not r.get("cancelled")], "the stopped page counted as a failure"
@@ -109,7 +118,7 @@ async def test_a_real_failure_beside_a_stopped_page_still_reads_failed(tmp_path)
         return _ok(n)
 
     final = await _fan_out(tmp_path, answer)
-    results = final["outputs"]["transcribe"]["results"]
+    results = _step_results(final)
     assert sum(1 for r in results if r.get("cancelled")) == 1
     failed = [r for r in results if r.get("error") and not r.get("cancelled")]
     assert len(failed) == 1 and "model fell over" in failed[0]["error"]
