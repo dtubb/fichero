@@ -399,8 +399,10 @@ def page_finished(db: Any, run_ref: str | None, key: str) -> None:
         return
     note = NOTES.get(run_ref)
     if note is None:
-        row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [run_ref])
-        note = NOTES.get(row[0]) if row and row[0] else None
+        from fichero_server.execution.jobs import parent_of
+
+        parent = parent_of(db, run_ref)
+        note = NOTES.get(parent) if parent else None
     if note is not None:
         note(key)
 

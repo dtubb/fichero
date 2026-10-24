@@ -938,6 +938,12 @@ def requeue(db: "Database", job_id: str, *, reason: str) -> None:
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
 
 
+def parent_of(db: "Database", job_id: str) -> str | None:
+    """The job a job runs under (a recipe step's run under its recipe run), or None."""
+    row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [job_id])
+    return row[0] if row and row[0] else None
+
+
 def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     """One job's row (its `detail` as stored, JSON text), or None."""
     _ensure(db)

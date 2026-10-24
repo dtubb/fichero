@@ -305,3 +305,9 @@ def recover_stale(db: Any, *, error: str, started_before: Optional[datetime],
         f"UPDATE {RUNS} SET status = 'failed', error = COALESCE(error, ?), completed_at = COALESCE(completed_at, "
         f"CURRENT_TIMESTAMP) WHERE {' AND '.join(where)} RETURNING id", params)
     return [row[0] for row in rows if row and row[0]]
+
+
+def run_workflow_name(db: Any, run_id: str) -> Optional[str]:
+    """The workflow a run ran, by name (the Inspector's 'who read it' names the step), or None for no such run."""
+    row = db.execute_fetchone("SELECT workflow_name FROM workflowrunrecords WHERE id = ?", [run_id])
+    return row[0] if row else None

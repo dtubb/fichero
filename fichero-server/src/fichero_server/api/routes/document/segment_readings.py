@@ -864,8 +864,9 @@ def _say_who_read(db: Database, items: list[ReadingRead]) -> None:
         run_id = item.producer_run_id
         if run_id:
             if run_id not in steps:
-                row = db.execute_fetchone("SELECT workflow_name FROM workflowrunrecords WHERE id = ?", [run_id])
-                steps[run_id] = row[0] if row else None
+                from fichero_server.db.activity_records import run_workflow_name
+
+                steps[run_id] = run_workflow_name(db, run_id)
             item.producer_step = steps[run_id]
 
 
