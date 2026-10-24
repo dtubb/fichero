@@ -75,7 +75,8 @@ def test_the_page_rides_once_per_request_reduced_beside_the_batch_of_lines(monke
     import base64
     import io
 
-    [call] = _calls(monkeypatch, tmp_path, ["a", "b", "c"])
+    call, *checks = _calls(monkeypatch, tmp_path, ["a", "b", "c"])
+    assert len(checks) == 2 and all(len(c["images"]) == 1 for c in checks), "then the first and last line alone, to check the order"
     assert len(call["images"]) == 4, "the page, then the three lines"
     with Image.open(io.BytesIO(base64.b64decode(call["images"][0].split(",", 1)[1]))) as page:
         assert max(page.size) <= line_reader.PAGE_CONTEXT_SIDE

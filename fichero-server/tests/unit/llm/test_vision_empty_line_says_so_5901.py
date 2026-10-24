@@ -92,7 +92,7 @@ def test_a_generative_models_null_is_still_no_writing_and_is_not_asked_again(mon
 
     monkeypatch.setattr(llm, "vision", fake_vision)
     path, geometry = _geometry(tmp_path, ["a", "b"])
-    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x")))
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), page_context=False))
     assert out.metadata[NO_WRITING_KEY] == ["b"] and out.metadata["lines_unanswered"] == {} and len(seen) == 1
 
 
