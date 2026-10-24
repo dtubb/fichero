@@ -1818,6 +1818,8 @@ async def _run_abatch_chunks(
                     chunk_results = await _call_model_abatch(model, chunk, config)
                     answered = [r for r in chunk_results if not isinstance(r, BaseException)]
                     _record_batch_usage(answered, config, kind=kind)
+                    for _ in (r for r in answered if not usage_from_message(r)):
+                        spend.note_actual(spend.worst_case_usd(config))  # answered, no usage reported: never free
                     if not answered:
                         spend.note_actual(0.0)  # every item failed: the provider reported nothing owed
             except spend.RefusedForTheRun:  # over the cap, or an unpriced model: refused, nothing sent
