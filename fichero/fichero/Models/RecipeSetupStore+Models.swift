@@ -28,7 +28,8 @@ extension RecipeSetupStore {
 
     /// What the finder asks for a step's job: the project's scripts and languages and its first material.
     func finderQuery(job: String, step: String? = nil) -> ModelFinderStore.Query {
-        .init(job: job, scripts: scripts, languages: languages, material: materials.first ?? "handwriting", step: step)
+        .init(job: job, scripts: scripts, languages: languages, material: materials.first ?? "handwriting", step: step,
+              cloudAllowed: cloudAllowed)
     }
 }
 
