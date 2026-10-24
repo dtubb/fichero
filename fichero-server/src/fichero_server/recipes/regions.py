@@ -93,8 +93,10 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         rendered, page_index = None, None
         if doc is not None and doc.parent_id and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
             parent = db.get(Document, doc.parent_id)
-            path = _resolve_abs_path(parent, library) if parent is not None else ""
-        if path.lower().endswith(".pdf") and doc is not None and doc.sequence:
+            parent_path = _resolve_abs_path(parent, library) if parent is not None else ""
+            if parent_path.lower().endswith(".pdf"):
+                path = parent_path
+        if path.lower().endswith(".pdf") and doc is not None and doc.parent_id and doc.sequence:
             from fichero_server.workflows.tools.vision_base import _render_pdf_page_to_temp_png
 
             page_index = int(doc.sequence) - 1
@@ -103,13 +105,13 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             except (ValueError, OSError):  # the page is not in the file, or the render failed: nothing to look at
                 account["no_image"] += 1
                 continue
-        try:
-            with Image.open(path) as image:
-                width, height = image.size
-        except (AttributeError, TypeError, OSError):
-            account["no_image"] += 1
-            continue
-        try:
+        try:  # the rendered temp file goes whatever happens to the page from here on
+            try:
+                with Image.open(path) as image:
+                    width, height = image.size
+            except (AttributeError, TypeError, OSError):
+                account["no_image"] += 1
+                continue
             found_geometry, regions_here = _find_on(db, doc, path, width, height, provider, model, run_id, library, page_index)
         finally:
             if rendered is not None:
