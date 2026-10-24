@@ -4876,8 +4876,14 @@ Each is described in the paragraph named; the id lets a test cite it.
   load, but the `SegmentStore` reacts to segment and pass events only, so the load returned the list held from before the run (nothing). The overlay's load now carries
   the artifact generation (`load(documentId:seeingArtifactRevision:)`): a moved generation re-reads the page, the same generation does not (`SegmentStoreTests.swift`;
   the Order tab, which loads on appear, always showed the lines, which is why the Inspector and the Lines pane had them and the Preview did not).
-- `source.textedit.reader-edit-is-one-step` — **[PARTIAL]** (owner bug 2026-10-24, Reader edits do not stick; engine half built, tested; the page and app half follow) A Reader edit that reaches several lines is
+- `source.textedit.reader-edit-is-one-step` — **[PARTIAL]** (owner bug 2026-10-24, Reader edits do not stick; engine, page and app built; Swift uncompiled) A Reader edit that reaches several lines is
   written by ONE action, `representation.create_many` (`POST /api/content-representations/batch`): the readings are written exactly as `representation.create` writes them (one shared writer),
   and a line whose text was deleted entirely is marked `is_furniture` (left out of the Reader text), never deleted: its segment stays. One audit row, so one undo (`representation.retract_many`,
   which also puts the lines back) and one redo (`representation.unretract_many`). All or nothing: a stale left-out line refuses the whole edit with 409 and writes nothing
   (`test_reader_save_many.py`).
+  The page sends an edit that reaches several lines, or empties one, as ONE `readingEdits` message (`editedLines`: a deletion across lines joins the first line's head to the last line's tail; the lines it swallowed,
+  and a line left with no text, are left out; a paste of several lines is refused), which the app runs as one `representation.create_many` (`ReaderTextEdit.newReadings`, `ReaderTextEditRunner`). A refusal is said on
+  the page (`edit-notice`), never a silent revert (`test_reader_save_many.py`, `ReaderTextEditTests.swift`).
+- `source.inspector.shows-a-correction-at-once` — **[PARTIAL]** (owner add 2026-10-24; built, uncompiled) A reading written for the inspected line anywhere (typing in the Reader, a batch, an undo) shows in the
+  Inspector's Text section at once: the `SegmentStore` takes `representation.*` events, moves that line's readings generation (`readingRevision(for:)`) and re-reads only the named rows, and the Inspector re-reads that
+  line's readings when its generation moves; no document reload, no other line's change (`SegmentStoreTests.swift`). The row's "just now" waits for the reading's time, with the Transcription who-read-it item.
