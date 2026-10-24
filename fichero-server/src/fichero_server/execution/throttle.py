@@ -34,6 +34,14 @@ _PRESSURE_WARN = 2
 #: How every memory reason begins: the one reason that means "let memory go", not just "wait" (a long
 #: job stops on it). The full reason (`memory_short`) goes on to give the two numbers it compared.
 MEMORY_REASON = "Waiting: memory is tight"
+#: This Mac is PAGING NOW (`activity.throttle.hold-when-swapping`, #6075) when memory leaves for disk faster than this over the
+#: window below: pages written out (`vm_stat` Pageouts) or swap in use grew by this much. Static swap, however large, never holds:
+#: macOS keeps swap it wrote long after the pressure is gone, and a 16 GB Mac sits at warn with swap in use all day (the
+#: 2026-09-28 ruling: refusing at warn made Kraken unusable).
+PAGING_GROWTH_BYTES = 64 * 1024**2
+PAGING_WINDOW_SECONDS = 60.0
+_PAGING_SAMPLE_EVERY = 2.0
+_PAGING_SAMPLES: list[tuple[float, int | None, int | None]] = []  # (time, pageout bytes, swap bytes), oldest first
 #: `NSProcessInfoThermalState`: 0 nominal, 1 fair, 2 serious, 3 critical.
 _THERMAL_SERIOUS = 2
 
@@ -94,6 +102,7 @@ def memory_short(
     pressure_level: Callable[[], int | None] | None = None,
     need_bytes: int | None = None,
     what: str = "Kraken and the other local models",
+    paging_now: Callable[[], bool] | None = None,
 ) -> str | None:
     """THE memory check (#5524): why heavy local work must wait for memory now, in words with the two
     numbers compared, or None to go ahead. The lane's throttle asks it before it hands out a job and
@@ -119,6 +128,12 @@ def memory_short(
     if level is not None and level >= _PRESSURE_CRITICAL:
         return (f"{MEMORY_REASON}: this Mac's memory pressure is critical, so starting a model that "
                 f"needs about {need / 1024**3:.1f} GB now risks the whole app crashing")
+    # A caller that supplies its own pressure reading (a test, a probe) controls the readings: paging is read from the Mac only
+    # beside the Mac's own pressure, or when the caller supplies its own.
+    paging = paging_now() if paging_now else (False if pressure_level else paging_now_on_this_mac())
+    if level is not None and level >= _PRESSURE_WARN and paging:
+        return (f"{MEMORY_REASON}: this Mac is paging to disk right now under memory pressure, so starting a model that "
+                f"needs about {need / 1024**3:.1f} GB would slow everything")
     return None
 
 
@@ -173,6 +188,36 @@ def swap_used_bytes() -> int | None:
     except Exception:  # noqa: BLE001 -- not macOS
         return None
     return int(usage.used)
+
+
+def pageout_bytes() -> int | None:
+    """Bytes the kernel has written out to disk since boot (`vm_stat` "Pageouts"), or None when unreadable."""
+    import re
+    import subprocess
+
+    try:
+        out = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+        size = int(re.search(r"page size of (\d+) bytes", out).group(1))
+        return int(re.search(r"Pageouts:\s+(\d+)", out).group(1)) * size
+    except Exception:  # noqa: BLE001 -- not macOS, or the format changed: no reading is no reason to wait
+        return None
+
+
+def paging_now_on_this_mac(*, now: float | None = None, pageouts: Callable[[], int | None] | None = None,
+                           swap: Callable[[], int | None] | None = None) -> bool:
+    """Whether this Mac is writing memory to disk NOW: pages written out or swap in use grew by `PAGING_GROWTH_BYTES` within the
+    last `PAGING_WINDOW_SECONDS`. Built from the samples each call leaves (one every 2 s at most), so an engine that asks often
+    knows; the first call after a start has no history and says False. Static swap never says True."""
+    import time
+
+    t = time.monotonic() if now is None else now
+    if not _PAGING_SAMPLES or t - _PAGING_SAMPLES[-1][0] >= _PAGING_SAMPLE_EVERY:
+        _PAGING_SAMPLES.append((t, (pageouts or pageout_bytes)(), (swap or swap_used_bytes)()))
+    while _PAGING_SAMPLES and t - _PAGING_SAMPLES[0][0] > PAGING_WINDOW_SECONDS:
+        _PAGING_SAMPLES.pop(0)
+    first, last = _PAGING_SAMPLES[0], _PAGING_SAMPLES[-1]
+    grew = [b - a for a, b in ((first[1], last[1]), (first[2], last[2])) if a is not None and b is not None]
+    return any(g >= PAGING_GROWTH_BYTES for g in grew)
 
 
 class PeakMemory:
