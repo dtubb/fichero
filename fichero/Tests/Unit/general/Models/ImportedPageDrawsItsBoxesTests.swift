@@ -899,6 +899,42 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z inverts the Join's own audit row")
     }
 
+    /// #6074: a Reader edit across lines is `representation.create_many`, ONE audited action, so it is ONE ⌘Z step:
+    /// the runner registers the action's audit row on the window's stack and undo hands exactly that row to the
+    /// engine's set route, which inverts it with `representation.retract_many`.
+    func testAReaderEditAcrossLinesIsOneCommandZStep() async throws {
+        _ = try await loadedStore()
+        let client = try XCTUnwrap(storeClient)
+        let steps = WindowSteps()
+        let manager = steps.undoManager
+        manager.groupsByEvent = false
+        let runner = ReaderTextEditRunner(
+            actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
+            steps: steps, refreshPage: { _ in }
+        )
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        RecordedEngine.invokeResult = "{}"
+        let edit = ReaderTextEdit.Message.editedMany(
+            pageId: "doc-0001", segmentId: "seg-0003",
+            readings: [
+                .init(segmentId: "seg-0003", text: "one", basedOn: nil),
+                .init(segmentId: "seg-0004", text: "two", basedOn: nil),
+            ],
+            leftOut: []
+        )
+        manager.beginUndoGrouping()
+        _ = await runner.apply(edit)
+        manager.endUndoGrouping()
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["representation.create_many"], "one action for every line")
+        XCTAssertTrue(manager.canUndo, "the edit is a step on the window's stack")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z takes back the one audit row, so every line at once")
+    }
+
     /// #5149 end to end: the imported Syriac page's Making entry says its file, format and contents,
     /// and Show Original brings back the file's own bytes through `SegmentService.original` -- the
     /// engine's answer played with the REAL corpus file inside it.
