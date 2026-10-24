@@ -727,10 +727,11 @@ def assert_memory_available_for_kraken(
     depends on the real machine's memory or pressure — pass a lambda
     returning a fixed number instead of the real macOS reader.
     """
-    from fichero_server.execution.throttle import memory_short
+    from fichero_server.execution import throttle
 
-    reason = memory_short(available_bytes=available_bytes or _available_memory_bytes,
-                          pressure_level=pressure_level or _memory_pressure_level, need_bytes=kraken_need_bytes())
+    reason = throttle.memory_short(available_bytes=available_bytes or _available_memory_bytes,
+                                   pressure_level=pressure_level or _memory_pressure_level, need_bytes=kraken_need_bytes(),
+                                   paging_now=throttle.paging_now_on_this_mac if pressure_level is None else (lambda: False))  # the throttle's paging rule too (#6075), unless the caller supplies the readings
     if reason is not None:
         raise KrakenMemoryUnavailableError(
             f"{reason}. Close other apps, or wait for other work to finish; a queued job waits on its own.")
@@ -880,8 +881,9 @@ def pages_at_once(person: bool) -> int:
     cluster task or in a container (its parallelism is array tasks, `source.read.threads-fit-the-machine`)."""
     from fichero_server.core.compute_preferences import priority_for
     from fichero_server.core.cores import cores_available, is_a_mac_pipeline_host
+    from fichero_server.execution.throttle import memory_is_busy, paging_now_on_this_mac
 
-    if priority_for(person) != "fast":
+    if priority_for(person) != "fast" or (memory_is_busy() and paging_now_on_this_mac()):  # paging now under pressure: one page at a time, whoever asked (#6075)
         return 1
     cores, source = cores_available()
     if not is_a_mac_pipeline_host(source):

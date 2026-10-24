@@ -138,6 +138,7 @@ class TestTheProbesReadTheMac:
         import fichero_server.llm.kraken_runtime as kraken_runtime
 
         gb = 1024**3
+        monkeypatch.setattr(throttle, "paging_now_on_this_mac", lambda **_: False)  # this test's Mac is not paging, whatever the real one does
         for free, level, tight in ((8 * gb, 1, False), (8 * gb, 2, False), (8 * gb, 4, True),
                                    (int(2.3 * gb), 1, True), (None, None, False), (None, 2, False)):
             monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda free=free: free)
