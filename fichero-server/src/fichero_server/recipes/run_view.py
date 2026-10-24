@@ -45,6 +45,15 @@ class StageEntries(BaseModel):
     removed: int = Field(default=0, description="entries a run before made that it no longer finds (kept, hidden)")
 
 
+class StageLeaveOut(BaseModel):
+    """What the Leave Out stage did (`designer.clean.leaves-out-non-text`, #6070): lines marked left out, never deleted."""
+
+    pages: int = Field(description="the pages whose lines it judged")
+    left_out: int = Field(description="the lines it marked left out (specks, off the page, bleed-through)")
+    why: dict[str, int] = Field(default_factory=dict, description="the lines left out, counted by reason")
+    refused: int = Field(default=0, description="lines a concurrent edit kept from being marked")
+
+
 class StagePrepared(BaseModel):
     """What a stage that prepares faded pages did (#5580)."""
 
@@ -108,6 +117,9 @@ class RecipeRunStep(BaseModel):
         "a stage with a reader per kind: one workflow run per reader (#5578)"))
     entries: Optional[StageEntries] = Field(default=None, description=(
         "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"))
+    leave_out: Optional[StageLeaveOut] = Field(default=None, description=(
+        "the Leave Out stage: the pages it judged and the lines it left out, by reason (#6070); a field of its own, not "
+        "`left_out`, which lists the pages a lining or reading stage left out (#5691)"))
     prepared: Optional[StagePrepared] = Field(default=None, description=(
         "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"))
     regions_found: Optional[StageRegions] = Field(default=None, description=(

@@ -84499,6 +84499,11 @@
             "nullable": true,
             "description": "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"
           },
+          "leave_out": {
+            "$ref": "#/components/schemas/StageLeaveOut",
+            "nullable": true,
+            "description": "the Leave Out stage: the pages it judged and the lines it left out, by reason (#6070); a field of its own, not `left_out`, which lists the pages a lining or reading stage left out (#5691)"
+          },
           "prepared": {
             "$ref": "#/components/schemas/StagePrepared",
             "nullable": true,
@@ -93337,6 +93342,41 @@
         ],
         "title": "StageFailures",
         "description": "The pages one workflow stage could not do, and its offer to read them again."
+      },
+      "StageLeaveOut": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the pages whose lines it judged"
+          },
+          "left_out": {
+            "type": "integer",
+            "title": "Left Out",
+            "description": "the lines it marked left out (specks, off the page, bleed-through)"
+          },
+          "why": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Why",
+            "description": "the lines left out, counted by reason"
+          },
+          "refused": {
+            "type": "integer",
+            "title": "Refused",
+            "description": "lines a concurrent edit kept from being marked",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "left_out"
+        ],
+        "title": "StageLeaveOut",
+        "description": "What the Leave Out stage did (`designer.clean.leaves-out-non-text`, #6070): lines marked left out, never deleted."
       },
       "StageNeed": {
         "properties": {
