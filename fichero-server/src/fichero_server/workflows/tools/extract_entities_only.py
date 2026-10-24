@@ -558,6 +558,9 @@ async def extract_entities_only(
                 document_ids=[record["doc_id"]],
             )
 
+        from fichero_server.recipes.done import page_finished
+
+        page_finished(db, state.get("task_id"), record["doc_id"])  # this page is done, names or none, whatever happens next
         await emit_progress_event(
             progress_callback,
             "file_complete",

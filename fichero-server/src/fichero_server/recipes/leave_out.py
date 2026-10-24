@@ -90,6 +90,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
     from fichero_server.actions.registry import ActionContext, registry
     import fichero_server.api.routes.document.segments  # noqa: F401  (registers the segment actions)
     from fichero_server.models import Document, Segment
+    from fichero_server.recipes.done import judged_key, page_finished
     from fichero_server.models.knowledge import ProvenanceKind
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
@@ -123,6 +124,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
                             "left_out_reason": why})
             whys[why] = whys.get(why, 0) + 1
         if not updates:
+            page_finished(db, run_id, judged_key(db, doc_id))
             continue
         try:
             registry.invoke(db, "segment.update_many", {"updates": updates}, ctx)
@@ -132,6 +134,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
             account["refused"] += len(updates)
             continue
         account["left_out"] += len(updates)
+        page_finished(db, run_id, judged_key(db, doc_id))  # judged: a stopped run's next Start does not judge this page again
         for why, n in whys.items():
             account["why"][why] = account["why"].get(why, 0) + n
     return account

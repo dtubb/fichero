@@ -1224,6 +1224,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                started_by: str, *, final: bool) -> list[str]:
     """Every step on one batch, in order (`source.recipe.batch-at-archive-scale`); each step's end on it is saved
     as it ends, so a resume runs only the steps still to do on it (`source.recipe.batch-checkpoint`). The problems."""
+    from fichero_server.recipes.done import NOTES as done_notes
     from fichero_server.recipes.done import split_done
 
     cards, steps, states = detail["runs"], detail["steps"], detail["batch_states"]
@@ -1257,7 +1258,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
 
             documents = pages_for(db, card, detail.get("documents"))
         elif not redo.intersection(card["steps"]):
-            documents, scratch["already_done"] = split_done(db, card, documents)
+            documents, scratch["already_done"] = split_done(db, card, documents, own=set(step.get("ran_on") or []))
         if documents and _reads_page_images(card.get("job")):
             # A recording is not a page: the steps that read page images leave it out and say so, instead of
             # failing the step on a file they can never read (2026-10-10, found in the Dev Embedded app).
@@ -1309,6 +1310,14 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                          f"Running step {named}: {_folders_words(detail)}")
         waiting_on = detail.get("awaiting") or {}
         adopt = waiting_on.get("child") if waiting_on.get("card") == card.get("id") else None
+        done_notes.pop(job_id, None)
+        if card.get("job") in PAGE_NOTED_JOBS:
+            # Each page the step finishes is noted on the run's detail as it finishes (`done.page_finished`), saved at once.
+            def _noted(key: str, step: dict[str, Any] = step) -> None:
+                step.setdefault("ran_on", []).append(key)
+                jobs.save_detail(db, job_id, json.dumps(detail))
+
+            done_notes[job_id] = _noted
         try:
             child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
             detail.pop("awaiting", None)
@@ -1325,6 +1334,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
             logger.exception("recipe step %s could not start", named)
             child, state, why = None, "failed", could_not_start(card, exc)
+        done_notes.pop(job_id, None)
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
         if state == "done" and card.get("job") in RAN_ON_JOBS:
@@ -1456,6 +1466,8 @@ def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: in
 #: The steps whose output may leave no trace on a page (a page naming no one; a page clear enough to need no
 #: preparing): the pages each ran on are kept on the run, so the next plan counts them done (#5706).
 RAN_ON_JOBS = frozenset({"find-names-tag-words", "prepare-the-image"})
+#: The steps that note each page as they finish it (`done.page_finished`): Leave Out and Names.
+PAGE_NOTED_JOBS = frozenset({"find-names-tag-words", "leave-out"})
 #: What a step is doing, by its last job, as the run's line says it (#5685).
 _DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
           "correct": "Correcting the readings", "find-names-tag-words": "Finding names",
