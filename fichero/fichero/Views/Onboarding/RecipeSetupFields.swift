@@ -208,7 +208,17 @@ struct RecipeAboutFields: View {
                 }
             }
             CodeTokenField(store: store, scripts: false)
-            CodeTokenField(store: store, scripts: true)
+            // Languages is required, and one answer is "Not sure": Fichero then works the language and writing
+            // system out from the sample pages and says so on each stage page (`source.onboard.project.about-material`).
+            Toggle("Not sure", isOn: Binding(get: { store.languagesNotSure }, set: { store.setLanguagesNotSure($0) }))
+                .setupCheckbox()
+            if store.languagesNotSure {
+                Text("Fichero will work the language and writing system out from your pages. You can change them on each stage page.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else if let wait = store.languageWait {
+                Text(wait).font(.caption).foregroundStyle(.orange)
+            }
+            if !store.languagesNotSure { CodeTokenField(store: store, scripts: true) }
             if !store.proposedScripts.isEmpty {
                 // #5626: the usual script of each language chosen is put in; the pages may say otherwise.
                 Text("Proposed from the languages: \(store.proposedScripts.keys.sorted().map(store.name(of:)).joined(separator: ", ")). "
