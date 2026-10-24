@@ -67,9 +67,10 @@ enum StageShowcasePlayback {
 
 /// Every stage's picture, by the stage's id (`GET /api/recipes/stages`), and what it shows in words.
 enum StageShowcaseCatalogue {
-    /// The thirteen stages, in pipeline order; each has a picture.
+    /// The stages, in pipeline order; each has a picture.
     static let stageIds = ["prepare-images", "find-regions", "find-lines", "read", "normalise", "translate",
-                           "organise", "names", "statements", "dates", "passages", "structured-data", "search"]
+                           "organise", "names", "statements", "dates", "passages", "structured-data", "search",
+                           "catalogue"]
 
     static func hasPicture(_ stageId: String) -> Bool { stageIds.contains(stageId) }
 
@@ -87,7 +88,8 @@ enum StageShowcaseCatalogue {
         "dates": "The date words become dates.",
         "passages": "A passage lifts out of the page.",
         "structured-data": "Values from the page fill a table's cells.",
-        "search": "A search lights its matches on the page."
+        "search": "A search lights its matches on the page.",
+        "catalogue": "A folder's record fills in, field by field: title, dates, extent, scope and content."
     ]
 
     static func description(for stageId: String) -> String { descriptions[stageId] ?? "What this stage does." }
@@ -128,6 +130,7 @@ enum StageShowcaseCatalogue {
         case "passages": PassagesPicture(showcase: showcase, progress: progress)
         case "structured-data": StructuredDataPicture(showcase: showcase, progress: progress)
         case "search": SearchPicture(showcase: showcase, progress: progress)
+        case "catalogue": CataloguePicture(progress: progress)
         default: StagePageLayer(showcase: showcase) { _ in EmptyView() }
         }
     }

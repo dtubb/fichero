@@ -8,7 +8,7 @@ import Testing
 /// last frame still; the candidates' columns, at most three, each with its measures in words and Use This.
 @MainActor
 struct StageShowcasePicturesTests {
-    @Test("every one of Set Up's thirteen stages has a picture and says what it shows")
+    @Test("every one of Set Up's stages has a picture and says what it shows")
     func everyStageHasAPicture() {
         #expect(StageShowcaseCatalogue.stageIds == SetupStages.all.map(\.id), "the same stages, in the same order")
         for stage in SetupStages.all {
