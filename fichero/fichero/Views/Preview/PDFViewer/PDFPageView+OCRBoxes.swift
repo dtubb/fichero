@@ -161,7 +161,7 @@ extension PDFPageWithToolbar {
         pdfGeometryScope = nil
         guard ocrBoxesEnabled, let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
-        await store.load(documentId: effectiveGeometryDocumentId)
+        await store.load(documentId: effectiveGeometryDocumentId, seeingArtifactRevision: artifactEntityRevision)
         if let error = store.loadError(documentId: effectiveGeometryDocumentId) {
             // Render nothing and say so in the log rather than silently — no
             // boxes must not be indistinguishable from a failed fetch (#4418).

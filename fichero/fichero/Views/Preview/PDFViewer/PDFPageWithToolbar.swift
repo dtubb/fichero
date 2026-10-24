@@ -190,7 +190,7 @@ struct PDFPageWithToolbar: View {
     /// pane's overlay still refreshes on its OWN next page flip (which
     /// already changes this id), just not automatically the instant the
     /// segmentation run finishes.
-    private var artifactEntityRevision: Int {
+    var artifactEntityRevision: Int {  // internal: `PDFPageView+OCRBoxes` loads under it (a run's lines)
         guard let artifactService else { return 0 }
         return ArtifactEntityStore.shared(for: artifactService).revision(for: effectiveGeometryDocumentId)
     }

@@ -85,6 +85,20 @@ final class SegmentStore {
         }
     }
 
+    /// The artifact revision each document was last asked for under (`ArtifactEntityStore`'s generation).
+    private var loadedAtArtifactRevision: [String: Int] = [:]
+
+    /// A surface's load that knows the artifact generation it was started for. A finished workflow run emits ONE
+    /// `artifact.updated` event (this store reacts to segment and pass events only), which moves that generation: the
+    /// load then re-reads the page instead of returning the list held from before the run, so the Preview draws the lines
+    /// a recipe run just wrote (`source.preview.draws-what-a-run-wrote`). The first ask, with nothing recorded, is an
+    /// ordinary load.
+    func load(documentId: String, seeingArtifactRevision revision: Int) async {
+        let moved = loadedAtArtifactRevision[documentId].map { $0 != revision } ?? false
+        loadedAtArtifactRevision[documentId] = revision
+        await load(documentId: documentId, force: moved)
+    }
+
     func segments(documentId: String) -> [Segment] {
         segmentsByDocument[documentId] ?? []
     }

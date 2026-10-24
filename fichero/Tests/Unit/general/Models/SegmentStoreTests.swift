@@ -178,6 +178,33 @@ final class SegmentStoreTests: XCTestCase {
         XCTAssertEqual(store.passes(documentId: "doc-1").map(\.id), ["pass-1"], "doc-1's passes are also untouched")
     }
 
+    // MARK: - a run's lines reach a page that was already open (`source.preview.draws-what-a-run-wrote`)
+
+    /// The owner's page: opened (loaded, nothing on it yet), then a recipe run wrote its lines and the engine said so with ONE
+    /// `artifact.updated` event, which this store does not consume. The overlay's reload, now carrying the artifact generation,
+    /// must read the page again and draw what the run wrote, through the real store and the real `SegmentDisplay`.
+    func testAnOpenPageDrawsTheLinesARunWroteAfterTheArtifactGenerationMoves() async throws {
+        let store = Self.storeWithMockTransport()
+
+        Self.stubSuccess(documentId: "doc-1", passes: [], segments: [])
+        await store.load(documentId: "doc-1", seeingArtifactRevision: 0)
+        XCTAssertNil(SegmentDisplay.selected(for: "doc-1", store: store), "nothing to draw before the run")
+
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-run", documentId: "doc-1")],
+            segments: [Self.segmentJSON(id: "line-1", documentId: "doc-1", passId: "pass-run", boxIndex: 0, text: "a line")]
+        )
+        // the same generation (the task fired for another reason): the held list stands, no refetch
+        await store.load(documentId: "doc-1", seeingArtifactRevision: 0)
+        XCTAssertNil(SegmentDisplay.selected(for: "doc-1", store: store))
+
+        // the run finished: the artifact generation moved
+        await store.load(documentId: "doc-1", seeingArtifactRevision: 1)
+        let drawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-1", store: store), "the page drew nothing after the run")
+        XCTAssertEqual(drawn.geometry.boxes.count, 1)
+    }
+
     // MARK: - a forced second load replaces in place, not a merge
 
     func testForceReloadReplacesADocumentsEntryRatherThanMerging() async throws {
