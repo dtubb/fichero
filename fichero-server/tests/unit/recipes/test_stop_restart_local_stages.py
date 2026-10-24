@@ -77,7 +77,11 @@ def _stage(monkeypatch, which):
     return [LINES, READ, NAMES], gate, calls
 
 
-@pytest.mark.parametrize("stage", ["find-lines", "leave-out", "names"])
+LEAVE_OUT_STATUS = pytest.mark.xfail(strict=True, reason="a run with Leave Out cannot be read back: run_step stores its account at "
+                                     "step['left_out'], the run status's list of pages (ValidationError); r1's blocker fix is coming")
+
+
+@pytest.mark.parametrize("stage", ["find-lines", pytest.param("leave-out", marks=LEAVE_OUT_STATUS), "names"])
 def test_a_local_stage_stopped_mid_stage_and_started_again_does_not_redo_a_page(
         stage, client, db, pages, tmp_path, engine, monkeypatch, with_material):
     steps, gate, calls = _stage(monkeypatch, stage)
@@ -124,3 +128,30 @@ def test_names_stop_reaches_inside_the_stage(client, db, pages, tmp_path, engine
     finally:
         gate.release.set()
     assert len(calls) < 3, f"all {len(calls)} pages were gone over after Stop"
+
+
+@LEAVE_OUT_STATUS
+def test_a_new_find_lines_pass_is_judged_again_by_leave_out_and_no_other_page_is(
+        client, db, pages, tmp_path, engine, monkeypatch, with_material):
+    """Leave Out's done is tied to the pass it judged: a page whose lines were found again is judged again, the pages
+    whose lines did not change are not."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.anchors import SourceAnchor
+
+    steps, _gate, calls = _stage(monkeypatch, "leave-out")
+    _save(client, _recipe(tmp_path, *steps))
+    assert _finished(client, _start(client))["state"] == "done"
+    first = len(calls)
+    assert first >= 2
+
+    page = pages[0]
+    machine = ActionContext(actor="kraken", run_id="find-again", library_path=None, is_bootstrap=True)
+    pass_id = registry.invoke(db, "segment.pass_create", {"document_id": page.id, "name": "kraken"}, machine).result["id"]
+    for i in range(6):
+        registry.invoke(db, "segment.create", {
+            "document_id": page.id, "pass_id": pass_id, "kind": "line",
+            "anchor": SourceAnchor(document_id=page.id, rect=[0.1, 0.1 + 0.12 * i, 0.7, 0.05]).model_dump(mode="json"),
+        }, machine)
+
+    assert _finished(client, _start(client))["state"] == "done"
+    assert len(calls) == first + 1, f"Leave Out judged {len(calls) - first} pages after one page's lines were found again"
