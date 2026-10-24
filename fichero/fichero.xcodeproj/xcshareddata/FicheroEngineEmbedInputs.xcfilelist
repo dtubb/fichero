@@ -431,6 +431,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/geometry_merge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/iiif_fetch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/layout_order.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/quartz_warm.py
@@ -488,6 +489,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/htr_united.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/known_names.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/language_guess.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/placement.py
