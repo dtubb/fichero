@@ -2414,7 +2414,22 @@ def _offered_cards(a: Optional[Answers]) -> list[Any]:
     seen = {c.id for c in correctors}
     readers = [replace(c, jobs=c.jobs | {"correct"}) if c.jobs & {"read-a-line", "read-a-page"} else c
                for c in remote_reader_cards() if c.id not in seen]
-    return [*known_cards(a), *(c for c in other_text_cards() if c.runs_here or str(c.runs_on).startswith("cloud:")), *correctors, *readers]
+    # A text model rewrites a reading too (#6089, #6090): every text model the finder knows, installed MLX, Apple Intelligence and the
+    # person's cloud models alike, is a candidate for Correct and for Translate, not only the frontier providers' (their cards
+    # already say so) and the seed's one Qwen. Offered, never chosen by the rules: these jobs are added only here, on the menu.
+    text = (*known_cards(a), *(c for c in other_text_cards() if c.runs_here or str(c.runs_on).startswith("cloud:")))
+    return [*(_also_rewrites(c) for c in text), *correctors, *readers]
+
+
+def _also_rewrites(card: Any) -> Any:
+    """A text-only model (a job a text model does, no page reading) also corrects and translates, for the step menus."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.discovery import TEXT_MODEL_JOBS
+
+    if card.jobs & TEXT_MODEL_JOBS and not card.jobs & {"read-a-line", "read-a-page"}:
+        return replace(card, jobs=card.jobs | {"correct", "translate-transliterate-normalise"})
+    return card
 
 
 def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[int] = None,
