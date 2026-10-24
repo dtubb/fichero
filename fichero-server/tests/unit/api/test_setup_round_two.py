@@ -15,7 +15,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 # Correct is off unless a corrector is on this Mac or asked for (#5677); a test's model store starts empty.
-TRANSCRIBE = ["find-lines", "read-a-line"]
+TRANSCRIBE = ["find-lines", "leave-out", "read-a-line"]
 
 
 def _assemble(client, **answers):
@@ -73,7 +73,7 @@ def test_every_registered_job_can_be_ticked_on_its_own_and_takes_its_place_in_th
 
     assert sorted(STEP_ORDER) == sorted(j.id for j in all_jobs())
     r = _assemble(client, purposes=["transcribe"], jobs=["export", "split-pages", "put-in-order", "correct"])
-    assert _jobs(r.json()) == ["split-pages", "find-lines", "read-a-line", "correct", "export"]
+    assert _jobs(r.json()) == ["split-pages", "find-lines", "leave-out", "read-a-line", "correct", "export"]
     # Start has no card for putting lines in order: ticked, it is said under `by_hand`, never a step (#5574).
     assert [j["job"] for j in r.json()["by_hand"]] == ["put-in-order"]
     refused = _assemble(client, purposes=["transcribe"], jobs=["tell-hands-apart"])
@@ -196,7 +196,7 @@ def test_a_language_refusal_names_the_language(client):
     qwen = Card("mlx:hf/mlx-community/Qwen@unpinned", {"hf": "q", "revision": "main"}, frozenset({"correct"}),
                 frozenset({"Latn"}), frozenset({"en"}), frozenset({"handwriting"}))
     step = assemble(Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
-                            jobs=("correct",)), [qwen])["steps"][2]  # asked for: off otherwise (#5677)
+                            jobs=("correct",)), [qwen])["steps"][3]  # asked for: off otherwise (#5677)
     assert step["problem"]["kind"] == "no-model-for-language"
     assert step["problem"]["sentence"] == "No correcting model here knows Spanish yet."
     assert "mlx:" in step["problem"]["detail"] and "mlx:" not in step["problem"]["sentence"]

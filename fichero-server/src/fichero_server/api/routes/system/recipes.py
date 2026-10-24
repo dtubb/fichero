@@ -2603,6 +2603,9 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     if not job_id:
         return plan
     started = runner.started_plan(db, job_id)
+    # The menus are for choosing before Start; the run has begun, and on a big catalogue of models they made this answer
+    # grow past what an agent's tool result holds (73 KB in a full run, #5707).
+    plan["step_choices"] = []
     plan["runs"], plan["skipped"] = started["runs"], started["skipped"]
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")

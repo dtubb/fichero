@@ -183,6 +183,7 @@ DISTIL: dict[str, Distil] = {
     "translate-transliterate-normalise": Distil(why=_NOT_YET),
     "split-into-entries": Distil(why=_NOT_YET),
     "find-statements": Distil(why=_NOT_YET),
+    "describe-for-the-catalogue": Distil(why=_NOT_YET),
     "make-a-vector": Distil(why="nothing to distil: the embedding model is chosen, not trained here"),
     "extract-to-a-table": Distil(why=_NOT_YET),
     "check": Distil(why="nothing to distil: a check is the teacher's own judgement of other steps"),
