@@ -371,7 +371,11 @@ final class RecipeSetupStore {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? = folderId.map { .json(.init(folderId: $0)) }
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
-                startPlan = try success.body.json
+                var started = try success.body.json
+                // Start's own answer carries no step menus (`step_choices: []`, #5707); the ones on screen stay, so Ready's
+                // menus do not empty when the run starts.
+                if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
+                startPlan = started
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 return true
             case .unprocessableContent(let error):

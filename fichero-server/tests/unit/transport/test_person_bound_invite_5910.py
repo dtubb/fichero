@@ -266,7 +266,9 @@ def test_the_owner_lists_unused_invitations_without_the_codes_and_revokes_any_of
     owner = _as(harness, "owner")
     plain = _invite(harness, "carol", client=owner).json()
     forever = _invite(harness, "dave", client=owner, never_expires=True, role="editor").json()
-    listed = owner.get("/api/pair/invites").json()
+    body = owner.get("/api/pair/invites").json()
+    listed = body["items"]  # `{items, count}`, not a bare array
+    assert body["count"] == 2
     assert {i["person"] for i in listed} == {"carol", "dave"}
     assert plain["code"] not in str(listed) and forever["code"] not in str(listed)
     by_person = {i["person"]: i for i in listed}
@@ -276,7 +278,7 @@ def test_the_owner_lists_unused_invitations_without_the_codes_and_revokes_any_of
     assert owner.delete(f"/api/pair/invites/{by_person['dave']['id']}").status_code == 200
     assert _redeem(harness, forever["code"], new_password="a long secret").status_code == 401, "revoked, though it never expired"
     assert owner.delete(f"/api/pair/invites/{by_person['dave']['id']}").status_code == 404
-    assert [i["person"] for i in owner.get("/api/pair/invites").json()] == ["carol"]
+    assert [i["person"] for i in owner.get("/api/pair/invites").json()["items"]] == ["carol"]
     audited = [r for r in harness.app_db.list_action_audits() if r.action_name == "invite.revoke"]
     assert len(audited) == 1 and audited[0].params["person"] == "dave"
 
@@ -335,7 +337,7 @@ def test_the_answer_the_list_and_the_audit_say_the_role_really_granted(harness, 
     new = _invite(harness, "carol", client=owner, role="editor").json()
     existing = _invite(harness, "bob", client=owner, role="editor").json()  # bob is a viewer and stays one
     assert new["role"] == "editor" and existing["role"] == "viewer"
-    listed = {i["person"]: i["role"] for i in owner.get("/api/pair/invites").json()}
+    listed = {i["person"]: i["role"] for i in owner.get("/api/pair/invites").json()["items"]}
     assert listed == {"carol": "editor", "bob": "viewer"}
     minted = {r.params["person"]: r.params["role"] for r in harness.app_db.list_action_audits() if r.action_name == "invite.mint"}
     assert minted == {"carol": "editor", "bob": "viewer"}

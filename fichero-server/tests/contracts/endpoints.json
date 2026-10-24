@@ -8625,7 +8625,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[PairingInviteResponse]"
+        "response_model": "PairingInviteListResponse"
       },
       {
         "method": "DELETE",

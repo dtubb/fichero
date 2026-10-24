@@ -7,7 +7,7 @@ extension PairingService {
     func invites() async throws -> [Components.Schemas.PairingInviteResponse] {
         switch try await client.api.listInvitesApiPairInvitesGet(.init()) {
         case .ok(let success):
-            return try success.body.json
+            return try success.body.json.items
         case .undocumented(let statusCode, let payload):
             let detail = await EngineErrorDetail.message(from: payload)
             throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
