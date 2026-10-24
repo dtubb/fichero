@@ -120,8 +120,9 @@ struct ReaderLineRow: View {
 
     private var lineVerbsTarget: LineVerbsTarget? {
         guard isSelected else { return nil }
-        let correct: (@MainActor () -> Void)? = CorrectLine.offers(segment) ? { correcting = segment } : nil
-        return LineVerbsTarget(segment: segment, correct: correct, delete: { deleteLines() })
+        var target = LineVerbsTarget(segment: segment, delete: { deleteLines() })
+        if CorrectLine.offers(segment) { target.correct = { correcting = segment } }  // a ternary lost @MainActor
+        return target
     }
 
     @ViewBuilder
