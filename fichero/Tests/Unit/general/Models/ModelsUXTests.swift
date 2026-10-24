@@ -264,4 +264,12 @@ final class ModelsUXTests: XCTestCase {
         XCTAssertFalse(statements.contains("Search Online"))
         XCTAssertTrue(statements.contains("Ollama"))
     }
+
+    /// #6045: the engine's nothing-found sentence is shown for any job, in its words.
+    func testNothingFoundUsesTheEnginesSentence() throws {
+        let json = #"[{"source":"nothing-found","state":"read","count":0,"detail":"No region finder fits these answers."}]"#
+        let sources = try JSONDecoder().decode([Components.Schemas.CandidateSource].self, from: Data(json.utf8))
+        XCTAssertEqual(ModelFinderView.nothingFound(job: "find-regions", sources: sources), "No region finder fits these answers.")
+        XCTAssertEqual(ModelFinderView.nothingFound(job: "read-a-line", sources: []), ModelFinderView.nothingFound(job: "read-a-line"))
+    }
 }

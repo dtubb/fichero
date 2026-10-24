@@ -81,6 +81,8 @@ extension ContentView {
                         .environment(activeSurfaceState)
                         // Where the Inspector sits, for the screenshot verb (#5453).
                         .recordsPaneFrame(UIPane.inspector.frameKey, in: windowState)
+                        // Last, so the column's bounds are read from the content's root (#6009).
+                        .inspectorColumnBounds()
                 } else {
                     // NO bare mount, ever (Daniel's table-open crash,
                     // 2026-08-09 morning): at launch the restored selection
@@ -93,6 +95,7 @@ extension ContentView {
                         reason: "Opening project…",
                         systemImage: "clock"
                     )
+                    .inspectorColumnBounds()
                 }
             }
             // Measure the real container width before the outer min-width

@@ -41,6 +41,14 @@ struct ReaderTextEditRunner {
                     "representation.create", params: params, actionName: "Typing", actionsService: actionsService,
                     steps: steps, afterChange: refresh
                 ).resultId
+            case .editedMany:
+                // The versions the PAGE saw (never fresh ones: the engine compares them and answers 409, the
+                // whole edit refused, for a line changed since the page was drawn).
+                guard let params = ReaderTextEdit.newReadings(for: edit) else { throw SegmentEdit.Refusal.versionUnknown }
+                try await AuditedAction.run(
+                    "representation.create_many", params: params, actionName: "Typing", actionsService: actionsService,
+                    steps: steps, afterChange: refresh
+                )
             case .split(_, let id, _):
                 // Fresh: a readingEdit posted just before the split changed the line's text and version.
                 await store.load(documentId: pageId, force: true)

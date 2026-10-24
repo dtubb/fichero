@@ -157,6 +157,10 @@ struct SegmentInspectorView: View {
             await reloadText()
             await flags?.load(documentId: documentId)
         }
+        // A reading written for the inspected line elsewhere (typing in the Reader, a batch, an undo) shows
+        // here at once: this line's readings generation moved, so its readings are re-read in place.
+        // Not `.task(id: inspected)`, which also drops an Edit… in progress.
+        .onChange(of: readingRevision) { Task { await reloadText() } }
         .onChange(of: selectedIds) { level = .selection }
         .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
             get: { askingFor != nil }, set: { if !$0 { askingFor = nil } }
@@ -186,6 +190,11 @@ struct SegmentInspectorView: View {
         Task {
             try? await runner.run(call, documentId: documentId, actionName: "Set Segment", steps: windowSteps)
         }
+    }
+
+    private var readingRevision: Int {
+        guard let inspected, let segmentService else { return 0 }
+        return SegmentStore.shared(for: segmentService).readingRevision(for: inspected)
     }
 
     private func reloadText() async {

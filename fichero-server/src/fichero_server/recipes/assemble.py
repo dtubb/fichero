@@ -668,6 +668,12 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
 FRONTIER_PROVIDERS = frozenset({"gemini", "google", "anthropic"})
 
 
+def _frontier_model(card: Card) -> bool:
+    """A frontier provider's model, or a Gemini or Claude model served by another provider (OpenRouter)."""
+    return (card.runs_on.split(":", 1)[1] in FRONTIER_PROVIDERS
+            or any(w in str(card.pin.get("model", "")).casefold() for w in ("gemini", "claude")))
+
+
 def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
     """`source.recipe.reader-pick-from-the-material`: handwritten pages that may leave this Mac, with a key for a frontier provider,
     are read by that provider's vision model on Kraken's lines (one call a page), marked as not yet measured. Where the Try has
@@ -677,10 +683,15 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
         return choice
     if choice.card.cer_measured_here is not None:
         return choice
+    from fichero_server.recipes.discovery import frontier_rank
+
     keyed = sorted((c for c in readers
-                    if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in FRONTIER_PROVIDERS
+                    if c.runs_on.startswith("cloud:") and _frontier_model(c)
                     and c.runs_on.split(":", 1)[1] in a.cloud_keys and job in c.jobs
-                    and _hard_constraints(job, c, a) is None), key=lambda c: (_page_price(c) or float("inf"), c.id))  # by the price list: remote cards carry no cost_per_page
+                    and _hard_constraints(job, c, a) is None),
+                   # The finder's one expected order (`discovery.frontier_rank`: Gemini Pro first, owner 2026-10-24), then
+                   # by the price list (remote cards carry no cost_per_page)
+                   key=lambda c: (frontier_rank(c), _page_price(c) or float("inf"), c.id))
     if not keyed:
         return choice
     best = keyed[0]

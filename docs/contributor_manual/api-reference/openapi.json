@@ -4108,6 +4108,70 @@
         }
       }
     },
+    "/api/content-representations/batch": {
+      "post": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "Create Representations Batch Route",
+        "description": "`POST /api/content-representations/batch` \u2014 one Reader edit across lines, one undo step.",
+        "operationId": "create_representations_batch_route_api_content_representations_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepresentationCreateManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepresentationCreateManyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments": {
       "get": {
         "tags": [
@@ -73587,6 +73651,50 @@
         ],
         "title": "LineCorrectionBody"
       },
+      "LineLeftOut": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id",
+          "expected_version"
+        ],
+        "title": "LineLeftOut",
+        "description": "A line whose text was deleted entirely: marked left out, never deleted."
+      },
+      "LineLeftOutResult": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "from_version": {
+            "type": "integer",
+            "title": "From Version"
+          },
+          "to_version": {
+            "type": "integer",
+            "title": "To Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "from_version",
+          "to_version"
+        ],
+        "title": "LineLeftOutResult",
+        "description": "A line left out by a Reader edit: its version before and after, which undo restores."
+      },
       "LinkListResponse": {
         "properties": {
           "end_id": {
@@ -85573,6 +85681,58 @@
           "count"
         ],
         "title": "ReorderResponse"
+      },
+      "RepresentationCreateManyParams": {
+        "properties": {
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/RepresentationCreateParams"
+            },
+            "type": "array",
+            "title": "Readings"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LineLeftOut"
+            },
+            "type": "array",
+            "title": "Left Out"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RepresentationCreateManyParams",
+        "description": "`representation.create_many` \u2014 a Reader edit that touched several lines.\n\n`readings` are written exactly as `representation.create` writes them. `left_out` are lines\nwhose text was deleted entirely: each is marked `is_furniture` (left out of the Reader text),\nits segment is NEVER deleted, and nothing is written for it."
+      },
+      "RepresentationCreateManyResponse": {
+        "properties": {
+          "representations": {
+            "items": {
+              "$ref": "#/components/schemas/ContentRepresentation"
+            },
+            "type": "array",
+            "title": "Representations"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LineLeftOutResult"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "representations",
+          "left_out",
+          "audit_id"
+        ],
+        "title": "RepresentationCreateManyResponse",
+        "description": "The readings written, the lines left out, and the audit id of the ONE undo step."
       },
       "RepresentationCreateParams": {
         "properties": {

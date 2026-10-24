@@ -20,8 +20,10 @@ def test_uncapped_models_inherit_provider_vision(monkeypatch):
 def test_frontier_cloud_readers_sort_first():
     from fichero_server.api.routes.system.recipes import _offered_order
 
-    cards = [NS(runs_on="this-mac"), NS(runs_on="cloud:openrouter"), NS(runs_on="cloud:google")]
-    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]  # cloud first, by provider
+    cards = [NS(runs_on="this-mac", pin={}), NS(runs_on="cloud:anthropic", pin={"model": "claude-haiku-4-5"}),
+             NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro"})]
+    # cloud first, the expected-best family first, whatever the provider's name says alphabetically
+    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:openrouter", "cloud:anthropic", "this-mac"]
 
 
 def test_every_cloud_model_is_the_top_tier():
@@ -66,3 +68,59 @@ def test_only_rows_worth_using_are_listed_five_a_tier():
                                          row("perm", tier="cloud", perm=True)]
     ids = [r.id for r in worth_listing(rows)]
     assert ids == ["0", "1", "2", "3", "4", "chosen", "licence", "perm"]
+
+
+def test_a_key_with_no_saved_model_offers_the_newest_frontier_models(monkeypatch):
+    from fichero_server.recipes.discovery import frontier_catalog_models
+
+    listed = [{"model_id": m, "supports_vision": True} for m in
+              ("claude-4-opus-20250514", "claude-opus-4-7", "gemini-3-flash", "gemini-3.1-flash-image-preview",
+               "gpt-5.2", "gpt-5-mini")]
+    monkeypatch.setattr("fichero_server.llm.model_types.list_models_for_provider", lambda p: listed)
+    # Best expected first; a date is no version; no image model; a mini is kept, ranked below its full model
+    assert frontier_catalog_models("x") == ["claude-opus-4-7", "gpt-5.2", "gemini-3-flash", "gpt-5-mini"]
+
+
+def test_gemini_through_openrouter_counts_as_a_frontier_reader():
+    from fichero_server.recipes.assemble import _frontier_model
+
+    assert _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro-preview"}))
+    assert not _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "qwen/qwen3-vl"}))
+
+
+def test_set_ups_cloud_pick_takes_gemini_pro_before_flash_and_claude():
+    from fichero_server.recipes.assemble import Answers, Card, Choice, _frontier_first
+
+    def card(model):
+        return Card(id=model, pin={"cloud": "openrouter", "model": model}, jobs=frozenset({"read-a-line"}), scripts=None,
+                    languages=None, material=frozenset(), runs_on="cloud:openrouter", source="remote", offered_only=True)
+
+    kraken = Card(id="kraken", pin={"kraken": "k"}, jobs=frozenset({"read-a-line"}), scripts=None, languages=None,
+                  material=frozenset())
+    a = Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
+                materials=("handwriting",), cloud_allowed=True, cloud_keys=frozenset({"openrouter"}))
+    readers = [card("google/gemini-3-flash"), card("anthropic/claude-opus-4.7"), card("google/gemini-3.1-pro")]
+    picked = _frontier_first("read-a-line", Choice("read-a-line", kraken, reasons=[], chain=[]), readers, a)
+    assert picked.card.id == "google/gemini-3.1-pro" and picked.chain[0].id == "kraken"
+
+
+def test_a_model_saved_with_a_blank_name_is_named_by_its_id(monkeypatch):
+    # The owner's finder showed "OpenRouter:" and nothing after it (2026-10-24): a saved name of spaces is no name.
+    rows = [NS(id="r1", name="OpenRouter", enabled=True, api_base=None, provider_type=NS(value="openrouter"))]
+    models = {"r1": [NS(model_id="google/gemini-2.5-pro", name="  ", enabled=True, capabilities=["vision"])]}
+    monkeypatch.setattr("fichero_server.db.app.get_app_db",
+                        lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
+    from fichero_server.recipes.discovery import remote_reader_cards
+    notes = [c.note for c in remote_reader_cards()]
+    assert "OpenRouter: google/gemini-2.5-pro" in notes
+
+
+def test_a_long_cloud_model_id_is_the_rows_name_not_the_provider_alone(monkeypatch):
+    # The row clipped "OpenRouter: <a long id>" at its last space and showed "OpenRouter:" (owner 2026-10-24).
+    rows = [NS(id="r1", name="OpenRouter", enabled=True, api_base=None, provider_type=NS(value="openrouter"))]
+    long_id = "google/gemini-2.5-pro-preview-06-05-with-a-long-suffix"
+    models = {"r1": [NS(model_id=long_id, name=None, enabled=True, capabilities=["vision"])]}
+    monkeypatch.setattr("fichero_server.db.app.get_app_db",
+                        lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
+    card = next(c for c in discovery.remote_reader_cards() if c.pin["model"] == long_id)
+    assert discovery.short_name(card) == long_id

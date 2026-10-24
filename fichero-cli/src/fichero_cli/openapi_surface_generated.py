@@ -4461,6 +4461,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("create-batch-route")
+    def content_representations_create_batch_route_post(
+        ctx: typer.Context,
+        left_out: Optional[str] = typer.Option(None, '--left-out', help='Left Out. JSON.'),
+        readings: Optional[str] = typer.Option(None, '--readings', help='Readings. JSON.'),
+    ) -> None:
+        """Create Representations Batch Route (POST /api/content-representations/batch)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/content-representations/batch"
+            params = None
+            payload = _build_json_payload({
+                "left_out": left_out,
+                "readings": readings,
+            }, {
+                "left_out": {'items': {'$ref': '#/components/schemas/LineLeftOut'}, 'type': 'array', 'title': 'Left Out', 'x-cli-required': False},
+                "readings": {'items': {'$ref': '#/components/schemas/RepresentationCreateParams'}, 'type': 'array', 'title': 'Readings', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list")
     def content_representations_list_get(
         ctx: typer.Context,

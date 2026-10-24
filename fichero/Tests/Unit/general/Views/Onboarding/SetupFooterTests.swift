@@ -82,7 +82,38 @@ struct SetupFooterTests {
                     "leaving Your Material leaves Set Up, never goes on to the stages")
         }
         #expect(footer(.aboutMaterial, newProject, .firstRun, hasMaterial: false).waitsFor == nil,
-                "only Your Material waits")
+                "About the Material does not wait for material")
+    }
+
+    /// WHY (Test 13, owner ruling): Set Up let Continue go on with Languages blank, and every stage page then proposed nothing.
+    @Test("About the Material: a blank Languages waits and says why; a language or Not sure lets Continue on")
+    func continueWaitsForTheLanguage() {
+        let blank = SetupFooter.of(.aboutMaterial, in: newProject, mode: .firstRun, projectChosen: true, hasLanguage: false)
+        #expect(blank.waitsFor == SetupFooter.chooseTheLanguage)
+        #expect(blank.primary == .init(title: "Continue", action: .advance))
+        #expect(footer(.aboutMaterial, newProject).waitsFor == nil)
+        #expect(footer(.addMaterial, newProject, hasMaterial: true).waitsFor == nil, "only About the Material waits for it")
+    }
+
+    @Test("Not sure is an answer: it stands alone, naming a language clears it, and the store can assemble")
+    func notSureIsAnAnswer() {
+        let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+        #expect(store.languageWait == SetupFooter.chooseTheLanguage, "blank is not an answer")
+        store.setLanguagesNotSure(true)
+        #expect(store.languagesNotSure && store.languageWait == nil && store.canAssemble)
+        #expect(store.namedLanguages.isEmpty)
+        store.add(.init(code: "es", name: "Spanish", detail: nil, usualScript: nil), toScripts: false)
+        #expect(store.languages == ["es"] && !store.languagesNotSure, "naming a language clears Not sure")
+        store.setLanguagesNotSure(true)
+        store.setLanguagesNotSure(false)
+        #expect(store.languages.isEmpty && store.languageWait != nil, "unticking leaves a blank, which waits again")
+    }
+
+    @Test("a stage page with no plan says why in words, never a silent empty proposal")
+    func noProposalSaysWhy() {
+        #expect(SetupStagePage.noProposalReason(languages: [], error: nil).contains("Not sure"))
+        #expect(SetupStagePage.noProposalReason(languages: ["es"], error: "engine refused").contains("engine refused"))
+        #expect(SetupStagePage.noProposalReason(languages: ["es"], error: nil).contains("still being made"))
     }
 
     @Test("the step list and the page say AI and ML Models")

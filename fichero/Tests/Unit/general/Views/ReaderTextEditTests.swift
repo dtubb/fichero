@@ -57,6 +57,30 @@ struct ReaderTextEditTests {
         #expect(ReaderTextEdit.split(message, of: line(text: nil), shownText: nil) == .failure(.tooFew))
     }
 
+    @Test("a Reader edit across lines is read whole and becomes ONE create_many with the versions the PAGE saw")
+    func readingEditsBecomeOneBatch() throws {
+        let message = try #require(ReaderTextEdit.message(from: [
+            "kind": "readingEdits", "pageId": "p1", "segmentId": "l1",
+            "edits": [["segmentId": "l1", "text": "joined", "previous": "ab", "basedOn": "r1"]],
+            "leftOut": [["segmentId": "l2", "expectedVersion": 7]]
+        ]))
+        #expect(message == .editedMany(
+            pageId: "p1", segmentId: "l1",
+            readings: [.init(segmentId: "l1", text: "joined", basedOn: "r1")],
+            leftOut: [.init(segmentId: "l2", expectedVersion: 7)]
+        ))
+        #expect(ReaderTextEdit.message(from: ["kind": "readingEdits", "pageId": "p1", "segmentId": "l1"]) == nil)
+        #expect(ReaderTextEdit.message(from: [
+            "kind": "readingEdits", "pageId": "p1", "segmentId": "l1", "leftOut": [["segmentId": "l2"]]
+        ]) == nil, "a left-out line with no version the page saw is not sent")
+
+        let params = try #require(ReaderTextEdit.newReadings(for: message))
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(params)) as? [String: Any])
+        let left = try #require(json["left_out"] as? [[String: Any]])
+        #expect(left.count == 1 && left[0]["segment_id"] as? String == "l2" && left[0]["expected_version"] as? Int == 7)
+        #expect((json["readings"] as? [[String: Any]])?.first?["corrects_representation_id"] as? String == "r1")
+    }
+
     @Test("a typed line is a NEW reading correcting the one typed over; the reply to the page is safe JSON")
     func newReadingAndReply() throws {
         let params = try #require(ReaderTextEdit.newReading(for: .edited(pageId: "p1", segmentId: "l1", text: "ܫܠܡܐ", basedOn: "r1")))

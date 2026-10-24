@@ -70,6 +70,23 @@ final class BakeoffStore {
     /// refused, and none is under way. Until the engine has said so, there is no button.
     var canRun: Bool { refusal == nil && readiness?.ready == true && !isStarting && !isRunning }
 
+    /// The block shows only once there is something to compare on: a comparison kept, or enough corrected lines. A new
+    /// project, with neither (or before the engine has answered), shows nothing (`source.try.bakeoff-hidden-until-corrected`, #6016).
+    var isShown: Bool { comparison != nil || readiness?.ready == true }
+
+    /// The one plain line Set Up shows under Compare in place of the block: what it does, and when it can run, in words
+    /// from the engine's own minimums (`source.try.bakeoff-hidden-until-corrected`, #6016). nil until the engine has answered.
+    nonisolated static func onboardingLine(ready: Bool, minLines: Int, minPages: Int) -> String {
+        let pages = minPages == 1 ? "1 page" : "\(minPages) pages"
+        let what = "Reads your pages with each candidate, side by side."
+        return ready ? "\(what) It can run now, from the Inspector."
+                     : "\(what) It can run after \(minLines) corrected lines on \(pages)."
+    }
+
+    var onboardingLine: String? {
+        readiness.map { Self.onboardingLine(ready: $0.ready, minLines: $0.minLines, minPages: $0.minPages) }
+    }
+
     /// What stands in place of the button, once, in the engine's words: its refusal of a start,
     /// or, before anything is pressed, how many more corrected lines it needs.
     var notReadySentence: String? {
