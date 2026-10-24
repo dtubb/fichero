@@ -710,6 +710,15 @@ def _resolve_single_user_owner():
         return None
 
 
+def _presented_key_is_the_files_not_ours(provided: str, expected_header: str) -> bool:
+    """True when the presented bearer is the current key file's contents and not this engine's cached key."""
+    try:
+        on_disk = _token_file_path().read_text().strip()
+    except OSError:
+        return False
+    return bool(on_disk) and secrets.compare_digest(provided, f"Bearer {on_disk}") and provided != expected_header
+
+
 def _refused(
     request: Request, status: int, body: dict, branch: str, is_loopback: bool,
     *, detail: str | None = None,
@@ -842,6 +851,18 @@ def attach_auth_middleware(
                     request.state.bootstrap_auth = False
                     return await call_next(request)
             if not secrets.compare_digest(provided, expected_header):
+                if provided and _presented_key_is_the_files_not_ours(provided, expected_header):
+                    # #6030: another engine rewrote the shared key file after this one cached its own;
+                    # the app (reading the file fresh) holds the file's key. Say so with the code the
+                    # app already maps to "restart the engine", not a bare mismatch it can only retry.
+                    return _refused(
+                        request, 401,
+                        {
+                            "detail": "this engine's key was replaced by another engine's; restart it",
+                            "code": "stale_bootstrap_token",
+                        },
+                        "bootstrap_key_file_replaced", is_loopback,
+                    )
                 return _refused(
                     request, 401,
                     {"detail": "missing or invalid Authorization header"},

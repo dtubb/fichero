@@ -171,3 +171,14 @@ def test_an_accepted_request_logs_no_refusal(single_user, caplog):
     with caplog.at_level(logging.WARNING, logger="fichero_server.api.auth"):
         assert client.get("/api/private", headers={"Authorization": "Bearer test-token"}).status_code == 200
     assert not [r for r in caplog.records if r.getMessage().startswith("auth refused")]
+
+
+def test_single_user_the_key_file_was_replaced_by_another_engine_says_restart(single_user, caplog, tmp_path, monkeypatch):
+    """#6030: the app reads the key file fresh; an engine that cached its own key refuses it with the app's restart code."""
+    monkeypatch.setenv("FICHERO_TOKEN_DIR", str(tmp_path))
+    from fichero_server.api import auth
+    auth._token_file_path().write_text("the-other-engines-key")
+    assert_refused(caplog, headers={"Authorization": "Bearer the-other-engines-key"},
+                   body={"detail": "this engine's key was replaced by another engine's; restart it",
+                         "code": "stale_bootstrap_token"},
+                   branch="bootstrap_key_file_replaced", token="the-other-engines-key")
