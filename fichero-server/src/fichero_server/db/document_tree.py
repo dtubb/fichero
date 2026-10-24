@@ -67,3 +67,13 @@ def live_page_ids_mentioning(db: Any, word: str) -> list[str]:
     """The ids of live documents whose page text contains `word` (a coarse prefilter; the caller checks each)."""
     return [r[0] for r in db.execute_fetchall(
         "SELECT id FROM documents WHERE page_content LIKE ? AND deleted_at IS NULL", [f"%{word}%"])]
+
+
+def live_document_rows(db: Any) -> dict[str, Any]:
+    """Every live document's id, name, path, parent and order, in ONE read (`id` -> a plain row). For callers that
+    would otherwise `db.get` each of thousands of pages while an import holds the database (#6036)."""
+    from types import SimpleNamespace
+
+    return {r[0]: SimpleNamespace(id=r[0], name=r[1], path=r[2], parent_id=r[3], sort_order=r[4], sequence=r[5])
+            for r in db.execute_fetchall(
+                "SELECT id, name, path, parent_id, sort_order, sequence FROM documents WHERE deleted_at IS NULL")}

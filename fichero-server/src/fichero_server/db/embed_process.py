@@ -91,6 +91,7 @@ def materialise_model_links(cache_dir: str) -> None:
     (model.onnx_data) whose resolved path leaves the model folder. A hard link keeps the disk cost nil;
     a copy is the fallback across volumes. The blob stays, so the cache still finds it.
     """
+    root = os.path.realpath(cache_dir) + os.sep
     for dirpath, _dirs, files in os.walk(cache_dir):
         if os.sep + "snapshots" + os.sep not in dirpath + os.sep:
             continue
@@ -99,9 +100,9 @@ def materialise_model_links(cache_dir: str) -> None:
             if not os.path.islink(path):
                 continue
             target = os.path.realpath(path)
-            if not os.path.isfile(target):
-                continue
-            tmp = path + ".fichero-tmp"
+            if not os.path.isfile(target) or not target.startswith(root):
+                continue  # only the cache's own blobs: a link that leads out of it is not ours to copy or replace
+            tmp = f"{path}.{os.getpid()}.fichero-tmp"
             try:
                 try:
                     os.link(target, tmp)
@@ -117,13 +118,12 @@ def materialise_model_links(cache_dir: str) -> None:
 
 
 def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
-    """fastembed's `TextEmbedding`, with the cache's links made real first and once more if the load still escapes (#6024)."""
+    """fastembed's `TextEmbedding`, retried once with the cache's links made real if the load escapes the model folder (#6024)."""
     from fastembed import TextEmbedding
 
-    materialise_model_links(cache_dir)
-    try:
+    try:  # only a load that fails this way touches the cache: a model that loads is never rewritten
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
-    except Exception as exc:  # noqa: BLE001 -- a fresh download links its files after the first look
+    except Exception as exc:  # noqa: BLE001 -- the cache's files are links into blobs/
         if "escapes model directory" not in str(exc):
             raise
         materialise_model_links(cache_dir)
