@@ -789,18 +789,19 @@ screenshots (`docs/assets/recipe-designer/`).
 
 ## Accessibility identifiers (required for the click-around leg)
 
-- `designer.path.card.<route>` · `designer.path.learn-more.<route>` · `designer.path.cloud-question` · `designer.path.matters.<speed|cost|quality|predictability>` · `designer.path.start-from-recipe`
-- `designer.stage.<stage>.candidates` · `designer.candidate.row.<id>` · `designer.candidate.radio.<id>` · `designer.candidate.reason.<id>` · `designer.candidate.own-workflow.<id>`
-- `designer.finder.open` · `designer.finder.search-again`
-- `designer.compare.again` · `designer.compare.column.<id>` · `designer.compare.use.<id>` · `designer.compare.badge.<best|cheapest|fastest|predictable>` · `designer.compare.prediction` · `designer.compare.not-measured`
-- `designer.check.progress` · `designer.check.open-pages`
-- `designer.review.kind`
-- `designer.layout.region-model`
-- `designer.step.open-in-editor.<job>` · `designer.step.adjust-in-editor.<job>`
-- `designer.teach.offer` · `designer.teach.candidate.<distil|fine-tune>` · `designer.teach.where` · `designer.teach.learn-more`
-- `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals`
-- `designer.material.imported-truth` · `designer.material.script-display`
-- `designer.share.export` · `designer.share.import`
+| Surface | Identifiers (a11y, not behaviours) |
+|---|---|
+| Path page | `designer.path.card.<route>` · `designer.path.learn-more.<route>` · `designer.path.cloud-question` · `designer.path.matters.<speed|cost|quality|predictability>` · `designer.path.start-from-recipe` |
+| Candidates | `designer.stage.<stage>.candidates` · `designer.candidate.row.<id>` · `designer.candidate.radio.<id>` · `designer.candidate.reason.<id>` · `designer.candidate.own-workflow.<id>` |
+| Finder | `designer.finder.open` · `designer.finder.search-again` |
+| Compare | `designer.compare.again` · `designer.compare.column.<id>` · `designer.compare.use.<id>` · `designer.compare.badge.<best|cheapest|fastest|predictable>` · `designer.compare.prediction` · `designer.compare.not-measured` |
+| Checking | `designer.check.progress` · `designer.check.open-pages` |
+| Review, layout | `designer.review.kind` · `designer.layout.region-model` |
+| Workflow | `designer.step.open-in-editor.<job>` · `designer.step.adjust-in-editor.<job>` |
+| Teach | `designer.teach.offer` · `designer.teach.candidate.<distil|fine-tune>` · `designer.teach.where` · `designer.teach.learn-more` |
+| Ready | `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals` |
+| Material | `designer.material.imported-truth` · `designer.material.script-display` |
+| Sharing | `designer.share.export` · `designer.share.import` |
 
 ## UX completeness (required on EVERY surface)
 
