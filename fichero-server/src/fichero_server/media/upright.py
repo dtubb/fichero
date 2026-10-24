@@ -87,3 +87,9 @@ def region_frame(region: Any) -> str | None:
     """The frame a node's region (`NodeRegion`) was measured on, from its `frame` extra; None = the file's raw pixels."""
     extra = getattr(region, "model_extra", None) or {}
     return frame_of(extra, {"frame": getattr(region, "frame", None)})
+
+
+def frame_of_lines(db: Any, pass_ref: Any, segments: Any) -> str | None:
+    """The frame of a pass's lines: the pass's own marker first (a person's split, create or merge, listed first, has none of
+    its own), else the first segment that has one. None = the file's raw pixels."""
+    return pass_frame(db, pass_ref) or frame_of(*(getattr(s, "metadata", None) for s in segments))
