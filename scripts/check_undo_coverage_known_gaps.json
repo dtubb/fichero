@@ -177,7 +177,7 @@
   "POST /api/claims/{claim_id}/links": "no undo registration in current tree",
   "POST /api/classifications": "no undo registration in current tree",
   "POST /api/content-representations": "ENGINE INVERSE EXISTS (representation.create, undoable=True, invert=_invert_representation_create); what is missing is the APP's UndoManager wiring, which this guard reads. Blocked by the programme's own ruling that nothing of source-model slices 6-10 reaches the app until the programme is done (source-model.md). Not 'no undo': undo through the audited action layer works today over the route and the CLI. #4930/#4943.",
-  "POST /api/content-representations/batch": "ENGINE INVERSE EXISTS (representation.create_many, undoable=True; its inverse is representation.retract_many, one audit id for the whole save, so one undo takes a Reader save back); what is missing is the APP UndoManager wiring, as for POST /api/content-representations above. #6074.",
+  "POST /api/content-representations/batch": "ENGINE INVERSE EXISTS (representation.create_many, undoable=True; its inverse is representation.retract_many, one audit id for the whole save, so one undo takes a Reader save back); the app saves through POST /api/actions/invoke (UndoableChange registers the audit row, ReaderTextEditRunner), so ⌘Z works; the guard only looks for the route's own path or generated method, which the app never dials. #6074.",
   "POST /api/content-representations/{representation_id}/revisions": "inverse-action design required; tracked in #3740",
   "POST /api/documents": "no undo registration in current tree",
   "POST /api/documents/bulk": "#1848 bulk create for the import page phase - undoable=False by design like the other bulk imports",
