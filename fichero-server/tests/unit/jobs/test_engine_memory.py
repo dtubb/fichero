@@ -44,12 +44,12 @@ def _wait_for(predicate, seconds=20.0):
 @pytest.fixture
 def mac(monkeypatch):
     """This Mac's memory as the one check reads it, switchable; the other signals never hold work."""
-    state = {"free": 8 * GB, "pressure": 1, "swap": 0}
+    state = {"free": 8 * GB, "pressure": 1, "paging": False}
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "1")
     monkeypatch.setattr(jobs, "THROTTLE_LOOK_AGAIN_SECONDS", 0.05)
     monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: state["free"])
     monkeypatch.setattr(kraken_runtime, "_memory_pressure_level", lambda: state["pressure"])
-    monkeypatch.setattr(throttle, "swap_used_bytes", lambda: state["swap"])
+    monkeypatch.setattr(throttle, "paging_now_on_this_mac", lambda **_: state["paging"])
     monkeypatch.setattr(throttle, "PROBES", [(throttle.memory_is_tight, True)])
     return state
 
@@ -77,10 +77,10 @@ class TestOneMemoryCheck:
             assert held.startswith(throttle.MEMORY_REASON)
             assert refused.startswith(held)
 
-    @pytest.mark.parametrize("pressure,swap", [(1, 15 * GB), (2, GB // 2), (2, 15 * GB), (4, 15 * GB)])
-    def test_the_throttle_and_the_kraken_guard_agree_on_swap_too(self, mac, pressure, swap):
-        """#6075: swap in use under memory pressure holds new pages, in the throttle and in the guard alike."""
-        mac.update(pressure=pressure, swap=swap)
+    @pytest.mark.parametrize("pressure,paging", [(1, True), (2, False), (2, True), (4, True)])
+    def test_the_throttle_and_the_kraken_guard_agree_on_paging_too(self, mac, pressure, paging):
+        """#6075: a Mac paging to disk NOW under memory pressure holds new pages, in the throttle and in the guard alike."""
+        mac.update(pressure=pressure, paging=paging)
         held = throttle.why_wait()
         try:
             kraken_runtime.assert_memory_available_for_kraken()
@@ -88,7 +88,7 @@ class TestOneMemoryCheck:
         except KrakenMemoryUnavailableError as exc:
             refused = str(exc)
         assert (held is None) == (refused is None), (held, refused)
-        assert (held is not None) == (pressure >= 2 and swap >= throttle.SWAP_HOLD_BYTES)
+        assert (held is not None) == (pressure >= 4 or (pressure >= 2 and paging))
 
     def test_the_reason_names_both_numbers(self, mac):
         """WHY: 'memory is tight' alone cannot be acted on, and two checks quoting different numbers was
