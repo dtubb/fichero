@@ -66,6 +66,8 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                # A diary or register split into its dated entries by the Diary Entries splitter, with the step's
                # model, over the pages that have text (`source.onboard.auto.diary-entries`, #5581).
                "split-into-entries": "entries",
+               # The folder's archival description, last, with the step's model (`catalogue.folder-description-fields`, #6087).
+               "describe-for-the-catalogue": "catalogue",
                # Faded pages get a prepared rendition, their contrast raised, before lines; the original is kept
                # (`source.onboard.auto.prepare-damaged-images`, #5580).
                "prepare-the-image": "prepare",
@@ -129,7 +131,6 @@ START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, 
 BY_HAND_FIX = {
     "link-to-authorities": "link each name to an authority from its Inspector",
     "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
-    "describe-for-the-catalogue": "run the Catalogue Description workflow by hand",
 }
 _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
@@ -506,10 +507,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
-            elif job == "split-into-entries":
+            elif job in ("split-into-entries", "describe-for-the-catalogue"):
                 override = _override(pin)
                 if override is None:
-                    skip(sid, f"{label}: the entries are split by a text model, and {pin} is not one", "choose-model")
+                    skip(sid, f"{label}: this step is done by a text model, and {pin} is not one", "choose-model")
                     continue
                 entry.update(provider=override[0], model=override[1])
             elif job == "extract-to-a-table":
