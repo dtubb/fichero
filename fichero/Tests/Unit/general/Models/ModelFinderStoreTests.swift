@@ -361,17 +361,6 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertTrue(ModelFinderCard.offersDownload(elsewhere), "it runs on a machine of yours")
     }
 
-    /// WHY (#5660 item 3): a source's line is the engine's one sentence; the two it words without naming the
-    /// place are said with it, so "Not searched" twice never reads as one thing said twice.
-    func testSourceLinesAreTheEnginesWords() throws {
-        let sources = try JSONDecoder().decode([Components.Schemas.CandidateSource].self, from: Data("""
-        [{"source":"shipped","state":"read","count":12,"detail":"12 ship with Fichero"},
-         {"source":"kraken-repository","state":"not-searched","count":0,"detail":"Not searched"}]
-        """.utf8))
-        XCTAssertEqual(sources.map(ModelFinderStore.sourceLine),
-                       ["12 ship with Fichero", "Kraken's model repository: Not searched"])
-    }
-
     /// WHY (#5612): Find a Reader… is offered on the steps the engine's registry says read the material
     /// (`reads_material`), not on a list of job ids the app keeps and would let drift.
     func testReaderStepsComeFromTheJobRegistry() async throws {

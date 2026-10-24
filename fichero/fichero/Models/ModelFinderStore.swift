@@ -146,15 +146,6 @@ final class ModelFinderStore {
         candidate.download.map { ModelDownloads.Key(runtime: $0.runtime, model: $0.model) }
     }
 
-    /// A source's line as the engine words it ("12 ship with Fichero", "0 on this Mac"); the two it words without
-    /// naming the place ("Not searched") are said with it: "Kraken's model repository: not searched".
-    static func sourceLine(_ source: Components.Schemas.CandidateSource) -> String {
-        switch source.source {
-        case .krakenRepository, .huggingFace: "\(sourceWords(source.source.rawValue)): \(source.detail)"
-        default: source.detail
-        }
-    }
-
     /// Where a candidate came from, in words.
     static func sourceWords(_ source: String) -> String {
         switch source {
@@ -182,7 +173,8 @@ final class ModelFinderStore {
                     material: query.material,
                     job: query.job,
                     online: online,
-                    step: query.step
+                    step: query.step,
+                    worthOnly: true  // only what is worth using, filtered and capped by the engine (owner 2026-10-23)
                 )
             )
             switch response {

@@ -15698,6 +15698,16 @@
               "nullable": true,
               "title": "Period"
             }
+          },
+          {
+            "name": "worth_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Worth Only"
+            }
           }
         ],
         "responses": {
@@ -75925,7 +75935,7 @@
             "type": "string",
             "nullable": true,
             "title": "Tier",
-            "description": "a reading candidate's tier: specialist, small-vlm or general (source.recipe.reader-tiers); null for another job"
+            "description": "a reading candidate's tier: cloud, specialist, small-vlm or general (source.recipe.reader-tiers); null for another job"
           },
           "tier_words": {
             "type": "string",
@@ -83537,7 +83547,7 @@
               "remote"
             ],
             "title": "Source",
-            "description": "where the card came from: the shipped seed, an installed model's own metadata, Kraken's model repository a Hugging Face search (GET /api/recipes/candidates) or a cloud provider row in Settings (remote)",
+            "description": "where the card came from: the shipped seed, an installed model's own metadata, Kraken's model repository, a Hugging Face search (GET /api/recipes/candidates) or a cloud provider row in Settings (remote)",
             "default": "shipped"
           }
         },
