@@ -109,7 +109,7 @@ extension ActivityDetails {
         case "check": "Check on the pages"
         case "export": "Write the synced folder"
         case "publish": "Publish the site"
-        default: stage.steps.joined(separator: ", ")
+        default: stage.title ?? stage.steps.joined(separator: ", ")
         }
     }
 
