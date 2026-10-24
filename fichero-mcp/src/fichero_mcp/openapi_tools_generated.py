@@ -6511,18 +6511,17 @@ def fichero_recipes_put_places(
 
 def fichero_recipes_get_project_setup(
 ) -> Any:
-    "Get Project Setup\n\nThe open project's saved setup answers and recipe.\n\nRoute: GET /api/recipes/project (toolset `recipes`; reads)."
+    "Get Project Setup\n\nThe open project's saved setup answers and recipe, and whether it inherits the app's cloud setting.\n\nRoute: GET /api/recipes/project (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/project")
 
 
 def fichero_recipes_save_project_setup(
     *,
     answers: Annotated[Optional[dict[str, Any]], Field(description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")] = None,
-    cloud_inherited: Annotated[Optional[bool], Field(description='Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)')] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")] = None,
 ) -> Any:
     "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed,\nexcept a recipe the project already has saved, which a null recipe never clears (a client whose assemble failed has no\nrecipe in hand and must not wipe the saved one and the person's step choices; the kept recipe is logged)\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "cloud_inherited": cloud_inherited, "recipe": recipe}))
+    return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
 def fichero_recipes_allow_cloud(

@@ -444,4 +444,29 @@ final class ModelFinderStoreTests: XCTestCase {
         await answered.loadSaved()
         XCTAssertFalse(answered.cloudAllowed, "a project that answered no stays no")
     }
+
+    /// WHY (## 1102): the inherited yes is shown, never saved. A first ordinary Set Up save while the project only
+    /// inherits sends no `cloud_allowed` (else the app's setting freezes as the project's own answer); once the person
+    /// has answered, it is sent.
+    func testASaveSendsCloudAllowedOnlyOnceTheProjectHasAnswered() async throws {
+        func put() throws -> [String: Any] {
+            let body = try XCTUnwrap(FinderMockURLProtocol.requests(to: "/api/recipes/project").last { $0.method == "PUT" }?.body)
+            let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            return try XCTUnwrap(sent["answers"] as? [String: Any])
+        }
+        FinderMockURLProtocol.reset { request in
+            request.url?.path == "/api/recipes/project"
+                ? (200, #"{"answers":null,"recipe":null,"cloud_inherited":true}"#) : (200, "{}")
+        }
+        let store = RecipeSetupStore(client: makeClient())
+        await store.loadSaved()
+        XCTAssertTrue(store.cloudAllowed, "shown as the app's setting")
+        XCTAssertFalse(store.cloudAnswered)
+        _ = await store.save()
+        XCTAssertNil(try put()["cloud_allowed"], "the inherited yes is not the project's answer")
+
+        store.cloudChoice = true
+        _ = await store.save()
+        XCTAssertEqual(try put()["cloud_allowed"] as? Bool, true, "the person's own answer is sent")
+    }
 }

@@ -1772,9 +1772,14 @@ class ProjectSetup(BaseModel):
     model_config = ConfigDict(extra="forbid")
     answers: Optional[dict[str, Any]] = Field(default=None, description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")
     recipe: Optional[dict[str, Any]] = Field(default=None, description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")
-    cloud_inherited: Optional[bool] = Field(default=None, description=(
-        "Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, "
-        "so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"))
+
+
+class ProjectSetupView(ProjectSetup):
+    """`GET /api/recipes/project`'s answer: the setup and, beside the answers, what the project inherits."""
+
+    cloud_inherited: bool = Field(default=False, description=(
+        "True when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there "
+        "by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"))
 
 
 def _library(db: Database) -> Path:
@@ -1843,13 +1848,14 @@ def _whole_setup(setup: dict) -> ProjectSetup:
         recipe = {**recipe, "gaps": recipe.get("gaps") or []}
         recipe["problems"] = [] if recipe["gaps"] else check_recipe(recipe)
         setup = {**setup, "recipe": recipe}
-    return ProjectSetup(**setup)
+    return ProjectSetup(**{k: v for k, v in setup.items() if k != "cloud_inherited"})
 
 
-@router.get("/project", response_model=ProjectSetup)
-async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
-    """The open project's saved setup answers and recipe."""
-    return _whole_setup(read_project_setup(_library(db)))
+@router.get("/project", response_model=ProjectSetupView)
+async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetupView:
+    """The open project's saved setup answers and recipe, and whether it inherits the app's cloud setting."""
+    setup = read_project_setup(_library(db))
+    return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")))
 
 
 @router.put("/project", response_model=ProjectSetup)

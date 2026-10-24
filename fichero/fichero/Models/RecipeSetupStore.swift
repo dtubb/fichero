@@ -75,6 +75,19 @@ final class RecipeSetupStore {
     /// May pages leave this Mac. Asked once per project; the default is that
     /// nothing leaves (`source.onboard.cloud-asked-once`).
     var cloudAllowed = false
+    /// Whether the person (or the saved setup) has answered the cloud question. Until then `cloudAllowed` is only what the
+    /// project inherits from the app (`cloud_inherited`), and a save sends no `cloud_allowed`: writing the inherited value
+    /// would freeze it as the project's own answer (`source.onboard.new-project-inherits-the-cloud-setting`).
+    private(set) var cloudAnswered = false
+
+    /// The Set Up toggle's binding: setting it is the person's answer.
+    var cloudChoice: Bool {
+        get { cloudAllowed }
+        set {
+            cloudAllowed = newValue
+            cloudAnswered = true
+        }
+    }
     /// The Hugging Face spend cap a month the person set; nil is the engine's $0 (`source.onboard.spend-cap`, #5769).
     var spendCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
@@ -535,7 +548,7 @@ final class RecipeSetupStore {
     private var currentAnswers: RecipeSetupAnswers {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
-                           cloudAllowed: cloudAllowed, ingestMode: wayIn.savedName,
+                           cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, copiesMayStayOnCluster: copiesMayStay)
@@ -570,7 +583,10 @@ final class RecipeSetupStore {
         if let value = saved.directions { directions = value }
         if let value = saved.materials ?? saved.material.map({ [$0] }), !value.isEmpty { materials = value }
         if let value = saved.pages { pages = value }
-        if let value = saved.cloudAllowed { cloudAllowed = value }
+        if let value = saved.cloudAllowed {
+            cloudAllowed = value
+            cloudAnswered = true
+        }
         if let value = saved.automatic { automatic = value }
         if let value = saved.jobAnswers { jobAnswers = value }
         if let value = saved.period { period = value }
@@ -895,7 +911,7 @@ extension RecipeSetupStore {
     /// A step problem's `allow-cloud` fix: the person says pages may leave this Mac, and the
     /// recipe is proposed again with that answer.
     func allowCloud() async {
-        cloudAllowed = true
+        cloudChoice = true
         // Saved before anything reads it: the finder asks the engine, which counts the project's saved yes; unsaved, a
         // cloud row still needed permission until the finder was opened again (owner 2026-10-24).
         _ = await save()
