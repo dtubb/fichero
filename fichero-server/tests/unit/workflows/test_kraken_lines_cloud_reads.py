@@ -20,6 +20,6 @@ WORDS = ["cloud uno", "cloud dos", "cloud tres"]
 async def test_every_line_is_sent_once_and_the_page_text_is_the_models(page, monkeypatch):  # noqa: F811
     result = await _read(page, monkeypatch, provider=CLOUD[0], model=CLOUD[1], vision_mode="llm", force_ocr=True,
                          answer=lambda n, call: json.dumps(WORDS[:n]))
-    # three line pictures, none twice, and the whole page ONCE beside them for context (variant B, #5894), not read
-    assert result["calls"] == [len(WORDS) + 1], result["calls"]
+    # three line pictures in one call, none twice; the whole page does not ride unless asked (`source.recipe.cloud-reads-lines-per-page`)
+    assert result["calls"] == [len(WORDS)], result["calls"]
     assert _counting(page) == WORDS and not set(_counting(page)) & set(KRAKEN_READS)

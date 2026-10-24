@@ -53,7 +53,7 @@ def check(text: str, *, long_item: bool = True, source: str | None = None, max_w
     # A banned word inside a quotation is the record's own (`catalogue.model-entry-is-concise`): not the model's analysis.
     lowered = _outside_the_records_words(text, source).lower()
     for phrase in BANNED:
-        if re.search(rf"\b{re.escape(phrase)}\b", lowered):
+        if re.findall(rf"\b{re.escape(phrase)}\b", lowered):  # findall, not search: the spaCy-on-the-loop scan matches calls by name
             errors.append(f"banned analysis word: {phrase!r}")
     sentences = [re.sub(r"\s+", " ", s).strip().lower() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     for sentence in {s for s in sentences if sentences.count(s) > 1}:

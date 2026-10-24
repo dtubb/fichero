@@ -76,8 +76,9 @@ async def test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_wo
     words = ["qwen uno", "qwen dos", "qwen tres"]
     result = await _read(page, monkeypatch, provider=MODEL[0], model=MODEL[1], vision_mode="llm", force_ocr=True,
                          answer=lambda n, call: json.dumps(words[:n]))
-    # three line pictures, none twice, and the whole page ONCE beside them for context (variant B, #5894), not read
-    assert result["calls"] == [len(words) + 1] and max(result["calls"]) <= 9
+    # three line pictures in one call, none twice; the whole page does not ride unless asked (`source.recipe.cloud-reads-lines-per-page`,
+    # measured 2026-10-24: it made an answer come back out of order and cost twice as much)
+    assert result["calls"] == [len(words)] and max(result["calls"]) <= 9
     assert _tied(page, words) == [[w] for w in words]
     assert [p.id for p in _passes(page)] == before
 
