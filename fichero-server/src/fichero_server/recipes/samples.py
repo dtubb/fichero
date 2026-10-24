@@ -47,10 +47,12 @@ def _pages(db: Any) -> list[Any]:
     """The project's material as Items shows it (#5686): each folder's pages in its own order (sort order, then the
     name read naturally), the folders in the same order, never the order an import happened to create them."""
     from fichero_server.core.naturalsort import in_folder_order
-    from fichero_server.models import Document
+    from fichero_server.db.document_tree import live_document_rows
 
-    pages = [d for d in (db.get(Document, i) for i in db.unit_of_work_ids()) if d is not None]
-    folders = {p.parent_id: db.get(Document, p.parent_id) for p in pages if p.parent_id}
+    # One read for every row, never one per page: a project mid-import has thousands, and the import holds the database (#6036).
+    rows = live_document_rows(db)
+    pages = [rows[i] for i in db.unit_of_work_ids() if i in rows]
+    folders = {p.parent_id: rows.get(p.parent_id) for p in pages if p.parent_id}
 
     def key(doc: Any) -> tuple:
         folder = folders.get(doc.parent_id)
