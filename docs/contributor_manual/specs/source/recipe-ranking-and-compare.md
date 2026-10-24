@@ -57,6 +57,27 @@ Files: `fichero-server/src/fichero_server/recipes/assemble.py` (`_rank_key`, `_c
 |-----|---------------|------|------|
 | Pure rule (Swift) | y | the candidate row's order and labels | `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift` (to write) |
 | Availability (Swift) | y | Compare reachable from the step | `fichero/Tests/Unit/general/Views/Onboarding/` (to write) |
-| Backend (pytest) | y | ranking, measurement, coverage filter, Compare triggers | `fichero-server/tests/unit/recipes/` (to write) |
+| Backend (pytest) | y | ranking, measurement, coverage filter, Compare triggers, DISTIL switch and costs | `fichero-server/tests/unit/recipes/` (to write) |
 | MCP | n | — | — |
 | CLI | n | — | — |
+
+## Distil in the recipe (owner, 10:20 and 10:22)
+
+A DISTIL step can run for any recipe step. A frontier model reads the first pages; the person checks or corrects them;
+those become training lines. A local model is trained on them (a Kraken reader fine-tuned, or the small MLX vision model
+with LoRA, through the existing training jobs), then measured against the frontier model and the shipped Kraken readers on
+held-out pages. When it is within the noise band, the rest of the run switches to the local model. Otherwise the run
+carries on with the frontier model and says why. The costs are shown before the run and measured after it: frontier spend
+on the first pages, training time and where it runs, the local model's cost per page, and the predicted saving for the rest
+of the project.
+
+Cited, not restated (see `compute/distillation.md` and `compute/jobs-and-fine-tuning.md`): `distill.measure.against-people`,
+`distill.adopt.within-bar`, `distill.train.card-names-teacher`, `distill.job.any-model-job`, `compute.tune.loop-is-one-visible-cycle`.
+
+Behaviors (new, this section):
+- `source.recipe.distil-after-frontier` [MISSING] — a DISTIL step's frontier model reads the first pages, and the person's checked or corrected pages become training lines.
+- `source.recipe.distil-measured-before-switching` [MISSING] — the trained local model is measured against the frontier model and the shipped Kraken readers on held-out pages; the switch happens only within the noise band.
+- `source.recipe.distil-switch-says-cost` [MISSING] — before the run: frontier spend on the first pages, training time and place, the predicted saving; after the switch: the local model's cost per page, and the measured spend.
+- `source.recipe.distil-stays-frontier-says-why` [MISSING] — when the local model is not within the band, the run carries on with the frontier model and says why in words.
+
+Test (to write): fichero-server/tests/unit/recipes/ (a DISTIL case per behaviour), not yet written.
