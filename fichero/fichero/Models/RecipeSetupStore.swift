@@ -850,6 +850,9 @@ extension RecipeSetupStore {
     /// recipe is proposed again with that answer.
     func allowCloud() async {
         cloudAllowed = true
+        // Saved before anything reads it: the finder asks the engine, which counts the project's saved yes; unsaved, a
+        // cloud row still needed permission until the finder was opened again (owner 2026-10-24).
+        _ = await save()
         await assemble()
     }
 
