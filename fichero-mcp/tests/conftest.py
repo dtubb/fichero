@@ -45,9 +45,25 @@ def _forbid_the_default_engine(monkeypatch) -> None:
     live = urlparse(os.environ.get("FICHERO_API_URL") or "")
     if live.hostname:
         named.add((live.hostname, live.port or (443 if live.scheme == "https" else 80)))
+    # The engine also listens on a Unix socket: the app container's, and any path the developer's own FICHERO_UDS names.
+    containers = str(Path.home() / "Library" / "Containers" / "app.fichero.fichero")
+    sockets = {str(Path.home() / "Library" / "Containers" / "app.fichero.fichero" / "Data" / "tmp" / "fichero.sock")}
+    forced = (os.environ.get("FICHERO_UDS") or "").strip()
+    if forced and forced != "0":
+        sockets.add(forced)
+
+    def is_live_socket(address) -> bool:
+        if not isinstance(address, (str, bytes, os.PathLike)):
+            return False
+        path = os.fsdecode(address)
+        return path in sockets or path.startswith(containers)
 
     def forbid(real):
         def guarded(self, address, *args, **kwargs):
+            if is_live_socket(address):
+                raise AssertionError(
+                    f"a test dialled the Unix socket {os.fsdecode(address)}, which a live engine may be listening on: stub the "
+                    "transport (httpx.MockTransport) or serve on a socket of its own under tmp_path")
             if isinstance(address, tuple) and len(address) >= 2 and (address[0], address[1]) in named:
                 raise AssertionError(
                     f"a test dialled {address[0]}:{address[1]}, an address a live engine may answer on: stub the transport "
@@ -57,6 +73,7 @@ def _forbid_the_default_engine(monkeypatch) -> None:
 
     monkeypatch.setattr(socket.socket, "connect", forbid(socket.socket.connect))
     monkeypatch.setattr(socket.socket, "connect_ex", forbid(socket.socket.connect_ex))
+    monkeypatch.setenv("FICHERO_UDS", "0")  # never the socket: a client that reads it dials TCP, which the guard refuses (the bind var FICHERO_UDS_PATH is another)
 
 
 @pytest.fixture(autouse=True)
