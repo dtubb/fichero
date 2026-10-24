@@ -7,6 +7,7 @@
 //
 
 @testable import Fichero
+import Foundation
 import Testing
 
 @MainActor

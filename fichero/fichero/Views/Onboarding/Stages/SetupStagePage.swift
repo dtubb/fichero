@@ -154,7 +154,11 @@ struct SetupStagePage: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(sentence).font(.callout).fixedSize(horizontal: false, vertical: true)
                     Button("Change\u{2026}") { onChangeLanguage?() }
+                        #if os(macOS)
                         .buttonStyle(.link)
+                        #else
+                        .buttonStyle(.borderless)
+                        #endif
                         .accessibilityIdentifier("setup.stage.changeLanguage")
                 }
             }
