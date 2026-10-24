@@ -121,6 +121,10 @@ final class RecipeSetupStore {
     var tiedFolderPath: String?
     private(set) var isAssembling = false
     var errorMessage: String?
+    /// Moves each time the engine accepts a step's reader (`useCard`). A finder or stage page showing which candidate is
+    /// chosen reads again when it moves, so the radio and tint follow the click at once, from whichever surface made it
+    /// (`source.find.use-moves-the-radio-at-once`).
+    private(set) var choiceRevision = 0
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
     /// its bundled font (`source.onboard.derives-not-asks`). Keyed by ISO 15924 code.
     private(set) var derivedScripts: [String: Components.Schemas.ScriptFacts] = [:]
@@ -419,6 +423,7 @@ final class RecipeSetupStore {
                 if let recipe = try success.body.json.recipe {
                     adoptEngineRecipe(try JSONEncoder().encode(recipe))
                 }
+                choiceRevision += 1
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description
                     ?? "The engine would not use \(candidate.name) for this step."
