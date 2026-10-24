@@ -1,3 +1,5 @@
+import Foundation
+
 /// The Inspector's Text section (ruled 2026-09-27, `build-notes-inspector.md` 5.1): every live
 /// reading of the inspected segment, which one counts for each kind, and WHY.
 ///
