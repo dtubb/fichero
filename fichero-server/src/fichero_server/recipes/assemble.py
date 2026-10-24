@@ -848,6 +848,7 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
                 continue
             if any(have.isdisjoint(kind.split("|")) for kind in known.takes):
                 out.add(j)
+                continue  # a step that cannot run gives nothing: what reads its output is lost with it
             have |= known.gives
         return out
 

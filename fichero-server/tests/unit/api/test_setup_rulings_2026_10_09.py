@@ -10,7 +10,7 @@ exactly what is pinned here.
 from __future__ import annotations
 
 # Correct is off unless a corrector is on this Mac or asked for (#5677); a test's model store starts empty.
-TRANSCRIBE = ["find-lines", "read-a-line"]
+TRANSCRIBE = ["find-lines", "leave-out", "read-a-line"]
 
 
 def _assemble(client, **answers):

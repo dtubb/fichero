@@ -141,6 +141,7 @@ def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_
     assert r.status_code == 200, r.text
     started = r.json()["started"]
     assert started["recipe_version"] == recipe["version"]
-    # Its runs: the transcription; Correct is off with no corrector here (#5677), and the recipe says so.
-    assert started["workflows"] == ["Transcribe (Kraken)"]
+    # Its runs: the lines, then the transcription (Leave Out runs no workflow); Correct is off with no corrector here
+    # (#5677), and the recipe says so.
+    assert started["workflows"] == ["Detect Segments (Kraken)", "Transcribe (Kraken)"]
     assert [o["job"] for o in recipe["left_off"]] == ["correct"]

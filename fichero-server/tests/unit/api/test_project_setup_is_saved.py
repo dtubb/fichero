@@ -24,7 +24,7 @@ def _recipe(client):
 def test_a_project_never_set_up_has_nothing_saved(client):
     r = client.get("/api/recipes/project")
     assert r.status_code == 200, r.text
-    assert r.json() == {"answers": None, "recipe": None}
+    assert r.json() == {"answers": None, "recipe": None, "cloud_inherited": False}
 
 
 def test_saved_answers_and_recipe_come_back_and_live_in_the_project_folder(client, with_material, test_package):
@@ -47,7 +47,7 @@ def test_saving_is_undoable(client, db):
     [audit] = [a for a in db.query(ActionAudit) if a.action_name == "project.save_setup"]
     undone = client.post(f"/api/actions/audit/{audit.id}/undo")
     assert undone.status_code == 200, undone.text
-    assert client.get("/api/recipes/project").json() == {"answers": None, "recipe": None}
+    assert client.get("/api/recipes/project").json() == {"answers": None, "recipe": None, "cloud_inherited": False}
 
 
 def test_a_key_in_a_recipe_is_refused_and_nothing_is_written(client, test_package):
