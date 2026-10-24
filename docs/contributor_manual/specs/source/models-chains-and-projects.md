@@ -4085,6 +4085,8 @@ Trying another option
 - `source.library.no-children-poll-of-a-project` — **[PARTIAL]** (#6026; built, uncompiled) The pending-status refresh (live update and the 15 s
   fallback poll) asks the engine for the children of a document only: a pane that lists a project's top level (sidebar id
   "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
+- `source.library.folder-canvas-after-items-arrive` — **[PARTIAL]** (#6032; built, uncompiled, cause a hypothesis: not reproduced) A folder selected in
+  the Items pane previews as its canvas once it has items; an empty children list cached before they arrived is asked again, not kept.
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
