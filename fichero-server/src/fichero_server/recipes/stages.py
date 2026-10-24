@@ -194,12 +194,17 @@ def example_from_samples(stage_id: str, result: dict[str, Any] | None) -> str | 
     return str(text).strip() or None if text else None
 
 
+def runs_or_by_hand(job: str) -> bool:
+    """Whether Start runs this job by itself or a tool does it by hand: the jobs a stage offers to tick."""
+    from fichero_server.recipes.start import BY_HAND_FIX, start_runs
+
+    return start_runs(job) or job in BY_HAND_FIX
+
+
 def offered(stage: Stage) -> bool:
     """Whether Set Up offers this stage: at least one of its jobs is one Start runs by itself, or one that has a way to
     do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job."""
-    from fichero_server.recipes.start import BY_HAND_FIX, start_runs
-
-    return any(start_runs(job) or job in BY_HAND_FIX for job in stage.jobs)
+    return any(runs_or_by_hand(job) for job in stage.jobs)
 
 
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
@@ -220,7 +225,9 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
             "id": stage.id, "title": stage.title, "sentence": stage.sentence, "example": stage.example,
             "example_credit": example_credit(),
             "example_from_samples": example_from_samples(stage.id, result),
-            "jobs": list(stage.jobs), "on": bool(in_recipe & set(stage.jobs)),
+            # Only the jobs that run or can be done by hand: ticking Find Lines no longer ticks "Put in order" and
+            # "Refine shapes", which nothing in Fichero does yet and Ready then listed as will-not-run (owner 2026-10-24).
+            "jobs": [j for j in stage.jobs if runs_or_by_hand(j)], "on": bool(in_recipe & set(stage.jobs)),
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,

@@ -3228,7 +3228,7 @@ Setup
   ticked with its reason in words ("Dates & Times needs Names") and cannot be unticked while it is
   needed, as the plan's own steps are today (`needed_by`). *Test:* engine, the stages list carries
   each stage's needs; pure Swift, the chooser locks a needed stage.
-- `source.onboard.stages.stages-list-from-the-engine` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/stages.py`, `GET /api/recipes/stages`; pinned by `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`. *Not built: the app (B).* the stages, their titles,
+- `source.onboard.stages.stages-list-from-the-engine` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/stages.py`, `GET /api/recipes/stages`; pinned by `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`. *Not built: the app (B).* the stages, their titles, A stage offers to tick only its jobs that Start runs or a tool does by hand, so ticking Find Lines no longer ticks Put in order and Refine shapes, and Ready does not list them as will-not-run (owner 2026-10-24; `fichero-server/tests/unit/recipes/test_by_hand_lists_only_what_is_worth_saying.py`).
   sentences, examples, jobs, questions and needs come from one engine list (`GET /api/recipes/stages`),
   read by setup, the Inspector and the manual; the app works none of it out. *Test:* pytest, every
   registered job that a stage carries exists and every stage's needs are stages; the eleven in order.
