@@ -3616,6 +3616,7 @@ Setup
   a project uses; the app-wide client is never used for setup, so `GET`/`PUT /api/recipes/project`
   never answer 400 in first run. *Test:* first run through the real app environment saves the
   Your material answers and `GET /api/recipes/project` on the new project returns them.
+- `source.onboard.picked-folder-either-unicode-form` — **[OK]** (owner live 2026-10-24: a folder whose name has an "ñ" refused as not in an allowed location in Add Material) a file under a folder the owner picked is allowed whichever Unicode form (NFC or NFD) its path arrives in: the grants are kept NFC and the path is compared NFC. Pinned by `fichero-server/tests/unit/api/test_owner_granted_folder_either_unicode_form.py`.
 - `source.onboard.start-works-in-first-run` — **[PARTIAL]** (#5477) **Built 2026-10-05 (app), not yet seen:** first run's Start plans and starts through the project made on Where it lives (its store), as Set Up… does. *Engine half pinned (2026-10-18): the saved setup's plan has no refusals and Start records the first yes, with no setup refused in words (`fichero-server/tests/unit/recipes/test_first_run_start_5477.py`). Not pinned: the app's first run against the real engine.* the Start screen in first run plans
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
