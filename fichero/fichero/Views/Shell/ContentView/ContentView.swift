@@ -662,6 +662,8 @@ struct ContentView: View {
     // presentation so the field can't disappear while results are showing.
     @SceneStorage("library.showSearchField") var showSearchField: Bool = false
     @State var measuredWindowWidth: Double = 0
+    /// Coalesces the width readings of an Inspector drag into one write (#6009).
+    @State var windowWidthSettle = WindowWidthSettle()
     // `layout.followsSelection` was DELETED with #4525 (V6): an opt-in whose
     // only purpose was to violate the stable-panes policy (#1452's default —
     // selection never changes which panes are visible — is now the only

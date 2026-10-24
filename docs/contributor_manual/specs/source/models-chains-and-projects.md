@@ -4855,4 +4855,4 @@ Each is described in the paragraph named; the id lets a test cite it.
   (`ContentView.inspectorMinWidth` 220 to `inspectorMaxWidth` 800, ideal 270): its bounds are the LAST modifier on the content handed to `.inspector`
   (`inspectorColumnBounds()`), outside every environment and geometry wrapper, and nothing else sets that column's width. Audited 2026-10-24: no workspace
   (`WorkspaceMount`, `BuiltInWorkspaceLayout`, `WorkspaceSplitStack`) owns the real Inspector (its `.inspector` pane is a centre-pane placeholder; the saved
-  `inspectorWidth` is only clamped, never applied) (`InspectorPaneWidthTests.swift`).
+  `inspectorWidth` is only clamped, never applied) (`InspectorPaneWidthTests.swift`). Dragging it must not hang the app (P0, the owner's log: onChange updated multiple times per frame): the window-width reading that drives column visibility is applied once the width has settled (150 ms), the first reading at once (`WindowWidthSettle`), and a pane's frame is recorded only when it changed (`WindowWidthSettleTests.swift`).

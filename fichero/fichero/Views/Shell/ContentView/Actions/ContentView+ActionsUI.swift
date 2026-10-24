@@ -24,9 +24,18 @@ extension ContentView {
         // window itself cannot resize during a divider drag, so deferring is
         // free; the next real window resize re-runs this.
         guard !dividerDragInFlight else { return }
-        if abs(measuredWindowWidth - newWidth) < 0.5 {
-            return
+        guard WindowWidthSettle.isNewWidth(newWidth, since: measuredWindowWidth) else { return }
+        // The first reading applies at once; after that the width settles first: the native Inspector's drag moves this
+        // measured width every frame, and a state write per frame hung the app (#6009).
+        if measuredWindowWidth == 0 {
+            applyWindowWidth(newWidth)
+        } else {
+            windowWidthSettle.schedule { applyWindowWidth(newWidth) }
         }
+    }
+
+    private func applyWindowWidth(_ newWidth: Double) {
+        guard WindowWidthSettle.isNewWidth(newWidth, since: measuredWindowWidth) else { return }
         measuredWindowWidth = newWidth
         updateColumnVisibility()
     }
