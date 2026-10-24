@@ -209,6 +209,31 @@ final class RecipeRunVisibleTests: XCTestCase {
                        "setup opens the recipe run's Activity details in its project")
     }
 
+    func testStart_keepsReadysStepMenusWhenItsAnswerCarriesNone() async throws {
+        // WHY: Start's answer carries `step_choices: []` (the menus are for before Start, #5707); taking it as the plan
+        // emptied Ready's menus the moment the run started.
+        let store = RecipeSetupStore(client: Self.client())
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/start", method: "GET", status: 200,
+                 body: try Self.recorded("start_plan_skips_and_downloads"))
+        ])
+        await store.loadStartPlan()
+        let before = try XCTUnwrap(store.startPlan?.stepChoices?.count)
+        XCTAssertGreaterThan(before, 0, "the recorded plan lists step menus")
+
+        var answer = try Self.object(try Self.recorded("start_runs_the_proposed_jobs"))
+        answer["step_choices"] = []
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/start", method: "POST", status: 200,
+                 body: try JSONSerialization.data(withJSONObject: answer))
+        ])
+        let didStart = await store.start()
+
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(store.startPlan?.stepChoices?.count, before, "Ready's menus stay after Start")
+        XCTAssertNotNil(store.startedRunJobId, "the answer's own started run is still taken")
+    }
+
     func testRecipeRunDetails_showEachStageWithItsPagesAndState() async throws {
         // WHY: the recipe run's row said "Done" with no stages; its pages were summed across steps.
         let store = ActivityStore(service: ActivityService(ficheroClient: Self.client()))
