@@ -21,6 +21,14 @@ enum SegmentDeleter {
         return InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
     }
 
+    /// The lines a Delete on `row` means: the focused Source view's held selection only when it CONTAINS the row, else just
+    /// the row (the person highlighted another one); no row names the held selection itself. The one rule every surface
+    /// uses, so a Delete never reaches lines the person did not point at (## 1072). Pure, for the tests.
+    static func ids(row: String?, held: [String]) -> [String] {
+        guard let row else { return held }
+        return held.contains(row) ? held : [row]
+    }
+
     /// Why nothing was sent, in words.
     static func problem(_ refusal: SegmentEdit.Refusal) -> String {
         switch refusal {

@@ -140,7 +140,7 @@ struct ReaderLineRow: View {
         let store = SegmentStore.shared(for: segmentService)
         let focused = windowState?.focusedRegionSelection
         let held = SegmentDeleter.selectedIds(focused, documentId: segment.documentId, store: store)
-        let ids = held.contains(segment.id) ? held : [segment.id]
+        let ids = SegmentDeleter.ids(row: segment.id, held: held)
         let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = segment.documentId
         Task {
             deleteNote = await SegmentDeleter.run(
