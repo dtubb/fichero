@@ -12,9 +12,10 @@ from typing import Any
 
 #: The steps with a choice of model: the readers, Correct, and the two text steps (spaCy, Apple Intelligence, a model of the person's own,
 #: a cloud model: `source.onboard.step-candidates-on-the-plan`, Test 13).
-CHOICE_JOBS = ("read-a-line", "read-a-page", "correct", "find-names-tag-words", "find-statements")
+CHOICE_JOBS = ("read-a-line", "read-a-page", "correct", "translate-transliterate-normalise", "find-names-tag-words", "find-statements")
 _STAGE_WORDS = {"read-a-line": "Read lines", "read-a-page": "Read pages", "correct": "Correct",
-                "find-names-tag-words": "Find names", "find-statements": "Find statements"}
+                "translate-transliterate-normalise": "Translate", "find-names-tag-words": "Find names",
+                "find-statements": "Find statements"}
 
 
 #: Where a card that is neither this Mac nor a cloud service runs, in the words the plan shows (never the internal id).
