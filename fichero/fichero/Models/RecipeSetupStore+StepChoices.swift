@@ -28,6 +28,7 @@ extension RecipeSetupStore {
         // (## 923): a failed assemble stops here with the engine's words.
         guard await assemble(), recipe != nil, errorMessage == nil else { return }
         guard await save() else { return }
+        readerChanged()
         await loadStartPlan(folderId: startPlanFolderId)
     }
 
@@ -42,6 +43,7 @@ extension RecipeSetupStore {
                 if let recipe = try success.body.json.recipe {
                     adoptEngineRecipe(try JSONEncoder().encode(recipe))
                 }
+                readerChanged()
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description ?? "The engine would not take this step back to Set Up's pick."
             case .undocumented(let code, _):
