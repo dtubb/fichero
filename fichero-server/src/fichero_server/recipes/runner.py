@@ -1325,6 +1325,11 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 jobs.save_detail(db, job_id, json.dumps(detail))
 
             done_notes[job_id] = _noted
+        if card.get("job") == "read-a-line" and redo.intersection(card["steps"]):
+            # Asked to read again: every line, not just the unread ones (`source.recipe.read-resumes-per-line`).
+            card = {**card, "tool_config": {**(card.get("tool_config") or {}),
+                                            "transcribe": {**((card.get("tool_config") or {}).get("transcribe") or {}),
+                                                           "read_all_lines": True}}}
         try:
             child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
             detail.pop("awaiting", None)

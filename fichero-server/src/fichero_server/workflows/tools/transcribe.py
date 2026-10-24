@@ -107,6 +107,13 @@ TRANSCRIBE_CONFIG = {
         ),
         "x-group": "advanced",
     },
+    "read_all_lines": {
+        "type": "boolean",
+        "default": False,
+        "description": ("Read every line of a page again. Unset: a page that already has readings by this reader is read on "
+                        "from its unread lines (a stopped read is resumed, nothing is paid for twice)."),
+        "x-group": "advanced",
+    },
     "kraken_model": {
         "type": "string",
         "default": "",
@@ -499,6 +506,7 @@ async def transcribe(
         kraken_recognition_model=inputs.get("kraken_model"),
         lines_read_by=lines_read_by,
         read_granularity=inputs.get("read_granularity") or None,
+        read_all_lines=bool(inputs.get("read_all_lines")),
         # Apple Vision needs a concrete recognition locale and has no "unknown"
         # — it keeps its historical en-US fallback. That is an OCR hint, not a
         # claim about the document, and unlike the prompt above it does not
