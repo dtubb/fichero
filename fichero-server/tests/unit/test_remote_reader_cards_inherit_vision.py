@@ -75,3 +75,10 @@ def test_a_key_with_no_saved_model_offers_the_newest_frontier_models(monkeypatch
               ("claude-4-opus-20250514", "claude-opus-4-7", "gemini-3-flash", "gemini-3.1-flash-image-preview")]
     monkeypatch.setattr("fichero_server.llm.model_types.list_models_for_provider", lambda p: listed)
     assert frontier_catalog_models("x") == ["claude-opus-4-7", "gemini-3-flash"]  # a date is no version; no image model
+
+
+def test_gemini_through_openrouter_counts_as_a_frontier_reader():
+    from fichero_server.recipes.assemble import _frontier_model
+
+    assert _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro-preview"}))
+    assert not _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "qwen/qwen3-vl"}))
