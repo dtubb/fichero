@@ -29,3 +29,8 @@ def test_a_kraken_reader_node_is_not_given_the_apps_cloud_default(monkeypatch):
 def test_a_node_that_reads_with_a_model_still_resolves_the_default(monkeypatch):
     errors = _errors(monkeypatch, {"vision_mode": "kraken", "kraken_model": ""})
     assert errors, "no Kraken reader named: the vision model reads, so the model rules apply"
+
+
+def test_no_vision_mode_means_auto_so_the_model_rules_still_apply(monkeypatch):
+    errors = _errors(monkeypatch, {"kraken_model": "kraken-mccatmus"})
+    assert errors, "transcribe's default mode is auto: only an explicit 'kraken' skips the check"
