@@ -319,6 +319,15 @@ def _uses_cloud(step: dict) -> bool:
     return str(step.get("runs_on") or "").startswith("cloud") or pin_leaves_this_mac(step.get("model"))
 
 
+def _retired_pick(step: dict) -> str | None:
+    """Why a step's saved cloud model can no longer be called (#6096), in words, or None."""
+    from fichero_server.llm.model_types import retired_because
+
+    model = str((step.get("model") or {}).get("model") or "")
+    why = retired_because(model) if model else None
+    return f"{model} is retired ({why}); choose another model" if why else None
+
+
 def provider_without_key(step: dict) -> str | None:
     """The name of the cloud provider a step's pin needs a key for, when none is configured; else None (#5364)."""
     pin = step.get("model") or {}
@@ -430,6 +439,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if stays_local and _uses_cloud(step):
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
+            continue
+        if _uses_cloud(step) and (gone := _retired_pick(step)):
+            # A saved pick of a model its provider no longer serves (#6096) says so here, never fails every page.
+            skip(sid, f"{label}: {gone}", "choose-model")
             continue
         if (keyless := provider_without_key(step)) is not None:
             # The next LOCAL candidate in the step's chain takes its place, and the plan says so
@@ -1104,6 +1117,8 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
     step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
     if step is None:
         raise ValueError(f"this project's recipe has no step {step_id!r}")
+    if card.cannot_run_because.startswith("retired:"):  # #6096 (the Claude placeholder stays choosable before its row exists)
+        raise ValueError(f"{card.note.strip().rstrip('.') or card.id} cannot run: {card.cannot_run_because}")
     if not does_the_step(card, step.get("job")):
         raise ValueError(f"{card.note.strip().rstrip('.') or card.id} does not do the step {step_id!r} "
                          f"({step.get('job')}): it does {', '.join(sorted(card.jobs)) or 'no job'}")

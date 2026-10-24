@@ -364,6 +364,15 @@ def frontier_providers() -> frozenset[str]:
     return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
 
 
+def _retired(model_id: str) -> dict[str, Any]:
+    """A cloud card's fields when its provider no longer serves the model (#6096): it cannot run, and says why, so the menu
+    shows it, use-candidate refuses it and no rule picks it. Empty for a model still served."""
+    from fichero_server.llm.model_types import retired_because
+
+    why = retired_because(model_id or "")
+    return {"runs_here": False, "cannot_run_because": f"retired: {why}"} if why else {}
+
+
 def _cloud_text_cards() -> list[Card]:
     """The enabled models of the person's cloud provider rows, as cards for `TEXT_MODEL_JOBS`: they run through the
     provider settings already there, and the rules take one only where the project lets pages leave this Mac. With no
@@ -389,6 +398,7 @@ def _cloud_text_cards() -> list[Card]:
             if not model.enabled or _is_embedder(model):
                 continue
             frontier = ptype in frontier_providers()
+            gone = _retired(model.model_id)
             out.append(Card(
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                 jobs=TEXT_MODEL_JOBS if frontier else TEXT_MODEL_JOBS - {"correct"}, multilingual=frontier,  # Correct: the frontier list only
@@ -396,6 +406,7 @@ def _cloud_text_cards() -> list[Card]:
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
+                **gone,
             ))
     if CLAUDE_PROVIDER not in seen_types:
         out.append(Card(
@@ -482,7 +493,10 @@ def frontier_catalog_models(provider: str) -> list[str]:
         return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)
 
     try:
-        listed = [m["model_id"] for m in list_models_for_provider(provider) if m.get("supports_vision")]
+        from fichero_server.llm.model_types import retired_because
+
+        listed = [m["model_id"] for m in list_models_for_provider(provider)
+                  if m.get("supports_vision") and not retired_because(m["model_id"])]  # #6096
     except Exception:  # noqa: BLE001 -- no price list: no offers, never a failed listing
         return []
     out = []
@@ -534,7 +548,7 @@ def remote_reader_cards() -> list[Card]:
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
                             runs_on=f"cloud:{ptype}", note=f"{row.name}: {(model.name or '').strip() or model.model_id}",
                             short_name=(model.name or '').strip() or model.model_id, source="remote", offered_only=True,
-                            offered_because=f"a vision model at your remote endpoint {row.name}"))
+                            offered_because=f"a vision model at your remote endpoint {row.name}", **_retired(model.model_id)))
     if not any(c.pin["cloud"] == "anthropic" or "claude" in str(c.pin["model"]).casefold() for c in out):
         out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
                         jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
