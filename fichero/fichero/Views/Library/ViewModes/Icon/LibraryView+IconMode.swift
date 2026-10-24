@@ -70,6 +70,12 @@ extension LibraryView {
         paneHeight < 2 * iconRowHeight(scale: scale) + spacing + verticalInset
     }
 
+    /// Strip or grid for the layout in force: from the PERSISTED scale only; a live pinch value is accepted and ignored,
+    /// so the rule has one pure, testable home (`source.items.icon-filmstrip-holds-through-a-pinch`).
+    nonisolated static func iconLayoutIsFilmstrip(paneHeight: CGFloat, persistedScale: Double, liveScale: Double?) -> Bool {
+        iconIsFilmstrip(paneHeight: paneHeight, scale: persistedScale)
+    }
+
     /// The tiles' container: the adaptive grid, or one row of them for a filmstrip.
     @ViewBuilder
     private func iconLayout<Content: View>(
@@ -111,7 +117,9 @@ extension LibraryView {
             // gesture on this same container is live replaces the view its recognizer belongs to mid-callback
             // (owner crash 2026-10-24, an exclusivity trap in a gesture callback). A pinch resizes tiles; the layout
             // follows when the hands come off.
-            let filmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: iconViewScale)
+            let filmstrip = Self.iconLayoutIsFilmstrip(
+                paneHeight: geometry.size.height, persistedScale: iconViewScale, liveScale: liveIconScale
+            )
             ScrollViewReader { proxy in
                 ScrollView(filmstrip ? .horizontal : .vertical) {
                     iconLayout(filmstrip: filmstrip, itemMin: itemMin, itemMax: itemMax) {
