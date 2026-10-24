@@ -4014,6 +4014,7 @@ async def process_vision(
     # each line Kraken found (the teacher labelling lines for a Kraken reader to learn from).
     lines_read_by: str = "kraken",
     read_granularity: str | None = None,  # how the model is asked per call, as a bake-off measured it (#5722)
+    read_all_lines: bool = False,  # a redo reads every line again; else only the lines this reader has not read
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4912,10 +4913,19 @@ async def process_vision(
 
                     with _Image.open(image_path) as _im:
                         _w, _h = found.page_size(_im)  # in the frame the lines were measured on (`media/upright.py`)
+                    from fichero_server.db import db_manager as _dbm
+
+                    def _unread(stamp: str | None) -> Any:
+                        if read_all_lines:
+                            return found
+                        return _wl.unread_by(_dbm.get_database(library_path), found, stamp)
+
                     if not kraken_recognition_model:
                         from fichero_server.llm.line_reader import read_lines
 
-                        return await read_lines(
+                        whole = found
+                        found = _unread(effective_config.model)
+                        read = await read_lines(
                             image_path,
                             _wl.as_geometry(found, _w, _h, provider=effective_config.provider,
                                             model=effective_config.model),
@@ -4923,6 +4933,7 @@ async def process_vision(
                             **({"apple": True} if lines_read_by == "apple" else {}),
                             granularity=read_granularity,
                         )
+                        return _wl.whole_page(_dbm.get_database(library_path), whole, read, effective_config.model)
                     from fichero_server.llm import kraken_runtime as _kr
                     from fichero_server.llm import trocr_runtime as _tr
 
@@ -4932,6 +4943,8 @@ async def process_vision(
                     else:
                         _model_path, _model_id = _kr.resolve_recognition_model(kraken_recognition_model)
                         _stamp, _provider = _model_id or _model_path, "kraken"
+                    whole = found
+                    found = _unread(_stamp)
                     geometry = _wl.as_geometry(found, _w, _h, provider=_provider, model=_stamp)
                     _px = [_wl.in_pixels(row, _w, _h) for row in found.lines]
                     _texts = await run_on_lane(
@@ -4964,9 +4977,9 @@ async def process_vision(
                     elif _blank:
                         logger.info("kraken reader: %d of %d lines on %s left without a reading",
                                     len(_blank), len(geometry.boxes), image_path)
-                    return geometry.model_copy(update={
+                    return _wl.whole_page(_dbm.get_database(library_path), whole, geometry.model_copy(update={
                         "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr",
-                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}})
+                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}}), _stamp)
 
                 def _working_lines_of(doc_id: str) -> Any:
                     from fichero_server.db import db_manager as _dbm

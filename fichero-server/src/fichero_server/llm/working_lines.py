@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 #: Kept on a reading's page artifact (`Artifact.data`): the pass whose lines the reading was written onto.
@@ -87,6 +87,52 @@ def working_lines(db: Any, document_id: str, *, model: str | None = None) -> Wor
 
             return WorkingLines(row, lines, pass_frame(db, row) or frame_of(*(getattr(ln, "metadata", None) for ln in lines)))
     return None
+
+
+def unread_by(db: Any, found: WorkingLines, model: str | None) -> WorkingLines:
+    """The page's lines this reader has not yet read: a page stopped half-read is read on from there, so a line already read
+    (or looked at, no writing) is not paid for again (`source.recipe.read-resumes-per-line`). A reading counts for the
+    reader whose page artifact it came from (`model` is that reader's stamp; None: any reader's). All the lines when none is
+    read, and when every one is (a page then asked for again is read whole, as a redo is)."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    artifacts = {a.id: a.model for a in db.query(Artifact, document_id=found.lines[0].document_id)} if found.lines else {}
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=found.lines[0].document_id)
+            if r.segment_id and not r.retracted_at
+            and (model is None or artifacts.get(r.derived_from_artifact_id) == model)} if found.lines else set()
+    left = [x for x in found.lines if x.id not in read
+            and not (isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
+                     and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, "")))]
+    return found if not left or len(left) == len(found.lines) else replace(found, lines=left)
+
+
+def whole_page(db: Any, found: WorkingLines, result: Any, model: str | None) -> Any:
+    """A read that went on from the unread lines (`unread_by`) holds only those lines' words; the page artifact it is saved as holds
+    the WHOLE page's: the words this reader wrote on the lines before, then the new ones, in the pass's reading order, so what reads
+    `artifact.content` (export, views, tie_text, compare) sees every line. The boxes stay the new lines' only (a reading is written
+    once per line). A result that read every line is returned as it is."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    new = {box.metadata.get("segment_id"): box for box in result.boxes if (box.metadata or {}).get("segment_id")}
+    if not found.lines or all(line.id in new for line in found.lines):
+        return result
+    doc_id = found.lines[0].document_id
+    by_reader = {a.id for a in db.query(Artifact, document_id=doc_id) if model is None or a.model == model}
+    before: dict[str, str] = {}
+    for r in sorted(db.query(ContentRepresentation, document_id=doc_id), key=lambda r: r.created_at):
+        if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_reader and (r.content or "").strip():
+            before[r.segment_id] = r.content
+    joined, boxes, cursor = [], [], 0
+    for line in found.lines:
+        box = new.get(line.id)
+        text = box.text if box is not None else before.get(line.id)
+        if not text:
+            continue
+        if box is not None:
+            boxes.append(box.model_copy(update={"char_start": cursor, "char_end": cursor + len(text)}))
+        joined.append(text)
+        cursor += len(text) + 1
+    return result.model_copy(update={"text": "\n".join(joined), "boxes": boxes})
 
 
 def _scale(points: list[list[float]] | None, width: float, height: float) -> list[list[float]]:
