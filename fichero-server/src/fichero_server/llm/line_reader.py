@@ -74,13 +74,15 @@ def _alike(answers: list[str | None], references: list[str | None], shift: int) 
 
 def answers_follow_order(answers: list[str | None], references: list[str | None]) -> bool:
     """Whether a batch's answers sit on the lines they were asked for: each answer matches the reference reading of its OWN
-    line at least as well as that of the line before or after (a relative test: a hand the reference reads badly still passes,
-    where an absolute floor would send a correct page line by line). Pairs where either side says nothing are not compared;
-    with nothing to compare the batch is believed."""
+    line at least as well as that of ANY other shift of the batch (a relative test over every shift, so a batch moved by two
+    lines, or rotated, fails as surely as one moved by one; a batch is at most `MAX_LINES_PER_CALL` lines, so it is cheap). A
+    hand the reference reads badly still passes, where an absolute floor would send a correct page line by line. Pairs where
+    either side says nothing are not compared; with nothing to compare the batch is believed."""
     own = _alike(answers, references, 0)
     if own is None:
         return True
-    return all(own >= other for shift in (-1, 1) if (other := _alike(answers, references, shift)) is not None)
+    n = len(answers)
+    return all(own >= other for shift in range(1 - n, n) if shift and (other := _alike(answers, references, shift)) is not None)
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
@@ -246,7 +248,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             answer = None
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading
             singles = list(await asyncio.gather(*(
-                _done(probed[i]) if i in probed else ask([i], with_page=False) for i in indices)))
+                _done(probed[i]) if probed.get(i) is not None else ask([i], with_page=False) for i in indices)))
             answer = [s[0] if s else None for s in singles]
             looked.update(i for i, s in zip(indices, singles) if s is not None)
         elif answer is not None:
