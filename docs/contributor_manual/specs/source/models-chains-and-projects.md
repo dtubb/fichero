@@ -4081,8 +4081,7 @@ Trying another option
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
 - `source.try.bakeoff-hidden-until-corrected` — **[PARTIAL]** (#6016; built, uncompiled) The comparison block shows only once the project has
-  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and onboarding (Set Up) never
-  shows it: it lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
+  a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and Set Up never shows the block: it shows one plain line under Compare instead ("Reads your pages with each candidate, side by side. It can run after N corrected lines on M pages."); the block lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
 - `source.library.no-children-poll-of-a-project` — **[PARTIAL]** (#6026; built, uncompiled) The pending-status refresh (live update and the 15 s
   fallback poll) asks the engine for the children of a document only: a pane that lists a project's top level (sidebar id
   "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
@@ -4091,6 +4090,21 @@ Trying another option
 - `source.find.cloud-card-says-it-once` — **[PARTIAL]** (#6033; built, uncompiled) A cloud card that needs the permission shows one line, the
   permission one with its Allow Cloud Models action; the engine's refusal ("it runs in the cloud and this project keeps pages on this Mac")
   is not repeated under it (`CloudNeedsPermissionCardTests.swift`).
+- `source.onboard.stages.compare-side-by-side-inline` — **[PARTIAL]** (#6034; built, uncompiled) After Compare on These Pages, each sample page shows
+  the candidates side by side on it, right under the button: the page's picture with each model's lines drawn on it and its reading under it,
+  Use This One per column; then the plain list of counts per page, which opens the page's window (`StageShowcasePicturesTests.swift`).
+- `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
+  runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for Find Regions and Correct. The two ids are named in the app until
+  the registry carries `offers_finder` on `JobInfo` (engine, then regenerate) (`StageShowcasePicturesTests.swift`).
+- `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
+  has a leading radio glyph (empty, or a filled check in the tint on the chosen one) and the chosen row is tinted; only a result measured on the person's pages
+  moves a row to the head of the list (`ModelFinderTiersTests.swift`).
+- `source.find.allow-cloud-once` — **[PARTIAL]** (#6044, Set Up review item 7; built, uncompiled) Beside a Set Up step the finder shows Allow Cloud Models once, above the
+  tier that holds cards waiting on the permission, not on every cloud card (`CloudNeedsPermissionCardTests.swift`).
+- `source.onboard.stages.not-in-plan-says-so` — **[PARTIAL]** (#6039, Set Up review item 2; built, uncompiled) A stage page whose plan has no step for the stage says
+  "<Stage> is not in this plan yet." where its models would be listed, never nothing (`StageShowcasePicturesTests.swift`).
+- `source.find.nothing-found-engine-words` — **[PARTIAL]** (#6045, Set Up review item 8; built, uncompiled) With no model listed, the finder shows the engine's
+  `nothing-found` source sentence for any job, else the job's own wording (`ModelsUXTests.swift`). The engine adds the row for jobs other than readers (r1).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown

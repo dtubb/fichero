@@ -194,3 +194,31 @@ struct CompareSavesTheScreenFirstTests {
         #expect(page.contains("saveFirst: { await store.save() }"))
     }
 }
+
+/// #6034: Compare on These Pages shows the candidates side by side on each page, then the plain list.
+struct CompareSideBySideInlineTests {
+    @Test func theSideBySideComesBeforeTheList() throws {
+        let samples = try AppSource.text("Views/Onboarding/Stages/SetupStageSamples.swift")
+        let columns = try #require(samples.range(of: "StageCompareColumns(pageId:"))
+        let list = try #require(samples.range(of: "comparing = ComparedPage(id: pageId)"))
+        #expect(columns.lowerBound < list.lowerBound, "the plain list comes after the side-by-side")
+        let shared = try AppSource.text("Views/Onboarding/Stages/StageCompareWindow.swift")
+        #expect(shared.contains("struct StageCompareColumns"))
+        #expect(shared.contains("readings?.first?.text"), "each column shows the model's reading under its picture")
+    }
+}
+
+/// ## 1033: Set Up's Compare line needs readiness, so its branch loads it.
+struct SetUpCompareLineLoadsReadinessTests {
+    @Test func theLineBranchLoadsTheStore() throws {
+        let steps = try AppSource.text("Views/Onboarding/RecipeStepsView.swift")
+        #expect(steps.contains("context.store.loadLatest()"))
+    }
+}
+
+/// Set Up review item 2: a plan with no step for the stage says so.
+struct StageNotInPlanTests {
+    @Test func theWordsNameTheStage() {
+        #expect(SetupStagePage.notInPlanWords(stage: "Find Regions") == "Find Regions is not in this plan yet.")
+    }
+}

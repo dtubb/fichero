@@ -47,4 +47,13 @@ struct CloudNeedsPermissionCardTests {
         #expect(ModelFinderCard.refusedLine(try Self.card(needsPermission: true, refused: words)) == nil)
         #expect(ModelFinderCard.refusedLine(try Self.card(needsPermission: false, refused: words)) == words)
     }
+
+    @Test("Allow Cloud Models is offered once for a group, not per card (Set Up review item 7)")
+    func allowCloudOnce() throws {
+        let waiting = try Self.card(needsPermission: true)
+        let allowed = try Self.card(needsPermission: false)
+        #expect(ModelFinderView.offersAllowCloud([waiting, waiting]))
+        #expect(!ModelFinderView.offersAllowCloud([allowed]))
+        #expect(!ModelFinderView.offersAllowCloud([]))
+    }
 }

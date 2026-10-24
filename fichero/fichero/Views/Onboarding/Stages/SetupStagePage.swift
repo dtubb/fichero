@@ -70,6 +70,12 @@ struct SetupStagePage: View {
                 if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {
                     Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+                // A plan with no step for this stage cannot list its models: say so, never draw nothing
+                // (`source.onboard.stages.not-in-plan-says-so`, Set Up review item 2).
+                if store.recipe != nil, store.mainStep(forJobs: stage.jobs) == nil {
+                    Text(Self.notInPlanWords(stage: stage.title)).font(.callout).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("setup.stage.notInPlan")
+                }
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
                 if let finder = candidateFinder, !finder.candidates.isEmpty {
                     StageCandidateChooser(
@@ -97,6 +103,8 @@ struct SetupStagePage: View {
             await loadCandidates()
         }
     }
+
+    nonisolated static func notInPlanWords(stage title: String) -> String { "\(title) is not in this plan yet." }
 
     /// The stage's main step's candidates, from the per-step finder (its own store, so the project's finder keeps
     /// whatever it was showing).

@@ -637,7 +637,8 @@ def edit_chain_operations(
         return [], 0
     from fichero_server.models import ImageEditChain
 
-    chains = list(db.query(ImageEditChain, document_id=doc.id))
+    # committed read (#4523, #6020): this runs on every thumbnail ask, which must not queue behind an import's transaction gate
+    chains = list(db.query_committed(ImageEditChain, document_id=doc.id))
     if not chains:
         return [], 0
     chain = chains[0]
@@ -655,7 +656,8 @@ def resolve_edited_source(
     source = resolve_source(doc, library_root=db.path.parent)
     if source is None:
         return None
-    chains = list(db.query(ImageEditChain, document_id=doc.id))
+    # committed read (#4523, #6020): this runs on every thumbnail ask, which must not queue behind an import's transaction gate
+    chains = list(db.query_committed(ImageEditChain, document_id=doc.id))
     if not chains:
         return source
     chain = chains[0]

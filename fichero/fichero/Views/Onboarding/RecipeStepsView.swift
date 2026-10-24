@@ -54,15 +54,26 @@ struct RecipeStepsView: View {
                     Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
                 }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
-                if onFix != nil, finder != nil, store.readsMaterial(step.job) {
-                    Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
+                if onFix != nil, finder != nil, store.offersFinder(step.job) {
+                    Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") { findingFor = FinderStep(id: step.id, job: step.job) }
                         .controlSize(.small)
-                        .help("The readers for this project's scripts and languages, and where to get them")
+                        .help(store.readsMaterial(step.job)
+                              ? "The readers for this project's scripts and languages, and where to get them"
+                              : "The models that can do this step, and where to get them")
                 }
                 // Each step with a comparison offers it: the readers under the reading step, the line finders
                 // under Find lines (#5660 item 7).
-                if onFix == nil, let context = bakeoff?.forStep(step.job) {  // the Inspector only: never in onboarding (#6016)
-                    BakeoffSection(context: context, setup: store)
+                if let context = bakeoff?.forStep(step.job) {
+                    if onFix == nil {
+                        BakeoffSection(context: context, setup: store)
+                    } else if let line = context.store.onboardingLine {
+                        // Set Up: no counts block, one plain line (#6016).
+                        Text(line).font(.caption).foregroundStyle(.secondary).padding(.leading, 12)
+                            .accessibilityIdentifier("setup.bakeoff.line")
+                    } else {
+                        // The line needs the engine's readiness: read it here, as BakeoffSection's own task does in the Inspector.
+                        Color.clear.frame(height: 0).task { await context.store.loadLatest() }
+                    }
                 }
             }
             // The recipe's own check, in the rules' words: the Inspector only.
