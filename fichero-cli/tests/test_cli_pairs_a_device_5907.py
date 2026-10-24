@@ -49,8 +49,11 @@ GOOD = (200, {"device_id": "dev-1", "device_token": TOKEN, "expires_at": "2099-0
 PERSON = (401, {"detail": "person required: this library uses Multi-user, sign in as a person"},
           {"X-Fichero-Pair-Next": "person-required"})  # the host's typed hint; the words are only for a person
 PROSE_ONLY = (401, {"detail": "person required: this library uses Multi-user, sign in as a person"})
-NEW_PASSWORD = (422, {"detail": "choose a password of at least 8 characters to accept this invitation"},
-                {"X-Fichero-Pair-Next": "choose-password"})
+def new_password(status: int):
+    """The host's ask for a new person's own password: the typed hint comes with 400 (the host's own refusal of a missing or short
+    password, what it sends) or 422; the CLI keys on the hint, not the status."""
+    return (status, {"detail": "choose a password of at least 8 characters to accept this invitation"},
+            {"X-Fichero-Pair-Next": "choose-password"})
 
 
 @pytest.fixture(autouse=True)
@@ -282,10 +285,11 @@ def test_the_cli_asks_for_a_person_only_on_the_hosts_typed_hint_never_on_its_wor
     assert refused.value.status_code == 401 and len(host.sent) == 1
 
 
-def test_a_new_person_is_asked_for_a_password_of_their_own_on_the_typed_hint(monkeypatch):
-    host = Host([NEW_PASSWORD, GOOD])
+@pytest.mark.parametrize("status", [400, 422])
+def test_a_new_person_is_asked_for_a_password_of_their_own_on_the_typed_hint(monkeypatch, status):
+    host = Host([new_password(status), GOOD])
     run(monkeypatch, host, link(), ask_new_password=lambda: "a long secret")
     assert host.sent[1]["new_password"] == "a long secret" and "password" not in host.sent[1]
-    prose = Host([(422, {"detail": "choose a password of at least 8 characters to accept this invitation"})])
+    prose = Host([(status, {"detail": "choose a password of at least 8 characters to accept this invitation"})])
     with pytest.raises(pairing.FicheroError):
         run(monkeypatch, prose, link(), ask_new_password=lambda: pytest.fail("matched the prose"))
