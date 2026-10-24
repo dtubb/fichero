@@ -106,10 +106,10 @@ def main() -> int:
                 if started.status_code != 200:
                     report["start_refused"] = started.text[:2000]
                 else:
-                    job = (started.json().get("job_id") or started.json().get("run_id"))
+                    job = (started.json().get("started") or {}).get("job_id")
                     report["run_id"] = job
                     run = _wait(client, f"/api/recipes/project/runs/{job}",
-                                lambda b: (b.get("state") or b.get("status")) in ("done", "failed", "cancelled", "partial", "completed"),
+                                lambda b: (b.get("state") or "") not in ("", "queued", "running", "waiting", "paused", "pending"),
                                 every=5, limit=7200, say=lambda b: print(time.strftime("%H:%M:%S"), b.get("state") or b.get("status"), flush=True))
                     report["run"] = run
                     report["stages"] = _stages(run)
