@@ -28,7 +28,8 @@ from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, 
 
 logger = logging.getLogger(__name__)
 
-LINES_PER_CALL = 8
+#: 16 a call: measured on a cloud reader (2026-10-24, `source.recipe.cloud-reads-lines-per-page`): as aligned as 8 and as cheap a page, in half the calls.
+LINES_PER_CALL = 16
 #: The most line pictures one call carries, whatever the granularity asks (`source.recipe.cloud-reads-lines-per-page`): a page
 #: of 120 lines is read in calls of at most this many. It keeps a call inside the providers' image limits (the page for
 #: context rides beside the crops) and its answer inside the output ceiling (`TOKENS_PER_LINE` x this + 32 is under 8,192).
@@ -164,7 +165,6 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops)."""
     from fichero_server.llm import LLMConfig, vision
-    from fichero_server.llm.model_profiles import provider_is_local_or_builtin
 
     if apple:
         config = LLMConfig(provider="apple", model="apple-vision")
@@ -180,8 +180,9 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     # Variant B (`source.recipe.kraken-lines-cloud-reads`): a generative model gets the page ONCE per request, reduced,
     # beside the batch of lines; never once a line, and never for a reader trained on one picture or Apple's.
     # A reader that runs on this Mac (any local provider) reads a line as trained: the page costs its memory, not money.
-    context = (not apple and not provider_is_local_or_builtin(getattr(config, "provider", ""))
-               ) if page_context is None else page_context
+    # Off unless asked (2026-10-24, measured): the page beside the lines made a batch answer out of order and cost twice as much
+    # (one line a call), and the lines were read as well without it (`source.recipe.cloud-reads-lines-per-page`).
+    context = False if page_context is None else (page_context and not apple)
     page_uri = _page_context_uri(page) if context and crops else None
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
