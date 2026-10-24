@@ -1797,9 +1797,16 @@ async def _run_abatch_chunks(
     model: Any,
     inputs: list[Any],
     config: LLMConfig,
+    *,
+    kind: str = "chat",
 ) -> list[Any]:
+    """Each chunk is held against the project's cloud spend cap as the calls it is (#6083, `ai.where.cloud-spend-cap`), a
+    chunk past the cap is refused (`CloudSpendRefusedError`, nothing sent), and its usage is booked inside the hold."""
     if not inputs:
         return []
+
+    from fichero_server.llm import spend
+    from fichero_server.llm.egress import current_library
 
     max_concurrency = _batch_max_concurrency(config) or len(inputs)
     results: list[Any] = []
@@ -1807,7 +1814,14 @@ async def _run_abatch_chunks(
         chunk = inputs[start:start + max_concurrency]
         async with _remote_llm_batch_slots(config, len(chunk)):
             try:
-                chunk_results = await _call_model_abatch(model, chunk, config)
+                async with spend.holding(config, current_library(), calls=len(chunk)):
+                    chunk_results = await _call_model_abatch(model, chunk, config)
+                    answered = [r for r in chunk_results if not isinstance(r, BaseException)]
+                    _record_batch_usage(answered, config, kind=kind)
+                    if not answered:
+                        spend.note_actual(0.0)  # every item failed: the provider reported nothing owed
+            except spend.RefusedForTheRun:  # over the cap, or an unpriced model: refused, nothing sent
+                raise
             except Exception as exc:
                 chunk_results = [exc] * len(chunk)
         results.extend(chunk_results)
@@ -2040,12 +2054,7 @@ async def chat_batch(
         _normalize_batch_chat_prompt(prompt, system=system)
         for prompt in prompts
     ]
-    results = await _run_abatch_chunks(model, messages_batch, config)
-    _record_batch_usage(
-        [result for result in results if not isinstance(result, BaseException)],
-        config,
-        kind="chat",
-    )
+    results = await _run_abatch_chunks(model, messages_batch, config, kind="chat")
     return [
         _normalize_batch_chat_result(result, index, config)
         for index, result in enumerate(results)
@@ -3028,12 +3037,7 @@ async def vision_batch(
             content.append({"type": "image_url", "image_url": {"url": img}})
         messages_batch.append([HumanMessage(content=content)])
 
-    results = await _run_abatch_chunks(model, messages_batch, config)
-    _record_batch_usage(
-        [result for result in results if not isinstance(result, BaseException)],
-        config,
-        kind="vision",
-    )
+    results = await _run_abatch_chunks(model, messages_batch, config, kind="vision")
     return [
         _normalize_batch_vision_result(result, index, config)
         for index, result in enumerate(results)
@@ -3624,9 +3628,21 @@ async def chat_structured(
     try:
         async def _once():
             async with _remote_llm_call_slot(config):
-                return await asyncio.wait_for(
+                answer = await asyncio.wait_for(
                     structured_model.ainvoke(messages), timeout=budget,
                 )
+                # inside the slot: the open reservation books what it cost, not its worst case; a reply that would
+                # not parse is still spend (the cap counts it, #5987)
+                raw = answer.get("raw") if isinstance(answer, dict) and "parsed" in answer else None
+                used = usage_from_message(raw) if raw else None
+                if used:
+                    _record_usage(
+                        config.provider, config.model, "structured", place=_place_of(config),
+                        input_tokens=used["input_tokens"], output_tokens=used["output_tokens"],
+                        total_tokens=used["total_tokens"], cache_read_tokens=used["cache_read_tokens"],
+                        method=method,
+                    )
+                return answer
 
         result = await _resilient(_once, config)
     except asyncio.TimeoutError as exc:
@@ -3651,15 +3667,6 @@ async def chat_structured(
         raw_message = result.get("raw")
         parsing_error = result.get("parsing_error")
         if parsing_error and parsed is None:
-            # The provider answered and bills it: a reply that would not parse is still spend (the cap counts it, #5987).
-            failed_usage = usage_from_message(raw_message) if raw_message else None
-            if failed_usage:
-                _record_usage(
-                    config.provider, config.model, "structured", place=_place_of(config),
-                    input_tokens=failed_usage["input_tokens"], output_tokens=failed_usage["output_tokens"],
-                    total_tokens=failed_usage["total_tokens"], cache_read_tokens=failed_usage["cache_read_tokens"],
-                    method=method,
-                )
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} structured "
                 f"parse failed: {parsing_error}"
@@ -3667,19 +3674,7 @@ async def chat_structured(
     else:
         parsed = result
 
-    # Log usage_metadata when present so it flows into the cost-tracking
-    # collector (#852). AIMessage.usage_metadata is a dict with
-    # input_tokens / output_tokens / total_tokens (LangChain ≥0.3 standard).
-    usage = usage_from_message(raw_message) if raw_message else None
-    if usage:
-        _record_usage(
-            config.provider, config.model, "structured", place=_place_of(config),
-            input_tokens=usage["input_tokens"],
-            output_tokens=usage["output_tokens"],
-            total_tokens=usage["total_tokens"],
-            cache_read_tokens=usage["cache_read_tokens"],
-            method=method,
-        )
+    # Usage was recorded inside the call slot (above), so the cap books what the call cost.
 
     if parsed is None:
         error_kind = _classify_structured_empty(raw_message)
