@@ -34,6 +34,7 @@ DEFAULT_INPUT_TOKENS = 30_000
 
 _LOCK = threading.Lock()
 _RESERVED: dict[str, float] = {}  # library -> worst cases of the calls in flight
+_TIMEOUTS = (TimeoutError, asyncio.TimeoutError)  # one class from Python 3.11, two on 3.10 (pyproject allows it)
 _TICKET: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar("cloud_spend_ticket", default=None)
 
 
@@ -245,7 +246,7 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
         outcome = "cancelled"  # sent, and nobody knows what the provider billed
         raise
     except Exception as exc:
-        if isinstance(exc, TimeoutError) or isinstance(exc.__cause__, TimeoutError):  # the "provider hang" wrappers chain it
+        if isinstance(exc, _TIMEOUTS) or isinstance(exc.__cause__, _TIMEOUTS):  # the "provider hang" wrappers chain it
             outcome = "timed out"  # sent, the wall clock gave up: the provider may still bill it, so the reservation is booked
         raise
     finally:
