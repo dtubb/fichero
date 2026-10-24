@@ -142,7 +142,26 @@ final class RecipeSetupStore {
 
     /// The scripts and languages are the two facts the rules cannot do without
     /// (the engine requires at least one of each).
-    var canAssemble: Bool { !languages.isEmpty && !scripts.isEmpty }
+    var canAssemble: Bool { !languages.isEmpty && (!scripts.isEmpty || languagesNotSure) }
+
+    /// The language tag for "Not sure" (BCP 47 `und`, undetermined): an answer, not a blank. The engine works the
+    /// language and script out from the sample pages (`source.onboard.project.about-material`).
+    static let notSureLanguage = "und"
+
+    /// Languages was answered "Not sure".
+    var languagesNotSure: Bool { languages == [Self.notSureLanguage] }
+
+    /// The languages the person named, without the "Not sure" marker.
+    var namedLanguages: [String] { languages.filter { $0 != Self.notSureLanguage } }
+
+    /// Tick or untick "Not sure": it stands alone, so ticking clears the languages named, and naming one clears it.
+    func setLanguagesNotSure(_ on: Bool) {
+        languages = on ? [Self.notSureLanguage] : namedLanguages
+    }
+
+    /// Why About the Material's Continue waits, or nil: a blank Languages is not an answer, "Not sure" is
+    /// (`source.onboard.project.about-material`).
+    var languageWait: String? { languages.isEmpty ? SetupFooter.chooseTheLanguage : nil }
 
 
     /// What each step a cloud model would fit would send, to whom, for how many pages, at what cost: the engine's own
@@ -699,6 +718,7 @@ extension RecipeSetupStore {
             guard !scripts.contains(choice.code) else { return }
             scripts.append(choice.code)
         } else if !languages.contains(choice.code) {
+            languages.removeAll { $0 == Self.notSureLanguage }
             languages.append(choice.code)
             proposeScript(for: choice)
         }
@@ -850,6 +870,9 @@ extension RecipeSetupStore {
     /// recipe is proposed again with that answer.
     func allowCloud() async {
         cloudAllowed = true
+        // Saved before anything reads it: the finder asks the engine, which counts the project's saved yes; unsaved, a
+        // cloud row still needed permission until the finder was opened again (owner 2026-10-24).
+        _ = await save()
         await assemble()
     }
 
@@ -863,6 +886,13 @@ extension RecipeSetupStore {
     /// #5612): the finder's readers are for these steps. False for a job the registry does not know.
     func readsMaterial(_ job: String) -> Bool {
         jobs[job]?.readsMaterial ?? false
+    }
+
+    /// Whether the finder is offered beside a step: a step that reads material, and the two other steps that run a chosen
+    /// model, Find Regions and Correct (`source.find.every-model-step-has-a-finder`, Set Up review item 1).
+    /// ponytail: the two ids are named here until the registry carries `offers_finder` on `JobInfo` (engine, then regenerate).
+    func offersFinder(_ job: String) -> Bool {
+        readsMaterial(job) || ["find-regions", "correct"].contains(job)
     }
 
     /// What explains a job: its topic in the registry, or nil when the job names

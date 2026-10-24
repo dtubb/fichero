@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from fastapi import APIRouter, Depends, HTTPException
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -48,7 +48,9 @@ from fichero_server.models.segments import (
     Segment,
     SegmentPass,
     SegmentPassChoice,
+    SegmentVersion,
     assert_not_provisional,
+    snapshot_segment_version,
     primary_live_segment_id,
     resolve_segment,
 )
@@ -353,25 +355,12 @@ def _invert_representation_create(before, after, ctx: ActionContext):
     return ("representation.retract", {"representation_id": representation_id})
 
 
-@action(
-    "representation.create",
-    RepresentationCreateParams,
-    domains=["representation", "segment"],
-    undoable=True,
-    invert=_invert_representation_create,
-)
-def create_representation(
-    db: Database,
-    params: RepresentationCreateParams,
-    ctx: ActionContext,
-) -> tuple[dict, ChangeSpec]:
-    """Write one reading (`source.reading.set`).
-
-    Adding a reading CHANGES NO OTHER ROW. Three readings of one line coexist;
-    a correction names its target and leaves the target's text exactly as it
-    was. That is the whole shape of `source.reading.corrections-are-new`, and
-    it is why there is no update action here at all.
-    """
+def _write_reading(
+    db: Database, params: RepresentationCreateParams, ctx: ActionContext
+) -> tuple[ContentRepresentation, dict, list[str]]:
+    """Check and write ONE reading; the body `representation.create` and `representation.create_many`
+    share, so a batch can never accept a reading the single write would refuse. Returns the reading,
+    its audit `after`, and the retired word segments."""
     assert_known_reading_kind(db, params.kind)
     # `source.reading.normalized-text-is-a-level`: a write under an older kind (`normalized_text`) is
     # stored as the kind at its level -- a transcription, regularised unless it names its own level.
@@ -468,6 +457,29 @@ def create_representation(
         retired_words = sorted(retired_word_readings(db, segment, reading.kind, project_record_rule(db)))
         if retired_words:
             after["retired_word_segment_ids"] = retired_words
+    return reading, after, retired_words
+
+
+@action(
+    "representation.create",
+    RepresentationCreateParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=_invert_representation_create,
+)
+def create_representation(
+    db: Database,
+    params: RepresentationCreateParams,
+    ctx: ActionContext,
+) -> tuple[dict, ChangeSpec]:
+    """Write one reading (`source.reading.set`).
+
+    Adding a reading CHANGES NO OTHER ROW. Three readings of one line coexist;
+    a correction names its target and leaves the target's text exactly as it
+    was. That is the whole shape of `source.reading.corrections-are-new`, and
+    it is why there is no update action here at all.
+    """
+    reading, after, retired_words = _write_reading(db, params, ctx)
     return reading.model_dump(mode="json"), ChangeSpec(
         domains=["representation", "segment"],
         target_ids=[reading.id],
@@ -476,6 +488,120 @@ def create_representation(
         emit_type="representation.created",
         document_ids=[reading.document_id],
         segment_ids=([reading.segment_id] if reading.segment_id else []) + retired_words,
+    )
+
+
+class LineLeftOut(BaseModel):
+    """A line whose text was deleted entirely: marked left out, never deleted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+
+
+class RepresentationCreateManyParams(BaseModel):
+    """`representation.create_many` — a Reader edit that touched several lines.
+
+    `readings` are written exactly as `representation.create` writes them. `left_out` are lines
+    whose text was deleted entirely: each is marked `is_furniture` (left out of the Reader text),
+    its segment is NEVER deleted, and nothing is written for it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readings: list[RepresentationCreateParams] = Field(default_factory=list)
+    left_out: list[LineLeftOut] = Field(default_factory=list)
+
+    def audit_params(self) -> dict:
+        return {
+            "readings": [item.audit_params() for item in self.readings],
+            "left_out": [item.model_dump(mode="json") for item in self.left_out],
+        }
+
+    @model_validator(mode="after")
+    def _not_empty(self):
+        if not self.readings and not self.left_out:
+            raise ValueError("representation.create_many needs a reading or a line left out")
+        return self
+
+
+def _restores_from(left_out: list[dict]) -> list[dict]:
+    """Restores that put the marked lines back. Each entry is `{segment_id, from_version,
+    to_version}`: the row's version before and after the action ran. One snapshot, one bump, so
+    `from_version` names the preimage to restore and `to_version` is what the row is now."""
+    return [
+        {"segment_id": i["segment_id"], "version": i["from_version"], "expected_version": i["to_version"]}
+        for i in left_out
+    ]
+
+
+def _invert_create_many(before, after, ctx: ActionContext):
+    if not after:
+        return None
+    return (
+        "representation.retract_many",
+        {
+            "representation_ids": after.get("representation_ids") or [],
+            "restores": _restores_from(after.get("left_out") or []),
+        },
+    )
+
+
+@action(
+    "representation.create_many",
+    RepresentationCreateManyParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=_invert_create_many,
+)
+def create_many_representations(
+    db: Database, params: RepresentationCreateManyParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """One Reader edit across lines: ONE audit row, ONE undo step, all or nothing.
+
+    Every left-out line is checked (live, at the version the page saw) BEFORE anything is written,
+    so a stale line refuses the whole edit instead of saving half of it."""
+    from fichero_server.api.routes.document.segments import (
+        _live_current_row,
+        _refuse_repeated_ids,
+    )
+
+    _refuse_repeated_ids([item.segment_id for item in params.left_out])
+    rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.left_out]
+
+    audit_id = uuid.uuid4().hex
+    created: list[ContentRepresentation] = []
+    retired: list[str] = []
+    for item in params.readings:
+        reading, _after, retired_words = _write_reading(db, item, ctx)
+        created.append(reading)
+        retired += retired_words
+    left_out: list[dict] = []
+    for row in rows:
+        from_version = row.version
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.is_furniture = True
+        db.save(row)
+        left_out.append({"segment_id": row.id, "from_version": from_version, "to_version": row.version})
+
+    segment_ids = sorted(
+        {r.segment_id for r in created if r.segment_id} | {item["segment_id"] for item in left_out} | set(retired)
+    )
+    after = {"representation_ids": [r.id for r in created], "left_out": left_out}
+    result = {
+        "representations": [r.model_dump(mode="json") for r in created],
+        "left_out": left_out,
+    }
+    return result, ChangeSpec(
+        audit_id=audit_id,
+        domains=["representation", "segment"],
+        target_ids=[r.id for r in created] + [item["segment_id"] for item in left_out],
+        before=None,
+        after=after,
+        emit_type="representation.created",
+        document_ids=sorted({r.document_id for r in created} | {row.document_id for row in rows}),
+        segment_ids=segment_ids,
+        pass_ids=sorted({row.pass_id for row in rows}),
     )
 
 
@@ -579,6 +705,116 @@ def unretract_representation(
         document_ids=[reading.document_id],
         segment_ids=[reading.segment_id] if reading.segment_id else [],
     )
+
+
+class SegmentRestore(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    version: int
+    expected_version: int
+
+
+class RepresentationStateManyParams(BaseModel):
+    """`representation.retract_many` / `.unretract_many`: the undo and redo of
+    `representation.create_many`, as one audited step each."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    representation_ids: list[str] = Field(default_factory=list)
+    restores: list[SegmentRestore] = Field(default_factory=list)
+
+
+def _set_readings_state_many(
+    db: Database, params: RepresentationStateManyParams, ctx: ActionContext, *, retract: bool
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.api.routes.document.segments import (
+        _copy_version_onto_row,
+        _live_current_row,
+        _refuse_repeated_ids,
+    )
+
+    _refuse_repeated_ids([item.segment_id for item in params.restores])
+    readings = []
+    for representation_id in params.representation_ids:
+        assert_not_provisional(representation_id, what="representation_id")
+        reading = db.get(ContentRepresentation, representation_id)
+        if reading is None:
+            raise LookupError(f"Content representation not found: {representation_id}")
+        readings.append(reading)
+    pairs = []
+    for item in params.restores:
+        row = _live_current_row(db, item.segment_id, item.expected_version, restoring=True)
+        candidates = db.query(SegmentVersion, segment_id=item.segment_id, version=item.version)
+        if not candidates:
+            raise LookupError(f"segment {item.segment_id!r} has no version {item.version}")
+        pairs.append((row, candidates[0]))
+
+    audit_id = uuid.uuid4().hex
+    for reading in readings:
+        if (reading.retracted_at is None) == retract:
+            db.save(reading.model_copy(update={"retracted_at": utc_now() if retract else None}))
+    restored: list[dict] = []
+    for row, target in pairs:
+        from_version = row.version
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        _copy_version_onto_row(row, target)
+        db.save(row)
+        restored.append({"segment_id": row.id, "from_version": from_version, "to_version": row.version})
+
+    after = {"representation_ids": [r.id for r in readings], "left_out": restored}
+    return after, ChangeSpec(
+        audit_id=audit_id,
+        domains=["representation", "segment"],
+        target_ids=[r.id for r in readings] + [row.id for row, _t in pairs],
+        before=None,
+        after=after,
+        emit_type="representation.retracted" if retract else "representation.unretracted",
+        document_ids=sorted({r.document_id for r in readings} | {row.document_id for row, _t in pairs}),
+        segment_ids=sorted({r.segment_id for r in readings if r.segment_id} | {row.id for row, _t in pairs}),
+        pass_ids=sorted({row.pass_id for row, _t in pairs}),
+    )
+
+
+def _invert_state_many(target: str):
+    def invert(before, after, ctx: ActionContext):
+        if not after:
+            return None
+        return (
+            target,
+            {
+                "representation_ids": after.get("representation_ids") or [],
+                "restores": _restores_from(after.get("left_out") or []),
+            },
+        )
+
+    return invert
+
+
+@action(
+    "representation.retract_many",
+    RepresentationStateManyParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=_invert_state_many("representation.unretract_many"),
+    redo_via_own_invert=True,
+)
+def retract_many_representations(db: Database, params: RepresentationStateManyParams, ctx: ActionContext):
+    """Undo of `representation.create_many`: withdraw the readings and put the left-out lines back."""
+    return _set_readings_state_many(db, params, ctx, retract=True)
+
+
+@action(
+    "representation.unretract_many",
+    RepresentationStateManyParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=_invert_state_many("representation.retract_many"),
+    redo_via_own_invert=True,
+)
+def unretract_many_representations(db: Database, params: RepresentationStateManyParams, ctx: ActionContext):
+    """Redo of `representation.create_many`: bring the readings back and leave the lines out again."""
+    return _set_readings_state_many(db, params, ctx, retract=False)
 
 
 class RepresentationPairParams(BaseModel):
@@ -1007,3 +1243,37 @@ async def create_representation_route(
     except Exception as exc:  # typed refusals -> 4xx, never a 500
         raise _as_http_error(exc) from exc
     return ContentRepresentation.model_validate(result.result)
+
+
+class LineLeftOutResult(BaseModel):
+    """A line left out by a Reader edit: its version before and after, which undo restores."""
+
+    segment_id: str
+    from_version: int
+    to_version: int
+
+
+class RepresentationCreateManyResponse(BaseModel):
+    """The readings written, the lines left out, and the audit id of the ONE undo step."""
+
+    representations: list[ContentRepresentation]
+    left_out: list[LineLeftOutResult]
+    audit_id: str
+
+
+@router.post("/batch", response_model=RepresentationCreateManyResponse)
+async def create_representations_batch_route(
+    payload: RepresentationCreateManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RepresentationCreateManyResponse:
+    """`POST /api/content-representations/batch` — one Reader edit across lines, one undo step."""
+    try:
+        result = registry.invoke(db, "representation.create_many", payload.model_dump(), ctx)
+    except Exception as exc:
+        raise _as_http_error(exc) from exc
+    return RepresentationCreateManyResponse(
+        representations=[ContentRepresentation.model_validate(r) for r in result.result["representations"]],
+        left_out=[LineLeftOutResult(**item) for item in result.result["left_out"]],
+        audit_id=result.audit_id,
+    )

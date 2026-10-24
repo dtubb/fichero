@@ -419,6 +419,55 @@ def _server_text_cards() -> list[Card]:
     return out
 
 
+#: The frontier families offered for a key with no saved model, newest of each, in the order they are expected to read
+#: best (owner 2026-10-24: mini and nano are fine, ranked below their full model). (words it has, words it must not have)
+FRONTIER_FAMILIES = (
+    (("gemini", "pro"), ()), (("claude", "opus"), ()), (("claude", "sonnet"), ()), (("gpt-5",), ("-mini", "-nano")),
+    (("gemini", "flash"), ("lite",)), (("claude", "haiku"), ()), (("gpt-5", "-mini"), ()), (("gemini", "flash", "lite"), ()),
+    (("gpt-5", "-nano"), ()),
+)
+#: Never a reader: not a model for reading a page.
+_NOT_A_READER = ("codex", "image", "tts", "audio", "live", "embed")
+
+
+def _family(model_id: str) -> int | None:
+    """The index of the frontier family a model id belongs to (`FRONTIER_FAMILIES`), or None."""
+    m = model_id.casefold()
+    for i, (has, hasnt) in enumerate(FRONTIER_FAMILIES):
+        if all(w in m for w in has) and not any(w in m for w in hasnt) and not any(w in m for w in _NOT_A_READER):
+            return i
+    return None
+
+
+def frontier_rank(card: Card) -> int:
+    """Where a cloud reader ranks before any measurement: its frontier family's place, else after them all. ponytail: a
+    fixed expected order; a CER measured on the Test Corpus per language is the upgrade (owner 2026-10-24)."""
+    family = _family(str(card.pin.get("model", "")))
+    return len(FRONTIER_FAMILIES) if family is None else family
+
+
+def frontier_catalog_models(provider: str) -> list[str]:
+    """The newest vision model of each frontier family the price list has for `provider`, best expected first.
+    ponytail: newest = the largest version numbers in the id; a date is no version."""
+    import re
+
+    from fichero_server.llm.model_types import list_models_for_provider
+
+    def version(model_id: str) -> tuple[int, ...]:
+        return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)
+
+    try:
+        listed = [m["model_id"] for m in list_models_for_provider(provider) if m.get("supports_vision")]
+    except Exception:  # noqa: BLE001 -- no price list: no offers, never a failed listing
+        return []
+    out = []
+    for i in range(len(FRONTIER_FAMILIES)):
+        fits = [m for m in listed if _family(m) == i]
+        if fits:
+            out.append(max(fits, key=version))
+    return out
+
+
 def remote_reader_cards() -> list[Card]:
     """A reader card for each vision model at the person's remote endpoints (their cloud provider rows in Settings ›
     AI: OpenRouter, Anthropic, Gemini, …); with no Anthropic row, a Claude card that says to add it first (#5660 item
@@ -441,7 +490,16 @@ def remote_reader_cards() -> list[Card]:
             continue
         info = get_provider_info(ptype)
         provider_vision = bool(info and info.supports_vision)
-        for model in app_db.list_models(row.id):
+        saved = [m for m in app_db.list_models(row.id) if (m.model_id or "").strip()]
+        if not saved:
+            # A key with no model saved under it (owner 2026-10-23: providers were listed, not models): its newest
+            # frontier vision models from the vendored price list, one per family.
+            for model_id in frontier_catalog_models(ptype):
+                out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
+                                jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
+                                runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", short_name=model_id, source="remote",
+                                offered_only=True, offered_because=f"a vision model {row.name} serves"))
+        for model in saved:
             # The tri-state rule (`llm._configured_vision_model_suggestions`): a model saved with no capabilities, as a
             # Gemini model added with a key is, inherits its provider's vision support.
             caps = [str(c).strip().lower() for c in (model.capabilities or [])]
@@ -449,10 +507,10 @@ def remote_reader_cards() -> list[Card]:
                 continue
             out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
-                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {model.name or model.model_id}",
-                            source="remote", offered_only=True,
+                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {(model.name or '').strip() or model.model_id}",
+                            short_name=(model.name or '').strip() or model.model_id, source="remote", offered_only=True,
                             offered_because=f"a vision model at your remote endpoint {row.name}"))
-    if not any(c.pin["cloud"] == "anthropic" for c in out):
+    if not any(c.pin["cloud"] == "anthropic" or "claude" in str(c.pin["model"]).casefold() for c in out):
         out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
                         jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
                         runs_on="cloud:anthropic", note="Claude (Anthropic), in the cloud", source="remote",

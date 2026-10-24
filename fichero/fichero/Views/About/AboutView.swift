@@ -91,6 +91,13 @@ struct Acknowledgement: Identifiable, Hashable {
         self.licenceText = licenceText
     }
 
+    /// What a click opens: the licence's own page when it is a link, else the project's page. A licence text that is a
+    /// file inside the app bundle is never opened from here (nothing visible happened on a click, #6011).
+    var destination: URL {
+        if let licenceText, !licenceText.isFileURL { return licenceText }
+        return url
+    }
+
     /// The key to look this dependency up by in a name→version map.
     var versionKey: String { (distribution ?? name).lowercased() }
 }
@@ -372,16 +379,21 @@ struct AcknowledgementsView: View {
                             ForEach(layerEntries) { acknowledgement in
                                 // Its licence text when the build knows it (a file in the bundle, or a link), else
                                 // its project page.
-                                Link(destination: acknowledgement.licenceText ?? acknowledgement.url) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(acknowledgement.name)
-                                            .font(.body.weight(.medium))
-                                        Text(detailLine(for: acknowledgement))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                Link(destination: acknowledgement.destination) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(acknowledgement.name)
+                                                .font(.body.weight(.medium))
+                                            Text(detailLine(for: acknowledgement))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right.square").foregroundStyle(.secondary)
+                                            .accessibilityHidden(true)
                                     }
                                 }
-                                .help(acknowledgement.licenceText == nil
+                                .help(acknowledgement.destination == acknowledgement.url
                                       ? "Open the \(acknowledgement.name) project website"
                                       : "Read the \(acknowledgement.name) licence")
                                 .accessibilityIdentifier("about.ack.\(acknowledgement.versionKey)")

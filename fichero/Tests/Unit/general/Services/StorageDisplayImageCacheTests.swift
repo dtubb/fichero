@@ -70,6 +70,45 @@ struct StorageDisplayImageCacheTests {
         #expect(service.cachedDisplayPlatformImage(for: "stable") != nil)
     }
 
+    @Test("both display paths share one bounded bytes cache, cleared with the rest (#6021)")
+    func displayBytesAreSharedAndBounded() {
+        let service = makeService()
+        let bytes = Data([1, 2, 3])
+        for index in 0..<(StorageService.displayBytesLimit + 3) { service.cacheDisplayBytes(bytes, for: "doc-\(index)") }
+        #expect(service.cachedDisplayBytes(for: "doc-0") == nil, "the oldest is evicted")
+        #expect(service.cachedDisplayBytes(for: "doc-\(StorageService.displayBytesLimit + 2)") == bytes)
+        service.invalidateImageCache(for: "doc-\(StorageService.displayBytesLimit + 2)")
+        #expect(service.cachedDisplayBytes(for: "doc-\(StorageService.displayBytesLimit + 2)") == nil)
+        service.clearAll()
+        #expect(service.cachedDisplayBytes(for: "doc-5") == nil)
+    }
+
+    @Test("bytes fetched across an invalidate are not stored (## 1047)")
+    func staleBytesAreNotStored() {
+        let service = makeService()
+        let epoch = service.imageEpoch(for: "doc-e")
+        service.invalidateImageCache(for: "doc-e")  // an edit lands while the fetch is in flight
+        service.cacheDisplayBytes(Data([9]), for: "doc-e", ifEpoch: epoch)
+        #expect(service.cachedDisplayBytes(for: "doc-e") == nil, "old bytes came back after the invalidate")
+        service.cacheDisplayBytes(Data([9]), for: "doc-e", ifEpoch: service.imageEpoch(for: "doc-e"))
+        #expect(service.cachedDisplayBytes(for: "doc-e") != nil, "a fetch started after the invalidate is kept")
+    }
+
+    @Test("a flight is per document and epoch, and clearAll moves every epoch, known or not (## 1049)")
+    func flightsAreKeyedByEpochAndClearAllIsGlobal() {
+        let service = makeService()
+        let before = StorageService.flightKey("doc-f", service.imageEpoch(for: "doc-f"))
+        service.invalidateImageCache(for: "doc-f")
+        #expect(StorageService.flightKey("doc-f", service.imageEpoch(for: "doc-f")) != before,
+                "a reload after an invalidate joined the old flight")
+        // a document nobody ever invalidated, fetched across a host switch
+        let epoch = service.imageEpoch(for: "never-seen")
+        service.clearAll()
+        #expect(service.imageEpoch(for: "never-seen") != epoch)
+        service.cacheDisplayBytes(Data([1]), for: "never-seen", ifEpoch: epoch)
+        #expect(service.cachedDisplayBytes(for: "never-seen") == nil, "a fetch across the host switch was cached")
+    }
+
     @Test("invalidate removes display image from cache and order")
     func displayCacheInvalidateClearsEntry() {
         let service = makeService()

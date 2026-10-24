@@ -37,7 +37,7 @@ struct ModelFinderView: View {
                     .foregroundStyle(.orange)
             }
             if store.candidates.isEmpty, !store.isLoading, store.errorMessage == nil {
-                Text(Self.nothingFound(job: query.job))
+                Text(Self.nothingFound(job: query.job, sources: store.sources))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -45,12 +45,34 @@ struct ModelFinderView: View {
                 if let title = group.title {
                     Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
+                // Beside a Set Up step the answer is one press away, said once above the tier, not on every card
+                // (`source.find.allow-cloud-once`, Set Up review item 7): the same fix as the toggle's.
+                if let step, Self.offersAllowCloud(group.candidates) {
+                    // Allowed, the list is read again with the yes, so the cloud cards become usable at once (#6037).
+                    Button("Allow Cloud Models") {
+                        Task {
+                            await step.setup.allowCloud()
+                            if let query = store.query {
+                                var allowed = query
+                                allowed.cloudAllowed = true
+                                await store.load(allowed)
+                            }
+                        }
+                    }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("finder.allowCloud")
+                }
                 ForEach(group.candidates, id: \.id) { candidate in
                     ModelFinderCard(candidate: candidate, store: store, step: step)
                 }
             }
         }
-        .task(id: query) { await store.load(query) }
+        // Opened, it searches online at once (owner 2026-10-24: not five or six models and then a press on Search
+        // Online); the engine keeps a search for a day and reuses a running one.
+        .task(id: query) {
+            await store.load(query)
+            await store.searchOnline()
+        }
         .onChange(of: activity?.backgroundJobs ?? []) { _, jobs in
             Task { await store.observe(jobs) }
         }
@@ -74,8 +96,19 @@ struct ModelFinderView: View {
         }
     }
 
+    /// Allow Cloud Models is offered once for a group when any of its cards waits on that permission.
+    nonisolated static func offersAllowCloud(_ candidates: [Components.Schemas.ModelCandidate]) -> Bool {
+        candidates.contains { $0.needsPermission == true }
+    }
+
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
     /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
+    /// The engine's own sentence when its sources hold a "nothing-found" row, for any job (#6045); else the job's wording.
+    static func nothingFound(job: String, sources: [Components.Schemas.CandidateSource]) -> String {
+        if let words = sources.first(where: { $0.source == .nothingFound })?.detail, !words.isEmpty { return words }
+        return nothingFound(job: job)
+    }
+
     static func nothingFound(job: String) -> String {
         job == ModelFinderStore.readingJob || job == "read-a-page" || job == "find-where-readers-disagree"
             ? "No reader was found for these answers yet. Search Online looks further."
@@ -97,14 +130,13 @@ struct ModelFinderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
+                // The selection, visible: a filled radio glyph on the chosen row, an empty one on the rest.
+                Image(systemName: Self.isChosen(candidate) ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(Self.isChosen(candidate) ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityLabel(Self.isChosen(candidate) ? "In use for this step" : "Not in use")
                 Text(candidate.shortName ?? candidate.name).font(.headline).help(candidate.name)
                 Spacer()
                 actions
-            }
-            if Self.isChosen(candidate) {
-                Label("In use for this step", systemImage: "checkmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.tint)
             }
             if let why = Self.whyOffered(candidate) {
                 Text(why).font(.callout)
@@ -113,13 +145,6 @@ struct ModelFinderCard: View {
                 Label(Self.permissionWords, systemImage: "lock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                // Beside a Set Up step the answer is one press away: the same fix as the toggle's.
-                if let step {
-                    // A real button, not greyed with the card: the one press that makes the card usable.
-                    Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
-                        .controlSize(.small)
-                        .foregroundStyle(.primary)
-                }
             } else if Self.cannotRunHere(candidate) {
                 // Why, once, in the engine's words ("Fichero cannot run it yet (…)"), with the one way on.
                 Label(candidate.availabilityWords, systemImage: "xmark.circle")
@@ -150,14 +175,15 @@ struct ModelFinderCard: View {
                     .foregroundStyle(failed ? .orange : .secondary)
                     .textSelection(.enabled)
             }
-            if let refused = candidate.refused, !Self.cannotRunHere(candidate) {
+            if let refused = Self.refusedLine(candidate) {
                 Label(refused, systemImage: "xmark.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(8)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+        .background(Self.isChosen(candidate) ? AnyShapeStyle(.tint.opacity(0.15)) : AnyShapeStyle(.quaternary.opacity(0.4)),
+                    in: RoundedRectangle(cornerRadius: 8))
         // A model that won't fit is greyed out with its reason, never hidden (#5641).
         .foregroundStyle(Self.wontFit(candidate, in: store.candidates) || Self.needsPermission(candidate) ? .secondary : .primary)
     }
@@ -198,7 +224,11 @@ struct ModelFinderCard: View {
                !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
-                    Task { await step.setup.useCandidate(candidate, forStep: step.id) }
+                    // Read again after the choice, so the card shows its filled radio glyph and tint at once, in its own tier.
+                    Task {
+                        await step.setup.useCandidate(candidate, forStep: step.id)
+                        if let query = store.query { await store.load(query) }
+                    }
                 }
                 .controlSize(.small)
                 .help("Use it for this step; a model still to download is then a download Start offers")
@@ -232,6 +262,13 @@ struct ModelFinderCard: View {
     /// A cloud reader the person has not yet allowed (`needs_permission`, #5768): shown greyed, never pressed.
     static func needsPermission(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.needsPermission == true
+    }
+
+    /// The engine's refusal under the card, said once: a card that needs the cloud permission already says so, with its
+    /// action, so the same refusal in the engine's words is not repeated under it (`source.find.app-card-says`, #6033).
+    static func refusedLine(_ candidate: Components.Schemas.ModelCandidate) -> String? {
+        guard !cannotRunHere(candidate), !needsPermission(candidate) else { return nil }
+        return candidate.refused
     }
 
     static let permissionWords = "Needs permission: pages would leave this Mac."

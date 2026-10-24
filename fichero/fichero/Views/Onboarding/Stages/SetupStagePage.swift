@@ -70,6 +70,12 @@ struct SetupStagePage: View {
                 if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {
                     Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+                // A plan with no step for this stage cannot list its models: say so, never draw nothing
+                // (`source.onboard.stages.not-in-plan-says-so`, Set Up review item 2).
+                if store.recipe != nil, store.mainStep(forJobs: stage.jobs) == nil {
+                    Text(Self.notInPlanWords(stage: stage.title)).font(.callout).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("setup.stage.notInPlan")
+                }
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
                 if let finder = candidateFinder, !finder.candidates.isEmpty {
                     StageCandidateChooser(
@@ -78,7 +84,7 @@ struct SetupStagePage: View {
                         useSmaller: useSmaller
                     )
                 }
-                SetupStageSamples(store: tryStore, useThis: useThis)
+                SetupStageSamples(store: tryStore, useThis: useThis, saveFirst: { await store.save() })
                     .id(stage.id)
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
@@ -97,6 +103,8 @@ struct SetupStagePage: View {
             await loadCandidates()
         }
     }
+
+    nonisolated static func notInPlanWords(stage title: String) -> String { "\(title) is not in this plan yet." }
 
     /// The stage's main step's candidates, from the per-step finder (its own store, so the project's finder keeps
     /// whatever it was showing).
@@ -141,13 +149,23 @@ struct SetupStagePage: View {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
                                 onlyJobs: Set(stage.jobs), candidatesOf: stepCandidates)
             } else {
+                // No plan was assembled: the steps are named, never offered as radio rows that look like a model
+                // choice, and the reason is said (`source.onboard.project.about-material`: never a silent empty proposal).
                 ForEach(stage.jobs, id: \.self) { job in
-                    Label(store.jobs[job]?.name ?? job, systemImage: "circle").font(.callout)
+                    Text(store.jobs[job]?.name ?? job).font(.callout)
                 }
-                Text("The model for each step is proposed once the material's languages and scripts are known.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(Self.noProposalReason(languages: store.languages, error: store.errorMessage))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Why no model is proposed on this page, in words: no language answered (go back, or Not sure), else the
+    /// engine's own refusal, else that the plan is still being made.
+    static func noProposalReason(languages: [String], error: String?) -> String {
+        if languages.isEmpty { return "No models are proposed yet: answer Languages on About the Material (or choose Not sure)." }
+        if let error, !error.isEmpty { return "No models are proposed yet: \(error)" }
+        return "No models are proposed yet: the plan for this material is still being made."
     }
 
     /// The answer a question shows: what the person gave, else what the engine has (this project's answer, else

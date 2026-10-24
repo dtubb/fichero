@@ -34,6 +34,10 @@ final class SegmentStore {
     /// SEGMENT event, this store patched the row, and the page kept drawing the edit
     /// that had just been undone. A surface that snapshots puts this in its task key.
     private(set) var revisions: [String: Int] = [:]
+    /// Per segment: how many `representation.*` events named it. A view showing a line's readings (the
+    /// Inspector's Text section) re-reads them when THIS line's number moves, and no other line's does
+    /// (`source.inspector.shows-a-correction-at-once`).
+    private(set) var readingRevisions: [String: Int] = [:]
 
     private let service: SegmentService
 
@@ -83,6 +87,20 @@ final class SegmentStore {
             if error.isCancellationError { return }
             loadErrorsByDocumentId[documentId] = error.localizedDescription
         }
+    }
+
+    /// The artifact revision each document was last asked for under (`ArtifactEntityStore`'s generation).
+    private var loadedAtArtifactRevision: [String: Int] = [:]
+
+    /// A surface's load that knows the artifact generation it was started for. A finished workflow run emits ONE
+    /// `artifact.updated` event (this store reacts to segment and pass events only), which moves that generation: the
+    /// load then re-reads the page instead of returning the list held from before the run, so the Preview draws the lines
+    /// a recipe run just wrote (`source.preview.draws-what-a-run-wrote`). The first ask, with nothing recorded, is an
+    /// ordinary load.
+    func load(documentId: String, seeingArtifactRevision revision: Int) async {
+        let moved = loadedAtArtifactRevision[documentId].map { $0 != revision } ?? false
+        loadedAtArtifactRevision[documentId] = revision
+        await load(documentId: documentId, force: moved)
     }
 
     func segments(documentId: String) -> [Segment] {
@@ -210,6 +228,11 @@ final class SegmentStore {
         }
     }
 
+    /// This segment's readings generation; see `readingRevisions`.
+    func readingRevision(for segmentId: String) -> Int {
+        readingRevisions[segmentId] ?? 0
+    }
+
     /// This document's generation; see `revisions`.
     func revision(for documentId: String) -> Int {
         revisions[documentId] ?? 0
@@ -224,9 +247,18 @@ extension SegmentStore: ChangeEventConsumer {
     /// `segment.*` and `pass.*`. Not `artifact.*`: an artifact event says a RESULT
     /// changed, and until a pass is the thing the app edits, reacting to it here
     /// would re-read a page on every workflow run that touched it.
-    nonisolated var changeDomains: Set<String> { ["segment", "pass"] }
+    nonisolated var changeDomains: Set<String> { ["segment", "pass", "representation"] }
 
     func apply(_ event: ChangeEvent) {
+        if event.type.hasPrefix("representation.") {
+            // A reading never adds or removes a row, so: bump the named lines' readings generation, and
+            // re-read only the rows this store holds that the event names -- never a document reload.
+            // (A batch that leaves a line out also moved that row's version, which the re-read picks up.)
+            for segmentId in event.segmentIds { readingRevisions[segmentId, default: 0] += 1 }
+            let held = heldSegmentIds
+            for segmentId in event.segmentIds where held.contains(segmentId) { repatch(segmentId) }
+            return
+        }
         switch Self.plan(
             for: event,
             heldSegmentIds: heldSegmentIds,
@@ -235,19 +267,21 @@ extension SegmentStore: ChangeEventConsumer {
         case .nothing:
             return
         case .patch(let segmentIds):
-            for segmentId in segmentIds {
-                Task { [weak self] in
-                    guard let self else { return }
-                    let replacement = try? await self.service.segment(id: segmentId)
-                    self.patch(segmentId: segmentId, with: replacement)
-                }
-            }
+            for segmentId in segmentIds { repatch(segmentId) }
         case .reload(let documentIds):
             for documentId in documentIds {
                 Task { [weak self] in
                     await self?.load(documentId: documentId, force: true)
                 }
             }
+        }
+    }
+
+    private func repatch(_ segmentId: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            let replacement = try? await self.service.segment(id: segmentId)
+            self.patch(segmentId: segmentId, with: replacement)
         }
     }
 

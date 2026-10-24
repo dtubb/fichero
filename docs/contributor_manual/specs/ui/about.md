@@ -81,6 +81,9 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
   reports that dependency's version, license-only otherwise (never a stale number). *(view-level;
   `versionKey` mapping pinned by
   `AboutAcknowledgementsTests.testDistributionOverrideDrivesLowercasedVersionKey`)*
+- `about.acknowledgements.opens-a-web-page` [PARTIAL] — (#6011; built, uncompiled) each entry in Acknowledgements shows an
+  open-link glyph and opens a web page: its licence's link when the licence text is one, else its project page (PyPI or
+  the repository); a licence file inside the app bundle is never what a click opens (`GeneratedAcknowledgementsTests.swift`).
 - `about.acknowledgements.generated` [PARTIAL] — (#5639) every component the app bundles is credited with its
   version and licence, generated at build time from what is actually bundled, so the list updates itself when
   the bundle changes: each `*.dist-info` in the staged engine's `app_packages` (its METADATA's SPDX expression,

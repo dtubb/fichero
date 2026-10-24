@@ -183,3 +183,42 @@ private final class CompareTryProtocol: URLProtocol {
     }
     override func stopLoading() {}
 }
+
+/// #6015: Compare on These Pages saves the screen's choices before the engine tries (it reads the saved setup).
+struct CompareSavesTheScreenFirstTests {
+    @Test func theCompareButtonsSaveBeforeTrying() throws {
+        let samples = try AppSource.text("Views/Onboarding/Stages/SetupStageSamples.swift")
+        #expect(samples.contains("await !saveFirst()"))
+        #expect(!samples.contains("{ Task { await store.tryIt("), "a Compare button tries without saving the screen's choices first")
+        let page = try AppSource.text("Views/Onboarding/Stages/SetupStagePage.swift")
+        #expect(page.contains("saveFirst: { await store.save() }"))
+    }
+}
+
+/// #6034: Compare on These Pages shows the candidates side by side on each page, then the plain list.
+struct CompareSideBySideInlineTests {
+    @Test func theSideBySideReplacesTheTextRows() throws {
+        let samples = try AppSource.text("Views/Onboarding/Stages/SetupStageSamples.swift")
+        #expect(samples.contains("StageCompareColumns(pageId:"))
+        #expect(!samples.contains("result.sideBySide(pageId:"), "the per-page text count rows are back (#6047)")
+        #expect(samples.contains("comparing = ComparedPage(id: pageId)"), "the page still opens the compare window")
+        let shared = try AppSource.text("Views/Onboarding/Stages/StageCompareWindow.swift")
+        #expect(shared.contains("struct StageCompareColumns"))
+        #expect(shared.contains("readings?.first?.text"), "each column shows the model's reading under its picture")
+    }
+}
+
+/// ## 1033: Set Up's Compare line needs readiness, so its branch loads it.
+struct SetUpCompareLineLoadsReadinessTests {
+    @Test func theLineBranchLoadsTheStore() throws {
+        let steps = try AppSource.text("Views/Onboarding/RecipeStepsView.swift")
+        #expect(steps.contains("context.store.loadLatest()"))
+    }
+}
+
+/// Set Up review item 2: a plan with no step for the stage says so.
+struct StageNotInPlanTests {
+    @Test func theWordsNameTheStage() {
+        #expect(SetupStagePage.notInPlanWords(stage: "Find Regions") == "Find Regions is not in this plan yet.")
+    }
+}

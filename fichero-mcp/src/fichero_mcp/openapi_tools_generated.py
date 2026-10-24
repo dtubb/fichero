@@ -2030,6 +2030,15 @@ def fichero_content_representations_create_route(
     return _rt.call("POST", "/api/content-representations", json=_rt.body({"content": content, "corrects_representation_id": corrects_representation_id, "derived_from_artifact_id": derived_from_artifact_id, "derived_from_representation_id": derived_from_representation_id, "document_id": document_id, "expected_counting_id": expected_counting_id, "guideline": guideline, "kind": kind, "language": language, "language_meta": language_meta, "level": level, "machine_confidence": machine_confidence, "read_from_rendition_id": read_from_rendition_id, "script": script, "script_meta": script_meta, "segment_id": segment_id, "source_anchor": source_anchor}))
 
 
+def fichero_content_representations_create_batch_route(
+    *,
+    left_out: Annotated[Optional[list[Any]], Field(description='Left Out.')] = None,
+    readings: Annotated[Optional[list[Any]], Field(description='Readings.')] = None,
+) -> Any:
+    'Create Representations Batch Route\n\n`POST /api/content-representations/batch` — one Reader edit across lines, one undo step.\n\nRoute: POST /api/content-representations/batch (toolset `content-representations`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/content-representations/batch", json=_rt.body({"left_out": left_out, "readings": readings}))
+
+
 def fichero_content_representations_list(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -9252,6 +9261,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_classifications_patch_value", "classifications", "PATCH", "/api/classifications/{value_id}", fichero_classifications_patch_value),
     GeneratedTool("fichero_engine_connected_clients", "engine", "GET", "/api/clients", fichero_engine_connected_clients),
     GeneratedTool("fichero_content_representations_create_route", "content-representations", "POST", "/api/content-representations", fichero_content_representations_create_route),
+    GeneratedTool("fichero_content_representations_create_batch_route", "content-representations", "POST", "/api/content-representations/batch", fichero_content_representations_create_batch_route),
     GeneratedTool("fichero_content_representations_list", "content-representations", "GET", "/api/content-representations/document/{document_id}", fichero_content_representations_list),
     GeneratedTool("fichero_content_representations_list_revisions", "content-representations", "GET", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_list_revisions),
     GeneratedTool("fichero_content_representations_create_revision", "content-representations", "POST", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_create_revision),
