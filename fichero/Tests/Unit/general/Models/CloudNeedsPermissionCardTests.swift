@@ -9,8 +9,9 @@ import Testing
 @MainActor
 @Suite("A cloud card that needs permission (#5768)")
 struct CloudNeedsPermissionCardTests {
-    private static func card(needsPermission: Bool?) throws -> Components.Schemas.ModelCandidate {
-        let flag = needsPermission.map { ",\"needs_permission\":\($0)" } ?? ""
+    private static func card(needsPermission: Bool?, refused: String? = nil) throws -> Components.Schemas.ModelCandidate {
+        let flag = (needsPermission.map { ",\"needs_permission\":\($0)" } ?? "")
+            + (refused.map { ",\"refused\":\"\($0)\"" } ?? "")
         let json = """
         {"id":"openrouter:gpt","name":"A cloud reader","source":"provider","offered_because":"","pin":{},
          "jobs":["read-a-line"],"open_licence":true,"size":"","measured":"","in_recipe_rules":true,
@@ -38,5 +39,12 @@ struct CloudNeedsPermissionCardTests {
     func unchanged() throws {
         let card = try Self.card(needsPermission: false)
         #expect(ModelFinderCard.offersUse(card))
+    }
+
+    @Test("the refusal is said once: a card that needs permission does not repeat it under its permission line (#6033)")
+    func saidOnce() throws {
+        let words = "it runs in the cloud and this project keeps pages on this Mac"
+        #expect(ModelFinderCard.refusedLine(try Self.card(needsPermission: true, refused: words)) == nil)
+        #expect(ModelFinderCard.refusedLine(try Self.card(needsPermission: false, refused: words)) == words)
     }
 }
