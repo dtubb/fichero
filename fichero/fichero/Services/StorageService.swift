@@ -46,7 +46,9 @@ class StorageService {
     /// A few recent pictures' bytes: enough for the grid-to-canvas hand-off, small enough to hold full-size JPEGs.
     static let displayBytesLimit = 8
 
-    func cacheDisplayBytes(_ data: Data, for docId: String) {
+    /// `ifEpoch`: the epoch read before the fetch; bytes fetched across an invalidate (an edit) are not stored (## 1047).
+    func cacheDisplayBytes(_ data: Data, for docId: String, ifEpoch epoch: Int? = nil) {
+        if let epoch, epoch != imageEpoch(for: docId) { return }
         if displayBytes[docId] == nil { displayBytesOrder.append(docId) }
         displayBytes[docId] = data
         while displayBytesOrder.count > Self.displayBytesLimit {
@@ -143,11 +145,13 @@ class StorageService {
             if let cached = self.thumbnailCache[docId] { return cached }
             // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
             logger.debug("Loading thumbnail for document: \(docId)")
+            let epoch = self.imageEpoch(for: docId)
             await self.imageFetchGate.acquire()
             defer { self.imageFetchGate.release() }
             let data = try await self.thumbnailData(for: docId)
             let image = try await Self.decodeImage(from: data)
-            self.cacheThumbnail(image, for: docId)
+            // An invalidate while this was in flight means these bytes are old: serve them once, never keep them.
+            if self.imageEpoch(for: docId) == epoch { self.cacheThumbnail(image, for: docId) }
             return image
         }
     }
@@ -195,11 +199,12 @@ class StorageService {
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayCache[docId] { return cached }
             logger.info("Loading display image for document: \(docId)")
+            let epoch = self.imageEpoch(for: docId)
             await self.imageFetchGate.acquire()
             defer { self.imageFetchGate.release() }
             let data = try await self.displayData(for: docId)
             let image = try await Self.decodeImage(from: data)
-            self.displayCache[docId] = image
+            if self.imageEpoch(for: docId) == epoch { self.displayCache[docId] = image }
             return image
         }
     }
@@ -215,6 +220,7 @@ class StorageService {
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayPlatformImageCache[docId] { return cached }
             logger.info("Loading display image for document: \(docId)")
+            let epoch = self.imageEpoch(for: docId)
             let data = try await self.displayData(for: docId)
             // Decode OFF the main actor — `PlatformImage(data:)` parses the
             // full bitmap synchronously, and doing it here on the MainActor
@@ -228,7 +234,7 @@ class StorageService {
             #else
             let image = PlatformImage(cgImage: cgImage)
             #endif
-            self.cacheDisplayPlatformImage(image, for: docId)
+            if self.imageEpoch(for: docId) == epoch { self.cacheDisplayPlatformImage(image, for: docId) }
             return image
         }
     }
@@ -275,8 +281,9 @@ class StorageService {
         return try await displayDataFlights.run(docId) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayBytes[docId] { return cached }
+            let epoch = self.imageEpoch(for: docId)
             let data = try await self.fetchDisplayData(for: docId)
-            self.cacheDisplayBytes(data, for: docId)
+            self.cacheDisplayBytes(data, for: docId, ifEpoch: epoch)
             return data
         }
     }
