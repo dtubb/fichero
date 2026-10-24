@@ -304,6 +304,10 @@ Improves:
 `prep.straighten-and-flatten` (P), `prep.never-changes-the-original`, `prep.methods-are-cards-the-recipe-chooses` (G).
 No change proposed.
 
+Improves (leave-out, #6070):
+- `designer.clean.leaves-out-non-text` [MISSING] (#6070) — a Set Up stage leaves out segments that are not text of the page: off the page edge (the scanner bed or black background), bleed-through from the other side, damaged or torn areas, and stamps or decoration if asked. Lines are kept but marked left out, never deleted, so Read skips them and a person can bring one back. Candidates: geometry rules from the page mask (`prep.find-the-page`), Kraken baseline confidence, a vision model asked per region; measured like the other stages.
+- `designer.clean.damaged-mark` [MISSING] (#6070) — a page or region can carry a 'damaged' mark, linked to Certainty and Damage in the Inspector (already exists there).
+
 **Find Regions and Find Lines.** Exists: both default to Kraken `blla` (`prep.regions.open-default` (P),
 `prep.regions.one-find-regions` (P)); the YOLO DocLayNet card (`prep.yolo.regions-card` (P)); line finders
 are a candidate list (`source.recipe.line-finders-are-a-candidate-list` (P),
@@ -844,6 +848,7 @@ every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()`
 9. Rank by the table; the fallback; reasons and predictability in words; labels served.
 10. Review stage, first slice (one shipped kind, proposals as a separate pass, gain).
 11. Region-model row with lines per block, segmenter search, layout rows; the one-page layout stage if ruled.
+11b. Leave out non-text segments and the damaged mark (#6070): the Clean Up / Find the layout stage marks left-out lines (kept, never deleted) and a damaged mark on a page or region, measured like the other stages.
 12. Teach a model… offer, measurement, switch, costs; the run's offers and the recorded switch.
 13. The workflow line, Open in the editor, a person's workflow as a candidate, Adjust in the editor.
 14. Share Recipe…, Use a Recipe…, the built-in recipes and Start from a recipe.
