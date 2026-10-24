@@ -324,6 +324,14 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
     )
 
 
+def _new_provisional(stored: list[ReadingRead], provisional: list[ReadingRead]) -> list[ReadingRead]:
+    """The provisional readings a stored one does not already say. Converting a result writes each box's words as a stored
+    reading derived from that artifact (`segment_conversion`), while the artifact's kept block still offers the same words: both
+    listed, a line shows one reading twice (Test 13)."""
+    have = {(r.derived_from_artifact_id, r.kind, r.content) for r in stored if r.derived_from_artifact_id}
+    return [p for p in provisional if (p.derived_from_artifact_id, p.kind, p.content) not in have]
+
+
 def readings_of_segment(
     db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None
 ) -> list[ReadingRead]:
@@ -349,7 +357,7 @@ def readings_of_segment(
             continue
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
-    items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
+    items.extend(_new_provisional(items, provisional_readings(db, live_id, artifact_memo=artifact_memo)))
     return items
 
 
@@ -476,12 +484,10 @@ def _readings_for_live_rows(
         pass_row = passes[row.pass_id]
         if pass_row is None or not pass_row.source_artifact_id:
             continue
-        by_segment[row.id].extend(
-            provisional_readings(
-                db, row.id, allowed_kinds=kinds, artifact_memo=artifact_memo,
-                located=(artifact(pass_row.source_artifact_id), box_index),
-            )
-        )
+        by_segment[row.id].extend(_new_provisional(by_segment[row.id], provisional_readings(
+            db, row.id, allowed_kinds=kinds, artifact_memo=artifact_memo,
+            located=(artifact(pass_row.source_artifact_id), box_index),
+        )))
     return by_segment
 
 
