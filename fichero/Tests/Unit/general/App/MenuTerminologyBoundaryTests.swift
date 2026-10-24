@@ -227,13 +227,12 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
         XCTAssertTrue(buttons.contains("ActivityStopMenuItem(target: target)"))
         XCTAssertTrue(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
-        let window = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
-        XCTAssertTrue(window.contains(".focusedSceneValue(\\.activityRun,"))
-        XCTAssertTrue(window.contains("runMenuTarget(for: id)"))
-        XCTAssertTrue(window.contains("if target.canStop { ActivityStopMenuItem(target: target) }"))
-        XCTAssertTrue(window.contains("ActivityReadAgainMenuItem(target: target) }"))
-        XCTAssertTrue(window.contains("ActivityStopMenuItem(target: run)"))
-        XCTAssertTrue(window.contains("ActivityReadAgainMenuItem(target: run)"))
+        // The one-bar window (`activity.window.one-button`): the selected run's target reaches the menu bar from the groups
+        // view, whose row menu renders the shared Stop item; no hand-made Stop or Read Again button is left in it.
+        let window = try Self.appSource("Views/Activity/Window/ActivityGroupsView.swift")
+        XCTAssertTrue(window.contains(".focusedSceneValue(\\.activityRun, selectedRunTarget)"))
+        XCTAssertTrue(window.contains("rows.count == 1 ? rows.first.map(stopTarget) : nil"))
+        XCTAssertTrue(window.contains("ActivityStopMenuItem(target: stopTarget(row))"))
         XCTAssertFalse(window.contains("Button(\"Stop\")"))
         XCTAssertFalse(window.contains("Button(action: readAgain)"))
     }
