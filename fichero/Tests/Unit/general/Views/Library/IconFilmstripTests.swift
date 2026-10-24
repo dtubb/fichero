@@ -17,4 +17,13 @@ final class IconFilmstripTests: XCTestCase {
         XCTAssertFalse(LibraryView.iconIsFilmstrip(paneHeight: height, scale: 1))
         XCTAssertTrue(LibraryView.iconIsFilmstrip(paneHeight: height, scale: 2), "bigger tiles: only one row fits now")
     }
+
+    /// A pinch never swaps the layout mid-gesture: whatever the live value, the persisted scale decides.
+    func testALivePinchValueNeverChangesStripOrGrid() {
+        let height = 2 * LibraryView.iconRowHeight(scale: 1) + 20 + 32  // the grid at scale 1, a strip at scale 2
+        for live in [nil, 0.5, 1.0, 2.0, 5.0] as [Double?] {
+            XCTAssertFalse(LibraryView.iconLayoutIsFilmstrip(paneHeight: height, persistedScale: 1, liveScale: live))
+            XCTAssertTrue(LibraryView.iconLayoutIsFilmstrip(paneHeight: height, persistedScale: 2, liveScale: live))
+        }
+    }
 }
