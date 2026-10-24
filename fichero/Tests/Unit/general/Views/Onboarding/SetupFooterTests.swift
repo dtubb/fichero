@@ -111,6 +111,18 @@ struct SetupFooterTests {
         #expect(store.languages.isEmpty && store.languageWait != nil, "unticking leaves a blank, which waits again")
     }
 
+    @Test("the stage page says what the engine worked out from the pages, and nothing for a plan that was told the language")
+    func inferredLanguageSentence() {
+        var told = Components.Schemas.AssembledRecipe(
+            id: "generated", title: "t", purposes: ["transcribe"], steps: [], gaps: [], cloudOptions: [], problems: [])
+        #expect(SetupStagePage.inferredSentence(told) == nil)
+        #expect(SetupStagePage.inferredSentence(nil) == nil)
+        told.inferredLanguage = .init(code: "es", name: "Spanish", script: "Latn", sentence: "Language worked out from your pages: Spanish.")
+        #expect(SetupStagePage.inferredSentence(told) == "Language worked out from your pages: Spanish.")
+        told.inferredLanguage = .init(sentence: "  ")
+        #expect(SetupStagePage.inferredSentence(told) == nil, "an empty sentence is not a line")
+    }
+
     @Test("a stage page with no plan says why in words, never a silent empty proposal")
     func noProposalSaysWhy() {
         #expect(SetupStagePage.noProposalReason(languages: [], error: nil).contains("Not sure"))
