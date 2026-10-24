@@ -28,6 +28,13 @@ struct ActivityGroupsView: View {
     private var allShown: [ActivityMonitorRow] { groups.now + groups.upNext + (doneExpanded ? groups.doneToday : []) }
     private func deletable(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] { rows.filter { $0.kind == .run && !$0.phase.isLive } }
 
+    /// The one selected row's Stop / Read Again target, for Project › Activity in the menu bar (`FocusedActivityRunButtons`);
+    /// nil with none or several selected, so those commands are disabled.
+    private var selectedRunTarget: ActivityRunMenuTarget? {
+        let rows = allShown.filter { selection.contains($0.id) }
+        return rows.count == 1 ? rows.first.map(stopTarget) : nil
+    }
+
     var body: some View {
         List(selection: $selection) {
             if !groups.now.isEmpty {
@@ -62,6 +69,7 @@ struct ActivityGroupsView: View {
             }
         }
         .accessibilityIdentifier("activity.groups")
+        .focusedSceneValue(\.activityRun, selectedRunTarget)
         // Selection-based, so a single click selects at once (a per-row double-tap gesture can hold it back) and a
         // double-click opens the run.
         .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
