@@ -709,6 +709,42 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
     return Choice(job, best, reasons=reasons, chain=[choice.card, *choice.chain])
 
 
+#: The text steps a cloud model is picked for by itself when pages may leave, a key is set and no local model fits
+#: (`source.recipe.cloud-text-pick`, owner ruling 2026-10-24).
+CLOUD_TEXT_JOBS = ("translate-transliterate-normalise", "describe-for-the-catalogue", "correct")
+
+
+def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
+    """With the cloud allowed and a key set, Translate, Catalogue and Correct take the CHEAPEST adequate cloud text model, where no
+    local model fits (a good-enough local model, even one still to download, wins: it is free and the pages stay here). Adequate:
+    a keyed provider's model that writes text (a generative text card, or a vision model that reads and so writes) and has a LISTED
+    price: the cap cannot be held to a model with none. The price shows in the plan before Start and the project's monthly cap
+    applies to every call. Never a silent substitute: the reasons name the model, its price and that the rules picked it."""
+    if job not in CLOUD_TEXT_JOBS or not a.cloud_allowed or not a.cloud_keys:
+        return choice
+    if choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud")):
+        return choice  # a local model fits: it wins
+    fits = [c for c in pool
+            if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys
+            and not c.cannot_run_because
+            and ({"find-statements", "split-into-entries"} <= c.jobs or c.jobs & {"read-a-line", "read-a-page"} or job in c.jobs)
+            and _page_price(c) is not None]
+    if not fits:
+        return choice
+    ranked = sorted(fits, key=lambda c: (_page_price(c), c.id))
+    best = ranked[0]
+    provider = best.runs_on.split(":", 1)[1]
+    from dataclasses import replace
+
+    card = replace(best, jobs=best.jobs | {job})
+    price = _page_price(best)
+    reasons = [f"no local model fits, so the rules took the cheapest cloud text model whose provider has a key here: "
+               f"{best.note or best.id} at {provider}, about ${price:.4f} a call by the price list",
+               "its pages leave this Mac (you allowed the cloud); the project's monthly spending cap applies to every call",
+               "you can choose another model on this step"]
+    return Choice(job, card, reasons=reasons, chain=[replace(c, jobs=c.jobs | {job}) for c in ranked[1:]])
+
+
 def _chosen(choice: Choice) -> dict[str, Any]:
     """A choice as recipe data: the model, where it runs, why, and its card's facts; or its gap and problem."""
     if choice.card is None:
@@ -966,13 +1002,14 @@ def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dic
 
 
 def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = (),
-             readers: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
+             readers: list[Card] | tuple[Card, ...] = (), cloud_text: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
     """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. `offered`: cards a
     step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). `readers`: the
     person's cloud vision readers (their provider rows), counted ONLY by the cloud question, so a project whose steps are
     Find Lines and Read is asked once a cloud reader could read (`source.onboard.cloud-question-counts-readers`). A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
-    (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
+    (`source.onboard.auto.every-proposed-step-runs`, #5574). `cloud_text`: the person's keyed cloud text models, from which
+    Translate, Catalogue and Correct take the cheapest where no local model fits (`_cloud_text_pick`)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
 
     jobs = set(purpose_jobs(a.purposes))
@@ -1046,7 +1083,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
                           "reasons": [why, "raises the contrast of each faded page on a new copy, on this Mac, free, "
                                            "before lines; the original is kept"]})
             continue
-        choice = _frontier_first(job, _choose(job, cards, a), readers, a)
+        choice = _cloud_text_pick(job, _frontier_first(job, _choose(job, cards, a), readers, a), [*cloud_text, *offered], a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}
         read = [m for m in a.materials if m in READ_MATERIALS]  # material already text has no reader (#5553)
         mixed = a.job_answers.get("mixed_writing") is True and job in READING_JOBS

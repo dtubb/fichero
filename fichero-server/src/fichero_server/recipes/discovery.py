@@ -195,7 +195,28 @@ TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries",
                              # here, Apple Intelligence or a cloud model is the person's to choose instead.
                              "find-names-tag-words",
                              # A folder's archival description (`catalogue.folder-description-fields`, #6087).
-                             "describe-for-the-catalogue"})
+                             "describe-for-the-catalogue",
+                             # Translate and Correct write text too: a text model here, Apple Intelligence or a cloud model is a
+                             # candidate for both (owner 2026-10-24: every step can choose models), where the menu offered one Qwen.
+                             "translate-transliterate-normalise", "correct",
+                             # The two other jobs a text model does with the text alone (the Check and Extract to a table steps).
+                             "extract-to-a-table", "check"})
+
+#: The languages Apple Intelligence's on-device model writes (its published list), for the rewriting jobs, which refuse a model
+#: that does not list the language (it would rewrite it into one it knows).
+APPLE_INTELLIGENCE_LANGUAGES = frozenset({"en", "fr", "de", "it", "pt", "es", "zh", "ja", "ko"})
+
+
+def text_model_languages(repo_id: str) -> tuple[frozenset[str] | None, bool]:
+    """(the languages a local text model lists, whether it is multilingual) from its repository's name, for the rewriting jobs
+    (Correct, Translate): Qwen3's family is multilingual, Llama 3.2 lists eight languages, any other says nothing and so is
+    refused for them, never trusted with a language it may not know. ponytail: by name until a card carries it."""
+    name = repo_id.casefold()
+    if "qwen" in name:
+        return None, True
+    if "llama-3.2" in name or "llama-3.1" in name:
+        return frozenset({"en", "de", "fr", "it", "pt", "hi", "es", "th"}), False
+    return None, False
 #: Model servers the person runs, whose enabled models are cards for those jobs (the engine's own MLX server is
 #: its model store's, read above).
 _TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
@@ -258,7 +279,8 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
             open_licence = _is_open(licence)
         out[f"mlx:{model_id}"] = Card(
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
-            jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+            jobs=TEXT_MODEL_JOBS, scripts=None, languages=text_model_languages(spec.repo_id)[0],
+            multilingual=text_model_languages(spec.repo_id)[1], material=frozenset(),
             open_licence=open_licence, licence=licence,
             size_gb=round(gib(spec.download_size_bytes), 3),
             memory_gb=local_memory_gb(spec),  # the load gate's number (#5537)
@@ -295,7 +317,7 @@ def other_text_cards() -> list[Card]:
         apple_here = False
     out = [Card(
         id="apple:intelligence/foundation-models@os", pin=dict(APPLE_INTELLIGENCE_PIN), jobs=TEXT_MODEL_JOBS,
-        scripts=None, languages=None, material=frozenset(), open_licence=True, licence="system",
+        scripts=None, languages=APPLE_INTELLIGENCE_LANGUAGES, material=frozenset(), open_licence=True, licence="system",
         note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here, offered_only=True,
         cannot_run_because="" if apple_here else "Apple Intelligence is not available in this build or on this Mac",
         offered_because="Apple's on-device model (Foundation Models): free, and the pages stay on this Mac",
@@ -306,7 +328,8 @@ def other_text_cards() -> list[Card]:
             continue  # a reader (vision path), or one already here (`local_text_cards`')
         out.append(Card(
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
-            jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
+            jobs=TEXT_MODEL_JOBS, scripts=None, languages=text_model_languages(spec.repo_id)[0],
+            multilingual=text_model_languages(spec.repo_id)[1], material=frozenset(), open_licence=True,
             licence="", size_gb=round(gib(spec.download_size_bytes), 3),
             memory_gb=local_memory_gb(spec), note=spec.display_name, source="shipped", offered_only=True,
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
@@ -368,7 +391,7 @@ def _cloud_text_cards() -> list[Card]:
             frontier = ptype in frontier_providers()
             out.append(Card(
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
-                jobs=TEXT_MODEL_JOBS | {"correct"} if frontier else TEXT_MODEL_JOBS, multilingual=frontier,
+                jobs=TEXT_MODEL_JOBS if frontier else TEXT_MODEL_JOBS - {"correct"}, multilingual=frontier,  # Correct: the frontier list only
                 scripts=None, languages=None, material=frozenset(),
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,

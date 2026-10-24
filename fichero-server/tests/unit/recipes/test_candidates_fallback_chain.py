@@ -94,7 +94,7 @@ def test_the_recipe_the_project_assembles_reads_its_measured_band(monkeypatch, t
     from fichero_server.recipes.project import write_noise_band
 
     seen = []
-    monkeypatch.setattr(route, "assemble", lambda a, cards, offered, readers=(): seen.append(a) or {"steps": []})
+    monkeypatch.setattr(route, "assemble", lambda a, cards, offered, readers=(), **kw: seen.append(a) or {"steps": []})
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
                "loose_pages": False, "faded_pages": False}
     route._assemble(answers, tmp_path)
