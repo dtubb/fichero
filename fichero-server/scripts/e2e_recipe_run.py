@@ -90,9 +90,10 @@ def main() -> int:
             r = client.post("/api/recipes/assemble", json=body)
             r.raise_for_status()
             assembled = r.json()
-            report["assembled_steps"] = [s.get("job") for s in assembled.get("recipe", {}).get("steps", [])]
-            r = client.put("/api/recipes/project", json={"answers": {k: body[k] for k in ("purposes", "languages", "scripts", "materials", "cloud_allowed", "pages")},
-                                                         "recipe": assembled["recipe"]})
+            report["assembled_steps"] = [s.get("job") for s in assembled.get("steps", [])]
+            report["assembled_notes"] = {k: assembled.get(k) for k in ("gaps", "by_hand", "left_off", "removed")}
+            # Answers alone: the engine assembles and stores the recipe itself (#5747), as Set Up's Continue does.
+            r = client.put("/api/recipes/project", json={"answers": {k: body[k] for k in ("purposes", "languages", "scripts", "materials", "cloud_allowed", "pages")}})
             r.raise_for_status()
             if args.cloud:
                 client.post("/api/recipes/project/allow-cloud").raise_for_status()
