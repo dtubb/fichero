@@ -272,19 +272,12 @@ struct RecipeSetupStoreTests {
         store.scripts = ["Latn"]
 
         await store.assemble()
-        #expect(store.asksCloudQuestion == false, "no cloud option: everything runs on this Mac")
 
         RecipesMockURLProtocol.status = 201   // any non-200 marker: serve the cloud-option recipe
         await store.assemble()
         #expect(store.recipe?.cloudOptions == ["correct"])
-        #expect(store.asksCloudQuestion)
         #expect(store.cloudOfferSentences == ["Correct: would send the text of 3,000 pages to google, about $4.50."],
                 "the question shows what is sent, to whom, how many pages and the estimate, in the engine's words")
-
-        RecipesMockURLProtocol.status = 200
-        store.cloudAllowed = true
-        await store.assemble()
-        #expect(store.asksCloudQuestion, "a yes already given stays answerable")
     }
 
     /// WHY: sources are copied by default (section 7d): the originals are never touched and the

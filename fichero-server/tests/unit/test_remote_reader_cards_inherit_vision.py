@@ -28,11 +28,41 @@ def test_every_cloud_model_is_the_top_tier():
     from fichero_server.recipes.discovery import reader_tier
 
     tier = lambda runs_on: reader_tier(NS(pin={"cloud": "x", "model": "m"}, runs_on=runs_on), "read-a-line")  # noqa: E731
-    assert (tier("cloud:google"), tier("cloud:openrouter"), tier("this-mac")) == ("frontier", "frontier", "general")
+    assert (tier("cloud:google"), tier("cloud:openrouter"), tier("this-mac")) == ("cloud", "cloud", "general")
 
 
-def test_claude_and_gemini_through_openrouter_are_frontier():
+def test_claude_and_gemini_through_openrouter_are_the_cloud_tier():
     from fichero_server.recipes.discovery import reader_tier
 
     card = NS(pin={"cloud": "openrouter", "model": "anthropic/claude-sonnet-4.5"}, runs_on="cloud:openrouter")
-    assert reader_tier(card, "read-a-line") == "frontier"
+    assert reader_tier(card, "read-a-line") == "cloud"
+
+
+def test_a_reader_for_another_script_or_language_is_not_listed():
+    from fichero_server.api.routes.system.recipes import for_the_project
+    from fichero_server.recipes.assemble import Answers, Card
+
+    def card(cid, scripts, languages):
+        return Card(id=cid, pin={"kraken": cid}, jobs=frozenset({"read-a-line"}), scripts=scripts, languages=languages,
+                    material=frozenset())
+
+    a = Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}), materials=("print",))
+    cards = [card("es", frozenset({"Latn"}), frozenset({"es"})), card("zh", frozenset({"Hans"}), frozenset({"zh"})),
+             card("de", frozenset({"Latn"}), frozenset({"de"})), card("own-zh", frozenset({"Hans"}), None)]
+    kept = [c.id for c in for_the_project(cards, "read-a-line", a, "print", "own-zh")]
+    assert kept == ["es", "own-zh"]  # Chinese and German readers left out; the step's own model stays
+
+
+def test_only_rows_worth_using_are_listed_five_a_tier():
+    from fichero_server.api.routes.system.recipes import worth_listing
+
+    def row(i, tier="specialist", **kw):
+        return NS(id=str(i), tier=tier, chosen=kw.get("chosen", False), cer_measured_here=kw.get("cer"),
+                  availability=kw.get("availability", "download"), needs_permission=kw.get("perm", False),
+                  refused=kw.get("refused"), availability_words=kw.get("words", ""))
+
+    rows = [row(i) for i in range(8)] + [row("refused", refused="not enough memory"), row("chosen", chosen=True),
+                                         row("licence", tier="general", refused="its licence needs accepting"),
+                                         row("perm", tier="cloud", perm=True)]
+    ids = [r.id for r in worth_listing(rows)]
+    assert ids == ["0", "1", "2", "3", "4", "chosen", "licence", "perm"]

@@ -24,8 +24,8 @@ struct ModelFinderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            // ponytail: the per-source counts (Zenodo, Hugging Face, …) are not shown, only the models worth using
-            // (owner 2026-10-23); a failed search still says so below.
+            // The per-source counts (Zenodo, Hugging Face, …) are not shown: only the models worth using (the engine's
+            // `worth_listing`, owner 2026-10-23); a failed search still says so below.
             if let failure = store.searchFailure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -41,7 +41,7 @@ struct ModelFinderView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(ModelFinderTiers.groups(store.candidates.filter(ModelFinderCard.worthListing))) { group in
+            ForEach(ModelFinderTiers.groups(store.candidates)) { group in
                 if let title = group.title {
                     Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
@@ -238,14 +238,6 @@ struct ModelFinderCard: View {
 
     static func cannotRunHere(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.availability == .notHere
-    }
-
-    /// Only what is worth using is listed (owner 2026-10-23): the step's own model, one a press uses or downloads, a
-    /// cloud reader waiting on the project's permission, or one that needs a key in Settings › AI. A refused card with
-    /// nothing to press is left out, as are HTR-United's datasets (training data with no action here yet).
-    static func worthListing(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
-        candidate.chosen == true || offersUse(candidate) || offersDownload(candidate) || needsPermission(candidate)
-            || asksForSettings(candidate)
     }
 
     /// The rules refused it (`refused`: not enough memory, not the project's language, it runs in the cloud and
