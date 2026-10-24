@@ -78,7 +78,9 @@ struct ReadingOrderList: View {
                     }
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+                #if os(macOS)
                 .onDeleteCommand { deleteLines(nil) }
+                #endif
                 .focused($listFocused)
                 Divider()
                 keyRow(store)
@@ -211,7 +213,9 @@ struct ReadingOrderList: View {
                 }
             }
             .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+            #if os(macOS)
             .onDeleteCommand { deleteLines(nil) }
+            #endif
             Divider()
             HStack(spacing: 8) {
                 Text("Layout order. This page has no named order yet.")
