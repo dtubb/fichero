@@ -137,7 +137,7 @@ final class RecipeSetupStore {
     /// Moves each time the engine accepts a step's reader (`useCard`). A finder or stage page showing which candidate is
     /// chosen reads again when it moves, so the radio and tint follow the click at once, from whichever surface made it
     /// (`source.find.use-moves-the-radio-at-once`).
-    var choiceRevision = 0
+    private(set) var choiceRevision = 0
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
     /// its bundled font (`source.onboard.derives-not-asks`). Keyed by ISO 15924 code.
     private(set) var derivedScripts: [String: Components.Schemas.ScriptFacts] = [:]
@@ -394,6 +394,10 @@ final class RecipeSetupStore {
     /// The recipe run Start queued (`run-a-recipe`), once the engine has kept the first yes: setup
     /// closes onto it (#5576, `source.onboard.auto.lands-on-the-run`).
     var startedRunJobId: String? { startPlan?.started?.jobId }
+
+    /// A step's reader changed by any road (Use for This Step, Use Instead, back to Set Up's pick, a step turned on): the
+    /// one place the revision the finder and the stage page read candidates again on is moved (## 1097).
+    func readerChanged() { choiceRevision += 1 }
 
     /// A skipped step by its title in the recipe ("Find names"), else by its id.
     func title(ofStepId step: String) -> String {

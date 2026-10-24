@@ -2,16 +2,12 @@ import FicheroAPIClient
 import Foundation
 
 // The engine sets a step's reader (Use Instead, Use for This Step, a free place): the changed steps replace theirs in
-// place (moved out of the class body for its length; `choiceRevision` is internal to the module for it).
+// place (moved out of the class body for its length).
 extension RecipeSetupStore {
     /// Use the installed model the plan offers instead of a download (#5583,
     /// `source.onboard.auto.installed-model-first`): the engine sets it on the steps that waited for
     /// the download and saves the recipe; the changed steps replace theirs in place, and Ready reads
     /// the plan again because the recipe changed.
-    /// A step's reader changed by any road (Use for This Step, Use Instead, back to Set Up's pick, a step turned on): the
-    /// one place the revision the finder and the stage page read candidates again on is moved (## 1097).
-    func readerChanged() { choiceRevision += 1 }
-
     func useInstead(_ download: Components.Schemas.StartDownload,
                     _ installed: Components.Schemas.StartInstead) async {
         do {
