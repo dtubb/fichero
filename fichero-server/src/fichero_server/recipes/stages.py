@@ -46,6 +46,10 @@ class Stage:
 _LEVELS = (("as_written", "As written"), ("expanded", "Abbreviations expanded"), ("regularised", "Normalised spelling"),
            ("modernised", "Modernised"))
 
+#: The kinds of names the extraction has a section for, in the words a researcher uses.
+NAME_KINDS = (("people", "People"), ("places", "Places"), ("organisations", "Organisations"), ("dates", "Dates and times"),
+              ("events", "Events"))
+
 STAGES: tuple[Stage, ...] = (
     Stage("prepare-images", "Prepare Images", ("split-pages", "prepare-the-image"),
           "Splits two-page scans into single pages and straightens, crops or brightens a page, keeping the original.",
@@ -103,8 +107,10 @@ STAGES: tuple[Stage, ...] = (
     Stage("names", "Names", ("find-names-tag-words", "place-in-a-gazetteer", "link-to-authorities"),
           "Finds the people, places and other names in the text, places them on a map and links them to authorities.",
           "“españa” marked as a place and placed on the map, “Impresores” as an organisation.",
-          (Question("entity_kinds", "Which kinds of names?", "many",
-                    default=[], read_by_a_step=True, open_ended=True),
+          # Tick boxes in plain words, all ticked, with room to type another kind (`source.onboard.stages.names-kinds-are-tick-boxes`):
+          # the ids are the extraction's own sections (`recipes/start._ENTITY_SECTIONS`).
+          (Question("entity_kinds", "Which kinds of names?", "many", NAME_KINDS,
+                    default=[i for i, _ in NAME_KINDS], read_by_a_step=True, open_ended=True),
            Question("gazetteer", "Which place list? GeoNames (worldwide, modern names) · Wikidata · My own list", "one",
                     (("geonames", "GeoNames"), ("wikidata", "Wikidata"), ("project", "The project's own list")),
                     default="geonames", read_by_a_step=True)),

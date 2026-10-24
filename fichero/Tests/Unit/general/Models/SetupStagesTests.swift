@@ -137,6 +137,21 @@ struct SetupStagesTests {
         #expect(StageKinds.unchosen([], chosen: []).isEmpty, "nothing is suggested before a try")
     }
 
+    @Test("a tick box adds or removes its kind in any case; the typed extras are the kinds no box names")
+    func tickBoxesAndExtras() {
+        let all = ["people", "places", "organisations"]
+        #expect(StageKinds.toggled("places", on: false, in: all) == ["people", "organisations"])
+        #expect(StageKinds.toggled("Places", on: false, in: all) == ["people", "organisations"], "whatever its case")
+        #expect(StageKinds.toggled("places", on: true, in: ["people"]) == ["people", "places"])
+        #expect(StageKinds.toggled("people", on: true, in: ["People"]) == ["People"], "ticking a held kind changes nothing")
+        #expect(StageKinds.extras(["people", "Wills", "places"], options: all) == ["Wills"])
+        #expect(StageKinds.shown([], options: all) == all, "an old project's [] shows every box ticked")
+        #expect(StageKinds.shown(["none"], options: all).isEmpty, "none shows every box unticked")
+        #expect(StageKinds.saved([], options: all) == ["none"], "unticking the last box saves none, never []")
+        #expect(StageKinds.saved([], options: []) == [], "a question with no boxes keeps [] as every kind")
+        #expect(StageKinds.extras([], options: all).isEmpty)
+    }
+
     @Test("a stage question's answer is saved under its key in job_answers, beside the typed ones, and read back")
     func otherAnswersRoundTrip() throws {
         var answers = RecipeSetupAnswers.JobAnswers()

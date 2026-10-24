@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero_server.recipes.stages import STAGES, listing
+from fichero_server.recipes.stages import listing
 
 RECIPE = {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t"}
 #: The stage questions that name kinds (stage id, answer key).
@@ -25,6 +25,11 @@ def _question(items, stage, key):
 def test_every_kinds_question_is_open_with_every_kind_by_default(stage, key):
     q = _question(listing(None), stage, key)
     assert q["open_ended"] is True
+    if (stage, key) == ("names", "entity_kinds"):  # tick boxes, all ticked, own kinds still typed
+        assert [o["id"] for o in q["options"]] == ["people", "places", "organisations", "dates", "events"]
+        assert q["default"] == [o["id"] for o in q["options"]] == q["answer"]
+        assert q["suggestions"] == []
+        return
     assert q["options"] == [], "no fixed list of kinds ships"
     assert q["default"] == [] and q["answer"] == [], "an empty answer is every kind"
     assert q["suggestions"] == [], "nothing is suggested before a sample try"
@@ -101,3 +106,16 @@ def test_passages_says_what_it_does_without_listing_kinds_and_has_an_example():
     assert example_from_samples("passages", None) is None  # until a try returns a passage
     tried = {"passages": [{"page": "p1", "text": "Ante mí, el escribano"}]}
     assert example_from_samples("passages", {"passages": tried["passages"]}) == "Ante mí, el escribano"
+
+
+def test_every_box_unticked_turns_names_off_and_an_old_empty_answer_is_every_kind():
+    """## 1110: [] (an old project) reads every kind; ["none"] (all unticked) skips Names, said in the plan."""
+    from fichero_server.recipes.start import plan_start
+
+    step = {"id": "names", "job": "find-names-tag-words", "model": {"spacy": "es_core_news_sm", "version": "bundled"}}
+    old = plan_start({**RECIPE, "steps": [{**step, "settings": {"kinds": []}}]}, stays_local=True)
+    (run,) = [r for r in old["runs"] if r["steps"] == ["names"]]
+    assert "tool_config" not in run and not old["skipped"]
+    none = plan_start({**RECIPE, "steps": [{**step, "settings": {"kinds": ["none"]}}]}, stays_local=True)
+    assert not [r for r in none["runs"] if r["steps"] == ["names"]]
+    assert [s["step"] for s in none["skipped"]] == ["names"] and "unticked" in none["skipped"][0]["why"]

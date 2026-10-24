@@ -135,6 +135,9 @@ BY_HAND_FIX = {
 }
 _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
+#: The `entity_kinds` answer for every box unticked; `[]` is an old project's "every kind" (## 1110).
+NO_KINDS = "none"
+
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
@@ -625,6 +628,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     skip(sid, f"{label}: Fichero has no level {target!r} to write", None)
                     continue
                 runs.append({**entry, "tool_config": {"analyze": config}})
+            continue
+        if job == "find-names-tag-words" and [str(k).casefold() for k in settings.get("kinds") or []] == [NO_KINDS]:
+            # Every tick box taken off: Names is off for this run, said in the plan (## 1110). An empty answer is an
+            # old project's "every kind" and stays that; only this value means none.
+            skip(sid, f"{label}: every kind of name is unticked, so it has nothing to look for",
+                 "tick a kind under Names in the project's setup")
             continue
         if job == "find-names-tag-words" and settings.get("kinds"):
             # Setup's kinds of names reach the entity extraction as its sections (#5478). A kind the person typed
