@@ -602,6 +602,36 @@ override and fork (`source.recipe.publish` GAP, `source.recipe.follow-and-update
   carries pre-fill About the Material, the path and the stages, each marked "from the recipe" and
   editable; what does not fit the new material (another script, another period) is said and left
   unticked, never applied silently.
+- `designer.share.built-in-recipes` [MISSING] (#6052) — Fichero ships a few good starting recipes
+  per kind of project, vendored in `recipes/seed/recipes/*.yaml` in the export format above (a medieval
+  Latin manuscript, an early modern Spanish notarial register, a 19th-century English logbook, a Fraktur
+  newspaper, an Arabic manuscript, to begin), each carrying the measured results and provenance of the
+  Test Corpus benchmark rows it was chosen from (`designer.measure.benchmark-table`,
+  `designer.measure.benchmark-provenance`). "Start from a recipe" lists them first, titled by the kind
+  of material with the set and CER beside ("Medieval Latin manuscript · CER 5.8% on Clm 13027"); a
+  built-in recipe is read-only until taken into a project, and the one taken is marked "from Fichero's
+  recipe, <version>" so a later release's change is an offer, not a silent update
+  (`source.recipe.update-is-clicked-not-applied`, `source.recipe.data-not-code`).
+- `designer.share.recipe-search` [MISSING] (#6052) — "Start from a recipe" also searches online for
+  published recipes, on the pattern of the model finder's searches (`source.find.online-search-is-a-job`,
+  `source.find.wide-every-time`, `source.find.zenodo-through-htrmopo`, `source.find.htr-united-and-tessdata`,
+  `source.find.reason-names-fit`): a background `find-recipes` job, egress-gated like every other fetch
+  (`source.egress.every-call-site`, `source.egress.fichero-own-fetches-listed`), that reads **first the
+  `fichero-recipes` community catalogue** already named by section 12 of `models-chains-and-projects.md`
+  (ruled 2026-10-01; open question 6 there): one GitHub repository, one folder per recipe, every
+  submission checked (schema, pins resolve, prompts and workflows present, licence), mirrored to Zenodo
+  for a DOI (`source.recipe.publish`, `source.recipe.follow-and-update`, `source.recipe.is-a-file`,
+  `source.recipe.schema-versioned`). The repository does not exist yet (no `dtubb/fichero-recipes` as of
+  2026-10-24; open question 9). Second, recipes published elsewhere by a convention (files named
+  `*.fichero-recipe.yaml`, or the `fichero-recipe` GitHub topic), listed after the catalogue's and
+  marked "not checked by the catalogue". Results are cached beside the finder's
+  (`hugging-face-steps.json`'s neighbour), ranked by fit to the
+  material answers (script, language, period, material) with the fit said in words, each result naming
+  where it came from, its author, its licence and the measured results it claims (marked "measured by
+  the author on their pages"). It never runs anything: taking a result only fills Set Up's answers and
+  steps through the import door above (`designer.share.import-into-a-project`), and the auto-compare
+  re-measures here. With no network, or pages-may-leave unanswered, the search is not started and the
+  page says so; the built-in recipes are always there.
 - `designer.share.publish-is-an-offer` [MISSING] (#6052) — publishing (to a folder, a Hugging Face
   dataset or a URL the person names) is the export plus a licence line and a public name; following a
   published recipe checks for updates, which are shown and clicked, never applied
@@ -740,7 +770,7 @@ every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()`
 11. Region-model row, segmenter search, layout rows; the one-page layout stage if ruled.
 12. The workflow line on each stage page, Open in the editor, a person's workflow as a candidate,
     Adjust in the editor.
-13. Share Recipe… and Use a Recipe…; Start from a recipe; then publish and follow.
+13. Share Recipe… and Use a Recipe…; the built-in recipes and Start from a recipe; the recipe search (catalogue first, then the topic convention); then publish and follow.
 14. Fill the rest of the table; refresh one family at a time per model release.
 
 ## Open questions for the creative director
@@ -758,3 +788,8 @@ every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()`
 7. The on-screen wording of the four paths and the teaching page: approve, or edit here before the
    String Catalog takes it.
 8. The retired ids of the first draft (change 7): confirm no test or issue cites them.
+9. The `fichero-recipes` catalogue repository: create it under which GitHub account or organisation
+   (the owner's own, or a Fichero organisation), and who checks submissions; until it exists the recipe
+   search has only the topic convention and the built-in recipes.
+10. The first built-in recipes: confirm the five kinds (medieval Latin manuscript, early modern Spanish
+    notarial register, 19th-century English logbook, Fraktur newspaper, Arabic manuscript) or name others.
