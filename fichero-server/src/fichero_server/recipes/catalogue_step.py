@@ -98,7 +98,7 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
     from fichero_server.llm.catalogue_lint import enforce
     from fichero_server.llm.prompts import get_prompt
 
-    system = get_prompt("catalogue", "folder", version=2).render(output_language=language, max_words=max_words)
+    system = get_prompt("catalogue", "folder_description").render(output_language=language, max_words=max_words)
 
     async def call(note: str = "") -> str:
         return (await chat_with_fallback(material, config=config, system=system + ("\n\n" + note if note else ""),
