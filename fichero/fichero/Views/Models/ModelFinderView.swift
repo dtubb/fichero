@@ -50,7 +50,12 @@ struct ModelFinderView: View {
                 }
             }
         }
-        .task(id: query) { await store.load(query) }
+        // Opened, it searches online at once (owner 2026-10-24: not five or six models and then a press on Search
+        // Online); the engine keeps a search for a day and reuses a running one.
+        .task(id: query) {
+            await store.load(query)
+            await store.searchOnline()
+        }
         .onChange(of: activity?.backgroundJobs ?? []) { _, jobs in
             Task { await store.observe(jobs) }
         }
