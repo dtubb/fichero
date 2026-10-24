@@ -205,6 +205,32 @@ final class SegmentStoreTests: XCTestCase {
         XCTAssertEqual(drawn.geometry.boxes.count, 1)
     }
 
+    /// ## 1054: a surface that asks with no generation (the Lines pane, Order tab) still re-reads after a run, because
+    /// the store itself compares against the artifact generation it last read under.
+    func testAPlainLoadAfterARunRereadsWhenTheStoreKnowsTheArtifactGeneration() async throws {
+        let store = Self.storeWithMockTransport()
+        var generation = 0
+        store.artifactRevision = { _ in generation }
+
+        Self.stubSuccess(documentId: "doc-1", passes: [], segments: [])
+        await store.load(documentId: "doc-1")
+        XCTAssertTrue(store.segments(documentId: "doc-1").isEmpty)
+
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-run", documentId: "doc-1")],
+            segments: [Self.segmentJSON(id: "line-1", documentId: "doc-1", passId: "pass-run", boxIndex: 0, text: "a line")]
+        )
+        await store.load(documentId: "doc-1")  // same generation: held list stands
+        XCTAssertTrue(store.segments(documentId: "doc-1").isEmpty)
+
+        generation = 1  // the run finished
+        let before = store.revision(for: "doc-1")
+        await store.load(documentId: "doc-1")  // a plain load, no generation passed
+        XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["line-1"])
+        XCTAssertEqual(store.revision(for: "doc-1"), before + 1, "surfaces observing the store refresh")
+    }
+
     // MARK: - a forced second load replaces in place, not a merge
 
     func testForceReloadReplacesADocumentsEntryRatherThanMerging() async throws {

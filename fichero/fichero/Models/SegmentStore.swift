@@ -70,7 +70,11 @@ final class SegmentStore {
     /// document's entry in both dictionaries; every other loaded document's
     /// arrays are untouched (no wholesale reload).
     func load(documentId: String, force: Bool = false) async {
-        if !force, segmentsByDocument[documentId] != nil, loadErrorsByDocumentId[documentId] == nil {
+        // The generation this read is made under, taken BEFORE the await so a run that finishes mid-read still
+        // moves it for the next ask. Any surface's load compares against it, not only the Preview's.
+        let generation = artifactRevision?(documentId)
+        let moved = generation != nil && loadedAtArtifactRevision[documentId].map { $0 != generation } == true
+        if !force, !moved, segmentsByDocument[documentId] != nil, loadErrorsByDocumentId[documentId] == nil {
             return
         }
         loadingDocumentIds.insert(documentId)
@@ -82,14 +86,21 @@ final class SegmentStore {
             segmentsByDocument[documentId] = result.segments
             // Best effort: a page whose text cannot be read still draws, its labels isolated but unoriented.
             directionsByDocument[documentId] = (try? await service.lineDirections(documentId: documentId)) ?? [:]
-            if force { revisions[documentId, default: 0] += 1 }
+            if force || moved { revisions[documentId, default: 0] += 1 }
+            if let generation { loadedAtArtifactRevision[documentId] = generation }
         } catch {
             if error.isCancellationError { return }
             loadErrorsByDocumentId[documentId] = error.localizedDescription
         }
     }
 
-    /// The artifact revision each document was last asked for under (`ArtifactEntityStore`'s generation).
+    /// The current artifact generation of a document (`ArtifactEntityStore.revision(for:)`), wired by `LibraryManager`
+    /// where both stores are registered; nil in a store with no artifact store (a test). With it, EVERY load records the
+    /// generation it read under and a later load under a moved one re-reads, so the Lines pane, Gathered list, Regions
+    /// panel and Order tab show a recipe run's lines too (`source.preview.draws-what-a-run-wrote`, ## 1054).
+    var artifactRevision: ((String) -> Int)?
+
+    /// The artifact revision each document was last read or asked for under (`ArtifactEntityStore`'s generation).
     private var loadedAtArtifactRevision: [String: Int] = [:]
 
     /// A surface's load that knows the artifact generation it was started for. A finished workflow run emits ONE
