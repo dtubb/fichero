@@ -22,6 +22,8 @@ final class ModelFinderStore {
         var material: String = "handwriting"
         /// The recipe step the finder was opened beside: its reader is marked chosen and listed first (#5660).
         var step: String?
+        /// Set Up's yes to cloud models: the engine then lists them as usable, not as needing permission.
+        var cloudAllowed = false
     }
 
     /// The job a query asks for when none is named. Which jobs the finder answers for is the engine's
@@ -173,6 +175,7 @@ final class ModelFinderStore {
                     material: query.material,
                     job: query.job,
                     online: online,
+                    cloudAllowed: query.cloudAllowed,
                     step: query.step,
                     worthOnly: true  // only what is worth using, filtered and capped by the engine (owner 2026-10-23)
                 )
