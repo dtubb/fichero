@@ -1686,7 +1686,9 @@ def segment_to_geometry(
     """
     # Only a direction known is passed: a stand-in segmenter that takes the path alone still stands in.
     payload = segment_lines(image_path, **({"direction": direction} if direction else {}))
-    result = geometry_from_segmentation(payload, source_name=str(image_path), rendition_id=rendition_id)
+    result = geometry_from_segmentation(
+        payload, source_name=str(image_path), rendition_id=rendition_id, direction=direction
+    )
     if not any(box.level is OCRGeometryLevel.LINE for box in result.boxes):
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
@@ -1793,6 +1795,11 @@ def recognize_to_geometry(
             f"Kraken reported an unusable pixel frame for {image_path}"
         )
 
+    # Regions and lines in reading order from where they are, BEFORE the text is joined: the transcript, and so the
+    # Reader text, follows it (`source.order.from-position`), the same order Find Regions saves.
+    from fichero_server.media.layout_order import order_payload
+
+    payload = order_payload(payload, direction)
     stamped_model = model_id or str(model_path)
     boxes, region_index = _region_boxes(payload, width, height, model=stamped_model, source="kraken-htr")
     texts: list[str] = []
