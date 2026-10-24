@@ -3962,7 +3962,7 @@ The recipe and its format
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
-- `source.recipe.check-names-every-fault` — **[OK]** (#5364, R6 exit) the check of a hand-edited recipe (`POST /api/recipes/check`,
+- `source.recipe.check-names-every-fault` — **[OK]** (#5364, R6 exit) the check of a hand-edited recipe (`POST /api/recipes/check`, A kept choice for a step the person has since un-ticked goes with the step when the recipe is proposed again (a removed-step record stays), so it never blocks Start (owner 2026-10-24; `fichero-server/tests/unit/recipes/test_untick_step_drops_its_choice.py`).
   `fichero_recipes_check`) names each fault in it, one sentence each, and one fault never hides another or stops the check with
   an error: a schema it cannot read, a missing id, title or steps, code or a key anywhere, steps that are not a list, a step
   that is not a step, a step with no id or another's id, a job this Fichero lacks, a layer not the job's, an unknown condition,

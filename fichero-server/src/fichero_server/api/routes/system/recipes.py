@@ -1070,6 +1070,12 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
         recipe["inferred_language"] = inferred
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
+    # A choice for a step the person has since un-ticked goes with the step: kept, it named a step this recipe no longer
+    # has and the check refused the whole plan, so Start could not run (owner 2026-10-24). A removed-step record stays.
+    from fichero_server.recipes.recipe import REMOVED_STEP, override_kind
+
+    step_ids = {s.get("id") for s in recipe.get("steps") or [] if isinstance(s, dict)}
+    kept = [o for o in kept if not isinstance(o, dict) or override_kind(o) == REMOVED_STEP or o.get("step") in step_ids]
     if kept:
         from fichero_server.recipes.bakeoff import apply_project_overrides
 
