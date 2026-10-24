@@ -37,6 +37,24 @@ class StorageService {
     private let thumbnailFlights = InFlightCoalescer<Image>()
     private let displayFlights = InFlightCoalescer<Image>()
     private let displayPlatformFlights = InFlightCoalescer<PlatformImage>()
+    /// ONE fetch of a document's display bytes for both display paths (`getDisplayImage`, `getDisplayPlatformImage`): the
+    /// grid's SwiftUI image and the canvas's platform image used to fetch and decode the same JPEG twice
+    /// (`source.storage.one-picture-path`, #6021).
+    private let displayDataFlights = InFlightCoalescer<Data>()
+    private var displayBytes: [String: Data] = [:]
+    private var displayBytesOrder: [String] = []
+    /// A few recent pictures' bytes: enough for the grid-to-canvas hand-off, small enough to hold full-size JPEGs.
+    static let displayBytesLimit = 8
+
+    func cacheDisplayBytes(_ data: Data, for docId: String) {
+        if displayBytes[docId] == nil { displayBytesOrder.append(docId) }
+        displayBytes[docId] = data
+        while displayBytesOrder.count > Self.displayBytesLimit {
+            displayBytes.removeValue(forKey: displayBytesOrder.removeFirst())
+        }
+    }
+
+    func cachedDisplayBytes(for docId: String) -> Data? { displayBytes[docId] }
     private var displayCache: [String: Image] = [:]
     private var displayPlatformImageCache: [String: PlatformImage] = [:]
     private var sourceDataCache: [String: Data] = [:]
@@ -253,6 +271,17 @@ class StorageService {
 
     /// Fetch display image bytes via the generated OpenAPI client.
     private func displayData(for docId: String) async throws -> Data {
+        if let cached = displayBytes[docId] { return cached }
+        return try await displayDataFlights.run(docId) { [weak self] in
+            guard let self else { throw StorageServiceError.unexpectedResponse }
+            if let cached = self.displayBytes[docId] { return cached }
+            let data = try await self.fetchDisplayData(for: docId)
+            self.cacheDisplayBytes(data, for: docId)
+            return data
+        }
+    }
+
+    private func fetchDisplayData(for docId: String) async throws -> Data {
         let response = try await client.api.getDisplayImageApiStorageDisplayDocIdGet(.init(
             path: .init(docId: docId)
         ))
@@ -333,6 +362,8 @@ class StorageService {
     func invalidateImageCache(for docId: String) {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
+        displayBytes.removeValue(forKey: docId)
+        displayBytesOrder.removeAll { $0 == docId }
         displayPlatformImageCache.removeValue(forKey: docId)
         sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
@@ -347,6 +378,8 @@ class StorageService {
         for key in imageCacheEpoch.keys { imageCacheEpoch[key] = (imageCacheEpoch[key] ?? 0) + 1 }
         thumbnailCache.removeAll()
         displayCache.removeAll()
+        displayBytes.removeAll()
+        displayBytesOrder.removeAll()
         displayPlatformImageCache.removeAll()
         sourceDataCache.removeAll()
         thumbnailCacheOrder.removeAll()
