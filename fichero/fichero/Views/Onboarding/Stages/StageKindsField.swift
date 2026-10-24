@@ -17,6 +17,21 @@ enum StageKinds {
         on ? adding(id, to: kinds) : kinds.filter { $0.caseInsensitiveCompare(id) != .orderedSame }
     }
 
+    /// The saved answer for every box unticked; the engine reads it as none. `[]` is an old project's "every kind" (## 1110).
+    static let none = "none"
+
+    /// What the tick boxes show for a saved answer: `[]` (an old project) is every box ticked, `none` is every box unticked.
+    static func shown(_ saved: [String], options: [String]) -> [String] {
+        guard !options.isEmpty else { return saved }
+        if saved.isEmpty { return options }
+        return saved.filter { $0.caseInsensitiveCompare(none) != .orderedSame }
+    }
+
+    /// What to save for the kinds shown: nothing left means `none`, never `[]` (that would read as every kind).
+    static func saved(_ shown: [String], options: [String]) -> [String] {
+        shown.isEmpty && !options.isEmpty ? [none] : shown
+    }
+
     /// The kinds held that no tick box names: the ones the person typed.
     static func extras(_ kinds: [String], options: [String]) -> [String] {
         kinds.filter { kind in !options.contains { $0.caseInsensitiveCompare(kind) == .orderedSame } }
@@ -35,7 +50,12 @@ struct StageKindsField: View {
     @Binding var answer: StageAnswer?
     @State private var typed = ""
 
-    private var kinds: [String] { if case .many(let words) = answer { words } else { [] } }
+    private var saved: [String] { if case .many(let words) = answer { words } else { [] } }
+    private var optionIds: [String] { (question.options ?? []).map(\.id) }
+    /// What the boxes show (a saved `[]` is all ticked, `none` all unticked).
+    private var kinds: [String] { StageKinds.shown(saved, options: optionIds) }
+
+    private func save(_ shown: [String]) { answer = .many(StageKinds.saved(shown, options: optionIds)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -46,7 +66,7 @@ struct StageKindsField: View {
                     ForEach(options, id: \.id) { option in
                         Toggle(option.title, isOn: Binding(
                             get: { kinds.contains { $0.caseInsensitiveCompare(option.id) == .orderedSame } },
-                            set: { answer = .many(StageKinds.toggled(option.id, on: $0, in: kinds)) }
+                            set: { save(StageKinds.toggled(option.id, on: $0, in: kinds)) }
                         ))
                         .setupCheckbox()
                     }
@@ -54,12 +74,13 @@ struct StageKindsField: View {
             }
             let extras = StageKinds.extras(kinds, options: options.map(\.id))
             if kinds.isEmpty {
-                Text("Every kind").font(.callout).foregroundStyle(.secondary)
+                Text(options.isEmpty ? "Every kind" : "None: Names is off for this project")
+                    .font(.callout).foregroundStyle(.secondary)
             } else if !extras.isEmpty || options.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(options.isEmpty ? kinds : extras, id: \.self) { kind in
                         Button {
-                            answer = .many(kinds.filter { $0 != kind })
+                            save(kinds.filter { $0 != kind })
                         } label: {
                             Label(kind, systemImage: "xmark.circle.fill")
                         }
@@ -91,7 +112,7 @@ struct StageKindsField: View {
     }
 
     private func add(_ word: String) {
-        answer = .many(StageKinds.adding(word, to: kinds))
+        save(StageKinds.adding(word, to: kinds))
         typed = ""
     }
 }

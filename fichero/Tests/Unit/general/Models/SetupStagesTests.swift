@@ -145,6 +145,10 @@ struct SetupStagesTests {
         #expect(StageKinds.toggled("places", on: true, in: ["people"]) == ["people", "places"])
         #expect(StageKinds.toggled("people", on: true, in: ["People"]) == ["People"], "ticking a held kind changes nothing")
         #expect(StageKinds.extras(["people", "Wills", "places"], options: all) == ["Wills"])
+        #expect(StageKinds.shown([], options: all) == all, "an old project's [] shows every box ticked")
+        #expect(StageKinds.shown(["none"], options: all).isEmpty, "none shows every box unticked")
+        #expect(StageKinds.saved([], options: all) == ["none"], "unticking the last box saves none, never []")
+        #expect(StageKinds.saved([], options: []) == [], "a question with no boxes keeps [] as every kind")
         #expect(StageKinds.extras([], options: all).isEmpty)
     }
 
