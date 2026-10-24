@@ -42,11 +42,9 @@ struct ReaderTextEditRunner {
                     steps: steps, afterChange: refresh
                 ).resultId
             case .editedMany:
-                // Fresh versions: a line's number is what the engine compares (409 when stale, whole edit).
-                await store.load(documentId: pageId, force: true)
-                guard let params = ReaderTextEdit.newReadings(for: edit, segments: store.segments(documentId: pageId)) else {
-                    throw SegmentEdit.Refusal.versionUnknown
-                }
+                // The versions the PAGE saw (never fresh ones: the engine compares them and answers 409, the
+                // whole edit refused, for a line changed since the page was drawn).
+                guard let params = ReaderTextEdit.newReadings(for: edit) else { throw SegmentEdit.Refusal.versionUnknown }
                 try await AuditedAction.run(
                     "representation.create_many", params: params, actionName: "Typing", actionsService: actionsService,
                     steps: steps, afterChange: refresh

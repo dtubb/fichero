@@ -1733,9 +1733,11 @@ function editedLines(before, now, lines) {
     const first = touched[0], last = touched[touched.length - 1];
     const text = before.slice(first.char_start, Math.max(start, first.char_start)) + inserted
         + before.slice(Math.max(end, last.char_start), last.char_end);
-    const leftOut = touched.slice(text === "" ? 0 : 1).map((line) => line.segment_id);
+    const leftOutLines = touched.slice(text === "" ? 0 : 1);
+    if (leftOutLines.some((line) => !Number.isInteger(line.version))) return { refused: "a line's version is not known, so the edit cannot be checked" };
+    const leftOut = leftOutLines.map((line) => ({ segmentId: line.segment_id, expectedVersion: line.version }));
     const delta = now.length - before.length;
-    const gone = new Set(leftOut);
+    const gone = new Set(leftOut.map((line) => line.segmentId));
     const map = [];
     for (const line of lines) {
         if (gone.has(line.segment_id)) continue;
