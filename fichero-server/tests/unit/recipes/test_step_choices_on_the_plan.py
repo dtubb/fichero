@@ -340,3 +340,20 @@ def test_spacy_is_not_offered_for_correct_or_translate_and_use_candidate_refuses
     if step:
         refused = client.post("/api/recipes/project/steps/use-candidate", json={"step": step, "card": spacy[0].id})
         assert refused.status_code >= 400, refused.text
+
+
+def test_the_catalogue_step_lists_text_models_and_use_candidate_takes_one(client, claude_row, with_material, mac):  # noqa: F811
+    """#6087 (e2e finding): `describe-for-the-catalogue` had no card, and was no step choice, so Start said "no model" and the
+    menu was empty. A text model (a cloud model of a provider row here) is now a candidate, chosen by the person."""
+    answers = {"purposes": ["transcribe", "catalogue"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "mac_memory_gb": 32, "cloud_allowed": True}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe}).status_code == 200
+    choice = next(c for c in _plan(client)["step_choices"] if c["job"] == "describe-for-the-catalogue")
+    assert choice["name"] == "Catalogue"
+    cloud = [c["card"] for c in choice["candidates"] if c["runs_on"].startswith("cloud:") and "claude-sonnet" in c["card"]]
+    assert cloud, [c["card"] for c in choice["candidates"]]
+    taken = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": cloud[0]})
+    assert taken.status_code == 200, taken.text
+    run = next(r for r in _plan(client)["runs"] if "describe-for-the-catalogue" in r["steps"])
+    assert run["card"] == "catalogue" and run["model"], run
