@@ -140,7 +140,7 @@ class StorageService {
         if let cached = thumbnailCache[docId] {
             return cached
         }
-        return try await thumbnailFlights.run(docId) { [weak self] in
+        return try await thumbnailFlights.run(Self.flightKey(docId, imageEpoch(for: docId))) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.thumbnailCache[docId] { return cached }
             // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
@@ -195,7 +195,7 @@ class StorageService {
         if let cached = displayCache[docId] {
             return cached
         }
-        return try await displayFlights.run(docId) { [weak self] in
+        return try await displayFlights.run(Self.flightKey(docId, imageEpoch(for: docId))) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayCache[docId] { return cached }
             logger.info("Loading display image for document: \(docId)")
@@ -216,7 +216,7 @@ class StorageService {
         if let cached = displayPlatformImageCache[docId] {
             return cached
         }
-        return try await displayPlatformFlights.run(docId) { [weak self] in
+        return try await displayPlatformFlights.run(Self.flightKey(docId, imageEpoch(for: docId))) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayPlatformImageCache[docId] { return cached }
             logger.info("Loading display image for document: \(docId)")
@@ -278,7 +278,7 @@ class StorageService {
     /// Fetch display image bytes via the generated OpenAPI client.
     private func displayData(for docId: String) async throws -> Data {
         if let cached = displayBytes[docId] { return cached }
-        return try await displayDataFlights.run(docId) { [weak self] in
+        return try await displayDataFlights.run(Self.flightKey(docId, imageEpoch(for: docId))) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayBytes[docId] { return cached }
             let epoch = self.imageEpoch(for: docId)
@@ -362,7 +362,15 @@ class StorageService {
     private(set) var imageCacheEpoch: [String: Int] = [:]
 
     /// The current epoch for `docId`; 0 until something invalidates it.
-    func imageEpoch(for docId: String) -> Int { imageCacheEpoch[docId] ?? 0 }
+    func imageEpoch(for docId: String) -> Int { (imageCacheEpoch[docId] ?? 0) + imageGeneration }
+
+    /// Bumped by `clearAll` (a host switch): every document's epoch moves with it, including one never invalidated, so a
+    /// fetch in flight across the switch is never cached (## 1049).
+    private(set) var imageGeneration = 0
+
+    /// A flight is for one document at one epoch: a view reloading after an invalidate starts a fresh fetch instead of joining
+    /// the old one and showing the old picture (## 1049).
+    nonisolated static func flightKey(_ docId: String, _ epoch: Int) -> String { "\(docId)#\(epoch)" }
 
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).
@@ -375,14 +383,14 @@ class StorageService {
         sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
         displayPlatformImageCacheOrder.removeAll { $0 == docId }
-        imageCacheEpoch[docId] = imageEpoch(for: docId) + 1
+        imageCacheEpoch[docId] = (imageCacheEpoch[docId] ?? 0) + 1
     }
 
     /// Clear every in-memory byte/image cache, used when the app switches engine hosts.
     func clearAll() {
         // Every document's images are gone, so every epoch moves — a host
         // switch must not leave a stale picture on screen either.
-        for key in imageCacheEpoch.keys { imageCacheEpoch[key] = (imageCacheEpoch[key] ?? 0) + 1 }
+        imageGeneration += 1
         thumbnailCache.removeAll()
         displayCache.removeAll()
         displayBytes.removeAll()
