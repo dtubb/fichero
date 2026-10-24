@@ -46,6 +46,9 @@ extension MainContentModifiers {
             if document.isNavigableContainer {
                 logger.info("Loading children for container: \(document.name) (id: \(document.id))")
                 selectionLoadTask?.cancel()
+                // What the focus was at the click: a focus inside this container that was already there is a stale one
+                // (an item opened earlier), so the folder shows as its canvas; one set DURING the load is a reveal's.
+                let detailAtClick = detailDocument?.id
                 selectionLoadTask = Task {
                     await documentStore.selectCollection(document)
                     guard !Task.isCancelled else { return }
@@ -61,9 +64,11 @@ extension MainContentModifiers {
                     // child of the just-loaded container IS that specific target —
                     // keep it; a stale/unrelated focus is replaced as before. (#1463)
                     let focusPointsInside = detailDocument.map { focused in
-                        focused.id == document.id
-                            || focused.parentId == document.id
-                            || pdfParentDocumentId(of: focused) == document.id
+                        SidebarContainerSelection.keepsFocus(
+                            focusedId: focused.id, parentId: focused.parentId,
+                            pdfParentId: pdfParentDocumentId(of: focused),
+                            container: document.id, focusAtClick: detailAtClick
+                        )
                     } ?? false
                     if !focusPointsInside {
                         detailDocument = document
