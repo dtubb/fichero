@@ -415,7 +415,7 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
     cfg = _node_config(node)
     if (
         node.tool == "transcribe"
-        and cfg.get("vision_mode", "kraken") == "kraken"
+        and cfg.get("vision_mode") == "kraken"
         and cfg.get("kraken_model")
         and not (node_provider or node_model or profile_ref)
     ):
