@@ -480,6 +480,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/answers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/bakeoff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/catalogue_step.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/diff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
@@ -621,6 +622,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyri
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyriacWestern.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
