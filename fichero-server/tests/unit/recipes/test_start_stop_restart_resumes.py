@@ -99,3 +99,28 @@ def test_lost_with_the_engine_then_resumed_skips_what_is_done_and_finishes(clien
     assert len(again) == len(set(again)) and split[0] in again, f"pages split after the restart: {again}"
     assert {len(_entries(db, page)) for page in set(again)} == {2}, "a page holds its entries twice"
 
+
+
+def test_stopped_inside_the_read_stage_then_started_again_reads_only_the_unread_pages(client, db, pages, tmp_path,
+                                                                                       engine, monkeypatch):
+    """Stopped while the lines + read stage is on its first page: started again, that stage reads only the pages it had
+    not read (a page read before the Stop is not read again), and the run ends done."""
+    from fichero_server.llm import kraken_runtime
+
+    gate = Gate(monkeypatch, kraken_runtime, "recognize_to_geometry")
+    try:
+        _save(client, _recipe(tmp_path, LINES, READ))
+        first = _start(client)
+        assert gate.entered.wait(60), _run_status(client, first)
+        assert _stop(client, first) == "stopping"
+        gate.release.set()
+        assert _finished(client, first)["state"] == "cancelled"
+    finally:
+        gate.release.set()
+    read_before = list(engine.read)
+    assert 1 <= len(read_before) < len(pages) + 1, read_before
+
+    run = _finished(client, _start(client))
+
+    assert run["state"] == "done", run
+    assert len(engine.read) == len(set(engine.read)), f"a page was read twice: {engine.read}"
