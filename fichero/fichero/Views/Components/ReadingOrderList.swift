@@ -78,11 +78,15 @@ struct ReadingOrderList: View {
                     }
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+                .onDeleteCommand { deleteLines(nil) }
                 .focused($listFocused)
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
                     Text(refusal).font(.caption).foregroundStyle(.secondary).padding(4)
+                }
+                if let createNote {
+                    Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
                 }
             } else if let store, store.documentId == documentId, store.orders.isEmpty, !hidesWhenEmpty,
                       !asWritten.isEmpty {
@@ -129,6 +133,7 @@ struct ReadingOrderList: View {
     private var lineVerbs: LineVerbsTarget {
         var target = LineVerbsTarget(segment: selection.flatMap(segment))
         if let line = target.segment, CorrectLine.offers(line) { target.correct = { correcting = line } }
+        if selection != nil { target.delete = { deleteLines(nil) } }
         if let store, store.documentId == documentId, store.orders.isEmpty {
             target.createNamedOrder = { Task { await createNamedOrder() } }
         }
@@ -136,8 +141,30 @@ struct ReadingOrderList: View {
     }
 
     /// A row's menu: Correct This Line on one line (#5499).
+    @ViewBuilder
     private func lineMenu(_ ids: Set<String>) -> some View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { correcting = $0 }
+        Divider()
+        Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
+            .disabled(ids.isEmpty)
+    }
+
+    /// Delete (the key, the row menu) on the row named or highlighted: that row, or the focused Source view's selection
+    /// (a multi-selection made in the Preview) when it contains the row (`SegmentDeleter.ids`). ONE audited `segment.delete` batch, one ⌘Z
+    /// (`source.editor.delete-selected-lines`); why it did not happen is said under the list, never silent.
+    private func deleteLines(_ named: Set<String>?) {
+        guard let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        let focused = windowState?.focusedRegionSelection
+        let held = SegmentDeleter.selectedIds(focused, documentId: documentId, store: store)
+        let ids = SegmentDeleter.ids(row: named?.first ?? selection, held: held)
+        let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
+        Task {
+            createNote = await SegmentDeleter.run(
+                SegmentDeleter.segments(ids, documentId: documentId, store: store), documentId: documentId,
+                store: store, actionsService: actionsService, steps: steps, clearing: focused
+            )
+        }
     }
 
     /// The line Correct This Line is asking about; nil when it is not asking.
@@ -184,6 +211,7 @@ struct ReadingOrderList: View {
                 }
             }
             .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+            .onDeleteCommand { deleteLines(nil) }
             Divider()
             HStack(spacing: 8) {
                 Text("Layout order. This page has no named order yet.")

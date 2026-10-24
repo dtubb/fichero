@@ -17,6 +17,7 @@ struct SegmentInspectorView: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @State private var level: Level = .selection
     @State private var text: InspectorText?
     @State private var language: [InspectorLanguage.Row] = []
@@ -27,6 +28,8 @@ struct SegmentInspectorView: View {
     @State private var editing: (reading: InspectorText.Reading, words: String)?
     /// Why the last Edit… did not land.
     @State private var editNote: String?
+    /// Why the last Delete did not happen (`source.editor.delete-selected-lines`); nil after one did.
+    @State private var deleteNote: String?
     /// The inspected segment's resolved direction (the engine's cascade), which the editor lays out in.
     @State private var direction: String?
 
@@ -71,6 +74,9 @@ struct SegmentInspectorView: View {
             pathHead
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
+            if let deleteNote {
+                Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
+            }
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -197,6 +203,21 @@ struct SegmentInspectorView: View {
         return SegmentStore.shared(for: segmentService).readingRevision(for: inspected)
     }
 
+    /// Delete the selected lines (`source.editor.delete-selected-lines`): the Preview's own plan and runner.
+    private func deleteSelected() {
+        guard let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        let segments = SegmentDeleter.segments(selectedIds, documentId: documentId, store: store)
+        let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = documentId
+        let focused = windowState?.focusedRegionSelection
+        Task {
+            deleteNote = await SegmentDeleter.run(
+                segments, documentId: documentId, store: store, actionsService: actionsService, steps: steps,
+                clearing: focused
+            )
+        }
+    }
+
     private func reloadText() async {
         language = []
         guard let inspected, let segmentService else { return }
@@ -251,6 +272,14 @@ struct SegmentInspectorView: View {
                 .buttonStyle(.borderless)
                 .fixedSize()
                 .font(.caption)
+            // Delete the selected lines: the one `segment.delete` batch every surface uses, one ⌘Z.
+            Button { deleteSelected() } label: { Label("Delete", systemImage: "trash") }
+                .buttonStyle(.borderless)
+                .labelStyle(.iconOnly)
+                .font(.caption)
+                .disabled(selectedIds.isEmpty)
+                .help("Delete the selected lines (⌘Z brings them back)")
+                .accessibilityLabel("Delete")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Path")

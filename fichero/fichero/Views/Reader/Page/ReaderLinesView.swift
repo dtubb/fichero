@@ -78,6 +78,8 @@ struct ReaderLineRow: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(WindowState.self) private var windowState: WindowState?
+    @State private var deleteNote: String?
     @Environment(TranscriptionFontStore.self) private var transcriptionFont: TranscriptionFontStore?
     @State private var editor: ReaderLineEditor
     @State private var correcting: Segment?
@@ -111,13 +113,40 @@ struct ReaderLineRow: View {
         .padding(8)
         .background(isSelected ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
         // Correct This Line (#5499): the engine's one verb, the line and its words.
-        .contextMenu { CorrectThisLineButton(segment: segment) { correcting = $0 } }
+        .contextMenu {
+            CorrectThisLineButton(segment: segment) { correcting = $0 }
+            Divider()
+            Button(role: .destructive) { deleteLines() } label: { Label("Delete", systemImage: "trash") }
+        }
         .correctThisLine($correcting)
+        .overlay(alignment: .bottomLeading) {
+            if let deleteNote { Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(4) }
+        }
         // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
-        .focusedSceneValue(\.lineVerbs, isSelected && CorrectLine.offers(segment)
-            ? LineVerbsTarget(segment: segment, correct: { correcting = segment }) : nil)
+        .focusedSceneValue(\.lineVerbs, isSelected
+            ? LineVerbsTarget(
+                segment: segment, correct: CorrectLine.offers(segment) ? { correcting = segment } : nil,
+                delete: { deleteLines() }
+            ) : nil)
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }
+        }
+    }
+
+    /// Delete this line, or -- when it is part of the focused Source view's selection -- every line selected there:
+    /// the one `segment.delete` batch, one ⌘Z (`source.editor.delete-selected-lines`); why not is said on the row.
+    private func deleteLines() {
+        guard let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        let focused = windowState?.focusedRegionSelection
+        let held = SegmentDeleter.selectedIds(focused, documentId: segment.documentId, store: store)
+        let ids = SegmentDeleter.ids(row: segment.id, held: held)
+        let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = segment.documentId
+        Task {
+            deleteNote = await SegmentDeleter.run(
+                SegmentDeleter.segments(ids, documentId: documentId, store: store), documentId: documentId,
+                store: store, actionsService: actionsService, steps: steps, clearing: focused
+            )
         }
     }
 
