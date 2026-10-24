@@ -36,4 +36,16 @@ final class InspectorPaneWidthTests: XCTestCase {
             "corrupted persisted values clamp to the floor, never crash"
         )
     }
+
+    /// #6009: the bounds sit on the inspector content's root (last modifier in the `.inspector` closure), not inside the
+    /// container under the environment and geometry wrappers, where the column was not resizable.
+    func testTheColumnBoundsAreTheLastModifierOnTheInspectorContent() throws {
+        let root = try AppSource.text("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
+        let recorded = try XCTUnwrap(root.range(of: ".recordsPaneFrame(UIPane.inspector.frameKey, in: windowState)"))
+        let bounds = try XCTUnwrap(root.range(of: ".inspectorColumnBounds()"))
+        XCTAssertLessThan(recorded.lowerBound, bounds.lowerBound)
+        let container = try AppSource.text("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift")
+        XCTAssertEqual(container.components(separatedBy: "inspectorColumnWidth(").count - 1, 1,
+                       "one place sets the column's bounds")
+    }
 }
