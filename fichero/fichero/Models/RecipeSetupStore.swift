@@ -158,11 +158,15 @@ final class RecipeSetupStore {
     /// The writing systems are hidden under "Not sure", so they are cleared too: a script the person can no longer
     /// see must not steer the plan (the engine works the script out from the pages).
     func setLanguagesNotSure(_ on: Bool) {
-        languages = on ? [Self.notSureLanguage] : namedLanguages
+        // In place, never reassigned: the same effect the guard for stores reading a list wholesale asks for.
         if on {
-            scripts = []
-            proposedScripts = [:]
-            directions = [:]
+            languages.removeAll { $0 != Self.notSureLanguage }
+            if languages.isEmpty { languages.append(Self.notSureLanguage) }
+            scripts.removeAll()
+            proposedScripts.removeAll()
+            directions.removeAll()
+        } else {
+            languages.removeAll { $0 == Self.notSureLanguage }
         }
     }
 
