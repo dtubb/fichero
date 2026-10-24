@@ -59,6 +59,7 @@ Extract text from images (OCR)
 | `prompt` | string | — | Custom prompt. |
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
+| `read_all_lines` | boolean | no | Read every line of a page again. Unset: a page that already has readings by this reader is read on from its unread lines (a stopped read is resumed, nothing is paid for twice). |
 | `read_granularity` | string | — | With lines_read_by='model': how the model is asked, as a bake-off measured it (a line, a region or the whole page a request). Unset: a few lines a call. One of: lines, region, page. |
 | `reference_values` | object | — | Known values to match. (Not shown in the editor.) |
 | `regions_first` | boolean | no | Also detect text regions on-device (Apple Vision) BEFORE transcribing, saving per-page bounding boxes as a regions artifact (an extra Apple Vision reading of the page). Off unless you ask for it. |
