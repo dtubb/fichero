@@ -84,6 +84,52 @@ def _child_env(model_name: str, cache_dir: str) -> dict[str, str]:
     return env
 
 
+def materialise_model_links(cache_dir: str) -> None:
+    """Make every symlinked file under the cache's snapshot folders a real file in place (#6024).
+
+    The Hugging Face cache links snapshot files into blobs/; onnxruntime refuses external data
+    (model.onnx_data) whose resolved path leaves the model folder. A hard link keeps the disk cost nil;
+    a copy is the fallback across volumes. The blob stays, so the cache still finds it.
+    """
+    for dirpath, _dirs, files in os.walk(cache_dir):
+        if os.sep + "snapshots" + os.sep not in dirpath + os.sep:
+            continue
+        for name in files:
+            path = os.path.join(dirpath, name)
+            if not os.path.islink(path):
+                continue
+            target = os.path.realpath(path)
+            if not os.path.isfile(target):
+                continue
+            tmp = path + ".fichero-tmp"
+            try:
+                try:
+                    os.link(target, tmp)
+                except OSError:
+                    import shutil
+
+                    shutil.copyfile(target, tmp)
+                os.replace(tmp, path)
+            except OSError as exc:
+                logger.warning("could not make %s a real file: %s", path, exc)
+                if os.path.lexists(tmp):
+                    os.unlink(tmp)
+
+
+def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
+    """fastembed's `TextEmbedding`, with the cache's links made real first and once more if the load still escapes (#6024)."""
+    from fastembed import TextEmbedding
+
+    materialise_model_links(cache_dir)
+    try:
+        return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+    except Exception as exc:  # noqa: BLE001 -- a fresh download links its files after the first look
+        if "escapes model directory" not in str(exc):
+            raise
+        materialise_model_links(cache_dir)
+        return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+
+
 def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[str, str]) -> None:
     """The child: load the model, say so, then answer batches until the pipe closes."""
     os.environ.update(env)
@@ -101,9 +147,7 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
             time.sleep(float(os.environ["FICHERO_EMBED_FAKE_INIT_SECONDS"]))
             model = None
         else:
-            from fastembed import TextEmbedding
-
-            model = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+            model = load_text_embedding(model_name, cache_dir, threads)
         conn.send(("ready", None))
         while True:
             try:
