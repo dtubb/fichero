@@ -33,6 +33,7 @@ HAND_WRITTEN_TOOLS = {
     "fichero_docs_list",
     "fichero_workflow_list",
     "fichero_page_import",
+    "fichero_devices_pair",  # #6092: pair with a sharing host from a link file (fichero-mcp/server.py), hand-written
 }
 
 

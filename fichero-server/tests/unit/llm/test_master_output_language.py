@@ -60,6 +60,7 @@ def test_all_three_known_tools_are_covered():
         "workflows/tools/extractors.py",
         "workflows/tools/extract_all.py",
         "workflows/tools/catalogue.py",
+        "recipes/catalogue_step.py",  # the Catalogue stage's folder description (#6087)
     }, f"resolve_output_language call sites moved: {sorted(covered)}"
 
 
