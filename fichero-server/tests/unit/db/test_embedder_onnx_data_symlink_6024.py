@@ -30,3 +30,43 @@ def test_materialising_twice_is_harmless(tmp_path):
     embed_process.materialise_model_links(str(tmp_path))
     embed_process.materialise_model_links(str(tmp_path))
     assert link.read_bytes() == b"weights"
+
+
+def test_a_link_that_leads_out_of_the_cache_is_left_alone(tmp_path):
+    outside = tmp_path / "elsewhere" / "blob"
+    outside.parent.mkdir()
+    outside.write_bytes(b"x")
+    cache = tmp_path / "cache"
+    snap = cache / "models--x--y" / "snapshots" / "rev"
+    snap.mkdir(parents=True)
+    (snap / "f").symlink_to(outside)
+    embed_process.materialise_model_links(str(cache))
+    assert (snap / "f").is_symlink()
+
+
+def test_a_load_that_escapes_is_retried_after_the_links_are_made_real(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    link, _ = _snapshot(tmp_path)
+    calls = []
+
+    class FakeEmbedding:
+        def __init__(self, **_kw):
+            calls.append(link.is_symlink())
+            if link.is_symlink():
+                raise ValueError("External data path escapes model directory")
+
+    monkeypatch.setitem(sys.modules, "fastembed", types.SimpleNamespace(TextEmbedding=FakeEmbedding))
+    embed_process.load_text_embedding("m", str(tmp_path), 1)
+    assert calls == [True, False]
+
+
+def test_a_load_that_works_never_rewrites_the_cache(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    link, _ = _snapshot(tmp_path)
+    monkeypatch.setitem(sys.modules, "fastembed", types.SimpleNamespace(TextEmbedding=lambda **_kw: object()))
+    embed_process.load_text_embedding("m", str(tmp_path), 1)
+    assert link.is_symlink()
