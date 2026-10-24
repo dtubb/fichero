@@ -195,3 +195,23 @@ def test_a_batch_whose_items_all_failed_books_nothing(library, monkeypatch):
     results = asyncio.run(llm.chat_batch(["a", "b"], CONFIG))
     assert all(isinstance(r, llm.LLMBatchItemError) for r in results)
     assert spend.booked_usd(library) == 0
+
+
+def test_a_partly_answered_batch_books_the_worst_case_for_an_answer_with_no_usage(library, monkeypatch):
+    _install(monkeypatch, _Batch(result=[_message(), _message(with_usage=False), ValueError("400")]))
+    asyncio.run(llm.chat_batch(["a", "b", "c"], CONFIG))
+    assert spend.booked_usd(library) == pytest.approx(ACTUAL + spend.worst_case_usd(CONFIG))
+
+
+def test_the_asyncio_timeout_class_counts_as_a_timeout(library, monkeypatch):
+    async def hang(*a, **k):
+        raise asyncio.TimeoutError()  # a different class from TimeoutError on Python 3.10
+
+    monkeypatch.setattr(spend, "_TIMEOUTS", (asyncio.TimeoutError,))
+    model = _Batch()
+    model.abatch = hang
+    monkeypatch.setattr(llm, "_call_model_abatch", hang)
+    _install(monkeypatch, model)
+    results = asyncio.run(llm.chat_batch(["a", "b"], CONFIG))  # the items carry the error, none is lost
+    assert all(isinstance(r, llm.LLMBatchItemError) for r in results)
+    assert spend.booked_usd(library) == pytest.approx(2 * spend.worst_case_usd(CONFIG))
