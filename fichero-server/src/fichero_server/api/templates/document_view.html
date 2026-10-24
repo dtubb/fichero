@@ -845,6 +845,7 @@
     </nav>
     <main class="content">
         <div id="engine-banner" class="engine-banner" role="status" hidden></div>
+        <div id="edit-notice" class="engine-banner" role="status" hidden></div>
         <section id="transcript-panel" class="panel"></section>
         <section id="digest-panel" class="panel hidden"></section>
         <section id="graph-panel" class="panel hidden"></section>
@@ -1012,6 +1013,14 @@ function applyEngineState() {
 }
 let editsSent = 0;        // readingEdit messages posted, so `commitPending` can say whether it sent one
 
+// Says on the page why an edit was not taken -- never a silent revert. Cleared by the next one taken.
+function showEditNotice(text) {
+    const notice = document.getElementById("edit-notice");
+    if (!notice) return;
+    notice.hidden = !text;
+    notice.textContent = text || "";
+}
+
 // Send the typed line as a new reading (or refuse and put the page text back). Returns true when
 // nothing is left pending.
 function commitPendingEdit() {
@@ -1038,10 +1047,22 @@ function commitPendingEdit() {
         showStale(pageId, segmentId);
         return true;
     }
-    if (edit.refused) {
-        body.outerHTML = pageBodyMarkup({ content: before, lines });
-        makeEditable(article);
-        return false;
+    if (edit.refused || edit.message.text === "") {
+        // Several lines, or a line emptied: ONE batch (`readingEdits`), the lines it swallowed left out.
+        const many = editedLines(before, body.textContent, lines);
+        const held = many && !many.refused && many.touched.find((id) => staleLines.has(staleKey(pageId, id)));
+        if (!many || many.refused || held) {
+            body.outerHTML = pageBodyMarkup({ content: before, lines });
+            makeEditable(article);
+            showEditNotice(held ? "A line you changed has a newer reading elsewhere; choose Keep Mine or Take Theirs first."
+                                : `Not saved: ${many ? many.refused : "nothing to save"}.`);
+            return false;
+        }
+        pageTexts.set(pageId, body.textContent);
+        pageLineMaps.set(pageId, many.lines);
+        editsSent += 1;
+        notify("readingEdits", { pageId, segmentId: many.touched[0], edits: many.readings, leftOut: many.leftOut });
+        return true;
     }
     pageTexts.set(pageId, body.textContent);
     pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
@@ -1689,6 +1710,43 @@ function editedLine(before, now, lines, segmentId) {
         text: now.slice(line.char_start, end),
         previous: before.slice(line.char_start, line.char_end),
         delta,
+    };
+}
+
+// An edit that reaches several lines, or empties one (`source.textedit.reader-edit-is-one-step`): a
+// deletion across lines leaves the first touched line with its head and the last one's tail joined
+// to whatever was typed; the lines it swallowed, and any line left with no text at all, are LEFT OUT
+// (never deleted). Returns {readings, leftOut, delta, lines} -- the readings to write, the segment
+// ids to leave out, and the map as it stands once they are -- or {refused: why}, which the page SAYS.
+function editedLines(before, now, lines) {
+    if (before === now) return null;
+    const max = Math.min(before.length, now.length);
+    let start = 0;
+    while (start < max && before[start] === now[start]) start++;
+    let tailLength = 0;
+    while (tailLength < max - start && before[before.length - 1 - tailLength] === now[now.length - 1 - tailLength]) tailLength++;
+    const end = before.length - tailLength;
+    const inserted = now.slice(start, now.length - tailLength);
+    const touched = (lines || []).filter((line) => line.char_end > start && line.char_start < end);
+    if (!touched.length) return { refused: "the edit is not inside any line" };
+    if (inserted.includes("\n")) return { refused: "a paste of several lines cannot be placed on the lines it covers; edit one line at a time" };
+    const first = touched[0], last = touched[touched.length - 1];
+    const text = before.slice(first.char_start, Math.max(start, first.char_start)) + inserted
+        + before.slice(Math.max(end, last.char_start), last.char_end);
+    const leftOut = touched.slice(text === "" ? 0 : 1).map((line) => line.segment_id);
+    const delta = now.length - before.length;
+    const gone = new Set(leftOut);
+    const map = [];
+    for (const line of lines) {
+        if (gone.has(line.segment_id)) continue;
+        if (line.segment_id === first.segment_id) map.push({ ...line, char_end: first.char_start + text.length });
+        else if (line.char_start >= last.char_end) map.push({ ...line, char_start: line.char_start + delta, char_end: line.char_end + delta });
+        else map.push(line);
+    }
+    return {
+        readings: text === "" ? [] : [{ segmentId: first.segment_id, text, previous: before.slice(first.char_start, first.char_end),
+                                        basedOn: first.representation_id ?? null }],
+        leftOut, delta, lines: map, touched: touched.map((line) => line.segment_id),
     };
 }
 
@@ -2955,6 +3013,7 @@ window.fichero = {
     // page again (`refreshPage`); a refusal re-reads it too, so the page never keeps words the
     // library did not take. The reason is logged for the console, not invented into the page.
     lineCommitted(answer) {
+        if (answer && answer.ok) showEditNotice("");
         if (answer && answer.ok && answer.representationId && answer.pageId) {
             pageLineMaps.set(answer.pageId, withReading(pageLineMaps.get(answer.pageId), answer.segmentId, answer.representationId));
         }
@@ -2974,6 +3033,9 @@ window.fichero = {
             return true;
         }
         console.warn("[fichero] edit not taken:", answer.reason || "no reason given", answer);
+        showEditNotice(answer.reason === "stale"
+            ? "Not saved: a line changed elsewhere while you edited. The page shows what the library has."
+            : `Not saved: ${answer.reason || "the library did not take it"}. The page shows what the library has.`);
         return answer.pageId ? refreshPage(answer.pageId) : false;
     },
 

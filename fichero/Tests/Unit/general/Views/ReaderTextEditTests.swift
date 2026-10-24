@@ -57,6 +57,34 @@ struct ReaderTextEditTests {
         #expect(ReaderTextEdit.split(message, of: line(text: nil), shownText: nil) == .failure(.tooFew))
     }
 
+    @Test("a Reader edit across lines is read whole and becomes ONE create_many; a stale or unknown line sends nothing")
+    func readingEditsBecomeOneBatch() throws {
+        let message = try #require(ReaderTextEdit.message(from: [
+            "kind": "readingEdits", "pageId": "p1", "segmentId": "l1",
+            "edits": [["segmentId": "l1", "text": "joined", "previous": "ab", "basedOn": "r1"]],
+            "leftOut": ["l2"]
+        ]))
+        #expect(message == .editedMany(
+            pageId: "p1", segmentId: "l1",
+            readings: [.init(segmentId: "l1", text: "joined", basedOn: "r1")], leftOut: ["l2"]
+        ))
+        #expect(ReaderTextEdit.message(from: ["kind": "readingEdits", "pageId": "p1", "segmentId": "l1"]) == nil)
+
+        var second = line()
+        second = Segment(
+            id: "l2", provisional: false, documentId: "p1", passId: "imported", kind: "line", kindRaw: nil,
+            version: 7, provenanceKind: .externalImport, anchor: second.anchor, baseline: nil, text: "x",
+            confidence: nil, language: nil, script: nil, direction: "rtl", sourceArtifactId: nil, boxIndex: 1,
+            pageIndex: nil, metadata: nil
+        )
+        let params = try #require(ReaderTextEdit.newReadings(for: message, segments: [line(), second]))
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(params)) as? [String: Any])
+        let left = try #require(json["left_out"] as? [[String: Any]])
+        #expect(left.count == 1 && left[0]["segment_id"] as? String == "l2" && left[0]["expected_version"] as? Int == 7)
+        #expect((json["readings"] as? [[String: Any]])?.first?["corrects_representation_id"] as? String == "r1")
+        #expect(ReaderTextEdit.newReadings(for: message, segments: [line()]) == nil, "an unknown line is not guessed at")
+    }
+
     @Test("a typed line is a NEW reading correcting the one typed over; the reply to the page is safe JSON")
     func newReadingAndReply() throws {
         let params = try #require(ReaderTextEdit.newReading(for: .edited(pageId: "p1", segmentId: "l1", text: "ܫܠܡܐ", basedOn: "r1")))

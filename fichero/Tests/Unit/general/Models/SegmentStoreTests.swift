@@ -505,9 +505,22 @@ final class SegmentStoreTests: XCTestCase {
         )
     }
 
-    func testTheStoreConsumesSegmentAndPassEventsOnly() {
+    func testTheStoreConsumesSegmentPassAndRepresentationEventsOnly() {
         let store = Self.storeWithMockTransport()
 
-        XCTAssertEqual(store.changeDomains, ["segment", "pass"])
+        XCTAssertEqual(store.changeDomains, ["segment", "pass", "representation"])
+    }
+
+    /// `source.inspector.shows-a-correction-at-once`: a reading written for a line moves THAT line's
+    /// readings generation and no other's, and never reloads the document.
+    func testARepresentationEventMovesOnlyTheNamedLinesReadingsGeneration() throws {
+        let store = Self.storeWithMockTransport()
+        let event = try changeEvent(type: "representation.created", documentIds: ["doc-1"], segmentIds: ["seg-2"])
+
+        store.apply(event)
+
+        XCTAssertEqual(store.readingRevision(for: "seg-2"), 1)
+        XCTAssertEqual(store.readingRevision(for: "seg-1"), 0)
+        XCTAssertEqual(store.revision(for: "doc-1"), 0, "no document reload")
     }
 }
