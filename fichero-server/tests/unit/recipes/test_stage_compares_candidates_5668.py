@@ -63,7 +63,7 @@ def test_names_is_compared_by_its_step_and_the_finders_next_candidate(client, db
     found_by = {"es_core_news_sm": ["Juan de la Cruz", "Popayán"], "llama3.2:latest": ["Juan de la Cruz", "Cartagena"]}
     ran_in = []
 
-    def fake_run(copy, card, documents, parent):
+    def fake_run(copy, card, documents, parent, adopt=None):
         ran_in.append((Path(copy.path).parent.name, card["model_override"]))
         for name in found_by[card["model_override"]]:
             copy.save(KnowledgeEntity(canonical_name=name, entity_type="person", source_document_ids=[documents[0]]))
@@ -150,7 +150,7 @@ def test_read_is_compared_by_agreement_and_by_errors_on_lines_a_person_corrected
 
     (page,) = _pages(db, tmp_path, 1)
     _set_up(client, ["find-lines", "read-a-line"])
-    def fake_run(copy, card, documents, parent):
+    def fake_run(copy, card, documents, parent, adopt=None):
         """The candidate Kraken reader reads (the first one as the person did, the other with two letters wrong);
         the stage's other steps (Correct) make nothing here."""
         model = str(card["model_override"])

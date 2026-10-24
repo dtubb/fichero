@@ -69,7 +69,7 @@ def _run_with_served_step_at(index, client, archive, steps, monkeypatch):
     held = []
     run_card = steps.run
 
-    def seen(db, card, documents, parent):
+    def seen(db, card, documents, parent, adopt=None):
         held.append(local_inference.served_models_held("mlx-a"))
         return run_card(db, card, documents, parent)
 

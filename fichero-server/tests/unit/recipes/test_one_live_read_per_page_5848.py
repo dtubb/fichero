@@ -123,8 +123,9 @@ def test_a_recipe_step_never_waits_on_a_paused_run():  # review 259 MED 3
     from fichero_server.recipes import runner as recipe
 
     _live("thread-a", ["p1"], status="paused")
-    child, state, why = recipe._join_live_run("thread-a", "job-1")  # returns at once, not after a poll loop
-    assert state == "failed" and "paused" in why
+    with pytest.raises(recipe.ParkedOnStepRun) as parked:  # returns at once, not after a poll loop: the recipe parks (#5933)
+        recipe._join_live_run("thread-a", "job-1")
+    assert parked.value.thread_id == "thread-a"
 
 
 def test_a_second_start_returns_while_the_first_is_joined():  # review 261 MED: the lock is not held while joining

@@ -8,13 +8,20 @@ unread.
 # ruff: noqa: F811 -- fixtures
 from __future__ import annotations
 
-import asyncio
 
 import pytest
 
 from fichero_server.execution import jobs
 from fichero_server.execution.cancellation import clear_pause, pause_requested
 from fichero_server.recipes import runner
+
+
+@pytest.fixture(autouse=True)
+def _lane_stays_asleep(monkeypatch):
+    """These tests set a row 'running' by hand; a woken lane would take that stale row up (and, after another test in the file
+    left the scheduler running, did), so the states asserted here would be the lane's, not the pause's."""
+    monkeypatch.setattr(jobs, "wake_lane", lambda db: None)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # enqueue wakes it too: it would claim the row at once
 
 
 def _running_recipe_with_a_step_run(db):
