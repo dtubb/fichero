@@ -232,3 +232,30 @@ async def test_kraken_pdf_page_emits_artifact_updated_naming_it(
     assert len(artifact_events) == 1
     assert art.id in artifact_events[0].artifact_ids
     assert page.id in artifact_events[0].document_ids
+
+
+def test_a_render_that_is_not_an_image_is_removed_and_counted_as_none(temp_library, tmp_path, monkeypatch):
+    """The rendered temp file goes whatever happens after the render (## 1012): one the page image cannot be opened from leaves
+    no file behind and counts as a page with nothing to look at."""
+    from fichero_server.models import Document, DocType, FileType
+    from fichero_server.recipes import regions
+    from fichero_server.workflows.tools import vision_base
+
+    library_path, db_manager = temp_library
+    db = db_manager.get_database(library_path)
+    pdf_path = tmp_path / "bad.pdf"
+    _make_pdf_with_text(pdf_path, ["x"])
+    parent = Document(name="bad.pdf", doc_type=DocType.file, file_type=FileType.pdf, path=str(pdf_path))
+    db.save(parent)
+    page = Document(name="bad.pdf p.1", doc_type=DocType.page, parent_id=parent.id, sequence=1)
+    db.save(page)
+    rendered = tmp_path / "render.png"
+
+    def fake_render(path, index, *a, **k):
+        rendered.write_bytes(b"not an image")
+        return str(rendered)
+
+    monkeypatch.setattr(vision_base, "_render_pdf_page_to_temp_png", fake_render)
+    account = regions.find_regions(db, [page.id], "", "kraken:blla", provider="kraken", person=True)
+    assert account["no_image"] == 1 and account["pages"] == 0
+    assert not rendered.exists(), "the rendered temp file was left behind"
