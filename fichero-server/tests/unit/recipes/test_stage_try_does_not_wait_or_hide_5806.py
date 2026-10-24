@@ -8,6 +8,7 @@ said nothing; Prepare Images' try was refused 422 with nothing on screen.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from fichero_server.execution import jobs
 from fichero_server.recipes import samples
@@ -22,8 +23,10 @@ def test_a_stage_try_has_a_lane_of_its_own_wide_enough_for_two():
 
 
 def test_a_try_waiting_on_a_download_says_what_for_with_its_progress(db, monkeypatch):
+    # Not due until 2099: a lane an earlier test (in a full run) registered the kind on must not claim it and run its
+    # real body, which reads a samples file this row has none of.
     try_id = jobs.enqueue(db, samples.TRY_KIND, "read:aaaaaaaa", started_by="test", watched=True,
-                          detail=json.dumps({"stage": "read", "pages": []}))
+                          detail=json.dumps({"stage": "read", "pages": []}), run_after=datetime(2099, 1, 1))
     download = jobs.enqueue(db, "download-model", "omlx:qwen2.5-vl-7b", started_by="test")
     # The try is the job whose body is running (`current_job_id`), so it is marked running: left queued, a lane a
     # earlier test registered the kind on would run its real body here and overwrite the reason with its own error.
