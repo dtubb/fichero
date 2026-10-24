@@ -104,6 +104,8 @@ struct SetupStagePage: View {
             if store.startPlan == nil { await store.loadStartPlan() }
             await loadCandidates()
         }
+        // Use This / Use <smaller> instead: the stage's compared and listed candidates read again, so the chosen one is marked at once.
+        .onChange(of: store.choiceRevision) { Task { await loadCandidates() } }
     }
 
     nonisolated static func notInPlanWords(stage title: String) -> String { "\(title) is not in this plan yet." }

@@ -413,8 +413,10 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertEqual(body["step"] as? String, "read")
         XCTAssertEqual(body["card"] as? String, "mlx:hf/example/ocr-mlx@main")
         XCTAssertNil(setup.errorMessage)
+        XCTAssertEqual(setup.choiceRevision, 1, "an accepted choice moves the revision the finder reads again on")
 
         await setup.useCandidate(found, forStep: "lines")
+        XCTAssertEqual(setup.choiceRevision, 1, "a refused choice moves nothing")
         XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate").count, 2)
         XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
