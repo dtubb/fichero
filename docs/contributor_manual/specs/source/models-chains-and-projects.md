@@ -2123,6 +2123,8 @@ Hub (chat builds counted as left out), an unstated size says so, and the online 
 (`source.find.online-search-is-a-job`). Still owed: installed Kraken readers outside the
 repository, spaCy pipelines, YOLO weights.
 
+- `source.onboard.nothing-fits-names-nearest` — **[PARTIAL]** (#6071) for a handwritten project, a card that reads the related script in print only (its `handwriting_scripts` has no related family) is not named nearest. Pinned by `test_apple_vision_is_nearest_for_printed_traditional_han_but_not_handwritten`, which lands with the fix on m-bugs-lzh (3a0a9d5e6), not yet on cand 16.
+
 **Training layout models (YOLO) and tables (proposed, maintainer 2026-10-05, #5525).**
 Fichero reads and writes YOLO labels today (`formats/yolo.py`) but has no YOLO training. The
 proposal: a `train-a-model` kind for layout, using the same training set builder as Kraken (pages
