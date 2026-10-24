@@ -77,7 +77,8 @@ enum InspectorLanguage {
         }
         let failed = reads.filter { $0 == nil }.count
         if failed > 0 {
-            return .note("The settings of \(failed) selected \(failed == 1 ? "line" : "lines") could not be read, so they are not compared.")
+            let lines = failed == 1 ? "line" : "lines"
+            return .note("The settings of \(failed) selected \(lines) could not be read, so they are not compared.")
         }
         return .rows(rows(selection: reads.compactMap { $0 }))
     }
