@@ -329,10 +329,16 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         return thread_id, "failed", str(getattr(exc, "detail", exc))
 
     async def go() -> dict[str, Any] | None:
+        from fichero_server.execution.cancellation import link_child, unlink_child
+
         await _record_step_run_accepted(db, thread_id, workflow, request)
         jobs.set_parent(db, thread_id, parent)
-        return await _until_ended(db, thread_id, asyncio.ensure_future(
-            _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)), parent)
+        link_child(parent, thread_id)  # a tool's own between-pages check sees the recipe's Stop at once
+        try:
+            return await _until_ended(db, thread_id, asyncio.ensure_future(
+                _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)), parent)
+        finally:
+            unlink_child(thread_id)
 
     dead = asyncio.run(go())
     _closed_stops_the_recipe(db, thread_id, parent)
