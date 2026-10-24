@@ -10,9 +10,12 @@ library's `embed`, which loads the embedding model.
 """
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
+
+from fichero_server.execution import jobs
 
 from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (fixtures)
     _finished,
@@ -119,7 +122,9 @@ def test_search_runs_the_embed_job_for_each_page(client, db, pages, tmp_path, en
     assert [(s["steps"], s["state"]) for s in run["steps"]] == [(["lines", "read"], "done"), (["search"], "done")]
     tree = client.get(f"/api/activity/jobs/{run['job_id']}").json()
     vectors = [c for c in tree["children"] if c["kind"] == "make-a-vector"]
-    assert sorted(c["subject"] for c in vectors) == sorted(p.id for p in pages)
+    # the search step embeds the pages in batches of 64, one job each (#5954): one `batch:<id>` job holds every page
+    assert [c["subject"].startswith("batch:") for c in vectors] == [True]
+    assert sorted(json.loads(jobs.read_job(db, vectors[0]["id"])["detail"])["documents"]) == sorted(p.id for p in pages)
     assert all(c["state"] == "done" for c in vectors)
     assert sorted(embedded) == sorted(p.id for p in pages)
 
