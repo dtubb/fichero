@@ -75,7 +75,7 @@ db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 # opens (the migration is idempotent and runs again next open), so the open never fails over it.
 # #5657: finishing or rolling back a transfer a crash left half-way runs on open; a failure is logged and
 # the project still opens (the journal keeps the record, so the next open tries again).
-db/manager.py::DatabaseManager.get_database 9
+db/manager.py::DatabaseManager.get_database 10
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
 db/storage.py::_generate_image 1
@@ -225,3 +225,17 @@ db/manager.py::_stop_jobs 1
 # #5440: training under `here` starting by itself never fails the recipe step that asked; a refusal is a
 # warning in the log and the train offer stays on the Start plan for the person to start by hand.
 recipes/train_offers.py::start_when_ready 1
+# Cand 15 additions, each best-effort by design (the work they sit beside stands without them):
+# #6007: a teardown step that fails is logged and the next step still runs (databases are closed even when an earlier step failed).
+api/main.py::_step 1
+# #5953: the chosen thread numbers are a log line; failing to write it never stops a read.
+llm/kraken_runtime.py::_note_threads_chosen 1
+# #5968: the one retry the lint asks of the model; a failure keeps the first answer, and the cut and the flag still apply (the flag is returned).
+llm/catalogue_lint.py::enforce 1
+# #6002: the page-text repair runs on open and is idempotent; each step's failure is logged, the project opens, and the next open tries again.
+maintenance/page_text_repair.py::_record_finished_row 1
+maintenance/page_text_repair.py::_transcription_of 1
+maintenance/page_text_repair.py::repair_classification_page_text 1
+maintenance/page_text_repair.py::repair_on_open 1
+# #5933: saying a failed resume on the recipe's row is a courtesy; the log has the reason.
+recipes/runner.py::_resume_step_run.said 1

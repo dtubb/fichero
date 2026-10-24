@@ -42,6 +42,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from fichero_server.db import document_tree
 from fichero_server.execution import jobs
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
@@ -412,7 +413,7 @@ def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> N
         if exc is not None and recipe_id is not None:
             try:
                 # This runs on the engine's loop thread, not the request's: say it through the store's own open connection.
-                (db_manager.open_database(key) or db).execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Could not resume its step: {exc}", recipe_id])
+                document_tree.set_job_reason(db_manager.open_database(key) or db, recipe_id, f"Could not resume its step: {exc}")
             except Exception:  # noqa: BLE001 -- the row is what we can say it on; the log has the rest
                 logger.exception("could not say the failed resume of %s on %s", thread_id, recipe_id)
             logger.warning("recipe %s: resuming its step run %s failed: %s", recipe_id, thread_id, exc)
@@ -457,21 +458,21 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
             if run is not None:  # keep 'awaiting': adopting reads the run's own outcome, nothing is read again
                 if run.get("status") == "paused":
                     _resume_step_run(db, awaited, job_id)
-                db.execute("UPDATE jobs SET run_after = NULL, reason = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+                document_tree.release_waiting_job(db, job_id, clear_reason=True)
                 jobs.wake_lane(db)
                 return jobs._job_row(db, job_id)[1]
             row = jobs.read_job(db, job_id)
             detail = json.loads(row["detail"] or "{}")
             detail.pop("awaiting", None)
             jobs.save_detail(db, job_id, json.dumps(detail), reason="Its step run is gone; the recipe starts that step again")
-            db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+            document_tree.release_waiting_job(db, job_id)
             jobs.wake_lane(db)
             return jobs.pause_stored(db, job_id, False, state)
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
             _resume_step_run(db, awaited, job_id)
-            db.execute("UPDATE jobs SET run_after = NULL, reason = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+            document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
             return jobs._job_row(db, job_id)[1]
         return jobs.pause_stored(db, job_id, False, state)
@@ -481,8 +482,8 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         clear_pause(child)  # still winding down to its pause: let it go on
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
-    db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND reason IN (?, 'Paused with its run')", [job_id, jobs.PAUSING])
-    db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'waiting'", [job_id])  # a parked recipe is taken up now
+    document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, "Paused with its run"))
+    document_tree.release_waiting_job(db, job_id)  # a parked recipe is taken up now
     jobs.wake_lane(db)
     return jobs._job_row(db, job_id)[1]
 
