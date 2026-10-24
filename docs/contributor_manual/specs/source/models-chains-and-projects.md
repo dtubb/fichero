@@ -4856,3 +4856,6 @@ Each is described in the paragraph named; the id lets a test cite it.
   (`inspectorColumnBounds()`), outside every environment and geometry wrapper, and nothing else sets that column's width. Audited 2026-10-24: no workspace
   (`WorkspaceMount`, `BuiltInWorkspaceLayout`, `WorkspaceSplitStack`) owns the real Inspector (its `.inspector` pane is a centre-pane placeholder; the saved
   `inspectorWidth` is only clamped, never applied) (`InspectorPaneWidthTests.swift`). Dragging it must not hang the app (P0, the owner's log: onChange updated multiple times per frame): the window-width reading that drives column visibility is applied once the width has settled (150 ms), the first reading at once (`WindowWidthSettle`), and a pane's frame is recorded only when it changed (`WindowWidthSettleTests.swift`).
+- `source.inspector.order-tab-keeps-the-tabs` — **[PARTIAL]** (owner bug, built, uncompiled; cause from reading, not reproduced) Choosing a line in the Inspector's Order tab never replaces the Source section's tab bar
+  (Content, Info, Outline, Order): the hold on what the Inspector shows is kept when the Preview hands the same lines back in another order (compared as a set),
+  so there is always a way back to Content (`LineRevealTests.swift`).

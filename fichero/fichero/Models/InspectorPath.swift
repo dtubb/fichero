@@ -140,7 +140,10 @@ struct InspectorPath: Equatable {
 
         /// What the Inspector inspects, given the focused pane's selection.
         static func inspected(_ selected: [String], held: Hold?) -> [String] {
-            guard let held, held.wrote == selected else { return selected }
+            // The same ids in another order are the same selection: `select` answers them in the click's order and the Preview
+            // hands them back in box order, and a mismatch ended the hold, so the Order list's own click swapped the whole
+            // Source section (its tab bar with it) for the line's inspector.
+            guard let held, Set(held.wrote) == Set(selected) else { return selected }
             return held.shown
         }
     }
