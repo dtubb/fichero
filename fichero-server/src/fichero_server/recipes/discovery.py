@@ -2191,8 +2191,8 @@ def does_the_step(card: Card, job: str) -> bool:
     """Whether a card does a step's job: the ONE rule behind both what a step's menu lists (`step_candidates`) and what
     `use-candidate` accepts (`recipes/start.py::use_candidate`), so a listed model is never one the press refuses (#5808).
     A reader of whole pages that runs somewhere else (a cloud vision model, a model on the person's other computer) also
-    reads the line step's lines: it is sent Kraken's line pictures (`cloud-reads-kraken-lines`). One on this Mac (Apple's
-    recognition, a local vision model) does not do the line step."""
+    reads the line step's lines: it is sent Kraken's line pictures (`cloud-reads-kraken-lines`). One on this Mac (a local
+    vision model) does not do the line step; Apple's recognition does, its card says so (`read-a-line`, #6071)."""
     if job in card.jobs:
         return True
     return job == "read-a-line" and "read-a-page" in card.jobs and (card.runs_on or "this-mac") != "this-mac"
