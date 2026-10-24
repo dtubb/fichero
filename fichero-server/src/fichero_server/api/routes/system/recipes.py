@@ -2496,10 +2496,10 @@ def _catalogue_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _folders_covering(db: Database, page_ids: list[str]) -> int:
-    """How many folders a Catalogue run over these pages describes (each folder above them, once)."""
-    from fichero_server.recipes.catalogue_step import folders_covering
+    """How many folders a Catalogue run over these pages describes (each folder above them, once; those already described are not priced)."""
+    from fichero_server.recipes.catalogue_step import folders_to_describe
 
-    return len(folders_covering(db, page_ids)) if page_ids else 0
+    return len(folders_to_describe(db, page_ids)[0]) if page_ids else 0
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
