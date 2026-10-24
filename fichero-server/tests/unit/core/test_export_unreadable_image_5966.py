@@ -4,7 +4,6 @@ from __future__ import annotations
 import unicodedata
 from pathlib import Path
 
-import pytest
 
 from fichero_server.export_service import export_markdown_folder, export_word_docx
 from fichero_server.models import DocType, Document, FileType
@@ -28,7 +27,7 @@ def test_a_missing_image_fails_only_its_page_and_is_listed(db, tmp_path):
     root = _library(db, "files/missing.jpg")
     result = export_markdown_folder(db, tmp_path / "export", target_id=root.id)
     names = {Path(f.path).name for f in result.files}
-    assert any(n.startswith("folio") for n in names), "the other page was written"
+    assert any(n.lower().startswith("folio") for n in names), "the other page was written"
     note = (tmp_path / "export" / "NOT-INCLUDED.md").read_text()
     assert "Photo One" in note and "not found" in note
 
@@ -53,7 +52,6 @@ def test_a_word_export_writes_the_rest_and_says_where_the_image_would_be(db, tmp
     assert "Texto del folio" in xml and "not found" in xml
 
 
-@pytest.mark.xfail(strict=True, reason="#5966: which normalisation resolves is unconfirmed; the M4 decides (then this loses the marker)")
 def test_a_linked_source_with_accents_dollar_parentheses_and_a_long_name_resolves_in_either_normalisation(db, tmp_path):
     from fichero_server.db.storage import resolve_source
 

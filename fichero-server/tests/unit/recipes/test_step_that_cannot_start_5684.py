@@ -23,7 +23,7 @@ def test_a_step_that_cannot_start_fails_alone_in_one_plain_line(client, db, page
     _save(client, RECIPE)
     plain_run = steps.run
 
-    def run(db_, card, documents, parent):
+    def run(db_, card, documents, parent, adopt=None):
         if "correct" in card["steps"]:
             steps.ran.append(card["steps"])
             raise ImportError(DLOPEN)

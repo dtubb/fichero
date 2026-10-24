@@ -47,7 +47,7 @@ def test_the_plan_lists_the_candidates_of_a_step_and_marks_exactly_one(client, p
     assert sum(c["recommended"] for c in choice["candidates"]) == 1
     claude = next(c for c in choice["candidates"] if c["card"] == CLAUDE)
     assert claude["how"] == "cloud-reads-kraken-lines" and not claude["local"] and not claude["available"]
-    assert {n["kind"] for n in claude["needs"]} == {"permission", "key"}  # listed greyed, with what it needs, never hidden
+    assert {n["kind"] for n in claude["needs"]} >= {"permission", "key"}  # (a price may be listed too) listed greyed, with what it needs, never hidden
 
 
 def test_a_choice_is_kept_as_the_persons_and_taking_it_back_restores_set_ups_pick(client, project):
@@ -165,7 +165,7 @@ def test_only_a_card_that_runs_on_this_mac_is_free_a_cluster_or_gpu_service_is_u
     for where, words in (("cluster", "a cluster"), ("gpu-service", "a GPU service")):
         c = _cost(SimpleNamespace(runs_on=where), 10)
         assert c["value"] is None and c["basis"] == "unknown" and words in c["from"] and "free" not in c["from"]
-        assert where not in c["from"], "an internal id is not words"
+        assert f"runs on {where}" not in c["from"], "an internal id is not words"  # ("a cluster" holds the word)
 
 
 def _unsure(plan):
@@ -214,7 +214,8 @@ def test_kraken_then_a_cloud_correction_is_refused_in_words_when_kraken_is_not_t
 def test_each_candidate_lists_every_place_it_can_run(client, project, claude_row):
     """`places`: the finder's `PlaceOption`s (`where_it_runs`), a cloud model at its provider, Kraken here and at Hugging Face Jobs."""
     candidates = _read_choice(_plan(client))["candidates"]
-    cloud = next(c for c in candidates if c["card"] == CLAUDE)
+    # with the person's own Claude row, the listed card is that model's (`anthropic:<model>@<provider row>`), not the generic one
+    cloud = next(c for c in candidates if c["runs_on"].startswith("cloud:") and not c["card"].startswith("corrects-unsure:"))
     assert [p["place"] for p in cloud["places"]] == ["provider"] and cloud["places"][0]["name"] == "anthropic"
     kraken = next(c for c in candidates if c["how"] == "kraken")
     assert [p["place"] for p in kraken["places"]][:2] == ["this-mac", "hf-jobs"] and kraken["places"][0]["can"]

@@ -114,7 +114,7 @@ def test_blank_versos_are_not_read(client, db, tmp_path, jobs_run_by_the_test, m
     assert finddocs_job.blank_versos(db, list(ids.values())) == versos
     seen: list[list[str]] = []
 
-    def workflow(db_, card, documents, parent):
+    def workflow(db_, card, documents, parent, adopt=None):
         seen.append(documents)
         return "thread", "done", None
 

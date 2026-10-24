@@ -127,7 +127,7 @@ def test_names_step_runs_the_shipped_names_workflow_held_under_an_old_id(client,
     from fichero_server.recipes import runner
 
     real, stub = runner._run_workflow, Steps()
-    monkeypatch.setattr(runner, "_run_workflow", lambda db, card, documents, parent: (
+    monkeypatch.setattr(runner, "_run_workflow", lambda db, card, documents, parent, adopt=None: (
         real if card["job"] == "find-names-tag-words" else stub.run)(db, card, documents, parent))
     _save(client, RECIPE[:2] + [{"id": "names", "job": "find-names-tag-words", "model": SPACY}])
 
@@ -153,7 +153,7 @@ class Steps:
         self.ran: list[list[str]] = []
         self.fail: dict[str, str] = {}
 
-    def run(self, db, card, documents, parent):
+    def run(self, db, card, documents, parent, adopt=None):
         child = f"thread-{uuid.uuid4().hex[:12]}"
         self.ran.append(card["steps"])
         why = next((self.fail[s] for s in card["steps"] if s in self.fail), None)
