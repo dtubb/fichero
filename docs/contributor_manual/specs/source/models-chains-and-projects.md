@@ -4864,3 +4864,8 @@ Each is described in the paragraph named; the id lets a test cite it.
   load, but the `SegmentStore` reacts to segment and pass events only, so the load returned the list held from before the run (nothing). The overlay's load now carries
   the artifact generation (`load(documentId:seeingArtifactRevision:)`): a moved generation re-reads the page, the same generation does not (`SegmentStoreTests.swift`;
   the Order tab, which loads on appear, always showed the lines, which is why the Inspector and the Lines pane had them and the Preview did not).
+- `source.textedit.reader-edit-is-one-step` — **[PARTIAL]** (owner bug 2026-10-24, Reader edits do not stick; engine half built, tested; the page and app half follow) A Reader edit that reaches several lines is
+  written by ONE action, `representation.create_many` (`POST /api/content-representations/batch`): the readings are written exactly as `representation.create` writes them (one shared writer),
+  and a line whose text was deleted entirely is marked `is_furniture` (left out of the Reader text), never deleted: its segment stays. One audit row, so one undo (`representation.retract_many`,
+  which also puts the lines back) and one redo (`representation.unretract_many`). All or nothing: a stale left-out line refuses the whole edit with 409 and writes nothing
+  (`test_reader_save_many.py`).

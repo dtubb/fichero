@@ -2934,6 +2934,16 @@
         "response_model": "ContentRepresentation"
       },
       {
+        "method": "POST",
+        "path": "/content-representations/batch",
+        "operation_id": "create_representations_batch_route_api_content_representations_batch_post",
+        "summary": "Create Representations Batch Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RepresentationCreateManyParams",
+        "response_model": "RepresentationCreateManyResponse"
+      },
+      {
         "method": "GET",
         "path": "/content-representations/document/{document_id}",
         "operation_id": "list_representations_api_content_representations_document__document_id__get",
