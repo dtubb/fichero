@@ -1969,9 +1969,11 @@ async def chat(
         try:
             async def _once():
                 async with _remote_llm_call_slot(config):
-                    return await asyncio.wait_for(
+                    answer = await asyncio.wait_for(
                         model.ainvoke(messages), timeout=budget,
                     )
+                    record_call_usage(config, answer)  # inside the slot: the open reservation books what it cost, not its worst case
+                    return answer
 
             response = await _resilient(_once, config)
         except asyncio.TimeoutError as exc:
@@ -1987,15 +1989,6 @@ async def chat(
         # Surface usage_metadata to the cost-tracking layer (#844 item 8 +
         # #852). AIMessage.usage_metadata is the LangChain ≥0.3 standard
         # shape: input_tokens / output_tokens / total_tokens dict.
-        usage = usage_from_message(response)
-        if usage:
-            _record_usage(
-                config.provider, config.model, "chat", place=_place_of(config),
-                input_tokens=usage["input_tokens"],
-                output_tokens=usage["output_tokens"],
-                total_tokens=usage["total_tokens"],
-                cache_read_tokens=usage["cache_read_tokens"],
-            )
         return _strip_outer_code_fences(response.content)
 
 
@@ -2891,9 +2884,11 @@ async def vision(
     try:
         async def _once():
             async with _remote_llm_call_slot(config):
-                return await asyncio.wait_for(
+                answer = await asyncio.wait_for(
                     model.ainvoke([message]), timeout=budget,
                 )
+                record_call_usage(config, answer, "vision")  # inside the slot: booked at its cost, not its worst case
+                return answer
 
         response = await _resilient(_once, config)
     except asyncio.TimeoutError as exc:
@@ -2907,14 +2902,6 @@ async def vision(
         _raise_provider_quota_error(config, exc)
         raise
     usage = usage_from_message(response)
-    if usage:
-        _record_usage(
-            config.provider, config.model, "vision", place=_place_of(config),
-            input_tokens=usage["input_tokens"],
-            output_tokens=usage["output_tokens"],
-            total_tokens=usage["total_tokens"],
-            cache_read_tokens=usage["cache_read_tokens"],
-        )
     result = _strip_outer_code_fences(response.content)
     if isinstance(result, str):
         # The model's own "I ran out of room" rides the answer (#5522), so the read checker can
