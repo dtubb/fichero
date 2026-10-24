@@ -1936,8 +1936,15 @@ def _search_when_known(db: Database, answers: Optional[dict]) -> None:
         logger.warning("the automatic model search could not be queued", exc_info=True)
 
 
+def _setup_to_restore(before: dict | None) -> dict:
+    """The setup an undo puts back. The before-state came from read_project_setup, which reports the response-only
+    cloud_inherited beside the answers (## 1101); ProjectSetup forbids it, so the replay drops it, for audit rows
+    already saved with it too."""
+    return {k: v for k, v in (before or {}).items() if k != "cloud_inherited"} or {"answers": None, "recipe": None}
+
+
 def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionContext):
-    return ("project.save_setup", before or {"answers": None, "recipe": None})
+    return ("project.save_setup", _setup_to_restore(before))
 
 
 @action("project.save_setup", ProjectSetup, domains=["project"], undoable=True,
@@ -1976,7 +1983,7 @@ class AllowCloudParams(BaseModel):
 
 
 def _invert_allow_cloud(before: dict | None, after: dict | None, ctx: ActionContext):
-    return ("project.save_setup", before or {"answers": None, "recipe": None})
+    return ("project.save_setup", _setup_to_restore(before))
 
 
 @action("project.allow_cloud", AllowCloudParams, domains=["project"], undoable=True, invert=_invert_allow_cloud)
