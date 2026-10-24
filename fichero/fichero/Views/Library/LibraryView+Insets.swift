@@ -59,8 +59,17 @@ extension LibraryView {
     }
 
     func refreshPendingStatusesFromLiveUpdate() {
-        guard hasProcessingDocuments, let parentId = folderId else { return }
+        guard hasProcessingDocuments, let parentId = Self.engineFolderId(fromPaneFolderId: folderId) else { return }
         documentStore.refreshPendingStatusesDebounced(in: parentId)
+    }
+
+    /// The engine's document id for the pane's folder, or nil when the pane lists a project's top level ("library:<uuid>",
+    /// which is the sidebar's id, not a node the engine has): asking for its children was a 404 on every live update and
+    /// every 15 s poll (`source.library.no-children-poll-of-a-project`, #6026).
+    nonisolated static func engineFolderId(fromPaneFolderId id: String?) -> String? {
+        guard let id else { return nil }
+        guard case .document(let documentId)? = SidebarDestination(serializedID: id) else { return nil }
+        return documentId
     }
 
     /// Shown for a load that failed because the engine was unreachable

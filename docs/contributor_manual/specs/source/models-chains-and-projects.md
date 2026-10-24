@@ -4082,6 +4082,9 @@ Trying another option
 - `source.try.bakeoff-hidden-until-corrected` — **[PARTIAL]** (#6016; built, uncompiled) The comparison block shows only once the project has
   a comparison kept or enough corrected lines (`BakeoffStore.isShown`); a new project shows nothing, and onboarding (Set Up) never
   shows it: it lives in the Inspector under the reading step (`BakeoffStoreTests.swift`).
+- `source.library.no-children-poll-of-a-project` — **[PARTIAL]** (#6026; built, uncompiled) The pending-status refresh (live update and the 15 s
+  fallback poll) asks the engine for the children of a document only: a pane that lists a project's top level (sidebar id
+  "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
