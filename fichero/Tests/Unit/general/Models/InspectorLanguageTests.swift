@@ -55,9 +55,15 @@ struct InspectorLanguageTests {
     func selectionNotes() {
         let one = [setting("language", "es", source: "user")]
         #expect(InspectorLanguage.selection([one, one], total: 2, cap: 200) == .rows(InspectorLanguage.rows(selection: [one, one])))
-        guard case .note(let failed) = InspectorLanguage.selection([one, nil], total: 2, cap: 200) else { return Issue.record("a failed read must say so") }
+        guard case .note(let failed) = InspectorLanguage.selection([one, nil], total: 2, cap: 200) else {
+            Issue.record("a failed read must say so")
+            return
+        }
         #expect(failed.contains("could not be read"))
-        guard case .note(let many) = InspectorLanguage.selection([], total: 201, cap: 200) else { return Issue.record("past the cap must say so") }
+        guard case .note(let many) = InspectorLanguage.selection([], total: 201, cap: 200) else {
+            Issue.record("past the cap must say so")
+            return
+        }
         #expect(many.contains("201 lines"))
     }
 }
