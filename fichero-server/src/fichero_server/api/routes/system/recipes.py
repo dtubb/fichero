@@ -118,7 +118,9 @@ class AssembleRequest(BaseModel):
     languages: list[str] = Field(min_length=1, description=(
         "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, "
         "and refused in words otherwise (source.onboard.language-stored-as-tag)"))
-    scripts: list[str] = Field(min_length=1, description="ISO 15924 script codes (or a script's English name)")
+    scripts: list[str] = Field(default_factory=list, description=(
+        "ISO 15924 script codes (or a script's English name); at least one, except with the language 'und' (Not sure: the engine "
+        "works the script out from the sample pages, `inferred_language`)"))
     materials: list[str] = Field(default_factory=list, description=(
         "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read "
         "(source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, "
@@ -164,6 +166,12 @@ class AssembleRequest(BaseModel):
     job_answers: dict[str, Any] = Field(default_factory=dict, description=(
         "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
         "step it configures (source.onboard.auto.job-answers-read)"))
+
+    @model_validator(mode="after")
+    def _scripts_unless_not_sure(self) -> "AssembleRequest":
+        if not self.scripts and self.languages != ["und"]:
+            raise ValueError("scripts: give at least one script, or say the language is 'und' (Not sure) and it is worked out from the pages")
+        return self
 
 
 class RecipeCard(BaseModel):
@@ -1189,7 +1197,7 @@ async def assemble_recipe(
     if library is not None and _without_material(http):
         raise HTTPException(status_code=422, detail=NO_MATERIAL_TO_PLAN)
     try:
-        recipe = _assemble(request.model_dump(), library)
+        recipe = await asyncio.to_thread(_assemble, request.model_dump(), library)  # "Not sure" runs a quick read: off the loop
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     problems = [] if recipe["gaps"] else check_recipe(recipe)
@@ -1870,7 +1878,7 @@ async def save_project_setup(
                 # A recipe already stored is kept: the person's own choices of model stay.
                 library = _library(db)
                 if read_project_setup(library).get("recipe") is None:
-                    params["recipe"] = _assemble(params["answers"], library)
+                    params["recipe"] = await asyncio.to_thread(_assemble, params["answers"], library)
         if params.get("recipe"):
             # A Use This made since the app loaded this recipe is kept, an override a PUT adds is dropped (an undo goes through the action)
             from fichero_server.recipes import bakeoff

@@ -45,8 +45,40 @@ def test_unsure_is_und_alone_with_no_script():
 
 
 def test_a_plan_with_not_sure_still_proposes_a_model_for_every_step():
-    recipe = routes._assemble({"purposes": ["search"], "materials": ["handwriting"], "languages": ["und"]})
+    recipe = routes._assemble({"purposes": ["search"], "materials": ["handwriting"], "languages": ["und"], "scripts": []})
     models = {s["job"]: s.get("model") for s in recipe["steps"] if s["job"] in ("find-lines", "read-a-line")}
     assert models["find-lines"] == {"kraken": "blla", "kraken_version": "5.2"} or models["find-lines"], models
     assert all(models.values()), models
     assert recipe["gaps"] == []
+
+
+def test_the_guess_is_kept_per_sample_set_and_read_again_when_the_samples_change(monkeypatch, tmp_path):
+    db, ids = _db([SPANISH])
+    monkeypatch.setattr(samples, "_chosen", lambda _db: {"pages": [{"id": i} for i in ids]})
+    reads = []
+    real = language_guess._page_text
+    monkeypatch.setattr(language_guess, "_page_text", lambda *a: reads.append(1) or real(*a))
+    language_guess._KEPT.clear()
+    first = language_guess.infer(db, tmp_path)
+    assert language_guess.infer(db, tmp_path) == first and len(reads) == 1, "a second assemble does not read the pages again"
+    db2, ids2 = _db([SPANISH, SPANISH])
+    monkeypatch.setattr(samples, "_chosen", lambda _db: {"pages": [{"id": i} for i in ids2]})
+    language_guess.infer(db2, tmp_path)
+    assert len(reads) == 3, "a different sample set is read again"
+
+
+def test_assemble_through_a_project_says_what_was_worked_out(client, with_material):
+    """The library path: the route reads the project's own sample pages and answers with `inferred_language` (code or null, always a sentence)."""
+    language_guess._KEPT.clear()
+    r = client.post("/api/recipes/assemble", json={"purposes": ["search"], "materials": ["handwriting"], "languages": ["und"], "scripts": []})
+    assert r.status_code == 200, r.text
+    found = r.json()["inferred_language"]
+    assert found["from"] == "pages" and found["sentence"] and set(found) == {"code", "name", "script", "from", "sentence"}
+    assert all(s["model"] for s in r.json()["steps"] if s["job"] in ("find-lines", "read-a-line"))
+    plain = client.post("/api/recipes/assemble", json={"purposes": ["search"], "materials": ["handwriting"], "languages": ["es"], "scripts": ["Latn"]})
+    assert plain.json()["inferred_language"] is None
+
+
+def test_a_known_language_still_needs_a_script_only_not_sure_may_leave_it_out(client, with_material):
+    bad = client.post("/api/recipes/assemble", json={"purposes": ["search"], "materials": ["handwriting"], "languages": ["es"], "scripts": []})
+    assert bad.status_code == 422 and "scripts" in bad.text
