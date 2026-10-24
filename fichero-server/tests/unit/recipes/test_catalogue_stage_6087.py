@@ -63,7 +63,7 @@ def test_a_new_folder_redoes_itself_and_its_parent_only(db, asked):
     new = [_node(db, f"n{i}", DocType.page, fresh, f"New letter {i}") for i in range(3)]
     account = catalogue_step.describe_folders(db, new, CONFIG, run_id=None)
     assert account["described"] == 2  # Box 2 and Top; Box 0 and Box 1 are not asked again
-    assert not any("Old letter" in m and "Page q" in m for m in asked)
+    assert len(asked) == 2 and not any(m.startswith(("Folder name: Box 0", "Folder name: Box 1")) for m in asked)
 
 
 def test_a_folder_with_no_reading_is_left_without_a_description(db, asked):
