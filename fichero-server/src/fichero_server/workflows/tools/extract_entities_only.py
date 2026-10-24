@@ -18,6 +18,7 @@ from collections import defaultdict
 from typing import Any, Iterator
 
 from fichero_server.db import db_manager
+from fichero_server.execution.cancellation import WorkflowCancelled, cancellation_requested
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
 from fichero_server.loaders.rtf_text import to_plain_text
@@ -457,7 +458,12 @@ async def extract_entities_only(
                 )
         return {"resolution": resolution, "extraction": extraction}
 
+    run_id = state.get("task_id", "")
     async for (index, record), pre in ahead_of_run(enumerate(records), start, max_in_flight):
+        # The run's Stop takes effect between pages (`activity.run.stop-reaches-its-step`): the pages gone over keep their
+        # names and their note (`page_finished`), and a start again goes on from the next.
+        if cancellation_requested(run_id):
+            raise WorkflowCancelled(run_id)
         processed += 1
         doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
         await emit_progress_event(
