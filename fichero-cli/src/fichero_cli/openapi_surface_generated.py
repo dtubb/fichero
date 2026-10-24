@@ -13395,7 +13395,7 @@ def register_generated_openapi_commands(
         purpose: Optional[str] = typer.Option(None, '--purpose', help='a single purpose, as before 2026-10-05: read as a list of one.'),
         purposes: Optional[list[str]] = typer.Option(None, '--purposes', help="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         removed_jobs: Optional[list[str]] = typer.Option(None, '--removed-jobs', help='steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        scripts: list[str] = typer.Option(..., '--scripts', help="ISO 15924 script codes (or a script's English name) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        scripts: Optional[list[str]] = typer.Option(None, '--scripts', help="ISO 15924 script codes (or a script's English name); at least one, except with the language 'und' (Not sure: the engine works the script out from the sample pages, `inferred_language`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Assemble Recipe (POST /api/recipes/assemble)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13442,7 +13442,7 @@ def register_generated_openapi_commands(
                 "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
                 "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
                 "removed_jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Removed Jobs', 'description': 'steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)', 'x-cli-required': False},
-                "scripts": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scripts', 'description': "ISO 15924 script codes (or a script's English name)", 'x-cli-required': True},
+                "scripts": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scripts', 'description': "ISO 15924 script codes (or a script's English name); at least one, except with the language 'und' (Not sure: the engine works the script out from the sample pages, `inferred_language`)", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

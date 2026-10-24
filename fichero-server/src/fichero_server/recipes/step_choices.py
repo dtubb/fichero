@@ -10,8 +10,11 @@ import copy
 from collections.abc import Callable
 from typing import Any
 
-CHOICE_JOBS = ("read-a-line", "read-a-page", "correct")
-_STAGE_WORDS = {"read-a-line": "Read lines", "read-a-page": "Read pages", "correct": "Correct"}
+#: The steps with a choice of model: the readers, Correct, and the two text steps (spaCy, Apple Intelligence, a model of the person's own,
+#: a cloud model: `source.onboard.step-candidates-on-the-plan`, Test 13).
+CHOICE_JOBS = ("read-a-line", "read-a-page", "correct", "find-names-tag-words", "find-statements")
+_STAGE_WORDS = {"read-a-line": "Read lines", "read-a-page": "Read pages", "correct": "Correct",
+                "find-names-tag-words": "Find names", "find-statements": "Find statements"}
 
 
 #: Where a card that is neither this Mac nor a cloud service runs, in the words the plan shows (never the internal id).
@@ -159,15 +162,16 @@ def step_choices(recipe: dict[str, Any] | None, answers: dict[str, Any] | None, 
                     "wording": UNSURE_WORDS if job == "correct" and kraken_reads else None,
                     "certainty_bar": bar if job == "correct" and kraken_reads else None, "turn_on": None,
                     "candidates": entries})
-    if kraken_reads and not any(s.get("job") == "correct" for s in steps):
+    reads = any(s.get("job") in ("read-a-line", "read-a-page") for s in steps)
+    if reads and not any(s.get("job") == "correct" for s in steps):
         # Where the person finds it (`source.recipe.kraken-reads-cloud-corrects-unsure`): Correct is not in the plan, but its cloud
         # candidates are listed with the way to turn it on (Set Up's own question), so Kraken-then-a-cloud-model is never hidden.
         # every cloud corrector the person has a row for is listed (`_offered_cards` makes a cloud vision reader one), a missing
         # key said in `needs`, so the option is found before a key is added.
-        listed = [c for c in step_candidates(cards, "correct") if str(c.runs_on).startswith("cloud:")]
+        listed = [c for c in step_candidates(cards, "correct") if kraken_reads is False or str(c.runs_on).startswith("cloud:")]
         if listed:
             out.append({"step": "correct", "job": "correct", "name": _STAGE_WORDS["correct"], "picked": None, "chosen_by": "setup",
-                        "in_plan": False, "wording": UNSURE_WORDS, "certainty_bar": bar,
+                        "in_plan": False, "wording": UNSURE_WORDS if kraken_reads else None, "certainty_bar": bar if kraken_reads else None,
                         "turn_on": {"answer": "correct_with_a_second_model", "value": True,
                                     "words": "Have a second model check the reading, in Set Up"},
                         "candidates": [_candidate(c, "correct", picked=None, recommended=None, may_leave=may_leave, pages=pages, places_of=places_of)
