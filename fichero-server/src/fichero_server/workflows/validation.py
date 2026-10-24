@@ -412,6 +412,16 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
     capability = _required_llm_capability(tool_def)
     node_provider, node_model = _node_provider_model(node)
     profile_ref = _node_model_profile_ref(node)
+    cfg = _node_config(node)
+    if (
+        node.tool == "transcribe"
+        and cfg.get("vision_mode") == "kraken"
+        and cfg.get("kraken_model")
+        and not (node_provider or node_model or profile_ref)
+    ):
+        # A Kraken reader on its own lines calls no model: the app's default vision model (a cloud one, #6028) is not
+        # this node's, and a project that keeps its pages here must not be refused over a model nothing will call.
+        return None
     kind = "vision" if capability == "vision" else "llm"
 
     try:
