@@ -83,6 +83,17 @@ struct StorageDisplayImageCacheTests {
         #expect(service.cachedDisplayBytes(for: "doc-5") == nil)
     }
 
+    @Test("bytes fetched across an invalidate are not stored (## 1047)")
+    func staleBytesAreNotStored() {
+        let service = makeService()
+        let epoch = service.imageEpoch(for: "doc-e")
+        service.invalidateImageCache(for: "doc-e")  // an edit lands while the fetch is in flight
+        service.cacheDisplayBytes(Data([9]), for: "doc-e", ifEpoch: epoch)
+        #expect(service.cachedDisplayBytes(for: "doc-e") == nil, "old bytes came back after the invalidate")
+        service.cacheDisplayBytes(Data([9]), for: "doc-e", ifEpoch: service.imageEpoch(for: "doc-e"))
+        #expect(service.cachedDisplayBytes(for: "doc-e") != nil, "a fetch started after the invalidate is kept")
+    }
+
     @Test("invalidate removes display image from cache and order")
     func displayCacheInvalidateClearsEntry() {
         let service = makeService()
