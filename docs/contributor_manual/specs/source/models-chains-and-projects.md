@@ -4093,10 +4093,10 @@ Trying another option
 - `source.onboard.stages.compare-side-by-side-inline` — **[PARTIAL]** (#6034; built, uncompiled) After Compare on These Pages, each sample page shows
   the candidates side by side on it, right under the button: the page's picture with each model's lines drawn on it and its reading under it,
   Use This One per column; the counts under each column; the page's name opens its window (`StageShowcasePicturesTests.swift`).
-- `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
+- `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (#6038; Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
   runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for Find Regions and Correct. The two ids are named in the app until
   the registry carries `offers_finder` on `JobInfo` (engine, then regenerate) (`StageShowcasePicturesTests.swift`).
-- `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
+- `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (#6043; Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
   has a leading radio glyph (empty, or a filled check in the tint on the chosen one) and the chosen row is tinted; only a result measured on the person's pages
   moves a row to the head of the list (`ModelFinderTiersTests.swift`).
 - `source.find.allow-cloud-once` — **[PARTIAL]** (#6044, Set Up review item 7; built, uncompiled) Beside a Set Up step the finder shows Allow Cloud Models once, above the
