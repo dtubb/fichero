@@ -1012,9 +1012,8 @@ def list_known_libraries(
 
 def _library_display_name(library: KnownLibrary) -> str:
     """The name the sidebar shows: the registered name, else the package's name without `.fichero`."""
-    if library.name and library.name.strip():
-        return library.name.strip()
-    stem = Path(library.path).name
+    # A name kept with its package's extension ("Test 14.fichero", owner 2026-10-24) is shown, and matched, without it.
+    stem = library.name.strip() if library.name and library.name.strip() else Path(library.path).name
     return stem[: -len(".fichero")] if stem.lower().endswith(".fichero") else stem
 
 
