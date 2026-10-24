@@ -102,3 +102,25 @@ def test_set_ups_cloud_pick_takes_gemini_pro_before_flash_and_claude():
     readers = [card("google/gemini-3-flash"), card("anthropic/claude-opus-4.7"), card("google/gemini-3.1-pro")]
     picked = _frontier_first("read-a-line", Choice("read-a-line", kraken, reasons=[], chain=[]), readers, a)
     assert picked.card.id == "google/gemini-3.1-pro" and picked.chain[0].id == "kraken"
+
+
+def test_a_model_saved_with_a_blank_name_is_named_by_its_id(monkeypatch):
+    # The owner's finder showed "OpenRouter:" and nothing after it (2026-10-24): a saved name of spaces is no name.
+    rows = [NS(id="r1", name="OpenRouter", enabled=True, api_base=None, provider_type=NS(value="openrouter"))]
+    models = {"r1": [NS(model_id="google/gemini-2.5-pro", name="  ", enabled=True, capabilities=["vision"])]}
+    monkeypatch.setattr("fichero_server.db.app.get_app_db",
+                        lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
+    from fichero_server.recipes.discovery import remote_reader_cards
+    notes = [c.note for c in remote_reader_cards()]
+    assert "OpenRouter: google/gemini-2.5-pro" in notes
+
+
+def test_a_long_cloud_model_id_is_the_rows_name_not_the_provider_alone(monkeypatch):
+    # The row clipped "OpenRouter: <a long id>" at its last space and showed "OpenRouter:" (owner 2026-10-24).
+    rows = [NS(id="r1", name="OpenRouter", enabled=True, api_base=None, provider_type=NS(value="openrouter"))]
+    long_id = "google/gemini-2.5-pro-preview-06-05-with-a-long-suffix"
+    models = {"r1": [NS(model_id=long_id, name=None, enabled=True, capabilities=["vision"])]}
+    monkeypatch.setattr("fichero_server.db.app.get_app_db",
+                        lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
+    card = next(c for c in discovery.remote_reader_cards() if c.pin["model"] == long_id)
+    assert discovery.short_name(card) == long_id
