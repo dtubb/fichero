@@ -132,7 +132,7 @@ def test_a_line_a_person_drew_is_never_left_out(client, db):
 
 def test_the_page_image_is_opened_only_when_a_line_could_be_judged_for_bleed(client, db, monkeypatch):
     opened = []
-    monkeypatch.setattr(leave_out, "_open", lambda path: opened.append(path))
+    monkeypatch.setattr(leave_out, "_open_image", lambda path: opened.append(path))
     doc, _ = _page_with_a_bed_line(db)
     leave_out.leave_out_pages(db, [doc.id], "run-1")
     assert opened == [], "every line is sure: nothing for the bleed rule to judge, so no image is read"

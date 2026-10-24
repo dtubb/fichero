@@ -111,7 +111,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
                  for r in rows if not r.is_furniture]
         # The page's image is opened only when the bleed rule has a line it could judge.
         unsure = any(ln["confidence"] is not None and ln["confidence"] < LOW_CONFIDENCE for ln in lines)
-        image = _open(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
+        image = _open_image(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
         contrast = (lambda ln: _ink_contrast(image, ln)) if image is not None else None
         verdicts = decide(lines, page_box=page_box, contrast_of=contrast)
         updates: list[dict[str, Any]] = []
@@ -140,7 +140,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
     return account
 
 
-def _open(path: str | None) -> Any | None:
+def _open_image(path: str | None) -> Any | None:
     from pathlib import Path
 
     if not path or not Path(path).is_file():
