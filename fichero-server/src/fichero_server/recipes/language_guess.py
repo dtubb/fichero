@@ -84,7 +84,8 @@ def _page_text(db: Any, library: Path, doc: Any) -> str:
 
         if path.suffix.lower() == ".pdf" or not path.is_file() or not apple_vision_here():
             return ""
-        return (apple_vision_ocr(str(path), "en") or "").strip()
+        # "auto": no language is assumed, the question is which it is
+        return (apple_vision_ocr(str(path), "auto") or "").strip()
     except Exception as exc:  # noqa: BLE001 -- a quick read that cannot run says nothing; the field then says "could not tell"
         logger.info("language guess: the quick read of %s did not run: %s", path.name, exc)
         return ""
@@ -96,14 +97,30 @@ def unsure(answers: dict[str, Any]) -> bool:
     return list(languages) == [UNSURE] and not answers.get("scripts")
 
 
+#: The guess kept per project and sample-page set (a quick read of three pages is not repeated on every assemble); it changes
+#: when the samples do (a different page set, or a page's text edited, `updated_at`). Memory only: a restart reads again.
+_KEPT: dict[tuple, dict[str, Any]] = {}
+
+
 def infer(db: Any, library: Path) -> dict[str, Any]:
-    """`{code, name, script, from, sentence}` for the sample pages; `code` and `script` are None where the pages do not say."""
-    from fichero_server.recipes import samples
-    from fichero_server.recipes.names import language_name, script_name
+    """`{code, name, script, from, sentence}` for the sample pages; `code` and `script` are None where the pages do not say.
+    Blocking (a quick read runs OCR): callers on the event loop run it in a thread."""
     from fichero_server.models import Document
+    from fichero_server.recipes import samples
 
     pages = [p["id"] for p in samples._chosen(db)["pages"]][:MAX_PAGES]
-    text = "\n".join(_page_text(db, library, d) for i in pages if (d := db.get(Document, i)) is not None)
+    docs = [d for i in pages if (d := db.get(Document, i)) is not None]
+    key = (str(library), *((d.id, str(getattr(d, "updated_at", ""))) for d in docs))
+    if key not in _KEPT:
+        _KEPT.clear()  # one project's guess at a time: the samples of an older set are not coming back
+        _KEPT[key] = _guess(db, library, docs)
+    return dict(_KEPT[key])
+
+
+def _guess(db: Any, library: Path, docs: list[Any]) -> dict[str, Any]:
+    from fichero_server.recipes.names import language_name, script_name
+
+    text = "\n".join(_page_text(db, library, d) for d in docs)
     script, code = script_of(text), language_of(text)
     if code and not script:
         script = "Latn" if code in _WORDS else None

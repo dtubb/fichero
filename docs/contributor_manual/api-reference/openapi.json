@@ -51669,9 +51669,8 @@
               "type": "string"
             },
             "type": "array",
-            "minItems": 1,
             "title": "Scripts",
-            "description": "ISO 15924 script codes (or a script's English name)"
+            "description": "ISO 15924 script codes (or a script's English name); at least one, except with the language 'und' (Not sure: the engine works the script out from the sample pages, `inferred_language`)"
           },
           "materials": {
             "items": {
@@ -51786,8 +51785,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "languages",
-          "scripts"
+          "languages"
         ],
         "title": "AssembleRequest"
       },
