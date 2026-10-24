@@ -12,6 +12,16 @@ enum StageKinds {
         return kinds + [trimmed]
     }
 
+    /// The kinds with `id` ticked or unticked, in the order they are held; ticking one already held changes nothing.
+    static func toggled(_ id: String, on: Bool, in kinds: [String]) -> [String] {
+        on ? adding(id, to: kinds) : kinds.filter { $0.caseInsensitiveCompare(id) != .orderedSame }
+    }
+
+    /// The kinds held that no tick box names: the ones the person typed.
+    static func extras(_ kinds: [String], options: [String]) -> [String] {
+        kinds.filter { kind in !options.contains { $0.caseInsensitiveCompare(kind) == .orderedSame } }
+    }
+
     /// What a sample try found, less what the person already has: the chips offered.
     static func unchosen(_ suggestions: [String], chosen: [String]) -> [String] {
         suggestions.filter { found in !chosen.contains { $0.caseInsensitiveCompare(found) == .orderedSame } }
@@ -29,11 +39,25 @@ struct StageKindsField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            let options = question.options ?? []
+            if !options.isEmpty {
+                // Tick boxes in plain words, all ticked to begin with (`source.onboard.stages.names-kinds-are-tick-boxes`).
+                FlowLayout(spacing: 6) {
+                    ForEach(options, id: \.id) { option in
+                        Toggle(option.title, isOn: Binding(
+                            get: { kinds.contains { $0.caseInsensitiveCompare(option.id) == .orderedSame } },
+                            set: { answer = .many(StageKinds.toggled(option.id, on: $0, in: kinds)) }
+                        ))
+                        .setupCheckbox()
+                    }
+                }
+            }
+            let extras = StageKinds.extras(kinds, options: options.map(\.id))
             if kinds.isEmpty {
                 Text("Every kind").font(.callout).foregroundStyle(.secondary)
-            } else {
+            } else if !extras.isEmpty || options.isEmpty {
                 FlowLayout(spacing: 6) {
-                    ForEach(kinds, id: \.self) { kind in
+                    ForEach(options.isEmpty ? kinds : extras, id: \.self) { kind in
                         Button {
                             answer = .many(kinds.filter { $0 != kind })
                         } label: {
@@ -49,7 +73,7 @@ struct StageKindsField: View {
                 // Kept with the answers, but no run reads it yet (review 180): said, not implied.
                 Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
             }
-            TextField("Type a kind, then Return", text: $typed)
+            TextField(options.isEmpty ? "Type a kind, then Return" : "Another kind, then Return", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { add(typed) }
             let found = StageKinds.unchosen(question.suggestions ?? [], chosen: kinds)

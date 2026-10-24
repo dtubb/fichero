@@ -25,6 +25,11 @@ def _question(items, stage, key):
 def test_every_kinds_question_is_open_with_every_kind_by_default(stage, key):
     q = _question(listing(None), stage, key)
     assert q["open_ended"] is True
+    if (stage, key) == ("names", "entity_kinds"):  # tick boxes, all ticked, own kinds still typed
+        assert [o["id"] for o in q["options"]] == ["people", "places", "organisations", "dates", "events"]
+        assert q["default"] == [o["id"] for o in q["options"]] == q["answer"]
+        assert q["suggestions"] == []
+        return
     assert q["options"] == [], "no fixed list of kinds ships"
     assert q["default"] == [] and q["answer"] == [], "an empty answer is every kind"
     assert q["suggestions"] == [], "nothing is suggested before a sample try"
