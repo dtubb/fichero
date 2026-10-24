@@ -49,4 +49,15 @@ struct InspectorLanguageTests {
         #expect(missing.first { $0.key == "language" }?.value == InspectorLanguage.mixed, "a line without the fact differs")
         #expect(InspectorLanguage.rows(selection: []).isEmpty)
     }
+
+    /// WHY (## 1075): a failed read counted as a line with no settings (Mixed), and past the cap the first lines stood for all.
+    @Test("a selection says why it shows nothing: a failed read, or too many lines")
+    func selectionNotes() {
+        let one = [setting("language", "es", source: "user")]
+        #expect(InspectorLanguage.selection([one, one], total: 2, cap: 200) == .rows(InspectorLanguage.rows(selection: [one, one])))
+        guard case .note(let failed) = InspectorLanguage.selection([one, nil], total: 2, cap: 200) else { return Issue.record("a failed read must say so") }
+        #expect(failed.contains("could not be read"))
+        guard case .note(let many) = InspectorLanguage.selection([], total: 201, cap: 200) else { return Issue.record("past the cap must say so") }
+        #expect(many.contains("201 lines"))
+    }
 }

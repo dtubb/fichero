@@ -30,6 +30,8 @@ struct SegmentInspectorView: View {
     @State private var editNote: String?
     /// Why the last Delete did not happen (`source.editor.delete-selected-lines`); nil after one did.
     @State private var deleteNote: String?
+    /// Why a multi-selection's language, script and direction are not shown (too many lines, or a read failed).
+    @State private var multiNote: String?
     /// The inspected segment's resolved direction (the engine's cascade), which the editor lays out in.
     @State private var direction: String?
 
@@ -93,6 +95,9 @@ struct SegmentInspectorView: View {
                     if isMulti {
                         Text("Select one line to see its text, hands, certainty, rights and links.")
                             .font(.caption).foregroundStyle(.secondary)
+                        if let multiNote {
+                            Text(multiNote).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     if !isMulti, let inspected, let flags, let line = flags.flag(segmentId: inspected, documentId: documentId) {
                         // The teacher-line check flagged it (#5446): why, in words, and the person's Confirm.
@@ -178,10 +183,10 @@ struct SegmentInspectorView: View {
         // here at once: this line's readings generation moved, so its readings are re-read in place.
         // Not `.task(id: inspected)`, which also drops an Edit… in progress.
         .onChange(of: readingRevision) { Task { await reloadText() } }
-        .onChange(of: selectedIds) {
-            level = .selection
-            Task { await reloadText() }
-        }
+        .onChange(of: selectedIds) { level = .selection }
+        // The selection's settings are read under a task keyed on the ids: a newer selection cancels the older read, so
+        // an older run can never finish last and show the old selection's answer (## 1075).
+        .task(id: isMulti ? selectedIds : []) { if isMulti { await reloadText() } }
         .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
             get: { askingFor != nil }, set: { if !$0 { askingFor = nil } }
         )) {
@@ -240,11 +245,21 @@ struct SegmentInspectorView: View {
             // The selection as one: each line's resolved settings, Mixed where they differ.
             text = nil
             direction = nil
-            var perLine: [[InspectorLanguage.Setting]] = []
-            for id in selectedIds.prefix(Self.multiCap) {
-                perLine.append((try? await segmentService.resolvedSettings(segmentId: id)) ?? [])
+            multiNote = nil
+            let ids = selectedIds
+            var reads: [[InspectorLanguage.Setting]?] = []
+            if ids.count <= Self.multiCap {
+                for id in ids {
+                    reads.append(try? await segmentService.resolvedSettings(segmentId: id))
+                    if Task.isCancelled { return }
+                }
             }
-            language = InspectorLanguage.rows(selection: perLine)
+            // Apply only if this is still the selection (an older read must not show the old selection's answer).
+            guard !Task.isCancelled, ids == selectedIds else { return }
+            switch InspectorLanguage.selection(reads, total: ids.count, cap: Self.multiCap) {
+            case .rows(let rows): language = rows
+            case .note(let note): multiNote = note
+            }
             return
         }
         guard let inspected, let segmentService else { return }

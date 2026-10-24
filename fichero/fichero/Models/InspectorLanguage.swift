@@ -63,6 +63,25 @@ enum InspectorLanguage {
         }
     }
 
+    /// What a selection shows: the rows, or why there are none (never a claim of agreement it did not check).
+    enum SelectionRows: Equatable {
+        case rows([Row])
+        case note(String)
+    }
+
+    /// The rows of a selection from each line's read (`nil` where a read failed): more lines than `cap` are not read, and
+    /// a failed read says so instead of reading as a line that differs or agrees (## 1075).
+    static func selection(_ reads: [[Setting]?], total: Int, cap: Int) -> SelectionRows {
+        if total > cap {
+            return .note("\(total) lines are selected: too many to compare their language, script and direction here.")
+        }
+        let failed = reads.filter { $0 == nil }.count
+        if failed > 0 {
+            return .note("The settings of \(failed) selected \(failed == 1 ? "line" : "lines") could not be read, so they are not compared.")
+        }
+        return .rows(rows(selection: reads.compactMap { $0 }))
+    }
+
     /// What a fact reads when the selected lines differ.
     static let mixed = "Mixed"
 
