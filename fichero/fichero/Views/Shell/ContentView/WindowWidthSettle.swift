@@ -5,7 +5,8 @@ import Foundation
 /// feedback loop ("onChange action tried to update multiple times per frame"), so a drag now costs one write at its end.
 @MainActor
 final class WindowWidthSettle {
-    private var task: Task<Void, Never>?
+    /// The pending application, exposed so a test awaits it instead of sleeping.
+    private(set) var task: Task<Void, Never>?
 
     func schedule(after delay: Duration = .milliseconds(150), _ apply: @escaping @MainActor () -> Void) {
         task?.cancel()

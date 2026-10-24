@@ -6,13 +6,13 @@ import Testing
 @MainActor
 struct WindowWidthSettleTests {
     @Test("a burst of readings applies once, with the last")
-    func burstAppliesOnceWithTheLast() async throws {
+    func burstAppliesOnceWithTheLast() async {
         let settle = WindowWidthSettle()
         var applied: [Double] = []
         for width in [1400.0, 1399.0, 1380.0, 1360.0] {
             settle.schedule(after: .milliseconds(40)) { applied.append(width) }
         }
-        try await Task.sleep(for: .milliseconds(200))
+        await settle.task?.value
         #expect(applied == [1360.0])
     }
 
