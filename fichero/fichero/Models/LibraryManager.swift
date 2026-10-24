@@ -389,7 +389,10 @@ class LibraryManager {
             // keyed on the service the loaders resolve it from
             // (`source.app.segment-events-patch-in-place`, #4954). Without this
             // registration the store's `apply`/`resync` exist and never run.
-            stream.register(SegmentStore.shared(for: self.segmentService))
+            let segmentStore = SegmentStore.shared(for: self.segmentService)
+            let artifactEntities = ArtifactEntityStore.shared(for: self.artifactService)
+            segmentStore.artifactRevision = { artifactEntities.revision(for: $0) }
+            stream.register(segmentStore)
             // The teacher-line check's flags (#5446), keyed on the same service the lists resolve it from.
             stream.register(FlaggedLineStore.shared(for: self.segmentService))
             stream.register(self.citationStore)
