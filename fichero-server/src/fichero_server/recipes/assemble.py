@@ -668,12 +668,6 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
 FRONTIER_PROVIDERS = frozenset({"gemini", "google", "anthropic"})
 
 
-def frontier_rank(card: Card) -> int:
-    from fichero_server.recipes.discovery import frontier_rank as rank
-
-    return rank(card)
-
-
 def _frontier_model(card: Card) -> bool:
     """A frontier provider's model, or a Gemini or Claude model served by another provider (OpenRouter)."""
     return (card.runs_on.split(":", 1)[1] in FRONTIER_PROVIDERS
@@ -689,6 +683,8 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
         return choice
     if choice.card.cer_measured_here is not None:
         return choice
+    from fichero_server.recipes.discovery import frontier_rank
+
     keyed = sorted((c for c in readers
                     if c.runs_on.startswith("cloud:") and _frontier_model(c)
                     and c.runs_on.split(":", 1)[1] in a.cloud_keys and job in c.jobs

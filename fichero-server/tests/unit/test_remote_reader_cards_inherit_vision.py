@@ -20,10 +20,10 @@ def test_uncapped_models_inherit_provider_vision(monkeypatch):
 def test_frontier_cloud_readers_sort_first():
     from fichero_server.api.routes.system.recipes import _offered_order
 
-    cards = [NS(runs_on="this-mac", pin={}), NS(runs_on="cloud:openrouter", pin={"model": "anthropic/claude-haiku-4.5"}),
-             NS(runs_on="cloud:google", pin={"model": "gemini-3.1-pro"})]
-    # cloud first, the expected-best family first
-    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]
+    cards = [NS(runs_on="this-mac", pin={}), NS(runs_on="cloud:anthropic", pin={"model": "claude-haiku-4-5"}),
+             NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro"})]
+    # cloud first, the expected-best family first, whatever the provider's name says alphabetically
+    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:openrouter", "cloud:anthropic", "this-mac"]
 
 
 def test_every_cloud_model_is_the_top_tier():
@@ -89,11 +89,16 @@ def test_gemini_through_openrouter_counts_as_a_frontier_reader():
 
 
 def test_set_ups_cloud_pick_takes_gemini_pro_before_flash_and_claude():
-    from fichero_server.recipes.discovery import frontier_rank
+    from fichero_server.recipes.assemble import Answers, Card, Choice, _frontier_first
 
     def card(model):
-        return NS(runs_on="cloud:openrouter", pin={"model": model})
+        return Card(id=model, pin={"cloud": "openrouter", "model": model}, jobs=frozenset({"read-a-line"}), scripts=None,
+                    languages=None, material=frozenset(), runs_on="cloud:openrouter", source="remote", offered_only=True)
 
-    ranked = sorted(["google/gemini-3-flash", "anthropic/claude-opus-4.7", "google/gemini-3.1-pro"],
-                    key=lambda m: frontier_rank(card(m)))
-    assert ranked == ["google/gemini-3.1-pro", "anthropic/claude-opus-4.7", "google/gemini-3-flash"]
+    kraken = Card(id="kraken", pin={"kraken": "k"}, jobs=frozenset({"read-a-line"}), scripts=None, languages=None,
+                  material=frozenset())
+    a = Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
+                materials=("handwriting",), cloud_allowed=True, cloud_keys=frozenset({"openrouter"}))
+    readers = [card("google/gemini-3-flash"), card("anthropic/claude-opus-4.7"), card("google/gemini-3.1-pro")]
+    picked = _frontier_first("read-a-line", Choice("read-a-line", kraken, reasons=[], chain=[]), readers, a)
+    assert picked.card.id == "google/gemini-3.1-pro" and picked.chain[0].id == "kraken"
