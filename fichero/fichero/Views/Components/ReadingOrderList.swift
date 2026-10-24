@@ -149,15 +149,15 @@ struct ReadingOrderList: View {
             .disabled(ids.isEmpty)
     }
 
-    /// Delete (the key, the row menu): the rows named, else the focused Source view's selection (a multi-selection
-    /// made in the Preview), else this list's row. ONE audited `segment.delete` batch, one ⌘Z
+    /// Delete (the key, the row menu) on the row named or highlighted: that row, or the focused Source view's selection
+    /// (a multi-selection made in the Preview) when it contains the row (`SegmentDeleter.ids`). ONE audited `segment.delete` batch, one ⌘Z
     /// (`source.editor.delete-selected-lines`); why it did not happen is said under the list, never silent.
     private func deleteLines(_ named: Set<String>?) {
         guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
         let focused = windowState?.focusedRegionSelection
         let held = SegmentDeleter.selectedIds(focused, documentId: documentId, store: store)
-        let ids = named.map { Array($0) } ?? (held.isEmpty ? selection.map { [$0] } ?? [] : held)
+        let ids = SegmentDeleter.ids(row: named?.first ?? selection, held: held)
         let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
         Task {
             createNote = await SegmentDeleter.run(
