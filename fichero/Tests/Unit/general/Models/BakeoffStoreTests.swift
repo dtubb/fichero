@@ -378,6 +378,21 @@ struct BakeoffStoreTests {
         #expect(store.isShown)
     }
 
+    @Test func setUpSaysWhatItDoesAndWhenItCanRunInOneLine() {
+        let line = BakeoffStore.onboardingLine(ready: false, minLines: 100, minPages: 2)
+        #expect(line == "Reads your pages with each candidate, side by side. It can run after 100 corrected lines on 2 pages.")
+        #expect(BakeoffStore.onboardingLine(ready: true, minLines: 100, minPages: 2).hasSuffix("It can run now, from the Inspector."))
+    }
+
+    /// The Set Up line is nil until the store has read readiness, so something on that branch must load it (## 1033).
+    @Test func theSetUpLineAppearsOnceReadinessIsLoaded() async {
+        let client = makeClient { request in Self.reply(request, 200, Self.list(nil, readiness: Self.readinessJSON(lines: 0, pages: 0))) }
+        let store = BakeoffStore(client: client)
+        #expect(store.onboardingLine == nil)
+        await store.loadLatest()
+        #expect(store.onboardingLine?.hasSuffix("It can run after 100 corrected lines on 2 pages.") == true)
+    }
+
     // MARK: #5660 item 7: every kind of reader, WER, and the line finders
 
     /// The two comparisons as `GET …/bakeoffs` lists them, newest first: the line finders', then the readers'.

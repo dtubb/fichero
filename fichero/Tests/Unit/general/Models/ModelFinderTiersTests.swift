@@ -42,7 +42,7 @@ struct ModelFinderTiersTests {
         #expect(ModelFinderTiers.groups([]).isEmpty)
     }
 
-    @Test("a chosen or measured reader heads the list, ungrouped, whatever its tier; the rest are grouped")
+    @Test("a measured reader heads the list, ungrouped, whatever its tier; a chosen one stays in its tier")
     func chosenAndMeasuredOverrideTheTier() throws {
         let candidates = try Self.list(
             Self.candidate("kraken-a", tier: "specialist", words: "Specialist line reader"),
@@ -53,19 +53,20 @@ struct ModelFinderTiersTests {
         let groups = ModelFinderTiers.groups(candidates)
         #expect(groups.first?.title == nil)
         #expect(groups.first?.candidates.map(\.id) == ["cloud-measured", "qwen-chosen"])
-        #expect(groups.dropFirst().map(\.title) == ["Specialist line reader"])
+        #expect(groups.dropFirst().map(\.title) == ["Specialist line reader", "Small vision model, on this Mac"])
         #expect(groups.dropFirst().first?.candidates.map(\.id) == ["kraken-a", "kraken-b"])
+        #expect(groups.last?.candidates.map(\.id) == ["qwen-chosen"], "the chosen row stays in place")
     }
 
     @Test("every group has its own id, even where the head group and the untiered group both have no title (ForEach ids)")
     func groupIdsAreDistinct() throws {
         let candidates = try Self.list(
-            Self.candidate("chosen", tier: "general", words: "General model", chosen: true),
+            Self.candidate("measured", tier: "general", words: "General model", cer: 0.1),
             Self.candidate("kraken", tier: "specialist", words: "Specialist line reader"),
             Self.candidate("hf-unstated", tier: nil, words: nil)
         )
         let groups = ModelFinderTiers.groups(candidates)
-        #expect(groups.map(\.id) == ["heads", "specialist", "untiered"])
+        #expect(groups.map(\.id) == ["heads", "specialist", "untiered"])  // measured heads; a chosen row would not
         #expect(groups.filter { $0.title == nil }.count == 2)
         #expect(Set(groups.map(\.id)).count == groups.count)
     }

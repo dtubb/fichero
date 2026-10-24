@@ -19,10 +19,11 @@ enum ModelFinderTiers {
     /// The order the tiers are shown in: your cloud models first, from any provider, likely the best.
     static let order = ["cloud", "specialist", "small-vlm", "general"]
 
-    /// The person's choice and a result measured on their pages override the tier (`source.recipe.reader-tiers`): those
-    /// rows head the list ungrouped, in the engine's order, whatever tier they are in.
+    /// A result measured on the person's pages overrides the tier (`source.recipe.reader-tiers`): those rows head the
+    /// list ungrouped, in the engine's order. The chosen row does NOT move: it stays in its tier and shows its choice by
+    /// a filled radio glyph and a tinted row (`source.find.chosen-row-stays-in-place`, Set Up review item 6).
     static func headsTheList(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
-        candidate.chosen == true || candidate.cerMeasuredHere != nil
+        candidate.cerMeasuredHere != nil
     }
 
     static func groups(_ candidates: [Components.Schemas.ModelCandidate]) -> [Group] {

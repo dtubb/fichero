@@ -88,6 +88,19 @@ struct SetupStageSamples: View {
         // Each model's counts on each page, side by side; a page opens the compare window (#5856).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
         if compared.count > 1 {
+            // First the candidates side by side on each page, the picture with each one's lines and its reading
+            // (#6034); then the plain list, each page opening the compare window.
+            ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
+                let here = compared.filter { $0.perPage?.contains { $0.id == pageId } == true }
+                if here.count > 1 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(store.name(of: pageId)).font(.callout.weight(.medium))
+                        StageCompareColumns(pageId: pageId, candidates: here, useThis: useThis,
+                                            pictureWidth: 160...260)
+                    }
+                    .accessibilityIdentifier("setup.compare.sideBySide")
+                }
+            }
             ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
                 let counts = result.sideBySide(pageId: pageId)
                 if !counts.isEmpty {

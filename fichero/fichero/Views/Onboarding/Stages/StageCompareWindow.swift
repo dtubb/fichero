@@ -30,14 +30,28 @@ struct StageCompareWindow: View {
                 .pickerStyle(.menu).fixedSize()
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 12) {
-                    ForEach(shown, id: \.card) { candidate in column(candidate) }
-                }
-            }
+            StageCompareColumns(pageId: pageId, candidates: shown, useThis: useThis.map { use in { use($0); dismiss() } })
         }
         .padding()
         .frame(minWidth: 560, minHeight: 520)
+    }
+}
+
+/// One page, every given model beside the others: the page's picture with the model's lines on it and its reading under
+/// it (`source.onboard.stages.compare-side-by-side-inline`, #6034). Used inline under Compare on These Pages and in the
+/// page's own window.
+struct StageCompareColumns: View {
+    let pageId: String
+    let candidates: [StageCandidate]
+    var useThis: ((StageCandidate) -> Void)?
+    var pictureWidth: ClosedRange<CGFloat> = 240...420
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(candidates, id: \.card) { candidate in column(candidate) }
+            }
+        }
     }
 
     @ViewBuilder
@@ -51,9 +65,13 @@ struct StageCompareWindow: View {
             LibraryImageView(documentId: pageId, imageType: .display)
                 .aspectRatio(contentMode: .fit)
                 .overlay { ShapesOverlay(shapes: page?.shapes ?? []) }
-                .frame(minWidth: 240, maxWidth: 420)
+                .frame(minWidth: pictureWidth.lowerBound, maxWidth: pictureWidth.upperBound)
+            if let reading = page?.readings?.first?.text, !reading.isEmpty {
+                Text(reading).font(.callout).lineLimit(8).textSelection(.enabled)
+                    .frame(maxWidth: pictureWidth.upperBound, alignment: .leading)
+            }
             if let useThis {
-                Button("Use This One") { useThis(candidate); dismiss() }
+                Button("Use This One") { useThis(candidate) }
             }
         }
     }
