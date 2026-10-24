@@ -491,6 +491,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/known_names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/language_guess.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/leave_out.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/placement.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/places.py

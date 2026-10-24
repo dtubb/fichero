@@ -1816,7 +1816,7 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
     if params.parent_segment_id is not None:
         row.parent_segment_id = params.parent_segment_id
     if params.is_furniture is not None:
-        row.is_furniture = params.is_furniture
+        _mark_furniture(row, params.is_furniture)
     if params.mark_state is not None:
         row.mark_state = params.mark_state
     if params.no_writing_model is not None:
@@ -2108,6 +2108,8 @@ class SegmentAttributeUpdate(BaseModel):
     expected_version: int
     kind: Optional[str] = None
     is_furniture: Optional[bool] = None
+    #: With `is_furniture` true: why a RULE left the line out ("too small"), kept on the line (`designer.clean.leaves-out-non-text`).
+    left_out_reason: Optional[str] = Field(default=None, max_length=60)
     language: Optional[str] = None
     script: Optional[str] = None
     direction: Optional[str] = None
@@ -2154,6 +2156,21 @@ def _live_current_row(
             _stale_changed_fields(db, segment_id, expected_version, row),
         ))
     return row
+
+
+def _mark_furniture(row: Any, value: bool, why: str | None = None) -> None:
+    """`is_furniture`, and the marks that say who decided it: a rule's reason when it left the line out, and
+    `kept_by_person` when a person brings a left-out line back, so the Leave Out stage never takes it out again
+    (`designer.clean.leaves-out-non-text`, ## 1108)."""
+    meta = dict(row.metadata or {})
+    if value and not row.is_furniture and why:
+        meta["left_out"] = {"why": why}
+        meta.pop("kept_by_person", None)
+    elif not value and row.is_furniture:
+        meta.pop("left_out", None)
+        meta["kept_by_person"] = True
+    row.metadata = meta
+    row.is_furniture = value
 
 
 def _refuse_repeated_ids(ids: list[str]) -> None:
@@ -2221,7 +2238,7 @@ def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, c
             row.kind = item.kind
             row.doc_kind = f"{row.document_id}:{row.kind}"
         if item.is_furniture is not None:
-            row.is_furniture = item.is_furniture
+            _mark_furniture(row, item.is_furniture, item.left_out_reason)
         # The cascade's facts through the SAME writer `segment.update` uses, so a
         # script is validated and a fact's provenance is recorded identically on both
         # paths — two writers for one fact would be two answers about who set it.

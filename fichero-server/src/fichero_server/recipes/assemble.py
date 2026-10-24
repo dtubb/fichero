@@ -82,7 +82,7 @@ READ_MATERIALS: tuple[str, ...] = tuple(m for m in MATERIALS if m != "text")
 #: The jobs that make a page's text from its picture: a project whose material is all text runs none of them, and
 #: its plan starts at what was ticked after reading (search, names, ...) (#5553).
 READING_THE_PICTURE = frozenset({"split-pages", "prepare-the-image", "find-the-script", "find-regions", "find-lines", "put-in-order",
-                                 "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
+                                 "leave-out", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
                                  "tie-text-to-lines", "correct", "find-where-readers-disagree", "train-a-model"})
 #: Jobs that read the material: they get one reader per kind of material ticked.
 READING_JOBS = frozenset({"read-a-line", "read-a-page"})
@@ -98,6 +98,9 @@ FICHERO_DOES_IT: dict[str, tuple[dict[str, str], tuple[str, ...]]] = {
                     ("Fichero's page splitter: finds the document in each photograph with Apple Vision and cuts an "
                      "open spread at its gutter, on this Mac, free",
                      "a closed notebook or a single page is kept whole; an unclear gutter is proposed, never cut")),
+    "leave-out": ({"builtin": "leave-out-rules"},
+                  ("Fichero's rules mark what is not writing as left out before Read: specks, anything off the page, "
+                   "damage that only looks like ink; on this Mac, free, and nothing is deleted",)),
     "work-out-dates": ({"builtin": "date-rules"},
                        ("Fichero's date rules read the dates the names step found, on this Mac, free",)),
 }
@@ -120,7 +123,7 @@ MEMORY_HEADROOM_GB = 2.0
 #: whole job registry, so a new job cannot be ticked without a place in the order.
 STEP_ORDER: tuple[str, ...] = (
     "split-pages", "prepare-the-image", "find-the-script", "find-regions", "find-lines",
-    "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
+    "put-in-order", "refine-shapes", "leave-out", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
     "tie-text-to-lines", "transcribe-speech", "correct", "find-where-readers-disagree", "trace-a-drawing",
     "identify-signs",
     "translate-transliterate-normalise", "split-into-entries", "find-names-tag-words", "work-out-dates",
@@ -980,6 +983,8 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         jobs |= {"split-pages", PREPARE}
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
         jobs.add(PREPARE)
+    if "find-lines" in jobs and jobs & READING_JOBS:
+        jobs.add("leave-out")  # on by default between the lines and their reading; a person can take it out (#6070)
     # Find where the readers disagree is optional like Correct: in the plan only when ticked (owner ruling 2026-10-19).
     if "find-where-readers-disagree" not in a.jobs:
         jobs.discard("find-where-readers-disagree")
