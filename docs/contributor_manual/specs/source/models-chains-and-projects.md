@@ -4098,6 +4098,8 @@ Trying another option
 - `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
   has a leading radio glyph (empty, or a filled check in the tint on the chosen one) and the chosen row is tinted; only a result measured on the person's pages
   moves a row to the head of the list (`ModelFinderTiersTests.swift`).
+- `source.find.allow-cloud-once` — **[PARTIAL]** (#6044, Set Up review item 7; built, uncompiled) Beside a Set Up step the finder shows Allow Cloud Models once, above the
+  tier that holds cards waiting on the permission, not on every cloud card (`CloudNeedsPermissionCardTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
