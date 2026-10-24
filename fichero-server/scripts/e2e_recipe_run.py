@@ -59,11 +59,13 @@ def _stages(run: dict) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pages", required=True)
+    ap.add_argument("--pages")
     ap.add_argument("--extra")
     ap.add_argument("--out", required=True)
     ap.add_argument("--cloud", action="store_true")
     ap.add_argument("--plan-only", action="store_true")
+    ap.add_argument("--library", help="an existing .fichero package to open (a copy of an earlier run's): the pages are not imported again")
+    ap.add_argument("--no-start", action="store_true", help="import and set up, do not press Start (then --extra can still run)")
     ap.add_argument("--language", default="la")
     ap.add_argument("--script", default="Latn")
     ap.add_argument("--purposes", default="transcribe,translate-normalise,entities,statements,search,catalogue")
@@ -78,13 +80,14 @@ def main() -> int:
         headers = {"Authorization": f"Bearer {ep.token}"}
         import tempfile
 
-        library = str(Path(tempfile.mkdtemp(prefix="e2e_", dir="/tmp")) / "e2e.fichero")  # /tmp is an allowed library root
+        library = args.library or str(Path(tempfile.mkdtemp(prefix="e2e_", dir="/tmp")) / "e2e.fichero")  # /tmp is an allowed library root
         report["library"] = library
         headers["X-Fichero-Library-Path"] = library
         with httpx.Client(timeout=120, headers=headers, **ep.httpx_kwargs()) as client:
             client.post("/api/library", json={"path": library}).raise_for_status()
             report["engine_log"] = ep.log_path
-            _import(client, args.pages, report, "pages")
+            if not args.library:
+                _import(client, args.pages, report, "pages")
             body = {"purposes": args.purposes.split(","), "languages": [args.language], "scripts": [args.script],
                     "materials": ["handwriting"], "cloud_allowed": args.cloud, "pages": 5}
             r = client.post("/api/recipes/assemble", json=body)
@@ -101,7 +104,7 @@ def main() -> int:
             plan.raise_for_status()
             report["plan"] = plan.json()
             (out / "plan.json").write_text(json.dumps(report["plan"], indent=1, default=str))
-            if not args.plan_only:
+            if not (args.plan_only or args.no_start):
                 started = client.post("/api/recipes/project/start", json={})
                 if started.status_code != 200:
                     report["start_refused"] = started.text[:2000]
@@ -115,11 +118,21 @@ def main() -> int:
                     report["stages"] = _stages(run)
                     summary = client.get(f"/api/recipes/project/runs/{job}/summary")
                     report["summary"] = summary.json() if summary.status_code == 200 else summary.text[:500]
-                if args.extra and "run" in report:
-                    _import(client, args.extra, report, "extra")
+            if args.extra and not args.plan_only:
+                before = {r["job_id"] for r in client.get("/api/recipes/project/runs").json()["items"]}
+                _import(client, args.extra, report, "extra")
+                # The import's own run (material arrives: the plan runs on the new pages alone): wait for it.
+                deadline = time.monotonic() + 3600
+                new = None
+                while time.monotonic() < deadline:
+                    runs = client.get("/api/recipes/project/runs").json()["items"]
+                    new = next((r for r in runs if r["job_id"] not in before), None)
+                    if new and (new.get("state") or "") not in ("queued", "running", "waiting", "paused", "pending"):
+                        break
+                    print(time.strftime("%H:%M:%S"), "new-material run:", (new or {}).get("state"), ((new or {}).get("reason") or "")[:80], flush=True)
                     time.sleep(10)
-                    runs = client.get("/api/recipes/project/runs").json()
-                    report["runs_after_extra"] = runs
+                report["new_material_run"] = new
+                report["new_material_stages"] = _stages(new or {})
     finally:
         ep.stop()
     (out / "report.json").write_text(json.dumps(report, indent=1, default=str))
