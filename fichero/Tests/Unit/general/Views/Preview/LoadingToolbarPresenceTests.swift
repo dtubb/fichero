@@ -36,3 +36,11 @@ struct WhatToShowAlwaysThereTests {
         #expect(!ReaderToolbar.whatToShowHasSwitches(hasTextBoxes: false, hasAnnotations: false, hasImage: false))
     }
 }
+
+/// #6032: a folder's empty cached children are fetched again, so its canvas appears once items exist.
+struct FolderChildrenEmptyCacheTests {
+    @Test func anEmptyCacheIsNotTrusted() throws {
+        let source = try AppSource.text("Models/DocumentStore.swift")
+        #expect(source.contains("if let cached = childrenCache[documentId], !cached.isEmpty {"))
+    }
+}
