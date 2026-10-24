@@ -1488,6 +1488,11 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     detail = json.loads(row["detail"] or "{}")
     steps = detail.get("steps") or [{"steps": c["steps"], "card": c["card"], "state": "waiting", "child_id": None}
                                     for c in detail.get("runs", [])]
+    for step in steps:
+        if isinstance(step.get("left_out"), dict):
+            # A run saved while Leave Out wrote its account under `left_out` (the list of pages left out as blank, #5691): read as
+            # `leave_out`, as it is now written. Read side only; the stored row is never rewritten.
+            step["leave_out"], step["left_out"] = step["left_out"], []
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
