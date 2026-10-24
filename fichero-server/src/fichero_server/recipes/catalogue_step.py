@@ -110,10 +110,11 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
 
 
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
-                     stop: Any = lambda: False, language: str = "English",
+                     stop: Any = lambda: False, language: str | None = None,
                      max_words: int = FOLDER_DESCRIPTION_MAX_WORDS) -> dict[str, Any]:
     """Describe the folders above `page_ids`, deepest first (a folder's subfolders are described before it). A folder
     whose coverage matches its saved description is left. The account: described / unchanged / no_text / failed."""
+    from fichero_server.llm.lang_detect import configured_primary_language, resolve_output_language
     from fichero_server.models import Artifact
     from fichero_server.workflows.tools.catalogue import _describe_container
 
@@ -132,13 +133,17 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
             account["no_text"] += 1
             continue
         flags: list[str] = []
+        material = _material(db, folder, child_folders, leaves)
         try:
-            text = asyncio.run(_write(_material(db, folder, child_folders, leaves), config, language, max_words, flags))
+            # The records' own language, as the Catalogue workflow resolves it ("auto"), unless one is given.
+            written_in = resolve_output_language(language or "auto", material, primary_language=configured_primary_language())
+            text = asyncio.run(_write(material, config, written_in, max_words, flags))
         except Exception as exc:  # noqa: BLE001 -- the model's failure, in its words, on the step
             account["failed"].append(f"{folder.name}: {exc}")
             continue
         art = Artifact(document_id=folder.id, artifact_type=ARTIFACT_TYPE, content=text,
-                       data={"covers": covers, "pages": len(leaves), "flags": flags, "max_words": max_words},
+                       data={"covers": covers, "pages": len(leaves), "flags": flags, "max_words": max_words,
+                             "language": written_in},
                        provider=config.provider, model=config.model, run_id=run_id)
         db.save(art)
         _describe_container(db, folder.id, text, art.id, [old.id] if old is not None else [],

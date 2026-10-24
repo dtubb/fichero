@@ -128,8 +128,9 @@ STEP_ORDER: tuple[str, ...] = (
     "find-documents-in-a-folder",
     "find-statements", "link-to-authorities", "place-in-a-gazetteer", "pull-out-passages",
     "extract-to-a-table", "make-a-vector", "train-a-model", "check",
+    # The last of the work steps, but before the exports: a kept export and the site carry this run's descriptions.
+    "describe-for-the-catalogue",
     "export", "publish",
-    "describe-for-the-catalogue",  # the folder's description is the last stage (`catalogue.folder-description-fields`)
 )
 assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())
 #: The jobs a layer added later can turn on (`source.onboard.add-layer`), in order.
