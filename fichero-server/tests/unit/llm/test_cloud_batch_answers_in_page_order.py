@@ -71,6 +71,8 @@ def test_a_correct_batch_passes_even_when_the_reference_reads_badly():
     noisy = ["Pe4ro Alv rado v ve", "pu blo de R0 Cl", "hace m chos an s", "la hu rta d l con"]
     assert line_reader.answers_follow_order(TEXTS, noisy)
     assert not line_reader.answers_follow_order(TEXTS[1:] + TEXTS[:1], noisy)  # shifted a line: the neighbour's reference fits better
+    assert not line_reader.answers_follow_order(TEXTS[2:] + TEXTS[:2], noisy)  # rotated by two: a +-1 check let this pass by chance
+    assert not line_reader.answers_follow_order(TEXTS[3:] + TEXTS[:3], noisy)  # and by three
 
 
 def test_the_probe_answers_are_reused_when_the_order_fails_and_the_reasked_batch_is_counted(monkeypatch, tmp_path):
@@ -95,3 +97,25 @@ def test_the_page_says_how_many_batches_were_asked_again(monkeypatch, tmp_path):
     monkeypatch.setattr(llm, "vision", model)
     out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page", page_context=True))
     assert out.metadata["batches_reasked_by_order"] == 1 and out.metadata["lines_reasked_by_order"] == 4
+
+
+def test_a_probe_that_failed_is_asked_again_not_reused(monkeypatch, tmp_path):
+    path, geometry = _page(tmp_path)
+    page = Image.open(path)
+    by_picture = {line_reader._crop_data_uri(page, b.metadata["polygon_px"]): TEXTS[i] for i, b in enumerate(geometry.boxes)}
+    singles: list[str] = []
+
+    async def model(images, prompt, config, **_):
+        shown = [by_picture[i] for i in images if i in by_picture]
+        if len(shown) > 1:
+            shown = shown[2:] + shown[:2]  # the batch is out of order
+            return "[" + ", ".join(f'"{t}"' for t in shown) + "]"
+        singles.append(shown[0])
+        if len(singles) == 1:
+            return "not a reading"  # the first probe fails
+        return f'["{shown[0]}"]'
+
+    monkeypatch.setattr(llm, "vision", model)
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page", page_context=True))
+    assert {b.metadata["segment_id"]: b.text for b in out.boxes} == {f"s{i}": TEXTS[i] for i in range(4)}
+    assert singles.count(TEXTS[0]) == 2, "the line whose probe failed was not asked again"
