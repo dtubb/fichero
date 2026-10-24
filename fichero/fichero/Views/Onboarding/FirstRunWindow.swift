@@ -29,6 +29,8 @@ struct FirstRunWindow: View {
     static let windowSize = CGSize(width: 820, height: 600)
 
     @State private var step: SetupStep
+    /// Change… on a stage page's worked-out language goes back to About the Material (the step is private here).
+    func showAboutMaterial() { step = .aboutMaterial }
     @State private var flow: SetupFlow
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
     /// (`source.onboard.app.provider-sheet-in-step`).

@@ -96,20 +96,9 @@ struct ReaderLineRow: View {
     private var metrics: ReaderLines.Metrics { ReaderLines.Metrics(zoom: zoom) }
 
     var body: some View {
-        Group {
-            switch ReaderLines.arrangement(direction: direction) {
-            case .above:
-                VStack(alignment: .leading, spacing: 6) {
-                    ScrollView(.horizontal) { picture }
-                    words
-                }
-            case .beside:
-                HStack(alignment: .top, spacing: 8) {
-                    picture
-                    words
-                }
-            }
-        }
+        // ponytail: split in three (content, verbs target, modifiers): as one expression the type-checker crashed
+        // ("failed to produce diagnostic", Mac build of 3f34a7456).
+        rowContent
         .padding(8)
         .background(isSelected ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
         // Correct This Line (#5499): the engine's one verb, the line and its words.
@@ -123,13 +112,33 @@ struct ReaderLineRow: View {
             if let deleteNote { Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(4) }
         }
         // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
-        .focusedSceneValue(\.lineVerbs, isSelected
-            ? LineVerbsTarget(
-                segment: segment, correct: CorrectLine.offers(segment) ? { correcting = segment } : nil,
-                delete: { deleteLines() }
-            ) : nil)
+        .focusedSceneValue(\.lineVerbs, lineVerbsTarget)
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }
+        }
+    }
+
+    private var lineVerbsTarget: LineVerbsTarget? {
+        guard isSelected else { return nil }
+        let correct: (@MainActor () -> Void)? = CorrectLine.offers(segment) ? { correcting = segment } : nil
+        return LineVerbsTarget(segment: segment, correct: correct, delete: { deleteLines() })
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        Group {
+            switch ReaderLines.arrangement(direction: direction) {
+            case .above:
+                VStack(alignment: .leading, spacing: 6) {
+                    ScrollView(.horizontal) { picture }
+                    words
+                }
+            case .beside:
+                HStack(alignment: .top, spacing: 8) {
+                    picture
+                    words
+                }
+            }
         }
     }
 
