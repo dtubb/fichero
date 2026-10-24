@@ -61,8 +61,14 @@ struct RecipeStepsView: View {
                 }
                 // Each step with a comparison offers it: the readers under the reading step, the line finders
                 // under Find lines (#5660 item 7).
-                if onFix == nil, let context = bakeoff?.forStep(step.job) {  // the Inspector only: never in onboarding (#6016)
-                    BakeoffSection(context: context, setup: store)
+                if let context = bakeoff?.forStep(step.job) {
+                    if onFix == nil {
+                        BakeoffSection(context: context, setup: store)
+                    } else if let line = context.store.onboardingLine {
+                        // Set Up: no counts block, one plain line (#6016).
+                        Text(line).font(.caption).foregroundStyle(.secondary).padding(.leading, 12)
+                            .accessibilityIdentifier("setup.bakeoff.line")
+                    }
                 }
             }
             // The recipe's own check, in the rules' words: the Inspector only.

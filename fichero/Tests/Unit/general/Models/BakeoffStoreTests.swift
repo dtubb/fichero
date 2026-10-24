@@ -378,6 +378,12 @@ struct BakeoffStoreTests {
         #expect(store.isShown)
     }
 
+    @Test func setUpSaysWhatItDoesAndWhenItCanRunInOneLine() {
+        let line = BakeoffStore.onboardingLine(ready: false, minLines: 100, minPages: 2)
+        #expect(line == "Reads your pages with each candidate, side by side. It can run after 100 corrected lines on 2 pages.")
+        #expect(BakeoffStore.onboardingLine(ready: true, minLines: 100, minPages: 2).hasSuffix("It can run now, from the Inspector."))
+    }
+
     // MARK: #5660 item 7: every kind of reader, WER, and the line finders
 
     /// The two comparisons as `GET …/bakeoffs` lists them, newest first: the line finders', then the readers'.
