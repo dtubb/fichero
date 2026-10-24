@@ -419,29 +419,50 @@ def _server_text_cards() -> list[Card]:
     return out
 
 
-#: The frontier families offered for a key with no saved model, newest of each (owner 2026-10-23).
-FRONTIER_FAMILIES = ("claude-opus", "claude-sonnet", "claude-haiku", "gemini-pro", "gemini-flash", "gpt-5")
+#: The frontier families offered for a key with no saved model, newest of each, in the order they are expected to read
+#: best (owner 2026-10-24: mini and nano are fine, ranked below their full model). (words it has, words it must not have)
+FRONTIER_FAMILIES = (
+    (("gemini", "pro"), ()), (("claude", "opus"), ()), (("claude", "sonnet"), ()), (("gpt-5",), ("-mini", "-nano")),
+    (("gemini", "flash"), ("lite",)), (("claude", "haiku"), ()), (("gpt-5", "-mini"), ()), (("gemini", "flash", "lite"), ()),
+    (("gpt-5", "-nano"), ()),
+)
+#: Never a reader: not a model for reading a page.
+_NOT_A_READER = ("codex", "image", "tts", "audio", "live", "embed")
+
+
+def _family(model_id: str) -> int | None:
+    """The index of the frontier family a model id belongs to (`FRONTIER_FAMILIES`), or None."""
+    m = model_id.casefold()
+    for i, (has, hasnt) in enumerate(FRONTIER_FAMILIES):
+        if all(w in m for w in has) and not any(w in m for w in hasnt) and not any(w in m for w in _NOT_A_READER):
+            return i
+    return None
+
+
+def frontier_rank(card: Card) -> int:
+    """Where a cloud reader ranks before any measurement: its frontier family's place, else after them all. ponytail: a
+    fixed expected order; a CER measured on the Test Corpus per language is the upgrade (owner 2026-10-24)."""
+    family = _family(str(card.pin.get("model", "")))
+    return len(FRONTIER_FAMILIES) if family is None else family
 
 
 def frontier_catalog_models(provider: str) -> list[str]:
-    """The newest vision model of each frontier family the price list has for `provider` (`FRONTIER_FAMILIES`).
-    ponytail: newest = the largest version numbers in the id; previews and dated snapshots count as any other."""
+    """The newest vision model of each frontier family the price list has for `provider`, best expected first.
+    ponytail: newest = the largest version numbers in the id; a date is no version."""
     import re
 
     from fichero_server.llm.model_types import list_models_for_provider
 
     def version(model_id: str) -> tuple[int, ...]:
-        return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)  # a date is no version
+        return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)
 
     try:
         listed = [m["model_id"] for m in list_models_for_provider(provider) if m.get("supports_vision")]
     except Exception:  # noqa: BLE001 -- no price list: no offers, never a failed listing
         return []
     out = []
-    for family in FRONTIER_FAMILIES:
-        words = family.split("-")
-        fits = [m for m in listed if all(w in m.casefold() for w in words)
-                and not any(x in m.casefold() for x in ("codex", "image", "tts", "audio", "live", "lite", "-mini", "-nano"))]
+    for i in range(len(FRONTIER_FAMILIES)):
+        fits = [m for m in listed if _family(m) == i]
         if fits:
             out.append(max(fits, key=version))
     return out

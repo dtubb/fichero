@@ -20,8 +20,10 @@ def test_uncapped_models_inherit_provider_vision(monkeypatch):
 def test_frontier_cloud_readers_sort_first():
     from fichero_server.api.routes.system.recipes import _offered_order
 
-    cards = [NS(runs_on="this-mac"), NS(runs_on="cloud:openrouter"), NS(runs_on="cloud:google")]
-    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]  # cloud first, by provider
+    cards = [NS(runs_on="this-mac", pin={}), NS(runs_on="cloud:openrouter", pin={"model": "anthropic/claude-haiku-4.5"}),
+             NS(runs_on="cloud:google", pin={"model": "gemini-3.1-pro"})]
+    # cloud first, the expected-best family first
+    assert [c.runs_on for c in sorted(cards, key=_offered_order)] == ["cloud:google", "cloud:openrouter", "this-mac"]
 
 
 def test_every_cloud_model_is_the_top_tier():
@@ -72,9 +74,11 @@ def test_a_key_with_no_saved_model_offers_the_newest_frontier_models(monkeypatch
     from fichero_server.recipes.discovery import frontier_catalog_models
 
     listed = [{"model_id": m, "supports_vision": True} for m in
-              ("claude-4-opus-20250514", "claude-opus-4-7", "gemini-3-flash", "gemini-3.1-flash-image-preview")]
+              ("claude-4-opus-20250514", "claude-opus-4-7", "gemini-3-flash", "gemini-3.1-flash-image-preview",
+               "gpt-5.2", "gpt-5-mini")]
     monkeypatch.setattr("fichero_server.llm.model_types.list_models_for_provider", lambda p: listed)
-    assert frontier_catalog_models("x") == ["claude-opus-4-7", "gemini-3-flash"]  # a date is no version; no image model
+    # Best expected first; a date is no version; no image model; a mini is kept, ranked below its full model
+    assert frontier_catalog_models("x") == ["claude-opus-4-7", "gpt-5.2", "gemini-3-flash", "gpt-5-mini"]
 
 
 def test_gemini_through_openrouter_counts_as_a_frontier_reader():
@@ -82,3 +86,14 @@ def test_gemini_through_openrouter_counts_as_a_frontier_reader():
 
     assert _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro-preview"}))
     assert not _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "qwen/qwen3-vl"}))
+
+
+def test_set_ups_cloud_pick_takes_gemini_pro_before_flash_and_claude():
+    from fichero_server.recipes.discovery import frontier_rank
+
+    def card(model):
+        return NS(runs_on="cloud:openrouter", pin={"model": model})
+
+    ranked = sorted(["google/gemini-3-flash", "anthropic/claude-opus-4.7", "google/gemini-3.1-pro"],
+                    key=lambda m: frontier_rank(card(m)))
+    assert ranked == ["google/gemini-3.1-pro", "anthropic/claude-opus-4.7", "google/gemini-3-flash"]
