@@ -128,3 +128,15 @@ def test_the_model_is_told_to_describe_only_and_a_banned_word_is_flagged(db, mon
     catalogue_step.describe_folders(db, pages, CONFIG, run_id=None)
     assert "NO ANALYSIS" in systems[0] and "500 words" in systems[0] and "reveals" in systems[0]
     assert catalogue_step._latest(db, box).data["flags"]  # the banned word stands but is flagged, never silent
+
+
+def test_a_generative_text_model_is_a_card_for_the_catalogue_job():
+    """`describe-for-the-catalogue` had no card, so Start said "no model" whatever the Mac or the keys (e2e finding)."""
+    from fichero_server.recipes.discovery import TEXT_MODEL_JOBS, _describes_folders
+    from fichero_server.recipes.cards import seed_cards
+
+    assert "describe-for-the-catalogue" in TEXT_MODEL_JOBS
+    text = [c for c in seed_cards() if {"split-into-entries", "find-statements"} <= c.jobs and not c.jobs & {"read-a-line", "read-a-page"}]
+    assert all("describe-for-the-catalogue" in _describes_folders(c).jobs for c in text)
+    spacy = [c for c in seed_cards() if c.id.startswith("spacy:")]
+    assert spacy and not any("describe-for-the-catalogue" in _describes_folders(c).jobs for c in spacy)

@@ -193,7 +193,9 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
 TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries",
                              # Find names too (#5660 item 4): spaCy's shipped pipelines are its default; a text model
                              # here, Apple Intelligence or a cloud model is the person's to choose instead.
-                             "find-names-tag-words"})
+                             "find-names-tag-words",
+                             # A folder's archival description (`catalogue.folder-description-fields`, #6087).
+                             "describe-for-the-catalogue"})
 #: Model servers the person runs, whose enabled models are cards for those jobs (the engine's own MLX server is
 #: its model store's, read above).
 _TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
