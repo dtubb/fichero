@@ -4849,5 +4849,5 @@ Each is described in the paragraph named; the id lets a test cite it.
   get their pictures from the one `StorageService`: thumbnails by `getThumbnail` (one engine size, one cache), display pictures by one fetch of the display
   bytes shared by `getDisplayImage` (grids) and `getDisplayPlatformImage` (canvases), a few recent ones kept (`displayBytesLimit`), so one picture is
   never fetched or sized twice for two views; the engine keeps one thumbnail size and one display size per document (`ensure_thumbnail`, `ensure_display`),
-  stale variants removed. Audit 2026-10-24 on 642b08687: every view uses `LibraryImageView` or `StorageService` except the web scheme handler
+  stale variants removed; a picture fetched across an invalidate (an edit lands mid-fetch) is served once and never cached, whichever cache (`imageCacheEpoch`, ## 1047). Audit 2026-10-24 on 642b08687: every view uses `LibraryImageView` or `StorageService` except the web scheme handler
   (`StorageResourceLoader`, bytes only, no decoded copy) (`StorageDisplayImageCacheTests.swift`).
