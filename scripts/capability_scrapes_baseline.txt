@@ -159,6 +159,8 @@ fichero/Tests/Unit/general/Views/Library/SelectAllVisibleSurfaceTests.swift
 fichero/Tests/Unit/general/Views/Library/ViewModeFocusRingGuardTests.swift
 fichero/Tests/Unit/general/Views/LibraryEmptyReasonTests.swift
 fichero/Tests/Unit/general/Views/LibraryMiniToolbarTests.swift
+# wiring pins for Set Up views a unit test cannot mount (Compare saves the screen first, side-by-side before the list, finder per model step); behaviour test once the views take injectable stores
+fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift
 fichero/Tests/Unit/general/Views/Preview/ImageEditChainSyncTests.swift
 fichero/Tests/Unit/general/Views/Preview/ImageEditClipboardTests.swift
 fichero/Tests/Unit/general/Views/Preview/ImageEditRenditionRefreshTests.swift
