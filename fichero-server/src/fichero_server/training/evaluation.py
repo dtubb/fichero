@@ -345,20 +345,23 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
         lines, trust = [ln for ln in lines if ln["id"] in corrected], "person"
     if not lines:
         return None, f"the pass {by_whom(checked)} has no read lines"
+    from fichero_server.media.upright import pass_frame
+
     return {"document_id": page_id, "name": doc.name, "photo": photo, "pass_id": chosen.id,
-            "trust": trust, "lines": lines}, None
+            "trust": trust, "lines": lines, "frame": pass_frame(db, chosen)}, None
 
 
 # --- reading and scoring -----------------------------------------------------------------------------
 
 
-def read_with_kraken(photo: str, model: str, lines: list[dict[str, Any]]) -> tuple[list[str], str | None]:
+def read_with_kraken(photo: str, model: str, lines: list[dict[str, Any]],
+                     frame: str | None = None) -> tuple[list[str], str | None]:
     """(the lines' readings, why Kraken read nothing when that is known). Kraken reads a line on its own
     baseline and outline; a page whose lines carry neither (some imported transcriptions) reads as nothing."""
     from fichero_server.llm import kraken_runtime
 
     model_path, _catalog = kraken_runtime.resolve_recognition_model(model)
-    reads = kraken_runtime.read_given_lines(photo, model_path, lines)
+    reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=frame)
     if not kraken_runtime._usable(lines):
         return reads, "its lines carry no baseline and outline for Kraken to read on"
     return reads, None
@@ -408,21 +411,22 @@ def granularities_to_try(candidate: EvaluationCandidate) -> tuple[str, ...]:
 
 
 def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dict[str, Any]],
-                     language: str | None) -> tuple[list[str], str | None]:
+                     language: str | None, frame: str | None = None) -> tuple[list[str], str | None]:
     """(the lines' readings, why the model gave nothing when it answered nothing or nothing readable).
 
     The lines are asked in the candidate's requests (`requests_for`). An answer that does not match its request
     (not one reading per line) reads as nothing for those lines: it is not re-asked another way, because how the
     model answers asked this way is the measure."""
-    from PIL import Image
 
     from fichero_server.llm.line_reader import _crop_data_uri, parse_answer, prompt_for
 
     apple = candidate.provider == "apple"
     groups = ([[ln] for ln in lines] if apple else
               requests_for(lines, candidate.granularity, candidate.lines_per_request))
-    with Image.open(photo) as page:
-        crops = [[_crop_data_uri(page, ln["polygon"]) for ln in group] for group in groups]
+    from fichero_server.media.upright import open_in_frame
+
+    page = open_in_frame(photo, frame)  # the frame the lines were measured on
+    crops = [[_crop_data_uri(page, ln["polygon"]) for ln in group] for group in groups]
 
     answers: list[str] = []
     parsed_all: list[list[str | None] | None] = []
@@ -705,8 +709,8 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             reference = [ln["text"] for ln in page["lines"]]
             began = time.monotonic()
             try:
-                reads, why = (read_with_kraken(page["photo"], c.model, page["lines"]) if c.reader == "kraken"
-                              else read_with_vision(page["photo"], c, page["lines"], request.language))
+                reads, why = (read_with_kraken(page["photo"], c.model, page["lines"], page.get("frame")) if c.reader == "kraken"
+                              else read_with_vision(page["photo"], c, page["lines"], request.language, page.get("frame")))
             except MemoryShortError:
                 raise  # not the reader's failure: the job waits for memory and carries on (#5524)
             except Exception as exc:  # recorded on the page as why it was not read (#5531), never 100% CER

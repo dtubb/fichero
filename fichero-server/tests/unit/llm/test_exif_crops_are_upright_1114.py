@@ -118,7 +118,7 @@ def test_a_working_pass_page_size_follows_its_frame(tmp_path):
     from fichero_server.llm.working_lines import WorkingLines
 
     photo = _phone_photo(tmp_path / "phone.png")
-    new = WorkingLines(SimpleNamespace(metadata={}), [SimpleNamespace(metadata={"frame": FRAME_UPRIGHT})])
+    new = WorkingLines(SimpleNamespace(metadata={}), [SimpleNamespace(metadata={})], FRAME_UPRIGHT)
     old = WorkingLines(SimpleNamespace(metadata={}), [SimpleNamespace(metadata={})])
     with Image.open(photo) as image:
         assert new.page_size(image) == (200.0, 100.0)
@@ -147,3 +147,89 @@ def test_a_segment_picture_follows_the_segments_frame(db, marked, expect_ink):
     with Image.open(rendition.path) as picture:
         dark = _darkness(picture.convert("L"))
     assert (dark > 0.5) is expect_ink
+
+
+def _page_and_pass(db, tmp_dir, *, marked):
+    """An EXIF-6 page with a converted Kraken pass (marked or an old one) and the artifact it came from."""
+    from fichero_server.models import Artifact, DocType, Document, FileType, Status
+    from fichero_server.models.segments import SegmentPass
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    photo = _phone_photo(Path(tmp_dir) / "phone.png")
+    doc = Document(name="phone", doc_type=DocType.file, file_type=FileType.image, path=str(photo), status=Status.completed)
+    db.save(doc)
+    geometry = kraken_runtime.geometry_from_segmentation(_kraken_payload())
+    if not marked:
+        geometry.metadata.pop("frame")
+    artifact = Artifact(document_id=doc.id, artifact_type="kraken-lines", content="", ocr_geometry=geometry)
+    db.save(artifact)
+    row = SegmentPass(document_id=doc.id, name="lines", provenance_kind=ProvenanceKind.workflow, source_artifact_id=artifact.id)
+    db.save(row)
+    return doc, row
+
+
+@pytest.mark.parametrize("marked", [True, False])
+def test_a_person_made_line_inherits_the_passes_frame(db, tmp_path, marked):
+    """A split, create or merge makes a segment with no marker of its own: it takes the PASS's (## 1120)."""
+    from fichero_server.media.segment_pictures import SegmentPictureOptions, segment_picture
+    from fichero_server.media.upright import pass_frame
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.knowledge import ProvenanceKind
+    from fichero_server.models.segments import Segment, bbox_and_tile_from_anchor
+
+    doc, row = _page_and_pass(db, tmp_path, marked=marked)
+    assert pass_frame(db, row) == (FRAME_UPRIGHT if marked else None)
+    x0, y0, x1, y1 = BAR  # a line a person split: the upright frame's fractions when the pass is upright, else the raw ones
+    if marked:
+        rect = [x0 / 200, y0 / 100, (x1 - x0) / 200, (y1 - y0) / 100]
+    else:
+        rect = [y0 / 100, (200 - x1) / 200, (y1 - y0) / 100, (x1 - x0) / 200]
+    anchor = SourceAnchor(document_id=doc.id, rect=rect)
+    x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
+    child = Segment(document_id=doc.id, pass_id=row.id, kind="line", anchor=anchor, bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h,
+                    tile=tile, doc_kind="page", provenance_kind=ProvenanceKind.human, version=1, metadata={})
+    db.save(child)
+    picture = segment_picture(db, child.id, options=SegmentPictureOptions(mask=False, margin=0.0))
+    with Image.open(picture.path) as shown:
+        assert _darkness(shown.convert("L")) > 0.5
+
+
+@pytest.mark.parametrize("frame, expect_ink", [(FRAME_UPRIGHT, True), (None, False)])
+def test_a_region_node_is_cut_from_the_frame_it_names(db, tmp_path, frame, expect_ink):
+    from fichero_server.media.region_crops import materialize_region_crop
+    from fichero_server.models import DocType, Document, FileType, Status
+    from fichero_server.models.anchors import NodeRegion
+
+    photo = _phone_photo(Path(db.path.parent) / "phone.png")
+    parent = Document(name="phone", doc_type=DocType.file, file_type=FileType.image, path=str(photo), status=Status.completed)
+    db.save(parent)
+    x0, y0, x1, y1 = BAR
+    region = NodeRegion(rect=[x0 / 200, y0 / 100, (x1 - x0) / 200, (y1 - y0) / 100], **({"frame": frame} if frame else {}))
+    child = Document(name="entry", parent_id=parent.id, doc_type=DocType.chunk, file_type=FileType.image, region_in_parent=region)
+    db.save(child)
+    rendition = materialize_region_crop(db, child, db.path.parent)
+    with Image.open(rendition.path) as shown:
+        assert (_darkness(shown.convert("L")) > 0.5) is expect_ink
+
+
+def test_a_model_is_scored_on_the_passes_frame(tmp_path, monkeypatch):
+    import asyncio  # noqa: F401
+
+    from fichero_server.training import evaluation
+
+    photo = _phone_photo(tmp_path / "phone.png")
+    x0, y0, x1, y1 = BAR
+    lines = [{"id": "l1", "text": "bar", "polygon": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]}]
+    seen: list[float] = []
+
+    async def fake_ask(candidate, pictures, prompt):
+        for uri in pictures:
+            seen.append(_darkness(Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))).convert("L")))
+        return '["bar"]'
+
+    monkeypatch.setattr(evaluation, "ask_vision", fake_ask)
+    from fichero_server.models.compute_requests import EvaluationCandidate
+
+    candidate = EvaluationCandidate(reader="vision", provider="fake", model="fake", granularity="lines", lines_per_request=1)
+    evaluation.read_with_vision(str(photo), candidate, lines, None, FRAME_UPRIGHT)
+    assert seen and seen[0] > 0.5

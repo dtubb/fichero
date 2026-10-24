@@ -34,7 +34,7 @@ from typing import Any
 
 from fichero_server.db.storage import resolve_source
 from fichero_server.media.region_crops import RegionCropUnavailable
-from fichero_server.media.upright import open_in_frame
+from fichero_server.media.upright import open_in_frame, pass_frame
 from fichero_server.models import Document, Rendition
 from fichero_server.models.anchors import (
     AnchorShapeKind,
@@ -281,7 +281,7 @@ def segment_picture(
 
     try:
         # The page in the frame the segment was measured on (`media/upright.py`): raw pixels unless it is marked upright.
-        image = open_in_frame(source, (segment.metadata or {}).get("frame"), mode="RGBA")
+        image = open_in_frame(source, (segment.metadata or {}).get("frame") or pass_frame(db, segment.pass_id), mode="RGBA")
         width, height = image.size
 
         if polygon:

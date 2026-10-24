@@ -68,3 +68,22 @@ def copy_in_frame(source: Path, dest: Path, frame: str | None) -> None:
                 image.save(dest, format=opened.format or "PNG", **({"quality": 95} if opened.format == "JPEG" else {}))
                 return
     shutil.copy2(source, dest)
+
+
+def pass_frame(db: Any, pass_ref: Any) -> str | None:
+    """The frame a pass was measured on: its source result's marker (`ocr_geometry.metadata["frame"]`). A person's split, create
+    or merge inside the pass has no marker of its own and inherits this one. None for a pass with no marker (raw pixels)."""
+    from fichero_server.models import Artifact
+    from fichero_server.models.segments import SegmentPass
+
+    row = db.get(SegmentPass, pass_ref) if isinstance(pass_ref, str) else pass_ref
+    artifact_id = getattr(row, "source_artifact_id", None)
+    artifact = db.get(Artifact, artifact_id) if artifact_id else None
+    geometry = getattr(artifact, "ocr_geometry", None)
+    return frame_of(getattr(geometry, "metadata", None))
+
+
+def region_frame(region: Any) -> str | None:
+    """The frame a node's region (`NodeRegion`) was measured on, from its `frame` extra; None = the file's raw pixels."""
+    extra = getattr(region, "model_extra", None) or {}
+    return frame_of(extra, {"frame": getattr(region, "frame", None)})

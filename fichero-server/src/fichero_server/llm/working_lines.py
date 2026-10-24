@@ -49,14 +49,9 @@ class WorkingLines:
 
     pass_row: Any
     lines: list[Any]
-
-    @property
-    def frame(self) -> str | None:
-        """The frame these lines were measured on (`media/upright.py`): "upright", or None for a pass made before the
-        marker existed, which is cut from the file's raw pixels still."""
-        from fichero_server.media.upright import frame_of
-
-        return frame_of(*(getattr(row, "metadata", None) for row in self.lines[:1]), getattr(self.pass_row, "metadata", None))
+    #: The frame the lines were measured on (`media/upright.py`): the pass's own marker first (a person's split, create or merge
+    #: inherits it), else any line's; None for a pass made before the marker existed, cut from the file's raw pixels still.
+    frame: str | None = None
 
     def page_size(self, image: Any) -> tuple[float, float]:
         """(width, height) in the frame the lines are fractions of, from an opened image's header."""
@@ -88,7 +83,9 @@ def working_lines(db: Any, document_id: str, *, model: str | None = None) -> Wor
             continue
         lines = ordered_lines(db, row.id)
         if lines:
-            return WorkingLines(row, lines)
+            from fichero_server.media.upright import frame_of, pass_frame
+
+            return WorkingLines(row, lines, pass_frame(db, row) or frame_of(*(getattr(ln, "metadata", None) for ln in lines)))
     return None
 
 

@@ -69,7 +69,6 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from PIL import Image
 
     from fichero_server.llm import LLMConfig
-    from fichero_server.llm.kraken_runtime import upright_size
     from fichero_server.models import Document
     from fichero_server.workflows.tools.detect_regions import TOOL_CONFIG
     from fichero_server.workflows.tools.llm_base import save_artifact
@@ -117,7 +116,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         try:  # the rendered temp file goes whatever happens to the page from here on
             try:
                 with Image.open(path) as image:
-                    width, height = upright_size(image)
+                    width, height = image.size  # YOLO sees the file's raw pixels; Kraken's geometry says it is upright itself
             except (AttributeError, TypeError, OSError):
                 account["no_image"] += 1
                 continue

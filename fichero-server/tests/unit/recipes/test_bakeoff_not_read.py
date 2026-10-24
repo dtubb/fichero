@@ -201,7 +201,7 @@ def test_kraken_names_lines_with_no_geometry_and_a_vision_model_its_empty_answer
     and the person can fix that (import the geometry) only if the table says so. A vision model that
     answered nothing for every line is a model failure, not an unreadable page."""
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model", lambda model: ("/weights", None))
-    monkeypatch.setattr(kraken_runtime, "read_given_lines", lambda photo, path, lines: ["" for _ in lines])
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", lambda photo, path, lines, **kw: ["" for _ in lines])
     bare = [{"id": "l1", "text": "Anno domini", "baseline": [], "polygon": []}]
     assert evaluation.read_with_kraken("p.jpg", "kraken-mccatmus", bare)[1] == (
         "its lines carry no baseline and outline for Kraken to read on")

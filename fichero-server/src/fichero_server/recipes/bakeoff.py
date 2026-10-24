@@ -745,8 +745,10 @@ def _checked_boxes(page: dict[str, Any]) -> list[list[float]]:
     """The checked lines' boxes, normalised to the photograph (their outlines are in its pixels)."""
     from PIL import Image
 
+    from fichero_server.media.upright import upright_size
+
     with Image.open(page["photo"]) as image:
-        width, height = image.size
+        width, height = upright_size(image) if page.get("frame") == "upright" else image.size
     boxes = []
     for line in page["lines"]:
         points = line.get("polygon") or line.get("baseline") or []
