@@ -135,6 +135,12 @@ class ReadingRead(BaseModel):
     derived_from_artifact_id: str | None = None
     pair_id: str | None = None
     pair_role: str | None = None
+    #: Who read it, and in which run (`source.inspector.reading-says-who-read-it`): the model and
+    #: provider the pass recorded, the run's thread id and the workflow it ran in (its name).
+    producer_model: str | None = None
+    producer_provider: str | None = None
+    producer_run_id: str | None = None
+    producer_step: str | None = None
     #: Withdrawn (`representation.retract`). The row stays; it stops counting.
     retracted: bool = False
     source_anchor: SourceAnchor | None = None
@@ -285,6 +291,9 @@ def provisional_readings(
             created_by=box.provider or artifact.provider,
             machine_confidence=box.confidence,
             derived_from_artifact_id=artifact.id,
+            producer_model=box.model or artifact.model,
+            producer_provider=box.provider or artifact.provider,
+            producer_run_id=artifact.run_id,
             created_at=artifact.created_at,
         )
     ]
@@ -318,6 +327,8 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
         derived_from_artifact_id=row.derived_from_artifact_id,
         pair_id=row.pair_id,
         pair_role=row.pair_role,
+        producer_model=row.producer_model,
+        producer_run_id=row.producer_run_id,
         retracted=row.retracted_at is not None,
         source_anchor=row.source_anchor,
         created_at=row.created_at,
@@ -842,6 +853,28 @@ def text_for_names(db: Database, document_id: str, text: str) -> str:
     return "\n".join(lines) if lines else expanded_text(text)
 
 
+def _say_who_read(db: Database, items: list[ReadingRead]) -> None:
+    """Fill each reading's provider and step from the artifact and run it came from (`source.inspector.reading-says-who-read-it`)."""
+    artifacts: dict[str, Artifact | None] = {}
+    steps: dict[str, str | None] = {}
+    for item in items:
+        art_id = item.derived_from_artifact_id
+        if art_id and item.producer_provider is None:
+            if art_id not in artifacts:
+                artifacts[art_id] = db.get(Artifact, art_id)
+            art = artifacts[art_id]
+            if art is not None:
+                item.producer_provider = art.provider
+                item.producer_model = item.producer_model or art.model
+                item.producer_run_id = item.producer_run_id or art.run_id
+        run_id = item.producer_run_id
+        if run_id:
+            if run_id not in steps:
+                row = db.execute_fetchone("SELECT workflow_name FROM workflowrunrecords WHERE id = ?", [run_id])
+                steps[run_id] = row[0] if row else None
+            item.producer_step = steps[run_id]
+
+
 @router.get("/{segment_id}/readings", response_model=ReadingListResponse)
 async def list_segment_readings(
     segment_id: str,
@@ -858,6 +891,7 @@ async def list_segment_readings(
         items = readings_of_segment(db, segment_id)
     except Exception as exc:
         raise _as_http_error(exc) from exc
+    _say_who_read(db, items)
     counting = counting_by_kind(db, segment_id, items)
     if kind is not None:
         # An older kind (`normalized_text`) is answered as the kind at its level, keyed by the kind
