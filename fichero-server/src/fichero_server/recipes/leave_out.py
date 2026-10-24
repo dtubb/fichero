@@ -79,8 +79,8 @@ def _ink_contrast(image: Any, line: dict[str, Any]) -> float | None:
 def leave_out_pages(db: Any, documents: list[str], run_id: str,
                     stop: Callable[[], bool] | None = None) -> dict[str, Any]:
     """Mark each page's lines that are not writing; the account: `pages`, `left_out`, `why` (count by reason) and `refused`
-    (lines a concurrent edit kept from being marked). Written through the audited `segment.update_many`, ONE audit row for
-    the batch (one undo, change events, a version check per line), never row by row. Nothing is deleted; a line already
+    (lines a concurrent edit kept from being marked). Written through the audited `segment.update_many`, ONE audit row per
+    page (one undo per page, change events, a version check per line), never row by row. Nothing is deleted; a line already
     left out, one a person brought back (`kept_by_person`) and one a person drew are left alone, so a second run marks
     nothing new."""
     from pathlib import Path
@@ -95,7 +95,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
 
     library = Path(db.path).parent
     account: dict[str, Any] = {"pages": 0, "left_out": 0, "why": {}, "refused": 0}
-    updates: list[dict[str, Any]] = []
+    ctx = ActionContext(actor="leave-out", run_id=run_id, library_path=str(library), is_bootstrap=True)
     for doc_id in documents:
         if stop is not None and stop():
             break
@@ -113,22 +113,27 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         image = _open(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
         contrast = (lambda ln: _ink_contrast(image, ln)) if image is not None else None
         verdicts = decide(lines, page_box=page_box, contrast_of=contrast)
+        updates: list[dict[str, Any]] = []
+        whys: dict[str, int] = {}
         for row in rows:
             why = verdicts.get(row.id)
             if why is None or (row.metadata or {}).get("kept_by_person") or row.provenance_kind == ProvenanceKind.human:
                 continue
             updates.append({"segment_id": row.id, "expected_version": row.version, "is_furniture": True,
                             "left_out_reason": why})
-            account["why"][why] = account["why"].get(why, 0) + 1
-    if updates:
-        ctx = ActionContext(actor="leave-out", run_id=run_id, library_path=str(library), is_bootstrap=True)
+            whys[why] = whys.get(why, 0) + 1
+        if not updates:
+            continue
         try:
             registry.invoke(db, "segment.update_many", {"updates": updates}, ctx)
-            account["left_out"] = len(updates)
         except HTTPException:
-            # A line changed under the run (the whole edit is refused, none written): the batch is left as it was, said.
-            account["refused"] = len(updates)
-            account["why"] = {}
+            # A line changed under this page (its edit is refused, none written): that page is left as it was, said;
+            # the other pages of the run are not held back by it.
+            account["refused"] += len(updates)
+            continue
+        account["left_out"] += len(updates)
+        for why, n in whys.items():
+            account["why"][why] = account["why"].get(why, 0) + n
     return account
 
 

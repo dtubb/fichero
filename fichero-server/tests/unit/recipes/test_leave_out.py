@@ -102,7 +102,7 @@ def test_the_marks_are_one_audited_step_that_undo_takes_back(client, db):
     db.save(speck)
     assert leave_out.leave_out_pages(db, [doc.id], "run-1")["left_out"] == 2
     audits = [a for a in db.query(ActionAudit) if a.action_name == "segment.update_many"]
-    assert len(audits) == 1, "one audit row for the whole batch"
+    assert len(audits) == 1, "one audit row for the page"
     undone = client.post(f"/api/actions/audit/{audits[0].id}/undo")
     assert undone.status_code == 200, undone.text
     assert not any(r.is_furniture for r in db.query(Segment, document_id=doc.id)), "one undo brings both back"
@@ -148,3 +148,31 @@ def _segment(document_id, ln):
         anchor=SourceAnchor(document_id=document_id, space=AnchorSpace.normalized, rect=[ln["x"], ln["y"], ln["w"], ln["h"]]),
         bbox_x=ln["x"], bbox_y=ln["y"], bbox_w=ln["w"], bbox_h=ln["h"], tile="x0y0", doc_kind=f"{document_id}:line",
         confidence=ln["confidence"], provenance_kind=ProvenanceKind.workflow)
+
+
+def test_each_page_is_its_own_batch_so_a_page_a_person_edited_does_not_hold_back_the_rest(client, db, monkeypatch):
+    """## 1109: one audit row per page; a page refused (a line changed under the run) leaves only itself unmarked."""
+    from fastapi import HTTPException
+
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import ActionAudit, Segment
+
+    first, made_first = _page_with_a_bed_line(db)
+    second, made_second = _page_with_a_bed_line(db)
+    real = registry.invoke
+
+    def refuse_the_first(db_, name, params, ctx):
+        if first_bed in [u["segment_id"] for u in params["updates"]]:
+            raise HTTPException(409, "changed")
+        return real(db_, name, params, ctx)
+
+    first_bed = made_first[-1].id
+    monkeypatch.setattr(registry, "invoke", refuse_the_first)
+    account = leave_out.leave_out_pages(db, [first.id, second.id], "run-1")
+    assert account["refused"] == 1 and account["left_out"] == 1 and account["why"] == {OFF_THE_PAGE: 1}
+    monkeypatch.setattr(registry, "invoke", real)
+    assert not db.get(Segment, first_bed).is_furniture and db.get(Segment, made_second[-1].id).is_furniture
+    third, _ = _page_with_a_bed_line(db)
+    assert leave_out.leave_out_pages(db, [second.id, third.id], "run-2")["left_out"] == 1
+    audits = [a for a in db.query(ActionAudit) if a.action_name == "segment.update_many"]
+    assert len(audits) == 2, "one audit row per page that was written"
