@@ -21,3 +21,18 @@ struct LoadingToolbarPresenceTests {
                 "the interim toolbar must be inert; live controls over a skeleton can act on nothing")
     }
 }
+
+/// #6010: the What to show glyph is on every page's bar, regions or not.
+struct WhatToShowAlwaysThereTests {
+    @Test func theGateNeverHidesTheGlyph() throws {
+        let source = try AppSource.text("Views/Reader/ReaderToolbar.swift")
+        let menu = source.range(of: "private var whatToShowMenu: some View {").map { String(source[$0.upperBound...].prefix(400)) } ?? ""
+        #expect(!menu.contains("if textBoxesEnabled != nil"), "the glyph is gated on a display switch again: it goes missing on a page with none")
+        #expect(menu.contains("Menu {"))
+    }
+
+    @Test func aPageWithNoRegionsStillHasTheImageSwitch() {
+        #expect(ReaderToolbar.whatToShowHasSwitches(hasTextBoxes: false, hasAnnotations: false, hasImage: true))
+        #expect(!ReaderToolbar.whatToShowHasSwitches(hasTextBoxes: false, hasAnnotations: false, hasImage: false))
+    }
+}
