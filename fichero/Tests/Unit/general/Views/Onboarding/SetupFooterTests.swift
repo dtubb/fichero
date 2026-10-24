@@ -99,7 +99,9 @@ struct SetupFooterTests {
     func notSureIsAnAnswer() {
         let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
         #expect(store.languageWait == SetupFooter.chooseTheLanguage, "blank is not an answer")
+        store.scripts = ["Latn"]
         store.setLanguagesNotSure(true)
+        #expect(store.scripts.isEmpty, "a writing system hidden under Not sure must not steer the plan")
         #expect(store.languagesNotSure && store.languageWait == nil && store.canAssemble)
         #expect(store.namedLanguages.isEmpty)
         store.add(.init(code: "es", name: "Spanish", detail: nil, usualScript: nil), toScripts: false)

@@ -150,7 +150,7 @@ struct SetupStagePage: View {
                                 onlyJobs: Set(stage.jobs), candidatesOf: stepCandidates)
             } else {
                 // No plan was assembled: the steps are named, never offered as radio rows that look like a model
-                // choice, and the reason is said (`source.onboard.project.about-material`: never a silent empty proposal).
+                // choice, and the reason is said (`source.onboard.project.about-material-language`: never a silent empty proposal).
                 ForEach(stage.jobs, id: \.self) { job in
                     Text(store.jobs[job]?.name ?? job).font(.callout)
                 }
