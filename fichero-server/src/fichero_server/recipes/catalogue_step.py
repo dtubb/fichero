@@ -109,6 +109,20 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
     return text
 
 
+def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
+    """(the folders above these pages a run would describe, how many are already described): `describe_folders`'s own rule,
+    read without running it. A folder with no reading under it is neither."""
+    todo, current = [], 0
+    for folder in folders_covering(db, page_ids):
+        leaves = _below(db, folder.id)[1]
+        old = _latest(db, folder.id)
+        if old is not None and (old.data or {}).get("covers") == coverage(leaves):
+            current += 1
+        elif any((d.page_content or "").strip() for d in leaves):
+            todo.append(folder)
+    return todo, current
+
+
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
                      stop: Any = lambda: False, language: str | None = None,
                      max_words: int = FOLDER_DESCRIPTION_MAX_WORDS) -> dict[str, Any]:

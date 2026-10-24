@@ -503,6 +503,13 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
+        if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
+            from fichero_server.recipes.catalogue_step import folders_to_describe
+
+            todo, current = folders_to_describe(db, pages)
+            card["done"], card["of"] = current, current + len(todo)
+            card["note"] = (f"describes {len(todo)} folder{'' if len(todo) == 1 else 's'}; {current} already described"
+                            if todo else f"already described on all {current} folders; nothing to run")
         if redo and redo.intersection(card["steps"]):  # the run was asked to do it again (#5689)
             card["note"] = f"runs again on all {len(pages)} {unit}, as asked (redo)"
         last = next(((sid, (unfinished or {})[sid]) for sid in card["steps"] if sid in (unfinished or {})), None)
