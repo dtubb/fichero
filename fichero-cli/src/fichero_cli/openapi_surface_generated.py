@@ -13748,6 +13748,7 @@ def register_generated_openapi_commands(
     def recipes_save_project_setup_put(
         ctx: typer.Context,
         answers: Optional[str] = typer.Option(None, '--answers', help="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them. JSON."),
+        cloud_inherited: Optional[bool] = typer.Option(None, '--cloud-inherited/--no-cloud-inherited', help='Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)'),
         recipe: Optional[str] = typer.Option(None, '--recipe', help="The project's recipe, as POST /api/recipes/assemble returns it; null clears it. JSON."),
     ) -> None:
         """Save Project Setup (PUT /api/recipes/project)."""
@@ -13756,9 +13757,11 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "answers": answers,
+                "cloud_inherited": cloud_inherited,
                 "recipe": recipe,
             }, {
                 "answers": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Answers', 'description': "Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.", 'x-cli-required': False},
+                "cloud_inherited": {'type': 'boolean', 'nullable': True, 'title': 'Cloud Inherited', 'description': 'Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)', 'x-cli-required': False},
                 "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'description': "The project's recipe, as POST /api/recipes/assemble returns it; null clears it.", 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)

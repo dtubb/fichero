@@ -23,7 +23,7 @@ def project_allows_leaving(library: str | None) -> bool:
     depends on a file being well formed. With no library the answer is no."""
     if not library:
         return False
-    from fichero_server.recipes.places import project_says_cloud
+    from fichero_server.recipes.places import inherits_cloud
     from fichero_server.recipes.project import FOLDER
 
     path = Path(library) / FOLDER / "setup.yaml"
@@ -31,21 +31,25 @@ def project_allows_leaving(library: str | None) -> bool:
         st = path.stat()
         mtime = (st.st_mtime_ns, st.st_size)
     except OSError:
-        return project_says_cloud(None)  # no setup saved: a new project, from the app's setting
+        return inherits_cloud()  # no setup saved: a new project, from the app's setting
     key = str(path)
     hit = _CACHE.get(key)
     if hit and hit[0] == mtime:
-        return project_says_cloud(hit[1])
+        return inherits_cloud() if hit[1] is None else hit[1]
     try:
         import yaml
 
         answers = yaml.safe_load(path.read_text(encoding="utf-8"))
-        said = answers.get("cloud_allowed") if isinstance(answers, dict) else False
-        allowed = said if isinstance(said, bool) or said is None else False  # anything but yes, no or absent is no
+        # None is "has not answered" (no such key): only that inherits; a null or odd value is no.
+        if isinstance(answers, dict) and "cloud_allowed" not in answers:
+            allowed = None
+        else:
+            said = answers.get("cloud_allowed") if isinstance(answers, dict) else False
+            allowed = said if isinstance(said, bool) else False
     except Exception:  # noqa: BLE001 -- unreadable means not a yes
         allowed = False
     _CACHE[key] = (mtime, allowed)
-    return project_says_cloud(allowed)
+    return inherits_cloud() if allowed is None else allowed
 
 
 def current_library() -> str | None:

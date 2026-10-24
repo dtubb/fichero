@@ -81731,6 +81731,12 @@
             "nullable": true,
             "title": "Recipe",
             "description": "The project's recipe, as POST /api/recipes/assemble returns it; null clears it."
+          },
+          "cloud_inherited": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Cloud Inherited",
+            "description": "Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"
           }
         },
         "additionalProperties": false,

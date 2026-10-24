@@ -1772,6 +1772,9 @@ class ProjectSetup(BaseModel):
     model_config = ConfigDict(extra="forbid")
     answers: Optional[dict[str, Any]] = Field(default=None, description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")
     recipe: Optional[dict[str, Any]] = Field(default=None, description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")
+    cloud_inherited: Optional[bool] = Field(default=None, description=(
+        "Read-only, on a read: true when the project has not answered the cloud question and the app allows a cloud AI service, "
+        "so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"))
 
 
 def _library(db: Database) -> Path:

@@ -259,8 +259,11 @@ final class RecipeSetupStore {
             if let answers = saved.answers {
                 savedAnswers = try JSONEncoder().encode(answers)
                 apply(try Self.convert(answers, to: RecipeSetupAnswers.self))
-            } else {
-                await inheritCloudFromApp()
+            }
+            // The engine's word, never a rule kept here: a project that has not answered the cloud question starts from
+            // the app's setting (`cloud_inherited`, beside the answers and never saved with them).
+            if saved.cloudInherited == true, savedAnswers.flatMap({ Self.hasKey("cloud_allowed", in: $0) }) != true {
+                cloudAllowed = true
             }
             if let savedRecipe = saved.recipe {
                 rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
@@ -275,17 +278,9 @@ final class RecipeSetupStore {
         }
     }
 
-    /// A project with nothing saved starts from the app's own yes to the cloud (Settings > AI, where models may run), not
-    /// closed per project; the person may then be stricter (`source.onboard.new-project-inherits-the-cloud-setting`).
-    private func inheritCloudFromApp() async {
-        guard case .ok(let success)? = try? await client.api.getPlacesApiRecipesPlacesGet(),
-              let view = try? success.body.json else { return }
-        cloudAllowed = Self.inheritedCloud(places: view.places, answered: view.answered)
-    }
-
-    /// The app's yes, said: answered where models may run, and a cloud AI service among the places.
-    nonisolated static func inheritedCloud(places: [String], answered: Bool) -> Bool {
-        answered && places.contains(WhereTheWorkRuns.cloud.rawValue)
+    /// Whether saved answers (JSON) carry `key` at all.
+    nonisolated private static func hasKey(_ key: String, in data: Data) -> Bool {
+        ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?[key] != nil
     }
 
     /// Save the answers and the proposed recipe on the project. Saving is not

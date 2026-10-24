@@ -421,28 +421,27 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
 
-    /// WHY (`source.onboard.new-project-inherits-the-cloud-setting`): a project with nothing saved starts from the app's
-    /// yes to the cloud, not closed; one with saved answers keeps its own (the engine fills a missing one).
-    func testANewProjectStartsFromTheAppsCloudSetting() async throws {
-        func serve(places: String) {
+    /// WHY (`source.onboard.new-project-inherits-the-cloud-setting`): a project that has not answered starts from the app's
+    /// yes, as the ENGINE says it (`cloud_inherited`); the app keeps no copy of the rule, and one that answered keeps its own.
+    func testANewProjectStartsFromTheCloudSettingTheEngineReports() async throws {
+        func serve(project: String) {
             FinderMockURLProtocol.reset { request in
-                switch request.url?.path {
-                case "/api/recipes/project": return (200, #"{"answers":null,"recipe":null}"#)
-                case "/api/recipes/places":
-                    return (200, #"{"places":\#(places),"answered":true,"memory_gb":16,"this_mac":"This Mac"}"#)
-                default: return (200, "{}")
-                }
+                request.url?.path == "/api/recipes/project" ? (200, project) : (200, "{}")
             }
         }
-        serve(places: #"["this-mac","cloud"]"#)
+        serve(project: #"{"answers":null,"recipe":null,"cloud_inherited":true}"#)
         let inheriting = RecipeSetupStore(client: makeClient())
         await inheriting.loadSaved()
-        XCTAssertTrue(inheriting.cloudAllowed, "the app allows a cloud AI service: a new project starts from it")
+        XCTAssertTrue(inheriting.cloudAllowed)
 
-        serve(places: #"["this-mac"]"#)
+        serve(project: #"{"answers":null,"recipe":null,"cloud_inherited":false}"#)
         let closed = RecipeSetupStore(client: makeClient())
         await closed.loadSaved()
         XCTAssertFalse(closed.cloudAllowed)
-        XCTAssertFalse(RecipeSetupStore.inheritedCloud(places: ["this-mac", "cloud"], answered: false), "not answered: nothing to inherit")
+
+        serve(project: #"{"answers":{"cloud_allowed":false},"recipe":null,"cloud_inherited":false}"#)
+        let answered = RecipeSetupStore(client: makeClient())
+        await answered.loadSaved()
+        XCTAssertFalse(answered.cloudAllowed, "a project that answered no stays no")
     }
 }
