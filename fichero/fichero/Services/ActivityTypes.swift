@@ -511,6 +511,8 @@ struct ActivityJobNode: Identifiable, Equatable {
 /// run's account: the same one that run's own row shows.
 struct ActivityRecipeStage: Equatable, Identifiable {
     let steps: [String]
+    /// The stage in the engine's words (the job registry's names), never the job ids.
+    let title: String?
     let card: String
     let job: String?
     let state: String
@@ -522,6 +524,7 @@ struct ActivityRecipeStage: Equatable, Identifiable {
 
     init(_ step: Components.Schemas.RecipeRunStep) {
         steps = step.steps
+        title = step.title
         card = step.card
         job = step.job
         state = step.state

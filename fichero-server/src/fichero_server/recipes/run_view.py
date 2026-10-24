@@ -17,7 +17,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fichero_server.workflows.run_account import PageFailure, RunAccount
 
@@ -80,6 +80,9 @@ class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
     steps: list[str]
+    #: The stage in words, from the job registry's names ("Find lines and Read each line"), never its job ids
+    #: (`source.activity.run.stage-named-in-words`). Filled from `steps` when the status does not carry it.
+    title: Optional[str] = None
     card: str
     job: Optional[str] = Field(default=None, description="the stage's last job (read-a-line, find-names-tag-words)")
     state: str = Field(description="waiting, running, done, partial (some pages lost; `why` and `failed_pages` say which), failed or not run")
@@ -109,6 +112,14 @@ class RecipeRunStep(BaseModel):
         "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"))
     regions_found: Optional[StageRegions] = Field(default=None, description=(
         "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"))
+
+    @model_validator(mode="after")
+    def _name_the_stage(self) -> "RecipeRunStep":
+        if self.title is None:
+            from fichero_server.execution.jobs import kind_name
+
+            self.title = " and ".join(kind_name(step) for step in self.steps) or None
+        return self
 
 
 class SkippedStep(BaseModel):

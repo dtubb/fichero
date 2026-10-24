@@ -84376,6 +84376,11 @@
             "type": "array",
             "title": "Steps"
           },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
           "card": {
             "type": "string",
             "title": "Card"

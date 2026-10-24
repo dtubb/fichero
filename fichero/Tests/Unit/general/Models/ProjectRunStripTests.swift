@@ -182,6 +182,27 @@ final class ProjectRunStripTests: XCTestCase {
         MockTransportURLProtocol.recorded().compactMap(\.url?.path).filter { $0 == "/api/activity/jobs/\(jobId)" }.count
     }
 
+    func testStrip_aStageWithNoRunYetIsNamedInWords_neverByJobIds() async throws {
+        // WHY: the line read "find-lines, read-a-line · stage 1 of 3" (`activity.run.stage-named-in-words`): the stage's
+        // jobs joined by their ids. The engine now sends the title from the job registry's names.
+        let store = Self.store()
+        var tree = try Self.runningTree()
+        var stages = try XCTUnwrap(tree["stages"] as? [[String: Any]])
+        stages[0]["child_id"] = NSNull()
+        stages[0]["steps"] = ["find-lines", "read-a-line"]
+        stages[0]["card"] = "lines"
+        stages[0]["title"] = "Find lines and Read each line"
+        tree["stages"] = stages
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree))
+        ])
+        await store.refreshBackgroundJobs()
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store))
+        XCTAssertEqual(strip.title, "Find lines and Read each line · stage 1 of 3")
+    }
+
     // MARK: - source.onboard.auto.lands-on-the-run (#5576)
 
     func testStrip_whileTheRunGoes_saysItsStagePagesTimeLeftAndWhatItWaitsFor() async throws {
