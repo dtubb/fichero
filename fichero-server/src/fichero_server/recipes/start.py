@@ -1309,8 +1309,9 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
-             catalogue: list[dict[str, Any]] = (), folders: int = 0) -> dict[str, Any]:
-    """What Start would cost, before anything runs (`source.onboard.estimate-before-start`).
+             catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None) -> dict[str, Any]:
+    """What Start would cost, before anything runs (`source.onboard.estimate-before-start`). `todo`: per job, the pages
+    still to do (`done.todo_counts`); a run is priced on those, not on pages it has already done.
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
@@ -1318,8 +1319,10 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
     from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
     rows, total = [], 0.0
+    all_pages = pages
     for w in workflows:
         runs_on = str(w["runs_on"])
+        pages = (todo or {}).get(w.get("job"), all_pages)
         review = w.get("job") == "correct"
         # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
         # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
@@ -1350,7 +1353,7 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
                      "memory": None, "calls_per_page": 1, "lenses": [], "certainty_bar": None, "lines_to_send": None,
                      "lines_to_send_kind": None, "lines_basis": None})
         total = None if total is None or cost is None else total + cost
-    return {"pages": pages, "runs": rows, "total_cost_usd": total}
+    return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
 
 
 def _priced(run: dict[str, Any], calls: int) -> float | None:
