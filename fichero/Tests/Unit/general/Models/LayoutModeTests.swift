@@ -216,6 +216,23 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertEqual(resolved?.id, "page-1")
     }
 
+    /// #5300: a click on a folder in the sidebar promotes the folder (its Preview is its canvas) even when an item inside
+    /// it was open before; a focus a reveal set during the load is kept.
+    func testSidebarFolderClickPromotesTheFolderOverAStaleItemInsideIt() {
+        // the item "page-1" of "folder-1" was open before the click: stale, the folder is promoted
+        XCTAssertFalse(SidebarContainerSelection.keepsFocus(
+            focusedId: "page-1", parentId: "folder-1", pdfParentId: nil, container: "folder-1", focusAtClick: "page-1"))
+        // a reveal set "page-2" while the children loaded: kept
+        XCTAssertTrue(SidebarContainerSelection.keepsFocus(
+            focusedId: "page-2", parentId: "folder-1", pdfParentId: nil, container: "folder-1", focusAtClick: "page-1"))
+        // the folder itself already focused after a reveal of it: kept, nothing to promote
+        XCTAssertTrue(SidebarContainerSelection.keepsFocus(
+            focusedId: "folder-1", parentId: nil, pdfParentId: nil, container: "folder-1", focusAtClick: nil))
+        // a focus in another folder is replaced
+        XCTAssertFalse(SidebarContainerSelection.keepsFocus(
+            focusedId: "page-9", parentId: "folder-2", pdfParentId: nil, container: "folder-1", focusAtClick: nil))
+    }
+
     func testCanvasDocumentShowsPlainFolderOrGroupAsContainerPlaceholder() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Diary")
         let group = Document(id: "group-1", docType: .group, name: "Chapter")

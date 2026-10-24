@@ -246,6 +246,20 @@ struct BrowserSelectionPreviewPolicy {
     }
 }
 
+/// A sidebar click on a container (`library.canvas.a-folder-previews-as-its-canvas`, #5300): whether the focus that is
+/// there when the children have loaded stays, or the container itself is promoted so its Preview is its canvas.
+struct SidebarContainerSelection {
+    /// A focus on the container or inside it stays only when it was set AFTER the click: a search-hit or claim-source
+    /// reveal selects the container and then sets the matched page (#1463). One that was already there at the click is
+    /// a stale item opened earlier, and kept it left the folder's Preview on that item, never its canvas.
+    static func keepsFocus(
+        focusedId: String, parentId: String?, pdfParentId: String?, container: String, focusAtClick: String?
+    ) -> Bool {
+        let inside = focusedId == container || parentId == container || pdfParentId == container
+        return inside && focusedId != focusAtClick
+    }
+}
+
 /// Chooses the document that should drive the image/PDF canvas.
 ///
 /// The inspector can legitimately show a folder or group. The canvas accepts
