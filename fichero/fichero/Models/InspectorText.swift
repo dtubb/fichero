@@ -31,6 +31,9 @@ struct InspectorText: Equatable {
         var producerRunId: String?
         var producerStep: String?
         var createdAt: Date?
+        /// Still held only in its run's result (not a stored row), and the result it came from.
+        var provisional = false
+        var derivedFromArtifactId: String?
 
         /// "gemini-3-flash-preview via OpenRouter": the model's own name (its last path part) and the provider,
         /// each said once; just the one that is known, nil when neither is.
@@ -101,6 +104,23 @@ struct InspectorText: Equatable {
         var seen: [String] = []
         for reading in readings where !seen.contains(reading.kind) { seen.append(reading.kind) }
         return seen
+    }
+
+    /// A provisional reading whose stored twin (same artifact, kind and content) is also listed says the line twice, so
+    /// it is hidden; the API keeps listing both (`source.recipe.one-reading-a-line`).
+    static func hidingProvisionalTwins(_ readings: [Reading]) -> [Reading] {
+        let stored = Set(readings.filter { !$0.provisional && $0.derivedFromArtifactId != nil }
+            .map { TwinKey(artifact: $0.derivedFromArtifactId, kind: $0.kind, content: $0.content) })
+        return readings.filter { reading in
+            !(reading.provisional
+                && stored.contains(TwinKey(artifact: reading.derivedFromArtifactId, kind: reading.kind, content: reading.content)))
+        }
+    }
+
+    private struct TwinKey: Hashable {
+        let artifact: String?
+        let kind: String
+        let content: String
     }
 
     func readings(ofKind kind: String) -> [Reading] { readings.filter { $0.kind == kind } }
