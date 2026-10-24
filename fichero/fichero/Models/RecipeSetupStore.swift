@@ -865,6 +865,13 @@ extension RecipeSetupStore {
         jobs[job]?.readsMaterial ?? false
     }
 
+    /// Whether the finder is offered beside a step: a step that reads material, and the two other steps that run a chosen
+    /// model, Find Regions and Correct (`source.find.every-model-step-has-a-finder`, Set Up review item 1).
+    /// ponytail: the two ids are named here until the registry carries `offers_finder` on `JobInfo` (engine, then regenerate).
+    func offersFinder(_ job: String) -> Bool {
+        readsMaterial(job) || ["find-regions", "correct"].contains(job)
+    }
+
     /// What explains a job: its topic in the registry, or nil when the job names
     /// none the registry has (the job's name is shown alone).
     func explanation(ofJob id: String) -> Components.Schemas.TopicInfo? {

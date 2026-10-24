@@ -54,10 +54,12 @@ struct RecipeStepsView: View {
                     Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
                 }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
-                if onFix != nil, finder != nil, store.readsMaterial(step.job) {
-                    Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
+                if onFix != nil, finder != nil, store.offersFinder(step.job) {
+                    Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") { findingFor = FinderStep(id: step.id, job: step.job) }
                         .controlSize(.small)
-                        .help("The readers for this project's scripts and languages, and where to get them")
+                        .help(store.readsMaterial(step.job)
+                              ? "The readers for this project's scripts and languages, and where to get them"
+                              : "The models that can do this step, and where to get them")
                 }
                 // Each step with a comparison offers it: the readers under the reading step, the line finders
                 // under Find lines (#5660 item 7).
