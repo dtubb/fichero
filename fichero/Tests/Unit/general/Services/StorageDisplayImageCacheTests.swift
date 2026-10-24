@@ -70,6 +70,19 @@ struct StorageDisplayImageCacheTests {
         #expect(service.cachedDisplayPlatformImage(for: "stable") != nil)
     }
 
+    @Test("both display paths share one bounded bytes cache, cleared with the rest (#6021)")
+    func displayBytesAreSharedAndBounded() {
+        let service = makeService()
+        let bytes = Data([1, 2, 3])
+        for index in 0..<(StorageService.displayBytesLimit + 3) { service.cacheDisplayBytes(bytes, for: "doc-\(index)") }
+        #expect(service.cachedDisplayBytes(for: "doc-0") == nil, "the oldest is evicted")
+        #expect(service.cachedDisplayBytes(for: "doc-\(StorageService.displayBytesLimit + 2)") == bytes)
+        service.invalidateImageCache(for: "doc-\(StorageService.displayBytesLimit + 2)")
+        #expect(service.cachedDisplayBytes(for: "doc-\(StorageService.displayBytesLimit + 2)") == nil)
+        service.clearAll()
+        #expect(service.cachedDisplayBytes(for: "doc-5") == nil)
+    }
+
     @Test("invalidate removes display image from cache and order")
     func displayCacheInvalidateClearsEntry() {
         let service = makeService()
