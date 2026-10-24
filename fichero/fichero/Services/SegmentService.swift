@@ -181,6 +181,33 @@ extension SegmentService {
         try await resolvedSettings(query: .init(segmentId: segmentId))
     }
 
+    /// Every selected line's resolved settings in ONE read (`POST /api/source-settings/resolve-many`, #6082), in the order
+    /// asked; a line the engine could not find has none. One request, not one per line.
+    func resolvedSettings(segmentIds: [String]) async throws -> [[InspectorLanguage.Setting]] {
+        guard !segmentIds.isEmpty else { return [] }
+        let response = try await client.api.resolveManyApiSourceSettingsResolveManyPost(
+            body: .json(.init(segmentIds: segmentIds))
+        )
+        switch response {
+        case .ok(let okResponse):
+            let bySegment = Dictionary(
+                try okResponse.body.json.items.map { item in
+                    (item.segmentId, item.settings.map {
+                        InspectorLanguage.Setting(
+                            key: $0.key, value: $0.value, status: $0.status, source: $0.source, basis: $0.basis, level: $0.level
+                        )
+                    })
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            return segmentIds.map { bySegment[$0] ?? [] }
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        case .unprocessableContent:
+            return segmentIds.map { _ in [] }
+        }
+    }
+
     /// The same for a source -- a folder, document or page -- with no segment (the Inspector's Direction row).
     func resolvedSettings(documentId: String) async throws -> [InspectorLanguage.Setting] {
         try await resolvedSettings(query: .init(documentId: documentId))
