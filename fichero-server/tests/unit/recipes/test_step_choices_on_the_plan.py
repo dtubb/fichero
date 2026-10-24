@@ -86,9 +86,9 @@ def test_every_candidate_the_plan_lists_can_be_chosen_cloud_readers_included(cli
 
 
 def test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_stays(client, project, claude_row):
-    """#5808, ruling B: a page reader (Apple Vision, a local vision model) does not read lines, so it is not the line step's
-    candidate (`discovery.does_the_step`, the one rule the menu and `use-candidate` share); a cloud reader that reads Kraken's
-    lines (the person's Claude row) is listed AND accepted for read-a-line."""
+    """#5808, ruling B (amended by the owner's #6071 ruling): a page reader that reads no lines (a local vision model) is not the
+    line step's candidate (`discovery.does_the_step`, the one rule the menu and `use-candidate` share); Apple Vision reads single
+    lines and IS one; a cloud reader that reads Kraken's lines (the person's Claude row) is listed AND accepted for read-a-line."""
     from fichero_server.recipes.discovery import does_the_step
     from fichero_server.api.routes.system.recipes import _offered_cards
 
@@ -97,7 +97,8 @@ def test_the_line_step_lists_only_what_use_candidate_accepts_and_a_cloud_reader_
     listed = [c["card"] for c in choice["candidates"] if not c["card"].startswith("corrects-unsure:")]
     assert listed and all(card in by_id for card in listed), listed  # a list to check, every card found: not vacuous
     assert all(does_the_step(by_id[card], "read-a-line") for card in listed)
-    assert not any(card.startswith("apple:vision/") or "-VL-" in card for card in listed), listed
+    assert not any("-VL-" in card for card in listed), listed
+    assert "apple:vision/recognize-text@os" in listed, "Apple Vision reads single lines (#6071)"
     claude = next(c for c in choice["candidates"] if c["runs_on"].startswith("cloud:") and not c["card"].startswith("corrects-unsure:"))
     assert claude["how"] == "cloud-reads-kraken-lines"
     taken = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": claude["card"]})
@@ -274,3 +275,16 @@ def test_the_unsure_choice_is_kept_as_typed_fields_on_the_override_not_as_words(
     override = next(o for o in r.json()["recipe"]["overrides"] if o["step"] != step)
     assert override["unsure"] is True and override["correct_was_on"] is False and override["card"] == CLAUDE
     assert override["because"].startswith("Kraken reads") and "already on" not in override["because"]
+
+
+def test_choosing_apple_vision_for_the_line_step_starts_a_run_that_reads_kraken_lines_with_it(client, project):
+    """#6071: Apple Vision is listed for read-a-line, `use-candidate` takes it (no 422), and Start reads the lines Kraken found with
+    it (the provider the line-reading workflow takes), not a page read."""
+    apple = "apple:vision/recognize-text@os"
+    choice = _read_choice(_plan(client))
+    assert apple in [c["card"] for c in choice["candidates"]]
+    taken = client.post("/api/recipes/project/steps/use-candidate", json={"step": choice["step"], "card": apple})
+    assert taken.status_code == 200, taken.text
+    run = next(w for w in _plan(client)["workflows"] if choice["step"] in w["steps"])
+    assert run["provider_override"] == "apple" and run["model_override"] == "apple-vision", run
+    assert "kraken" in str(run.get("workflow", "")).lower() or run.get("workflow_id"), run
