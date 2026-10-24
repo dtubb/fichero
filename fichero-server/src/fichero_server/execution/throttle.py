@@ -34,6 +34,10 @@ _PRESSURE_WARN = 2
 #: How every memory reason begins: the one reason that means "let memory go", not just "wait" (a long
 #: job stops on it). The full reason (`memory_short`) goes on to give the two numbers it compared.
 MEMORY_REASON = "Waiting: memory is tight"
+#: Swap in use that, together with memory pressure at warn or above, says this Mac is paging now (`activity.throttle.hold-when-swapping`,
+#: #6075): swap alone is not enough (macOS keeps swap it has written long after the pressure is gone), pressure alone is the busy
+#: state that already limits heavy work to one page (`memory_is_busy`).
+SWAP_HOLD_BYTES = 2 * 1024**3
 #: `NSProcessInfoThermalState`: 0 nominal, 1 fair, 2 serious, 3 critical.
 _THERMAL_SERIOUS = 2
 
@@ -94,6 +98,7 @@ def memory_short(
     pressure_level: Callable[[], int | None] | None = None,
     need_bytes: int | None = None,
     what: str = "Kraken and the other local models",
+    swap_bytes: Callable[[], int | None] | None = None,
 ) -> str | None:
     """THE memory check (#5524): why heavy local work must wait for memory now, in words with the two
     numbers compared, or None to go ahead. The lane's throttle asks it before it hands out a job and
@@ -119,6 +124,11 @@ def memory_short(
     if level is not None and level >= _PRESSURE_CRITICAL:
         return (f"{MEMORY_REASON}: this Mac's memory pressure is critical, so starting a model that "
                 f"needs about {need / 1024**3:.1f} GB now risks the whole app crashing")
+    # A caller that supplies its own pressure reading (a test, a probe) controls the readings: swap is read from the Mac only beside the Mac's own pressure.
+    swap = swap_bytes() if swap_bytes else (None if pressure_level else swap_used_bytes())
+    if level is not None and level >= _PRESSURE_WARN and swap is not None and swap >= SWAP_HOLD_BYTES:
+        return (f"{MEMORY_REASON}: this Mac is paging to disk ({swap / 1024**3:.1f} GB of swap in use) under memory pressure, "
+                f"so starting a model that needs about {need / 1024**3:.1f} GB now would slow everything")
     return None
 
 
