@@ -20,7 +20,12 @@
     "fichero-server/tests/unit/transfer/test_transfer_between_engines.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
     "fichero-server/tests/unit/transfer/test_transfer_cuts.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
     "fichero-server/tests/unit/transfer/test_transfer_knowledge.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
-    "fichero-server/tests/unit/transfer/test_transfer_other_items.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built"
+    "fichero-server/tests/unit/transfer/test_transfer_other_items.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
+    "docs/assets/recipe-designer/": "planned: preview-harness screenshots for the Recipe Designer manual, made once the path page exists (step 5, #6058)",
+    "fichero/Tests/Unit/general/Models/RecipeDesignerRenderingTests.swift": "planned test: served route cards and labels, written with the path page (step 5, #6058)",
+    "fichero/Tests/Unit/general/Views/Onboarding/SetupStagePageTests.swift": "planned test: path page in the Set Up flow, written with the path page (step 5, #6058)",
+    "fichero/Tests/UI/Onboarding/RecipeDesignerUITests.swift": "planned XCUITest click-around leg, run end to end once the flow is complete (step 14, #6067)",
+    "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",
