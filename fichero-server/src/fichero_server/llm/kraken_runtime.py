@@ -1108,14 +1108,29 @@ def text_direction(direction: str | None) -> dict[str, str]:
     return {"text_direction": KRAKEN_TEXT_DIRECTIONS[direction]} if direction in KRAKEN_TEXT_DIRECTIONS else {}
 
 
+def upright(image: Any) -> Any:
+    """The page as a person sees it, RGB: the camera's EXIF Orientation applied once (`prep.image.one-upright-frame`,
+    Test 14). Thumbnail, Preview, the reader's crops and the segmenter's geometry all use this frame, so lines found
+    here sit on the page shown."""
+    from PIL import Image, ImageOps
+
+    out: Image.Image = ImageOps.exif_transpose(image) or image
+    return out if out.mode == "RGB" else out.convert("RGB")
+
+
+def upright_size(image: Any) -> tuple[int, int]:
+    """(width, height) of the page in the upright frame, from the header alone: orientations 5-8 turn it a quarter."""
+    width, height = image.size
+    return (height, width) if (image.getexif().get(0x0112, 1) or 1) in (5, 6, 7, 8) else (width, height)
+
+
 def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
 
     _page_is(image_path)
     with Image.open(image_path) as image:
-        if image.mode != "RGB":
-            image = image.convert("RGB")
+        image = upright(image)
         model = _segmenter()
         with _stage("segment"):
             segmentation = blla.segment(image, model=model, **text_direction(direction))
@@ -1360,8 +1375,7 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
 
     _page_is(image_path)
     with Image.open(image_path) as image:
-        if image.mode != "RGB":
-            image = image.convert("RGB")
+        image = upright(image)
         model = _segmenter()
         with _stage("segment"):
             segmentation = blla.segment(image, model=model, **text_direction(direction))
@@ -1442,8 +1456,7 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
         return [[int(x), int(y)] for x, y in points]  # type: ignore[union-attr]
 
     with Image.open(image_path) as image:
-        if image.mode != "RGB":
-            image = image.convert("RGB")
+        image = upright(image)
         segmentation = Segmentation(
             type="baselines", imagename=str(image_path), text_direction="horizontal-lr", script_detection=False,
             lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
