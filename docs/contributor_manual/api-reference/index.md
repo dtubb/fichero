@@ -493,8 +493,8 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 `GET /api/pair/invites`
 
 - Purpose: the owner's list of unused invitations to named people, with expiry; never the codes. Owner only.
-- Response: `200`, a list of `{id, person, new_person, role, library, folder_id, minted_by, expires_at,
-  never_expires}`; `expires_at` is null when the invitation never expires.
+- Response: `200`, `{items, count}`, each item `{id, person, new_person, role, library, folder_id, minted_by,
+  expires_at, never_expires}`; `expires_at` is null when the invitation never expires.
 
 `DELETE /api/pair/invites/{invite_id}`
 

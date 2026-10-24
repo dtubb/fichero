@@ -225,6 +225,13 @@ class PairingInviteResponse(BaseModel):
     never_expires: bool = False
 
 
+class PairingInviteListResponse(BaseModel):
+    """The owner's unused invitations: `{items, count}`, like every list endpoint."""
+
+    items: list[PairingInviteResponse]
+    count: int
+
+
 class EnrollmentRequest(BaseModel):
     enrollment_secret: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
@@ -769,13 +776,13 @@ def create_pairing_code(
     )
 
 
-@router.get("/invites", response_model=list[PairingInviteResponse])
-def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> list[PairingInviteResponse]:
+@router.get("/invites", response_model=PairingInviteListResponse)
+def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> PairingInviteListResponse:
     """The owner's list of unused invitations to named people, with their expiry (never the codes)."""
     _signed_in_owner(request)
     now = utc_now()
     _prune_pairing_codes(now)
-    return [
+    items = [
         PairingInviteResponse(
             id=r.invite_id, person=r.person, new_person=r.new_person, role=r.role or None, library=r.library, folder_id=r.folder_id,
             minted_by=r.minted_by, expires_at=None if r.never_expires else r.expires_at, never_expires=r.never_expires,
@@ -783,6 +790,7 @@ def list_invites(request: Request, app_db: AppDatabase = Depends(get_app_databas
         for r in _PAIRING_CODES.values()
         if r.person and not r.used
     ]
+    return PairingInviteListResponse(items=items, count=len(items))
 
 
 @router.delete("/invites/{invite_id}")

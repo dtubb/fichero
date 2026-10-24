@@ -123,7 +123,9 @@ def test_only_a_folder_of_this_project_can_be_shared(project):
 def test_an_invitation_to_a_folder_makes_a_scoped_member_who_reaches_only_that_folder(project):
     minted = _invite(project.harness, "erin", folder_id=project.ids["A"], role="viewer")
     assert minted.status_code == 200, minted.text
-    listed = _as(project.harness, "owner").get("/api/pair/invites").json()
+    body = _as(project.harness, "owner").get("/api/pair/invites").json()
+    listed = body["items"]
+    assert body["count"] == len(listed)
     assert [row["folder_id"] for row in listed] == [project.ids["A"]]
     paired = _redeem(project.harness, minted.json()["code"], new_password="a-long-password")
     assert paired.status_code == 200, paired.text

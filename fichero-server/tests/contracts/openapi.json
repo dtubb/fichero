@@ -3073,11 +3073,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PairingInviteResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Invites Api Pair Invites Get"
+                  "$ref": "#/components/schemas/PairingInviteListResponse"
                 }
               }
             }
@@ -79904,6 +79900,28 @@
           "expires_at"
         ],
         "title": "PairResponse"
+      },
+      "PairingInviteListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PairingInviteResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "PairingInviteListResponse",
+        "description": "The owner's unused invitations: `{items, count}`, like every list endpoint."
       },
       "PairingInviteResponse": {
         "properties": {
