@@ -39,6 +39,31 @@ _CONNECTION_ENV_VARS = (
 )
 
 
+def _forbid_the_default_engine(monkeypatch) -> None:
+    """No test may open a socket to an engine that could be live (the owner's included): the default address, 127.0.0.1:8765
+    under any loopback name, and the address a developer's own FICHERO_API_URL names (read BEFORE the env is cleared). A test
+    that needs a server stubs the transport or starts its own on a port of its own. The CLI and MCP twins carry the same guard."""
+    import socket
+    from urllib.parse import urlparse
+
+    named = {("127.0.0.1", 8765), ("localhost", 8765), ("::1", 8765)}
+    live = urlparse(os.environ.get("FICHERO_API_URL") or "")
+    if live.hostname:
+        named.add((live.hostname, live.port or (443 if live.scheme == "https" else 80)))
+
+    def forbid(real):
+        def guarded(self, address, *args, **kwargs):
+            if isinstance(address, tuple) and len(address) >= 2 and (address[0], address[1]) in named:
+                raise AssertionError(
+                    f"a test dialled {address[0]}:{address[1]}, an address a live engine may answer on: stub the transport "
+                    "(httpx.MockTransport) or start a server of its own on a free port")
+            return real(self, address, *args, **kwargs)
+        return guarded
+
+    monkeypatch.setattr(socket.socket, "connect", forbid(socket.socket.connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", forbid(socket.socket.connect_ex))
+
+
 @pytest.fixture(autouse=True)
 def isolated_cli_env(monkeypatch, tmp_path_factory):
     """Clear connection env vars and redirect the on-disk credential paths.
@@ -48,6 +73,7 @@ def isolated_cli_env(monkeypatch, tmp_path_factory):
     lists it (53k phantom folders at the P4 gate)."""
     from fichero_cli import client as client_module
 
+    _forbid_the_default_engine(monkeypatch)
     for name in _CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     token_path = tmp_path_factory.mktemp("cli-credentials") / ".api-key"
