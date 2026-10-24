@@ -497,7 +497,7 @@ def remote_reader_cards() -> list[Card]:
             for model_id in frontier_catalog_models(ptype):
                 out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
                                 jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
-                                runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", source="remote",
+                                runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", short_name=model_id, source="remote",
                                 offered_only=True, offered_because=f"a vision model {row.name} serves"))
         for model in saved:
             # The tri-state rule (`llm._configured_vision_model_suggestions`): a model saved with no capabilities, as a
@@ -507,8 +507,8 @@ def remote_reader_cards() -> list[Card]:
                 continue
             out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
-                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {model.name or model.model_id}",
-                            source="remote", offered_only=True,
+                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {(model.name or '').strip() or model.model_id}",
+                            short_name=(model.name or '').strip() or model.model_id, source="remote", offered_only=True,
                             offered_because=f"a vision model at your remote endpoint {row.name}"))
     if not any(c.pin["cloud"] == "anthropic" or "claude" in str(c.pin["model"]).casefold() for c in out):
         out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
