@@ -56,6 +56,32 @@ extension LibraryView {
         return max(1, count)
     }
 
+    /// One row of tiles: a tile's well plus its name line. ponytail: an estimate of the cell, not a measured one;
+    /// it only decides grid vs filmstrip, and a few points either way change nothing a person sees.
+    nonisolated static func iconRowHeight(scale: Double) -> CGFloat {
+        DocumentThumbnailView.wellWidth * CGFloat(scale) + 48
+    }
+
+    /// A short pane (the transcribe layout's one row of thumbnails) is a filmstrip that scrolls sideways, one row,
+    /// when a second row would not fit; a tall pane stays the grid (`source.items.icon-filmstrip-when-short`).
+    nonisolated static func iconIsFilmstrip(
+        paneHeight: CGFloat, scale: Double, spacing: CGFloat = 20, verticalInset: CGFloat = 32
+    ) -> Bool {
+        paneHeight < 2 * iconRowHeight(scale: scale) + spacing + verticalInset
+    }
+
+    /// The tiles' container: the adaptive grid, or one row of them for a filmstrip.
+    @ViewBuilder
+    private func iconLayout<Content: View>(
+        filmstrip: Bool, itemMin: CGFloat, itemMax: CGFloat, @ViewBuilder content: () -> Content
+    ) -> some View {
+        if filmstrip {
+            LazyHGrid(rows: [GridItem(.fixed(Self.iconRowHeight(scale: effectiveIconScale)))], alignment: .top, spacing: 20, content: content)
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))], alignment: .center, spacing: 20, content: content)
+        }
+    }
+
     /// The scale the grid draws at RIGHT NOW: the in-flight pinch value when
     /// a gesture is live, the persisted one otherwise.
     private var effectiveIconScale: Double { liveIconScale ?? iconViewScale }
@@ -80,13 +106,10 @@ extension LibraryView {
             // in a narrow sidebar grid the ceiling stays small. Cell width is
             // 100 * scale + ~16 padding, so max ≈ (width - 32) / 100.
             let pinchMax = max(1.0, min(5.0, Double((geometry.size.width - 32) / 100)))
+            let filmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: effectiveIconScale)
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))],
-                        alignment: .center,
-                        spacing: 20
-                    ) {
+                ScrollView(filmstrip ? .horizontal : .vertical) {
+                    iconLayout(filmstrip: filmstrip, itemMin: itemMin, itemMax: itemMax) {
                         if isShowingEntitiesCollection {
                             ForEach(filteredEntities, id: \.stableInspectorId) { entity in
                                 let entityId = entitySelectionId(for: entity)
@@ -193,7 +216,7 @@ extension LibraryView {
                         }
                     }
                     .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: filmstrip ? nil : .infinity, maxHeight: .infinity, alignment: .top)
                     // INSIDE the scroll content, so the probe's superview
                     // chain reaches the NSScrollView autoscroll drives. As a
                     // `.background` on the ScrollView it would be a sibling
