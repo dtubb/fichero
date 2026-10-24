@@ -83436,6 +83436,26 @@
             "nullable": true,
             "title": "Pair Role"
           },
+          "producer_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Model"
+          },
+          "producer_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Provider"
+          },
+          "producer_run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Run Id"
+          },
+          "producer_step": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Step"
+          },
           "retracted": {
             "type": "boolean",
             "title": "Retracted",

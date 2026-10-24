@@ -372,8 +372,20 @@ struct InspectorTextSection: View {
     var onChoose: ((InspectorText.Reading) -> Void)?
     /// "Edit…" on the reading that counts (#5201); nil shows no verb.
     var onEdit: ((InspectorText.Reading) -> Void)?
+    /// The run whose trace "View Run" shows.
+    @State private var traceRun: TraceRunSelection?
+
+    private struct TraceRunSelection: Identifiable {
+        let threadId: String
+        var id: String { threadId }
+    }
 
     var body: some View {
+        sections
+            .sheet(item: $traceRun) { RunTraceSheet(threadId: $0.threadId) }
+    }
+
+    private var sections: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Text").font(.headline)
             ForEach(text.kinds, id: \.self) { kind in
@@ -404,6 +416,15 @@ struct InspectorTextSection: View {
             }
             HStack(spacing: 8) {
                 Text(detail(reading, counts: counts)).font(.caption).foregroundStyle(.secondary)
+                if reading.producerRunId != nil {
+                    Button("View Run") {
+                        guard let threadId = RunTraceLink.threadId(reading.producerRunId) else { return }
+                        traceRun = TraceRunSelection(threadId: threadId)
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .help("View the trace of the run that made this reading")
+                }
                 if !counts, let onChoose {
                     Button("Make This Count") { onChoose(reading) }
                         .buttonStyle(.borderless)
@@ -422,8 +443,12 @@ struct InspectorTextSection: View {
 
     /// Who made it, who wrote it down, the guideline, and -- for the one that counts -- why.
     private func detail(_ reading: InspectorText.Reading, counts: Bool) -> String {
-        var parts = [reading.maker.capitalized]
+        var parts = [reading.whoRead ?? reading.maker.capitalized]
+        if let step = reading.producerStep { parts.append(step) }
         if let author = reading.author { parts.append(author) }
+        if let at = reading.createdAt {
+            parts.append(at.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+        }
         if let guideline = reading.guideline { parts.append(guideline) }
         if let level = reading.level { parts.append("level \(level)") }
         if let confidence = reading.machineConfidence { parts.append("confidence \(Int((confidence * 100).rounded()))%") }
