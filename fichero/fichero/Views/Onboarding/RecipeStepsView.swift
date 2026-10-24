@@ -70,6 +70,9 @@ struct RecipeStepsView: View {
                         // Set Up: no counts block, one plain line (#6016).
                         Text(line).font(.caption).foregroundStyle(.secondary).padding(.leading, 12)
                             .accessibilityIdentifier("setup.bakeoff.line")
+                    } else {
+                        // The line needs the engine's readiness: read it here, as BakeoffSection's own task does in the Inspector.
+                        Color.clear.frame(height: 0).task { await context.store.loadLatest() }
                     }
                 }
             }
