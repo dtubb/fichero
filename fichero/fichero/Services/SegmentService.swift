@@ -72,6 +72,8 @@ final class SegmentService {
             return Segment(generated: try okResponse.body.json.segment)
         case .unprocessableContent:
             return nil
+        case .undocumented(404, _):
+            return nil  // the engine answers a deleted segment with 404
         case .undocumented(let statusCode, _):
             throw SegmentServiceError.unexpectedResponse(statusCode)
         }

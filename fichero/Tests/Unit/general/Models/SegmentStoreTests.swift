@@ -265,7 +265,7 @@ final class SegmentStoreTests: XCTestCase {
         MockTransportURLProtocol.reset([list])
         await store.load(documentId: "doc-1")
 
-        let gone = Stub(pathContains: "/api/segments/seg-2", method: "GET", status: 422, body: Data(#"{"detail":"gone"}"#.utf8))
+        let gone = Stub(pathContains: "/api/segments/seg-2", method: "GET", status: 404, body: Data(#"{"detail":"gone"}"#.utf8))
         let renumbered = Stub(
             pathContains: "/api/segments/document/doc-1", method: "GET", status: 200,
             body: Self.listResponseJSON(
