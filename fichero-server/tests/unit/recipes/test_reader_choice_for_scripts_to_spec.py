@@ -224,3 +224,13 @@ def test_source_find_found_reader_downloads_a_tamil_reader_found_online_is_offer
     # The model store downloads it by that name, as it downloads a catalogue model.
     assert store.canonical_id(TAMIL) == TAMIL and store.spec(TAMIL).revision == "main"
     assert not store.is_complete(store.spec(TAMIL))
+
+
+def test_apple_vision_is_nearest_for_printed_traditional_han_but_not_handwritten(client, with_material, db, store):
+    """#6071: Apple Vision lists Han for print only (`handwriting_scripts: [Latn]`); it is a nearest reader of a printed
+    Traditional Han project and never of a handwritten one."""
+    apple = "apple:vision/recognize-text@os"
+    handwritten = _reader(_assemble(client, ["lzh"], ["Hant"]))["problem"]["nearest"]
+    printed = _reader(_assemble(client, ["lzh"], ["Hant"], material="print"))
+    assert apple not in [n["card"] for n in handwritten]
+    assert printed.get("model") is not None or apple in [n["card"] for n in printed["problem"]["nearest"]]
