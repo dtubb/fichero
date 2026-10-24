@@ -96,11 +96,9 @@ def _invert_rights_set(before, after, ctx: ActionContext):
     return ("rights.withdraw", {"record_id": record_id}) if record_id else None
 
 
-@action("rights.set", RightsSetParams, domains=["rights"], undoable=True, invert=_invert_rights_set)
-def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext):
-    """Attach a rights and consent record (`source.rights.record`)."""
-    target_kind = params.target_kind.value
-    target_id = LIBRARY_TARGET if target_kind == RightsTarget.library.value else params.target_id
+def _rights_record_for(db: Database, params: RightsSetParams, target_kind: str, target_id: str, ctx: ActionContext) -> RightsRecord:
+    """The record `rights.set` would write on this target, refused in words if it may not be (nothing is saved): shared by the
+    one-target and the many-target actions, so a bulk set cannot be a way around any rule."""
     links = chain(db, target_kind, target_id)  # 404s a target that does not exist
     if params.restricted and not params.readers:
         raise HTTPException(
@@ -131,7 +129,7 @@ def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext
                     f"{above.model_use!r}, and {params.model_use.value!r} would loosen it"
                 ),
             )
-    record = RightsRecord(
+    return RightsRecord(
         target_kind=target_kind,
         target_id=target_id,
         holders=params.holders,
@@ -144,6 +142,14 @@ def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext
         provenance_kind=provenance_kind_from_ctx(ctx),
         created_by=ctx.actor or None,
     )
+
+
+@action("rights.set", RightsSetParams, domains=["rights"], undoable=True, invert=_invert_rights_set)
+def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext):
+    """Attach a rights and consent record (`source.rights.record`)."""
+    target_kind = params.target_kind.value
+    target_id = LIBRARY_TARGET if target_kind == RightsTarget.library.value else params.target_id
+    record = _rights_record_for(db, params, target_kind, target_id, ctx)
     db.save(record)
     spec = ChangeSpec(
         domains=["rights"], target_ids=[record.id], before=None,
@@ -153,6 +159,98 @@ def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext
     return {"record_id": record.id}, spec
 
 
+class RightsTargetRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: RightsTarget
+    id: str
+
+
+class RightsSetManyParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    targets: list[RightsTargetRef] = Field(min_length=1, max_length=500, description="the segments, documents or folders the same record is set on")
+    holders: list[str] = Field(default_factory=list)
+    consent: Optional[dict[str, Any]] = None
+    conditions: Optional[str] = Field(default=None, max_length=500)
+    labels: list[str] = Field(default_factory=list)
+    restricted: bool = False
+    readers: list[str] = Field(default_factory=list)
+    model_use: Optional[ModelUse] = None
+
+
+def _invert_rights_set_many(before, after, ctx: ActionContext):
+    ids = (after or {}).get("record_ids")
+    return ("rights.withdraw_many", {"record_ids": ids}) if ids else None
+
+
+@action("rights.set_many", RightsSetManyParams, domains=["rights"], undoable=True, invert=_invert_rights_set_many)
+def _action_rights_set_many(db: Database, params: RightsSetManyParams, ctx: ActionContext):
+    """The same rights record on each of several targets: ONE audit row, ONE undo step, all or nothing (every target is checked,
+    by the rules `rights.set` applies, before any record is written). Each target keeps its other records."""
+    single = RightsSetParams(target_kind=RightsTarget.segment, **params.model_dump(exclude={"targets"}))
+    seen: set[tuple[str, str]] = set()
+    records = []
+    for target in params.targets:
+        key = (target.kind.value, target.id)
+        if key in seen:
+            raise HTTPException(status_code=422, detail=f"{target.kind.value} {target.id!r} is named twice in one bulk edit")
+        seen.add(key)
+        target_id = LIBRARY_TARGET if target.kind == RightsTarget.library else target.id
+        records.append(_rights_record_for(db, single, target.kind.value, target_id, ctx))
+    db.save_many(records)
+    ids = [r.id for r in records]
+    spec = ChangeSpec(domains=["rights"], target_ids=ids, before=None,
+                      after={"record_ids": ids, "targets": [{"kind": k, "id": i} for k, i in sorted(seen)]},
+                      emit_type="rights.set")
+    return {"record_ids": ids}, spec
+
+
+class RightsRecordIdsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+def _records(db: Database, ids: list[str]) -> list[RightsRecord]:
+    found = []
+    for record_id in dict.fromkeys(ids):
+        record = db.get(RightsRecord, record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"Rights record not found: {record_id}")
+        found.append(record)
+    return found
+
+
+@action("rights.withdraw_many", RightsRecordIdsParams, domains=["rights"], undoable=True,
+        invert=lambda before, after, ctx: ("rights.restore_many", {"record_ids": after["record_ids"]}) if (after or {}).get("record_ids") else None)
+def _action_rights_withdraw_many(db: Database, params: RightsRecordIdsParams, ctx: ActionContext):
+    """The inverse of `rights.set_many`: withdraw several records in one audited step (all found first, then all written)."""
+    records = [r for r in _records(db, params.record_ids) if r.withdrawn_at is None]  # one withdrawn before is not revived by undo
+    now = utc_now()
+    for record in records:
+        record.withdrawn_at = now
+    if records:
+        db.save_many(records)
+    ids = [r.id for r in records]
+    return {"record_ids": ids, "withdrawn": True}, ChangeSpec(
+        domains=["rights"], target_ids=ids, before={"record_ids": ids, "withdrawn": False},
+        after={"record_ids": ids, "withdrawn": True}, emit_type="rights.withdrawn")
+
+
+@action("rights.restore_many", RightsRecordIdsParams, domains=["rights"], undoable=False)
+def _action_rights_restore_many(db: Database, params: RightsRecordIdsParams, ctx: ActionContext):
+    records = [r for r in _records(db, params.record_ids) if r.withdrawn_at is not None]
+    for record in records:
+        record.withdrawn_at = None
+    if records:
+        db.save_many(records)
+    ids = [r.id for r in records]
+    return {"record_ids": ids, "withdrawn": False}, ChangeSpec(
+        domains=["rights"], target_ids=ids, before={"record_ids": ids, "withdrawn": True},
+        after={"record_ids": ids, "withdrawn": False}, emit_type="rights.set")
+
+
 class RightsRecordIdParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -160,8 +258,9 @@ class RightsRecordIdParams(BaseModel):
 
 
 def _invert_rights_withdraw(before, after, ctx: ActionContext):
+    # A record already withdrawn before this step is not revived by undoing it.
     record_id = (after or {}).get("record_id")
-    return ("rights.restore", {"record_id": record_id}) if record_id else None
+    return ("rights.restore", {"record_id": record_id}) if record_id and (after or {}).get("changed", True) else None
 
 
 @action("rights.withdraw", RightsRecordIdParams, domains=["rights"], undoable=True, invert=_invert_rights_withdraw)
@@ -169,12 +268,14 @@ def _action_rights_withdraw(db: Database, params: RightsRecordIdParams, ctx: Act
     record = db.get(RightsRecord, params.record_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Rights record not found: {params.record_id}")
-    record.withdrawn_at = utc_now()
-    db.save(record)
+    changed = record.withdrawn_at is None
+    if changed:
+        record.withdrawn_at = utc_now()
+        db.save(record)
     spec = ChangeSpec(
         domains=["rights"], target_ids=[record.id],
-        before={"record_id": record.id, "withdrawn": False},
-        after={"record_id": record.id, "withdrawn": True},
+        before={"record_id": record.id, "withdrawn": not changed},
+        after={"record_id": record.id, "withdrawn": True, "changed": changed},
         emit_type="rights.withdrawn",
     )
     return {"record_id": record.id, "withdrawn": True}, spec
@@ -214,6 +315,17 @@ async def set_rights(
     ctx: ActionContext = Depends(action_context),
 ) -> RightsAnswer:
     result = registry.invoke(db, "rights.set", body.model_dump(mode="json"), ctx)
+    return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
+
+
+@router.post("/many", response_model=RightsAnswer)
+async def set_rights_many(
+    body: RightsSetManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RightsAnswer:
+    """The same record on several targets (the Inspector's multi-selection): one audit id, one undo, all or nothing."""
+    result = registry.invoke(db, "rights.set_many", body.model_dump(mode="json"), ctx)
     return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 

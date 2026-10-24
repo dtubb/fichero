@@ -32,14 +32,20 @@ rather than drifted:
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import (
+    get_library_database,
+    get_library_database_for_write,
+    optional_library_path,
+    readable_documents,
+)
+from fichero_server.core.off_loop import off_loop
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.db import Database
 from fichero_server.llm.language_policy import (
@@ -395,10 +401,12 @@ async def resolve_source_settings(
     """`GET /api/source-settings/resolve` — the three facts and the encoding, each
     with the rung that answered (`source.lang.says-where-from`).
 
-    For ONE selection, not for a list: resolving every segment of a page here
-    would be one walk per row, which is why the seam carries what is SET and this
-    answers what is RESOLVED.
+    For ONE selection; a multi-selection asks `POST /api/source-settings/resolve-many`, one request for all of it.
     """
+    return _resolved_for(db, segment_id, document_id)
+
+
+def _resolved_for(db: Database, segment_id: Optional[str], document_id: Optional[str]) -> ResolvedSourceSettings:
     segment = db.get(Segment, segment_id) if segment_id else None
     if segment_id and segment is None:
         raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
@@ -455,6 +463,89 @@ async def resolve_source_settings(
             )
         ],
     )
+
+
+class ResolveManyParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+class SegmentSettingsRead(BaseModel):
+    """What the Inspector shows for ONE segment of a multi-selection."""
+
+    segment_id: str
+    #: language, script, direction, encoding, each with the rung that answered.
+    settings: list[SettingResolution]
+    #: The live hands the segment stands in (rivals side by side).
+    hand_ids: list[str]
+    #: The whole-segment certainty facts (`editorial.record_many`): kind and certainty, one per live fact.
+    certainty: list[dict[str, Any]]
+    #: This segment's own rights records and what they add up to with everything above it.
+    rights_record_ids: list[str]
+    restricted: bool
+    model_use: Optional[str] = None
+
+
+class ResolvedMany(BaseModel):
+    items: list[SegmentSettingsRead]
+    #: Per field ("language", "script", "direction", "hands", "certainty", "model_use", "restricted") whether the
+    #: selection disagrees: the app shows "Mixed" for a True, the shared value otherwise.
+    mixed: dict[str, bool]
+    #: Segments left out because this caller may not read their page: counted, never silent.
+    withheld: int = 0
+
+
+@router.post("/resolve-many", response_model=ResolvedMany, openapi_extra={"x-fichero-reads": True})
+@off_loop
+def resolve_many(
+    params: ResolveManyParams,
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
+) -> ResolvedMany:
+    """`POST /api/source-settings/resolve-many` — the resolved settings, hands, certainty and rights of a whole
+    multi-selection in ONE request (the Inspector asked up to 200). A read, so POST only carries the id list. An id that
+    does not exist, or is on a page the caller may not read, is left out and counted in `withheld` (never a 404: that would
+    say which ids exist behind a denied page). Ceiling: one walk per segment inside the engine, not per request."""
+    from fichero_server.api.routes.document.editorial import live_facts
+    from fichero_server.api.routes.document.hands import live_attributions
+    from fichero_server.api.routes.document.rights import effective_rights, records_on
+
+    ids = list(dict.fromkeys(params.segment_ids))
+    rows = {}
+    for segment_id in ids:
+        row = db.get(Segment, segment_id)
+        if row is not None and row.deleted_at is None:
+            rows[segment_id] = row
+    readable = set(readable_documents(request, x_fichero_library_path, sorted({r.document_id for r in rows.values()})))
+    # A line that does not exist and a line on a page the caller may not read are the same answer (left out, counted in
+    # `withheld`): no 404 for the one and not the other, which would tell a caller which ids exist behind a denied page.
+    ids = [i for i in ids if i in rows and rows[i].document_id in readable]
+    items = []
+    for segment_id in ids:
+        resolved = _resolved_for(db, segment_id, None)
+        effective = effective_rights(db, "segment", segment_id)
+        items.append(SegmentSettingsRead(
+            segment_id=segment_id,
+            settings=resolved.settings,
+            hand_ids=sorted({a.hand_id for a in live_attributions(db, segment_id)}),
+            certainty=[{"kind": f.kind.value if hasattr(f.kind, "value") else f.kind, "certainty": f.certainty}
+                       for f in live_facts(db, segment_id) if f.char_start is None and f.char_end is None],
+            rights_record_ids=[r.id for r in records_on(db, "segment", segment_id)],
+            restricted=effective.restricted, model_use=effective.model_use,
+        ))
+
+    def differs(values: list[Any]) -> bool:
+        return len({repr(v) for v in values}) > 1
+
+    mixed = {key: differs([next((x.value for x in i.settings if x.key == key), None) for i in items])
+             for key in ("language", "script", "direction", "encoding")}
+    mixed["hands"] = differs([i.hand_ids for i in items])
+    mixed["certainty"] = differs([sorted(map(repr, i.certainty)) for i in items])
+    mixed["model_use"] = differs([i.model_use for i in items])
+    mixed["restricted"] = differs([i.restricted for i in items])
+    return ResolvedMany(items=items, mixed=mixed, withheld=len(set(params.segment_ids)) - len(items))
 
 
 class SourceSettingWrite(BaseModel):

@@ -157,8 +157,9 @@ class AttributionIdParams(BaseModel):
 
 
 def _invert_hand_unattribute(before, after, ctx: ActionContext):
+    # Only a judgement THIS step withdrew is put back: one already withdrawn before is not revived by undoing a second withdraw.
     attribution_id = (after or {}).get("attribution_id")
-    return ("hand.reattribute", {"attribution_id": attribution_id}) if attribution_id else None
+    return ("hand.reattribute", {"attribution_id": attribution_id}) if attribution_id and (after or {}).get("changed", True) else None
 
 
 def _attribution(db: Database, attribution_id: str) -> HandAttribution:
@@ -173,12 +174,14 @@ def _attribution(db: Database, attribution_id: str) -> HandAttribution:
 def _action_hand_unattribute(db: Database, params: AttributionIdParams, ctx: ActionContext):
     """Withdraw one judgement. The others on the segment stand."""
     attribution = _attribution(db, params.attribution_id)
-    attribution.withdrawn_at = utc_now()
-    db.save(attribution)
+    changed = attribution.withdrawn_at is None
+    if changed:
+        attribution.withdrawn_at = utc_now()
+        db.save(attribution)
     spec = ChangeSpec(
         domains=["hand", "segment"], target_ids=[attribution.id, attribution.segment_id],
-        before={"attribution_id": attribution.id, "withdrawn": False},
-        after={"attribution_id": attribution.id, "withdrawn": True}, emit_type="hand.unattributed",
+        before={"attribution_id": attribution.id, "withdrawn": not changed},
+        after={"attribution_id": attribution.id, "withdrawn": True, "changed": changed}, emit_type="hand.unattributed",
     )
     return {"attribution_id": attribution.id, "withdrawn": True}, spec
 
@@ -194,6 +197,93 @@ def _action_hand_reattribute(db: Database, params: AttributionIdParams, ctx: Act
         after={"attribution_id": attribution.id, "withdrawn": False}, emit_type="hand.attributed",
     )
     return {"attribution_id": attribution.id, "withdrawn": False}, spec
+
+
+class HandAttributeManyParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hand_id: str
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
+    certainty: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+
+
+def _invert_hand_attribute_many(before, after, ctx: ActionContext):
+    ids = (after or {}).get("attribution_ids")
+    return ("hand.unattribute_many", {"attribution_ids": ids}) if ids else None
+
+
+@action("hand.attribute_many", HandAttributeManyParams, domains=["hand", "segment"], undoable=True,
+        invert=_invert_hand_attribute_many)
+def _action_hand_attribute_many(db: Database, params: HandAttributeManyParams, ctx: ActionContext):
+    """Say that several segments are in one hand: ONE audit row, ONE undo, all or nothing (every segment is checked before
+    any judgement is written). A segment this hand already stands on is skipped and listed (`skipped`), not doubled; the
+    other judgements on every segment stand."""
+    _live_hand(db, params.hand_id)
+    segment_ids = list(dict.fromkeys(params.segment_ids))
+    segments = []
+    for segment_id in segment_ids:
+        assert_not_provisional(segment_id, what="segment_ids")
+        segment = db.get(Segment, segment_id)
+        if segment is None or segment.deleted_at is not None:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        segments.append(segment)
+    already = {a.segment_id for a in db.query(HandAttribution, hand_id=params.hand_id) if a.withdrawn_at is None}
+    fresh = [seg for seg in segments if seg.id not in already]
+    attributions = [
+        HandAttribution(hand_id=params.hand_id, segment_id=seg.id, certainty=params.certainty,
+                        provenance_kind=provenance_kind_from_ctx(ctx), created_by=ctx.actor or None)
+        for seg in fresh
+    ]
+    if attributions:
+        db.save_many(attributions)
+    ids = [a.id for a in attributions]
+    skipped = [seg.id for seg in segments if seg.id in already]
+    spec = ChangeSpec(
+        domains=["hand", "segment"], target_ids=ids + [seg.id for seg in fresh], before=None,
+        after={"attribution_ids": ids, "hand_id": params.hand_id, "segment_ids": [seg.id for seg in fresh]},
+        emit_type="hand.attributed", document_ids=sorted({seg.document_id for seg in fresh}),
+        segment_ids=[seg.id for seg in fresh],
+    )
+    return {"attribution_ids": ids, "skipped": skipped}, spec
+
+
+class AttributionIdsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attribution_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+def _set_withdrawn_many(db: Database, ids: list[str], withdrawn: bool, emit: str):
+    attributions = [_attribution(db, i) for i in dict.fromkeys(ids)]  # all found first, then all written
+    # Only the judgements this step changes are written and listed: undoing it must not revive one already withdrawn before.
+    changing = [a for a in attributions if (a.withdrawn_at is None) == withdrawn]
+    now = utc_now()
+    for attribution in changing:
+        attribution.withdrawn_at = now if withdrawn else None
+    if changing:
+        db.save_many(changing)
+    changed = [a.id for a in changing]
+    segment_ids = sorted({a.segment_id for a in changing})
+    documents = sorted({seg.document_id for seg in (db.get(Segment, i) for i in segment_ids) if seg is not None})
+    return {"attribution_ids": changed, "withdrawn": withdrawn}, ChangeSpec(
+        domains=["hand", "segment"], target_ids=changed + segment_ids,
+        before={"attribution_ids": changed, "withdrawn": not withdrawn},
+        after={"attribution_ids": changed, "withdrawn": withdrawn}, emit_type=emit,
+        segment_ids=segment_ids, document_ids=documents,
+    )
+
+
+@action("hand.unattribute_many", AttributionIdsParams, domains=["hand", "segment"], undoable=True,
+        invert=lambda before, after, ctx: ("hand.reattribute_many", {"attribution_ids": after["attribution_ids"]})
+        if (after or {}).get("attribution_ids") else None)
+def _action_hand_unattribute_many(db: Database, params: AttributionIdsParams, ctx: ActionContext):
+    """Withdraw several judgements in one audited step; the others on each segment stand."""
+    return _set_withdrawn_many(db, params.attribution_ids, True, "hand.unattributed")
+
+
+@action("hand.reattribute_many", AttributionIdsParams, domains=["hand", "segment"], undoable=False)
+def _action_hand_reattribute_many(db: Database, params: AttributionIdsParams, ctx: ActionContext):
+    return _set_withdrawn_many(db, params.attribution_ids, False, "hand.attributed")
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +329,25 @@ async def attribute_segment(
     return _answer(db, "hand.attribute", body.model_dump(), ctx)
 
 
+@router.post("/attributions/many", response_model=HandActionAnswer)
+async def attribute_segments(
+    body: HandAttributeManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> HandActionAnswer:
+    """One hand on several segments (the Inspector's multi-selection): one audit id, one undo."""
+    return _answer(db, "hand.attribute_many", body.model_dump(), ctx)
+
+
+@router.post("/attributions/withdraw-many", response_model=HandActionAnswer)
+async def withdraw_attributions(
+    body: AttributionIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> HandActionAnswer:
+    return _answer(db, "hand.unattribute_many", body.model_dump(), ctx)
+
+
 @router.post("/attributions/{attribution_id}/withdraw", response_model=HandActionAnswer)
 async def withdraw_attribution(
     attribution_id: str,
@@ -246,6 +355,10 @@ async def withdraw_attribution(
     ctx: ActionContext = Depends(action_context),
 ) -> HandActionAnswer:
     return _answer(db, "hand.unattribute", {"attribution_id": attribution_id}, ctx)
+
+
+def live_attributions(db: Database, segment_id: str) -> list[HandAttribution]:
+    return [a for a in db.query(HandAttribution, segment_id=segment_id) if a.withdrawn_at is None]
 
 
 class HandListResponse(BaseModel):
