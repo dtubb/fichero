@@ -94,6 +94,21 @@ struct StorageDisplayImageCacheTests {
         #expect(service.cachedDisplayBytes(for: "doc-e") != nil, "a fetch started after the invalidate is kept")
     }
 
+    @Test("a flight is per document and epoch, and clearAll moves every epoch, known or not (## 1049)")
+    func flightsAreKeyedByEpochAndClearAllIsGlobal() {
+        let service = makeService()
+        let before = StorageService.flightKey("doc-f", service.imageEpoch(for: "doc-f"))
+        service.invalidateImageCache(for: "doc-f")
+        #expect(StorageService.flightKey("doc-f", service.imageEpoch(for: "doc-f")) != before,
+                "a reload after an invalidate joined the old flight")
+        // a document nobody ever invalidated, fetched across a host switch
+        let epoch = service.imageEpoch(for: "never-seen")
+        service.clearAll()
+        #expect(service.imageEpoch(for: "never-seen") != epoch)
+        service.cacheDisplayBytes(Data([1]), for: "never-seen", ifEpoch: epoch)
+        #expect(service.cachedDisplayBytes(for: "never-seen") == nil, "a fetch across the host switch was cached")
+    }
+
     @Test("invalidate removes display image from cache and order")
     func displayCacheInvalidateClearsEntry() {
         let service = makeService()
