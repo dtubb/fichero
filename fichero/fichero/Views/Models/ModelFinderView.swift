@@ -37,7 +37,7 @@ struct ModelFinderView: View {
                     .foregroundStyle(.orange)
             }
             if store.candidates.isEmpty, !store.isLoading, store.errorMessage == nil {
-                Text(Self.nothingFound(job: query.job))
+                Text(Self.nothingFound(job: query.job, sources: store.sources))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -88,6 +88,12 @@ struct ModelFinderView: View {
 
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
     /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
+    /// The engine's own sentence when its sources hold a "nothing-found" row, for any job (#6045); else the job's wording.
+    static func nothingFound(job: String, sources: [Components.Schemas.CandidateSource]) -> String {
+        if let words = sources.first(where: { $0.source == "nothing-found" })?.detail, !words.isEmpty { return words }
+        return nothingFound(job: job)
+    }
+
     static func nothingFound(job: String) -> String {
         job == ModelFinderStore.readingJob || job == "read-a-page" || job == "find-where-readers-disagree"
             ? "No reader was found for these answers yet. Search Online looks further."
