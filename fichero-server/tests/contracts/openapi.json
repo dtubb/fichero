@@ -15698,6 +15698,16 @@
               "nullable": true,
               "title": "Period"
             }
+          },
+          {
+            "name": "worth_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Worth Only"
+            }
           }
         ],
         "responses": {
@@ -75925,7 +75935,7 @@
             "type": "string",
             "nullable": true,
             "title": "Tier",
-            "description": "a reading candidate's tier: specialist, small-vlm or general (source.recipe.reader-tiers); null for another job"
+            "description": "a reading candidate's tier: cloud, specialist, small-vlm or general (source.recipe.reader-tiers); null for another job"
           },
           "tier_words": {
             "type": "string",

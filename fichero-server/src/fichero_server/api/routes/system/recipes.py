@@ -1317,7 +1317,7 @@ class ModelCandidate(BaseModel):
 
     id: str = Field(description="<runtime>:<source>@<version>")
     name: str
-    tier: Optional[str] = Field(default=None, description="a reading candidate's tier: specialist, small-vlm or general (source.recipe.reader-tiers); null for another job")
+    tier: Optional[str] = Field(default=None, description="a reading candidate's tier: cloud, specialist, small-vlm or general (source.recipe.reader-tiers); null for another job")
     tier_words: Optional[str] = Field(default=None, description="the tier in words for a row: Specialist line reader, Small vision model on this Mac, General model")
     short_name: str = Field(default="", description="the name a model row shows, short enough to read in a row; the whole `name` is the hover text (source.find.model-row-words)")
     source: CardSource
@@ -1504,6 +1504,7 @@ async def model_candidates(
     online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
     step: Optional[str] = None,
     period: Optional[str] = None,
+    worth_only: bool = False,
     library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
     """Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts
@@ -1560,8 +1561,11 @@ async def model_candidates(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not script_codes:
         raise HTTPException(status_code=422, detail="name at least one script")
+    # The open project's own yes counts too (`places.may_leave_to`): the app need not repeat it, so a cloud reader is not
+    # said to need permission the project already gave (owner 2026-10-23, the step menu's Allow Cloud).
+    saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
-                cloud_allowed=cloud_allowed and places.allows("cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
+                cloud_allowed=(cloud_allowed and places.allows("cloud")) or places.may_leave_to(saved, "cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
                 search_embedder=search_embedder(), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
@@ -1583,7 +1587,8 @@ async def model_candidates(
     # Filtered to the project (owner 2026-10-23): a model refused for the script or the language is not listed at all, so
     # a Chinese reader shows only for Chinese. One for another material stays, ranked last: the finder asks with one
     # material where a project may have several. The step's own model stays, said as refused.
-    cards = [c for c in cards if c.id == chosen_id or (_refusal(job, c, a, material) or ("",))[0] not in _OFF_PROJECT]
+    if worth_only:
+        cards = for_the_project(cards, job, a, material, chosen_id)
     kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
                   key=lambda c: rank_key(job, c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
@@ -1655,6 +1660,8 @@ async def model_candidates(
         availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
     ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
+    if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it
+        items = worth_listing(items)
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
         search_job=SearchJob(id=search["id"], state=search["state"], reason=search.get("reason"))
@@ -1663,6 +1670,50 @@ async def model_candidates(
 
 #: The refusals that mean a model is not for this project's pages, so the finder leaves it out.
 _OFF_PROJECT = frozenset({"no-model-for-script", "no-model-for-language"})
+
+
+#: How many of a tier the finder lists (owner 2026-10-23: the top few, not hundreds), in rank order.
+PER_TIER = 5
+
+
+def _worth(c: "ModelCandidate") -> bool:
+    """Whether a row has something to press (owner 2026-10-23: only what is worth using is listed): the step's own model,
+    one a press uses (a licence to accept included) or downloads, a cloud reader waiting on the project's permission, or
+    one that needs a key in Settings › AI."""
+    cannot = c.availability == CandidateAvailability.not_here
+    uses = not c.needs_permission and not cannot and (c.refused is None or "licence" in c.refused)
+    downloads = not c.needs_permission and (uses or c.availability == CandidateAvailability.elsewhere)
+    asks_settings = cannot and "Settings › AI" in (c.availability_words or "")
+    return bool(c.chosen) or uses or downloads or bool(c.needs_permission) or asks_settings
+
+
+def worth_listing(items: list["ModelCandidate"], per_tier: int = PER_TIER) -> list["ModelCandidate"]:
+    """The rows worth listing, at most `per_tier` of each tier in the order given; the step's own model and one measured
+    on the person's pages always stay, and do not count against their tier. ponytail: a fixed cap; a Show All is the
+    upgrade if a person needs the rest."""
+    seen: dict[str | None, int] = {}
+    out = []
+    for c in items:
+        if c.chosen or c.cer_measured_here is not None:
+            out.append(c)
+        elif _worth(c) and seen.get(c.tier, 0) < per_tier:
+            seen[c.tier] = seen.get(c.tier, 0) + 1
+            out.append(c)
+    return out
+
+
+def for_the_project(cards: list[Any], job: str, a: Any, material: str, chosen_id: str | None) -> list[Any]:
+    """The cards for the project: none refused for its script or language (`_OFF_PROJECT`), and none whose card names
+    languages that share none with the project's (the rules do not refuse a reader for its language, so a German reader
+    was listed for Spanish pages). A card naming no language stays. The step's own card always stays."""
+    from fichero_server.recipes.assemble import _refusal
+
+    def fits(c: Any) -> bool:
+        if (_refusal(job, c, a, material) or ("",))[0] in _OFF_PROJECT:
+            return False
+        return c.languages is None or not a.languages or bool(c.languages & a.languages)
+
+    return [c for c in cards if c.id == chosen_id or fits(c)]
 
 
 def _offered_order(card: Any) -> tuple[int, str]:

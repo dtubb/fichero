@@ -144,12 +144,6 @@ final class RecipeSetupStore {
     /// (the engine requires at least one of each).
     var canAssemble: Bool { !languages.isEmpty && !scripts.isEmpty }
 
-    /// Ask "may pages leave this Mac" only when a cloud model would fit a step
-    /// (`source.onboard.cloud-asked-once`), or when the person already said yes
-    /// (so the answer can be taken back).
-    var asksCloudQuestion: Bool {
-        cloudAllowed || !(recipe?.cloudOptions ?? []).isEmpty
-    }
 
     /// What each step a cloud model would fit would send, to whom, for how many pages, at what cost: the engine's own
     /// sentences (`source.onboard.egress-asked-once`), shown under the question.
