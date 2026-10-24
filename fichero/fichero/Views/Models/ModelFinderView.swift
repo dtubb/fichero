@@ -45,6 +45,13 @@ struct ModelFinderView: View {
                 if let title = group.title {
                     Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
+                // Beside a Set Up step the answer is one press away, said once above the tier, not on every card
+                // (`source.find.allow-cloud-once`, Set Up review item 7): the same fix as the toggle's.
+                if let step, Self.offersAllowCloud(group.candidates) {
+                    Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("finder.allowCloud")
+                }
                 ForEach(group.candidates, id: \.id) { candidate in
                     ModelFinderCard(candidate: candidate, store: store, step: step)
                 }
@@ -72,6 +79,11 @@ struct ModelFinderView: View {
                 .disabled(query.scripts.isEmpty)
                 .help("Look in Kraken's model repository and on Hugging Face; Activity shows the search")
         }
+    }
+
+    /// Allow Cloud Models is offered once for a group when any of its cards waits on that permission.
+    nonisolated static func offersAllowCloud(_ candidates: [Components.Schemas.ModelCandidate]) -> Bool {
+        candidates.contains { $0.needsPermission == true }
     }
 
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
@@ -112,13 +124,6 @@ struct ModelFinderCard: View {
                 Label(Self.permissionWords, systemImage: "lock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                // Beside a Set Up step the answer is one press away: the same fix as the toggle's.
-                if let step {
-                    // A real button, not greyed with the card: the one press that makes the card usable.
-                    Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
-                        .controlSize(.small)
-                        .foregroundStyle(.primary)
-                }
             } else if Self.cannotRunHere(candidate) {
                 // Why, once, in the engine's words ("Fichero cannot run it yet (…)"), with the one way on.
                 Label(candidate.availabilityWords, systemImage: "xmark.circle")
