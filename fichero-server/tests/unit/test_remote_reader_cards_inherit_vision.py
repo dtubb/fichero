@@ -86,3 +86,14 @@ def test_gemini_through_openrouter_counts_as_a_frontier_reader():
 
     assert _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "google/gemini-3.1-pro-preview"}))
     assert not _frontier_model(NS(runs_on="cloud:openrouter", pin={"model": "qwen/qwen3-vl"}))
+
+
+def test_set_ups_cloud_pick_takes_gemini_pro_before_flash_and_claude():
+    from fichero_server.recipes.discovery import frontier_rank
+
+    def card(model):
+        return NS(runs_on="cloud:openrouter", pin={"model": model})
+
+    ranked = sorted(["google/gemini-3-flash", "anthropic/claude-opus-4.7", "google/gemini-3.1-pro"],
+                    key=lambda m: frontier_rank(card(m)))
+    assert ranked == ["google/gemini-3.1-pro", "anthropic/claude-opus-4.7", "google/gemini-3-flash"]
