@@ -333,7 +333,7 @@ are a candidate list (`source.recipe.line-finders-are-a-candidate-list` (P),
   layout", with one drawn result (ruled 2026-10-24).
 
 **Read.** Exists: one candidate list per step, a step lists only what it can take, and **a page reader on
-this Mac (Apple's recognition, a local vision model) is not a line step's candidate**
+this Mac (a local vision model) is not a line step's candidate, but Apple's recognition is: it reads single lines (#6071)**
 (`source.find.one-candidate-source` (P), owner ruling B 2026-10-24, `discovery.does_the_step`); scripts
 first (`source.recipe.script-reader-first`, `source.recipe.no-cross-script-reader`); period weighs
 (`source.recipe.period-weighs-in-the-reader-rank`); cloud readers get Kraken's line pictures, one call a

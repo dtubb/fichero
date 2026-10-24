@@ -43,9 +43,10 @@ def test_the_recipe_reads_the_saved_period(client, with_material, mac):
     assert any("period" in reason for reason in read["reasons"]), read["reasons"]
 
 
-def test_apple_vision_is_a_page_step_reader_and_not_a_line_step_candidate(client, mac):
-    """Ruling B (#5808): a step lists only what `use-candidate` accepts, and Apple's recognition reads whole pages on this Mac."""
-    assert APPLE not in _candidates(client)
+def test_apple_vision_is_both_a_page_step_reader_and_a_line_step_candidate(client, mac):
+    """Ruling B (#5808), amended by the owner's #6071 ruling: a step lists only what `use-candidate` accepts, and Apple's recognition
+    reads whole pages AND single lines (the lines Kraken found, each its own picture) on this Mac."""
+    assert APPLE in _candidates(client)
     assert APPLE in _candidates(client, job="read-a-page")
 
 
