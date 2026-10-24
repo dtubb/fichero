@@ -3342,6 +3342,9 @@ Setup
   pipeline installed on this Mac for the project's language is a card for Find names (beside the shipped small
   one, and the text models already here), so a Names try compares them by default; one not installed is not a
   candidate. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
+- `source.onboard.stages.try-reads-the-screen` — **[PARTIAL]** (#6015; built, uncompiled) Compare on These Pages (and Compare, at That Cost) first
+  saves the setup as it is on screen, then asks the engine to try; the engine reads the saved setup, so a step just ticked is never
+  answered "not chosen". A save the engine refuses is shown and no try starts (`SetupStagesTests.swift`).
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage. **Order
