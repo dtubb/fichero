@@ -93,6 +93,7 @@ struct SegmentInspectorView: View {
                         Text(countsLine).font(.caption).foregroundStyle(.secondary)
                     }
                     if isMulti {
+                        InspectorBulkSection(selectedIds: selectedIds)
                         Text("Select one line to see its text, hands, certainty, rights and links.")
                             .font(.caption).foregroundStyle(.secondary)
                         if let multiNote {
@@ -247,12 +248,11 @@ struct SegmentInspectorView: View {
             direction = nil
             multiNote = nil
             let ids = selectedIds
+            // One request for the whole selection (`resolve-many`, #6082), not one per line; over the cap, none.
             var reads: [[InspectorLanguage.Setting]?] = []
             if ids.count <= Self.multiCap {
-                for id in ids {
-                    reads.append(try? await segmentService.resolvedSettings(segmentId: id))
-                    if Task.isCancelled { return }
-                }
+                reads = ((try? await segmentService.resolvedSettings(segmentIds: ids)) ?? []).map { Optional($0) }
+                if reads.count != ids.count { reads = ids.map { _ in nil } }
             }
             // Apply only if this is still the selection (an older read must not show the old selection's answer).
             guard !Task.isCancelled, ids == selectedIds else { return }
