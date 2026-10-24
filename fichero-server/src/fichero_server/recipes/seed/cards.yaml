@@ -102,7 +102,7 @@ cards:
     short_name: Apple Vision (lines)
   - id: apple:vision/recognize-text@os
     pin: {builtin: apple-vision}
-    jobs: [read-a-page]
+    jobs: [read-a-line, read-a-page]   # reads the lines Kraken found, each its own picture (#6071)
     scripts: [Latn, Cyrl, Hani, Hang, Arab, Thai]
     languages: any
     material: [print, handwriting]
