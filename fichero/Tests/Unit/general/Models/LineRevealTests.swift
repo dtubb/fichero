@@ -140,6 +140,14 @@ struct LineRevealTests {
         #expect(InspectorPath.Hold.inspected(inspectorSees(), held: pageHold) == [block])
     }
 
+    /// The Order tab's own click holds the Inspector on the page (its tab bar stays) even when the Preview hands the
+    /// selection back in another order than it was written in.
+    @Test func theHoldSurvivesTheSelectionComingBackInAnotherOrder() {
+        let hold = InspectorPath.Hold(wrote: ["b", "a", "c"], shown: [])
+        #expect(InspectorPath.Hold.inspected(["a", "b", "c"], held: hold).isEmpty, "the tab bar was replaced by the line inspector")
+        #expect(InspectorPath.Hold.inspected(["a", "b"], held: hold) == ["a", "b"], "a different selection is followed")
+    }
+
     /// WHY (ruled 2026-10-04): a PDF page's Preview must zoom too, from the SAME reveal -- the rect
     /// `RegionSelection.reveal` holds -- through the PDF view's own zoom path. A real `PDFView` over a
     /// one-page document is driven: the line's reveal rect sets a scale that fits the line, hands zoom
