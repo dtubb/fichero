@@ -98,7 +98,7 @@ extension SegmentService {
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json
-            let readings = InspectorText.hidingProvisionalTwins(body.items.map {
+            let all = body.items.map {
                 InspectorText.Reading(
                     id: $0.id, kind: $0.kind, content: $0.content, maker: $0.provenanceKind.rawValue,
                     author: $0.createdBy, guideline: $0.guideline, pairId: $0.pairId, pairRole: $0.pairRole,
@@ -108,10 +108,13 @@ extension SegmentService {
                     producerRunId: $0.producerRunId, producerStep: $0.producerStep, createdAt: $0.createdAt,
                     provisional: $0.provisional, derivedFromArtifactId: $0.derivedFromArtifactId
                 )
-            })
+            }
             let counting = body.counting.additionalProperties.mapValues {
                 InspectorText.Counting(readingId: $0.representationId, why: .init(basis: $0.basis?.rawValue))
             }
+            let readings = InspectorText.hidingProvisionalTwins(
+                all, keeping: Set(counting.values.compactMap(\.readingId))
+            )
             return InspectorText(
                 readings: readings,
                 retracted: Set(body.items.filter { $0.retracted == true }.map(\.id)),

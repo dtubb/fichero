@@ -107,12 +107,13 @@ struct InspectorText: Equatable {
     }
 
     /// A provisional reading whose stored twin (same artifact, kind and content) is also listed says the line twice, so
-    /// it is hidden; the API keeps listing both (`source.recipe.one-reading-a-line`).
-    static func hidingProvisionalTwins(_ readings: [Reading]) -> [Reading] {
+    /// it is hidden, unless counting names it (newest wins, so the twin can be the one that counts: hiding it would hide the
+    /// counting reading); the API keeps listing both (`source.recipe.one-reading-a-line`).
+    static func hidingProvisionalTwins(_ readings: [Reading], keeping counted: Set<String> = []) -> [Reading] {
         let stored = Set(readings.filter { !$0.provisional && $0.derivedFromArtifactId != nil }
             .map { TwinKey(artifact: $0.derivedFromArtifactId, kind: $0.kind, content: $0.content) })
         return readings.filter { reading in
-            !(reading.provisional
+            !(reading.provisional && !counted.contains(reading.id)
                 && stored.contains(TwinKey(artifact: reading.derivedFromArtifactId, kind: reading.kind, content: reading.content)))
         }
     }
