@@ -145,7 +145,7 @@ final class RecipeSetupStore {
     var canAssemble: Bool { !languages.isEmpty && (!scripts.isEmpty || languagesNotSure) }
 
     /// The language tag for "Not sure" (BCP 47 `und`, undetermined): an answer, not a blank. The engine works the
-    /// language and script out from the sample pages (`source.onboard.project.about-material`).
+    /// language and script out from the sample pages (`source.onboard.project.about-material-language`).
     static let notSureLanguage = "und"
 
     /// Languages was answered "Not sure".
@@ -155,12 +155,19 @@ final class RecipeSetupStore {
     var namedLanguages: [String] { languages.filter { $0 != Self.notSureLanguage } }
 
     /// Tick or untick "Not sure": it stands alone, so ticking clears the languages named, and naming one clears it.
+    /// The writing systems are hidden under "Not sure", so they are cleared too: a script the person can no longer
+    /// see must not steer the plan (the engine works the script out from the pages).
     func setLanguagesNotSure(_ on: Bool) {
         languages = on ? [Self.notSureLanguage] : namedLanguages
+        if on {
+            scripts = []
+            proposedScripts = [:]
+            directions = [:]
+        }
     }
 
     /// Why About the Material's Continue waits, or nil: a blank Languages is not an answer, "Not sure" is
-    /// (`source.onboard.project.about-material`).
+    /// (`source.onboard.project.about-material-language`).
     var languageWait: String? { languages.isEmpty ? SetupFooter.chooseTheLanguage : nil }
 
 

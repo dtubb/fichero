@@ -19,10 +19,18 @@ WAIT_POLL_SECONDS = 5.0
 SLOWER_YIELD_SECONDS = 1.0
 
 
-def geometry(regions: list[Any], width: int, height: int, *, model: str, provider: str = "yolo") -> Any:
+def geometry(regions: list[Any], width: int, height: int, *, model: str, provider: str = "yolo",
+             direction: str | None = None) -> Any:
     """Regions as the shared geometry: one REGION box each, the model's own label kept as its `kind_raw`."""
     from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 
+    # In reading order from position, as Kraken's regions are (`source.order.from-position`); a detector lists by score.
+    from fichero_server.media.layout_order import reading_order
+
+    rects = [list(r.rect) for r in regions]   # x, y, w, h as fractions of the page
+    order = reading_order([(x, y, x + w, y + h) for x, y, w, h in rects], direction=direction,
+                          kinds=[r.kind_raw for r in regions])
+    regions = [regions[i] for i in order]
     boxes = [OCRGeometryBox(text="", bbox=list(r.rect), level=OCRGeometryLevel.REGION, confidence=r.confidence,
                             provider=provider, model=model, source=provider,
                             metadata={"kind_raw": r.kind_raw,
@@ -150,11 +158,14 @@ def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: st
         segmented = jobs.run_on_lane_blocking(
             library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
             fn=lambda path=path, direction=direction: segment_lines(path, **direction))
-        found_geometry = geometry_from_segmentation(segmented, source_name=doc.name)
+        found_geometry = geometry_from_segmentation(segmented, source_name=doc.name, direction=direction.get("direction"))
         regions_here = sum(1 for b in found_geometry.boxes if b.level is OCRGeometryLevel.REGION)
     else:
+        from fichero_server.workflows.tools.vision_base import page_direction
+
         found = detect_regions(path, model)
-        found_geometry = geometry(found, width, height, model=model, provider=provider)
+        found_geometry = geometry(found, width, height, model=model, provider=provider,
+                                  direction=page_direction(library, doc.id).get("direction"))
         regions_here = len(found)
     if page_index is not None:
         from fichero_server.workflows.tools.vision_base import _KRAKEN_PDF_RENDER_DPI

@@ -1699,7 +1699,8 @@ def segment_to_geometry(
 
 
 def geometry_from_segmentation(
-    payload: dict[str, object], *, source_name: str = "the page", rendition_id: str | None = None
+    payload: dict[str, object], *, source_name: str = "the page", rendition_id: str | None = None,
+    direction: str | None = None,
 ) -> OCRGeometryResult:
     """One segmentation's regions and lines as the shared geometry, whatever it found (#5689: Find Regions keeps
     the lines Kraken found with its regions, so Read reads them instead of segmenting the page again)."""
@@ -1710,6 +1711,11 @@ def geometry_from_segmentation(
             f"Kraken reported an unusable pixel frame for {source_name}"
         )
 
+    # Regions and lines in reading order from where they are (`source.order.from-position`): Kraken lists
+    # regions by type, so the page's top block need not come first.
+    from fichero_server.media.layout_order import order_payload
+
+    payload = order_payload(payload, direction)
     boxes, region_index = _region_boxes(payload, width, height, model=_MODEL, source="kraken-blla")
     for index, line in enumerate(payload.get("lines") or []):
         polygon = [(float(x), float(y)) for x, y in line.get("polygon") or []]
