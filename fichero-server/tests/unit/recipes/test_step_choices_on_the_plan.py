@@ -309,3 +309,15 @@ def test_choosing_apple_vision_for_the_line_step_starts_a_run_that_reads_kraken_
     run = next(w for w in _plan(client)["workflows"] if choice["step"] in w["steps"])
     assert run["provider_override"] == "apple" and run["model_override"] == "apple-vision", run
     assert "kraken" in str(run.get("workflow", "")).lower() or run.get("workflow_id"), run
+
+
+def test_correct_and_translate_list_every_text_model_not_one_qwen(client, project, claude_row):
+    """#6089, #6090: the Correct and Translate steps offered one Qwen. A text model (a cloud model of a provider row here) is a
+    candidate for both, on the menu; the rules still do not choose it."""
+    from fichero_server.api.routes.system import recipes as routes
+
+    cards = routes._offered_cards(None)
+    for job in ("correct", "translate-transliterate-normalise"):
+        listed = [c for c in cards if job in c.jobs]
+        assert any(str(c.runs_on).startswith("cloud:") and "claude-sonnet" in c.id for c in listed), job
+        assert len({c.id for c in listed}) >= 2, job
