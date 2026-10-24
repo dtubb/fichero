@@ -2137,7 +2137,7 @@ def does_the_step(card: Card, job: str) -> bool:
     recognition, a local vision model) does not do the line step."""
     if job in card.jobs:
         return True
-    return job == "read-a-line" and "read-a-page" in card.jobs and card.runs_on != "this-mac"
+    return job == "read-a-line" and "read-a-page" in card.jobs and (card.runs_on or "this-mac") != "this-mac"
 
 
 def step_candidates(cards: list[Card], job: str, own_ids: frozenset[str] = frozenset(),
