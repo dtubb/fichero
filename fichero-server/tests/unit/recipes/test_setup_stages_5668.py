@@ -11,7 +11,8 @@ from fichero_server.recipes.jobs import get_job
 from fichero_server.recipes.stages import STAGES
 
 #: Section 7d's pipeline order (Daniel, 2026-10-11): Find Regions before Find Lines; Normalise apart from Translate.
-ORDER = ["prepare-images", "find-regions", "find-lines", "read", "normalise", "translate", "organise", "names",
+#: Leave Out sits between Find Lines and Read (#6070).
+ORDER = ["prepare-images", "find-regions", "find-lines", "leave-out", "read", "normalise", "translate", "organise", "names",
          "statements", "dates", "structured-data", "search"]
 #: Passages waits for its job (`source.job.pull-out-passages`): the stage exists, but Set Up does not offer it.
 WAITING = ["passages"]

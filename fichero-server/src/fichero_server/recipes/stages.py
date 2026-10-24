@@ -65,6 +65,11 @@ STAGES: tuple[Stage, ...] = (
           "Finds the lines of writing in each block and the order to read them in.",
           "The block's lines from the top down, each traced along its baseline, in the order they are read.",
           ()),
+    Stage("leave-out", "Leave Out", ("leave-out",),
+          "Marks what is not writing as left out, before it is read: marks too small to be a line, anything off the page, and "
+          "damage that only looks like writing. Nothing is deleted; you can bring any line back.",
+          "A speck, a dark edge of the scanner bed and a stain are left out, each with its reason; the lines of writing are kept.",
+          ()),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
           "Reads the writing line by line, and can correct it with a second model.",
           "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",

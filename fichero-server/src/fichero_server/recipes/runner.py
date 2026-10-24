@@ -1335,6 +1335,10 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
         child, state, why = _run_entries(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
         child, state, why = _run_prepare(db, documents, job_id, scratch)
+    elif card["card"] == "leave-out":
+        from fichero_server.recipes.leave_out import run_step
+
+        child, state, why = run_step(db, documents, job_id, scratch, stop=lambda: _stop_asked(job_id))
     elif card["card"] == "regions":
         child, state, why = _run_regions(db, card, documents, job_id, scratch)
     elif card["card"] == "table":
@@ -1430,7 +1434,7 @@ def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: in
 #: preparing): the pages each ran on are kept on the run, so the next plan counts them done (#5706).
 RAN_ON_JOBS = frozenset({"find-names-tag-words", "prepare-the-image"})
 #: What a step is doing, by its last job, as the run's line says it (#5685).
-_DOING = {"find-lines": "Finding the lines", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
+_DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
           "correct": "Correcting the readings", "find-names-tag-words": "Finding names",
           "find-statements": "Finding statements", "prepare-the-image": "Preparing the images",
           "find-regions": "Finding regions", "split-pages": "Splitting the pages"}

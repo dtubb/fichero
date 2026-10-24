@@ -96,9 +96,9 @@ def test_a_large_volume_offers_training_from_the_start():
 
 def test_the_purpose_decides_the_steps():
     jobs = [s["job"] for s in assemble(Answers("transcribe", frozenset({"es"}), frozenset({"Latn"})), CARDS)["steps"]]
-    assert jobs == ["find-lines", "read-a-line"]  # Correct waits to be asked for
+    assert jobs == ["find-lines", "leave-out", "read-a-line"]  # Leave Out is on by default (#6070); Correct waits to be asked for
     asked = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), job_answers=YES_CORRECT)
-    assert [s["job"] for s in assemble(asked, CARDS)["steps"]] == ["find-lines", "read-a-line", "correct"]
+    assert [s["job"] for s in assemble(asked, CARDS)["steps"]] == ["find-lines", "leave-out", "read-a-line", "correct"]
     assert assemble(Answers("not-sure", frozenset({"es"}), frozenset({"Latn"})), CARDS)["steps"] == []
 
 

@@ -73,7 +73,9 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                "find-regions": "regions",
                # A prototype's questions asked of its documents and entries with the step's text model, the answers
                # landing as their attributes, each citing its words (`structured.extract.step-in-a-recipe`, #5636).
-               "extract-to-a-table": "table"}
+               "extract-to-a-table": "table",
+               # Lines that are not writing marked left out before Read, nothing deleted (`designer.clean.leaves-out-non-text`, #6070).
+               "leave-out": "leave-out"}
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
@@ -535,8 +537,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             elif job == "find-documents-in-a-folder":
                 # The project's setting: None leaves every proposal for the person.
                 entry.update(accept_above=settings.get("accept_above"))
-            elif job == "prepare-the-image":
-                pass  # Fichero's own measure and contrast, on this Mac: nothing to configure
+            elif job in ("prepare-the-image", "leave-out"):
+                pass  # Fichero's own rules, on this Mac: nothing to configure
             elif job == "publish":
                 if not settings.get("where"):
                     skip(sid, f"{label} names no folder (`where`) to publish the site into",

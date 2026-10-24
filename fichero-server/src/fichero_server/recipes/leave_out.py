@@ -127,3 +127,12 @@ def _open(path: str | None) -> Any | None:
         return image.convert("L")
     except OSError:
         return None
+
+
+def run_step(db: Any, documents: list[str], parent: str, step: dict[str, Any],
+             stop: Callable[[], bool] | None = None) -> tuple[str | None, str, str | None]:
+    """The recipe run's card: (its job, its end, why). The account (`left_out`) rides on the step."""
+    step["left_out"] = leave_out_pages(db, documents, parent, stop=stop)
+    if stop is not None and stop():
+        return None, "cancelled", "Stopped by you"
+    return None, "done", None

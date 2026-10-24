@@ -23,6 +23,14 @@ topics:
     long: >-
       Damaged or faded pages read far better prepared. Every later step reads the prepared version,
       and you can always go back to the scan as it came.
+  - id: leave-out
+    kind: job
+    title: Leave out
+    short: Marks lines that are not writing (specks, anything off the page, damage) as left out, before they are read.
+    long: >-
+      A line is left out when it is too small to be a line of writing, lies off the page (the scanner bed), or looks like
+      bleed-through or damage rather than ink. Nothing is deleted: Read skips what is left out, each line says why, and you
+      can bring any of them back from the Inspector.
   - id: split-pages
     kind: job
     title: Split pages

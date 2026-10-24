@@ -99,6 +99,8 @@ _job("split-pages", {"page_image"}, {"page_image"}, "prepare", "the cut pages si
 _job("find-the-script", {"page_image"}, {"script"}, "prepare", "the scripts found, side by side", ("model",), needs_a_model=True)
 _job("find-regions", {"page_image"}, {"regions"}, "lines", _BOXES, ("model",), needs_a_model=True)
 _job("find-lines", {"page_image"}, {"lines"}, "lines", _BOXES, ("model", "regions"), needs_a_model=True)
+# Marks the lines that are not writing (too small, off the page, bleed-through) LEFT OUT before Read; never deletes (#6070).
+_job("leave-out", {"lines"}, {"lines"}, "lines", _BOXES, needs_a_model=False)
 _job("put-in-order", {"lines"}, {"reading_order"}, "lines", "the two orders side by side", needs_a_model=False)
 _job("refine-shapes", {"page_image", "lines"}, {"lines"}, "lines", _BOXES, ("model",), needs_a_model=True)
 _job("find-signs", {"page_image"}, {"signs"}, "lines", _BOXES, ("model",), needs_a_model=True)
