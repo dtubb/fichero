@@ -350,3 +350,10 @@ struct CloudAccessSection: View {
         }
     }
 }
+
+#Preview("Cloud switch in Settings") {
+    Form { CloudAccessSection() }
+        .formStyle(.grouped)
+        .environment(AppState())
+        .frame(width: 480)
+}
