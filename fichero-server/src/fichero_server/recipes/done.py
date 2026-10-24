@@ -27,7 +27,7 @@ from typing import Any
 
 #: Jobs whose output a page can be seen to have.
 KNOWS_DONE = frozenset({"split-pages", "find-regions", "find-lines", "read-a-line", "read-a-page", "prepare-the-image",
-                        "correct", "find-names-tag-words"})
+                        "correct", "find-names-tag-words", "split-into-entries"})
 #: What the correcting step's workflow (the paleographer's review, `transcribe_review`) saves on a page.
 REVIEWED = "transcription_review"
 
@@ -407,6 +407,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
     if job == "find-names-tag-words":
         return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
+    if job == "split-into-entries":  # a page a stopped or earlier run split keeps its entries; the model is not asked again
+        return any(c.node_kind == "entry" for c in _children(db, doc_id))
     return None
 
 

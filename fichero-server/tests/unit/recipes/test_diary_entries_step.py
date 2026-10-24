@@ -83,7 +83,8 @@ def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_p
     """"Each page is split by the Diary Entries workflow's own splitter [...]: one `entry` child per dated entry, its
     date as the `date` attribute, in the page's order [...] The step's account in the run status (`entries`) says
     how many pages it split [...] and how many entries it made". Run again, it matches the entries it made rather
-    than making them twice; the entries are not pages, so the material and the readers do not see them."""
+    than making them twice -- since 2026-10-24 (done is not redone) it skips a page it split, asking the model nothing;
+    the entries are not pages, so the material and the readers do not see them."""
     _save(client, _recipe(tmp_path, LINES, READ, ENTRIES))
     run = _finished(client, _start(client))
     assert run["state"] == "done", run
@@ -100,10 +101,11 @@ def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_p
     # The entries are not material: the count and the pages a run works on are the pages.
     assert sorted(db.unit_of_work_ids()) == sorted(p.id for p in pages) and db.unit_of_work_count() == 2
 
-    engine.read = []
+    engine.read, asked = [], len(splitter)
     again = _finished(client, _start(client))
     assert again["state"] == "done", again
-    assert again["steps"][-1]["entries"]["created"] == 0 and again["steps"][-1]["entries"]["unchanged"] == 4
+    assert (again["steps"][-1]["state"], again["steps"][-1]["why"]) == ("done", "already done on every page"), again
+    assert len(splitter) == asked, "the model was asked again for a page already split"
     assert engine.read == []  # nothing new to read: the entries are not pages
     assert all(len(_entries(db, p.id)) == 2 for p in pages)
 

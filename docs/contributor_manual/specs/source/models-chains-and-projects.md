@@ -1282,7 +1282,8 @@ plan's peak memory across steps. Ready shows none of it.
   only on the pages that have text; the rest are left alone and counted. Each page is split by the
   Diary Entries workflow's own splitter (`workflows/tools/diary_entries.split_pages_into_entries`, one
   code path): one `entry` child per dated entry, its date as the `date` attribute, in the page's order;
-  run again, it matches the entries it made rather than making them twice. The step's account in the
+  run again, a page it already split is skipped and its model not asked (`source.recipe.done-is-not-redone`); a
+  page split again on purpose (redo) matches the entries it made rather than making them twice. The step's account in the
   run status (`entries`) says how many pages it split, how many had no text, and how many entries it
   made, kept, changed and removed. The entries are not pages: they are not counted as the project's
   material, and no later card reads them.
@@ -3046,6 +3047,10 @@ Profiles (the defaults section of a recipe)
   for each such step, "already done on N of M pages", and the run does only the rest, unless the person names
   the steps to redo when pressing Start. A step that cannot tell (names, statements, checks, export, publish)
   runs on every page, and the plan says so.
+  **[OK] (2026-10-24; tested in `fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py`):** splitting
+  into entries can tell too: a page with entries is done. So a run that was stopped, or lost when the app or the
+  engine quit, is started again and skips the steps and pages it finished: lines are not found again, lines are not
+  read again, pages are not split again, and the run finishes.
   **[OK] (#5584; built: `recipes/done.py`; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`):** correcting and finding names
   can tell too: correcting, on a page with a reviewed transcription saved by the step's own model (#5616: its
   effective model, the step's choice else its workflow's; with neither, a review its own workflow saved, never
