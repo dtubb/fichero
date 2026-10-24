@@ -309,7 +309,7 @@ extension ZoomableImagePreview {
         // layer is off — the toggle gates drawing that layer, not knowing.
         guard let documentId, let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
-        await store.load(documentId: documentId)
+        await store.load(documentId: documentId, seeingArtifactRevision: artifactEntityRevision)
         if let error = store.loadError(documentId: documentId) {
             // Surface in the log, render nothing — the toggle stays honest (no boxes ≠ silent success).
             Self.logger.error("Segments load failed for \(documentId): \(error)")
