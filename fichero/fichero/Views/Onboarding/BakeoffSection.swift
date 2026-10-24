@@ -52,6 +52,29 @@ struct BakeoffSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if store.isShown { content }
+        }
+        .padding(.leading, store.isShown ? 12 : 0)
+        // Read on every showing: the newest comparison, and whether there are enough corrected
+        // lines now (corrections made since the last showing count).
+        .task {
+            await store.loadLatest()
+        }
+        // Read the comparison again as its job moves on in Activity; while it runs and Activity
+        // does not list it, read it now and then.
+        .task(id: jobKey) {
+            guard store.isRunning else { return }
+            await store.refresh()
+            while store.isRunning, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await store.refresh()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        Group {
             Text(store.comparesLines ? "Compare the line finders on your corrected pages"
                  : "Compare readers on your corrected pages").font(.callout.weight(.semibold))
             if let sentence = store.notReadySentence {
@@ -89,22 +112,6 @@ struct BakeoffSection: View {
             }
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").font(.body).foregroundStyle(.orange)
-            }
-        }
-        .padding(.leading, 12)
-        // Read on every showing: the newest comparison, and whether there are enough corrected
-        // lines now (corrections made since the last showing count).
-        .task {
-            await store.loadLatest()
-        }
-        // Read the comparison again as its job moves on in Activity; while it runs and Activity
-        // does not list it, read it now and then.
-        .task(id: jobKey) {
-            guard store.isRunning else { return }
-            await store.refresh()
-            while store.isRunning, !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
-                await store.refresh()
             }
         }
     }
