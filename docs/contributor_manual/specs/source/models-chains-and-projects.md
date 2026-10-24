@@ -4089,6 +4089,9 @@ Trying another option
 - `source.find.cloud-card-says-it-once` — **[PARTIAL]** (#6033; built, uncompiled) A cloud card that needs the permission shows one line, the
   permission one with its Allow Cloud Models action; the engine's refusal ("it runs in the cloud and this project keeps pages on this Mac")
   is not repeated under it (`CloudNeedsPermissionCardTests.swift`).
+- `source.onboard.stages.compare-side-by-side-inline` — **[PARTIAL]** (#6034; built, uncompiled) After Compare on These Pages, each sample page shows
+  the candidates side by side on it, right under the button: the page's picture with each model's lines drawn on it and its reading under it,
+  Use This One per column; then the plain list of counts per page, which opens the page's window (`StageShowcasePicturesTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
