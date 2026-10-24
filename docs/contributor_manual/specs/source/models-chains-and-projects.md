@@ -4087,6 +4087,9 @@ Trying another option
   "library:<uuid>") asks for nothing, never a 404 every poll (`LibraryViewEngineFolderIdTests.swift`).
 - `source.library.folder-canvas-after-items-arrive` — **[PARTIAL]** (#6032; built, uncompiled, cause a hypothesis: not reproduced) A folder selected in
   the Items pane previews as its canvas once it has items; an empty children list cached before they arrived is asked again, not kept.
+- `source.find.cloud-card-says-it-once` — **[PARTIAL]** (#6033; built, uncompiled) A cloud card that needs the permission shows one line, the
+  permission one with its Allow Cloud Models action; the engine's refusal ("it runs in the cloud and this project keeps pages on this Mac")
+  is not repeated under it (`CloudNeedsPermissionCardTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
