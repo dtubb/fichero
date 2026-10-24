@@ -193,7 +193,9 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
 TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries",
                              # Find names too (#5660 item 4): spaCy's shipped pipelines are its default; a text model
                              # here, Apple Intelligence or a cloud model is the person's to choose instead.
-                             "find-names-tag-words"})
+                             "find-names-tag-words",
+                             # A folder's archival description (`catalogue.folder-description-fields`, #6087).
+                             "describe-for-the-catalogue"})
 #: Model servers the person runs, whose enabled models are cards for those jobs (the engine's own MLX server is
 #: its model store's, read above).
 _TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
@@ -1759,10 +1761,21 @@ def known_cards(a: Answers | None = None, *, include_not_built: bool = False) ->
     here = [*mark_installed(seed), *installed, *local_text_cards(seed)]
     taken = {c.id for c in here}
     parser = [replace(c, offered_only=False) for c in _parser_statement_cards() if c.id not in taken]
-    return [*here, *parser,
+    return [*(_describes_folders(c) for c in (*here, *parser)),
             *(repository_cards(cached["records"], seed, languages) if cached else []),
             *mark_installed(hub_cards(a.languages if a is not None else None,
                                       _pinned_repos([*seed, *installed])))]
+
+
+def _describes_folders(card: Card) -> Card:
+    """A GENERATIVE text model (one that writes text: it carries both `split-into-entries` and `find-statements`, as the parser's
+    subject-verb-object cards and spaCy's taggers do not, and it reads no pictures) writes a folder's archival description too
+    (`catalogue.folder-description-fields`, #6087): `describe-for-the-catalogue` had no card, so the step could never run."""
+    from dataclasses import replace
+
+    if {"split-into-entries", "find-statements"} <= card.jobs and not card.jobs & {"read-a-line", "read-a-page"}:
+        return replace(card, jobs=card.jobs | {"describe-for-the-catalogue"})
+    return card
 
 
 def _pinned_repos(cards: list[Card]) -> set[str]:
