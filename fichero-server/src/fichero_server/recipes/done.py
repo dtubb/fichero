@@ -27,7 +27,10 @@ from typing import Any
 
 #: Jobs whose output a page can be seen to have.
 KNOWS_DONE = frozenset({"split-pages", "find-regions", "find-lines", "read-a-line", "read-a-page", "prepare-the-image",
-                        "correct", "find-names-tag-words", "split-into-entries"})
+                        "correct", "find-names-tag-words", "split-into-entries", "leave-out", "translate-transliterate-normalise"})
+#: The recipe runs' per-page notes: run id -> the function that records one page's key on the running step and saves the run's
+#: detail (`runner._run_batch` sets it for the steps that may leave no trace on a page, `page_finished` calls it).
+NOTES: dict[str, Any] = {}
 #: What the correcting step's workflow (the paleographer's review, `transcribe_review`) saves on a page.
 REVIEWED = "transcription_review"
 
@@ -339,6 +342,19 @@ def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None
                for a in db.query(Artifact, document_id=doc_id))
 
 
+def _has_rewrite(db: Any, doc_id: str, card: dict[str, Any]) -> bool:
+    """The page holds what this Translate/normalise run writes: an artifact of its reading's type (the level it writes, or
+    `translation`) by the step's model, else by its workflow, never another step's of the same type (as `_has_review`)."""
+    from fichero_server.models import Artifact
+    from fichero_server.workflows.tools.analyze import tool_config_for
+
+    config = (card.get("tool_config") or {}).get("analyze") or {}
+    kind = tool_config_for(config.get("reading_kind"), config.get("reading_level")).artifact_type
+    model = effective_model(db, card)
+    return any(a.artifact_type == kind and _by_the_step(a, model, card.get("workflow_id"))
+               for a in db.query(Artifact, document_id=doc_id))
+
+
 def _by_the_step(artifact: Any, model: str | None, workflow_id: str | None) -> bool:
     if model is not None:
         return artifact.model == model
@@ -375,6 +391,28 @@ def pages_a_run_did(db: Any, job: str) -> set[str]:
     return out
 
 
+def page_finished(db: Any, run_ref: str | None, key: str) -> None:
+    """Note on the running recipe step, NOW, that this page is finished (`key`: the page, or for Leave Out the page and the line
+    pass it judged), saved on the run's own detail (`ran_on`, read back by `pages_a_run_did`): a Stop or an engine's death keeps it,
+    where noting it at the step's end would not. `run_ref`: the recipe run's id, or a step run's under it. No run, no note."""
+    if not run_ref:
+        return
+    note = NOTES.get(run_ref)
+    if note is None:
+        row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [run_ref])
+        note = NOTES.get(row[0]) if row and row[0] else None
+    if note is not None:
+        note(key)
+
+
+def judged_key(db: Any, doc_id: str) -> str:
+    """What Leave Out notes for a page: the page and the working line pass it judged, so lines found again (a new pass) are judged."""
+    from fichero_server.llm.working_lines import working_lines
+
+    found = working_lines(db, doc_id)
+    return f"{doc_id}@{found.pass_row.id if found is not None else 'none'}"
+
+
 def pages_with_names(db: Any) -> set[str]:
     """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names
     step has been over."""
@@ -407,18 +445,29 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
     if job == "find-names-tag-words":
         return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
+    if job == "leave-out":
+        return judged_key(db, doc_id) in pages_a_run_did(db, job)
+    if job == "translate-transliterate-normalise":  # the page holds the reading this run writes (its level, or its translation)
+        return _has_rewrite(db, doc_id, card)
     if job == "split-into-entries":  # a page a stopped or earlier run split keeps its entries; the model is not asked again
         return any(c.node_kind == "entry" for c in _children(db, doc_id))
     return None
 
 
-def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[str], int | None]:
-    """(the pages still to do, how many are done; None when the card cannot tell)."""
+def split_done(db: Any, card: dict[str, Any], pages: list[str],
+               own: set[str] | None = None) -> tuple[list[str], int | None]:
+    """(the pages still to do, how many are done; None when the card cannot tell). `own`: what the run now going (or resumed) has
+    already noted on this step, page by page (`page_finished`); a run that has ended is read through `pages_a_run_did`."""
+    own = own or set()
     if card.get("job") not in KNOWS_DONE:
         return pages, None
     if card.get("job") == "find-names-tag-words":  # one read of the entities, not one per page
         named = pages_with_names(db) | pages_a_run_did(db, "find-names-tag-words")
-        todo = [p for p in pages if p not in named]
+        todo = [p for p in pages if p not in named and p not in own]
+        return todo, len(pages) - len(todo)
+    if card.get("job") == "leave-out":  # judged on the pass it has now: a page whose lines were found again is judged again
+        ran = pages_a_run_did(db, "leave-out") | own
+        todo = [p for p in pages if judged_key(db, p) not in ran]
         return todo, len(pages) - len(todo)
     if card.get("job") == "prepare-the-image":  # the runs read once, not once per page
         ran = pages_a_run_did(db, "prepare-the-image")
