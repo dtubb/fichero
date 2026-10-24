@@ -57,7 +57,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "match_id": (RECORD, ("SegmentMatch",)),
     "carry_ids": (RECORD, ("SegmentCarry",)),
     "fact_id": (RECORD, ("EditorialFact",)),
+    "fact_ids": (RECORD, ("EditorialFact",)),  # the Inspector's multi-selection (#6082)
     "attribution_id": (RECORD, ("HandAttribution",)),
+    "attribution_ids": (RECORD, ("HandAttribution",)),  # the Inspector's multi-selection (#6082)
     # Slice 14 letterforms and campaigns (8b6a8b7bc, de90ff63f): each resolves to its document.
     "description_id": (RECORD, ("LetterformDescription",)),
     # stale-keeps-your-words (24c16562b): the reading a typed edit was based on; resolves to its document.
@@ -87,6 +89,7 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     # Ends of a typed link, and generic targets: any id at all, each resolved by its own kind.
     **{name: (RECORD, ("*",)) for name in ("from_id", "to_id", "end_id", "target_id", "source_id", "source_ids", "id", "remove_ids", "reorder_ids", "bookmark_id")},
     # --- rights (#5177: archive's semantics) ---------------------------------------------------------
+    "record_ids": (RECORD, ("RightsRecord",)),  # the Inspector's multi-selection (#6082)
     "record_id": (RECORD, ("RightsRecord",)),   # agent audit records are app-database rows, checked by their own route
     # --- the knowledge graph ---------------------------------------------------------------------
     **{name: (LIBRARY, _KG) for name in (

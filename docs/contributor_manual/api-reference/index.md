@@ -1579,6 +1579,14 @@ Each line is drawn from the route's own summary in `openapi.json`.
 **Editorial, statements and matches:**
 
 - `GET /api/editorial/segment/{segment_id}`: a segment's live editorial facts, and its counting reading.
+- `POST /api/content-representations/batch`: one Reader edit across several lines, recorded as one audited step and taken back by one undo (`representation.create_many`).
+
+**The Inspector's multi-selection (#6082)** — each acts on every selected segment at once, with one audit id and one undo, all or nothing:
+
+- `POST /api/source-settings/resolve-many`: the resolved settings, hands, certainty and rights of the whole selection in one request (a read; POST carries the id list). An id that does not exist or is on a page the caller may not read is left out and counted in `withheld`, never a 404.
+- `POST /api/editorial/many` and `POST /api/editorial/withdraw-many`: one whole-segment fact (such as certainty) recorded on, or withdrawn from, several segments.
+- `POST /api/hands/attributions/many` and `POST /api/hands/attributions/withdraw-many`: one hand attributed to, or taken off, several segments.
+- `POST /api/rights/many`: the same rights record on several targets (tighten-only from the Inspector).
 - `GET /api/segments/{segment_id}/statements`: what is said about a segment. Each statement with its span on the line's reading (`char_start`, `char_end`); each mention with its span on the line, its span of the page text (`source_char_start`, `source_char_end`, which name it to correct it) and `corrected_by_person`.
 - `POST /api/entities/{entity_id}/mentions/repoint`: the name at a mark is someone else; the mention at `document_id` + `char_start`..`char_end` of the page text moves to `to_entity_id` (`mention.repoint`, audited, undoable; #5602). The entity it left refuses that span, so a later extraction run does not put it back.
 - `POST /api/entities/{entity_id}/mentions/respan`: the mention's words are wrong; it becomes `new_char_start`..`new_char_end` of the page text, on its line when the page is tied (`mention.respan`, audited, undoable). `422` for a span that is not words of the page text. Both answer with where the mention now sits and the `audit_id` to undo it.
