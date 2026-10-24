@@ -76,6 +76,11 @@ struct ModelFinderView: View {
         .onChange(of: activity?.backgroundJobs ?? []) { _, jobs in
             Task { await store.observe(jobs) }
         }
+        // A reader chosen beside a step (Use for This Step, Use <smaller> instead, Accept and Use) moves the radio and
+        // the tint at once: the list is read again with the step's new reader marked `chosen`.
+        .onChange(of: step?.setup.choiceRevision) {
+            if let query = store.query { Task { await store.load(query) } }
+        }
     }
 
     @ViewBuilder
@@ -224,11 +229,8 @@ struct ModelFinderCard: View {
                !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
-                    // Read again after the choice, so the card shows its filled radio glyph and tint at once, in its own tier.
-                    Task {
-                        await step.setup.useCandidate(candidate, forStep: step.id)
-                        if let query = store.query { await store.load(query) }
-                    }
+                    // The finder reads again when setup's choice moves (`.onChange` below), whichever surface made it.
+                    Task { await step.setup.useCandidate(candidate, forStep: step.id) }
                 }
                 .controlSize(.small)
                 .help("Use it for this step; a model still to download is then a download Start offers")
