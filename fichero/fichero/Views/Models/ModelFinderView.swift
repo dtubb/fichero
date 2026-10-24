@@ -115,13 +115,10 @@ struct ModelFinderCard: View {
                     .foregroundStyle(.secondary)
                 // Beside a Set Up step the answer is one press away: the same fix as the toggle's.
                 if let step {
+                    // A real button, not greyed with the card: the one press that makes the card usable.
                     Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
-                        #if os(macOS)
-                        .buttonStyle(.link)
-                        #else
-                        .buttonStyle(.borderless)
-                        #endif
-                        .font(.caption)
+                        .controlSize(.small)
+                        .foregroundStyle(.primary)
                 }
             } else if Self.cannotRunHere(candidate) {
                 // Why, once, in the engine's words ("Fichero cannot run it yet (…)"), with the one way on.

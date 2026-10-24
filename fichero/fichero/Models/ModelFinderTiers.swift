@@ -16,7 +16,10 @@ enum ModelFinderTiers {
         }
     }
 
-    /// The order the tiers are shown in: frontier cloud models (Gemini, Claude) first, likely the best.
+    /// How many of a tier are listed.
+    static let maxPerTier = 5
+
+    /// The order the tiers are shown in: your cloud models first, from any provider, likely the best.
     static let order = ["frontier", "specialist", "small-vlm", "general"]
 
     /// The person's choice and a result measured on their pages override the tier (`source.recipe.reader-tiers`): those
@@ -34,12 +37,14 @@ enum ModelFinderTiers {
         if !heads.isEmpty { out.append(Group(id: "heads", title: nil, candidates: heads)) }
         let candidates = candidates.filter { !headsTheList($0) }
         for tier in order {
-            let inTier = candidates.filter { $0.tier == tier }
+            // ponytail: the top few per tier, in the engine's rank order (owner 2026-10-23: not hundreds); a Show All is
+            // the upgrade if a person needs the rest.
+            let inTier = Array(candidates.filter { $0.tier == tier }.prefix(maxPerTier))
             if let first = inTier.first {
                 out.append(Group(id: tier, title: first.tierWords, candidates: inTier))
             }
         }
-        let untiered = candidates.filter { $0.tier == nil || !order.contains($0.tier ?? "") }
+        let untiered = Array(candidates.filter { $0.tier == nil || !order.contains($0.tier ?? "") }.prefix(maxPerTier))
         if !untiered.isEmpty { out.append(Group(id: "untiered", title: nil, candidates: untiered)) }
         return out
     }

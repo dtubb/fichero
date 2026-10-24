@@ -1580,10 +1580,9 @@ async def model_candidates(
 
         # Only a model that does the step's job: a cloud model added by hand is not a line finder (#5838).
         cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id and job in c.jobs][:1]
-    # Filtered to the project (owner 2026-10-23): a model refused for the script is not listed at all, so a Chinese reader
-    # shows only for Chinese. One for another language or material stays, ranked last: a Latin reader often reads a
-    # neighbouring language, and the finder asks with one material where a project may have several. The step's own
-    # model stays, said as refused.
+    # Filtered to the project (owner 2026-10-23): a model refused for the script or the language is not listed at all, so
+    # a Chinese reader shows only for Chinese. One for another material stays, ranked last: the finder asks with one
+    # material where a project may have several. The step's own model stays, said as refused.
     cards = [c for c in cards if c.id == chosen_id or (_refusal(job, c, a, material) or ("",))[0] not in _OFF_PROJECT]
     kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
                   key=lambda c: rank_key(job, c, material, a))
@@ -1662,20 +1661,15 @@ async def model_candidates(
         if search else None)
 
 
-#: The refusal that means a model is not for this project's pages, so the finder leaves it out.
-_OFF_PROJECT = frozenset({"no-model-for-script"})
+#: The refusals that mean a model is not for this project's pages, so the finder leaves it out.
+_OFF_PROJECT = frozenset({"no-model-for-script", "no-model-for-language"})
 
 
 def _offered_order(card: Any) -> tuple[int, str]:
-    """The frontier cloud readers (Gemini, Claude) top the list, likely the best (owner 2026-10-23); after the ranked
-    models, the other cloud models grouped by provider, then the rest. ponytail: by provider only; a per-language cloud ranking (Loove's coverage) is the upgrade."""
-    from fichero_server.recipes.assemble import FRONTIER_PROVIDERS
-
+    """The person's cloud models top the list, likely the best readers (owner 2026-10-23), grouped by provider; then the
+    rest. ponytail: by provider only; a per-language cloud ranking (Loove's coverage) is the upgrade."""
     runs_on = str(card.runs_on)
-    if not runs_on.startswith("cloud:"):
-        return (2, "")
-    provider = runs_on.split(":", 1)[1]
-    return (0 if provider in FRONTIER_PROVIDERS else 1, provider)
+    return (0, runs_on.split(":", 1)[1]) if runs_on.startswith("cloud:") else (1, "")
 
 
 # =============================================================================
