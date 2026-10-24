@@ -25,4 +25,23 @@ struct InspectorTextReadingTests {
         #expect(reading(model: "blla", provider: nil).whoRead == "blla")
         #expect(reading(model: nil, provider: nil).whoRead == nil)
     }
+
+    private func twin(_ id: String, content: String, provisional: Bool, artifact: String? = "art-1") -> InspectorText.Reading {
+        var r = InspectorText.Reading(id: id, kind: "transcription", content: content, maker: "workflow", author: nil,
+                                      guideline: nil, pairId: nil, pairRole: nil)
+        r.provisional = provisional
+        r.derivedFromArtifactId = artifact
+        return r
+    }
+
+    @Test("a provisional reading with a stored twin (same artifact, kind, content) is hidden; others stay")
+    func hidesOnlyTheTwin() {
+        let all = [
+            twin("s", content: "una linea", provisional: false),
+            twin("p", content: "una linea", provisional: true),
+            twin("p2", content: "otra linea", provisional: true),
+            twin("p3", content: "una linea", provisional: true, artifact: "art-2"),
+        ]
+        #expect(InspectorText.hidingProvisionalTwins(all).map(\.id) == ["s", "p2", "p3"])
+    }
 }
