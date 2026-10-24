@@ -29,9 +29,10 @@ enum SetupStages {
         Stage(id: "statements", title: "Statements", jobs: ["find-statements"]),
         Stage(id: "dates", title: "Dates & Times", jobs: ["work-out-dates"]),
         Stage(id: "passages", title: "Passages", jobs: ["pull-out-passages"]),
-        Stage(id: "structured-data", title: "Structured Data",
-              jobs: ["find-a-tables-cells", "extract-to-a-table", "describe-for-the-catalogue"]),
-        Stage(id: "search", title: "Search", jobs: ["make-a-vector"])
+        Stage(id: "structured-data", title: "Structured Data", jobs: ["find-a-tables-cells", "extract-to-a-table"]),
+        Stage(id: "search", title: "Search", jobs: ["make-a-vector"]),
+        // Last, at folder level (`catalogue.folder-description-fields`, #6087).
+        Stage(id: "catalogue", title: "Catalogue", jobs: ["describe-for-the-catalogue"])
     ]
 
     /// The stage a recipe step belongs to, by its id or its job; nil for a step no stage carries (a check, an export).

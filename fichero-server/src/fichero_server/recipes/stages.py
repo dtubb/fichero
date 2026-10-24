@@ -131,14 +131,23 @@ STAGES: tuple[Stage, ...] = (
           "“Autor del libro. M. ora sus no per=” and the line after it, kept where they sit on the page.",
           (Question("passage_kinds", "Which kinds of passages?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
-    Stage("structured-data", "Structured Data", ("find-a-tables-cells", "extract-to-a-table", "describe-for-the-catalogue"),
-          "Fills a table or a catalogue record from the pages: one column for each field you name.",
+    Stage("structured-data", "Structured Data", ("find-a-tables-cells", "extract-to-a-table"),
+          "Fills a table from the pages: one column for each field you name.",
           "The work, the speaker and the folio as one row: “Diálogo de la Lengua”, “M.”, “8”.",
           (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
           "Makes the pages searchable by meaning as well as by their words.",
           "Searching “historia” finds the lines that say “Historia”.",
+          (),
+          needs=("read",)),
+    # Last, at folder level, after every other stage (`catalogue.folder-description-fields`, #6087): no question, the
+    # fields of the description are the archival ones.
+    Stage("catalogue", "Catalogue", ("describe-for-the-catalogue",),
+          "Describes each folder from what its pages say, as an archival record: title, dates, extent, creator, scope and "
+          "content, language, access points. It describes; it does not interpret.",
+          "A folder of letters described as: Title, Dates 1782–1790, Extent 214 pages, Scope and content: letters between "
+          "the named parties, in Spanish.",
           (),
           needs=("read",)),
 )

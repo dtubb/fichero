@@ -108,11 +108,13 @@ struct ActivityStageCardsTests {
     func stepsMapToOneStage() {
         let jobs = SetupStages.all.flatMap(\.jobs)
         #expect(Set(jobs).count == jobs.count, "a job belongs to one stage")
-        // Thirteen since section 7d (2026-10-11): Find Regions apart from Find Lines, Normalise apart from Translate.
+        // Thirteen since section 7d (2026-10-11): Find Regions apart from Find Lines, Normalise apart from Translate;
+        // Catalogue last, at folder level (#6087).
         #expect(SetupStages.all.map(\.id) == ["prepare-images", "find-regions", "find-lines", "read", "normalise",
                                               "translate", "organise", "names", "statements", "dates", "passages",
-                                              "structured-data", "search"])
+                                              "structured-data", "search", "catalogue"])
         #expect(SetupStages.stage(of: "work-out-dates")?.title == "Dates & Times")
+        #expect(SetupStages.stage(of: "describe-for-the-catalogue")?.title == "Catalogue")
         #expect(SetupStages.stage(of: "check") == nil && SetupStages.stage(of: "export") == nil)
     }
 }

@@ -296,3 +296,40 @@ struct ShowcaseTextColumn: View {
         .padding()
     }
 }
+
+/// Catalogue: a folder's archival record fills in field by field (`catalogue.folder-description-fields`, #6087). The
+/// fields are the engine's own, fixed; nothing here reads a page, so one picture serves every project.
+struct CataloguePicture: View {
+    let progress: Double
+
+    static let fields: [(name: String, value: String)] = [
+        ("Title", "Letters, 1782–1790"), ("Dates", "1782 to 1790"), ("Extent", "214 pages"),
+        ("Scope and content", "Letters between the named parties, in Spanish."), ("Language and script", "Spanish, Latin")
+    ]
+
+    func filled(_ index: Int) -> Double {
+        let start = 0.1 + 0.7 * Double(index) / Double(Self.fields.count)
+        return StageShowcasePlayback.phase(progress, from: start, to: start + 0.2)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Folder", systemImage: "folder").font(.callout.weight(.medium))
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                ForEach(Array(Self.fields.enumerated()), id: \.offset) { index, field in
+                    GridRow(alignment: .firstTextBaseline) {
+                        Text(field.name).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        Text(field.value)
+                            .font(.caption)
+                            .opacity(filled(index))
+                            .offset(x: -20 * (1 - filled(index)))
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .padding(8)
+    }
+}
