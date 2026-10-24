@@ -11,7 +11,7 @@ from fichero_server import llm
 from fichero_server.llm import LLMConfig, line_reader
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 
-TEXTS = ["Francisco Mina es vecino en la", "actualidad del puerto de Buena", "ventura atencion sobre", "El Alcalde Juan Gomez"]
+TEXTS = ["Pedro Alvarado vive en el", "pueblo de Rio Claro desde", "hace muchos anos y cuida", "la huerta del convento"]
 
 
 def _page(tmp_path):
@@ -45,7 +45,7 @@ def _run(monkeypatch, tmp_path, scramble):
         return "[" + ", ".join(f'"{t}"' for t in shown) + "]"
 
     monkeypatch.setattr(llm, "vision", model)
-    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page"))
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), granularity="page", page_context=True))
     return {b.metadata["segment_id"]: b.text for b in out.boxes}, calls
 
 
@@ -62,4 +62,4 @@ def test_a_batch_out_of_order_is_asked_line_by_line_and_every_reading_lands_on_i
 
 def test_answers_with_nothing_to_compare_are_believed():
     assert line_reader.answers_follow_order(["a", None], [None, "b"])
-    assert not line_reader.answers_follow_order(["El Alcalde Juan Gomez"], ["Francisco Mina es vecino"])
+    assert not line_reader.answers_follow_order(["la huerta del convento"], ["Pedro Alvarado vive en el"])
