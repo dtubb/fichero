@@ -45,6 +45,27 @@ enum InspectorLanguage {
             }
     }
 
+    /// The rows for a SELECTION of lines (`source.inspector.multi-selection`): per fact, the value when every selected line
+    /// has it, else "Mixed" -- no value -- with the reason in the origin line. One line's settings read as its own rows.
+    static func rows(selection perLine: [[Setting]]) -> [Row] {
+        let tables = perLine.map(rows)
+        guard tables.count > 1 else { return tables.first ?? [] }
+        var keys: [String] = []
+        for key in tables.flatMap({ $0.map(\.key) }) where !keys.contains(key) { keys.append(key) }
+        return keys.compactMap { key -> Row? in
+            let rowsOfKey = tables.compactMap { table in table.first { $0.key == key } }
+            guard let first = rowsOfKey.first else { return nil }
+            // A line with no such fact counts as a different answer: not every line agrees.
+            let agree = rowsOfKey.count == tables.count && rowsOfKey.allSatisfy { $0.value == first.value }
+            return agree ? first : Row(
+                key: key, title: first.title, value: mixed, origin: "differs between the selected lines", basis: ""
+            )
+        }
+    }
+
+    /// What a fact reads when the selected lines differ.
+    static let mixed = "Mixed"
+
     /// Where a value came from, in words. A level (segment, page, folder, project) says where it was
     /// set; the source says how.
     static func origin(source: String, level: String?) -> String {
