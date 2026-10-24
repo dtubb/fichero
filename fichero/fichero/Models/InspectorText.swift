@@ -25,6 +25,30 @@ struct InspectorText: Equatable {
         var machineConfidence: Double?
         /// The rendition it was read from, when not the page's own image.
         var readFromRenditionId: String?
+        /// Who read it and in which run (`source.inspector.reading-says-who-read-it`); all nil for a typed reading.
+        var producerModel: String?
+        var producerProvider: String?
+        var producerRunId: String?
+        var producerStep: String?
+        var createdAt: Date?
+
+        /// "gemini-3-flash-preview via OpenRouter": the model's own name (its last path part) and the provider,
+        /// each said once; just the one that is known, nil when neither is.
+        var whoRead: String? {
+            let model = producerModel?.split(separator: "/").last.map(String.init)
+            let provider = producerProvider.map(Self.providerName)
+            switch (model, provider) {
+            case let (model?, provider?): return "\(model) via \(provider)"
+            case let (model?, nil): return model
+            case let (nil, provider?): return provider
+            default: return nil
+            }
+        }
+
+        private static func providerName(_ raw: String) -> String {
+            let known = ["openrouter": "OpenRouter", "openai": "OpenAI", "anthropic": "Anthropic"]
+            return known[raw.lowercased()] ?? raw.prefix(1).uppercased() + raw.dropFirst()
+        }
     }
 
     enum Why: Equatable {
