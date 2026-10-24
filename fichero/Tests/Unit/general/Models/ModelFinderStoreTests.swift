@@ -499,8 +499,11 @@ final class ModelFinderStoreTests: XCTestCase {
             await store.load(Self.query)
             return try XCTUnwrap(store.candidates.first)
         }
-        XCTAssertFalse(ModelFinderCard.offersUseForThisStep(try await card(chosen: true, defaultPick: false)), "the saved reader")
-        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(try await card(chosen: true, defaultPick: true)), "a default: Use saves it")
-        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(try await card(chosen: false, defaultPick: false)))
+        let saved = try await card(chosen: true, defaultPick: false)
+        let aDefault = try await card(chosen: true, defaultPick: true)
+        let another = try await card(chosen: false, defaultPick: false)
+        XCTAssertFalse(ModelFinderCard.offersUseForThisStep(saved), "the saved reader")
+        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(aDefault), "a default: Use saves it")
+        XCTAssertTrue(ModelFinderCard.offersUseForThisStep(another))
     }
 }

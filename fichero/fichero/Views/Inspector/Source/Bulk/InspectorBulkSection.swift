@@ -95,3 +95,9 @@ private extension View {
         menuStyle(.button).buttonStyle(.borderless).fixedSize().font(.caption)
     }
 }
+
+#Preview("Bulk: three lines selected") {
+    InspectorBulkSection(selectedIds: ["line-1", "line-2", "line-3"])
+        .padding()
+        .frame(width: 420)
+}
