@@ -492,6 +492,20 @@ def _note(done: int | None, of: int, unit: str) -> str:
     return f"already done on {done} of {of} {unit}; runs on the other {of - done}"
 
 
+def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, redo: set[str] | None = None) -> dict[str, int]:
+    """Per job, the pages a run would still do (`split_done`, as `annotate` counts them), for the estimate to price: a done
+    page is not paid for twice. A card that cannot tell, or was asked to redo, is every page and is left out."""
+    out: dict[str, int] = {}
+    for card in plan.get("runs", []):
+        if card.get("card") != "workflow" or (redo and redo.intersection(card["steps"])):
+            continue
+        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
+        todo, done = split_done(db, card, pages)
+        if done is not None:
+            out[card["job"]] = len(todo)
+    return out
+
+
 def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None,
              within: set[str] | None = None, redo: set[str] | None = None) -> dict[str, Any]:
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last

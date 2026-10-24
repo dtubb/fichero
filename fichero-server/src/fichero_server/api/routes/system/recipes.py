@@ -2507,7 +2507,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project."""
     from fichero_server.recipes import runner
-    from fichero_server.recipes.done import annotate, material
+    from fichero_server.recipes.done import annotate, material, todo_counts
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import estimate, place_runs, plan_start
@@ -2528,7 +2528,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
-                                catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]))
+                                catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
+                                todo=todo_counts(db, plan, within))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
@@ -2610,10 +2611,11 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
-    from fichero_server.recipes.done import material
+    from fichero_server.recipes.done import material, todo_counts
 
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=_catalogue_runs(plan["runs"]),
-                                   folders=_folders_covering(db, material(db, within)["ids"])), "counted": counted}
+                                   folders=_folders_covering(db, material(db, within)["ids"]),
+                                   todo=todo_counts(db, plan, within, set(started["redo"]))), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
 
 
