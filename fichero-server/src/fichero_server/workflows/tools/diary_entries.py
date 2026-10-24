@@ -417,6 +417,7 @@ def _region_union(
     if not xs0:
         return None
     x0, y0 = min(xs0), min(ys0)
+    box_frame = next((b.metadata["frame"] for b in boxes if getattr(b, "metadata", None) and b.metadata.get("frame")), None)
     try:
         return NodeRegion(
             rect=[x0, y0, max(xs1) - x0, max(ys1) - y0],
@@ -426,6 +427,8 @@ def _region_union(
             # Name the source in the method, so a region carries WHERE its
             # numbers came from and not merely how they were combined.
             method=f"diary-entry-word-union:{(provider or 'unknown').strip().casefold()}",
+            # The frame the boxes were measured on (`media/upright.py`), so the entry's crop is cut from the same pixels.
+            **({"frame": box_frame} if box_frame else {}),
         )
     except ValueError:
         # Malformed OCR geometry must not cost us the entry. The node is the

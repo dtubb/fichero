@@ -69,6 +69,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from PIL import Image
 
     from fichero_server.llm import LLMConfig
+    from fichero_server.media.upright import upright_size
     from fichero_server.models import Document
     from fichero_server.workflows.tools.detect_regions import TOOL_CONFIG
     from fichero_server.workflows.tools.llm_base import save_artifact
@@ -116,7 +117,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         try:  # the rendered temp file goes whatever happens to the page from here on
             try:
                 with Image.open(path) as image:
-                    width, height = image.size
+                    width, height = upright_size(image)  # both finders see the upright page (cv2 applies EXIF; Kraken is given it)
             except (AttributeError, TypeError, OSError):
                 account["no_image"] += 1
                 continue
@@ -166,6 +167,11 @@ def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: st
         found = detect_regions(path, model)
         found_geometry = geometry(found, width, height, model=model, provider=provider,
                                   direction=page_direction(library, doc.id).get("direction"))
+        # YOLO reads the file through OpenCV, which applies the EXIF orientation: its boxes are on the upright page.
+        from fichero_server.media.upright import FRAME_UPRIGHT, mark
+
+        mark(found_geometry.boxes)
+        found_geometry.metadata["frame"] = FRAME_UPRIGHT
         regions_here = len(found)
     if page_index is not None:
         from fichero_server.workflows.tools.vision_base import _KRAKEN_PDF_RENDER_DPI

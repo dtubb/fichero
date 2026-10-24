@@ -123,6 +123,7 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
     page: true, the pages after are not looked at (Stop on the recipe run, #5609)."""
     from PIL import Image, ImageOps
 
+    from fichero_server.llm.kraken_runtime import upright_size
     from fichero_server.models import Document, Rendition
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
@@ -148,10 +149,11 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
             base = image if image.mode in ("RGB", "L") else image.convert("RGB")
             # The faded ink raised: the darkest 1% to black, the lightest 1% to white (the measure's own cut).
             out = ImageOps.autocontrast(base, cutoff=1)
+            shown_width, shown_height = upright_size(image)  # the size in the frame the page is shown in
         (library / relative).parent.mkdir(parents=True, exist_ok=True)
         out.save(library / relative, format="PNG", exif=exif)
         db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
-                          pixel_width=out.width, pixel_height=out.height, producer_run_id=run_id,
+                          pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
                           producer_tool="prepare-the-image",
                           note=f"faded (grey spread {spread}/255): contrast raised"))
         account["prepared"] += 1

@@ -49,6 +49,16 @@ class WorkingLines:
 
     pass_row: Any
     lines: list[Any]
+    #: The frame the lines were measured on (`media/upright.py`): the pass's own marker first (a person's split, create or merge
+    #: inherits it), else any line's; None for a pass made before the marker existed, cut from the file's raw pixels still.
+    frame: str | None = None
+
+    def page_size(self, image: Any) -> tuple[float, float]:
+        """(width, height) in the frame the lines are fractions of, from an opened image's header."""
+        from fichero_server.media.upright import FRAME_UPRIGHT, upright_size
+
+        width, height = upright_size(image) if self.frame == FRAME_UPRIGHT else image.size
+        return float(width), float(height)
 
 
 def working_lines(db: Any, document_id: str, *, model: str | None = None) -> WorkingLines | None:
@@ -73,7 +83,9 @@ def working_lines(db: Any, document_id: str, *, model: str | None = None) -> Wor
             continue
         lines = ordered_lines(db, row.id)
         if lines:
-            return WorkingLines(row, lines)
+            from fichero_server.media.upright import frame_of, pass_frame
+
+            return WorkingLines(row, lines, pass_frame(db, row) or frame_of(*(getattr(ln, "metadata", None) for ln in lines)))
     return None
 
 
@@ -109,10 +121,12 @@ def as_geometry(found: WorkingLines, width: float, height: float, *, provider: s
             text="", bbox=[row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h], level=OCRGeometryLevel.LINE,
             provider=provider, model=model, source="working-pass",
             metadata={"segment_id": row.id, "polygon_px": line["polygon"], "baseline_px": line["baseline"],
-                      "pixel_frame": {"width": width, "height": height}}))
+                      "pixel_frame": {"width": width, "height": height},
+                      **({"frame": found.frame} if found.frame else {})}))
     return OCRGeometryResult(text="", provider=provider, model=model, boxes=boxes, source="working-pass",
                              metadata={"pixel_frame": {"width": width, "height": height},
-                                       READ_ONTO_PASS: found.pass_row.id})
+                                       READ_ONTO_PASS: found.pass_row.id,
+                                       **({"frame": found.frame} if found.frame else {})})
 
 
 def write_readings(

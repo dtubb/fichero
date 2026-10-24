@@ -93,7 +93,7 @@ async def test_the_transcribe_tool_reads_the_pages_working_lines_with_it(page, m
     from fichero_server.workflows.tools.transcribe import transcribe
     from tests.unit.workflows.test_review_corrects_the_lines_5654 import _counting
 
-    monkeypatch.setattr(tr, "read_lines", lambda image_path, repo, lines: ["uno", "dos", "tres"])
+    monkeypatch.setattr(tr, "read_lines", lambda image_path, repo, lines, **kw: ["uno", "dos", "tres"])
     done = await transcribe(
         inputs={"files": page["src"]["files"], "documents": page["src"]["documents"], "vision_mode": "kraken",
                 "regions_first": False, "kraken_model": READER},

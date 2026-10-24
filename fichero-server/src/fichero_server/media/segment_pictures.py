@@ -34,6 +34,7 @@ from typing import Any
 
 from fichero_server.db.storage import resolve_source
 from fichero_server.media.region_crops import RegionCropUnavailable
+from fichero_server.media.upright import open_in_frame, pass_frame
 from fichero_server.models import Document, Rendition
 from fichero_server.models.anchors import (
     AnchorShapeKind,
@@ -279,49 +280,49 @@ def segment_picture(
     baseline = segment.baseline if options.straighten else None
 
     try:
-        with Image.open(source) as opened:
-            image = opened.convert("RGBA")
-            width, height = image.size
+        # The page in the frame the segment was measured on (`media/upright.py`): raw pixels unless it is marked upright.
+        image = open_in_frame(source, (segment.metadata or {}).get("frame") or pass_frame(db, segment.pass_id), mode="RGBA")
+        width, height = image.size
 
-            if polygon:
-                # Mask BEFORE cropping, in the page's own pixels, so the
-                # outline's fractions mean what they were measured against.
-                keep = Image.new("L", (width, height), 0)
-                ImageDraw.Draw(keep).polygon(
-                    [(point[0] * width, point[1] * height) for point in polygon], fill=255
-                )
-                image.putalpha(keep)
+        if polygon:
+            # Mask BEFORE cropping, in the page's own pixels, so the
+            # outline's fractions mean what they were measured against.
+            keep = Image.new("L", (width, height), 0)
+            ImageDraw.Draw(keep).polygon(
+                [(point[0] * width, point[1] * height) for point in polygon], fill=255
+            )
+            image.putalpha(keep)
 
-            x, y, w, h = box
-            pad_x, pad_y = options.margin * w, options.margin * h
-            left = max(0, int(round((x - pad_x) * width)))
-            top = max(0, int(round((y - pad_y) * height)))
-            right = min(width, int(round((x + w + pad_x) * width)))
-            bottom = min(height, int(round((y + h + pad_y) * height)))
-            if right <= left or bottom <= top:
-                raise RegionCropUnavailable(
-                    f"segment {segment.id}'s area is empty at the image's size "
-                    f"({width}x{height}): {box}"
-                )
-            cropped = image.crop((left, top, right, bottom))
+        x, y, w, h = box
+        pad_x, pad_y = options.margin * w, options.margin * h
+        left = max(0, int(round((x - pad_x) * width)))
+        top = max(0, int(round((y - pad_y) * height)))
+        right = min(width, int(round((x + w + pad_x) * width)))
+        bottom = min(height, int(round((y + h + pad_y) * height)))
+        if right <= left or bottom <= top:
+            raise RegionCropUnavailable(
+                f"segment {segment.id}'s area is empty at the image's size "
+                f"({width}x{height}): {box}"
+            )
+        cropped = image.crop((left, top, right, bottom))
 
-            if baseline and len(baseline) >= 2:
-                cropped = _straightened(cropped, baseline, width, height)
+        if baseline and len(baseline) >= 2:
+            cropped = _straightened(cropped, baseline, width, height)
 
-            limit = options.size or DEFAULT_MAX_EDGE
-            if max(cropped.size) > limit:
-                cropped.thumbnail((limit, limit))
-            picture_width, picture_height = cropped.size
+        limit = options.size or DEFAULT_MAX_EDGE
+        if max(cropped.size) > limit:
+            cropped.thumbnail((limit, limit))
+        picture_width, picture_height = cropped.size
 
-            with tempfile.TemporaryDirectory() as staging:
-                # Always PNG: a mask means transparency, and JPEG has none.
-                staged = Path(staging) / f"{segment.id}_{cache_key}.png"
-                cropped.save(staged)
+        with tempfile.TemporaryDirectory() as staging:
+            # Always PNG: a mask means transparency, and JPEG has none.
+            staged = Path(staging) / f"{segment.id}_{cache_key}.png"
+            cropped.save(staged)
 
-                from fichero_server.importers.ingest import _copy_to_library
+            from fichero_server.importers.ingest import _copy_to_library
 
-                package = Path(library_path) if library_path else db.path.parent
-                stored = _copy_to_library(staged, Path(package) if package else None)
+            package = Path(library_path) if library_path else db.path.parent
+            stored = _copy_to_library(staged, Path(package) if package else None)
     except RegionCropUnavailable:
         raise
     except Exception as exc:
