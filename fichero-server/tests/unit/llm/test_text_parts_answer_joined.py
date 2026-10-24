@@ -11,3 +11,12 @@ def test_a_string_is_as_before_and_other_parts_are_left_alone():
     assert _strip_outer_code_fences("plain") == "plain"
     parts = [{"type": "text", "text": "x"}, {"type": "image_url", "image_url": "u"}]
     assert _strip_outer_code_fences(parts) is parts
+
+
+def test_message_text_is_the_one_join_the_chat_and_the_tools_call_use():
+    from fichero_server.llm import message_text
+
+    assert message_text([{"type": "text", "text": "Hola "}, "mundo"]) == "Hola mundo"
+    assert message_text("plain") == "plain" and message_text(None) is None
+    parts = [{"type": "text", "text": "x"}, {"type": "tool_use", "id": "1"}]
+    assert message_text(parts) is parts

@@ -954,7 +954,9 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
         )
     else:
         response = await _ask(llm, messages, config=config, ctx=ctx)
-        response_text = response.content
+        from fichero_server.llm import message_text  # lazily, with the other llm imports of this module (see above)
+
+        response_text = message_text(response.content)
 
     # Add assistant message
     conv.messages.append({"role": "assistant", "content": response_text})
