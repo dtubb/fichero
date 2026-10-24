@@ -1,6 +1,6 @@
 """A file under a folder the owner picked is allowed whichever Unicode form its path arrives in (owner 2026-10-24).
 
-WHY: "…Manuel A. Peña; Istmina" was refused as "not in an allowed location" though its folder was picked: the
+WHY: a folder name with an "ñ" was refused as "not in an allowed location" though its folder was picked: the
 grant is kept NFC and Finder may hand the path decomposed (NFD), so the "ñ" in one form never matched the other.
 """
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import fichero_server.security.path_security as path_security
 
-FOLDER = "/Users/someone/Fichero Sources/Tiny Test/1931 Antonio Asprilla y Manuel A. Peña; Istmina"
+FOLDER = "/Users/someone/Material/1900 Carta de la señora Peña; Ciudad"
 
 
 def test_a_decomposed_path_under_a_composed_grant_is_allowed(monkeypatch):
