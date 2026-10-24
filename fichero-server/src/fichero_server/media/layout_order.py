@@ -1,7 +1,7 @@
 """Reading order from position: regions and lines in the order a person reads them.
 
 Kraken lists regions by TYPE then in its own order, and a detector lists them by score, so the first
-region of a page need not be its top (TEst 12 IMG_009 read the page's second block first). This orders
+region of a page need not be its top (a page's second block was read first). This orders
 boxes from where they are: an XY-cut, the cut taken on the axis with the widest gap (a column gutter
 beats a paragraph gap), columns taken in the page's direction, marginalia put after the body block they
 sit beside. Pure geometry, no model.

@@ -1,8 +1,7 @@
 """Regions and lines come in reading order from where they are, not in the order a segmenter listed them.
 
-WHY: TEst 12 IMG_009 read "El Secretario. Secretaría de la Alcaldía..." first, though the page top is "Francisco Mina es
-vecino...": Kraken lists regions by type then its own order, so the Order tab's Region 1 was not the top block and the
-Reader text followed. Invented geometry, no model: a header over two columns, a margin note, a right-to-left page, a
+WHY: a page's regions were saved in the order the segmenter listed them: Kraken lists regions by type then its own order, so
+the Order tab's Region 1 was not the top block and the Reader text followed. Invented geometry, no model: a header over two columns, a margin note, a right-to-left page, a
 vertical page, and Kraken's payload end to end.
 """
 
@@ -94,14 +93,14 @@ def test_the_read_path_joins_its_transcript_in_reading_order(monkeypatch):
         {"id": "second", "type": "text", "polygon": poly(50, 520, 900, 900)},
         {"id": "first", "type": "text", "polygon": poly(50, 50, 900, 400)}],
         "lines": [
-            {"region": "second", "polygon": poly(60, 560, 880, 620), "baseline": [], "text": "Secretaría de la Alcaldía"},
-            {"region": "first", "polygon": poly(60, 80, 880, 140), "baseline": [], "text": "Francisco Mina es vecino"}]}
+            {"region": "second", "polygon": poly(60, 560, 880, 620), "baseline": [], "text": "The second block's line"},
+            {"region": "first", "polygon": poly(60, 80, 880, 140), "baseline": [], "text": "The first block's first line"}]}
     monkeypatch.setattr(kraken_runtime, "recognize_lines", lambda *args, **kwargs: payload)
     result = kraken_runtime.recognize_to_geometry("page.png", "model.mlmodel")
-    assert result.text == "Francisco Mina es vecino\nSecretaría de la Alcaldía"
+    assert result.text == "The first block's first line\nThe second block's line"
     lines = [b for b in result.boxes if b.text]
-    assert [b.text for b in lines] == ["Francisco Mina es vecino", "Secretaría de la Alcaldía"]
-    assert lines[0].char_start == 0 and lines[1].char_start == len("Francisco Mina es vecino") + 1
+    assert [b.text for b in lines] == ["The first block's first line", "The second block's line"]
+    assert lines[0].char_start == 0 and lines[1].char_start == len("The first block's first line") + 1
 
 
 def test_plain_find_lines_orders_an_rtl_page_right_to_left(monkeypatch):
