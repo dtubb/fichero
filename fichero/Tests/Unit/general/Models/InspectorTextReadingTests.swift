@@ -44,4 +44,10 @@ struct InspectorTextReadingTests {
         ]
         #expect(InspectorText.hidingProvisionalTwins(all).map(\.id) == ["s", "p2", "p3"])
     }
+
+    @Test("the provisional twin stays when counting names it")
+    func keepsTheCountingTwin() {
+        let all = [twin("s", content: "una linea", provisional: false), twin("p", content: "una linea", provisional: true)]
+        #expect(InspectorText.hidingProvisionalTwins(all, keeping: ["p"]).map(\.id) == ["s", "p"])
+    }
 }
