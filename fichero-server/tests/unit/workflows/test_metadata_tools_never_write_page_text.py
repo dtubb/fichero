@@ -6,6 +6,8 @@ NOT RUN on the Pro (the owner's presentation hour, 2026-10-21): the tester runs 
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import asyncio
 import importlib
 import json
@@ -251,6 +253,6 @@ def test_the_fan_in_join_clears_the_flag(db):
 
     page = _flagged(db)
     failures = vision_base._write_joined_page_content(
-        indices_by_doc={page.id: [0, 1]}, texts=["first", "second"], library_path=str(db.path))
+        indices_by_doc={page.id: [0, 1]}, texts=["first", "second"], library_path=str(Path(db.path).parent))  # the library, not its database file
     saved = db.get(Document, page.id)
     assert not failures and saved.page_content == "first\nsecond" and read_flag_of(saved) is None

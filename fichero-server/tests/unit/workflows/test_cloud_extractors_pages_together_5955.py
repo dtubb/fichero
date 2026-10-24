@@ -155,9 +155,15 @@ def test_extract_svo_asks_the_dates_of_forty_pages_together_and_writes_them_in_p
     monkeypatch.setattr(svo, "configured_policy", lambda: parse_policy(None))
     written = []
 
+    inflight, peak = 0, 0
+
     async def fake(**kwargs):
+        nonlocal inflight, peak
         schema = kwargs["schema"]
+        inflight += 1
+        peak = max(peak, inflight)
         await asyncio.sleep(LATENCY)
+        inflight -= 1
         return schema(items=[{"date": "1842", "date_normalized": "1842", "verb": "dated", "object": "the deed",
                               "source_text": "en 1842"}])
 
@@ -170,10 +176,10 @@ def test_extract_svo_asks_the_dates_of_forty_pages_together_and_writes_them_in_p
     monkeypatch.setattr(svo, "chat_structured_with_fallback", fake)
     monkeypatch.setattr(svo, "_write_kg_rows", record)
     documents, state = _inputs(library_path, 40, "svo-together")
-    began = time.monotonic()
     result = asyncio.run(svo.extract_svo_only(documents, state, LLMConfig(provider="fake", model="fake-model")))
     assert result["summary"]["claims_extracted"] == 40
-    assert time.monotonic() - began < 2.0, "pages were asked one after another"
+    # Together is how many were in flight at once, not how long the machine took (a loaded gate stretched the wall time to 4.8 s).
+    assert peak >= 8, f"pages were asked one after another (peak in flight {peak})"
     assert written == [f"d{i:02d}" for i in range(40)], "write order changed"
 
 
