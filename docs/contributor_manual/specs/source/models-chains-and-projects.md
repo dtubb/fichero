@@ -4095,6 +4095,9 @@ Trying another option
 - `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
   runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for Find Regions and Correct. The two ids are named in the app until
   the registry carries `offers_finder` on `JobInfo` (engine, then regenerate) (`StageShowcasePicturesTests.swift`).
+- `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
+  has a leading radio glyph (empty, or a filled check in the tint on the chosen one) and the chosen row is tinted; only a result measured on the person's pages
+  moves a row to the head of the list (`ModelFinderTiersTests.swift`).
 
 Running and failure
 - `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
