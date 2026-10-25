@@ -272,3 +272,11 @@ private struct TraceSubject: Identifiable {
     let threadId: String
     var id: String { threadId }
 }
+
+#Preview("Details, row not read yet") {
+    let apiClient = APIClient()
+    ActivityDetailsView(selection: ActivitySelection(jobId: "preview"))
+        .environment(ActivityStore(service: ActivityService(apiClient: apiClient), projectKey: "preview"))
+        .environment(AppState())
+        .frame(width: 360, height: 240)
+}

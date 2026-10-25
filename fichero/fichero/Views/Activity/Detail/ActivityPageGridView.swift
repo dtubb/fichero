@@ -48,3 +48,18 @@ struct ActivityPageGridView: View {
         }
     }
 }
+
+#Preview("Page grid") {
+    ActivityPageGridView(
+        grid: ActivityPageGrid(
+            pages: [
+                .init(id: "1", name: "IMG_001", dot: .done, help: "IMG_001"),
+                .init(id: "2", name: "IMG_002", dot: .running, help: "IMG_002"),
+                .init(id: "3", name: "IMG_003", dot: .failed, help: "IMG_003: Kraken could not read its lines"),
+                .init(id: "4", name: "IMG_004", dot: .waiting, help: "IMG_004: waiting for memory")
+            ],
+            total: 6),
+        open: { _ in })
+        .padding()
+        .frame(width: 240)
+}
