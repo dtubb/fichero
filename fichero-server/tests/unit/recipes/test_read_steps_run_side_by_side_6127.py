@@ -15,7 +15,7 @@ CLOUD = {"card": "workflow", "job": "read-a-page", "steps": ["b"], "runs_on": "c
          "gives": ["page_reading"]}
 
 
-def _run(monkeypatch, cards, work, pages=None, redo=()):
+def _run(monkeypatch, cards, work, pages=None, redo=(), detail=None, stopped=lambda: False):
     """`_run_batch` over `cards`, each step's work being `work(card)`; the states it ends with. `pages(card)` is the pages a
     step finds to do each time it asks (a step's pages are worked out again as it is about to run)."""
     asked: dict[str, int] = {}
@@ -25,16 +25,20 @@ def _run(monkeypatch, cards, work, pages=None, redo=()):
         return ((pages or (lambda c, n: ["p1"]))(card, asked[card["job"]]), {}, {})
 
     for name, value in {"_step_pages": pages_now, "_blocked": lambda *a: None,
-                        "_await_downloads": lambda *a: None, "_stop_asked": lambda *a: False,
+                        "_await_downloads": lambda *a: None, "_stop_asked": lambda *a: stopped(),
                         "_wait_out_a_pause": lambda *a: None, "_after_the_step": lambda *a, **k: None,
                         "_let_go_after_the_last_served_step": lambda *a: None,
                         "_run_card": lambda db, card, *a, **k: (card["steps"][0], *work(card))}.items():
         monkeypatch.setattr(runner, name, value)
     monkeypatch.setattr(jobs, "save_detail", lambda *a, **k: None)
-    detail = {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards),
+    detail = detail if detail is not None else {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards),
               "redo": list(redo)}
     runner._run_batch(None, "job", detail, {"units": ["p1"]}, {}, "test", final=True)
     return [step["state"] for step in detail["steps"]]
+
+
+def _fresh(cards):
+    return {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards), "redo": []}
 
 
 def test_a_local_reader_and_a_hosted_one_run_at_the_same_time(monkeypatch):
@@ -90,3 +94,72 @@ def test_a_read_again_reaches_the_step_that_runs_beside(monkeypatch):
 
     assert _run(monkeypatch, [CLOUD, KRAKEN], work, redo=["a"]) == ["done", "done"]
     assert seen["read-a-line"]["tool_config"]["transcribe"]["read_all_lines"] is True
+
+
+@pytest.mark.parametrize("order", [(KRAKEN, CLOUD), (CLOUD, KRAKEN)], ids=["local first", "hosted first"])
+def test_the_page_text_is_the_hosted_readers_whichever_finishes_first(monkeypatch, order):
+    """review 1185/1186: `source.recipe.kraken-lines-cloud-reads`: the page text is the model's, never Kraken's. Run beside a
+    hosted reader the local one writes its lines' readings and leaves the page text alone."""
+    seen: dict[str, dict] = {}
+    meet = threading.Barrier(2, timeout=10)
+
+    def work(card):
+        seen[card["job"]] = card
+        meet.wait()
+        return "done", None
+
+    assert _run(monkeypatch, list(order), work) == ["done", "done"]
+    assert seen["read-a-line"]["tool_config"]["transcribe"]["update_page_content"] is False
+    assert "tool_config" not in seen["read-a-page"]
+
+
+def test_a_local_reader_that_runs_alone_still_writes_the_page_text(monkeypatch):
+    seen: dict[str, dict] = {}
+
+    def work(card):
+        seen[card["job"]] = card
+        return "done", None
+
+    assert _run(monkeypatch, [KRAKEN], work) == ["done"]
+    assert "tool_config" not in seen["read-a-line"]
+
+
+def test_stop_reaches_a_local_and_a_hosted_read_running_together(monkeypatch):
+    """Stop while both run: each ends stopped (the workflow's own stop check sees the recipe's Stop), neither is run again."""
+    stop, both_running = threading.Event(), threading.Barrier(3, timeout=10)
+    ran: list[str] = []
+
+    def work(card):
+        ran.append(card["job"])
+        both_running.wait()  # the test and the two reads
+        assert stop.wait(10)
+        return "cancelled", "Stopped by you"
+
+    box = {}
+    thread = threading.Thread(target=lambda: box.update(states=_run(monkeypatch, [KRAKEN, CLOUD], work,
+                                                                     stopped=stop.is_set)))
+    thread.start()
+    both_running.wait()
+    stop.set()
+    thread.join(20)
+    assert box["states"] == ["cancelled", "cancelled"] and sorted(ran) == ["read-a-line", "read-a-page"]
+
+
+def test_an_engine_lost_with_one_read_done_runs_only_the_other_on_resume(monkeypatch):
+    """Engine death between the two ends: the step that ended is a checkpoint and is not read again on resume; the one that
+    did not end runs once."""
+    detail, ran = _fresh([KRAKEN, CLOUD]), []
+
+    def dies(card):
+        ran.append(card["job"])
+        if card["job"] == "read-a-page":
+            raise jobs.JobDeferred("engine lost")
+        return "done", None
+
+    with pytest.raises(jobs.JobDeferred):
+        _run(monkeypatch, [KRAKEN, CLOUD], dies, detail=detail)
+    assert detail["batch_states"] == ["done", None]
+    ran.clear()
+    assert _run(monkeypatch, [KRAKEN, CLOUD], lambda card: (ran.append(card["job"]), ("done", None))[1], detail=detail) == \
+        ["done", "done"]
+    assert ran == ["read-a-page"], "the read that had ended was read again"

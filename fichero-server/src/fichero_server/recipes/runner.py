@@ -1271,12 +1271,22 @@ def _asked_again(card: dict[str, Any], redo: set[str]) -> dict[str, Any]:
                                                    "read_all_lines": True}}}
 
 
+def _text_is_the_hosted_readers(card: dict[str, Any]) -> dict[str, Any]:
+    """The local reader's card for a read that runs beside a hosted one: it writes its lines' readings but not the page's
+    text, which is the model's whichever finishes first (`source.recipe.kraken-lines-cloud-reads`)."""
+    if str(card.get("runs_on", "")).startswith("cloud"):
+        return card
+    tool_config = card.get("tool_config") or {}
+    return {**card, "tool_config": {**tool_config, "transcribe": {**(tool_config.get("transcribe") or {}),
+                                                                  "update_page_content": False}}}
+
+
 def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree, started_by: str,
                   index: int) -> _Beside | None:
     """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
     card, step = detail["runs"][index], detail["steps"][index]
     documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
-    card = _asked_again(card, set(detail.get("redo") or []))
+    card = _text_is_the_hosted_readers(_asked_again(card, set(detail.get("redo") or [])))
     if not documents or _stop_asked(job_id):
         return None
     pool = concurrent.futures.ThreadPoolExecutor(1, thread_name_prefix="recipe-beside")
@@ -1356,7 +1366,10 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         if states[index] is not None:  # done on this batch before an interruption
             continue
         named = ", ".join(card["steps"])
-        if _stop_asked(job_id):  # Stop on the run's row: no step after the stopped one runs (#5609)
+        # A step already running beside the one before it keeps the pages it started on: its pages are not worked out again
+        # mid-flight (they would be counted done, or read twice), and its end is taken as it ended, Stop included.
+        early = ahead.pop(index, None)
+        if _stop_asked(job_id) and early is None:  # Stop on the run's row: no step after the stopped one runs (#5609)
             here[index]["state"] = "not run"
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
@@ -1369,9 +1382,6 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             continue
         if card["card"] in ("publish", "catalogue") and not final:  # written once, at the end, over the whole run
             continue
-        # A step already running beside the one before it keeps the pages it started on: its pages are not worked out again
-        # mid-flight (they would be counted done, or read twice), and its end is taken as it ended.
-        early = ahead.pop(index, None)
         if early is not None:
             documents, scratch, kinds = early.documents, early.scratch, early.kinds
         else:
@@ -1402,6 +1412,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         card = _asked_again(card, redo)
         if early is None and not adopt and (after := _beside(cards, states, detail, index)) is not None:
             ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
+            if ahead[after] is not None:
+                card = _text_is_the_hosted_readers(card)
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
