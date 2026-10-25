@@ -134,6 +134,33 @@ struct ActivityPopoverSummary: Equatable {
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
         let inRun = inHand.ids
+        let reasons = tally(jobs: jobs, inRun: inRun, liveRuns: liveRuns, activity: activity, errorWindow: errorWindow)
+        waitingReason = reasons.max { lhs, rhs in
+            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
+        }?.key
+        heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
+                                 waitingReason: waitingReason)
+        macReadings = (machine.map(Self.readings) ?? [])
+            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+    }
+
+    /// A failed job counts toward the badge and, while few, is listed with its cause.
+    private mutating func noteFailure(_ job: ActivityJob, inRun: Set<String>, errorWindow: ActivityErrorWindow?) {
+        // Only recent ones (#5666): while a run is in hand, its own; and only those from the last hour or
+        // since the popover was last opened, whichever is shorter (`ActivityErrorWindow`).
+        guard Self.isRecent(job, inRun: inRun), errorWindow?.isRecent(job.id) ?? true else { return }
+        errorCount += 1
+        if recentErrors.count < Self.errorsShown {
+            // The engine's words (its failure is one line per cause, 1bef3cd4d): the first sentence shown,
+            // the whole in the tooltip.
+            recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.firstSentence),
+                                     fullText: job.reason))
+        }
+    }
+
+    /// Sorts the jobs into running, waiting and failed for the popover; returns the waiting reasons with their page counts.
+    private mutating func tally(jobs: [ActivityJob], inRun: Set<String>, liveRuns: [LiveRun],
+                                activity: Components.Schemas.ActivitySummary?, errorWindow: ActivityErrorWindow?) -> [String: Int] {
         var seen = inRun
         for run in liveRuns where seen.insert(run.id).inserted {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
@@ -158,27 +185,12 @@ struct ActivityPopoverSummary: Equatable {
                 waitingCount += count
                 if let reason = job.reason, !reason.isEmpty { reasons[reason, default: 0] += count }
             case .failed:
-                // Only recent ones (#5666): while a run is in hand, its own; and only those from the last hour or
-                // since the popover was last opened, whichever is shorter (`ActivityErrorWindow`).
-                guard Self.isRecent(job, inRun: inRun), errorWindow?.isRecent(job.id) ?? true else { continue }
-                errorCount += 1
-                if recentErrors.count < Self.errorsShown {
-                    // The engine's words (its failure is one line per cause, 1bef3cd4d): the first sentence shown,
-                    // the whole in the tooltip.
-                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.firstSentence),
-                                             fullText: job.reason))
-                }
+                noteFailure(job, inRun: inRun, errorWindow: errorWindow)
             case .paused, .completed, .other:
                 continue
             }
         }
-        waitingReason = reasons.max { lhs, rhs in
-            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
-        }?.key
-        heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
-                                 waitingReason: waitingReason)
-        macReadings = (machine.map(Self.readings) ?? [])
-            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+        return reasons
     }
 
     static func block(_ live: Components.Schemas.LiveBlock) -> Block {
@@ -194,26 +206,6 @@ struct ActivityPopoverSummary: Equatable {
             waiting: live.state == "waiting" ? live.reason.map(worded) : nil,
             subtitle: subtitle(model: live.model, place: live._where)
         )
-    }
-
-    /// "<model> · <where>" from the engine's own words; either alone; nil when it sends neither.
-    static func subtitle(model: String?, place: String?) -> String? {
-        let parts = [model, place].compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// The window's UP NEXT lines: every project's `up_next` that is not already a row of the list, in the engine's order.
-    /// `runName` says the name of a run by its job id (with its project when the list is grouped), for the item's `run_id`:
-    /// two runs' stage lines must tell apart.
-    static func upNextLines(_ summaries: [Components.Schemas.ActivitySummary], excluding rowIds: Set<String>,
-                            runName: (String) -> String? = { _ in nil }) -> [UpNextLine] {
-        summaries.flatMap { $0.upNext ?? [] }.filter { !rowIds.contains($0.id) }.map { upNextLine($0, runName: runName) }
-    }
-
-    /// What it waits for is the engine's `why`, as sent (it already says "after Read" and the like), never rebuilt here.
-    static func upNextLine(_ item: Components.Schemas.UpNextItem, runName: (String) -> String? = { _ in nil }) -> UpNextLine {
-        let run = item.runId.flatMap(runName)
-        return UpNextLine(id: item.id, name: item.name, waiting: worded(item.why), run: run)
     }
 
     static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundRow {

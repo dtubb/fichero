@@ -14,8 +14,8 @@ extension ActivityStore {
         do {
             let response = try await activityService.client.api.getRunPageStatesApiActivityJobsJobIdPagesGet(
                 path: .init(jobId: jobId), query: .init(stage: stage, offset: 0, limit: Self.pageGridLimit))
-            guard case .ok(let ok) = response else { return }
-            let grid = ActivityPageGrid(try ok.body.json)
+            guard case .ok(let answer) = response else { return }
+            let grid = ActivityPageGrid(try answer.body.json)
             let key = Self.pageGridKey(jobId: jobId, stage: stage)
             if pageGrids[key] != grid { pageGrids[key] = grid }
         } catch {

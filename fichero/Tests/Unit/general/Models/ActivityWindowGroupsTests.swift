@@ -35,7 +35,7 @@ struct ActivityWindowGroupsTests {
     func threeGroups() {
         let groups = ActivityWindowGroups(rows: [
             row("late", .waiting, queue: 2), row("run", .running), row("early", .waiting, queue: 1), row("held", .paused),
-            row("old", .done, ended: today.addingTimeInterval(-60)), row("new", .partial, ended: today.addingTimeInterval(-10)),
+            row("old", .done, ended: today.addingTimeInterval(-60)), row("new", .partial, ended: today.addingTimeInterval(-10))
         ], now: today)
         #expect(groups.now.map(\.id) == ["run", "held"])
         #expect(groups.upNext.map(\.id) == ["early", "late"])
@@ -44,7 +44,8 @@ struct ActivityWindowGroupsTests {
 
     @Test("a run is one row: steps and pages are never list rows")
     func oneRowPerRun() {
-        let groups = ActivityWindowGroups(rows: [row("run", .running), row("step", .running, kind: .step), row("page", .done, kind: .page)], now: today)
+        let groups = ActivityWindowGroups(
+            rows: [row("run", .running), row("step", .running, kind: .step), row("page", .done, kind: .page)], now: today)
         #expect(groups.now.map(\.id) == ["run"] && groups.doneToday.isEmpty)
     }
 
@@ -61,7 +62,7 @@ struct ActivityWindowGroupsTests {
         let groups = ActivityWindowGroups(rows: [
             row("job", .done, kind: .job), row("overnight", .done, started: yesterday, ended: today.addingTimeInterval(-300)),
             row("ended-yesterday", .done, started: yesterday, ended: yesterday),
-            row("started-today-ended-never", .done, started: today.addingTimeInterval(-10)),
+            row("started-today-ended-never", .done, started: today.addingTimeInterval(-10))
         ], now: today)
         #expect(groups.doneToday.map(\.id) == ["overnight"])
     }
@@ -70,7 +71,7 @@ struct ActivityWindowGroupsTests {
     func runAndItsOwnJobAreOne() {
         let groups = ActivityWindowGroups(rows: [
             row("run", .running, jobId: "j1"), row("job", .running, kind: .job, jobId: "j1"),
-            row("other", .running, kind: .job, jobId: "j2"),
+            row("other", .running, kind: .job, jobId: "j2")
         ], now: today)
         #expect(groups.now.map(\.id) == ["run", "other"])
     }
