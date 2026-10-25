@@ -495,6 +495,9 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 - Purpose: the owner's list of unused invitations to named people, with expiry; never the codes. Owner only.
 - Response: `200`, `{items, count}`, each item `{id, person, new_person, role, library, folder_id, minted_by,
   expires_at, never_expires}`; `expires_at` is null when the invitation never expires.
+- Wire change (2026-10-24): this was a bare array. An app and an engine of different builds read each other's shape wrongly
+  (the list shows an error, nothing else breaks), so the app and its engine are updated together; the engine's contract
+  identity differs between the two builds.
 
 `DELETE /api/pair/invites/{invite_id}`
 
