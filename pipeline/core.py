@@ -16,11 +16,12 @@ from pipeline import STATE, budget, checks, coder, config, gh, journal
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
-# The states table of the spec, as code: (from, to). `start` on an item the maintainer sent back re-enters coding.
+# The states table of the spec, as code: (from, to). `start`/`retry` on an item the maintainer sent back re-enters coding.
 ALLOWED = {
     ("queued", "coding"), ("coding", "coding"), ("coding", "checked"), ("coding", "needs-maintainer"),
     ("coding", "rate-limited"), ("coding", "failed"), ("coding", "waiting"), ("waiting", "coding"),
-    ("checked", "reviewed"), ("checked", "coding"), ("checked", "checked"), ("reviewed", "checked"), ("reviewed", "coding"),
+    ("checked", "reviewed"), ("checked", "coding"), ("checked", "checked"), ("checked", "needs-maintainer"),
+    ("reviewed", "checked"), ("reviewed", "coding"), ("reviewed", "needs-maintainer"),
     ("needs-maintainer", "coding"), ("needs-maintainer", "checked"), ("failed", "coding"), ("rate-limited", "coding"),
     ("reviewed", "candidate"), ("candidate", "gated"), ("gated", "pushed"), ("pushed", "closed"),
 }
@@ -28,6 +29,7 @@ CFG: dict = {}
 ISSUE = gh.issue  # the one read of an issue; tests replace it
 DRY_RUN = True    # GitHub writes: the CLI flips this with --apply; tests and the proof run never do
 ANSWER_DEADLINE_S = 4 * 3600
+TOOLS_WANTED = ("jdocmunch", "jcodemunch")
 
 
 def cfg() -> dict:
@@ -44,12 +46,14 @@ def state() -> dict:
     for e in journal.read():
         ev, it = e["event"], s["items"].get(str(e.get("issue")))
         if ev == "item":
+            args = {k: e.get(k) for k in ("task", "milestone", "base", "from_file", "ids")}
             if it:  # the item moves to a new task (a retry on another base): keep its record, re-bind it
-                it.update(task=e["task"])
+                it.update(task=e["task"], start_args=args)
             else:
                 s["items"][str(e["issue"])] = {"issue": e["issue"], "task": e["task"], "title": e.get("title", ""),
                                                "state": "queued", "attempts": 0, "checks": [], "verdicts": [],
-                                               "cost_usd": 0.0, "history": [], "sha": "", "retry_text": ""}
+                                               "cost_usd": 0.0, "history": [], "sha": "", "check_ok": False,
+                                               "retry_text": "", "start_args": args}
             s["tasks"].setdefault(e["task"], {"issues": [], "window": e.get("window"), "worktree": e.get("worktree")})
             if e["issue"] not in s["tasks"][e["task"]]["issues"]:
                 s["tasks"][e["task"]]["issues"].append(e["issue"])
@@ -57,8 +61,7 @@ def state() -> dict:
             it["state"] = e["to"]
             it["history"].append(f"{e['ts']} {e['to']}: {e.get('why', '')}")
         elif ev == "check" and it:
-            it["checks"] = e["results"]
-            it["sha"] = e["sha"]
+            it["checks"], it["sha"], it["check_ok"] = e["results"], e["sha"], e["ok"]
             if not e["ok"]:
                 it["attempts"] += 1
                 it["retry_text"] = "\n\n".join(f"[{r['name']}] {r['text']}" for r in e["results"] if not r["ok"])
@@ -72,6 +75,8 @@ def state() -> dict:
         elif ev == "cost" and it:
             it["cost_usd"] = round(it["cost_usd"] + e["usd"], 4)
             it["tokens"], it["model"] = e["tokens"], e["model"]
+        elif ev == "note" and it:
+            it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
             s["queue"][e["id"]] = {k: e.get(k) for k in ("id", "kind", "text", "options", "task", "window", "ts")}
         elif ev == "answer":
@@ -146,6 +151,10 @@ def spec_lines(ids: set[str]) -> list[str]:
     return out
 
 
+def issue_ids(issue: dict) -> list[str]:
+    return sorted(set(BEHAVIOUR_ID.findall(issue.get("body") or "")))
+
+
 def brief(issue: dict, task: str, failure: str = "") -> str:
     """The coder's prompt: the issue (only text by allow-listed authors), its spec lines, the rules. Outside text
     never enters a prompt (pipeline.outside-bugs)."""
@@ -153,22 +162,26 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
     if issue.get("author") not in g["allowed_authors"]:
         raise PermissionError(f"#{issue['number']} is by {issue.get('author')}: not allow-listed, triage it first")
     body = issue.get("body") or ""
-    lines = spec_lines(set(BEHAVIOUR_ID.findall(body)))
+    ids = issue_ids(issue)
+    lines = spec_lines(set(ids))
     text = [f"# Issue #{issue['number']}: {issue['title']}", "", body, ""]
     if lines:
         text += ["## Spec lines", *lines, ""]
     if failure:
         text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
     fixes = "Part of" if issue.get("part_of") else "Fixes"
+    first = (f"1. REQUIRED first step: call `jdocmunch_search_sections` for `{ids[0]}`" if ids
+             else "1. REQUIRED first step: call `jdocmunch_search_sections` for this issue's subject")
     text += ["## How to work",
-             "1. Start with jcodemunch `plan_turn` for this task, and jdocmunch for the spec lines and docs. Read before you write.",
+             first + " (and jcodemunch `plan_turn` for the code), then call `pipeline_report` with one line on what you found. Read before you write.",
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
-             f"5. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
-             f"6. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
+             "5. Never change your own acceptance: the spec lines for your behaviour ids and the build order's Behaviours/Tests lines stay as they are. If they are wrong, call `pipeline_ask`.",
+             f"6. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
+             f"7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
-             "7. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
+             "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
     return "\n".join(text)
 
 
@@ -202,8 +215,11 @@ def _wait_room(kind: str, task: str) -> None:
 
 
 def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
+    """Each window start gets its OWN session dir (timestamped), so delivery and idleness are read from the new
+    session's file, never from an older session of the same model in the same task (review MED B)."""
     c = cfg()
-    session_dir = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}"
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    session_dir = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
     session_dir.mkdir(parents=True, exist_ok=True)
     journal.append("intent", task=task, what="worker", ref=window)
     coder.start_window(c, window, wt, coder.pi_command(c, worker, session_dir), coder.allowed_env(c, task, "coder"))
@@ -233,6 +249,16 @@ def start(issues: list[int], milestone: str | None = None, task: str | None = No
         return _start(issues, milestone, task, worker_index, from_file, base)
 
 
+def retry(issue: int) -> dict:
+    """Run the item again with the start arguments its record keeps (task, base, from_file, milestone); the brief
+    carries the retry text from the red check or the NOT_READY review (dogfood 5)."""
+    it = state()["items"].get(str(issue))
+    if not it:
+        raise KeyError(f"#{issue} is not an item")
+    a = it["start_args"]
+    return start([issue], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"))
+
+
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     _require_running()
     c = cfg()
@@ -257,7 +283,8 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     window = f"coder-{task}"
     for n, iss in briefs.items():
         if str(n) not in s["items"] or s["items"][str(n)]["task"] != task:
-            journal.append("item", issue=n, task=task, title=iss["title"], window=window, worktree=str(wt))
+            journal.append("item", issue=n, task=task, title=iss["title"], window=window, worktree=str(wt),
+                           milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
     worker = c["roles"]["coder"][worker_index]
     _wait_room(worker["kind"], task)
     session_dir = _start_worker(task, wt, worker, window)
@@ -282,9 +309,13 @@ def _run_issue(task, n, iss, wt, window, session_dir, worker, worker_index) -> s
         tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
         st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
         st = _wait_answers(task, n, session_dir, st)
-        spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("task") == task)
-        journal.append("cost", issue=n, task=task, usd=round(st["cost_usd"] - spent, 4), tokens=st["tokens"], model=st["model"],
-                       tools=dict(st["tool_calls"]))
+        # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
+        spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+        journal.append("cost", issue=n, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
+                       tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+        unused = [t for t, k in coder.uses_tools(st, *TOOLS_WANTED).items() if not k]
+        if unused:  # information only, never a failure (dogfood 7)
+            journal.append("note", issue=n, text=f"tools unused by the first done: {', '.join(unused)}")
         if st.get("stopped") or st.get("rate_limited"):
             coder.stop_window(c, window)
             journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
@@ -321,8 +352,9 @@ def _wait_answers(task: str, issue: int, session_dir: Path, st: dict) -> dict:
 
 
 def check(issue: int, since: str | None = None, locked: bool = False) -> list[dict]:
-    """coding → checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
-    mid-check is a red (the sha moved). Red: retry (the caller) or needs-maintainer."""
+    """→ checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
+    mid-check is a red (the sha moved). Red: a checked or reviewed item goes back to coding (review HIGH N1), a
+    pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry."""
     if not locked:
         with journal.Lock("dispatch", wait=False):
             return check(issue, since, locked=True)
@@ -335,7 +367,7 @@ def check(issue: int, since: str | None = None, locked: bool = False) -> list[di
     sha = _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
-        results = checks.run_all(wt, cfg(), since=since)
+        results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()))
     if _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
@@ -345,13 +377,15 @@ def check(issue: int, since: str | None = None, locked: bool = False) -> list[di
         _move(issue, "checked", f"{len(results)} rungs green at {sha[:9]}")
     elif results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
         _move(issue, "needs-maintainer", results[0]["text"])
+    elif it["state"] in ("checked", "reviewed"):
+        _move(issue, "coding", f"red check at {sha[:9]}: {next(r['name'] for r in results if not r['ok'])}")
     return results
 
 
 def verdict(issue: int, sha: str, verdict: str, by: str, findings: str = "") -> dict:
-    """checked → reviewed on READY from the reviewer role for the worktree's LIVE head (which must be the checked
-    sha); a binding NOT_READY sends the item back to coding with the findings as its retry text and counts an
-    attempt. Anything else is recorded only."""
+    """checked → reviewed on READY from the reviewer role for the worktree's LIVE head, which must be the sha the
+    last check PASSED on; a binding NOT_READY sends the item back to coding with the findings as its retry text and
+    counts an attempt. Anything else is recorded only."""
     s = state()
     it = s["items"].get(str(issue))
     if not it:
@@ -363,18 +397,18 @@ def verdict(issue: int, sha: str, verdict: str, by: str, findings: str = "") -> 
         pass
     head = _head(wt)
     journal.append("verdict", issue=issue, sha=sha, verdict=verdict, by=by, findings=findings[:4000])
-    binding = by == "reviewer" and sha == head == it["sha"] and it["state"] in ("checked", "reviewed")
+    binding = by == "reviewer" and sha == head == it["sha"] and it["check_ok"] and it["state"] in ("checked", "reviewed")
     if binding and verdict == "READY":
         if it["state"] == "checked":
             _move(issue, "reviewed", f"READY by {by} at {sha[:9]}")
         return {"issue": issue, "state": "reviewed"}
     if binding and verdict == "NOT_READY":
         journal.append("retry", issue=issue, text=f"Review NOT_READY at {sha[:9]}:\n{findings}")
-        _move(issue, "coding", f"NOT_READY by {by} at {sha[:9]}; run `start {issue}` to retry with the findings")
+        _move(issue, "coding", f"NOT_READY by {by} at {sha[:9]}; `retry {issue}` sends the findings to the coder")
         return {"issue": issue, "state": "coding", "attempts": it["attempts"] + 1}
     why = "" if sha == head else f"verdict is for {sha[:9]}, head is {head[:9]}: not binding"
-    if head != it["sha"]:
-        why = f"head {head[:9]} is not the checked sha {it['sha'][:9]}: run `check {issue}` first"
+    if head != it["sha"] or not it["check_ok"]:
+        why = f"head {head[:9]} has not passed a check (last check: {it['sha'][:9]} {'green' if it['check_ok'] else 'red'}): run `check {issue}` first"
     return {"issue": issue, "state": it["state"], "recorded": verdict, "note": why}
 
 
@@ -462,11 +496,11 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
-API = {"status": status, "start": start, "check": check, "verdict": verdict, "tell": tell, "report": report, "ask": ask,
-       "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause, "resume": resume, "file_bug": file_bug,
-       "reset": reset}
+API = {"status": status, "start": start, "retry": retry, "check": check, "verdict": verdict, "tell": tell, "report": report,
+       "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause, "resume": resume,
+       "file_bug": file_bug, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
-              "manager": ("status", "start", "check", "tell", "file_bug", "point", "queue", "report")}
+              "manager": ("status", "start", "retry", "check", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "check", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "check", "pause", "resume", "point", "tell", "reset")

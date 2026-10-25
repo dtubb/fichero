@@ -28,6 +28,7 @@ COMMANDS = {
     "start": [("issues", {"type": int, "nargs": "+"}), ("--milestone", {}), ("--task", {}),
               ("--base", {"help": "the ref the worktree comes off (default: the profile's base)"}),
               ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"})],
+    "retry": [("issue", {"type": int})],
     "check": [("issue", {"type": int})],
     "verdict": [("issue", {"type": int}), ("sha", {}), ("verdict", {}), ("--by", {"required": True}), ("--findings", {"default": ""})],
     "tell": [("window", {}), ("text", {})],

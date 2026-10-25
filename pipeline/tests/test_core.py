@@ -172,12 +172,105 @@ def test_new_commit_voids_the_verdict(scratch, issues, fake_coder):
     git(wt, "add", ".")
     git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "more (Fixes #1001)")
     out = core.verdict(1001, it["sha"], "READY", by="reviewer")
-    assert out["state"] == "checked" and "is not the checked sha" in out["note"]
+    assert out["state"] == "checked" and "has not passed a check" in out["note"]
     head = git(wt, "rev-parse", "HEAD")
     out = core.verdict(1001, head, "READY", by="reviewer")
     assert out["state"] == "checked", "the new head has not been checked: run check first"
     core.check(1001)
     assert core.verdict(1001, head, "READY", by="reviewer")["state"] == "reviewed"
+
+
+def _break(wt, msg="break (Fixes #1001)"):
+    (wt / "src" / "mod.py").write_text("def base():\n    return 0\n\n\ndef f1001():\n    return 2\n")
+    git(wt, "add", ".")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", msg)
+
+
+def test_a_red_check_demotes_checked_and_ready_does_not_bind(scratch, issues, fake_coder):
+    """Re-review HIGH N1: after `checked` at A, a breaking commit B whose check is red left the item `checked` at
+    sha B, and a reviewer READY for B then bound. Failed before the fix."""
+    fake_coder()
+    core.start([1001])
+    wt = scratch["repo"] / ".worktrees" / "pipeline" / "issues-1001"
+    _break(wt)
+    results = core.check(1001)
+    assert not all(r["ok"] for r in results)
+    it = core.state()["items"]["1001"]
+    assert it["state"] == "coding" and it["check_ok"] is False, "a red check sends checked back to coding"
+    out = core.verdict(1001, it["sha"], "READY", by="reviewer")
+    assert out["state"] == "coding" and "has not passed a check" in out["note"]
+
+
+def test_a_red_check_demotes_reviewed_too(scratch, issues, fake_coder):
+    fake_coder()
+    core.start([1001])
+    it = core.state()["items"]["1001"]
+    assert core.verdict(1001, it["sha"], "READY", by="reviewer")["state"] == "reviewed"
+    _break(scratch["repo"] / ".worktrees" / "pipeline" / "issues-1001")
+    core.check(1001)
+    assert core.state()["items"]["1001"]["state"] == "coding"
+
+
+def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fake_coder, tmp_path):
+    """Dogfood 5: the item's record keeps task, base and from_file; `retry <issue>` sends the failure back."""
+    fc = fake_coder()
+    repo = scratch["repo"]
+    git(repo, "checkout", "-qb", "runner-branch")
+    (repo / "RUNNER").write_text("here\n")
+    git(repo, "add", ".")
+    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)")
+    git(repo, "checkout", "-q", "integration")
+    f = tmp_path / "issue.json"
+    f.write_text(json.dumps(dict(issues[1001])))
+    core.start([1001], task="boot", base="runner-branch", from_file=str(f))
+    it = core.state()["items"]["1001"]
+    assert it["start_args"] == {"task": "boot", "milestone": None, "base": "runner-branch", "from_file": str(f), "ids": ["demo.one"]}
+    core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="rename f1001")
+    out = core.retry(1001)
+    assert out["task"] == "boot" and out["items"][1001] == "checked"
+    assert len(fc.windows) == 2 and fc.windows[1][1] == scratch["repo"] / ".worktrees" / "pipeline" / "boot"
+    brief = sorted((scratch["state"] / "briefs" / "boot").glob("issue-1001-attempt-2.md"))[0].read_text()
+    assert "rename f1001" in brief
+
+
+def test_each_window_start_gets_its_own_session_dir(scratch, issues, fake_coder):
+    """Re-review MED B: a restarted worker read the OLD session file (40 turns) and never looked idle."""
+    fake_coder()
+    core.start([1001])
+    it = core.state()["items"]["1001"]
+    core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="again")
+    core.retry(1001)
+    dirs = [e["session_dir"] for e in journal.read() if e["event"] == "worker"]
+    assert len(dirs) == 2 and dirs[0] != dirs[1] and dirs[1].startswith(str(scratch["state"] / "sessions" / "issues-1001"))
+
+
+def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, fake_coder):
+    """Dogfood 6: the coder edited the spec's Tests line to fit its work."""
+    fc = fake_coder()
+    real = fc._tell
+
+    def tell_and_edit_spec(window, text):
+        real(window, text)
+        spec = fc.cwd / "specs" / "s.md"
+        spec.write_text(spec.read_text().replace("Test: tests/test_1.py", "Test: none needed"))
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)")
+
+    fc._tell = tell_and_edit_spec
+    assert core.start([1001])["items"][1001] == "needs-maintainer"
+    assert "rewrites the item's own acceptance" in core.state()["items"]["1001"]["retry_text"]
+
+
+def test_brief_requires_the_doc_lookup_first_and_forbids_acceptance_edits(scratch, issues):
+    text = core.brief(issues[1001], "t")
+    assert "REQUIRED first step: call `jdocmunch_search_sections` for `demo.one`" in text
+    assert "Never change your own acceptance" in text and "`pipeline_ask`" in text
+
+
+def test_tools_unused_is_a_note_not_a_failure(scratch, issues, fake_coder):
+    fake_coder()  # its fake session shows jcodemunch but no jdocmunch
+    assert core.start([1001])["items"][1001] == "checked"
+    assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jdocmunch"]
 
 
 def test_a_commit_landing_mid_check_is_red(scratch, issues, fake_coder, monkeypatch):

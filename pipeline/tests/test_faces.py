@@ -65,7 +65,7 @@ def test_a_worker_shell_cannot_run_the_runners_controls(scratch, monkeypatch, ca
     """Review MED 5: PIPELINE_WORKER marks a worker's shell; the CLI refuses verdict, answer, start, check, tell…"""
     monkeypatch.setenv("PIPELINE_WORKER", "coder")
     for argv in (["verdict", "1001", "abc", "READY", "--by", "reviewer"], ["answer", "q", "yes"], ["start", "1001"],
-                 ["check", "1001"], ["tell", "w", "x"], ["pause"], ["resume"], ["point", "m"]):
+                 ["retry", "1001"], ["check", "1001"], ["tell", "w", "x"], ["pause"], ["resume"], ["point", "m"], ["reset", "1001"]):
         assert cli.main(argv) == 2, argv
         assert "a worker may not run" in capsys.readouterr().out
     assert cli.main(["queue"]) == 0

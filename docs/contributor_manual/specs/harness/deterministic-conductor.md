@@ -183,7 +183,9 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
   `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
-  `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`.
+  `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`,
+  `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
+  `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
 - `pipeline.three-faces` [OK] — the CLI, the MCP server and the page call the same functions
   (`core.API`) and nothing skips a check. MCP tools are per role: the coder gets `report`, `ask`, `done`; the
   reviewer gets `verdict`; the manager gets `status`, `next`, `start`, `check`, `tell`, `file_bug`, `point`. Approve
@@ -209,9 +211,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   allow-listed environment (PATH, HOME, TERM, LANG, the agent dir, `PIPELINE_WORKER`); no runner path is in that
   environment: the worker's MCP server is a wrapper generated under the state dir (outside every worktree) and put
   on PATH; the CLI refuses the runner's controls (`verdict`, `answer`, `start`, `check`, `tell`, `pause`, `point`,
-  `reset`) from a shell that carries `PIPELINE_WORKER`. Known gap until the write jail exists: the worker runs as
-  the same user, so a shell inside it can read the wrapper and reach the journal; the role split is a convention
-  the CLI and the MCP tool tables enforce, not a boundary. The key is a lane key with its own credit limit
+  `reset`) from a shell that carries `PIPELINE_WORKER`; the generated wrapper names no state path (the MCP server
+  resolves it alone). Plainly: until the write jail exists this is a CONVENTION, not a boundary — the worker runs as
+  the same user, so a shell inside it can unset the mark, read the wrapper or derive the default state dir from
+  HOME and reach the journal. Nothing may consume `reviewed` (Stage 3) before the jail is real. The key is a lane key with its own credit limit
   (`~/.config/<provider>/key-lane`, else the main key), read from its file by the worker wrapper into the one
   variable Pi expects; the runner never holds, prints, logs or writes it. Tests:
   `pipeline/tests/test_coder.py::test_env_allow_list_drops_everything_else`,
@@ -250,7 +253,12 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pi-mcp-adapter` extension, so the runner gives Pi its own agent directory (`PI_CODING_AGENT_DIR=pipeline/pi-agent`)
   that loads only that adapter, those two servers plus the runner's own, the `_shared` principles and a ponytail
   rules file: the coder gets ponytail FULL; the reviewer gets the ponytail review lens as one named check. The
-  coder's prompt says to start with jcodemunch `plan_turn` and jdocmunch for the spec lines. Tests:
+  coder's prompt makes the first step a REQUIRED `jdocmunch_search_sections` for the item's spec id (plus
+  `plan_turn` for the code) followed by a `pipeline_report` of what it found; when the session log shows no such
+  call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8 made 0
+  such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (its
+  behaviour lines, the build order's Behaviours/Tests lines): such a diff is a pinned-checks red; `ask` instead.
+  Tests:
   `pipeline/tests/test_coder.py::test_pi_command_loads_only_the_pipeline_agent_dir`,
   `pipeline/tests/test_coder.py::test_session_fixture_shows_jcodemunch_and_jdocmunch_calls`,
   `pipeline/tests/test_coder.py::test_reviewer_prompt_carries_the_ponytail_lens`.
@@ -319,10 +327,12 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_checks.py::test_contract_guards_run_on_an_engine_diff`,
   `pipeline/tests/test_checks.py::test_red_reruns_once_before_it_counts`.
 - `pipeline.review` [PARTIAL] (#6116) — a verdict is `verdict(issue, sha, READY|NOT_READY, by, findings)`; a short sha
-  is resolved with `rev-parse`; it binds only from the reviewer role and only when the sha is BOTH the worktree's
-  live head and the sha the checks passed on, so a new commit voids it. A binding NOT_READY sends the item back
+  is resolved with `rev-parse`; it binds only from the reviewer role and only when the sha is the worktree's live
+  head AND the sha of the item's last check AND that check was green: a red check sends a `checked` or `reviewed`
+  item back to `coding`, so a READY can never bind over a red (re-review HIGH N1). A binding NOT_READY sends the item back
   to coding with the findings as its retry text and counts an attempt; `reset <issue>` zeroes attempts the runner
-  itself caused. Claude's verdict binds; the Qwen
+  itself caused; `retry <issue>` runs the item again from the start arguments its record keeps (task, base,
+  from_file), with the red check's or the review's text as the brief's failure section. Claude's verdict binds; the Qwen
   shadow runs beside it (`trial2/shadow/watch-reviews.sh`); once Qwen's precision passes the bar over 30 items
   (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
   Qwen and Claude reviews the batch diff at the gate. The reviewer applies the ponytail lens (shortest working diff,
@@ -412,12 +422,13 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 | queued | coding | `start` | worktree made off the base; worker window up; brief told | `test_core.py::test_worktree_is_made_off_base_and_removed_with_git` |
 | coding | checked | `check` (or `done` → `check`) | ready check, red-on-base, named tests, gate part, fast guards, contract guards — all green, from the pinned checkout, in the worktree | `test_core.py::test_done_never_moves_state_without_checks` |
 | coding | coding | `check` red | attempt < retries: failure text told to the coder | `test_core.py::test_failed_check_retries_twice_then_needs_maintainer` |
-| coding | needs-maintainer | `check` red | attempts exhausted, or the diff touches a check path | `test_checks.py::test_diff_touching_check_paths_needs_maintainer` |
+| coding | needs-maintainer | `check` red | attempts exhausted; or the diff changes a pinned check, adds a file that would run before the checks (`sitecustomize.py`, `.pth`, a stray `conftest.py`, a `scripts/<stdlib>.py`), or rewrites the item's own acceptance in the spec | `test_checks.py::test_diff_touching_check_paths_needs_maintainer` |
 | coding | rate-limited | worker log | quota / credit / usage-limit line; the role's list moves on | `test_coder.py::test_one_fallback_list_serves_cost_quota_and_retries` |
 | coding | waiting | budget | memory or cap refused; reason journaled | `test_budget.py::test_item_waits_with_reason_when_memory_is_short` |
 | checked | reviewed | `verdict` | READY from the reviewer role, sha = live head = checked sha | `test_core.py::test_verdict_only_from_reviewer_for_current_sha` |
 | checked, reviewed | coding | `verdict` NOT_READY (binding) | the findings become the retry text; counts an attempt; `start` resumes | `test_core.py::test_not_ready_sends_the_item_back_to_coding_with_the_findings` |
 | checked | checked | `check` | a re-check at a new head; a commit landing mid-check is red (`head-moved`) | `test_core.py::test_a_commit_landing_mid_check_is_red` |
+| checked, reviewed | coding | `check` red | a red check at a new head demotes the item; READY cannot bind over it | `test_core.py::test_a_red_check_demotes_checked_and_ready_does_not_bind` |
 | reviewed | checked | new commit | the verdict is voided | `test_core.py::test_new_commit_voids_the_verdict` |
 | reviewed | candidate | `candidate` | reviewed; range cherry-picks cleanly onto the night's candidate (Stage 3) | `test_nightly.py` |
 | candidate | gated | `gate` | the full gate green on the M4 (Stage 3) | `test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part` |

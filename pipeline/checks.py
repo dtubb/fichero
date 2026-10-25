@@ -50,6 +50,15 @@ def fill(s: str, tree, **kw) -> str:
     return s.format(pinned=tree, python=sys.executable, **kw)
 
 
+def isolated(script: str, env: dict) -> list[str]:
+    """Run a guard with `python -I`: site runs on the interpreter's own path, so a coder-added sitecustomize.py or
+    .pth in the tree is never imported and PYTHONPATH is not read from the environment; the tree's script dir and
+    its source paths are added only afterwards, by us."""
+    paths = [str(Path(script).parent), *env.get("PYTHONPATH", "").split(":")]
+    code = f"import sys, runpy; sys.path[:0] = {[p for p in paths if p]!r}; runpy.run_path({script!r}, run_name='__main__')"
+    return [sys.executable, "-I", "-c", code]
+
+
 def pinned_files(pinned, check_paths) -> tuple[str, list[str]]:
     """The pinned checkout's committed HEAD and every tracked file under the check paths."""
     sha = git(pinned, "rev-parse", "HEAD")
@@ -62,8 +71,44 @@ def scratch_tree(wt, at, pinned_sha=None, files=()) -> str:
     tree = tempfile.mkdtemp(prefix="pipeline-tree-")
     git(wt, "worktree", "add", "--detach", "-q", tree, at)
     if pinned_sha and files:
-        sh(["git", "checkout", pinned_sha, "--", *files], cwd=tree)
+        r = sh(["git", "checkout", pinned_sha, "--", *files], cwd=tree)
+        if r.returncode:  # never fall through to the coder's copies
+            drop_tree(wt, tree)
+            raise RuntimeError(f"could not lay the pinned checks over the tree: {r.stderr.strip()[-300:]}")
     return tree
+
+
+BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
+
+
+def bypass_files(wt, since) -> list[str]:
+    """Added files that would run before or instead of the checks: a sitecustomize/usercustomize or a .pth anywhere,
+    a conftest.py outside a test dir, or a scripts/*.py named like a stdlib module (it would shadow the import)."""
+    bad = []
+    for f in changed_files(wt, since, "A"):
+        p = Path(f)
+        if p.name in BYPASS_NAMES or p.suffix == ".pth":
+            bad.append(f)
+        elif p.name == "conftest.py" and not any("test" in part.lower() for part in p.parent.parts):
+            bad.append(f)
+        elif p.parent.name == "scripts" and p.suffix == ".py" and p.stem in sys.stdlib_module_names:
+            bad.append(f)
+    return bad
+
+
+def acceptance_changed(wt, since, spec_dir, ids) -> list[str]:
+    """Changed spec lines that carry one of the item's behaviour ids, or a build-order Behaviours/Tests line: the
+    coder may not rewrite its own acceptance (dogfood 6, 2026-10-25)."""
+    if not spec_dir or not ids:
+        return []
+    diff = sh(["git", "diff", f"{since}...HEAD", "--", spec_dir], cwd=wt).stdout.splitlines()
+    hits = []
+    for line in diff:
+        if line[:1] in "+-" and not line.startswith(("+++", "---")):
+            body = line[1:].strip()
+            if any(f"`{i}`" in body for i in ids) or body.startswith(("- Tests:", "- Behaviours:")):
+                hits.append(line[:120])
+    return hits
 
 
 def drop_tree(wt, tree) -> None:
@@ -107,7 +152,7 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
             if any(k in s for k in rung.get("skip", [])):
                 continue
             try:
-                r = sh([sys.executable, s], cwd=tree, env=env, timeout=rung.get("timeout_s", 60))
+                r = sh(isolated(s, env), cwd=tree, env=env, timeout=rung.get("timeout_s", 60))
                 if r.returncode:
                     bad.append(f"{Path(s).name}: {(r.stdout + r.stderr).strip()[-400:]}")
             except subprocess.TimeoutExpired:
@@ -122,8 +167,10 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
     return True, "\n".join(out)[-600:]
 
 
-def run_all(wt, cfg, since=None, pinned=None) -> list[dict]:
-    """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time."""
+def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
+    """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
+    pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
+    or a rewrite of the item's own acceptance in the spec."""
     pinned = pinned or cfg["repo"].get("pinned") or ROOT
     since = since or cfg["repo"]["base"]
     files = changed_files(wt, since)
@@ -131,10 +178,19 @@ def run_all(wt, cfg, since=None, pinned=None) -> list[dict]:
     # a coder may add a guard, and keep editing a guard of its own that the pinned runner does not have yet (a
     # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
     hit = [f for f in changed_files(wt, since, "MDR") if f in overlay]
-    if hit:
-        return [{"name": "pinned-checks", "ok": False, "seconds": 0,
-                 "text": f"the diff changes the checks themselves ({', '.join(hit[:5])}): needs-maintainer"}]
-    tree = scratch_tree(wt, git(wt, "rev-parse", "HEAD"), pinned_sha, overlay)
+    why = f"the diff changes the checks themselves ({', '.join(hit[:5])})" if hit else ""
+    bypass = bypass_files(wt, since)
+    if bypass and not why:
+        why = f"the diff adds a file that would run before or instead of the checks ({', '.join(bypass[:5])})"
+    changed = acceptance_changed(wt, since, cfg["repo"].get("specs"), protected_ids)
+    if changed and not why:
+        why = "the diff rewrites the item's own acceptance in the spec; use `ask` instead:\n" + "\n".join(changed[:8])
+    if why:
+        return [{"name": "pinned-checks", "ok": False, "seconds": 0, "text": f"{why}: needs-maintainer"}]
+    try:
+        tree = scratch_tree(wt, git(wt, "rev-parse", "HEAD"), pinned_sha, overlay)
+    except RuntimeError as e:  # the overlay failed: never judge the coder's copies
+        return [{"name": "pinned-checks", "ok": False, "seconds": 0, "text": str(e)}]
     results = [{"name": "pinned-checks", "ok": True, "seconds": 0,
                 "text": f"checks from {pinned_sha[:9]} ({len(overlay)} files) over the task's HEAD"}]
     try:

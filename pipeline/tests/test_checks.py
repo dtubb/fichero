@@ -31,6 +31,43 @@ def test_a_coder_change_that_breaks_a_guard_turns_the_check_red(scratch):
     assert not r["fast-guards"]["ok"] and "src/bad.py is forbidden" in r["fast-guards"]["text"]
 
 
+def test_a_coder_sitecustomize_cannot_green_the_guards(scratch):
+    """Re-review MED A: a coder-added sitecustomize.py on the guards' path exited every check_* green. It is now a
+    pinned-path refusal; and the guards run with `python -I`, so even an unrefused one would not be imported."""
+    bypass = "import os, sys\nif 'check_' in ' '.join(sys.argv) or True:\n    os._exit(0)\n"
+    wt = lane(scratch, "site", {**REAL_FIX, "src/bad.py": "# forbidden\n", "scripts/sitecustomize.py": bypass})
+    results = checks.run_all(wt, scratch["cfg"])
+    assert results[0]["name"] == "pinned-checks" and not results[0]["ok"] and "sitecustomize.py" in results[0]["text"]
+    # and the isolated runner itself: a sitecustomize in the scripts dir is not imported even when present
+    env = checks.test_env(wt, scratch["cfg"])
+    r = checks.sh(checks.isolated(str(wt / "scripts" / "check_no_bad.py"), env), cwd=wt, env=env)
+    assert r.returncode == 1 and "forbidden" in r.stdout, "the guard ran and saw bad.py; sitecustomize did not exit it"
+
+
+def test_pth_conftest_and_stdlib_shadow_files_need_maintainer(scratch):
+    for name, path in (("pth", "scripts/evil.pth"), ("conftest", "src/conftest.py"), ("shadow", "scripts/json.py")):
+        wt = lane(scratch, name, {**REAL_FIX, path: "# planted\n"})
+        r = checks.run_all(wt, scratch["cfg"])[0]
+        assert r["name"] == "pinned-checks" and not r["ok"] and path in r["text"], path
+    wt = lane(scratch, "okconftest", {**REAL_FIX, "tests/conftest.py": "# fixtures\n"})
+    assert checks.run_all(wt, scratch["cfg"])[0]["ok"], "a conftest in the coder's own test dir is fine"
+
+
+def test_overlay_failure_raises_instead_of_running_the_coders_copies(scratch, monkeypatch):
+    wt = lane(scratch, "overlay", REAL_FIX)
+    real = checks.sh
+
+    def failing_checkout(args, cwd, **kw):
+        if args[:2] == ["git", "checkout"] and "--" in args:
+            return subprocess.CompletedProcess(args, 1, "", "boom")
+        return real(args, cwd, **kw)
+
+    monkeypatch.setattr(checks, "sh", failing_checkout)
+    results = checks.run_all(wt, scratch["cfg"])
+    assert len(results) == 1 and not results[0]["ok"] and "could not lay the pinned checks" in results[0]["text"]
+    assert "pipeline-tree-" not in git(wt, "worktree", "list"), "the half-made tree is removed"
+
+
 def test_checks_run_from_the_pinned_checkout(scratch):
     """The check files in the scratch tree are the PINNED commit's, so a worktree whose copies are broken (committed
     or not) is still judged by the real ones; and the guard runs against the coder's HEAD."""

@@ -25,4 +25,10 @@ jobs:
       - name: close_fixed_issues.py --apply on the pushed range
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/close_fixed_issues.py --apply --remote origin/integration --range "${{ github.event.before }}..${{ github.sha }}"
+        run: |
+          # a new branch or a force push has an all-zero `before`: fall back to the script's 14-day window
+          if [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
+            python3 scripts/close_fixed_issues.py --apply --remote origin/integration
+          else
+            python3 scripts/close_fixed_issues.py --apply --remote origin/integration --range "${{ github.event.before }}..${{ github.sha }}"
+          fi

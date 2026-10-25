@@ -22,9 +22,9 @@ import json
 import re
 import subprocess
 
-# A closing keyword at the start of a line or of a sentence ("Fixes #12. Closes #34, resolves #56."), never inside
-# prose ("revert the fix #5222").
-FIXES = re.compile(r"(?:^|[.;,]\s+)\s*(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s*:?\s+#(\d+)", re.IGNORECASE | re.MULTILINE)
+# A closing keyword at the start of a line, of a sentence ("Fixes #12. Closes #34, resolves #56.") or of a bracket
+# ("what (Fixes #N)", the form the runner's brief tells the coder to use), never inside prose ("revert the fix #5222").
+FIXES = re.compile(r"(?:^|[(\[]|[.;,]\s+)\s*(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s*:?\s+#(\d+)", re.IGNORECASE | re.MULTILINE)
 
 
 def cited(message: str) -> set[int]:
@@ -49,10 +49,17 @@ def fixing_commits(*log_args: str) -> dict[int, tuple[str, str, str]]:
     return found
 
 
+def _when(iso: str):
+    """An aware datetime from git's %cI (local offset) or GitHub's Z timestamps: compared as instants, not strings."""
+    from datetime import datetime, timezone
+    d = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
 def reopened_after(number: int, date: str) -> bool:
     """True when a human reopened the issue after the fixing commit: the fix did not hold, leave it open."""
     events = json.loads(_run("gh", "api", f"repos/{{owner}}/{{repo}}/issues/{number}/events?per_page=100"))
-    return any(e.get("event") == "reopened" and e.get("created_at", "") > date for e in events)
+    return any(e.get("event") == "reopened" and _when(e["created_at"]) > _when(date) for e in events if e.get("created_at"))
 
 
 def main() -> int:

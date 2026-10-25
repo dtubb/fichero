@@ -29,7 +29,8 @@ def test_worker_env_carries_no_runner_path_only_a_generated_wrapper_on_path(scra
     bin_dir = Path(env["PATH"].split(":")[0])
     assert bin_dir == scratch["state"] / "bin" / "t9" and (bin_dir / "pipeline-mcp").exists()
     text = (bin_dir / "pipeline-mcp").read_text()
-    assert f"PIPELINE_STATE={scratch['state']}" in text and "--role coder" in text and "PIPELINE_WORKER=coder" in text
+    assert "--role coder" in text and "PIPELINE_WORKER=coder" in text
+    assert "PIPELINE_STATE" not in text, "the wrapper names no state path; the MCP server resolves it alone"
     assert str(scratch["state"]) not in " ".join(f"{k}={v}" for k, v in env.items() if k != "PATH")
 
 
@@ -173,13 +174,29 @@ def test_session_fixture_shows_jcodemunch_and_jdocmunch_calls():
 
 def test_idle_state_from_fixture_jsonl_of_each_kind(tmp_path):
     claude = [{"type": "user", "message": {"role": "user", "content": "go"}},
-              {"type": "assistant", "message": {"role": "assistant", "stop_reason": "end_turn", "model": "claude-x",
-                                                "usage": {"input_tokens": 10, "output_tokens": 5},
-                                                "content": [{"type": "text", "text": "You've hit your usage limit"}]}}]
+              {"type": "assistant", "isApiErrorMessage": True,
+               "message": {"role": "assistant", "stop_reason": "end_turn", "model": "claude-x",
+                           "usage": {"input_tokens": 10, "output_tokens": 5},
+                           "content": [{"type": "text", "text": "You've hit your usage limit"}]}}]
     p = tmp_path / "c.jsonl"
     _write(p, claude)
     s = coder.parse_session(p)
     assert s["idle"] and s["rate_limited"] and s["tokens"] == 15 and s["cost_usd"] == 0.0
+
+
+def test_rate_limit_is_read_from_error_shapes_never_from_prose(tmp_path):
+    """Re-review MED C: an item ABOUT rate limits used to kill its own worker."""
+    prose = {"type": "message", "message": {"role": "assistant", "stopReason": "stop", "usage": {"cost": {"total": 0.01}},
+                                            "content": [{"type": "text", "text": "I added backoff for the 429 rate limit and the insufficient-credit case."}]}}
+    p = tmp_path / "p.jsonl"
+    _write(p, [USER, prose])
+    assert coder.parse_session(p)["rate_limited"] is False
+    err = {"type": "message", "message": {"role": "assistant", "stopReason": "error", "errorMessage": "402 Insufficient credits",
+                                          "usage": {}, "content": []}}
+    _write(p, [USER, prose, USER, err])
+    assert coder.parse_session(p)["rate_limited"] is True
+    _write(p, [USER, prose, USER, err, USER, END])  # a later healthy turn clears it: only the LATEST turn counts
+    assert coder.parse_session(p)["rate_limited"] is False
 
 
 def test_cost_cap_stops_the_task(tmp_path, monkeypatch):
