@@ -54,7 +54,7 @@ _scripts_path = str(_REPO_ROOT / "scripts")
 if _scripts_path not in sys.path:
     sys.path.append(_scripts_path)
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402 -- after the test environment is set
 
 # Keep existing route-heavy tests running against the broader dev API surface.
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
@@ -77,6 +77,8 @@ os.environ.setdefault("FICHERO_SKIP_MLX_MEMORY_GUARD", "1")
 os.environ.setdefault("FICHERO_SKIP_PROJECT_CONVERSION", "1")
 # Tests that fake `TextEmbedding` patch it in this process; the embedder-process tests clear this (#5847).
 os.environ.setdefault("FICHERO_EMBED_IN_PROCESS", "1")
+# Tests that fake Apple Vision patch it in this process; the worker tests clear this (#5392).
+os.environ.setdefault("FICHERO_APPLE_VISION_IN_PROCESS", "1")
 # Nor heavy jobs held by the Mac's own state (#5358): the machine running the tests is often in
 # use or on battery, and every queued model job would wait. tests/unit/jobs turns it on and fakes
 # the signals.
@@ -114,11 +116,11 @@ os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 # and fights the running uvicorn for the exclusive duckdb lock. Override
 # `FICHERO_BASE_PATH` (consumed by pydantic-settings env_prefix="FICHERO_")
 # so app_db_path resolves under a per-process tmp dir.
-import atexit as _atexit
-import shutil as _shutil
-import tempfile as _tempfile
-import pathlib as _pathlib
-from urllib.parse import quote
+import atexit as _atexit  # noqa: E402 -- after the test environment is set
+import shutil as _shutil  # noqa: E402 -- after the test environment is set
+import tempfile as _tempfile  # noqa: E402 -- after the test environment is set
+import pathlib as _pathlib  # noqa: E402 -- after the test environment is set
+from urllib.parse import quote  # noqa: E402 -- after the test environment is set
 
 _TEST_BASE_PREFIX = "fichero-tests-"
 
