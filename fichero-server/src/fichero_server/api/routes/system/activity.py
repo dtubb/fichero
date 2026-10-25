@@ -866,6 +866,14 @@ async def list_background_jobs(
             )
         )
 
+    # A workflow a recipe runs for one of its stages (Transcribe HTR for Read) is shown inside the recipe's row, not as a
+    # second top-level row (#6125): its job is under the recipe run, or its status names it as a stage's run.
+    owned: set[str] = set()
+    for run_id, run_status in recipe_statuses.items():
+        owned.update(st["child_id"] for st in run_status.get("steps", []) if st.get("child_id"))
+        owned |= _run_ids_under(await asyncio.to_thread(job_queue.tree, db, run_id))  # off the loop (#5843)
+    jobs = [j for j in jobs if not (j.task_type == "workflow" and j.id in owned)]
+
     # Off the loop (Fable review #2): the tree walk and the machine readings run subprocesses (ps, pmset).
     usage = await asyncio.to_thread(process_tree_rusage)  # once per poll, shared by memory and energy (#5358)
     jobs = order_for_activity(jobs)
@@ -969,20 +977,40 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         _cut(child, depth - 1)
 
 
-def _recipe_pages_done(status: dict[str, Any]) -> int:
-    """A recipe run's pages done, each page counted ONCE (`activity.run.pages-counted-once`, #5959, #5871): a page is done when
-    every workflow stage has done it, so the run reads the least of its stages, and 0 while a stage has not started (a
-    92-page run over three stages reads "36 of 92", never "184 of 276"). The stage that is working is named by the row's
-    reason ("Reading lines: 46 of 92")."""
+def _recipe_progress(status: dict[str, Any], pages: int) -> tuple[int, int]:
+    """(done, in all) a recipe run's row shows: THE numbers its Details show for the stage working now (#6125, owner
+    2026-10-25: a row read "0 of 23" while Details read the Read stage "20 of 20"). The stage working is the running
+    workflow stage with its account; the row reads its pages done and in all. With none running: the least of the stages'
+    pages and 0 while a stage has not started (`activity.run.pages-counted-once`, #5959: 92 pages over three stages
+    never read "184 of 276"), over the run's own pages or the most any stage has."""
     stages = [s for s in status["steps"] if s.get("card") == "workflow"]
+    running = next((s for s in stages if s.get("state") == "running" and s.get("account") is not None), None)
+    if running is not None:
+        return running["account"].pages_done, running["account"].pages_total
+    total = max([pages, *(s["account"].pages_total for s in status["steps"] if s.get("account") is not None)])
     if not stages or any(s.get("account") is None for s in stages):
-        return 0
-    return min(s["account"].pages_done for s in stages)
+        return 0, total
+    return min(s["account"].pages_done for s in stages), total
+
+
+def _recipe_pages_done(status: dict[str, Any]) -> int:
+    """A recipe run's pages done on its row (see `_recipe_progress`)."""
+    return _recipe_progress(status, 0)[0]
 
 
 def _recipe_pages_in_all(status: dict[str, Any], pages: int) -> int:
-    """The run's pages in all: its own pages, or the most any one stage has (never the stages' pages added together)."""
-    return max([pages, *(s["account"].pages_total for s in status["steps"] if s.get("account") is not None)])
+    """The run's pages in all on its row (see `_recipe_progress`): the running stage's, else the most any one stage has."""
+    return _recipe_progress(status, pages)[1]
+
+
+def _run_ids_under(tree: Optional[dict[str, Any]]) -> set[str]:
+    """The ids of every job under a job tree's root: the workflow runs a recipe run started, whether or not its status has
+    tied them to a stage yet."""
+    out: set[str] = set()
+    for child in (tree or {}).get("children") or []:
+        out.add(child["id"])
+        out |= _run_ids_under(child)
+    return out
 
 
 async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:
