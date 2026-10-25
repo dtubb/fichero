@@ -1423,3 +1423,24 @@ def _no_workflow_node_leaks_between_tests():
     token = node_context._current_node.set(None)
     yield
     node_context._current_node.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def _no_embedder_leaks_between_tests():
+    """An embedder a test loads stays in the process cache and shows up as a held model in every later test (#6129); put the
+    cache back as it was. Only when the module is already imported: importing it here would load it for every test."""
+    import sys
+
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    before = dict(embeddings._EMBEDDER_CACHE) if embeddings is not None else {}
+    yield
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is None:
+        return
+    cache = embeddings._EMBEDDER_CACHE
+    if not isinstance(cache, dict):
+        return  # a test replaced it and its monkeypatch has not been undone yet: not ours to touch
+    for name in [n for n in cache if n not in before and not embeddings._EMBEDDER_IN_USE.get(n)]:  # one still embedding is left, as release_idle_embedders does
+        gone = cache.pop(name)
+        if hasattr(gone, "close"):
+            gone.close()
