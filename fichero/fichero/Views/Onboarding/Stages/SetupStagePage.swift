@@ -120,6 +120,7 @@ struct SetupStagePage: View {
         let finder = candidateFinder ?? ModelFinderStore(client: store.client)
         candidateFinder = finder
         await finder.load(store.finderQuery(job: main.job, step: main.id))
+        tryStore?.preselect(from: finder.candidates)
     }
 
     /// Use This under a compared candidate: that card for the stage's step (the use-candidate route).
