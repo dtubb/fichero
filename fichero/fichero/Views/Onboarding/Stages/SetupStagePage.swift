@@ -59,6 +59,11 @@ struct SetupStagePage: View {
                     )
                 }
             }
+            // The review's own instructions for each pass, from the profile built for this project (#6128).
+            if stage.jobs.contains("correct") {
+                Divider()
+                ReviewInstructionsSection(store: store)
+            }
             // Early, in one calm sentence: how many corrected lines training a model of your own will need.
             ForEach(store.trainAhead(forJobs: stage.jobs), id: \.self) { sentence in
                 Text(sentence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

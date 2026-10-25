@@ -899,3 +899,28 @@ extension RecipeSetupStoreTests {
         #expect(store.errorMessage?.contains("Turn it on in Set Up") == true)
     }
 }
+
+/// #6128 (`source.job.review-instructions-are-editable`): the person's edit to a review pass is kept with the project's
+/// answers and a text equal to the default, or blank, is no edit.
+struct ReviewInstructionsAnswersTests {
+    @Test("an edited pass round-trips through the saved answers and an unedited one is left out")
+    func roundTrips() throws {
+        var answers = RecipeSetupAnswers.JobAnswers()
+        answers.setReview("Only fix u/v.", for: "orthography", default: "the default")
+        answers.setReview("the default", for: "abbreviations", default: "the default")
+        #expect(answers.reviewInstructions == ["orthography": "Only fix u/v."])
+        let back = try JSONDecoder().decode(RecipeSetupAnswers.JobAnswers.self, from: JSONEncoder().encode(answers))
+        #expect(back.reviewInstructions == ["orthography": "Only fix u/v."])
+        #expect(back.other["review_instructions"] == nil)
+    }
+
+    @Test("a blank is a reset: the box shows the default again")
+    func blankResets() {
+        var answers = RecipeSetupAnswers.JobAnswers()
+        answers.setReview("mine", for: "orthography", default: "the default")
+        #expect(answers.reviewText(for: "orthography", default: "the default") == "mine")
+        answers.setReview("", for: "orthography", default: "the default")
+        #expect(answers.reviewInstructions.isEmpty)
+        #expect(answers.reviewText(for: "orthography", default: "the default") == "the default")
+    }
+}
