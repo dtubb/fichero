@@ -204,7 +204,7 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         "Modernización (Spanish)",
         "Paleografía Española (s. XVIII–XIX)",
         "Paleografía Española (s. XVI–XVII)",
-        "Paleographer Review",
+        "Review the Reading",
         "Regesto (Archival Abstract)",
         "Transcribe (Auto-Detect)",
         "Transcribe + Review (Pipeline)",

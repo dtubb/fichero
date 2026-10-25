@@ -446,7 +446,7 @@ def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | 
     from fichero_server.recipes.stages import stage_of
 
     items = []
-    going = any(j.task_type == "run-a-recipe" and j.state in _LIVE_STATES for j in jobs)
+    going = any(j.task_type == "run-a-recipe" and j.state in ("running", "paused") for j in jobs)  # a queued run has caused nothing yet
     for job in jobs:
         if job.parent_id or job.group != "live":
             continue
