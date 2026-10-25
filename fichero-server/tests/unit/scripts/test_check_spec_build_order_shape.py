@@ -4,13 +4,16 @@ Proves the build order shape (`pipeline.build-order-shape`): stages, steps, beha
 tests, dependencies, and size constraints are validated. APPROVED specs fail on violations;
 DRAFT specs warn only.
 """
+
 from __future__ import annotations
 
 import importlib.util
 import sys
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "check_spec_build_order_shape.py"
+_SCRIPT = (
+    Path(__file__).resolve().parents[4] / "scripts" / "check_spec_build_order_shape.py"
+)
 _SPEC = importlib.util.spec_from_file_location("check_spec_build_order_shape", _SCRIPT)
 assert _SPEC and _SPEC.loader
 _mod = importlib.util.module_from_spec(_SPEC)

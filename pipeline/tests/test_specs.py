@@ -4,17 +4,19 @@ Pipeline-side pin of scripts/check_spec_build_order_shape.py: it parses a spec's
 `## Build order` section into stages and steps (behaviours, tests, depends-on,
 size) and FAILS an APPROVED spec when a non-[OK] behaviour sits in no step.
 """
+
 from __future__ import annotations
 
 import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-_SPEC = importlib.util.spec_from_file_location("check_spec_build_order_shape", SCRIPTS / "check_spec_build_order_shape.py")
+_SPEC = importlib.util.spec_from_file_location(
+    "check_spec_build_order_shape", SCRIPTS / "check_spec_build_order_shape.py"
+)
 assert _SPEC and _SPEC.loader
 _mod = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _mod
@@ -64,20 +66,22 @@ ORPHAN_FIXTURE = """# Fixture spec
 
 
 def test_build_order_parses():
-    stages, steps = _mod.parse_build_order(PARSE_FIXTURE)
-    assert [(s.number, s.title) for s in stages] == [("0", "the small one")]
-    assert [s.step_id for s in steps] == ["0.1", "0.2"]
-    first, second = steps
-    assert first.issue == "6117"
-    assert first.behaviours == ["fixture.parse.one"]
-    assert first.tests == ["pipeline/tests/test_a.py", "pipeline/tests/test_b.py"]
-    assert first.depends_on == []
-    assert first.size == "S"
-    assert second.issue is None
-    assert second.behaviours == ["fixture.parse.two"]
-    assert second.tests == ["pipeline/tests/test_c.py"]
-    assert second.depends_on == ["0.1"]
-    assert second.size == "M"
+    parsed = _mod._parse_build_order(PARSE_FIXTURE)
+    assert parsed is not None
+    assert [(s["number"], s["title"]) for s in parsed["stages"]] == [
+        (0, "the small one")
+    ]
+    first, second = parsed["stages"][0]["steps"]
+    assert (first["number"], first["issue"]) == ("0.1", "6117")
+    assert first["behaviours"] == ["fixture.parse.one"]
+    assert first["tests"] == ["pipeline/tests/test_a.py", "pipeline/tests/test_b.py"]
+    assert not first.get("depends_on")
+    assert first["size"] == "S"
+    assert not second["issue"]
+    assert second["behaviours"] == ["fixture.parse.two"]
+    assert second["tests"] == ["pipeline/tests/test_c.py"]
+    assert second["depends_on"] == ["0.1"]
+    assert second["size"] == "M"
 
 
 def test_build_order_guard_fails_on_orphan_behaviour(tmp_path, monkeypatch):
