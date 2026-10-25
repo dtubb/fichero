@@ -94987,6 +94987,12 @@
             "type": "array",
             "title": "Reasons"
           },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this extra reader is, in a sentence, as the app and Activity show it: 'Also reads print pages with Apple Vision'"
+          },
           "gap": {
             "type": "string",
             "nullable": true,

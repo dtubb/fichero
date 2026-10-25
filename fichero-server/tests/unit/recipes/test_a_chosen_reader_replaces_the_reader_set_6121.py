@@ -31,10 +31,15 @@ def test_a_folder_override_changes_neither_the_model_nor_the_readers():
     assert step["model"] == {"hf": "org/auto"} and len(step["readers"]) == 2
 
 
-def test_each_extra_reader_is_named_in_the_steps_reasons():
-    from fichero_server.recipes.assemble import readers_named
+def test_each_extra_reader_says_who_it_is_in_a_sentence():
+    from fichero_server.recipes.assemble import reader_sentence
 
-    step = {"readers": [{"material": "print", "card": {"note": "Apple Vision"}},
-                        {"material": "handwriting", "card": {"id": "glm-ocr"}}]}
-    assert readers_named(step) == ["also reads print pages with Apple Vision", "also reads handwriting pages with glm-ocr"]
-    assert readers_named({}) == []
+    assert reader_sentence({"material": "print", "card": {"note": "Apple Vision"}}) == "Also reads print pages with Apple Vision"
+    assert reader_sentence({"material": "hand_written", "card": {"id": "glm-ocr"}}) == "Also reads hand written pages with glm-ocr"
+    assert reader_sentence({}) == "Also reads other pages with another reader"
+
+
+def test_the_sentence_is_a_field_of_the_step_reader_not_a_line_of_the_steps_reasons():
+    from fichero_server.api.routes.system.recipes import StepReader
+
+    assert "sentence" in StepReader.model_fields

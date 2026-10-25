@@ -765,14 +765,12 @@ def _chosen(choice: Choice) -> dict[str, Any]:
     }
 
 
-def readers_named(step: dict[str, Any]) -> list[str]:
-    """One sentence for each extra reader a step carries by kind of material: who reads which pages besides the step's own."""
-    out = []
-    for reader in step.get("readers") or []:
-        card = reader.get("card") or {}
-        who = card.get("note") or card.get("id") or "another reader"
-        out.append(f"also reads {str(reader.get('material') or 'other').replace('_', ' ')} pages with {who}")
-    return out
+def reader_sentence(reader: dict[str, Any]) -> str:
+    """One sentence for an extra reader a step carries by kind of material: who reads which pages besides the step's own. The
+    app (Ready) and the run's Activity row show this text as it stands (#6121, #6134)."""
+    card = reader.get("card") or {}
+    who = card.get("note") or card.get("id") or "another reader"
+    return f"Also reads {str(reader.get('material') or 'other').replace('_', ' ')} pages with {who}"
 
 
 def _pin_link(pin: dict) -> str | None:
@@ -1110,8 +1108,8 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             step["material"] = a.material
             step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in read]
         step.update(_chosen(choice))
-        if step.get("readers"):  # an extra reader is never silent: Ready says each one (#6121)
-            step["reasons"] = [*(step.get("reasons") or []), *readers_named(step)]
+        for reader in step.get("readers") or []:  # an extra reader is never silent: each says in a sentence who it is (#6121)
+            reader["sentence"] = reader_sentence(reader)
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
             step["settings"] = {setting: a.job_answers[answer]}

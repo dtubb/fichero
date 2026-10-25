@@ -1188,7 +1188,13 @@ plan's peak memory across steps. Ready shows none of it.
   kind) and `readers` (each run, its kind, pages, model and state). *Not built:* telling print from
   typescript (a machine-made page is the first of print, typescript the project ticked); a trained
   classifier (the heuristic is marked `ponytail:` with that upgrade path); the sorting as its own row in
-  Activity; the app showing or correcting a page's kind.
+  Activity; the app showing or correcting a page's kind. **A person's choice replaces the readers (#6121, built, engine):** a reader the
+  person chose for a reading step (Use This, or Use instead, for the project) replaces the step's whole per-material `readers`: the
+  rules' extra readers are never run beside a model the person picked, and are never added unasked (tested in
+  `fichero-server/tests/unit/recipes/test_a_chosen_reader_replaces_the_reader_set_6121.py`). A step that does carry extra readers gives
+  each a `sentence` (`StepReader.sentence`, "Also reads print pages with Apple Vision"), the one text the Ready page and the run's
+  Activity row show as it stands (the engine owns the wording). **[GAP]** a *folder*-scope override changes neither the folder's model nor
+  its readers: only the project scope is built (#6135).
 - `source.onboard.auto.hand-and-script-per-page` — **[GAP]** (#5456) script and hand are found per
   page and region, and each region goes to the reader that suits it (as
   `recipe.distil.script-and-hand-routed-per-region`). *The matrix measures it (#5969):* the script and language guessed from sample pages are set against each Test Corpus set's tags and the hit rate is reported per set; a wrong guess is an issue.
@@ -4043,7 +4049,7 @@ Trying another option
   dates by precision and recall against confirmed ones, else side-by-side lists; vectors by the
   top results for the person's queries; each with cost, speed and carbon estimate.
 - `source.try.use-this-scope` — **[PARTIAL]** (#4950; tested in `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`, `bakeoff.use_this`; the winner of a combination of steps is not built) Use This makes the winner the step's (or the
-  combination's) choice for the project or for one folder, stored as an override on the recipe.
+  combination's) choice for the project, stored as an override on the recipe; **[GAP]** *for one folder* is stored as an override only and changes nothing a run uses (#6135).
 - `source.try.kept-and-rerunnable` — **[PARTIAL]** (#4950; *built for the bake-off: the record is kept in `recipe/bakeoffs/<id>.yaml`, readable after Activity clears the job, listed, and run again on the same pages; pinned by `fichero-server/tests/unit/recipes/test_bakeoff_readers.py::test_the_comparison_is_kept_and_readable_later`. Not built: the other jobs' comparisons, and re-running with the saved selection and options in one action*) a comparison is kept with its selection and
   options and can be run again later.
 - `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Changed 2026-10-11 (ruled: search
