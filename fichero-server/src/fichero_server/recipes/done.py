@@ -509,10 +509,11 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
 def split_done(db: Any, card: dict[str, Any], pages: list[str], own: set[str] | None = None,
                memo: dict | None = None) -> tuple[list[str], int | None]:
     """`_split_done`, kept in `memo` for one plan: the estimate and the notes ask it of the same card on the same pages, and
-    a page is looked at once a plan, not twice (Start's plan grew with the pages)."""
+    a page is looked at once a plan, not twice (Start's plan grew with the pages). The id is in the key: two cards of one
+    job that differ only in tool_config (translate at two levels) are two steps."""
     if memo is None:
         return _split_done(db, card, pages, own)
-    key = (card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
+    key = (card.get("id"), card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
            tuple(pages), frozenset(own or ()))
     if key not in memo:
         memo[key] = _split_done(db, card, pages, own)

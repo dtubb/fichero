@@ -53,3 +53,14 @@ def test_the_plan_works_out_what_each_step_has_done_once(client, db, folder, wit
     monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: asked.append(card["job"]) or real(db_, card, pages, own))
     routes._start_plan(db, None, clusters=[])
     assert asked and len(asked) == len(set(asked)), f"asked twice: {asked}"
+
+
+def test_two_cards_of_one_job_that_differ_only_in_their_tool_config_are_counted_apart(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: calls.append(card["id"]) or ([], len(calls)))
+    memo: dict = {}
+    a = {"id": "t1", "job": "translate", "tool_config": {"translate": {"level": "line"}}}
+    b = {"id": "t2", "job": "translate", "tool_config": {"translate": {"level": "page"}}}
+    assert done.split_done(None, a, ["p"], memo=memo) != done.split_done(None, b, ["p"], memo=memo)
+    assert done.split_done(None, a, ["p"], memo=memo) == done.split_done(None, a, ["p"], memo=memo)
+    assert calls == ["t1", "t2"]
