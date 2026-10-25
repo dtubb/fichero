@@ -6,6 +6,7 @@ Behaviour: `source.onboard.auto.reader-per-material`. Through the public surface
 correction of a page's kind) and the real job scheduler. The readers are the recipe execution tests' stub Kraken
 reader at the Kraken runtime, which records which model read which page.
 """
+# ruff: noqa: F811 -- pytest fixtures imported from the sibling tests are named as test arguments
 from __future__ import annotations
 
 import math
