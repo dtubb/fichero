@@ -95,3 +95,18 @@ def test_the_parent_never_imports_vision_itself():
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert done.returncode == 0, done.stderr[-600:]
+
+
+def test_a_page_failed_by_a_recycled_worker_is_read_once_more_by_itself():
+    """Part 2 (#5392): the failure words of a killed or dead worker name a passing cause, so the per-page retry
+    (`page_retry`, the never-rerun path: only that page, the done ones untouched) reads it again in the new worker; the real
+    timeout and a real second read below show it."""
+    from fichero_server.workflows import page_retry
+
+    assert page_retry.is_passing_cause(vb._apple_vision_timeout(300, recycled=True))
+    assert page_retry.is_passing_cause(worker.WorkerFailure(
+        "Apple Vision's worker stopped while reading this page; it starts again for the next one."))
+    with pytest.raises(vb.AppleVisionTimeout) as raised:
+        _read("stuck1")
+    assert page_retry.is_passing_cause(str(raised.value)), "the words the real timeout gives"
+    assert _read("stuck1".replace("stuck", "page")) == "read page1", "and the second read finds a new worker"
