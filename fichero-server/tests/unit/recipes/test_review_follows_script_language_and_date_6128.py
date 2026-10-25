@@ -73,3 +73,16 @@ def test_a_page_reviewed_under_the_old_name_still_counts_reviewed_6128(db):
     assert _has_review(db, page.id, None, new_id), "reviewed under the old id counts for the new one"
     other = preset_workflow_id("Some Other Preset")
     assert not _has_review(db, page.id, None, other), "another workflow's review is still not this step's"
+
+
+def test_a_run_made_under_the_old_name_resolves_to_the_renamed_preset_6128(db):
+    """A run paused across the upgrade carries the old id and name: it finds its review under the new one."""
+    from fichero_server.workflows.default_workflows import preset_workflow_id, resolve_shipped_workflow, seed_default_workflows
+
+    seed_default_workflows(db)
+    new = resolve_shipped_workflow(db, preset_workflow_id("Review the Reading"), "Review the Reading")
+    assert new is not None and new.name == "Review the Reading"
+    by_old_id = resolve_shipped_workflow(db, preset_workflow_id("Paleographer Review"), "Paleographer Review")
+    assert by_old_id is not None and by_old_id.id == new.id
+    by_old_name = resolve_shipped_workflow(db, "a-random-id-from-before-ids-were-stable", "Paleographer Review")
+    assert by_old_name is not None and by_old_name.id == new.id

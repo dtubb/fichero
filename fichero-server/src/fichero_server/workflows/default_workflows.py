@@ -133,8 +133,16 @@ def resolve_shipped_workflow(db: "Database", workflow_id: str, name: str):
     carries the preset's name, this library's first, then the global defaults'. A user's own workflow of
     that name is never taken. None only when the preset is in neither."""
     from fichero_server.models import Workflow
+    from fichero_server.recipes.review_profiles import RENAMED
     from fichero_server.workflows.workflow_store import WorkflowStore
 
+    # A preset renamed since a run was made (#6128): the run's old id or name finds the preset under its new one first, so
+    # a run paused across the upgrade still finds its review; the old row is taken only if the new one is not there.
+    for old, new in RENAMED.items():
+        if workflow_id == preset_workflow_id(old) or name == old:
+            renamed = resolve_shipped_workflow(db, preset_workflow_id(new), new)
+            if renamed is not None:
+                return renamed
     row = WorkflowStore(db).get(workflow_id) or resolve_default_workflow(workflow_id)
     if row is not None:
         return row
