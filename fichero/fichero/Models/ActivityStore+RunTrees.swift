@@ -283,10 +283,15 @@ extension ActivityStore {
 
     /// Read one row's log; the details call it when the row's node changes.
     /// A failed read keeps the lines already shown.
-    func loadJobLog(jobId: String, developer: Bool = false) async {
+    func loadJobLog(jobId: String, developer: Bool = false, problemsOnly: Bool = false) async {
         do {
-            let lines = try await activityService.getJobLog(id: jobId, developer: developer) ?? []
+            let lines = try await activityService.getJobLog(id: jobId, developer: developer, problemsOnly: problemsOnly) ?? []
             if jobLogs[jobId] != lines { jobLogs[jobId] = lines }
+            // Whether the log has a problem is known from a read of all the lines; a Problems read is all problems.
+            let problems = problemsOnly ? !lines.isEmpty : ActivityLogFilter.hasProblems(lines)
+            if jobLogHasProblems[jobId] != problems { jobLogHasProblems[jobId] = problems }
+            let count = problemsOnly ? lines.count : lines.filter { ActivityLogFilter.problemLevels.contains($0.level) }.count
+            if !developer, jobLogProblemCount[jobId] != count { jobLogProblemCount[jobId] = count }
         } catch {
             log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
         }

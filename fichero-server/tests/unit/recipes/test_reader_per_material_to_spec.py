@@ -138,7 +138,8 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     type_model = card["readers"]["typescript"]["model_override"]
     assert hand_model != type_model and card["model_override"] == hand_model
 
-    run = _finished(client, _start(client))
+    job_id = _start(client)
+    run = _finished(client, job_id)
     assert run["state"] == "done", run
     # The blank back is not read; the typed page (no print reader here: machine text is typescript) by the
     # typescript reader; the handwritten page by the handwriting reader; the person's typescript page by the
@@ -151,6 +152,12 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     # Each reader says who it is, in the plan's own words, for the Activity row (#6134).
     assert {r["material"]: r["sentence"] for r in step["readers"]} == {
         "handwriting": f"Also reads handwriting pages with {HAND}", "typescript": f"Also reads typescript pages with {TYPE}"}
+    # ... and the Activity tree names them on the stage's row (#6134).
+    tree = client.get(f"/api/activity/jobs/{job_id}").json()
+    named = [node for node in tree["children"] if node["readers"]]
+    assert len(named) == 1 and {r["material"]: r["sentence"] for r in named[0]["readers"]} == {
+        "handwriting": f"Also reads handwriting pages with {HAND}", "typescript": f"Also reads typescript pages with {TYPE}"}
+    assert all(not node["readers"] for node in tree["children"] if node is not named[0])
 
     def attrs(key):
         return client.get(f"/api/documents/{ids[key]}").json()["attributes"]

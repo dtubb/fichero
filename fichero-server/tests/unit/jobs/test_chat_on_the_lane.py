@@ -50,7 +50,7 @@ def test_activity_run_lane_cap_per_mac__chat_outside_a_run_shares_the_network_la
         # second question is a line in the row's pages (`activity.window.expands-to-pages`), waiting.
         assert _wait_for(lambda: any(
             item["state"] == "waiting"
-            for item in client.get("/api/activity/jobs/kind/ask-a-model/items").json()), seconds=30)
+            for item in client.get("/api/activity/jobs/kind/ask-a-model/items").json()["items"]), seconds=30)
         assert cloud.calls == 1 and cloud.peak == 1
     finally:
         cloud.gate.set()  # a failure above must not leave the questions waiting forever

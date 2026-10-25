@@ -67,6 +67,8 @@ extension ActivityDetails {
         let failed: Summary.Failed?
         /// How many of its pages failed (the stage bar draws a red tick for each).
         let pagesFailed: Int
+        /// Each reader of a stage that reads with several, in the engine's words (#6134); empty for one.
+        var readers: [String] = []
 
         var stateWords: String {
             switch state {
@@ -111,9 +113,16 @@ extension ActivityDetails {
                     return Summary.Failed(id: failure.threadId, text: "\(failure.pagesFailed) \(noun) failed",
                                           offer: failure.offer, threadId: failure.threadId)
                 },
-                pagesFailed: failedStage?.pagesFailed ?? 0
+                pagesFailed: failedStage?.pagesFailed ?? 0,
+                readers: Self.readerLines(of: runs)
             )
         }
+    }
+
+    /// The readers of a stage, as the engine words them, once each, in the engine's order (#6134).
+    static func readerLines(of runs: [ActivityRecipeStage]) -> [String] {
+        var seen = Set<String>()
+        return runs.flatMap(\.readerSentences).filter { seen.insert($0).inserted }
     }
 
     /// A stage carried by several runs reads as its most telling one: failed, then running, waiting, not run, done.

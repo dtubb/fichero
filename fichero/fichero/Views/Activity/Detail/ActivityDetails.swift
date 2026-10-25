@@ -151,7 +151,7 @@ extension ActivityDetails {
         let owningRun = runRow?.kind == .run ? runRow : nil
 
         heading = Self.heading(row: row, node: node)
-        subheading = [projectName, row.model, Self.startedByWords(startedBy)].compactMap { value in
+        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started)].compactMap { value in
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
@@ -170,26 +170,41 @@ extension ActivityDetails {
         }
 
         // The failed pages under it by name, each with its reason.
+        let failures = Self.failures(row: row, node: node)
+        failedPages = failures.0
+        failedCount = failures.1
+
+        resources = Self.resources(row: row, node: node, owningRun: owningRun)
+
+        actions = Self.actions(row: row, node: node, owningRun: owningRun)
+        let recipeStages = Self.stages(of: node)
+        stages = recipeStages.isEmpty ? Self.queueStages(of: node) : recipeStages
+        summary = Self.summary(of: node)
+        stageCards = node?.kind == ActivityStore.recipeRunKind ? Self.stageCards(of: node) : []
+    }
+
+    /// The failed pages under a row by name with their reasons, and how many there are.
+    private static func failures(row: ActivityMonitorRow, node: ActivityJobNode?) -> ([FailedPageRow], Int) {
         let failedLeaves = (node?.leaves ?? []).filter {
             ActivityMonitorRow.Phase(engineState: $0.state) == .failed && !Self.runKinds.contains($0.kind)
         }
         if row.kind == .run, let account = row.account, !account.failures.isEmpty {
-            failedPages = account.failures.enumerated().map {
+            let pages = account.failures.enumerated().map {
                 FailedPageRow(id: "\($0.offset)", title: $0.element.title,
-                           reason: $0.element.reason + ($0.element.retried ? " (read twice)" : ""))
+                              reason: $0.element.reason + ($0.element.retried ? " (read twice)" : ""))
             }
-            failedCount = max(account.pagesFailed, account.failures.count)
+            return (pages, max(account.pagesFailed, account.failures.count))
         } else if row.kind != .page {
-            failedPages = failedLeaves.map {
+            let pages = failedLeaves.map {
                 FailedPageRow(id: $0.id, title: $0.displayName ?? $0.name, reason: $0.reason ?? "No reason recorded")
             }
-            failedCount = max(failedLeaves.count, node?.failed ?? 0)
-        } else {
-            failedPages = []
-            failedCount = 0
+            return (pages, max(failedLeaves.count, node?.failed ?? 0))
         }
+        return ([], 0)
+    }
 
-        // Resources: absolute times, elapsed, tokens, cost and the run's peak memory; unmeasured left out.
+    /// Absolute times, elapsed, tokens, cost and the run's peak memory; unmeasured left out.
+    private static func resources(row: ActivityMonitorRow, node: ActivityJobNode?, owningRun: ActivityMonitorRow?) -> [Resource] {
         var resources: [Resource] = []
         if let started = node?.startedAt ?? row.started {
             resources.append(Resource(label: "Started", value: ActivityTimeText.absolute(started)))
@@ -208,9 +223,11 @@ extension ActivityDetails {
                 resources.append(Resource(label: "Peak memory, model server", value: ActivityMonitorRow.gigabytes(bytes)))
             }
         }
-        self.resources = resources
+        return resources
+    }
 
-        // Actions: the row's own Pause, Resume and Stop; the run's offer; open the pages; the trace.
+    /// The row's own Pause, Resume and Stop; the run's offer; open the pages; the trace.
+    private static func actions(row: ActivityMonitorRow, node: ActivityJobNode?, owningRun: ActivityMonitorRow?) -> [Action] {
         var actions: [Action] = row.controls.map(Action.control)
         if let label = (owningRun ?? row).readAgainLabel {
             actions.append(.readAgain(label: label.hasSuffix(" again") ? label : label + " again"))
@@ -225,11 +242,7 @@ extension ActivityDetails {
         if row.kind == .run, let threadId = row.runThreadId {
             actions.append(.showTrace(threadId: threadId))
         }
-        self.actions = actions
-        let recipeStages = Self.stages(of: node)
-        stages = recipeStages.isEmpty ? Self.queueStages(of: node) : recipeStages
-        summary = Self.summary(of: node)
-        stageCards = node?.kind == ActivityStore.recipeRunKind ? Self.stageCards(of: node) : []
+        return actions
     }
 
     static let runKinds: Set<String> = ["workflow", "workflow-step", "batch"]
@@ -281,6 +294,14 @@ extension ActivityDetails {
         case .job:
             return node?.displayName ?? row.name
         }
+    }
+
+    /// When it started, in this Mac's time: "at 14:02" for today, "21 Oct, 14:02" for another day (`activity.window.open-a-run`:
+    /// the subtitle says who started the run and when); nil when the start is not known.
+    static func startedAtWords(_ date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard let date else { return nil }
+        let time = date.formatted(date: .omitted, time: .shortened)
+        return calendar.isDate(date, inSameDayAs: now) ? "at \(time)" : "\(date.formatted(.dateTime.day().month(.abbreviated))), \(time)"
     }
 
     /// Who or what started it, in words; nil for the run's own rows ("workflow").

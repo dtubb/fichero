@@ -20,10 +20,10 @@ struct ActivityWindowGroupsTests {
     /// the engine sends with no start (a job of its own) or one that began yesterday (## 745).
     private func row(_ id: String, _ phase: Phase, kind: ActivityMonitorRow.Kind = .run, started: Date? = nil,
                      ended: Date? = nil, queue: Int? = nil, jobId: String? = "job",
-                     reason: String? = nil, project: String? = nil) -> ActivityMonitorRow {
+                     reason: String? = nil, project: String? = nil, done: Int = 0, total: Int = 0) -> ActivityMonitorRow {
         var row = ActivityMonitorRow(
             id: id, kind: kind, libraryId: nil, runRowID: nil, runThreadId: nil, jobId: jobId, name: id, projectName: project,
-            phase: phase, reason: reason, workingOn: nil, done: 0, total: 0, started: started, seconds: nil, costUsd: nil,
+            phase: phase, reason: reason, workingOn: nil, done: done, total: total, started: started, seconds: nil, costUsd: nil,
             tokens: 0, errors: 0, model: nil, isLive: phase.isLive, children: nil, account: nil
         )
         row.queuePosition = queue
@@ -35,7 +35,7 @@ struct ActivityWindowGroupsTests {
     func threeGroups() {
         let groups = ActivityWindowGroups(rows: [
             row("late", .waiting, queue: 2), row("run", .running), row("early", .waiting, queue: 1), row("held", .paused),
-            row("old", .done, ended: today.addingTimeInterval(-60)), row("new", .partial, ended: today.addingTimeInterval(-10)),
+            row("old", .done, ended: today.addingTimeInterval(-60)), row("new", .partial, ended: today.addingTimeInterval(-10))
         ], now: today)
         #expect(groups.now.map(\.id) == ["run", "held"])
         #expect(groups.upNext.map(\.id) == ["early", "late"])
@@ -44,7 +44,8 @@ struct ActivityWindowGroupsTests {
 
     @Test("a run is one row: steps and pages are never list rows")
     func oneRowPerRun() {
-        let groups = ActivityWindowGroups(rows: [row("run", .running), row("step", .running, kind: .step), row("page", .done, kind: .page)], now: today)
+        let groups = ActivityWindowGroups(
+            rows: [row("run", .running), row("step", .running, kind: .step), row("page", .done, kind: .page)], now: today)
         #expect(groups.now.map(\.id) == ["run"] && groups.doneToday.isEmpty)
     }
 
@@ -61,7 +62,7 @@ struct ActivityWindowGroupsTests {
         let groups = ActivityWindowGroups(rows: [
             row("job", .done, kind: .job), row("overnight", .done, started: yesterday, ended: today.addingTimeInterval(-300)),
             row("ended-yesterday", .done, started: yesterday, ended: yesterday),
-            row("started-today-ended-never", .done, started: today.addingTimeInterval(-10)),
+            row("started-today-ended-never", .done, started: today.addingTimeInterval(-10))
         ], now: today)
         #expect(groups.doneToday.map(\.id) == ["overnight"])
     }
@@ -70,7 +71,7 @@ struct ActivityWindowGroupsTests {
     func runAndItsOwnJobAreOne() {
         let groups = ActivityWindowGroups(rows: [
             row("run", .running, jobId: "j1"), row("job", .running, kind: .job, jobId: "j1"),
-            row("other", .running, kind: .job, jobId: "j2"),
+            row("other", .running, kind: .job, jobId: "j2")
         ], now: today)
         #expect(groups.now.map(\.id) == ["run", "other"])
     }
@@ -102,5 +103,19 @@ struct ActivityWindowGroupsTests {
         #expect(named.displayName(showsProject: true) == "Mosquera · Read the box")
         #expect(row("Read the box", .running).displayName(showsProject: true) == "Read the box")  // no project name to lead
         #expect(row("Read the box", .running, project: "").displayName(showsProject: true) == "Read the box")
+    }
+
+    @Test("a DONE TODAY line: stopped with its counts, done with its time, partial as the engine words it")
+    func endedLines() {
+        let stopped = row("s", .cancelled, reason: "Stopped by you", done: 89, total: 203)
+        #expect(stopped.endedLine == "Stopped by you · 89 of 203 pages", "the engine's reason as sent")
+        #expect(row("m", .cancelled, reason: "Stopped by you, through an agent (MCP)", done: 1, total: 2).endedLine
+            == "Stopped by you, through an agent (MCP) · 1 of 2 pages")
+        #expect(row("s0", .cancelled).endedLine == "Stopped", "no reason, no counts known: none invented")
+        let finished = row("d", .done, ended: today)
+        #expect(finished.endedLine == "Done · " + today.formatted(date: .omitted, time: .shortened))
+        #expect(row("d0", .done).endedLine == "Done", "no end time known: none invented")
+        #expect(row("p", .done, reason: "Partial: 3 of 203 pages could not be read").endedLine
+            == "Partial: 3 of 203 pages could not be read")
     }
 }

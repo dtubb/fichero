@@ -2,6 +2,23 @@ import Foundation
 
 /// The row's state, coarsely (moved out of ActivityMonitorModel.swift to keep that file under the length limit).
 extension ActivityMonitorRow {
+    /// The one line of a DONE TODAY row (`activity.window.done-today`): the engine's reason AS SENT plus the counts for a
+    /// stopped run ("Stopped by you · 89 of 203 pages", "Stopped by you, through an agent (MCP) · …": the engine records who stopped it
+    /// and says so; Swift never rewrites engine words), "Done · 14:02" for one that finished (partial and the rest keep the
+    /// engine's words, never a green check). Pure over the row, so the wording is checked without drawing it.
+    var endedLine: String {
+        switch phase {
+        case .cancelled:
+            let counts = total > 0 ? ["\(done) of \(total) \(total == 1 ? "page" : "pages")"] : []
+            return ([stateText] + counts).joined(separator: " · ")
+        case .done where stateText == Phase.done.word:
+            let time = ended.map { $0.formatted(date: .omitted, time: .shortened) }
+            return [Phase.done.word, time].compactMap { $0 }.joined(separator: " · ")
+        default:
+            return [stateText, progressText].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+    }
+
     /// The state, coarsely, in the order the State column sorts it.
     enum Phase: Int {
         case running, waiting, paused, failed, cancelled, done

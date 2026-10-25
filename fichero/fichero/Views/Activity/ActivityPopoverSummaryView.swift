@@ -24,6 +24,12 @@ struct ActivityPopoverSummaryView: View {
                     .foregroundStyle(line.waiting == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                     .accessibilityIdentifier("activity.popover.background")
             }
+            ForEach(summary.upNext) { line in
+                Label("\(line.title) · \(line.waiting)", systemImage: "clock")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("activity.popover.upNext")
+            }
             ForEach(summary.running) { item in
                 ActivityPopoverRunningRow(item: item)
             }

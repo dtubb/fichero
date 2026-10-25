@@ -278,6 +278,11 @@ class QueuedItem(BaseModel):
     reason: Optional[str] = None
 
 
+class QueuedItemListResponse(BaseModel):
+    items: list[QueuedItem]
+    count: int
+
+
 class LiveBlock(BaseModel):
     """What is working right now (`activity.window.live-block`, `activity.popover.same-summary`; #5839, #5851, #5852):
     the recipe, the stage it is in and the workflow that stage runs, with the pages done, failed and left."""
@@ -319,6 +324,9 @@ class UpNextItem(BaseModel):
     stage: Optional[str] = Field(None, description="Set Up's stage it belongs to, by title; null for work that is none")
     after: Optional[str] = Field(None, description="what it follows, when it waits for an earlier stage ('Read')")
     why: str = Field(description="what it waits for, in words")
+    run_id: Optional[str] = Field(None, description=(
+        "the recipe run (its job id) a stage line belongs to, so an app names the run without parsing `id`; null for work that "
+        "is a row of its own"))
 
 
 class ActivitySummary(BaseModel):
@@ -474,7 +482,7 @@ def _stages_not_started(job: "BackgroundJob", status: "dict[str, Any] | None") -
         stage = stage_of(step.get("job") or (step.get("steps") or [""])[0])
         after_stage = stage_of(before.get("job") or (before.get("steps") or [""])[0])
         after = after_stage.title if after_stage else before.get("doing")
-        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name,
+        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name, run_id=job.id,
                                 stage=stage.title if stage else None, after=after,
                                 why=step.get("why") or (f"after {after}" if after else "in the queue")))
     return items
@@ -513,6 +521,19 @@ class BackgroundJobsResponse(BaseModel):
     summary: Optional[QueueSummary] = None
     # The ONE summary the window and the popover read (`activity.popover.same-summary`, #5852).
     activity: Optional[ActivitySummary] = None
+
+
+class TreeReader(BaseModel):
+    """One reader of a reading stage, as the Activity row names it (#6134): `sentence` is the text to show as it stands."""
+
+    material: Optional[str] = None
+    card_id: Optional[str] = None
+    note: Optional[str] = None
+    runs_on: Optional[str] = None
+    sentence: Optional[str] = None
+    model: Optional[str] = None
+    pages: int = 0
+    state: Optional[str] = None
 
 
 class JobTree(BaseModel):
@@ -556,6 +577,10 @@ class JobTree(BaseModel):
     # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
     # included, each workflow stage with its run's account; null on any other job.
     stages: Optional[list[RecipeRunStep]] = None
+    # The readers of a reading stage (#6134): on a recipe run's child that is a stage's main run, each reader the stage used by
+    # kind of material (card id, name, where it runs, the sentence to show); empty on any other row.
+    # The same readers are in the run status's `stages[].readers`, which the Activity stage row draws; this copy is for the tree view.
+    readers: list[TreeReader] = Field(default_factory=list)
     # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
     summary: Optional[RecipeRunSummary] = None
     summary_unavailable: Optional[str] = Field(None, description=(
@@ -908,19 +933,19 @@ def _queue_summary(db: Database, listed: list[dict[str, Any]]) -> Optional[Queue
     return QueueSummary(**said) if said else None
 
 
-@router.get("/jobs/kind/{kind}/items", response_model=list[QueuedItem])
+@router.get("/jobs/kind/{kind}/items", response_model=QueuedItemListResponse)
 async def list_queued_items(
     kind: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Database = Depends(get_library_database),
-) -> list[QueuedItem]:
+) -> QueuedItemListResponse:
     """The pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the
     order the lane will pick them, running first."""
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return [QueuedItem(**i) for i in items]
+    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
@@ -1046,7 +1071,10 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     found["state"], found["reason"], status = await _recipe_state(db, found["id"])
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
+    readers = {s["child_id"]: s["readers"] for s in status["steps"] if s.get("child_id") and s.get("readers")}
     for child in found["children"]:
+        if child["id"] in readers:  # the stage reads with a reader per kind: the row names each (#6134)
+            child["readers"] = [dict(r) if isinstance(r, dict) else r.model_dump() for r in readers[child["id"]]]
         account = accounts.get(child["id"])
         if account is not None:
             child["account"] = account

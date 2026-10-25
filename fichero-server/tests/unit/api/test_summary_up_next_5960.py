@@ -22,6 +22,7 @@ def test_only_waiting_work_is_up_next_in_the_order_given():
     assert [i.why for i in items] == ["waiting for the model lane: another box is reading", "memory is tight", "after Read"]
     assert [i.name for i in items] == ["Mosquera box", "c", "Run the recipe"]
     assert [i.after for i in items] == [None, None, None], "a waiting row's reason is words, not a field to parse"
+    assert [i.run_id for i in items] == [None, None, None], "a waiting row is a row of its own, no run's stage"
 
 
 def test_a_stage_kind_names_its_set_up_stage_and_others_none():
@@ -48,6 +49,7 @@ def test_a_going_run_lists_its_stages_not_started_each_after_the_one_before_from
     items = up_next([run], {"rec": status})
     assert [(i.stage, i.after) for i in items] == [("Names", "Read"), ("Dates & Times", "Names")]
     assert items[0].id == "rec:w3" and items[0].why == "after Read"
+    assert [i.run_id for i in items] == ["rec", "rec"], "the run is a field, so an app never parses it out of the id"
     assert up_next([run]) == [], "no status read, no stages named"
 
 

@@ -61,6 +61,8 @@ struct ActivityPopoverSummary: Equatable {
         let counts: String
         /// What a waiting block waits for; nil while it works.
         let waiting: String?
+        /// The model by its own name and where it runs, the engine's words as sent ("Kraken · on this Mac"); nil with neither.
+        var subtitle: String?
     }
 
     /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
@@ -70,12 +72,27 @@ struct ActivityPopoverSummary: Equatable {
         let waiting: String?
     }
 
+    /// One of the first UP NEXT items (`activity.popover.now-plus-next`): its name, and in grey what it waits for.
+    struct UpNextLine: Equatable, Identifiable {
+        let id: String
+        let name: String
+        let waiting: String
+        /// The run a stage line belongs to (and its project when the list is grouped), so two runs' "Describe" differ.
+        var run: String?
+
+        /// "Describe · Mosquera box" (the stage, then its run).
+        var title: String { run.map { "\(name) · \($0)" } ?? name }
+    }
+
     static let errorsShown = 3
+    static let upNextShown = 3
 
     /// The live blocks the engine's summary names, first in the popover.
     var blocks: [Block] = []
     /// One line per background kind with its total.
     var background: [BackgroundRow] = []
+    /// The first three of the engine's `up_next`, in the order the lanes will take them.
+    var upNext: [UpNextLine] = []
 
     /// The recipe runs in hand, each with its stages.
     var runs: [Run] = []
@@ -111,10 +128,39 @@ struct ActivityPopoverSummary: Equatable {
          errorWindow: ActivityErrorWindow? = nil, activity: Components.Schemas.ActivitySummary? = nil) {
         blocks = (activity?.live ?? []).map(Self.block)
         background = (activity?.background ?? []).map(Self.backgroundLine)
+        let runNames = Dictionary(jobs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        upNext = (activity?.upNext ?? []).prefix(Self.upNextShown).map { Self.upNextLine($0, runName: { runNames[$0] }) }
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
         let inRun = inHand.ids
+        let reasons = tally(jobs: jobs, inRun: inRun, liveRuns: liveRuns, activity: activity, errorWindow: errorWindow)
+        waitingReason = reasons.max { lhs, rhs in
+            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
+        }?.key
+        heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
+                                 waitingReason: waitingReason)
+        macReadings = (machine.map(Self.readings) ?? [])
+            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+    }
+
+    /// A failed job counts toward the badge and, while few, is listed with its cause.
+    private mutating func noteFailure(_ job: ActivityJob, inRun: Set<String>, errorWindow: ActivityErrorWindow?) {
+        // Only recent ones (#5666): while a run is in hand, its own; and only those from the last hour or
+        // since the popover was last opened, whichever is shorter (`ActivityErrorWindow`).
+        guard Self.isRecent(job, inRun: inRun), errorWindow?.isRecent(job.id) ?? true else { return }
+        errorCount += 1
+        if recentErrors.count < Self.errorsShown {
+            // The engine's words (its failure is one line per cause, 1bef3cd4d): the first sentence shown,
+            // the whole in the tooltip.
+            recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.firstSentence),
+                                     fullText: job.reason))
+        }
+    }
+
+    /// Sorts the jobs into running, waiting and failed for the popover; returns the waiting reasons with their page counts.
+    private mutating func tally(jobs: [ActivityJob], inRun: Set<String>, liveRuns: [LiveRun],
+                                activity: Components.Schemas.ActivitySummary?, errorWindow: ActivityErrorWindow?) -> [String: Int] {
         var seen = inRun
         for run in liveRuns where seen.insert(run.id).inserted {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
@@ -139,27 +185,12 @@ struct ActivityPopoverSummary: Equatable {
                 waitingCount += count
                 if let reason = job.reason, !reason.isEmpty { reasons[reason, default: 0] += count }
             case .failed:
-                // Only recent ones (#5666): while a run is in hand, its own; and only those from the last hour or
-                // since the popover was last opened, whichever is shorter (`ActivityErrorWindow`).
-                guard Self.isRecent(job, inRun: inRun), errorWindow?.isRecent(job.id) ?? true else { continue }
-                errorCount += 1
-                if recentErrors.count < Self.errorsShown {
-                    // The engine's words (its failure is one line per cause, 1bef3cd4d): the first sentence shown,
-                    // the whole in the tooltip.
-                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.firstSentence),
-                                             fullText: job.reason))
-                }
+                noteFailure(job, inRun: inRun, errorWindow: errorWindow)
             case .paused, .completed, .other:
                 continue
             }
         }
-        waitingReason = reasons.max { lhs, rhs in
-            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
-        }?.key
-        heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
-                                 waitingReason: waitingReason)
-        macReadings = (machine.map(Self.readings) ?? [])
-            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+        return reasons
     }
 
     static func block(_ live: Components.Schemas.LiveBlock) -> Block {
@@ -172,7 +203,8 @@ struct ActivityPopoverSummary: Equatable {
             id: live.id,
             title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
             counts: [pages, folders, failed].compactMap { $0 }.joined(separator: " · "),
-            waiting: live.state == "waiting" ? live.reason.map(worded) : nil
+            waiting: live.state == "waiting" ? live.reason.map(worded) : nil,
+            subtitle: subtitle(model: live.model, place: live._where)
         )
     }
 
