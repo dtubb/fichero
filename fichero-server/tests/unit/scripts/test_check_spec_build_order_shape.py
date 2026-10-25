@@ -386,6 +386,30 @@ PAREN_TITLE_AND_PROSE_ID = """# Test Spec
 """
 
 
+PROSE_MASKED_TAG = """# Test Spec
+
+**Status: APPROVED**
+
+## Build order
+
+#### Step 0.1 — only step
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+
+## Behaviors
+
+- `test.one` — [OK] description
+- `test.hidden` [MISSING] — a non-[OK] behaviour whose words mention [OK]; it is in no step
+"""
+
+
+def test_a_missing_behaviour_whose_text_says_non_ok_still_fails(tmp_path, monkeypatch):
+    """Reviewer's last condition (round 4): the orphan rule classifies by the FIRST tag, so `[OK]` inside the
+    description does not hide a [MISSING] behaviour that is in no step."""
+    assert _run(tmp_path, PROSE_MASKED_TAG, monkeypatch) == 1
+
+
 def test_step_title_may_contain_parentheses_and_still_carry_an_issue():
     parsed = _mod._parse_build_order(PAREN_TITLE_AND_PROSE_ID)
     assert parsed is not None
