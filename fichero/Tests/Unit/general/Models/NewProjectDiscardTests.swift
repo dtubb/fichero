@@ -34,7 +34,8 @@ final class NewProjectDiscardTests: XCTestCase {
 
     func testCancelDeletesTheProjectTheWindowMade() async throws {
         let store = store()
-        let made = try XCTUnwrap(await store.create())
+        let created = await store.create()
+        let made = try XCTUnwrap(created)
         XCTAssertTrue(FileManager.default.fileExists(atPath: made.url.path))
         XCTAssertTrue(store.discard())
         XCTAssertEqual(trashed, [made.url])
@@ -55,7 +56,8 @@ final class NewProjectDiscardTests: XCTestCase {
         struct Refused: Error {}
         let store = NewProjectStore(libraryManager: LibraryManager.shared, openInEngine: { _ in }, trash: { _ in throw Refused() })
         store.place = .chosen(folder)
-        let made = try XCTUnwrap(await store.create())
+        let created = await store.create()
+        let made = try XCTUnwrap(created)
         XCTAssertFalse(store.discard())
         XCTAssertNotNil(store.errorMessage, "the window shows it before it closes")
         XCTAssertNil(LibraryManager.shared.getLibrary(id: made.id))
@@ -70,7 +72,8 @@ final class NewProjectDiscardTests: XCTestCase {
 
         // A cancelled new project goes through it: its close unregisters the library, then its Trash is asked.
         let store = store()
-        let made = try XCTUnwrap(await store.create())
+        let created = await store.create()
+        let made = try XCTUnwrap(created)
         XCTAssertTrue(store.discard())
         XCTAssertEqual(trashed, [made.url], "the store's Trash is the one closeAndTrash calls")
         XCTAssertNil(LibraryManager.shared.getLibrary(id: made.id), "closed before the Trash was asked")
