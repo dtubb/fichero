@@ -91,3 +91,30 @@ def test_build_order_guard_fails_on_orphan_behaviour(tmp_path, monkeypatch):
     p.write_text(ORPHAN_FIXTURE, encoding="utf-8")
     monkeypatch.setattr(_mod, "SPECS_DIR", specs)
     assert _mod.main() == 1
+
+
+PAREN_FIXTURE = """# Fixture spec
+
+> **Status: APPROVED**
+
+## Behaviours
+
+- `fixture.paren.a` [MISSING] — in a step; `ci.yml` in prose is a file name, not a behaviour.
+
+## Build order
+
+#### Step 0.1 — the guard (a note in parentheses) (#77)
+- Behaviours: `fixture.paren.a`
+- Tests: tests/a.py
+- Size: S
+"""
+
+
+def test_build_order_keeps_parentheses_in_a_title_and_ignores_ids_in_prose():
+    parsed = _mod._parse_build_order(PAREN_FIXTURE)
+    assert parsed is not None
+    step = parsed["stages"][0]["steps"][0]
+    assert (step["title"], step["issue"]) == ("the guard (a note in parentheses)", "77")
+    assert _mod._get_all_behaviours_in_spec(PAREN_FIXTURE) == {
+        "fixture.paren.a": "MISSING"
+    }
