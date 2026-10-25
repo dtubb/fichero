@@ -1,0 +1,34 @@
+name: Close fixed issues
+
+# pipeline.close-on-push (#6116): GitHub closes `Fixes #N` only when a commit reaches main; our work
+# lands on integration. After every push there, close the issues its commits say they fix (the
+# script skips `residue` and `needs-your-test`, and a "Part of #N" never closes anything).
+
+on:
+  push:
+    branches: ['integration']
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Only the pushed range: a rescan of the last 14 days would re-close an issue a human reopened because the
+      # fix failed (the script also skips an issue reopened after its fixing commit).
+      - name: close_fixed_issues.py --apply on the pushed range
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # a new branch or a force push has an all-zero `before`: fall back to the script's 14-day window
+          if [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
+            python3 scripts/close_fixed_issues.py --apply --remote origin/integration
+          else
+            python3 scripts/close_fixed_issues.py --apply --remote origin/integration --range "${{ github.event.before }}..${{ github.sha }}"
+          fi

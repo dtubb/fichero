@@ -1,0 +1,155 @@
+# Everything specific to Fichero that the runner needs (pipeline.project-profile, #6116).
+# The runner's code names none of this; another project is another file in this folder.
+
+[repo]
+path = ""                       # empty = the folder that holds pipeline/
+base = "origin/integration"     # branch the worktrees come off and the checks compare with
+main = "main"
+worktrees = ".worktrees/pipeline"
+specs = "docs/contributor_manual/specs"
+# A diff touching any of these goes to needs-maintainer: the checks run from the runner's pinned checkout and a
+# coder may not edit the check it is judged by (pipeline.pinned-checks).
+check_paths = ["scripts/check_", "scripts/lane_ready_check.sh", "scripts/gate", "pipeline/"]
+python_path = "fichero-server/src:fichero-cli/src:fichero-mcp/src"
+test_env = { FICHERO_FEATURE_TIER = "dev" }   # FICHERO_BASE_PATH is always a fresh mktemp dir
+scratch_base_env = "FICHERO_BASE_PATH"
+
+[labels]
+bug = "type:bug"
+urgent = "urgent"
+claimed = "claimed"
+from_user = "from-user"
+no_milestone = "no-milestone"
+residue = "residue"
+
+[github]
+maintainer = "dtubb"
+allowed_authors = ["dtubb", "github-actions[bot]", "app/github-actions"]
+agent_email = "noreply@anthropic.com"
+commit_trailer = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+
+# The check ladder (pipeline.quick-checks-per-item). Each rung is an existing script, run from the pinned checkout
+# with the worktree as cwd. {worktree} and {files} are filled in by the runner.
+[[ladder]]
+name = "ready"
+cmd = "{pinned}/scripts/lane_ready_check.sh HEAD"
+[[ladder]]
+name = "red-on-base"
+kind = "red-on-base"            # built in: the changed test files must fail on the base and pass on the branch
+test_glob = ["*test*.py", "*Tests*.swift"]
+pytest = "{python} -m pytest -q -p no:cacheprovider -x {files}"
+[[ladder]]
+name = "gate-part"
+# ponytail: off until Stage 2.2 maps touched folders to `scripts/gate areas` names; the named tests + fast guards
+# cover an item meanwhile, and the nightly gate runs everything.
+enabled = false
+cmd = "{pinned}/scripts/gate part {area}"
+areas_cmd = "{pinned}/scripts/gate areas"
+paths = ["fichero-server/src/", "fichero/fichero/"]
+needs_mb = 4000
+[[ladder]]
+name = "fast-guards"
+glob = "{pinned}/scripts/check_*.py"
+skip = ["check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
+        "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
+        "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
+        "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths"]
+timeout_s = 60
+[[ladder]]
+name = "contract-current"
+paths = ["fichero-server/src/"]
+cmd = ["{python} {pinned}/scripts/check_openapi_route_set_current.py",
+       "{python} {pinned}/scripts/check_contract_identity_current.py",
+       "{python} {pinned}/scripts/check_mcp_generated_current.py"]
+
+[nightly]
+gate = "scripts/gate verify-all"
+verify_all = "scripts/verify_all.sh"
+to_issues = "scripts/verify_to_issues.sh"
+machine = "m4"
+
+[machines]
+pro = ""          # this machine
+air = "air"       # ssh host
+m4 = "m4"
+
+[workers]
+tmux_session = "pipeline"
+pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
+agent_dir = "pipeline/pi-agent"
+cost_cap_usd = 3.0
+context_tokens_max = 120000     # ponytail: a guess at Qwen 3.8's useful context; measure and set
+retries = 2
+stuck_minutes = 45
+needs_mb = { pi = 300, claude-code = 600, pytest = 1500, gate-part = 4000 }
+caps = { coders = 1, test_runs = 1 }
+owner_process = "Fichero Server"   # the maintainer's own engine; busy under pressure => the runner yields
+
+# One ordered fallback list per role (pipeline.fallback-list). kind: pi (provider + model) or claude-code.
+[[roles.coder]]
+kind = "pi"
+provider = "openrouter"
+model = "qwen/qwen3.8-27b"
+[[roles.coder]]
+kind = "pi"
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+[[roles.reviewer]]
+kind = "pi"
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+[[roles.manager]]
+kind = "pi"
+provider = "openrouter"
+model = "qwen/qwen3.8-27b"
+# The end state, not run now: every role local through oMLX (OpenAI-compatible; declared to Pi in
+# pipeline/pi-agent/models.json). The self-test loads nothing.
+# [[roles.coder]]
+# kind = "pi"
+# provider = "omlx"
+# model = "qwen3.5-9b"
+
+# provider -> the env var Pi reads and the key file; the worker wrapper reads the file, the runner never does.
+# A lane key (its own credit limit) is preferred when its file exists (pipeline.key-per-lane).
+[keys]
+openrouter = { env = "OPENROUTER_API_KEY", files = ["~/.config/openrouter/key-lane", "~/.config/openrouter/key"] }
+anthropic = { env = "ANTHROPIC_API_KEY", files = ["~/.config/anthropic/key-lane", "~/.config/anthropic/key"] }
+omlx = { env = "", files = [] }
+
+[omlx]
+endpoint = "http://127.0.0.1:8000/v1"
+models_rss_mb = { }               # name -> RSS once loaded; counted against free RAM
+
+# pipeline.schedule (Stage 3 fills it; nothing runs today). when: cron "m h dom mon dow" or on:push | on:gate-green | on:idle
+[[schedule]]
+name = "close-fixed-issues"
+when = "on:push"
+job = "scripts/close_fixed_issues.py --apply"
+machine = "pro"
+enabled = false
+
+# pipeline.build-targets (Stage 3): each wraps a release script; nightly = dev-dmg + both testflights.
+[[targets]]
+name = "dev-dmg"
+job = "scripts/release-all.sh --dev --dmg-only"
+nightly = true
+[[targets]]
+name = "ios-testflight"
+job = "scripts/release-all.sh --testflight ios"
+nightly = true
+[[targets]]
+name = "mac-testflight"
+job = "scripts/release-all.sh --testflight mac"
+nightly = true
+[[targets]]
+name = "developer-id-dmg-sparkle"
+job = "scripts/release-all.sh --dmg --sparkle"
+public = true
+[[targets]]
+name = "github-release"
+job = "scripts/release-all.sh --github-release"
+public = true
+[[targets]]
+name = "site"
+job = "scripts/release-all.sh --site"
+public = true

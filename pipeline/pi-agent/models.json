@@ -1,0 +1,21 @@
+{
+  "_comment": "Pi's own catalogue (0.75.5) stops at claude-sonnet-4-5, so the current Sonnet is declared here for the anthropic provider (Pi otherwise passes an unknown id through as a custom model with no context size or price, and the cost cap would read $0). ponytail: the prices are Sonnet 4.5's per million tokens until the 5.5 sheet is checked. The omlx provider is the end state (pipeline.worker-roles): not run now; the self-test loads nothing.",
+  "providers": {
+    "anthropic": {
+      "models": [
+        {"id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "contextWindow": 200000, "maxTokens": 64000,
+         "reasoning": false, "input": ["text", "image"], "cost": {"input": 3.0, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75},
+         "_note": "reasoning off: Pi 0.75.5 sends thinking.type=enabled, which this model refuses with a 400 (it wants thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it — then flip reasoning back on"}
+      ]
+    },
+    "omlx": {
+      "baseUrl": "http://127.0.0.1:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "OMLX_API_KEY",
+      "models": [
+        {"id": "qwen3.5-9b", "name": "Qwen 3.5 9B (local, oMLX)", "contextWindow": 65536, "maxTokens": 16384,
+         "reasoning": false, "input": ["text"], "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}
+      ]
+    }
+  }
+}

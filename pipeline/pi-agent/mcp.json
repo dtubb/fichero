@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "jcodemunch": {
+      "command": "jcodemunch-mcp",
+      "args": ["serve"],
+      "lifecycle": "eager",
+      "directTools": ["plan_turn", "resolve_repo", "index_folder", "search_symbols", "search_text", "get_file_outline",
+                      "get_symbol_source", "get_context_bundle", "find_references", "find_importers", "get_blast_radius",
+                      "get_repo_outline"]
+    },
+    "jdocmunch": {
+      "command": "jdocmunch-mcp",
+      "lifecycle": "eager"
+    },
+    "pipeline": {
+      "command": "pipeline-mcp",
+      "lifecycle": "eager",
+      "directTools": ["report", "ask", "done", "verdict"]
+    }
+  }
+}
