@@ -113,7 +113,7 @@ struct DocumentPrototypePicker: View {
         } catch {
             // Keep the UI honest: the selection only moves when the engine
             // accepted it.
-            Logger(subsystem: "app.fichero", category: "PrototypePicker")
+            Logger(subsystem: "app.fichero.fichero", category: "PrototypePicker")
                 .error("Prototype assign failed: \(error.localizedDescription)")
         }
     }

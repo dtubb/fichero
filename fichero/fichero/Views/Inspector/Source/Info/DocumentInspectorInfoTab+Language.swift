@@ -85,7 +85,7 @@ struct DocumentLanguagePicker: View {
     @State private var draft = ""
     @State private var isSaving = false
 
-    private let logger = Logger(subsystem: "app.fichero", category: "LanguagePicker")
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "LanguagePicker")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

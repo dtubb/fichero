@@ -2,8 +2,9 @@
 import SwiftUI
 
 /// One plain line and two buttons at the top of whatever column is showing, while the connection is not working
-/// (`m2p.ios.connect-failure-offers-recovery`): Reconnect (the one retry entry point) and Change Server… (the Connect to a Mac
-/// sheet, which pairs with another Mac and reconnects). The only other place was a toolbar item of the content column.
+/// (`m2p.ios.connect-failure-offers-recovery`): Reconnect (the one retry entry point) and Change Server…
+/// (the Connect to a Mac sheet, which pairs with another Mac and reconnects). The only other place was a toolbar
+/// item of the content column.
 struct IOSConnectionRecoveryBar: View {
     @Environment(AppState.self) private var appState
     let onRetry: @MainActor () async -> Void
@@ -54,17 +55,7 @@ struct IOSConnectionRecoveryBar: View {
         .frame(maxWidth: .infinity)
         .background(.bar)
         .sheet(isPresented: $choosingServer) {
-            NavigationStack {
-                RemoteConnectionSetupView {
-                    choosingServer = false
-                    await onRetry()
-                }
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { choosingServer = false }
-                    }
-                }
-            }
+            ChangeServerSheet { await onRetry() }
         }
     }
 }
