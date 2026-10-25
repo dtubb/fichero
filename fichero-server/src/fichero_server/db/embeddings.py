@@ -1037,8 +1037,11 @@ class DatabaseEmbeddingMixin:
 
     def _get_embedding_space(self) -> EmbeddingSpaceSpec:
         """Return the explicit embedding-space contract: the project's own choice (#6122), else the engine's default."""
-        path = getattr(self, "path", None)
-        return library_embedding_space(Path(str(path)).parent if path else None)
+        cached = getattr(self, "_embedding_space_cache", None)
+        if cached is None:  # embedding.json is read once per open library; the choosing action clears it
+            path = getattr(self, "path", None)
+            cached = self._embedding_space_cache = library_embedding_space(Path(str(path)).parent if path else None)
+        return cached
 
     def _get_embedding_model_id(self) -> str:
         """Return the stamped model-id for newly written vectors."""

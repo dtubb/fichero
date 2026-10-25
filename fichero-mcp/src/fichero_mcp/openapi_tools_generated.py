@@ -7439,7 +7439,7 @@ def fichero_search_put_embedding_choice(
     *,
     model: Annotated[str, Field(description='Model.')],
 ) -> Any:
-    'Put Embedding Choice\n\nChoose the embedding model of a project that holds no vectors yet. A project that does is never switched silently\n(`search.embedding.change-is-a-re-embed-run`): 409, and the way to change it is the re-embed run.\n\nRoute: PUT /api/search/embedding (toolset `search`; changes data, as the agent account when one exists).'
+    'Put Embedding Choice\n\nChoose the embedding model of a project that holds no vectors yet (`search.set_embedding_model`). A project that\ndoes is never switched silently (`search.embedding.change-is-a-re-embed-run`): 409.\n\nRoute: PUT /api/search/embedding (toolset `search`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", "/api/search/embedding", json=_rt.body({"model": model}))
 
 

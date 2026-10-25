@@ -897,11 +897,10 @@ def _fetch_the_search_model(db) -> None:
 
         from fichero_server.core.timeutil import utc_now
         from fichero_server.db import embed_process
-        from fichero_server.db.embeddings import search_embedder
         from fichero_server.execution import jobs
         from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
 
-        model = search_embedder()
+        model = db._get_embedding_space().source_model_name  # the project's own model (#6122)
         subject = f"embeddings:{model}"
         if embed_process._cached(model, str(MODELS_BASE / "embeddings")):
             return

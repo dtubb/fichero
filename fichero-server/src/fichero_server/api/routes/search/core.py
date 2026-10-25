@@ -1746,9 +1746,16 @@ class EmbeddingChoiceResponse(BaseModel):
 
 
 def _embedding_choice(db: Database) -> EmbeddingChoiceResponse:
-    from fichero_server.db.embeddings import EMBEDDINGS_TABLE, SUPPORTED_EMBEDDING_SPACES
+    from fichero_server.db.embeddings import (
+        EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+        SUPPORTED_EMBEDDING_SPACES,
+    )
 
-    vectors = int(db._vector_table_stats(EMBEDDINGS_TABLE)["indexed_count"])
+    # All three tables are stamped with the model: entities and claims are searched by their vectors too.
+    vectors = sum(int(db._vector_table_stats(t)["indexed_count"])
+                  for t in (EMBEDDINGS_TABLE, KG_ENTITY_EMBEDDINGS_TABLE, KG_CLAIM_EMBEDDINGS_TABLE))
     return EmbeddingChoiceResponse(
         model=db._get_embedding_space().source_model_name,
         models=sorted({s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}),
@@ -1763,25 +1770,20 @@ def get_embedding_choice(db: Database = Depends(get_library_database)) -> Embedd
 
 @router.put("/embedding", response_model=EmbeddingChoiceResponse)
 def put_embedding_choice(body: EmbeddingChoiceRequest,
-                         db: Database = Depends(get_library_database_for_write)) -> EmbeddingChoiceResponse:
-    """Choose the embedding model of a project that holds no vectors yet. A project that does is never switched silently
-    (`search.embedding.change-is-a-re-embed-run`): 409, and the way to change it is the re-embed run."""
-    from pathlib import Path
+                         db: Database = Depends(get_library_database_for_write),
+                         ctx: "ActionContext" = Depends(action_context)) -> EmbeddingChoiceResponse:
+    """Choose the embedding model of a project that holds no vectors yet (`search.set_embedding_model`). A project that
+    does is never switched silently (`search.embedding.change-is-a-re-embed-run`): 409."""
+    from fichero_server.actions.registry import ActionRefused
 
-    from fichero_server.db.embedding_choice import write_choice
-    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
-
-    space = SUPPORTED_EMBEDDING_SPACES.get(body.model.lower())
-    if space is None:
-        raise HTTPException(status_code=422, detail=f"{body.model!r} is not an embedding model Fichero supports")
-    current = _embedding_choice(db)
-    if space.source_model_name != current.model and not current.changeable:
-        raise HTTPException(
-            status_code=409,
-            detail=f"This project's {current.vectors} vectors were made with {current.model}; vectors from two models "
-                   "are never mixed, and changing the model is a re-embed run of every page, not yet built.")
-    write_choice(Path(db.path).parent, space.source_model_name)
-    db._embedder = None  # the next embed resolves the new space
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
+    try:
+        registry.invoke(db, "search.set_embedding_model", {"model": body.model}, ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _embedding_choice(db)
 
 
@@ -2583,6 +2585,39 @@ def _action_search_reindex(
         claim_ids=list(params.claim_ids or []),
     )
     return result, spec
+
+
+class SetEmbeddingModelParams(BaseModel):
+    """``search.set_embedding_model`` — the project's embedding model, while it holds no vectors."""
+
+    model: str = Field(description="a supported embedding model, e.g. BAAI/bge-m3")
+
+
+@action("search.set_embedding_model", SetEmbeddingModelParams, domains=["search"], undoable=False)
+def _action_search_set_embedding_model(
+    db: Database, params: SetEmbeddingModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Keep the project's embedding model in its package; refuse to mix vectors (a held project needs a re-embed run)."""
+    from pathlib import Path
+
+    from fichero_server.actions.registry import ActionRefused
+    from fichero_server.db.embedding_choice import write_choice
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(params.model.lower())
+    if space is None:
+        raise ValueError(f"{params.model!r} is not an embedding model Fichero supports")
+    current = _embedding_choice(db)
+    if space.source_model_name != current.model and not current.changeable:
+        raise ActionRefused(
+            f"This project's {current.vectors} vectors were made with {current.model}; vectors from two models are "
+            "never mixed, and changing the model is a re-embed run of every page, not yet built.")
+    write_choice(Path(db.path).parent, space.source_model_name)
+    db._embedder = None  # the next embed resolves the new space
+    db._embedding_space_cache = None
+    result = {"model": space.source_model_name}
+    return result, ChangeSpec(domains=["search"], target_ids=[], before={"model": current.model}, after=result,
+                              emit_type="search.embedding_model_set")
 
 
 # =============================================================================

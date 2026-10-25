@@ -502,7 +502,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder
 
-            engine, named = search_embedder(), str(pin.get("hf") or pin)
+            # the project's own model (#6122), else the engine's
+            engine = db._get_embedding_space().source_model_name if db is not None else search_embedder()
+            named = str(pin.get("hf") or pin)
             if named.lower() != engine.lower():
                 skip(sid, f"{label}: this library's search embeds with {engine}, and the step names {named}, whose "
                           "vectors could not be searched beside them",

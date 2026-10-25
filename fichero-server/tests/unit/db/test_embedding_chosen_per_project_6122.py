@@ -59,8 +59,50 @@ def test_the_choice_route_changes_an_empty_project_and_refuses_one_that_holds_ve
 
     monkeypatch.setattr(Database, "_vector_table_stats", lambda self, name: {"indexed_count": 5, "table_exists": True})
     held = client.get("/api/search/embedding").json()
-    assert held["vectors"] == 5 and held["changeable"] is False
+    assert held["vectors"] == 15 and held["changeable"] is False  # 5 in each of the three tables
     refused = client.put("/api/search/embedding", json={"model": "BAAI/bge-m3"})
     assert refused.status_code == 409 and "re-embed" in refused.json()["detail"]
     same = client.put("/api/search/embedding", json={"model": "intfloat/multilingual-e5-large"})
     assert same.status_code == 200  # choosing what it already uses changes nothing
+
+
+def _plan(step_model: str, space):
+    from types import SimpleNamespace
+
+    from fichero_server.recipes import start
+
+    recipe = {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t",
+              "steps": [{"id": "search", "job": "make-a-vector", "model": {"hf": step_model, "revision": "main"}}]}
+    db = SimpleNamespace(_get_embedding_space=lambda: space)
+    return start.plan_start(recipe, stays_local=True, db=db)
+
+
+def test_an_e5_projects_search_step_runs_and_a_step_naming_the_other_model_is_skipped(monkeypatch):
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "mark_downloads_under_way", lambda db, downloads: None)
+    e5 = embeddings.PINNED_EMBEDDING_SPACE
+    plan = _plan(e5.source_model_name, e5)
+    assert [r["job"] for r in plan["runs"]] == ["make-a-vector"] and plan["runs"][0]["model"] == e5.source_model_name
+    assert not plan["skipped"]
+    wrong = _plan("BAAI/bge-m3", e5)
+    assert wrong["runs"] == [] and "this library's search embeds with intfloat/multilingual-e5-large" in wrong["skipped"][0]["why"]
+
+
+def test_entity_and_claim_vectors_count_as_vectors_so_the_model_is_not_switched_under_them(client, monkeypatch):
+    from fichero_server.db import Database
+
+    monkeypatch.delenv(embeddings.EMBED_MODEL_ENV, raising=False)
+    monkeypatch.setattr(Database, "_vector_table_stats",
+                        lambda self, name: {"indexed_count": 3 if name == embeddings.KG_CLAIM_EMBEDDINGS_TABLE else 0,
+                                            "table_exists": True})
+    held = client.get("/api/search/embedding").json()
+    assert held["vectors"] == 3 and held["changeable"] is False
+    assert client.put("/api/search/embedding", json={"model": "intfloat/multilingual-e5-large"}).status_code == 409
+
+
+def test_choosing_the_model_is_an_audited_action():
+    from fichero_server.actions.registry import registry
+    import fichero_server.api.routes.search.core  # noqa: F401  (registers the action)
+
+    assert "search.set_embedding_model" in registry.names()
