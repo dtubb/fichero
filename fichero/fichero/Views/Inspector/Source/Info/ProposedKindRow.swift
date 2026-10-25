@@ -64,7 +64,7 @@ struct ProposedKindRow: View {
         } catch {
             if error.isCancellationError { return }
             failure = "Could not \(accept ? "accept" : "reject") the kind: \(error.localizedDescription)"
-            Logger(subsystem: "app.fichero", category: "ProposedKind")
+            Logger(subsystem: "app.fichero.fichero", category: "ProposedKind")
                 .error("Proposed kind answer failed: \(error.localizedDescription)")
         }
     }
