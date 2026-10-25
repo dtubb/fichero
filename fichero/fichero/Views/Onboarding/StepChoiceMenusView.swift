@@ -24,7 +24,9 @@ private struct StepChoiceMenuSection: View {
     let store: RecipeSetupStore
 
     var body: some View {
-        DisclosureGroup(menu.name) {
+        // No disclosure in setup (#5481): each step's menu is on the screen, its name over what it says.
+        VStack(alignment: .leading, spacing: 6) {
+            Text(menu.name).font(.headline)
             VStack(alignment: .leading, spacing: 6) {
                 if let wording = menu.wording { Text(wording).font(.callout) }
                 if menu.needsCloudPermission {

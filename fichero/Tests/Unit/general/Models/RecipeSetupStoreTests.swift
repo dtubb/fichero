@@ -501,9 +501,9 @@ struct RecipeSetupStoreTests {
     /// `source.onboard.setup-says-what-is-happening` (#5791): a download under way and a no-model step show the
     /// engine's own sentences (`StartDownload.sentence`, `StartRun.how`), not words the app composes.
     @Test("Ready shows the engine's download sentence and a rules step's how")
-    func readyShowsTheEnginesSentences() async {
+    func readyShowsTheEnginesSentences() async throws {
         let plan = """
-        {"runs":[{"steps":["dates"],"job":"work-out-dates","how":"Rules, not a model: it reads the date at the head of each page."}],
+        {"runs":[{"steps":["dates"],"job":"work-out-dates","card":"workflow","runs_on":"this-mac","how":"Rules, not a model: it reads the date at the head of each page."}],
          "skipped":[],"workflows":[],"offered":[],"refusals":[],"waiting":[],
          "downloads":[{"runtime":"kraken","model":"blla","steps":["lines"],"size_mb":40,"action":"model.download",
             "params":{"runtime":"kraken","model":"blla"},"downloading":true,"progress":"12 MB of 40 MB","job_id":"j1",
@@ -515,7 +515,8 @@ struct RecipeSetupStoreTests {
 
         #expect(store.how(ofStep: "dates") == "Rules, not a model: it reads the date at the head of each page.")
         #expect(store.how(ofStep: "lines") == nil)
-        #expect(RecipeDownloadRows.underWayLine(store.downloads[0], store: store)
+        let download = try #require(store.downloads.first, "the plan's download decoded into the store")
+        #expect(RecipeDownloadRows.underWayLine(download, store: store)
                 == "Downloading blla: 12 MB of 40 MB; its steps wait for it.")
     }
 
@@ -707,6 +708,7 @@ extension RecipeSetupStoreTests {
          "estimate":{"pages":9,"runs":[],"total_cost_usd":null},
          "train_offers":[
           {"step":"read-a-line","job":"read-a-line","title":"Train a model of your own for this step",
+           "setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.",
            "readiness":{"ready":true,"lines":2400,"pages":3,"sentence":null},
            "ways":[
             {"method":"kraken","how":"distil","says":"Train a reader on the lines you have corrected",
@@ -717,6 +719,7 @@ extension RecipeSetupStoreTests {
             {"method":"spacy-ner","how":"fine-tune","says":"Fine-tune a spaCy names model","available":false,"targets":[],
              "why":"not available yet: Fichero has no spaCy trainer"}]},
           {"step":"find-regions","job":"find-regions","title":"Train a model of your own for this step",
+           "setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.",
            "readiness":\(regions),
            "ways":[{"method":"yolo","how":"fine-tune","says":"Train the region finder on the regions you corrected",
              "available":true,"targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_regions_here",

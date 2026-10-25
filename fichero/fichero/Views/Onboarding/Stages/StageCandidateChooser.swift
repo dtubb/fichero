@@ -52,10 +52,9 @@ struct StageCandidateChooser: View {
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(groups.fitting.prefix(Self.offered), id: \.id) { row($0) }
             if !groups.otherPeriods.isEmpty {
-                DisclosureGroup("Other periods (\(groups.otherPeriods.count))") {
-                    ForEach(groups.otherPeriods.prefix(Self.offered), id: \.id) { row($0) }
-                }
-                .font(.callout)
+                // No disclosure in setup (#5481): the other periods' models are listed under their own line.
+                Text("Other periods (\(groups.otherPeriods.count))").font(.callout)
+                ForEach(groups.otherPeriods.prefix(Self.offered), id: \.id) { row($0) }
             }
         }
         .accessibilityIdentifier("setup.stage.compareChooser")

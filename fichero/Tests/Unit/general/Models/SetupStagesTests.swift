@@ -356,8 +356,8 @@ struct SetupStagesTests {
         {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],
          "estimate":{"pages":92,"runs":[],"total_cost_usd":0},
          "train_offers":[
-           {"step":"s2","job":"read-a-line","title":"Read each line","ways":[],"readiness":{"ready":false}},
-           {"step":"s5","job":"find-names-tag-words","title":"Find names","ways":[],"readiness":{"ready":false}}]}
+           {"step":"s2","job":"read-a-line","title":"Read each line","ways":[],"setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.","readiness":{"ready":false}},
+           {"step":"s5","job":"find-names-tag-words","title":"Find names","ways":[],"setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.","readiness":{"ready":false}}]}
         """)]
         let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
         await store.loadStartPlan()
