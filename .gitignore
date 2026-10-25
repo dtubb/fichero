@@ -140,3 +140,8 @@ fichero-server/tests/history.jsonl
 # images). The maintainer authors here and EXPORTS to docs/user_manual/;
 # the source itself is not tracked. See AGENTS.md "Authorship model".
 /user_guide/
+
+# The maintainer's private manuscripts and prototypes, exported beside the guide.
+# Never tracked: the 2026.10.24 site deploy published them (removed from history).
+/docs/user_manual/002 documents/
+/docs/user_manual/010 Prototypes/
