@@ -387,3 +387,30 @@ def test_the_tie_waits_while_a_live_kraken_read_is_reading_the_page_and_never_re
     assert reader.lines == []
     _job_id, status = _run(client, db, page)  # the run ended: the tie reads the lines itself, as it always did
     assert status["counts"]["tied"] > 5
+
+
+def test_the_tie_stops_waiting_for_a_kraken_run_that_never_ends(client, db, page, reader, monkeypatch):
+    """review 1201: a Kraken run hung in 'running' held the tie for ever. It waits this many times, then reads the lines itself."""
+    from fichero_server.checking import job as check_job
+    from fichero_server.execution.runner import _running_workflows
+    from fichero_server.recipes.start import WORKFLOW_FOR_JOB, _shipped
+
+    monkeypatch.setattr(tie_text, "MOST_WAITS_FOR_KRAKEN", 2)
+    body = {"check": "tie-text-to-lines", "provider": "kraken", "model": READER, "layer": "readings",
+            "scope_ids": [page["folder"].id]}
+    job_id = client.post("/api/check/runs", json=body).json()["job_id"]
+    _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
+    check_job.register_job_kinds()
+    _running_workflows["thread-hung"] = {"workflow_name": _shipped(WORKFLOW_FOR_JOB["read-a-line"])[0],
+                                         "db_path": str(db.path), "status": "running", "documents": [page["doc"].id]}
+    try:
+        for _ in range(2):
+            db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
+            with pytest.raises(jobs.JobDeferred):
+                jobs.KINDS["tie-text-to-lines"].run(db, subject)
+        assert reader.lines == []
+        db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
+        jobs.KINDS["tie-text-to-lines"].run(db, subject)  # the third time it stops waiting
+    finally:
+        _running_workflows.pop("thread-hung")
+    assert reader.lines, "it never read the lines itself"

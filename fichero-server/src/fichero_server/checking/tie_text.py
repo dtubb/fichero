@@ -180,6 +180,8 @@ def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str
 
 #: How long the tie waits before it looks again for Kraken's reads of a page a live run is still reading.
 WAIT_FOR_KRAKEN_SECONDS = 15
+#: ... and how many times (a quarter of an hour) before it stops waiting for a Kraken run that never ends.
+MOST_WAITS_FOR_KRAKEN = 60
 
 
 def kraken_is_reading(db: Any, doc_id: str) -> bool:
@@ -370,7 +372,11 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         lines = [in_pixels(row, width, height) for row in found.lines]
         reads = earlier_reads(db, doc.id, found.lines, request.model)
         if reads is None:
-            if kraken_is_reading(db, doc.id):  # Read runs it beside the cloud reader: its reads land first (#6127)
+            detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+            if kraken_is_reading(db, doc.id) and detail.get("waited_for_kraken", 0) < MOST_WAITS_FOR_KRAKEN:
+                # Read runs it beside the cloud reader: its reads land first (#6127). Not for ever: a Kraken run that hangs
+                # in 'running' is waited for this many times, then the tie reads the lines itself.
+                jobs.save_detail(db, job_id, json.dumps({**detail, "waited_for_kraken": detail.get("waited_for_kraken", 0) + 1}))
                 jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
                 raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
             reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)

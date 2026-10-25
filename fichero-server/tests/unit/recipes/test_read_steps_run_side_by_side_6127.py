@@ -15,7 +15,7 @@ CLOUD = {"card": "workflow", "job": "read-a-page", "steps": ["b"], "runs_on": "c
          "gives": ["page_reading"]}
 
 
-def _run(monkeypatch, cards, work, pages=None, redo=(), detail=None, stopped=lambda: False):
+def _run(monkeypatch, cards, work, pages=None, redo=(), detail=None, stopped=lambda: False, keep=(), db=None):
     """`_run_batch` over `cards`, each step's work being `work(card)`; the states it ends with. `pages(card)` is the pages a
     step finds to do each time it asks (a step's pages are worked out again as it is about to run)."""
     asked: dict[str, int] = {}
@@ -29,11 +29,12 @@ def _run(monkeypatch, cards, work, pages=None, redo=(), detail=None, stopped=lam
                         "_wait_out_a_pause": lambda *a: None, "_after_the_step": lambda *a, **k: None,
                         "_let_go_after_the_last_served_step": lambda *a: None,
                         "_run_card": lambda db, card, *a, **k: (card["steps"][0], *work(card))}.items():
-        monkeypatch.setattr(runner, name, value)
+        if name not in keep:
+            monkeypatch.setattr(runner, name, value)
     monkeypatch.setattr(jobs, "save_detail", lambda *a, **k: None)
     detail = detail if detail is not None else {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards),
               "redo": list(redo)}
-    runner._run_batch(None, "job", detail, {"units": ["p1"]}, {}, "test", final=True)
+    runner._run_batch(db, "job", detail, {"units": ["p1"], "folder": "f"}, {}, "test", final=True)
     return [step["state"] for step in detail["steps"]]
 
 
@@ -109,7 +110,7 @@ def test_the_page_text_is_the_hosted_readers_whichever_finishes_first(monkeypatc
         return "done", None
 
     assert _run(monkeypatch, list(order), work) == ["done", "done"]
-    assert seen["read-a-line"]["tool_config"]["transcribe"]["update_page_content"] is False
+    assert seen["read-a-line"]["tool_config"]["transcribe"] == {"update_page_content": False, "force_ocr": False}
     assert "tool_config" not in seen["read-a-page"]
 
 
@@ -163,3 +164,38 @@ def test_an_engine_lost_with_one_read_done_runs_only_the_other_on_resume(monkeyp
     assert _run(monkeypatch, [KRAKEN, CLOUD], lambda card: (ran.append(card["job"]), ("done", None))[1], detail=detail) == \
         ["done", "done"]
     assert ran == ["read-a-page"], "the read that had ended was read again"
+
+
+def test_a_pause_during_the_pair_takes_both_ends_and_holds_the_step_after(db, monkeypatch):
+    """review 1207: the pause wait ran before the beside step's end was taken, so JobDeferred dropped the running thread and
+    Resume read its pages again. Both ends are taken; the Pause holds the step after the pair."""
+    paused, ran = threading.Event(), []
+    both_started = threading.Barrier(2, timeout=10)
+    monkeypatch.setattr("fichero_server.execution.cancellation.pause_requested", lambda _id: paused.is_set())
+    after = {"card": "embed", "job": "make-a-vector", "steps": ["c"], "runs_on": "this-mac", "takes": [], "gives": []}
+
+    def work(card):
+        ran.append(card["job"])
+        if card["job"] != "make-a-vector":
+            both_started.wait()
+            paused.set()  # Pause is pressed with both running
+        return "done", None
+
+    detail = _fresh([KRAKEN, CLOUD, after])
+    with pytest.raises(jobs.JobDeferred):
+        _run(monkeypatch, [KRAKEN, CLOUD, after], work, detail=detail, keep=("_wait_out_a_pause",), db=db)
+    assert detail["batch_states"] == ["done", "done", None] and sorted(ran) == ["read-a-line", "read-a-page"]
+
+
+def test_a_page_the_hosted_reader_lost_is_listed_as_failed_beside_the_local_one(db, monkeypatch):
+    """review 1207: the end of the step that ran beside goes through the same account as any step's: its lost page is named."""
+    from fichero_server.workflows.run_account import PageFailure
+
+    monkeypatch.setattr("fichero_server.kept_export.queue_rewrites", lambda *a, **k: None)
+    monkeypatch.setattr("fichero_server.recipes.train_offers.start_when_ready", lambda *a, **k: None)
+    monkeypatch.setattr(runner, "_did_no_page", lambda *a, **k: (False, 1, [PageFailure(page="IMG_002", reason="the cloud refused it")])
+                        if a[1]["job"] == "read-a-page" else (False, 0, []))
+    detail = _fresh([KRAKEN, CLOUD])
+    assert _run(monkeypatch, [KRAKEN, CLOUD], lambda card: ("done", None), detail=detail, keep=("_after_the_step",),
+                db=db) == ["done", "partial"]
+    assert detail["steps"][1]["failed_pages"] == [{"page": "IMG_002", "reason": "the cloud refused it"}]

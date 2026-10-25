@@ -1278,7 +1278,8 @@ def _text_is_the_hosted_readers(card: dict[str, Any]) -> dict[str, Any]:
         return card
     tool_config = card.get("tool_config") or {}
     return {**card, "tool_config": {**tool_config, "transcribe": {**(tool_config.get("transcribe") or {}),
-                                                                  "update_page_content": False}}}
+                                                                  "update_page_content": False,
+                                                                  "force_ocr": False}}}
 
 
 def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree, started_by: str,
@@ -1351,6 +1352,19 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
 
 def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
                started_by: str, *, final: bool) -> list[str]:
+    """`_run_batch_steps`, and whatever ended it, a step still running beside another is waited for: it is never left
+    running unseen, for a resume to start again (a page read twice)."""
+    ahead: dict[int, _Beside | None] = {}  # a step already running beside the one before it
+    try:
+        return _run_batch_steps(db, job_id, detail, batch, tree, started_by, ahead, final=final)
+    finally:
+        for beside in ahead.values():
+            if beside is not None:
+                concurrent.futures.wait([beside.future])
+
+
+def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
+                     started_by: str, ahead: dict[int, _Beside | None], *, final: bool) -> list[str]:
     """Every step on one batch, in order (`source.recipe.batch-at-archive-scale`); each step's end on it is saved
     as it ends, so a resume runs only the steps still to do on it (`source.recipe.batch-checkpoint`). The problems."""
     from fichero_server.recipes.done import NOTES as done_notes
@@ -1360,7 +1374,6 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
     # This batch's own ends, for `_blocked`: a step waits on what an earlier step gave on these pages.
     here = [{"state": state or "waiting"} for state in states]
     problems: list[str] = []
-    ahead: dict[int, _Beside | None] = {}  # a step already running beside the one before it
     for index, (card, step) in enumerate(zip(cards, steps)):
         _let_go_after_the_last_served_step(job_id, cards, index)
         if states[index] is not None:  # done on this batch before an interruption
@@ -1393,7 +1406,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 step.update(state="done", child_id=None, why="already done on every page")
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
-        _wait_out_a_pause(db, job_id)  # Pause between steps holds the next step until Resume or Stop (#5933)
+        if early is None:  # a step already running beside the one before it is not held back: it is running
+            _wait_out_a_pause(db, job_id)  # Pause between steps holds the next step until Resume or Stop (#5933)
         # Running on this batch: its state is its own until this batch's job ends, not an earlier batch's job's.
         before, before_child = step["state"], step.get("child_id")
         step.update(state="running", child_id=None)
