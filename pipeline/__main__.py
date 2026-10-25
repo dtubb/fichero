@@ -24,7 +24,9 @@ from pipeline import core
 
 # command -> positional arguments, then options (name, kwargs)
 COMMANDS = {
-    "status": [], "queue": [], "pause": [], "resume": [],
+    "status": [], "queue": [], "pause": [],
+    "resume": [("--raise-cap", {"type": float, "dest": "raise_cap", "help": "lift today's daily API cap to this many dollars"})],
+    "review": [("issue", {}), ("--worker", {"type": int, "default": 0, "dest": "worker_index"})],
     "start": [("issues", {"type": int, "nargs": "+"}), ("--milestone", {}), ("--task", {}),
               ("--base", {"help": "the ref the worktree comes off (default: the profile's base)"}),
               ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"})],

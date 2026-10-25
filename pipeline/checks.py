@@ -14,11 +14,18 @@ import tempfile
 import time
 from pathlib import Path
 
-from pipeline import ROOT
+from pipeline import ROOT, STATE
+
+
+# Every git the runner runs itself has hooks OFF: a coder can write `objects/` and its own ref but never `hooks/` or
+# `config`; this closes the other half (round-2 review HIGH). Raw ["git", ...] calls in the runner go through GIT.
+GIT = ["git", "-c", "core.hooksPath=/dev/null"]
 
 
 def sh(cmd, cwd, env=None, timeout=1800) -> subprocess.CompletedProcess:
     args = cmd if isinstance(cmd, list) else cmd.split()
+    if args[:1] == ["git"]:
+        args = GIT + args[1:]
     return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
 
 
@@ -27,6 +34,14 @@ def git(wt, *args) -> str:
     if r.returncode:
         raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
     return r.stdout.strip()
+
+
+def scratch_dir(prefix: str) -> str:
+    """Scratch trees and base dirs live under the state dir, which the sandbox denies the coder, never under the
+    coder's writable TMPDIR (round-2 review MED)."""
+    d = STATE / "tmp"
+    d.mkdir(parents=True, exist_ok=True)
+    return tempfile.mkdtemp(prefix=prefix, dir=d)
 
 
 def changed_files(wt, since, filter="AMR") -> list[str]:
@@ -43,7 +58,7 @@ def test_env(tree, cfg) -> dict:
     if cfg["repo"].get("python_path"):
         env["PYTHONPATH"] = ":".join(str(Path(tree) / p) for p in cfg["repo"]["python_path"].split(":"))
     if cfg["repo"].get("scratch_base_env"):
-        env[cfg["repo"]["scratch_base_env"]] = tempfile.mkdtemp(prefix="pipeline-base-")
+        env[cfg["repo"]["scratch_base_env"]] = scratch_dir("pipeline-base-")
     return env
 
 
@@ -72,7 +87,7 @@ def pinned_files(pinned, check_paths) -> tuple[str, list[str]]:
 
 def scratch_tree(wt, at, pinned_sha=None, files=()) -> str:
     """A detached worktree of `at`, with the pinned check files checked out over it when given."""
-    tree = tempfile.mkdtemp(prefix="pipeline-tree-")
+    tree = scratch_dir("pipeline-tree-")
     git(wt, "worktree", "add", "--detach", "-q", tree, at)
     if pinned_sha and files:
         r = sh(["git", "checkout", pinned_sha, "--", *files], cwd=tree)
@@ -104,6 +119,15 @@ def bypass_files(wt, since, cfg) -> list[str]:
                     bad.append(f)
                     break
     return bad
+
+
+def claude_dir_changed(wt, since) -> list[str]:
+    """Anything added, changed or left untracked under the worktree's .claude/: a hook put there would run outside the
+    sandbox at the next session start, so it is a pinned red before every check and relaunch (round-2 review MED)."""
+    committed = [f for f in changed_files(wt, since, "AMR") if f.startswith(".claude/")]
+    # --ignored too: a global gitignore often hides `.claude/settings.local.json`, and an ignored hook still runs
+    status = sh(["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "--", ".claude"], cwd=wt).stdout.splitlines()
+    return sorted(set(committed + [line[3:] for line in status if line.strip()]))
 
 
 TAG_RE = re.compile(r"\[(?:OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)[^\]]*\]|\(#\d+\)")
@@ -230,6 +254,9 @@ def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
     bypass = bypass_files(wt, since, cfg)
     if bypass and not why:
         why = f"the diff adds a file that would run before or instead of the checks ({', '.join(bypass[:5])})"
+    claude = claude_dir_changed(wt, since)
+    if claude and not why:
+        why = f"the worktree's .claude/ changed ({', '.join(claude[:5])}): a hook there would run outside the sandbox"
     changed = acceptance_changed(wt, since, cfg["repo"].get("specs"), protected_ids)
     if changed and not why:
         why = "the diff rewrites the item's own acceptance in the spec; use `ask` instead:\n" + "\n".join(changed[:8])

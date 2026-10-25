@@ -2,6 +2,7 @@
 what the runner reads back from its session JSONL (cost, tool calls, idleness; pipeline.cost-cap, messages).
 The runner never holds a key: the worker wrapper reads the key file into the one env var Pi expects. The worker's
 environment carries no runner path: its MCP server is a generated wrapper on PATH, under the state dir.
+Ruled 2026-10-25: the runner runs on the Anthropic API through Pi; the claude-code kind is parked on its branch.
 
 Known gap (pipeline.jailed-agent [PARTIAL]): the worker runs as the same user as the runner, so a shell inside it
 can read the generated wrapper and reach the journal; until a write jail exists, the role split is a convention
@@ -21,7 +22,9 @@ from pipeline import ROOT, STATE
 from pipeline.config import pi_model_id
 
 WRAPPER = ROOT / "pipeline" / "pi-agent" / "run-worker.sh"
-ALLOWED_ENV = ("PATH", "HOME", "TERM", "LANG")
+# USER/LOGNAME/SHELL/TMPDIR carry no secret and Claude Code needs them to find its Max login in the keychain
+# (without USER it says "Not logged in", seen live 2026-10-25)
+ALLOWED_ENV = ("PATH", "HOME", "TERM", "LANG", "USER", "LOGNAME", "SHELL", "TMPDIR")
 ADAPTER_DIR = Path.home() / ".local" / "bin"
 
 
@@ -149,7 +152,7 @@ def brief_file(task: str, name: str, text: str) -> Path:
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
          "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False}
-QUOTA = re.compile(r"\b(402|429|rate.?limit|usage limit|insufficient|quota|credit)", re.I)
+QUOTA = re.compile(r"\b(402|429|rate.?limit|usage limit|insufficient|quota|credit)|limit reached|hit your (\w+ )?limit|resets \d", re.I)
 TRANSIENT = re.compile(r"\b5\d\d\b|overloaded|timed? ?out|temporarily|connection", re.I)  # passing: back off, then look again
 TRANSIENT_RETRIES = 4
 
@@ -177,14 +180,18 @@ def parse_session(path: Path) -> dict:
             out["turns"] += 1
             u = m.get("usage") or {}
             out["cost_usd"] += ((u.get("cost") or {}).get("total") or 0.0)
-            out["tokens"] += u.get("totalTokens") or sum(u.get(k, 0) for k in ("input_tokens", "output_tokens"))
+            out["tokens"] += u.get("totalTokens") or sum(u.get(k, 0) or 0 for k in (  # Claude Code: Max tokens incl. cache
+                "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
             out["model"] = m.get("model") or out["model"]
             stop = m.get("stopReason") or m.get("stop_reason") or ""
             out["idle"] = stop in ("stop", "end_turn", "endTurn", "stop_sequence") and not any(
                 c.get("type") in ("toolCall", "tool_use") for c in content)
             # a quota or credit failure is read ONLY from structured error shapes of the LATEST turn (Pi: stopReason
             # "error" + errorMessage; Claude Code: isApiErrorMessage), never from what the model wrote (review MED C)
-            err = m.get("errorMessage") if stop == "error" else (m.get("content") if o.get("isApiErrorMessage") else "")
+            # Claude Code reports a limit as an isApiErrorMessage line, or as a `<synthetic>`-model turn with the limit
+            # wording ("5-hour limit reached ∙ resets 2am", "You've hit your limit"); both count, prose from a real turn never
+            synthetic = o.get("isApiErrorMessage") or m.get("model") == "<synthetic>"
+            err = m.get("errorMessage") if stop == "error" else (m.get("content") if synthetic else "")
             out["rate_limited"] = bool(err) and bool(QUOTA.search(str(err)))
             out["error"] = str(err)[:300] if err and not out["rate_limited"] else ""  # any other API error, latest turn
             out["transient"] = bool(out["error"]) and bool(TRANSIENT.search(out["error"]))
@@ -197,25 +204,36 @@ def parse_session(path: Path) -> dict:
                 elif c.get("type") == "text" and c.get("text"):
                     out["last_text"] = c["text"]
         elif role == "user":
-            out["idle"] = False  # a prompt is in, the answer is not
-            out["prompts"] += 1
+            out["idle"] = False  # a prompt or a tool result is in, the answer is not
+            # a human prompt is a string or a text block; Claude Code also files tool results as `user` lines
+            if isinstance(m["content"], str) or any(c.get("type") == "text" for c in content) and not any(
+                    c.get("type") == "tool_result" for c in content):
+                out["prompts"] += 1
     return out
 
 
-def status(session_dir: Path) -> dict:
-    files = session_files(session_dir)
+def status(session: Path) -> dict:
+    """The worker's session: a Pi session dir (newest .jsonl in it) or one Claude Code session file."""
+    session = Path(session)
+    if session.suffix == ".jsonl":
+        return parse_session(session) if session.exists() else dict(EMPTY, tool_calls=Counter())
+    files = session_files(session)
     return parse_session(files[-1]) if files else dict(EMPTY, tool_calls=Counter())
 
 
 def wait_idle(session_dir: Path, cap_usd: float, after_turns: int = 0, poll: float = 10.0, timeout_s: float = 3600,
-              note=None) -> dict:
+              note=None, token_cap: int | None = None) -> dict:
     """Block until the worker has ANSWERED the message (more assistant turns than before the tell) and its last
-    turn ended with no tool pending — or the cost cap is hit, or the time is up (then `stopped` says why)."""
+    turn ended with no tool pending — or the cost cap (dollars, or tokens for a Max worker) is hit, or the time is up
+    (then `stopped` says why)."""
     t0, transient_seen = time.time(), 0
     while True:
         s = status(session_dir)
         if s["started"] and s["cost_usd"] > cap_usd:
             s["stopped"] = f"cost cap: ${s['cost_usd']:.2f} > ${cap_usd:.2f}"
+            return s
+        if s["started"] and token_cap and s["tokens"] > token_cap:
+            s["stopped"] = f"token cap: {s['tokens']} > {token_cap} tokens incl. cache"
             return s
         if s["rate_limited"] or (s["idle"] and s["turns"] > after_turns):
             return s

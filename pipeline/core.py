@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import re
 import shlex
-import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -127,9 +126,108 @@ def state() -> dict:
             s["tasks"][e["task"]].setdefault("messages", []).append(f"{e['ts']} {ev}: {e.get('text', '')[:200]}")
     for w in s["workers"].values():
         st = coder.status(Path(w["session_dir"])) if w.get("session_dir") else {}
-        w.update(idle=st.get("idle"), cost_usd=round(st.get("cost_usd", 0.0), 3), last_text=(st.get("last_text") or "")[-300:])
+        task_done = all(s["items"][k]["state"] not in ("queued", "coding") for k in s["tasks"].get(w["task"], {}).get("issues", []))
+        w.update(idle=st.get("idle"), cost_usd=round(st.get("cost_usd", 0.0), 3), tokens=st.get("tokens", 0),
+                 last_text=(st.get("last_text") or "")[-300:], last_said=last_sentence(st.get("last_text") or ""),
+                 idle_text="idle — task done" if st.get("idle") and task_done else "idle" if st.get("idle") else
+                 "busy" if st.get("idle") is False else "—")
     s["stuck"] = [k for k, it in s["items"].items() if _stuck(it)]
+    for it in s["items"].values():
+        it["verdict_now"] = verdict_now(it)
+        it["summary"] = summary(it)
+    s["queue_done"] = {qid: q for qid, q in s["queue"].items() if resolved(q, s)}
+    for qid in s["queue_done"]:
+        s["queue"].pop(qid)
+    s["spend_today"], s["daily_cap"] = spend_today(), daily_cap()
+    costs = [e for e in journal.read() if e["event"] == "cost"]
+    for name, t in s["tasks"].items():  # dollars per issue = the task's session cost over the issues it finished
+        t["cost_usd"] = round(sum(e["usd"] for e in costs if e.get("task") == name), 4)
+        done = [k for k in t["issues"] if s["items"][k]["state"] in ("checked", "reviewed", "candidate", "gated", "pushed", "closed")]
+        t["issues_done"] = len(done)
+        t["cost_per_issue"] = round(t["cost_usd"] / len(done), 4) if done else t["cost_usd"]
+    s["now"] = now_line(s)
     return s
+
+
+# --- words for the page (pipeline.dashboard-minimal): what is happening, what is done, what needs you -----------
+
+def last_sentence(text: str, limit: int = 160) -> str:
+    """The last full sentence of what a worker said, never a fragment from mid-text."""
+    text = re.sub(r"\s+", " ", text.strip())
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    s = next((p for p in reversed(parts) if p.strip()), "")
+    return s if len(s) <= limit else s[: limit - 1].rsplit(" ", 1)[0] + "…"
+
+
+def verdict_now(it: dict) -> dict | None:
+    """The one verdict that counts: the last one recorded at the item's checked sha, if its check was green."""
+    for v in reversed(it["verdicts"]):
+        if v["sha"] == it["sha"] and it["check_ok"]:
+            return v
+    return None
+
+
+def summary(it: dict) -> str:
+    """One sentence per item: its state, what that means, and the next step."""
+    sha, n, st = it["sha"][:9], len(it["checks"]), it["state"]
+    green = n and all(c["ok"] for c in it["checks"])
+    v = it.get("verdict_now")
+    red = next((c["name"] for c in it["checks"] if not c["ok"]), None)
+    if st == "queued":
+        return "Queued; next: a coder starts it."
+    if st == "coding":
+        return f"Coding, attempt {it['attempts'] + 1}" + (f" after a red {red} check" if red else "") + "; next: the checks run when the coder calls done."
+    if st == "checked":
+        if v and v["verdict"] == "PENDING":
+            return f"Checked at {sha}, all {n} checks green; review PENDING ({v['by']}); next: the reviewer's verdict."
+        return f"Checked at {sha}, all {n} checks green; next: a review."
+    if st == "reviewed":
+        return f"Reviewed READY at {sha}, all {n} checks green; next: the lead lands it."
+    if st == "needs-maintainer":
+        return f"Needs you at {sha}: {(it['retry_text'] or 'attempts exhausted').splitlines()[0][:90]}; next: `retry` or `reset`."
+    if st == "rate-limited":
+        return "Stopped on a quota or credit error; next: `retry` takes the fallback list's next worker."
+    if st == "failed":
+        return f"Failed: {it['history'][-1].split(': ', 1)[-1][:90] if it['history'] else ''}; next: `retry`."
+    return f"{st.capitalize()} at {sha}" + (", checks green" if green else "") + "."
+
+
+def resolved(q: dict, s: dict) -> bool:
+    """A queue item resolves itself when its condition clears: a fallback once the next worker has run, a failed-checks
+    item once the item is later checked or reviewed, a question once answered (answers are already popped)."""
+    task_items = [s["items"][k] for k in s["tasks"].get(q.get("task"), {}).get("issues", [])]
+    later = [e for e in journal.read() if e["ts"] > (q.get("ts") or "")]
+    if q["kind"] == "fallback":
+        return any(e["event"] == "worker" and e.get("task") == q.get("task") for e in later)
+    if q["kind"] == "failed-checks":
+        return any(e["event"] == "transition" and e.get("to") in ("checked", "reviewed")
+                   and (e.get("key") or str(e.get("issue"))) in [it["key"] for it in task_items] for e in later)
+    return False
+
+
+def now_line(s: dict) -> str:
+    items = list(s["items"].values())
+    busy = [w for w in s["workers"].values() if w.get("idle") is False]
+    parts = []
+    if not items:
+        parts.append("No items yet.")
+    for it in items:
+        title = it["title"] if len(it["title"]) <= 44 else it["title"][:44].rsplit(" ", 1)[0] + "…"
+        label = f"{it['key']} {title}"
+        v = it.get("verdict_now")
+        if it["state"] == "coding":
+            w = next((w for w in s["workers"].values() if w["task"] == it["task"]), None)
+            parts.append(f"{label}: coding ({(w or {}).get('model', '?')}, attempt {it['attempts'] + 1}, ${it['cost_usd']:.2f}).")
+        elif it["state"] == "reviewed":
+            parts.append(f"{label}: reviewed READY, ready to land.")
+        elif it["state"] == "checked":
+            parts.append(f"{label}: checked, review {v['verdict'] if v else 'awaited'}.")
+        else:
+            parts.append(f"{label}: {it['state']}.")
+    parts.append(f"{len(busy)} worker{'s' if len(busy) != 1 else ''} busy." if busy else "No worker busy.")
+    n = len(s["queue"])
+    parts.append(f"Needs you: {n}." if n else "Nothing needs you.")
+    return " ".join(parts)
 
 
 def _stuck(it: dict) -> bool:
@@ -167,6 +265,30 @@ def _queue(kind: str, text: str, options=None, task=None, window=None) -> str:
 def _require_running() -> None:
     if state()["paused"]:
         raise RuntimeError("paused: `python -m pipeline resume` first (pipeline.pause-all)")
+
+
+# --- the daily API cap (owner, 2026-10-25: no runaway spend before the runner is proven) -------------------------------
+
+def today() -> str:
+    return time.strftime("%Y-%m-%d")
+
+
+def spend_today() -> float:
+    """API dollars recorded in the journal today, every item and role together."""
+    return round(sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e["ts"][:10] == today()), 4)
+
+
+def daily_cap() -> float:
+    """The profile's daily cap, or what `resume --raise-cap N` set for today."""
+    raised = [e["usd"] for e in journal.read() if e["event"] == "raise_cap" and e["ts"][:10] == today()]
+    return max([cfg()["workers"].get("daily_cap_usd", 20.0), *raised])
+
+
+def _require_budget() -> None:
+    """Nothing new starts once today's spend has reached the cap; the next day or `resume --raise-cap` lifts it."""
+    spent, cap = spend_today(), daily_cap()
+    if spent >= cap:
+        raise RuntimeError(f"daily cap: ${spent:.2f} of ${cap:.2f} spent today; `resume --raise-cap <usd>` lifts it for today")
 
 
 def _head(wt) -> str:
@@ -232,11 +354,11 @@ def _worktree(task: str, base: str | None = None) -> Path:
         journal.append("intent", task=task, what="worktree", ref=str(wt))
         remotes = checks.git(c["repo"]["path"], "remote").split()
         if base.split("/")[0] in remotes:  # a remote-tracking base is refreshed first; a local branch is used as is
-            subprocess.run(["git", "fetch", "-q", base.split("/")[0]], cwd=c["repo"]["path"], check=False)
+            checks.sh(["git", "fetch", "-q", base.split("/")[0]], cwd=c["repo"]["path"])
         checks.git(c["repo"]["path"], "worktree", "add", "-q", "-b", f"pipeline/{task}", str(wt), base)
-        subprocess.run(["git", "config", "extensions.worktreeConfig", "true"], cwd=wt, check=False, capture_output=True)
+        checks.sh(["git", "config", "extensions.worktreeConfig", "true"], cwd=wt)  # every runner git: hooks off (checks.GIT)
         for k, v in (("user.name", "Claude"), ("user.email", c["github"]["agent_email"])):
-            subprocess.run(["git", "config", "--worktree", k, v], cwd=wt, check=False, capture_output=True)
+            checks.sh(["git", "config", "--worktree", k, v], cwd=wt)
         journal.append("done", task=task, what="worktree", ref=str(wt))
     return wt
 
@@ -251,19 +373,25 @@ def _wait_room(kind: str, task: str) -> None:
     raise RuntimeError(f"no room for {kind} after two hours")
 
 
+def workers(role: str = "coder") -> list[dict]:
+    """The role's ordered fallback list, without the entries switched off in the profile (Qwen today)."""
+    return [w for w in cfg()["roles"][role] if w.get("enabled", True)]
+
+
 def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
-    """Each window start gets its OWN session dir (timestamped), so delivery and idleness are read from the new
-    session's file, never from an older session of the same model in the same task (review MED B)."""
+    """Each window start gets its OWN timestamped session dir, so delivery and idleness are read from the new
+    session's file, never from an older one (review MED B)."""
     c = cfg()
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    session_dir = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
-    session_dir.mkdir(parents=True, exist_ok=True)
     journal.append("intent", task=task, what="worker", ref=window)
-    coder.start_window(c, window, wt, coder.pi_command(c, worker, session_dir), coder.allowed_env(c, task, "coder"))
-    journal.append("worker", window=window, task=task, role="coder", model=config.pi_model_id(worker),
-                   session_dir=str(session_dir), cwd=str(wt))
+    session = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
+    session.mkdir(parents=True, exist_ok=True)
+    cmd = coder.pi_command(c, worker, session)
+    coder.start_window(c, window, wt, cmd, coder.allowed_env(c, task, "coder"))
+    journal.append("worker", window=window, task=task, role="coder", model=config.pi_model_id(worker), kind=worker["kind"],
+                   session_dir=str(session), cwd=str(wt))
     journal.append("done", task=task, what="worker", ref=window)
-    return session_dir
+    return session
 
 
 def _live_coders(s: dict, task: str) -> list[str]:
@@ -299,7 +427,7 @@ def retry(issue, worker: int | None = None) -> dict:
                            f"--base <ref> [--from-file <json>] [--since <sha>]` first")
     if worker is None:
         stops = sum(1 for h in it["history"] if " rate-limited:" in h)
-        worker = min(stops, len(cfg()["roles"]["coder"]) - 1)
+        worker = min(stops, len(workers()) - 1)
     return start([it["issue"]], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"),
                  worker_index=worker)
 
@@ -326,6 +454,7 @@ def repair(issue, base: str | None = None, from_file: str | None = None, since: 
 
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     _require_running()
+    _require_budget()
     c = cfg()
     task = task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     s = state()
@@ -351,7 +480,7 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
-    worker = c["roles"]["coder"][worker_index]
+    worker = workers()[worker_index]
     _wait_room(worker["kind"], task)
     session_dir = _start_worker(task, wt, worker, window)
     summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}
@@ -386,7 +515,7 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
         path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
         before = coder.status(session_dir)
         tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
-        st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
+        st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"], token_cap=worker.get("token_cap"))
         st = _wait_answers(task, session_dir, st)
         # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
         spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
@@ -395,12 +524,15 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
         unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
         if unused:  # information only, never a failure (dogfood 7)
             journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
+        if spend_today() >= daily_cap() and not st.get("stopped"):
+            st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
+            st["rate_limited"] = True
         if st.get("stopped") or st.get("rate_limited"):
             coder.stop_window(c, window)
             journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
             if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
                 _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
-                nxt = worker_index + 1 < len(c["roles"]["coder"])
+                nxt = worker_index + 1 < len(workers())
                 _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
                        + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
                 return "rate-limited"
@@ -551,9 +683,54 @@ def pause() -> dict:
     return {"paused": True}
 
 
-def resume() -> dict:
+def resume(raise_cap: float | None = None) -> dict:
+    """Unpause; with `raise_cap`, lift today's daily API cap to that figure (journaled, the maintainer's call)."""
     journal.append("resume")
-    return {"paused": False}
+    if raise_cap is not None:
+        journal.append("raise_cap", usd=float(raise_cap))
+    return {"paused": False, "daily_cap": daily_cap(), "spend_today": spend_today()}
+
+
+def review(issue, worker_index: int = 0) -> dict:
+    """The reviewer: a Pi window (role reviewer: the ponytail lens, the `verdict` tool) told a brief with the item's
+    diff, spec lines and check results, for the item's checked head. It blocks until a verdict for that sha is in
+    the journal (or the reviewer stops), then stops the window. Its cost counts toward the item's cap."""
+    with journal.Lock("dispatch", wait=False):
+        _require_running()
+        _require_budget()
+        key, it, s = _item(issue)
+        if it["state"] != "checked" or not it["check_ok"]:
+            raise RuntimeError(f"{key} is {it['state']}: a review needs a green check first")
+        c = cfg()
+        wt = Path(s["tasks"][it["task"]]["worktree"])
+        worker = workers("reviewer")[worker_index]
+        window, task = "reviewer", it["task"]
+        session = STATE / "sessions" / task / f"reviewer-{worker['model'].replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
+        session.mkdir(parents=True, exist_ok=True)
+        coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer"), coder.allowed_env(c, task, "reviewer"))
+        journal.append("worker", window=window, task=task, role="reviewer", model=config.pi_model_id(worker), kind="pi",
+                       session_dir=str(session), cwd=str(wt))
+        since = _since(key, task) or c["repo"]["base"]
+        diff = checks.sh(["git", "diff", "--stat", f"{since}...{it['sha']}"], cwd=wt).stdout[-3000:]
+        text = "\n".join([f"# Review {key}: {it['title']}", "", f"Head {it['sha']} (checked green: {', '.join(r['name'] for r in it['checks'])}).",
+                          f"Diff range: `git diff {since[:9]}...{it['sha'][:9]}`", "```", diff, "```", "",
+                          *(["## Spec lines", *spec_lines(set(it["start_args"].get("ids") or []))] if it["start_args"].get("ids") else []),
+                          "", "## How to review", "1. Read the diff with jcodemunch and the spec lines with jdocmunch; the spec-diff rule: a behaviour "
+                          "change must touch its spec and manual.", "2. Named checks: correctness and regressions, the spec diff, security, "
+                          "and the ponytail lens (your rules file).",
+                          f"3. Record your verdict ONCE with the `pipeline_verdict` tool: issue `{key}`, sha `{it['sha']}`, READY or NOT_READY, "
+                          "by `reviewer`, findings as one line per finding with severity. Nothing else moves the item."])
+        path = coder.brief_file(task, f"review-{it['sha'][:9]}", text)
+        before = coder.status(session)
+        tell(window, f"Read and do {path} — review {key} at {it['sha'][:9]}; record your verdict with pipeline_verdict.", task=task)
+        st = coder.wait_idle(session, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
+        journal.append("cost", issue=it["issue"], key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
+                       tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+        coder.stop_window(c, window)
+        journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "review done")
+        it = state()["items"][key]
+        return {"issue": key, "state": it["state"], "verdict": it.get("verdict_now"), "reviewer_cost_usd": round(st["cost_usd"], 4),
+                "stopped": st.get("stopped")}
 
 
 def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
@@ -568,11 +745,11 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
-API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "verdict": verdict, "tell": tell,
-       "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
+API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "review": review, "verdict": verdict,
+       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
        "resume": resume, "file_bug": file_bug, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
-              "manager": ("status", "start", "retry", "check", "tell", "file_bug", "point", "queue", "report")}
+              "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "repair", "check", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")

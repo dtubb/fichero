@@ -155,6 +155,8 @@ def test_batch_of_three_issues_gives_three_commits_and_three_check_lines(scratch
     assert all(s["items"][str(n)]["state"] == "checked" for n in (1001, 1002, 1003))
     # per-issue cost is the DELTA of the session total (review MED 9): 0.01 per turn here
     assert [round(s["items"][str(n)]["cost_usd"], 2) for n in (1001, 1002, 1003)] == [0.01, 0.01, 0.01]
+    t = s["tasks"]["demo-1001"]
+    assert (round(t["cost_usd"], 2), t["issues_done"], round(t["cost_per_issue"], 2)) == (0.03, 3, 0.01), "the page's dollars per issue"
 
 
 def test_failed_check_retries_twice_then_needs_maintainer(scratch, issues, fake_coder):
@@ -434,6 +436,69 @@ def test_retry_after_a_rate_limited_stop_takes_the_next_worker(scratch, issues, 
     assert core.retry(1001)["items"]["1001"] == "checked"
     models = [e["model"] for e in journal.read() if e["event"] == "worker"]
     assert models == ["openrouter/qwen/x", "anthropic/claude-sonnet-4-5"]
+
+
+def test_worker_selection_skips_disabled_entries(scratch, issues, fake_coder):
+    """pipeline.worker-roles: the role's list in order, `enabled = false` entries skipped (Qwen is configured but off)."""
+    fc = fake_coder()
+    scratch["cfg"]["roles"]["coder"] = [{"kind": "pi", "provider": "anthropic", "model": "claude-sonnet-5-5"},
+                                        {"kind": "pi", "provider": "openrouter", "model": "qwen/x", "enabled": False}]
+    assert [w["model"] for w in core.workers()] == ["claude-sonnet-5-5"]
+    core.start([1001])
+    name, cwd, cmd, env = fc.windows[0]
+    assert cmd[3] == "pi" and "--model" in cmd and cmd[cmd.index("--model") + 1] == "anthropic/claude-sonnet-5-5"
+    assert not (cwd / ".claude").exists()
+
+
+def test_a_journal_at_the_daily_cap_refuses_start_until_raised(scratch, issues, fake_coder):
+    """Owner 2026-10-25: a hard daily API cap across all items, read from the profile, summed from the journal."""
+    fc = fake_coder()
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 1.0
+    journal.append("cost", issue=5, key="5", task="old", session="s", usd=0.6, tokens=1, model="m", tools={})
+    journal.append("cost", issue=6, key="6", task="old", session="s", usd=0.4, tokens=1, model="m", tools={})
+    assert core.spend_today() == 1.0 and core.daily_cap() == 1.0
+    with pytest.raises(RuntimeError, match="daily cap"):
+        core.start([1001])
+    assert fc.windows == [], "nothing started"
+    out = core.resume(raise_cap=2.5)
+    assert out["daily_cap"] == 2.5 and core.daily_cap() == 2.5
+    assert core.start([1001])["items"]["1001"] == "checked"
+    s = core.state()
+    assert s["daily_cap"] == 2.5 and s["spend_today"] == 1.01, "the page shows today's spend against the cap"
+
+
+def test_an_item_that_hits_the_daily_cap_mid_run_stops_as_rate_limited(scratch, issues, fake_coder):
+    fc = fake_coder()
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 0.005  # nothing spent yet, so it starts; the first turn costs 0.01
+    assert core.start([1001])["items"]["1001"] == "rate-limited"
+    it = core.state()["items"]["1001"]
+    assert "daily cap" in it["history"][-1] and fc.stopped == ["coder-issues-1001"], "the window is stopped, not left spending"
+    with pytest.raises(RuntimeError, match="daily cap"):
+        core.start([1002])  # and nothing new starts today
+
+
+def test_review_runs_a_pi_reviewer_and_binds_its_verdict(scratch, issues, fake_coder, monkeypatch):
+    """The smallest Pi reviewer path: a reviewer window, a brief, a wait for `pipeline_verdict`, its cost on the item."""
+    fc = fake_coder()
+    core.start([1001])
+    it = core.state()["items"]["1001"]
+    scratch["cfg"]["roles"]["reviewer"] = [{"kind": "pi", "provider": "anthropic", "model": "claude-opus-5-5"}]
+
+    def reviewer_answers(session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None, token_cap=None):
+        core.verdict("1001", it["sha"], "READY", by="reviewer", findings="L1: fine")  # what the pipeline_verdict tool does
+        return dict(cost_usd=0.2, tokens=50, tool_calls={"pipeline_verdict": 1}, idle=True, last_text="Verdict recorded.",
+                    rate_limited=False, model="claude-opus-5-5", turns=1, prompts=1, started=True)
+
+    monkeypatch.setattr(core.coder, "wait_idle", reviewer_answers)
+    out = core.review("1001")
+    assert out["state"] == "reviewed" and out["verdict"]["verdict"] == "READY" and out["reviewer_cost_usd"] == 0.2
+    assert fc.windows[-1][0] == "reviewer" and "ponytail-reviewer.md" in " ".join(fc.windows[-1][2])
+    brief = sorted((scratch["state"] / "briefs" / "issues-1001").glob("review-*.md"))[0].read_text()
+    assert "pipeline_verdict" in brief and it["sha"] in brief
+    assert round(core.state()["items"]["1001"]["cost_usd"], 2) == 0.21, "the reviewer's cost is inside the item's cap"
+    assert fc.stopped[-1] == "reviewer"
+    with pytest.raises(RuntimeError, match="needs a green check"):
+        core.review("1001")  # reviewed, not checked: nothing to review
 
 
 def test_cost_cap_stops_the_worker_and_moves_to_the_fallback(scratch, issues, fake_coder, monkeypatch):
