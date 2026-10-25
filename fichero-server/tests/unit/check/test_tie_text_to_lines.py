@@ -369,3 +369,21 @@ def test_a_line_kraken_found_no_writing_on_is_not_a_reason_to_read_the_page_agai
                                           source_anchor=row.anchor, derived_from_artifact_id=kraken_read.id))
     _run(client, db, page)
     assert reader.lines == [], "Kraken read the page again for one blank line"
+
+
+def test_the_tie_waits_while_a_live_kraken_read_is_reading_the_page_and_never_reads_it_itself(client, db, page, reader):
+    """#6127 (review 1185 item 4): Read runs Transcribe (Kraken) beside the cloud reader; the tie waits for its reads, so the
+    cloud text is written after Kraken's whatever order they finish in, and Kraken does not read the lines twice."""
+    from fichero_server.execution.runner import _running_workflows
+    from fichero_server.recipes.start import WORKFLOW_FOR_JOB, _shipped
+
+    _running_workflows["thread-kraken"] = {"workflow_name": _shipped(WORKFLOW_FOR_JOB["read-a-line"])[0],
+                                           "db_path": str(db.path), "status": "running", "documents": [page["doc"].id]}
+    try:
+        with pytest.raises(jobs.JobDeferred):
+            _run(client, db, page)
+    finally:
+        _running_workflows.pop("thread-kraken")
+    assert reader.lines == []
+    _job_id, status = _run(client, db, page)  # the run ended: the tie reads the lines itself, as it always did
+    assert status["counts"]["tied"] > 5

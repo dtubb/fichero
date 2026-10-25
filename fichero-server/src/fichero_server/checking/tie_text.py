@@ -178,6 +178,22 @@ def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str
             else ReadLine("") for row in rows]
 
 
+#: How long the tie waits before it looks again for Kraken's reads of a page a live run is still reading.
+WAIT_FOR_KRAKEN_SECONDS = 15
+
+
+def kraken_is_reading(db: Any, doc_id: str) -> bool:
+    """Whether a live run of the shipped Transcribe (Kraken) workflow in this project is reading this page. Read runs
+    it beside the cloud reader (#6127); the tie waits for its reads rather than read the lines a second time, which also
+    puts the cloud reader's text after Kraken's, as the recipe orders them."""
+    from fichero_server.execution.runner import LIVE_RUN_STATUSES, _running_workflows
+    from fichero_server.recipes.start import WORKFLOW_FOR_JOB, _shipped
+
+    name = _shipped(WORKFLOW_FOR_JOB["read-a-line"])[0]
+    return any(s.get("workflow_name") == name and s.get("db_path") == str(db.path) and s.get("status") in LIVE_RUN_STATUSES
+               and doc_id in (s.get("documents") or ()) for s in list(_running_workflows.values()))
+
+
 def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:
     """Each line's stretch, its score against its own rough read, and whether it is tied."""
     out = []
@@ -352,8 +368,12 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         with Image.open(photo) as image:
             width, height = found.page_size(image)  # in the frame the lines were measured on
         lines = [in_pixels(row, width, height) for row in found.lines]
-        reads = earlier_reads(db, doc.id, found.lines, request.model) or \
-            kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+        reads = earlier_reads(db, doc.id, found.lines, request.model)
+        if reads is None:
+            if kraken_is_reading(db, doc.id):  # Read runs it beside the cloud reader: its reads land first (#6127)
+                jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
+                raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
+            reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1
