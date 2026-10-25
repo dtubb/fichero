@@ -1573,7 +1573,8 @@ async def model_candidates(
     counts them. Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, needs_permission, rank_key
+    from fichero_server.recipes.assemble import (
+        READ_MATERIALS, READING_JOBS, _refusal, lists_project_languages, needs_permission, rank_key)
     from fichero_server.recipes.assemble import other_period
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
@@ -1647,7 +1648,8 @@ async def model_candidates(
     pick = chosen_id
     if pick is None and kept:
         top = kept[0]
-        if top.local and not needs_permission(top, a):
+        # And one whose card lists the project's languages, or none: never an Arabic reader for a Spanish project (#6120).
+        if top.local and not needs_permission(top, a) and lists_project_languages(top, a):
             pick = top.id
 
     def refused(c: Any) -> Optional[str]:

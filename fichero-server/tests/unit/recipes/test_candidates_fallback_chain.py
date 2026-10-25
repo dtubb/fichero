@@ -101,3 +101,16 @@ def test_the_recipe_the_project_assembles_reads_its_measured_band(monkeypatch, t
     write_noise_band(tmp_path, 0.03, pages=40, model="kraken")
     route._assemble(answers, tmp_path)
     assert [a.noise_band for a in seen] == [0.01, 0.03]  # unmeasured: the one-point band, as before
+
+
+def test_a_reader_that_lists_other_languages_is_not_the_default_pick_6120():
+    """Owner 2026-10-25: a Spanish project's pre-selected reader was kraken-ppocrv6-tiny, listing Arabic and Catalan."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.assemble import Answers, lists_project_languages
+
+    spanish = Answers(languages=frozenset({"es"}), scripts=frozenset({"Latn"}), material="handwriting")
+    arabic_catalan = replace(LOCAL, languages=frozenset({"ar", "ca"}))
+    assert not lists_project_languages(arabic_catalan, spanish)
+    assert lists_project_languages(replace(LOCAL, languages=frozenset({"es", "ca"})), spanish)
+    assert lists_project_languages(replace(LOCAL, languages=None), spanish), "a card that states none is not wrong"

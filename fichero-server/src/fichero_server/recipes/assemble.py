@@ -528,6 +528,12 @@ def _language_rank(card: Card, a: Answers | None) -> int:
     return 0 if a.languages <= card.languages else 1
 
 
+def lists_project_languages(card: Card, a: Answers | None) -> bool:
+    """Whether a card lists the project's languages, or states none (#6120): a reader that lists others (an Arabic and
+    Catalan model for a Spanish project) is never picked for the person."""
+    return _language_rank(card, a) == 0
+
+
 def in_period(card: Card, a: Answers | None) -> bool | None:
     """Whether a card's period meets the project's (#5516, #5683): True or False, None when either states none."""
     from fichero_server.recipes.hands import period_years
