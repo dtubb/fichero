@@ -6,29 +6,45 @@
 
 What changed since 2026.10.11. (2026.10.22 was prepared but never published; its changes are listed here too.)
 
-- One Start runs a new project through every stage, from finding lines to the catalogue, and runs again on what you add later. A stopped run, or one cut short by a quit, picks up where it left off and does not redo finished pages.
-- Two new stages: Leave Out marks lines that are too small, off the page or likely bleed-through (it never deletes them, and Mark as Text in the Inspector brings one back), and Catalogue writes a description of each folder.
-- Every step has a model chosen for it: Kraken finds lines when it is there, and when the project allows cloud models and a key is set, the cheapest cloud model good enough for Translate, Correct and Catalogue. The plan prices only the pages still to do.
-- Phone photos are read the right way up, readings follow the page's reading order, and a correction in the Reader saves and shows in the Inspector at once.
-- Sharing a project with another Mac or an iPhone: a stale key now says so, instead of failing quietly.
+- A new Set Up window takes you from a first launch to a running project: name it, add your pages, say what they are, choose the stages and a model for each, check the plan, and press Start.
+- One Start runs every stage you chose, from finding lines to the catalogue, and runs again on what you add later. A stopped run, or one cut short by a quit, carries on where it left off.
+- A new Activity window: Now, Up Next and Done Today, one row per piece of work with one button, and a stage bar for each project run.
+- Two new stages: Leave Out, and Catalogue, which describes each folder.
+- Share a project with another Mac or an iPhone from Settings › Sharing, with a QR code or a link.
 
-**One Start, every stage.** Set Up asks the language (with "Not sure", where Fichero works it out from the pages), then Start runs Find Lines, Leave Out, Read, Correct, Names and Catalogue in turn, and Translate when Set Up asks for it. Add pages or a folder later and only the new material runs. Stop, quit or lose the engine part-way and Start again carries on: pages already read are not read again, so a cloud reader is not paid twice for the same line.
+**Set Up.** On a first launch, Set Up Fichero welcomes you, asks where AI work may run (this Mac only, unless you allow more), and offers to set up your first project. Set Up a project at any time from File › Set Up New Project… or Project › Set Up…. Its pages, in order:
+- *Your Project*: a name, and where it lives (inside Fichero, or a location you choose).
+- *Add Material*: add files or folders, and say whether to copy them, leave them in place, or move them.
+- *About the Material*: the languages and writing systems, or "Not sure", and Fichero works them out from the pages.
+- *Choose the Stages*: start from a goal, or tick the stages you want, from preparing images through finding lines, reading, translating and names to search and the catalogue. A stage that another needs stays ticked.
+- *A page for each stage*: which model does it, a try on a sample page, and Compare to see models side by side. Names lets you choose the kinds of name to find.
+- *Ready*: the plan from your answers, one numbered step each with its model, what it will cost and where it runs. Nothing runs before you press Start. If Start is greyed out, the reason is beside it.
 
-**Leave Out.** After lines are found, lines that are too small to read, off the page, or likely ink showing through from the other side are marked as left out, with the reason. Nothing is deleted; select a line in the Inspector and choose Mark as Text to bring it back.
+Start closes Set Up and opens the run in Activity.
 
-**Catalogue.** Each folder gets a description, as long as its fields need (up to about 500 words), that describes the material without analysing it. A folder is described again only when something in it changed.
+**One Start, every stage.** Start runs the stages in turn. Add pages or a folder later and only the new material runs. Stop, quit, or lose the engine part-way, and Start again carries on: pages already read are not read again, so a cloud reader is not paid twice for the same line.
 
-**Models for each step.** Each step names its model, and the menu lists what can run here, your own models, Apple's and, when you allow them, cloud models. A model its provider has retired says so and is not chosen. Allow Cloud takes effect at once, and a new project starts with your app-wide cloud setting. On a 16 GB Mac, Fichero runs one large model at a time.
+**Activity.** The window lists work in three groups: Now, Up Next, and Done Today (folded away, with Clear Failed and Clear Finished…). Each row says what it is, its state, its counts and the time left, and shows the cost when there is one. It has one button (Pause, Resume, Retry or Show), and the rest is on its menu. A project run has one bar with a segment per stage, in Set Up's order. A finished stage stays full, and a stage with failed pages is hatched. Pages are counted once, not once per stage. Show Details opens the run's own window: its stages ("12 of 40 pages"), what it made, what it skipped, and its log. When a read fails, the details give the engine's own words. A run says plainly when it is Partial, Interrupted, Stopping or Retrying.
 
-**Reading.** Phone photos taken sideways are read upright. Line readings land on their lines in reading order, each line is read once, and the Inspector says who read it. Corrections in the Reader are saved and the Inspector follows them.
+**Leave Out.** After lines are found, lines too small to read, off the page, or likely ink showing through from the other side are marked as left out, with the reason. Nothing is deleted: choose Mark as Text on a line's menu to bring it back.
 
-**The Inspector and the Preview.** Select several lines to change their hand, certainty, rights or language at once, with one undo. Boxes can be deleted, the Preview draws every page's boxes during and after a run, and clicking a folder shows its canvas. Dragging in the Inspector no longer hangs the app.
+**Catalogue.** Each folder gets a description of the material, as long as its fields need (up to about 500 words). A folder is described again only when something in it changed.
 
-**Activity and errors.** One row per run with a stage bar; problems show first, and a partly done run says it is partial and why. A refused cloud request says whether you are out of credit, the key was refused, or the provider asked Fichero to slow down. When the engine refuses something, the app now shows its words.
+**Models for each step.** Each step names its model, and you can change it. The model finder lists your cloud models first, searches online as it opens, and Compare on These Pages shows candidates side by side, with Use This One. Kraken finds lines when it is installed. When the project allows cloud models and a key is set, Fichero picks the cheapest cloud model good enough for Translate, Correct and Catalogue, unless a local one is good enough. A project can cap its monthly cloud spend; the plan prices only the pages still to do. A model its provider has retired is not offered. On a 16 GB Mac, Fichero runs one large model at a time, and new heavy work waits while the Mac is short of memory.
+
+**Sharing and accounts.** Settings › Sharing has a switch, your devices, Add Device… (a QR code and a code that expires in 10 minutes) and Connect to Another Mac…. Invites can be revoked. Settings › Accounts lists the people who can open your library, and you can share a single folder with Share… on its row. Shared projects are marked in the sidebar and the Inspector. A stale key now says so instead of failing quietly.
+
+**Reading.** Phone photos taken sideways are read upright. Apple Vision can read single lines. Readings follow the page's reading order, with columns in the page's direction. Each line is read once, and the Inspector says who read it, with View Run. Corrections in the Reader save, the Inspector follows them, and an edit across lines is one undo.
+
+**The Inspector, Preview and Library.** Select several lines to change their hand, certainty, rights or language at once, with one undo. Delete selected lines or boxes from any view. The Preview draws every page's boxes during and after a run, and clicking a folder shows its canvas. Drag items to another project to move them (hold Option to copy). Dragging in the Inspector no longer hangs the app.
+
+**Settings.** Settings › Server is one pane with its status and Restart, and Settings › AI has a Cloud switch.
+
+**Errors.** When the engine refuses something, the app shows its words. A refused cloud request says whether you are out of credit, the key was refused, or the provider asked Fichero to slow down.
 
 **Under the hood.** Folders with accented names (ñ, é) can be added. Gemini 3's replies are read correctly. A rare engine start failure, when two parts opened the app database at once, is fixed.
 
-**Known.** A crash seen once while pinching the item strip has a fix in this build; it stays open until it is confirmed.
+**Known.** A crash seen once while pinching the item strip has a fix in this build; it stays open until it is confirmed. Mac users get this release by download or by update; the Mac App Store build follows.
 
 ## 2026.10.22 (not published)
 
