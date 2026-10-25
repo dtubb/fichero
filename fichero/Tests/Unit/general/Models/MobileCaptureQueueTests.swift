@@ -116,6 +116,7 @@ final class MobileCaptureQueueTests: XCTestCase {
 
     func testRetryUploadsMarkSuccessAndFailure() async throws {
         markDevicePairedWithLibrary()
+        configureRemoteBackend() // enqueue stamps the current host; the fake uploader is aimed at it (#3281)
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -140,6 +141,7 @@ final class MobileCaptureQueueTests: XCTestCase {
 
     func testRetryUploadsRecordFailures() async throws {
         markDevicePairedWithLibrary()
+        configureRemoteBackend() // enqueue stamps the current host; the fake uploader is aimed at it (#3281)
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -169,6 +171,7 @@ final class MobileCaptureQueueTests: XCTestCase {
         // flushes must upload each capture exactly once — never dropped, never
         // doubled. If the reservation ever stops being synchronous this fails.
         markDevicePairedWithLibrary()
+        configureRemoteBackend() // enqueue stamps the current host; the fake uploader is aimed at it (#3281)
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
