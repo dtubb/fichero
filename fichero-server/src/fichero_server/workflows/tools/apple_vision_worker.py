@@ -31,6 +31,10 @@ class WorkerTimeout(RuntimeError):
     """The child did not answer in time and was killed; the next call starts a new one."""
 
 
+class WorkerBusy(RuntimeError):
+    """An earlier call still holds the child and this one waited its whole time for it: nothing was killed."""
+
+
 class WorkerFailure(RuntimeError):
     """The child died, or its answer could not be sent back; the page fails in these words."""
 
@@ -111,7 +115,7 @@ class VisionWorker:
         """Run one call in the child. WorkerTimeout (the child is killed) when it does not answer in `timeout` seconds,
         counting the wait for an earlier call; WorkerFailure when the child died; the call's own exception otherwise."""
         if not self._lock.acquire(timeout=timeout):
-            raise WorkerTimeout("an earlier Apple Vision call was still running")
+            raise WorkerBusy("an earlier Apple Vision call was still running")
         try:
             if self._process is None or not self._process.is_alive():
                 self._end()

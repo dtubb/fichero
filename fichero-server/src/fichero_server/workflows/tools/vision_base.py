@@ -2072,7 +2072,11 @@ def apple_vision_reads_at_once() -> int:
         short = _apple_vision_memory_short()
     except Exception:  # noqa: BLE001 -- a reading must never stop a page
         short = None
-    return 1 if short else APPLE_VISION_CONCURRENCY
+    if short:
+        return 1
+    from fichero_server.workflows.tools.apple_vision_worker import in_process
+
+    return APPLE_VISION_CONCURRENCY if in_process() else 1  # the worker child takes one call at a time
 
 
 class _AppleVisionCall:
@@ -2171,6 +2175,10 @@ def _run_apple_vision_call(fn, args, deadline: float):
         return worker.WORKER.call(ref, args, deadline * 0.9)  # a little under the caller's deadline, so this one fires first
     except worker.WorkerTimeout as exc:
         raise _apple_vision_timeout(deadline, recycled=True) from exc
+    except worker.WorkerBusy as exc:  # nothing was killed: this page only waited too long behind another
+        raise AppleVisionTimeout(
+            f"Apple Vision was still busy with an earlier page after {deadline:.0f} s, so this page was skipped; it can be read again"
+        ) from exc
     except worker.WorkerFailure as exc:
         raise AppleVisionTimeout(str(exc)) from exc
 

@@ -22,6 +22,8 @@ def read_page(path: str, language: str = "en") -> str:
     """Stands for apple_vision_ocr: a page named stuck* never returns."""
     if path.startswith("stuck"):
         time.sleep(60)
+    if path.startswith("slow"):
+        time.sleep(0.2)
     if path.startswith("boom"):
         raise ValueError("not an image")
     return f"read {path}"
@@ -110,3 +112,26 @@ def test_a_page_failed_by_a_recycled_worker_is_read_once_more_by_itself():
         _read("stuck1")
     assert page_retry.is_passing_cause(str(raised.value)), "the words the real timeout gives"
     assert _read("stuck1".replace("stuck", "page")) == "read page1", "and the second read finds a new worker"
+
+
+def test_the_gate_lets_one_call_in_while_the_worker_is_on_so_a_slow_healthy_page_does_not_time_out_the_next():
+    """The worker takes one call at a time, so the gate admits one: a second page waits for its turn at the gate (inside its own
+    deadline), never for the worker's lock, and a lock wait that does run out is not worded as a recycle."""
+    assert vb.apple_vision_reads_at_once() == 1
+    slow = worker.WORKER
+    assert slow.recycles == 0
+    with pytest.raises(worker.WorkerBusy):
+        slow._lock.acquire()
+        try:
+            slow.call(("tests", "x"), (), 0.05)
+        finally:
+            slow._lock.release()
+    assert slow.recycles == 0, "a busy wait kills nothing"
+
+
+def test_two_healthy_pages_at_once_both_read_the_second_waits_at_the_gate():
+    async def both():
+        return await asyncio.gather(vb._apple_vision_call(read_page, "slow1", "en"), vb._apple_vision_call(read_page, "slow2", "en"))
+
+    assert asyncio.run(both()) == ["read slow1", "read slow2"]
+    assert worker.WORKER.recycles == 0
