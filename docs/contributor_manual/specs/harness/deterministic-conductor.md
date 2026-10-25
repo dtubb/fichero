@@ -23,6 +23,25 @@ The pieces were built a year ago and never joined: `choose_next.py` (pick work),
 done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
 report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
 
+## The target: the whole development loop on Qwen 3.8 in Pi
+
+What the conductor grows into, in this order of trust (each stage earned by measured results, not assumed):
+
+| Role | Today | Target | Kept deterministic by |
+|---|---|---|---|
+| Talk to the maintainer, write specs | Claude (Fable/Opus) | a Pi + Qwen manager, with the dashboard | spec template + guards; the maintainer approves |
+| Spec → issues + milestones | the clerk by hand | script from the spec's behaviour tags | `check_spec_*` guards |
+| Build to spec, in phases | Sonnet lanes | Pi + Qwen coder, one milestone per context, several issues in a row | ready check, red-on-base test |
+| Test to spec | lanes + manager | the coder writes; scripts run pytest + xcodebuild on the test machine | gate parts, test queue |
+| Review (ponytail, correctness) | Claude reviewer + Qwen shadow | Qwen reviewer, Claude on the batch | adjudicated precision ≥ the bar |
+| Docs + tests kept current | lanes | the coder, in the same commit | doc/spec guards |
+| Issues + milestones | the clerk, often late | GitHub Actions + scripts | close-on-push, milestone ratchet |
+| Nightly build to test | the manager by hand | scheduled: gate → build → dev DMG → device install | green gate only |
+| Weekly release | the manager by hand | scheduled, stops for the maintainer's yes | release scripts + release-docs check |
+
+The maintainer works through the dashboard and one chat (the Pi + Qwen manager) instead of a Claude session; Claude
+stays available for hard specs and exceptions while the API credit lasts.
+
 ## Where it lives: Fichero first
 
 The goal now is the app, so the conductor is built for Fichero, in this repo (`scripts/` and `.bernstein/` or
