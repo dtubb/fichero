@@ -71,9 +71,14 @@ def test_coder_cap_refuses_a_second_live_coder(scratch, issues, fake_coder, monk
     from pipeline import core
     fake_coder()
     journal.append("worker", window="coder-other", task="other", role="coder", model="m", session_dir="s", cwd="")
-    monkeypatch.setattr(core.coder, "status", lambda d: {"idle": False, "cost_usd": 0.0, "last_text": ""})
+    monkeypatch.setattr(core.coder, "status", lambda d: {"idle": False, "cost_usd": 0.0, "last_text": "", "turns": 0})
+    monkeypatch.setattr(core.coder, "live_windows", lambda cfg: {"coder-other"})
     with pytest.raises(RuntimeError, match="coder cap"):
         core.start([1001])
+    # a window that died no longer counts (review MED 15)
+    monkeypatch.setattr(core.coder, "live_windows", lambda cfg: set())
+    assert core.start([1001])["items"][1001] == "checked"
+    assert any(e["event"] == "worker_gone" and e["window"] == "coder-other" for e in journal.read())
 
 
 def test_lock_is_a_real_flock(scratch):

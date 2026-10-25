@@ -1,6 +1,0 @@
-#!/bin/bash
-# The runner's own MCP server for a worker (report/ask/done for a coder, verdict for a reviewer). Pi's MCP adapter
-# interpolates ${VAR} only in env, not in command, so this wrapper sits on the worker's PATH and reads the runner's
-# variables from the environment the runner allow-listed.
-export PYTHONPATH="${PIPELINE_ROOT:?}"
-exec "${PIPELINE_PYTHON:-python3}" -m pipeline.mcp_server --role "${PIPELINE_ROLE:-coder}"

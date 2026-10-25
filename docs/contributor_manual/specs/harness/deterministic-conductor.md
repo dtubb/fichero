@@ -218,7 +218,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   window serialises `tell` with anyone typing. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
 - `pipeline.messages` [OK] — the runner sends a worker its next issue, a check's failure text, a
   verdict or the maintainer's answer with `tell` (lifted from `agent-work/status/briefs/tell.sh`: tmux send-keys,
-  text, pause, Enter); long text goes in a brief file the message points at; one message, then wait for idle. Idle =
+  text, pause, C-m); the send is not trusted: delivery is confirmed by a new user turn in the session log within
+  30 s, else C-m goes again (three times) and the page flags the worker "message not delivered" (three lanes sat
+  idle for hours on 2026-10-25 with text left in the input box); long text goes in a brief file the message points
+  at; one message, then wait for idle. Idle =
   the last assistant turn in the session JSONL ended (`stop`/`end_turn`) with no tool call pending. Workers answer
   through the runner's MCP tools, so every message is in the journal and on the page: `report(task, text)`;
   `ask(task, question, options)` → a queue item whose answer is told back to that window; `done(task)` only REQUESTS

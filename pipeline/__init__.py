@@ -9,5 +9,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or Path(__file__).resolve().parent.parent)
-STATE = Path(os.environ.get("PIPELINE_STATE") or ROOT / "pipeline" / "state")
-BASE = os.environ.get("PIPELINE_BASE", "origin/integration")
+# The journal, sessions, briefs and locks live OUTSIDE every worktree, in a path the worker's env does not carry
+# (pipeline.jailed-agent): ~/.local/state/pipeline/<runner checkout name>/ unless PIPELINE_STATE says otherwise.
+STATE = Path(os.environ.get("PIPELINE_STATE") or Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+             / "pipeline" / ROOT.name)

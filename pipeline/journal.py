@@ -30,8 +30,9 @@ def read() -> list[dict]:
 
 def open_intents() -> list[dict]:
     """Intent lines with no matching done line: side effects to reconcile against the world on resume."""
-    done = {(e["task"], e["what"]) for e in read() if e["event"] == "done"}
-    return [e for e in read() if e["event"] == "intent" and (e["task"], e["what"]) not in done]
+    key = lambda e: (e["task"], e["what"], e.get("ref", ""))  # noqa: E731
+    done = {key(e) for e in read() if e["event"] == "done"}
+    return [e for e in read() if e["event"] == "intent" and key(e) not in done]
 
 
 class Lock:

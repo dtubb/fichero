@@ -25,8 +25,10 @@ jobs:
         run: |
           gh label create no-milestone --force --color BFD4F2 --description "Open issue with no milestone (pipeline ratchet)" -R "$GITHUB_REPOSITORY"
           gh issue edit "$NUMBER" --add-label no-milestone -R "$GITHUB_REPOSITORY"
+      # The allow-list mirrors [github].allowed_authors in pipeline/projects/fichero.toml: the maintainer and GitHub's
+      # own Actions bot. Any other author, bot or not, is outside text until triaged.
       - name: from-user
-        if: github.event.issue.user.login != github.repository_owner && github.event.issue.user.type != 'Bot'
+        if: ${{ !contains(fromJSON('["dtubb", "github-actions[bot]"]'), github.event.issue.user.login) }}
         run: |
           gh label create from-user --force --color D93F0B --description "Filed by someone outside the project; triage before any agent reads it" -R "$GITHUB_REPOSITORY"
           gh issue edit "$NUMBER" --add-label from-user -R "$GITHUB_REPOSITORY"

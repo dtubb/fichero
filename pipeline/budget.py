@@ -28,7 +28,9 @@ def machine() -> dict:
     else:
         vm = _out(["vm_stat"])
         free = sum(int(m) for m in re.findall(r"Pages (?:free|speculative|purgeable):\s+(\d+)", vm)) * PAGE // 2**20
-    pressure = "critical" if "critical" in mp else "warn" if "warn" in mp else "normal" if mp else "?"
+    # kern.memorystatus_vm_pressure_level: 1 normal, 2 warn, 4 critical (memory_pressure's text never says "warn")
+    level = (_out(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"]) or "").strip()
+    pressure = {"1": "normal", "2": "warn", "4": "critical"}.get(level, "?")
     return {"free_mb": free, "pressure": pressure, "load1": round(os.getloadavg()[0], 2)}
 
 

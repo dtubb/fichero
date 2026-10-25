@@ -19,6 +19,9 @@ on:
     branches: ['main', 'integration']
   pull_request:
 
+permissions:
+  contents: read   # the guards run on PR code; they read, they never write
+
 jobs:
   ready-check:
     name: Lane ready check (PRs)

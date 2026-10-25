@@ -20,7 +20,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: close_fixed_issues.py --apply
+      # Only the pushed range: a rescan of the last 14 days would re-close an issue a human reopened because the
+      # fix failed (the script also skips an issue reopened after its fixing commit).
+      - name: close_fixed_issues.py --apply on the pushed range
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/close_fixed_issues.py --apply --remote origin/integration
+        run: python3 scripts/close_fixed_issues.py --apply --remote origin/integration --range "${{ github.event.before }}..${{ github.sha }}"

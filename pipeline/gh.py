@@ -52,19 +52,6 @@ def issue(number: int) -> dict:
     return _slim(d)
 
 
-def issues(milestone: str | None = None, state: str = "open", limit: int = 200) -> list[dict]:
-    args = ["issue", "list", "--state", state, "--limit", str(limit), "--json", ISSUE_FIELDS]
-    if milestone:
-        args += ["--milestone", milestone]
-    return [_slim(d) for d in read(*args)]
-
-
-def milestones(state: str = "open") -> list[dict]:
-    rows = read("api", f"repos/{{owner}}/{{repo}}/milestones?state={state}&per_page=100")
-    return [{"number": m["number"], "title": m["title"], "open": m["open_issues"], "closed": m["closed_issues"],
-             "due": m.get("due_on")} for m in rows]
-
-
 def _slim(d: dict) -> dict:
     d = dict(d)
     d["labels"] = sorted(lab["name"] for lab in d.get("labels") or [])
