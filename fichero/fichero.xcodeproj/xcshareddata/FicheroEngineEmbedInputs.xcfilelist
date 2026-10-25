@@ -629,6 +629,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v2.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v3.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md

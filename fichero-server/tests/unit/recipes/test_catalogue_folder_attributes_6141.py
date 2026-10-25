@@ -95,7 +95,10 @@ def test_a_short_end_of_a_range_is_read_as_the_year_it_ends(dates, start, end):
 def test_creators_are_split_at_the_semicolons_the_prompt_asks_for():
     from pathlib import Path
 
-    prompt = (Path(catalogue_step.__file__).parent.parent / "resources/prompts/catalogue/folder_description_v2.md").read_text()
+    prompt = (Path(catalogue_step.__file__).parent.parent / "resources/prompts/catalogue/folder_description_v3.md").read_text()
     assert "records name or the facts give, separated by semicolons" in " ".join(prompt.split())
+    # v2 is left as it was: a versioned prompt never changes under its name (results are keyed by it).
+    v2 = (Path(catalogue_step.__file__).parent.parent / "resources/prompts/catalogue/folder_description_v2.md").read_text()
+    assert "separated by semicolons" not in v2.split("Creator and hands: the writers")[1].split("Arrangement")[0]
     assert catalogue_step.parse_fields("Creator and hands: Ana Ruiz, scribe; Luis Pérez")["catalogue_creators"] == [
         "Ana Ruiz, scribe", "Luis Pérez"]
