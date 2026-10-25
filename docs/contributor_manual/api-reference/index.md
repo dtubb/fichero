@@ -266,6 +266,43 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   steps on a copy of the samples (a `try-a-stage` job), its result kept beside the setup, never the
   project's work; a stage using the cloud is refused (402) with its cost until `cost_ok`.
 
+## The search model of a project (#6122, #6144)
+
+A project searches with one embedding model, chosen when it is made (`POST /api/library` takes `embedding_model`) and kept in the
+project's package. Changing it later is a re-embed run that shows its plan first and keeps the old vectors until it finishes.
+
+### `/api/search/embedding`
+
+`GET /api/search/embedding` — which model this project searches with (`model`), the models it may choose (`models`), how many
+vectors it holds (`vectors`) and whether it can still be set directly (`changeable`, true only while it holds none).
+
+`PUT /api/search/embedding` — body `{"model": "<name>"}`. Sets the model of a project that holds no vectors; 422 for a model Fichero
+does not know, 409 for a project that already holds vectors (use the change run below).
+
+### `/api/search/embedding/models`
+
+`GET /api/search/embedding/models` — library-free (it answers before any project exists). Every model a project may be made with,
+the recommended one first: `model`, `name`, `blurb` (one line) and `recommended`.
+
+### `/api/search/embedding/change-plan`
+
+`GET /api/search/embedding/change-plan?model=<name>` — what changing to `model` would do, said before anything runs: pages, names
+(`entities`), statements (`claims`), `seconds_estimate`, `cost_usd`, where it runs, and that search keeps the old vectors until the run ends.
+
+### `/api/search/embedding/change`
+
+`POST /api/search/embedding/change` — body `{"model": "<name>", "confirm": true}`. Starts the re-embed run (audited, one job in
+Activity) and returns `status`, `job_id` and a `message`. Without `confirm: true` it is refused with the instruction to show the plan first; the model the project already uses is refused too.
+
+## Review instructions (#6128)
+
+### `/api/recipes/project/review-instructions`
+
+`GET /api/recipes/project/review-instructions` — each review pass of the project's Review the Reading step: its `lens`, the `default`
+instructions built from the project's language, script and date, the `text` the pass is sent (the project's edit, else the default),
+whether it was `edited`, and the `profile` sentence the default was built from. An edit is saved with the project's setup as
+`job_answers.review_instructions` (lens to text; blank is no edit) and applies to pages reviewed from then on.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API
