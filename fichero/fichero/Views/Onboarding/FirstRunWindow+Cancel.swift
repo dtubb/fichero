@@ -17,8 +17,11 @@ extension FirstRunWindow {
     }
 
     func discardAndClose() {
-        newProject.discard()
         finishedSetUp = true
-        dismiss()
+        if !newProject.discard(), let why = newProject.errorMessage {
+            discardError = why  // the alert's OK closes the window
+        } else {
+            dismiss()
+        }
     }
 }

@@ -51,6 +51,24 @@ final class NewProjectDiscardTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: existing.path))
     }
 
+    func testATrashFailureIsKeptForTheWindowToSayAndTheProjectIsStillClosed() async throws {
+        struct Refused: Error {}
+        let store = NewProjectStore(libraryManager: LibraryManager.shared, openInEngine: { _ in }, trash: { _ in throw Refused() })
+        store.place = .chosen(folder)
+        let made = try XCTUnwrap(await store.create())
+        XCTAssertFalse(store.discard())
+        XCTAssertNotNil(store.errorMessage, "the window shows it before it closes")
+        XCTAssertNil(LibraryManager.shared.getLibrary(id: made.id))
+    }
+
+    func testDeleteProjectAndASetUpCancelShareOneTrashPath() throws {
+        let sidebar = try AppSource.code("Views/Sidebar/Sections/LibraryHeaderRow.swift")
+        let store = try AppSource.code("Models/NewProjectStore.swift")
+        XCTAssertTrue(sidebar.contains("LibraryManager.trashPackage(at:"))
+        XCTAssertTrue(store.contains("LibraryManager.trashPackage(at:"))
+        XCTAssertFalse(sidebar.contains("FileManager.default.trashItem"))
+    }
+
     func testOnlyANewProjectsSetUpCancelDeletes() {
         XCTAssertTrue(FirstRunWindow.cancelDeletesTheProject(in: .newProject))
         XCTAssertFalse(FirstRunWindow.cancelDeletesTheProject(in: .setUp), "Set Up on an existing project never deletes")

@@ -37,7 +37,7 @@ final class NewProjectStore {
          openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil,
          trash: ((URL) throws -> Void)? = nil) {
         self.libraryManager = libraryManager
-        self.trash = trash ?? { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
+        self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
         self.openInEngine = openInEngine ?? { try await $0.apiClient.initializeLibrary(path: $0.url.path) }
     }
 
@@ -117,7 +117,7 @@ final class NewProjectStore {
         do {
             try trash(url)
         } catch {
-            errorMessage = "The project could not be moved to the Trash: \(error.localizedDescription)"
+            errorMessage = "The project is closed, but its folder could not be moved to the Trash: \(error.localizedDescription)"
             return false
         }
         return true

@@ -45,6 +45,8 @@ struct FirstRunWindow: View {
     /// Set when setup ends by Start or Done, so closing the window afterwards keeps the project (#6117).
     @State var finishedSetUp = false
     @State var confirmingCancel = false
+    /// Why a cancelled new project's folder could not go to the Trash; said before the window closes (#6117).
+    @State var discardError: String?
     @State var isSaving = false  // read by the Ready page in FirstRunWindow+Recipe.swift
 
     let mode: Mode
@@ -116,6 +118,12 @@ struct FirstRunWindow: View {
             Button("Keep Project", role: .cancel) {}
         } message: {
             Text("Cancelling Set Up deletes the project it made, with the pages you added. It goes to the Trash.")
+        }
+        .alert("The project could not be deleted", isPresented: Binding(get: { discardError != nil },
+                                                                      set: { if !$0 { discardError = nil } })) {
+            Button("OK") { dismiss() }
+        } message: {
+            Text(discardError ?? "")
         }
         // The window's close button: a new project with no material is deleted like Cancel; one with material stays.
         .onDisappear {
