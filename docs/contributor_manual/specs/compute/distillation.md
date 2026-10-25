@@ -445,6 +445,7 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
   The training node's routes read them too (`GET /api/training/models`, newest per policy; tested in `fichero-server/tests/unit/training/test_trained_model_nodes.py`). Not built: the node in the app (#5439).* the results are stored on each
   model's card and shown on its node (`source.model.node-inspector`), so models are compared side by
   side. A later evaluation adds to them and never overwrites one.
+- `distill.eval.card-writes-are-atomic` — **[PARTIAL]** (#6136; engine tested) writing an evaluation on a model's card is one step that cannot be interleaved or half done: `training/evaluation.record_on_card` reads, appends and writes under a lock for that card's path, and writes a temp file in the card's folder then replaces the card with it (`os.replace`), so two evaluations finishing together both land (the card holds both) and a reader never sees half a file (a card that does not parse is still never overwritten). Test: `fichero-server/tests/unit/training/test_record_on_card_is_atomic_6136.py`. *One engine process is assumed; a second process writing the same card is not guarded.*
 
 The bake-off (moved from `source/models-chains-and-projects.md` on 2026-10-04) is this evaluation
 run at setup, before the recipe is fixed:

@@ -39,7 +39,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -124,13 +126,31 @@ def measured_here(db: Any, model: str, reader: str) -> float | None:
     return None
 
 
+_CARD_LOCKS_GUARD = threading.Lock()
+_CARD_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _card_lock(path: Path) -> threading.Lock:
+    """The one lock for a card's path: two evaluations finishing together must not read the same card and each write back
+    their own (#6136)."""
+    with _CARD_LOCKS_GUARD:
+        return _CARD_LOCKS.setdefault(str(path), threading.Lock())
+
+
 def record_on_card(model: str, reader: str, entry: dict[str, Any]) -> None:
-    """Append one evaluation to the model's card; earlier ones are kept."""
+    """Append one evaluation to the model's card; earlier ones are kept. Read, append and write are one step under the card's
+    lock, and the card is replaced whole from a temp file in its folder, so a reader never sees half of it (#6136)."""
     path = card_path(model, reader)
-    card = _read_card(path)
-    card.setdefault("evaluations", []).append(entry)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(card, indent=1), encoding="utf-8")
+    with _card_lock(path):
+        card = _read_card(path)
+        card.setdefault("evaluations", []).append(entry)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            temp.write_text(json.dumps(card, indent=1), encoding="utf-8")
+            os.replace(temp, path)
+        finally:
+            temp.unlink(missing_ok=True)
 
 
 def trained_card(candidate: EvaluationCandidate) -> dict[str, Any] | None:
