@@ -818,8 +818,9 @@ extension URLRequest {
         }
         return data
     }
+}
 
-
+extension RecipeSetupStoreTests {
     /// WHY (## 921): the plan is read from the SAVED project, so turning a step on must save (PUT) the answer before
     /// the plan is read again, or the step stays "not in the plan" and the button seems to do nothing.
     @Test("turning a step on sets the engine's answer, saves it, then reads the plan again")
