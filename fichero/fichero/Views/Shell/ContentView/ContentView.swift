@@ -465,59 +465,98 @@ struct ContentView: View {
     /// window. Only the STAGING is restored — ▶ stays an explicit press, so
     /// restore can never invite a paid run nobody remembers asking for.
     @State var stagedWorkflowChain: [StagedWorkflowStep] = []
-    @State var isRunningStagedChain = false
+    var isRunningStagedChain: Bool {
+        get { runState.isRunningStagedChain }
+        nonmutating set { runState.isRunningStagedChain = newValue }
+    }
     /// Engine id of the persisted "Workflow Bar" chain, once known.
-    @State var workflowBarChainId: String?
+    var workflowBarChainId: String? {
+        get { runState.workflowBarChainId }
+        nonmutating set { runState.workflowBarChainId = newValue }
+    }
     /// One restore attempt per window lifetime — a rail the user then
     /// clears must STAY cleared, not respawn on the next re-render.
-    @State var workflowBarChainRestoreAttempted = false
+    var workflowBarChainRestoreAttempted: Bool {
+        get { runState.workflowBarChainRestoreAttempted }
+        nonmutating set { runState.workflowBarChainRestoreAttempted = newValue }
+    }
     /// The documents the LAST chain run acted on, frozen at press time.
     /// Opening a finished step's result must show what the run wrote to —
     /// not whatever the selection has wandered to since (review, 2026-08-29).
-    @State var lastChainRunTargets: [String] = []
+    var lastChainRunTargets: [String] {
+        get { runState.lastChainRunTargets }
+        nonmutating set { runState.lastChainRunTargets = newValue }
+    }
     /// Which chain step is executing, for the rail's progress.
-    @State var runningStagedStepIndex: Int?
+    var runningStagedStepIndex: Int? {
+        get { runState.runningStagedStepIndex }
+        nonmutating set { runState.runningStagedStepIndex = newValue }
+    }
     /// The Task driving the current staged-chain run, held so a Stop press can
     /// cancel it (Daniel, 2026-09-06). Cancelling the driver stops the chain
     /// from advancing to its next step; `stopStagedChain` also cancels the step
     /// already in flight on the engine, so Stop is a real stop, not a hidden
     /// spinner.
-    @State var stagedChainRunTask: Task<Void, Never>?
+    var stagedChainRunTask: Task<Void, Never>? {
+        get { runState.stagedChainRunTask }
+        nonmutating set { runState.stagedChainRunTask = newValue }
+    }
     /// Runs launched from the bar that are still executing — PARALLEL, not a
     /// queue (Daniel, 2026-09-07: "it stays in activity. not queued behind
     /// vision. it can run in parallel"). A run detaches the instant it launches
     /// and runs concurrently with the others, each tracked in Activity; this is
     /// the bar's view of that set, for the "N running" status. Empty leaves the
     /// single-run path untouched.
-    @State var workflowRunRegistry = WorkflowRunRegistry()
+    var workflowRunRegistry: WorkflowRunRegistry {
+        get { runState.workflowRunRegistry }
+        nonmutating set { runState.workflowRunRegistry = newValue }
+    }
     /// The driver Task of each detached run, by run id, so a run can be
     /// cancelled individually (from Activity) and cleaned up when it settles.
-    @State var detachedRunTasks: [UUID: Task<Void, Never>] = [:]
+    var detachedRunTasks: [UUID: Task<Void, Never>] {
+        get { runState.detachedRunTasks }
+        nonmutating set { runState.detachedRunTasks = newValue }
+    }
     /// True once "New" has DETACHED the bar's own running chain from the
     /// editable rail: the run keeps executing (tracked in Activity), the bar
     /// clears to a fresh composition, and its inline chips/Stop give way to the
     /// compact "N running" status. Reset when that run settles.
-    @State var barChainDetached = false
+    var barChainDetached: Bool {
+        get { runState.barChainDetached }
+        nonmutating set { runState.barChainDetached = newValue }
+    }
     /// The registry id of the bar's own chain once "New" detaches it, so its
     /// settling (the attached driver's completion) deregisters it from the
     /// running set. nil while the bar's chain is attached or idle.
-    @State var attachedRunRegistryId: UUID?
+    var attachedRunRegistryId: UUID? {
+        get { runState.attachedRunRegistryId }
+        nonmutating set { runState.attachedRunRegistryId = newValue }
+    }
     /// Explicit run-scope chosen from the subject chip's menu (Daniel,
     /// 2026-08-29). Outranks the automatic ladder while what it names is
     /// still visible; nil (the menu's "Automatic") follows the ladder.
-    @State var workflowScopeOverride: WorkflowBarPolicy.RunScope?
+    var workflowScopeOverride: WorkflowBarPolicy.RunScope? {
+        get { runState.workflowScopeOverride }
+        nonmutating set { runState.workflowScopeOverride = newValue }
+    }
     /// Cost of the staged chain — a per-step breakdown plus the aggregate the
     /// chip states. nil while there is nothing to price (no chain, or no
     /// targets). A step that cannot be priced travels as an unpriced line, so
     /// the chip can say "unpriced" or "≥ $X" rather than ever reading a miss
     /// as a US$0.00 charge.
-    @State var stagedChainCost: StagedChainCost?
+    var stagedChainCost: StagedChainCost? {
+        get { runState.stagedChainCost }
+        nonmutating set { runState.stagedChainCost = newValue }
+    }
     /// The chain's ACTUAL cost once it has run — one line per step, read from
     /// each step's recorded run accounting (`RunUsage.costUsd`, the same number
     /// Activity shows). nil before a run, and cleared the moment the chain's
     /// structure changes so a re-plan can never wear the last run's actuals.
     /// Present alongside `stagedChainCost`, the chip shows "est $X → $Y".
-    @State var stagedChainActualCost: StagedChainCost?
+    var stagedChainActualCost: StagedChainCost? {
+        get { runState.stagedChainActualCost }
+        nonmutating set { runState.stagedChainActualCost = newValue }
+    }
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.
@@ -664,6 +703,8 @@ struct ContentView: View {
     @State var measuredWindowWidth: Double = 0
     /// Coalesces the width readings of an Inspector drag into one write (#6009).
     @State var windowWidthSettle = WindowWidthSettle()
+    /// The workflow bar's run state, boxed (see `WorkflowBarRunState`).
+    @State var runState = WorkflowBarRunState()
     // `layout.followsSelection` was DELETED with #4525 (V6): an opt-in whose
     // only purpose was to violate the stable-panes policy (#1452's default —
     // selection never changes which panes are visible — is now the only
