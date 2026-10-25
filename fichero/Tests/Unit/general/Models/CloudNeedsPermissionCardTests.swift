@@ -13,9 +13,9 @@ struct CloudNeedsPermissionCardTests {
         let flag = (needsPermission.map { ",\"needs_permission\":\($0)" } ?? "")
             + (refused.map { ",\"refused\":\"\($0)\"" } ?? "")
         let json = """
-        {"id":"openrouter:gpt","name":"A cloud reader","source":"provider","offered_because":"","pin":{},
+        {"id":"openrouter:gpt","name":"A cloud reader","source":"remote","offered_because":"","pin":{},
          "jobs":["read-a-line"],"open_licence":true,"size":"","measured":"","in_recipe_rules":true,
-         "runs_where":"cloud","availability":"download","availability_words":"Runs in the cloud","chosen":false\(flag)}
+         "runs_where":"provider","availability":"download","availability_words":"Runs in the cloud","chosen":false\(flag)}
         """
         return try JSONDecoder().decode(Components.Schemas.ModelCandidate.self, from: Data(json.utf8))
     }
