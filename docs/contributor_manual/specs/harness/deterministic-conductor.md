@@ -1,257 +1,194 @@
-# Deterministic Conductor — scripts run the lanes, models do the work — Design Spec (#TBD)
+# Dev Pipeline — specs in, tested builds out, by scripts not by memory — Design Spec (#6116)
 
 > Milestone: dev-orchestration-harness
-> Manual: TBD (contributor manual, "How the agent team works").
-> **Status: DRAFT 2026-10-25, for the maintainer's review.** Extends `dev-orchestration-harness.md`; where they differ,
-> this one wins for who CHOOSES and who CHECKS.
+> Manual: TBD — the contributor manual needs a "How Fichero is built" page: how a spec becomes issues, how lanes run,
+> what runs on GitHub, on Xcode Cloud and on the test Macs, and what waits for the maintainer.
+>
+> Design-led. **Status: DRAFT 2026-10-25, for the maintainer's approval.** Supersedes the orchestration parts of
+> `dev-orchestration-harness.md` (roles, dispatch) and the earlier drafts of this file. Rulings so far are under
+> "Rulings". Tags: [OK] built · [PARTIAL] exists, not wired · [MISSING] not built · [BROKEN] fails today ·
+> [PROPOSED] needs a ruling.
 
-## Why
+## Intent
 
-Today an LLM lead chooses the next issue, starts the worker, decides when it is done, merges, and is supposed to close
-the issue. Every one of those is judgement, so it drifts: 739 open issues are cited by fix commits on integration, 123
-open issues have no milestone, and the lead's choices cost Opus tokens. A small open model (Qwen in Pi or OpenCode)
-cannot be trusted with those choices: the 2026-10-18 trials showed false "done" reports, commits outside the worktree,
-and loops.
+The maintainer has an idea, decides it with Claude (Opus) as a spec, approves it, and from then on the work runs
+itself: issues are filed from the spec, a coding agent (Qwen 3.8 in Pi, on OpenRouter now and a local model on a
+128 GB Mac later) builds one milestone at a time in its own worktree, scripts check every result, a reviewer
+reviews it, the gate runs, integration is pushed, issues close, a nightly build reaches the test devices, and a
+weekly release waits only for the maintainer's yes. The maintainer follows it on one page and answers questions in
+one queue, instead of chatting a lead session through each step. Today every one of those steps is an LLM lead's
+judgement, so steps are forgotten: on 2026-10-25, 739 open issues were already cited by fix commits, 123 had no
+milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
 
-The pieces were built a year ago and never joined: `choose_next.py` (pick work), `dispatch_advisor.py` (size an issue),
-`file_issue.sh` (file with a valid milestone), `close_fixed_issues.py` (close what a pushed commit fixes),
-`start-lane.sh` (preflight), `agent-work/trial2/run.sh` (a jailed headless run with a score).
+## Prior art (adopt, don't invent)
 
-## The rule
+- **Bernstein** (sipyourdrink-ltd/bernstein, Apache-2.0) is the engine: a plain-Python scheduler with no model in
+  the coordination loop, YAML run graphs (phases, roles, dependencies, conditions), a git worktree per task, quality
+  gates (shell commands), retry or another model on failure, GitHub/Linear/Jira ticket import, cron schedules,
+  PR automation, a hash-chained signed journal, a terminal and a browser dashboard, and adapters for Pi, Qwen,
+  Ollama and 50+ agents. Trialled 2026-10-25 on #6100 (see "Trial findings").
+- **GitHub Actions** for everything that needs only GitHub and the repo. The repo is public, so standard
+  GitHub-hosted runners (Linux and macOS) cost nothing.
+- **Xcode Cloud** (included with the Apple Developer Program, 25 compute hours a month) for Apple builds, tests,
+  notarized Developer ID exports and TestFlight delivery.
+- Borrowed rules: OpenAI Symphony (poll the board, one isolated workspace per issue, restart a stalled agent);
+  Issue-Orchestrator (re-check state independently; the agent's "done" is a claim); Aider / Ralph loops (test,
+  feed the failure back, retry); fichero-skills' `fs_autoloop` (May–Sept 2026) as the counter-example: a markdown
+  queue edited by the model, "done" taken from the model's report, a loop driven by prompts, no jail.
+- Surveyed and not adopted: vibe-kanban (shut down 2026-04), Conductor, Superset, Claude Squad, Crystal (worktree
+  GUIs, chat-driven, no machine check); OpenHands resolver, OpenCode's GitHub action (cloud runners, own agent).
 
-**Scripts choose and check; models only write code.** Every choice (which milestone, which issue, which model, is it
-done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
-report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
+## The pipeline
 
-## The target: the whole development loop on Qwen 3.8 in Pi
+```
+maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ GitHub milestone, issues in build order
+                                                                     │
+          dashboard ◀── Bernstein journal ◀── Bernstein run ◀── milestone feeder (next milestone, next issues)
+                                                │  one Pi + Qwen coder per milestone, several issues per context
+                                                ▼
+                         gates: ready check → named tests (Pro) → reviewer (Claude binding, Qwen shadow)
+                                                ▼
+                         candidate → full gate (Air by day, M4 by night) → push integration
+                                                ▼
+     GitHub Actions: close fixed issues · milestone hygiene · engine-free tests · PR checks
+                                                ▼
+     nightly: Xcode Cloud build + tests → dev TestFlight / dev DMG → iPhone, iPad, Mac
+     weekly: release scripts → notarized DMG + Sparkle + TestFlight + site — stops for the maintainer's yes
+```
 
-What the conductor grows into, in this order of trust (each stage earned by measured results, not assumed):
+## Behaviors
 
-| Role | Today | Target | Kept deterministic by |
-|---|---|---|---|
-| Talk to the maintainer, write specs | Claude (Fable/Opus) | a Pi + Qwen manager, with the dashboard | spec template + guards; the maintainer approves |
-| Spec → issues + milestones | the clerk by hand | script from the spec's behaviour tags | `check_spec_*` guards |
-| Build to spec, in phases | Sonnet lanes | Pi + Qwen coder, one milestone per context, several issues in a row | ready check, red-on-base test |
-| Test to spec | lanes + manager | the coder writes; scripts run pytest + xcodebuild on the test machine | gate parts, test queue |
-| Review (ponytail, correctness) | Claude reviewer + Qwen shadow | Qwen reviewer, Claude on the batch | adjudicated precision ≥ the bar |
-| Docs + tests kept current | lanes | the coder, in the same commit | doc/spec guards |
-| Issues + milestones | the clerk, often late | GitHub Actions + scripts | close-on-push, milestone ratchet |
-| Nightly build to test | the manager by hand | scheduled: gate → build → dev DMG → device install | green gate only |
-| Weekly release | the manager by hand | scheduled, stops for the maintainer's yes | release scripts + release-docs check |
+### Specs and issues
+- `pipeline.spec-is-the-input` [PARTIAL] — work starts only from an APPROVED spec (or a bug issue); the spec
+  guards (`check_spec_behaviors_are_tagged`, `check_spec_broken_has_issue`, `check_spec_milestones`) already hold
+  the spec↔issue↔test binding.
+- `pipeline.spec-to-issues` [MISSING] — a script files one issue per `[MISSING]`/`[GAP]`/`[BROKEN]` behaviour that
+  has none, in the spec's milestone, with the behaviour id, its acceptance line and the test path to write.
+- `pipeline.build-order-readable` [MISSING] — a spec's build order lists issue numbers (`(#N)` per line), held by a
+  guard; the feeder follows it; without one, priority label then number.
+- `pipeline.brief-lint` [MISSING] — an issue without a spec id, an acceptance line or a test path is not
+  dispatched; it goes to the maintainer's queue to be written properly (by Opus with the maintainer).
+- `pipeline.every-issue-has-a-milestone` [MISSING] — a ratchet: the count of open issues with no milestone only
+  goes down (123 on 2026-10-25); a GitHub Action labels a new issue that has none.
 
-The maintainer works through the dashboard and one chat (the Pi + Qwen manager) instead of a Claude session; Claude
-stays available for hard specs and exceptions while the API credit lasts.
+### Running the work (Bernstein + the feeder)
+- `pipeline.feeder-picks-the-milestone` [PARTIAL] — `choose_next.py` (deterministic) picks the next milestone; it
+  finds nothing today because the roadmap spine drifted; fall back to milestone due dates.
+- `pipeline.one-coder-per-milestone` [MISSING] — one Bernstein task per milestone holds several of its issues in
+  order, so one context does related issues; the next milestone starts a fresh context.
+- `pipeline.one-claim-label` [MISSING] — one claim convention (`claimed`) read by the feeder, the gates and the
+  dashboard; `status:in-progress` and assignees are retired as locks.
+- `pipeline.worktree-per-task` [OK] — Bernstein gives each task a worktree (trial 2026-10-25).
+- `pipeline.jailed-agent` [PARTIAL] — Pi runs with `--no-extensions` and a filtered environment (Bernstein's
+  adapter); the worktree is the only writable path (sandbox backend or `run.sh`'s deny rules).
+- `pipeline.key-per-lane` [MISSING] — the coder gets an OpenRouter key with its own credit limit, never the main
+  key, passed only by environment.
+- `pipeline.cost-cap` [PARTIAL] — Bernstein's budget, once the model has a price entry (it reported $0 in the trial).
 
-## Where it lives: Fichero first
+### Checking the work
+- `pipeline.ready-check` [OK] — `scripts/lane_ready_check.sh` (self-tested): current integration history, no
+  private folders, agent author, every commit cites an issue, lint on the diff, a source change has a test change.
+- `pipeline.test-red-on-base` [MISSING] — the new test fails on origin/integration and passes on the branch, run
+  in a scratch worktree; a test that passes on the base proves nothing.
+- `pipeline.gate-runs-in-the-worktree` [BROKEN] — in the trial Bernstein ran the gate in the project root, not
+  the task's worktree, and failed a correct fix; worked around in config or a gate wrapper (round 2).
+- `pipeline.contract-current` [MISSING] — the gate fails when generated contract files (OpenAPI, CLI surface, Swift
+  identity) are stale; the trial's correct fix did not regenerate them.
+- `pipeline.test-queue` [MISSING] — one FIFO lock per test machine; small items test on the Pro; a red reruns once
+  before it counts (a flaky suite does not burn a retry).
+- `pipeline.retry-with-the-failure` [PARTIAL] — Bernstein retries; the retry carries the gate's failure text;
+  two retries, then the next model, then the maintainer's queue.
+- `pipeline.review` [PARTIAL] — the Claude reviewer's verdict binds; the Qwen shadow review runs beside it
+  (`trial2/shadow/watch-reviews.sh`); once Qwen's adjudicated precision passes the bar over 30 items, small items
+  pass on the machine checks plus Qwen, and Claude reviews the batch diff at the gate.
+- `pipeline.ponytail-review` [PARTIAL] — the reviewer applies the ponytail lens (shortest working diff, no
+  speculative code) as a named check in every review.
 
-The goal now is the app, so the conductor is built for Fichero, in this repo (`scripts/` and `.bernstein/` or
-`agents/conductor/`), against Fichero's gate, test machines and issues. Only once it has run Fichero's lanes reliably
-does it move into a shared home (fichero-skills or a new name) for the other projects in use (assistant,
-research_assistant). Nothing is generalised before then.
+### Landing, closing, building, releasing
+- `pipeline.batch-gate` [PARTIAL] — reviewed items merge into a candidate; the full engine gate runs at K items or a
+  set hour (Air by day, M4 by night); green → push integration; nothing pushes main except the weekly release.
+- `pipeline.rebase-after-push` [MISSING] — every live coder rebases on integration after a push; a conflict after
+  the rebase stops that coder and goes to the queue.
+- `pipeline.close-on-push` [PARTIAL] — a GitHub Action on push to integration runs `close_fixed_issues.py --apply`
+  (the script exists and works); a `Part of #N` leaves the issue open with a comment.
+- `pipeline.actions-engine-free-checks` [MISSING] — GitHub Actions runs ruff, the guard scripts that need no
+  engine, the unit tests that need no models, and `lane_ready_check.sh` on every PR and push (`ci.yml` today runs
+  only on main).
+- `pipeline.xcode-cloud-builds` [PROPOSED] — Xcode Cloud builds and runs the Swift unit tests on every push to
+  integration, archives Mac and iOS nightly, and delivers the dev build to TestFlight; the spike must show the
+  embedded Python engine (Briefcase) can be built in `ci_post_clone.sh` within the time budget, else Xcode Cloud
+  builds the app against a prebuilt engine artifact from the M4.
+- `pipeline.nightly-build` [MISSING] — on a green gate: dev DMG (notarized) and dev TestFlight; the Mac, iPhone and
+  iPad get it; a red gate sends nothing and says why on the page.
+- `pipeline.weekly-release` [PARTIAL] — `release-all.sh` on a schedule prepares the release (version, notes check,
+  DMGs, TestFlight, GitHub release, Sparkle, site) and stops for the maintainer's yes before anything is public;
+  the pre-release scan checks private docs as well as keys and paths.
 
-**The last attempt, `fs_autoloop` (May–Sept 2026, removed in fichero-skills b1c9ed2), and what changes:** its state was
-a markdown queue the model and sed edited; "done" was the model's report, later guessed from the HEAD commit; the loop
-was driven by prompts; there was no jail, no machine check and no per-issue brief; it ran free-tier Qwen. The
-conductor keeps state in script-owned JSON, decides done only by the machine check, drives the loop in code, jails
-the worker, and lints the brief first.
-
-**Adopt before building:** a second survey (2026-10-25) found one candidate worth a day: Bernstein (Apache-2.0; a plain
-Python scheduler, no LLM scheduling; per-task worktrees; lint/test gates; retry or another model on failure; Qwen and
-Ollama adapters; a dashboard). Missing: a GitHub-issues task source and a Pi adapter; one maintainer, beta. Plan: a
-one-day trial on one repo; if it holds, write its GitHub-issues source and use `ready_check.sh` as its gate; if not,
-build v1 thin and borrow its rules (and Issue-Orchestrator's: re-check state, never trust the agent's done).
-
-## Ruling (maintainer, 2026-10-25): build on Bernstein
-
-Build on what works rather than reinvent: Bernstein (Apache-2.0) is the engine (deterministic scheduler, YAML run
-graphs, a worktree per task, gates, retries / model fallback, schedules, the signed journal, the browser dashboard).
-Fichero adds only a thin layer: (1) a milestone feeder (next milestone → its issues in spec order → Bernstein
-tasks), (2) Fichero's checks as Bernstein's gates (`lane_ready_check.sh`, pytest, xcodebuild on the test machine),
-(3) GitHub Actions for closing issues and milestone hygiene, (4) the release scripts on Bernstein's schedule.
-Bernstein bugs found on the way are reported upstream with a reproduction, and worked around in config, not forked.
-`conductor.py` below is replaced by the feeder plus Bernstein's own run; the loop described in this spec is what
-the feeder + Bernstein config must produce.
+### Following along
+- `pipeline.dashboard` [PARTIAL] — Bernstein's browser dashboard (127.0.0.1:8052/ui) shows tasks, agents, diffs
+  and cost; the page also shows the maintainer's queue (open spec questions, `needs-your-decision`, on-screen checks).
+- `pipeline.maintainer-queue` [MISSING] — every question for the maintainer is one queue item with options; an
+  answer is written back to the spec or issue and the work it unblocks resumes; no lane messages him for status.
+- `pipeline.stuck-is-flagged` [MISSING] — a task past its time limit in one state is flagged on the page.
+- `pipeline.runs-unattended` [PARTIAL] — Bernstein's schedules and a launchd agent keep it running; no chat prompt
+  has to remember a step.
+- `pipeline.cost-recorded` [PARTIAL] — tokens and dollars per issue and per model (Bernstein's cost lines, once
+  priced), so the open-model share is measured.
 
 ## Who does what
 
-- **The maintainer + Claude Opus (interactive, a personal plan):** talk, decide, write and approve specs, handle
-  exceptions. The only place judgement is spent.
-- **Pi + Qwen (OpenRouter now, a local model on a 128 GB Mac later):** one issue at a time, inside the harness.
-- **Scripts and GitHub Actions:** everything else (choose, check, close, log). No OpenCode, no LLM lead in the loop.
+- **The maintainer + Claude Opus** (interactive): ideas, specs, rulings, exceptions. Later, the same role through a
+  Pi + Qwen manager and the dashboard.
+- **Pi + Qwen 3.8** (27B or Flash, in tight Pi with rules + checklist): coding, tests, docs, first reviews. In the
+  2026-10-18 trials it wrote the right tests (6/6–7/7) and caught 3/3 planted bugs; Qwen3-coder-next missed one in
+  every harness, so the model matters more than the harness.
+- **Bernstein + scripts + GitHub Actions + Xcode Cloud**: everything else.
 
-## Version 1, and nothing more
+## Rulings
 
-Four pieces, each a short script with a self-test, so the process runs the same on the Pro today and on a laptop with
-local models later (only the model endpoint changes):
-1. `lane_ready_check.sh`: the machine check (built; the red-on-base proof is next).
-2. Close on push: a GitHub Actions workflow runs `close_fixed_issues.py --apply` on every push to integration.
-3. `brief_lint.py`: refuses an issue a small model cannot do (no spec id, acceptance line or test path).
-4. `conductor.py --once --issue N`: brief, jailed Pi + Qwen run, ready check, named tests, PASS/FAIL, one log line.
-Everything else in this spec (the loop, several lanes, resume, the web page, the launchd service, escalation tables)
-waits until v1 has done ten real issues and the numbers say it is worth building.
+- 2026-10-25: build on what works, not reinvent: Bernstein is the engine; Fichero adds a feeder, its gates, Actions
+  and release schedules. Bernstein's bugs are worked around in configuration or a small wrapper, never forked, and
+  not filed upstream for now.
+- 2026-10-25: Fichero first, in this repo; a shared home (fichero-skills or a new name) only after it runs Fichero
+  reliably, for the other projects in use (assistant, research_assistant).
+- 2026-10-25: no OpenCode; Pi is the harness.
 
-## Where judgement stays, and where it stops
+## Trial findings (Bernstein 3.23.0, 2026-10-25, #6100, Pi + Qwen 3.8 27B via OpenRouter)
 
-1. **The maintainer has an idea** and says it (chat, an issue, or the web page's input box).
-2. **Fable or Opus writes the spec** with the maintainer: one line per behaviour, tagged, a build order, open
-   questions. The maintainer rules on the questions and approves. This is the last step that needs judgement.
-3. **From the approved spec on, everything is mechanical:**
-   - a script files one issue per untagged-or-`[GAP]`/`[BROKEN]` behaviour that has none, in the spec's milestone,
-     ordered by the spec's build order (`check_spec_broken_has_issue` and `check_spec_milestones` already hold half
-     of this binding);
-   - the conductor works the milestone (the loop below);
-   - a behaviour's tag flips to `[OK]` in the same commit as the test that proves it, and the issue closes when that
-     commit is pushed;
-   - the spec is done when no behaviour is left untagged-OK, and the milestone closes with it.
-4. **The maintainer's input is a queue, not a conversation:** the page lists every open question in a spec, every
-   `needs-your-decision` issue and every on-screen check owed, each with its options; an answer is written back to
-   the spec or the issue by the script, and the lanes it unblocks resume.
+- Worked: ticket import, a worktree per task, Pi on OpenRouter (model id `openrouter/qwen/qwen3.8-27b`), the
+  signed journal; the agent's fix was correct (lint clean, 10 tests pass, red on base, green on the change) in
+  226 s for US$0.09.
+- Broke: the gate ran in the project root and failed the correct fix; a spawn-cooldown loop and 75 stray
+  "Upgrade" tasks after the failure; no price for the model, so no budget; dashboard token auth rejected issued
+  tokens (run with auth off, bound to 127.0.0.1). Round 2 works around these in configuration.
 
-## The loop (one script: `scripts/conductor.py`, one state file per lane)
+## Build order
 
-1. **Choose a milestone.** `choose_next.py` walks the priority spine and returns the next milestone with ready issues.
-   One lane per milestone, so a worker keeps one context. At most N lanes at once (N from the machine-memory rule).
-2. **Order its issues.** Ready = open, in the milestone, not `needs-design` / `needs-your-decision` / `needs:human`,
-   not claimed. Order: the milestone's spec build order if it has one, else issue number.
-3. **Pick the harness and model.** `dispatch_advisor.py` sizes each issue; a table in `agents/lanes.toml` maps the size
-   to a harness and model, so swapping models is one edit:
-   `mini` → Pi (tight: rules + checklist) + Qwen 3.8 27B or Flash; `regular` → the same, retried once with the failure; `frontier` → not dispatched: it goes back to the spec with Opus. (2026-10-18 trial: Qwen 3.8 in tight Pi wrote the right tests 6/6–7/7 and caught 3/3 planted bugs; Qwen3-coder-next missed one in Claude Code, OpenCode and Pi alike, so the model matters more than the harness.)
-4. **Launch, jailed.** Worktree `m-<milestone>` from origin/integration; the harness may write only inside it (sandbox
-   + deny rules, as `run.sh` does); no push rights. The brief is generated from a template plus the issue: its spec
-   ids, its acceptance lines, and the tests to run. The harness session id is saved in the lane state.
-5. **One issue, then stop.** The worker writes the spec line, a red test, the code, green; commits with `Fixes #N`
-   (all of it done) or `Part of #N`; writes `.lane/done-<N>.json` (sha, tests run). Then the run ends: the worker is
-   spun down, its session kept so it can resume.
-6. **Machine check.** `scripts/lane_ready_check.sh`: the branch is on current integration history, no private files,
-   ruff / swiftlint clean on the diff, author is the agent, every commit cites an issue, a source change has a test
-   change. Then the brief's tests run on the test machine (the Air by day, the M4 by night). Red → the same session is
-   resumed with the failure text (twice at most) → then the next model up the table.
-7. **Review.** The Claude reviewer's verdict binds; the Qwen shadow review runs beside it. NOT OK → back to step 6 with
-   the findings.
-8. **Integrate in batches.** OK items merge into the day's candidate. A full gate runs at K items or at a set hour;
-   green → push integration → `close_fixed_issues.py --apply` closes every `Fixes #N` that landed → the lane's
-   next issue resumes the same session (same milestone); a drained milestone ends the lane.
-9. **Exceptions go to an LLM lead**, and only these: merge conflicts, a red gate not traced to one item, a design wall
-   recorded on an issue, anything needing the maintainer. The lead acts and returns control to the script.
+1. GitHub Actions: `ci.yml` on integration + PRs (engine-free checks, ready check); close-on-push; milestone label.
+2. Bernstein round 2 workarounds in config (gate in the worktree, no stray tasks, pricing).
+3. The feeder (milestone → Bernstein tasks, several issues per task) and `brief_lint.py`; ten small issues from one
+   guard/lint milestone through Pi + Qwen, scored (claims vs reality, reviewer load, cost).
+4. Xcode Cloud spike: one workflow building the Mac app with the embedded engine, Swift unit tests, and a dev
+   TestFlight delivery; decide `pipeline.xcode-cloud-builds`.
+5. Nightly build on a green gate; the maintainer's queue on the page.
+6. The test-machine queue, red-on-base proof, rebase-after-push; a second coder.
+7. The weekly release on a schedule.
 
-## Later, only after v1 has run ten issues: a small local web app
+## Test matrix
 
-The process today fails by being forgotten: a lane finishes and nobody notices, a check-in prompt goes stale, an
-issue is never closed. So the conductor runs as one long-lived local process (a launchd agent, restarted if it dies),
-not as a prompt someone has to remember, and serves one page on localhost (stdlib `http.server`, no framework):
-- each lane: milestone, issue, model, state (running / checking / in review / waiting / spun down), time in state,
-  tokens and dollars so far;
-- the queue: next milestones and their ready issues; what is waiting on the maintainer (`needs-your-decision`,
-  on-screen checks);
-- the last gate, the last push, the issues closed by it;
-- buttons that write to a control file the loop reads: pause a lane, resume, retry, skip an issue, approve a push.
-
-This page is how the maintainer follows the work: what each lane is doing, what is queued, what waits on the maintainer and
-what landed, without asking in chat. Chat is for talking, not for status.
-
-A lane stuck in one state past a limit (an hour by default) is flagged on the page and wakes the LLM lead. The page
-reads the same state files and log the loop writes, so it can never show something the loop is not doing.
-
-## What GitHub does instead of the conductor
-
-The repo is public, so Actions minutes are free; anything that needs only GitHub and the repo runs there, not in the
-local loop, and so cannot be forgotten:
-- push to `integration` → `close_fixed_issues.py --apply` (closing becomes an event, not a step);
-- an issue opened or edited → no milestone means a label and a comment (later: the milestone taken from the spec
-  that cites it);
-- a pull request → `lane_ready_check.sh` and the guard scripts that need no engine, the result as a check run;
-- nightly → spec tags vs issues (`check_spec_broken_has_issue`, `check_spec_milestones`), stale `status:in-progress`
-  claims released.
-
-The engine gate, the Mac build and anything with models stay local (the Air by day, the M4 by night): hosted macOS
-runners are slow and paid, and the gate needs local models.
-
-## Behaviours
-
-- `conductor.github-closes-on-push` [GAP] — an Actions workflow on push to integration runs `close_fixed_issues.py --apply`.
-- `conductor.github-milestone-triage` [GAP] — a workflow flags an issue with no milestone.
-- `conductor.github-pr-ready-check` [GAP] — a workflow runs the ready check and the engine-free guards on every PR.
-
-- `conductor.runs-as-a-service` [GAP] — a launchd agent keeps the loop alive; no prompt or person has to start it.
-- `conductor.status-page` [GAP] — the localhost page above, read-only except for the control buttons.
-- `conductor.maintainer-follows-on-the-page` [GAP] — status and decisions live on the page; no lane or lead messages
-  the maintainer for status.
-- `conductor.stuck-lane-flagged` [GAP] — a lane past its time limit is flagged and wakes the lead.
-
-- `conductor.choose-milestone-by-spine` [PARTIAL] — `choose_next.py` exists and is deterministic; today it finds no
-  ready issue because the spine and the labels have drifted.
-- `conductor.one-lane-per-milestone` [GAP] — a lane owns one milestone; two lanes never share one.
-- `conductor.every-issue-has-a-milestone` [GAP] — a guard fails when an open issue has no milestone; new issues go
-  through `file_issue.sh`, which already refuses a closed milestone.
-- `conductor.size-picks-the-model` [PARTIAL] — `dispatch_advisor.py` sizes; the size → harness/model table
-  (`agents/lanes.toml`) does not exist.
-- `conductor.jailed-launch` [PARTIAL] — `run.sh` jails Claude Code, Qwen Code, OpenCode and Pi runs; not used for real
-  lanes.
-- `conductor.brief-from-template` [GAP] — the brief is generated from the issue's spec ids, acceptance and tests.
-- `conductor.done-is-a-file-not-a-claim` [GAP] — done means the done file plus a passing machine check.
-- `conductor.ready-check` [GAP] — `lane_ready_check.sh` as in step 6, with a self-test that proves each check can fail.
-- `conductor.retry-then-escalate` [GAP] — two resumes with the failure text, then the next model up.
-- `conductor.resume-by-milestone` [GAP] — the saved session resumes for the same milestone's next issue.
-- `conductor.close-on-push` [PARTIAL] — `close_fixed_issues.py --apply` exists and works (dry run 2026-10-25 would
-  close #5807, #5811, #5814, #5816); nothing calls it after a push.
-- `conductor.batch-gate` [PARTIAL] — the full gate exists; the trigger (K items or the hour) does not.
-- `conductor.exceptions-only-lead` [GAP] — the LLM lead is woken by the script, with the exception and its evidence.
-- `conductor.every-step-logged` [GAP] — one line per decision in `agent-work/status/conductor.log`, so a run can be
-  replayed and audited.
-- `conductor.cost-recorded` [GAP] — tokens and dollars per issue, per model, so the open-model share can be measured.
-
-## Build order (revised after the Fable review, 2026-10-25)
-
-1. `lane_ready_check.sh` with a red-on-base / green-on-branch proof for the new test, and its self-test; the push step
-   runs `close_fixed_issues.py --apply` (a GitHub Actions workflow on push to integration).
-2. One claim convention (the `claimed` label) read by the chooser, the check and the conductor; `choose_next.py --json`
-   returns a real milestone on today's board (milestone due dates if the spine stays stale); `brief_lint.py` refuses
-   an issue with no spec id, no acceptance line or no named test path.
-3. `conductor.py --once --milestone X --issue N`: generate the brief, launch Pi + Qwen jailed via `run.sh`, run the
-   ready check, run the named tests on the Pro, print PASS/FAIL, append one log line. No resume, no web page.
-4. Run it on ten `mini` issues of a guard/lint milestone; score claims vs reality and the reviewer's load.
-5. Only then: the loop, a second lane, the test-machine queue, the web page (or a GitHub Projects board as the page).
-
-## What the review changed
-
-- **Done must be earned:** the new test must FAIL on origin/integration and PASS on the branch, run by the check in a
-  scratch worktree; "a test file changed" is not enough (`conductor.test-red-on-base` [GAP]).
-- **Issues must be written for a small model:** `brief_lint.py` refuses under-specified issues; the Claude budget the
-  conductor saves goes into writing the spec id, the acceptance line and the test path for each (`conductor.brief-lint` [GAP]).
-- **Build orders become machine-readable:** each build-order line ends with its issue `(#N)`, held by a guard; until
-  then order by priority label, then number (`conductor.build-order-readable` [GAP]).
-- **The test machine is a queue:** one FIFO lock per machine; `mini` items test on the Pro; a red reruns once before it
-  counts, so a flaky suite does not burn a retry (`conductor.test-queue` [GAP]).
-- **Lanes rebase after every push**, and a conflict after the rebase stops that lane instead of calling an LLM
-  (`conductor.rebase-after-push` [GAP]).
-- **Resume, v1:** re-launch with the failure text appended to the brief; session resume comes later, per harness.
-- **Secrets and spend:** the worker gets a per-lane OpenRouter key with its own credit limit, never the main key; a lane
-  stops when its issue passes a dollar cap (`conductor.cost-cap` [GAP]).
-- **The milestone guard is a ratchet:** the count of issues with no milestone may only go down.
-- **Review tiers, later:** once Qwen's adjudicated precision is measured, `mini` items pass on the machine check plus
-  the Qwen review, and Claude reviews the batch diff at the gate, one call per K items.
-
-## The same shape inside Fichero
-
-The conductor is the pattern Fichero's own recipe runner already follows for archive work: a plan fixed in advance
-(the recipe's stages / the spec's behaviours), a model doing one bounded step (a stage on a page / one issue), a
-machine check of the result (a gate / the ready check), resume without redoing finished work, and one place to follow
-it (Activity / the status page). The in-app agent for research tasks (EPIC #2056, #2067, the Research surface) can take
-the same rule: a deterministic plan and checks around small local models, the model never the judge of its own result.
-Shared first as a design, not as code: the dev conductor stays a repo script, so a bug in it can never reach a user's
-library.
+| Leg | This surface? | Pins | File |
+|-----|---------------|------|------|
+| Scripts (self-test) | y | each check can fail | `scripts/lane_ready_check.sh --self-test`, feeder `--self-test` |
+| Backend (pytest) | y | close-on-push, spec-to-issues, brief lint | `fichero-server/tests/unit/scripts/` |
+| Actions | y | workflows run on a PR | `.github/workflows/*.yml` (run on a test PR) |
+| Swift / UI / MCP / CLI | n | — | — |
 
 ## Open questions
 
-1. N (lanes at once) and K (items per gate): proposed N = 2 by day on the Pro/Air, K = 5.
-2. Which milestone first for the Qwen lane: proposed a guard/lint/docs milestone, where a machine check proves most of
-   the work.
-3. Does the Claude reviewer stay binding for every item, or can a `mini` item pass on the machine check plus the Qwen
-   review alone? Proposed: Claude stays binding until Qwen's adjudicated precision is measured over 30 items.
-4. Adopt or build: build the thin conductor around the existing scripts, or adopt an existing orchestrator Survey 2026-10-25: no tool does all of it. Worktree GUIs (Conductor, Superset, Claude Squad,
-   vibe-kanban, the last shut down 2026-04) are chat-driven with no machine check; issue-driven ones (OpenAI's Symphony
-   and its Pi port, Kata Symphony, the OpenHands resolver, OpenCode's GitHub action) assume Linear, Codex or a cloud
-   runner. Proposed: build v1 thin over Pi; borrow Symphony's idea (poll the board, one workspace per issue, restart a
-   stalled agent) and look again at Kata Symphony when the loop is built.
-5. Should the conductor and Fichero's in-app agent later share one runner? Proposed: not before both have run for a
-   month; share the design now.
+1. N coders at once and K items per gate: proposed N = 1 for the first week (one milestone at a time), K = 5.
+2. First milestone for the Qwen coder: proposed a guard/lint/docs milestone.
+3. Claude reviewer binding until Qwen's precision is measured over 30 items: OK?
+4. Xcode Cloud: try it for the nightly and TestFlight builds (the spike in step 4), or keep all Apple builds on the
+   test Macs?
+5. The 230-issue `source-model` milestone holds onboarding work too: split out an `onboarding` milestone (and point
+   the onboarding spec at it)?
