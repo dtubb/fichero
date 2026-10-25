@@ -33,6 +33,20 @@ def test_the_content_is_saved_and_a_failed_reembed_goes_up(monkeypatch):
     monkeypatch.setattr("fichero_server.actions.page_text_cache.queue_reembed", boom)
     db, doc = _Db(), _Doc()
     db.doc = doc
-    with pytest.raises(RuntimeError, match="model lane down"):
+    with pytest.raises(catalogue_step.ReembedNotQueued, match="model lane down"):
         catalogue_step.put_in_content(db, "f1", "A description.", "art1")
     assert doc.page_content == "A description." and db.saved == [doc]
+
+
+def test_a_failed_save_is_not_a_reembed_failure_and_still_fails(monkeypatch):
+    monkeypatch.setattr("fichero_server.workflows.curation_guard.page_content_is_user_edited", lambda doc: False)
+    monkeypatch.setattr("fichero_server.workflows.curation_guard.page_text_is_derived", lambda db, i: False)
+
+    class _FailingDb(_Db):
+        def save(self, doc):
+            raise OSError("disk full")
+
+    db = _FailingDb()
+    db.doc = _Doc()
+    with pytest.raises(OSError, match="disk full"):
+        catalogue_step.put_in_content(db, "f1", "A description.", "art1")
