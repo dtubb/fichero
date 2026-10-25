@@ -124,7 +124,7 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(alone.projects.isEmpty)
 
         let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        XCTAssertTrue(view.contains("if !sections.projects.isEmpty {"))
+        XCTAssertTrue(view.contains("if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {"))  // a host-gone project is listed too
         XCTAssertTrue(view.contains("Text(SidebarProjectSections.projectsHeading)"))
     }
 
@@ -182,7 +182,7 @@ final class ProjectNamingTests: XCTestCase {
     func testFirstLaunchSetupWelcomesAndOffersBothChoices() {
         XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project…")
         XCTAssertEqual(FirstLaunchChoices.startWithoutProject, "Start Without a Project")
-        XCTAssertTrue(FirstLaunchChoices.welcomeParagraphs.last?.contains("Your work lives in projects") == true)
+        XCTAssertTrue(FirstLaunchChoices.handOffParagraphs.first?.contains("Your work lives in projects") == true)  // Your First Project's words (#5828)
 
         // The welcome's two choices are its footer's (ruled 2026-10-11, the Mac setup assistant's chrome).
         let steps = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps
