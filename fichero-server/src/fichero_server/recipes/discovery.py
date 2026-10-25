@@ -507,14 +507,6 @@ def frontier_catalog_models(provider: str) -> list[str]:
     return out
 
 
-_SERVES = " serves"
-
-
-def offered_from_catalogue(card: Card) -> bool:
-    """A remote card made from the vendored price list (a frontier model the key serves, #6120), not one the person saved."""
-    return card.source == "remote" and card.offered_because.endswith(_SERVES)
-
-
 def remote_reader_cards() -> list[Card]:
     """A reader card for each vision model at the person's remote endpoints (their cloud provider rows in Settings ›
     AI: OpenRouter, Anthropic, Gemini, …); with no Anthropic row, a Claude card that says to add it first (#5660 item
@@ -548,7 +540,8 @@ def remote_reader_cards() -> list[Card]:
             out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
                             runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", short_name=model_id, source="remote",
-                            offered_only=True, offered_because=f"a vision model {row.name}{_SERVES}"))
+                            offered_only=True, from_catalogue=True,
+                            offered_because=f"a vision model {row.name} serves"))
         for model in saved:
             # The tri-state rule (`llm._configured_vision_model_suggestions`): a model saved with no capabilities, as a
             # Gemini model added with a key is, inherits its provider's vision support.

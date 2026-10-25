@@ -200,11 +200,6 @@ def cloud_readers() -> list[Card]:
     return remote_reader_cards()
 
 
-def offered_from_catalogue(card: Card) -> bool:
-    from fichero_server.recipes.discovery import offered_from_catalogue as from_catalogue
-
-    return from_catalogue(card)
-
 
 #: At most this many readers of each kind take part, so a run stays affordable (ruled 2026-10-11).
 PER_KIND = 2
@@ -238,7 +233,7 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
         # A model the person saved comes before a frontier one their key merely serves (#6120): a kind with no model that
         # reads here lists one, and it is theirs.
         options = sorted((c for c in pool if _family(c) == family and fits(c)),
-                         key=lambda c: (not c.runs_here, offered_from_catalogue(c), _not_scored_because(c, *_reader_of(c), remote) is not None,
+                         key=lambda c: (not c.runs_here, c.from_catalogue, _not_scored_because(c, *_reader_of(c), remote) is not None,
                                         not c.open_licence, _rank_key(c, material, a)))
         chosen_by_name = [c for c in options if c.id in wanted]
         rest = [c for c in options if c.id not in wanted]

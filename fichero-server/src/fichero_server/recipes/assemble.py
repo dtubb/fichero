@@ -204,6 +204,8 @@ class Card:
     source: str = "shipped"
     #: Why discovery offers it, in words: what was found where, and what its record states.
     offered_because: str = ""
+    #: Made from the vendored price list (a frontier model a key serves), not a model the person saved (#6120).
+    from_catalogue: bool = False
     #: Why Fichero cannot run it yet, in words, when `runs_here` is False ("a TrOCR model: no TrOCR runtime in this
     #: build"); the finder shows it so a person sees what exists, the rules never choose it (#5660 item 3).
     cannot_run_because: str = ""
