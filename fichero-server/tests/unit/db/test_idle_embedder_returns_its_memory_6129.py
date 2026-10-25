@@ -1,5 +1,5 @@
 """#6129 acceptance: after an embed finishes and the idle spell passes, the embedder is released and its process's memory
-goes back. Needs the embedding model on this machine; skipped where it is not installed (nothing here downloads it)."""
+goes back. Opt in with FICHERO_RUN_REAL_EMBEDDER=1 (the gates do not pass -m 'not slow'); needs the embedding model on this machine, skipped where it is not installed (nothing here downloads it)."""
 from __future__ import annotations
 
 import os
@@ -28,6 +28,8 @@ def _installed_space():
 
 @pytest.mark.slow  # loads the real 500 MB+ model: out of the fast gate
 def test_the_embedders_process_gives_its_memory_back_when_it_is_released(monkeypatch):
+    if os.environ.get("FICHERO_RUN_REAL_EMBEDDER") != "1":
+        pytest.skip("loads the real 500 MB+ embedder: set FICHERO_RUN_REAL_EMBEDDER=1 to run it")
     found = _installed_space()
     if found is None:
         pytest.skip("no embedding model is installed on this machine")
