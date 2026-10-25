@@ -7,14 +7,14 @@
 What changed since 2026.10.11. (2026.10.22 was prepared but never published; its changes are listed here too.)
 
 - One Start runs a new project through every stage, from finding lines to the catalogue, and runs again on what you add later. A stopped run, or one cut short by a quit, picks up where it left off and does not redo finished pages.
-- Two new stages: Leave Out marks lines that are too small, off the page or likely bleed-through (it never deletes them, and the Inspector brings one back), and Catalogue writes a description of each folder.
+- Two new stages: Leave Out marks lines that are too small, off the page or likely bleed-through (it never deletes them, and Mark as Text in the Inspector brings one back), and Catalogue writes a description of each folder.
 - Every step has a model chosen for it: Kraken finds lines when it is there, and when the project allows cloud models and a key is set, the cheapest cloud model good enough for Translate, Correct and Catalogue. The plan prices only the pages still to do.
 - Phone photos are read the right way up, readings follow the page's reading order, and a correction in the Reader saves and shows in the Inspector at once.
 - Sharing a project with another Mac or an iPhone: a stale key now says so, instead of failing quietly.
 
-**One Start, every stage.** Set Up asks the language (with "Not sure", where Fichero works it out from the pages), then Start runs Find Lines, Leave Out, Read, Correct, Translate, Names and Catalogue in turn. Add pages or a folder later and only the new material runs. Stop, quit or lose the engine part-way and Start again carries on: pages already read are not read again, so a cloud reader is never paid twice for the same line.
+**One Start, every stage.** Set Up asks the language (with "Not sure", where Fichero works it out from the pages), then Start runs Find Lines, Leave Out, Read, Correct, Names and Catalogue in turn, and Translate when Set Up asks for it. Add pages or a folder later and only the new material runs. Stop, quit or lose the engine part-way and Start again carries on: pages already read are not read again, so a cloud reader is not paid twice for the same line.
 
-**Leave Out.** After lines are found, lines that are too small to read, off the page, or likely ink showing through from the other side are marked as left out, with the reason. Nothing is deleted; select a line in the Inspector to bring it back.
+**Leave Out.** After lines are found, lines that are too small to read, off the page, or likely ink showing through from the other side are marked as left out, with the reason. Nothing is deleted; select a line in the Inspector and choose Mark as Text to bring it back.
 
 **Catalogue.** Each folder gets a description, as long as its fields need (up to about 500 words), that describes the material without analysing it. A folder is described again only when something in it changed.
 
