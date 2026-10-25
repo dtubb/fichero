@@ -106,6 +106,7 @@ def test_a_page_failed_by_a_recycled_worker_is_read_once_more_by_itself():
     from fichero_server.workflows import page_retry
 
     assert page_retry.is_passing_cause(vb._apple_vision_timeout(300, recycled=True))
+    assert page_retry.is_passing_cause("Apple Vision was still busy with an earlier page after 300 s, so this page was skipped")
     assert page_retry.is_passing_cause(worker.WorkerFailure(
         "Apple Vision's worker stopped while reading this page; it starts again for the next one."))
     with pytest.raises(vb.AppleVisionTimeout) as raised:

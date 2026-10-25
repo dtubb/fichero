@@ -112,8 +112,8 @@ class VisionWorker:
         self._process = self._conn = None
 
     def call(self, ref: Ref, args: tuple, timeout: float) -> Any:
-        """Run one call in the child. WorkerTimeout (the child is killed) when it does not answer in `timeout` seconds,
-        counting the wait for an earlier call; WorkerFailure when the child died; the call's own exception otherwise."""
+        """Run one call in the child. WorkerTimeout (the child is killed) when it does not answer in `timeout` seconds;
+        WorkerBusy (nothing killed) when an earlier call kept the child for the whole of `timeout`; WorkerFailure when the child died; the call's own exception otherwise."""
         if not self._lock.acquire(timeout=timeout):
             raise WorkerBusy("an earlier Apple Vision call was still running")
         try:

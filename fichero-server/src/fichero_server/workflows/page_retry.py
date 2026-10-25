@@ -24,7 +24,7 @@ _PASSING = re.compile(
     r"|did not start .* in time|stopped before it was ready"
     r"|memory is tight|waited \d+ minutes? for memory|connection (?:refused|reset|error)|server disconnected"
     r"|temporarily unavailable|server stopped while reading|model stopped answering"
-    r"|apple vision.* worker (?:was stopped|stopped while reading)",
+    r"|apple vision.* worker (?:was stopped|stopped while reading)|apple vision was still busy",
     re.IGNORECASE,
 )
 #: Causes another try cannot change, even when their words also match the above.
