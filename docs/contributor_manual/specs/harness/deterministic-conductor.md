@@ -23,6 +23,17 @@ The pieces were built a year ago and never joined: `choose_next.py` (pick work),
 done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
 report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
 
+## Version 1, and nothing more
+
+Four pieces, each a short script with a self-test, so the process runs the same on the Pro today and on a laptop with
+local models later (only the model endpoint changes):
+1. `lane_ready_check.sh`: the machine check (built; the red-on-base proof is next).
+2. Close on push: a GitHub Actions workflow runs `close_fixed_issues.py --apply` on every push to integration.
+3. `brief_lint.py`: refuses an issue a small model cannot do (no spec id, acceptance line or test path).
+4. `conductor.py --once --issue N`: brief, jailed Pi + Qwen run, ready check, named tests, PASS/FAIL, one log line.
+Everything else in this spec (the loop, several lanes, resume, the web page, the launchd service, escalation tables)
+waits until v1 has done ten real issues and the numbers say it is worth building.
+
 ## Where judgement stays, and where it stops
 
 1. **The maintainer has an idea** and says it (chat, an issue, or the web page's input box).
@@ -67,7 +78,7 @@ report is never evidence. An LLM is called only to do one issue, to review a dif
 9. **Exceptions go to an LLM lead**, and only these: merge conflicts, a red gate not traced to one item, a design wall
    recorded on an issue, anything needing the maintainer. The lead acts and returns control to the script.
 
-## The conductor is a small local web app
+## Later, only after v1 has run ten issues: a small local web app
 
 The process today fails by being forgotten: a lane finishes and nobody notices, a check-in prompt goes stale, an
 issue is never closed. So the conductor runs as one long-lived local process (a launchd agent, restarted if it dies),
