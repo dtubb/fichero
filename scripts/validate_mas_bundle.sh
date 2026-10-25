@@ -117,7 +117,7 @@ fi
 # ── 2. Every nested executable is sandboxed (90296) ───────────────────────────
 # By Mach-O TYPE, not by path — the whole point of the fm-bridge rejection is that
 # the offender was somewhere nobody thought to look.
-EXECS="$("$(dirname "$0")/list_machos.sh" "$APP" --executables)"
+EXECS="$("$(dirname "$0")/list_machos.sh" "$APP" --executables)" || exit 1
 
 EXEC_COUNT=0
 UNSANDBOXED=0
