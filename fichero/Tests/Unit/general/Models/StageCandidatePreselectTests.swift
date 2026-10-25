@@ -5,12 +5,12 @@ import Testing
 
 /// `source.onboard.stages.model-ticked-by-default` (#6119): a stage page opens with its best model already ticked.
 struct StageCandidatePreselectTests {
-    private func candidate(_ id: String, byDefault: Bool = false, otherPeriod: Bool = false) -> String {
+    private func candidate(_ id: String, byDefault: Bool = false, otherPeriod: Bool = false, chosen: Bool = false) -> String {
         """
         {"id":"\(id)","name":"\(id)","source":"kraken-repository","offered_because":"","pin":{},"jobs":["find-lines"],
          "open_licence":true,"size":"16 MB","measured":"","in_recipe_rules":true,"runs_where":"this_mac",
          "availability":"installed","availability_words":"On this Mac","other_period":\(otherPeriod),
-         "compared_by_default":\(byDefault)}
+         "compared_by_default":\(byDefault),"chosen":\(chosen)}
         """
     }
 
@@ -33,6 +33,12 @@ struct StageCandidatePreselectTests {
         #expect(StageCandidateChoice.preselected(rows) == ["b"])
         #expect(StageCandidateChoice.preselected(try list(candidate("a"), candidate("b"))) == ["a"],
                 "the engine marked none: the first")
+    }
+
+    @Test("the step's reader now (chosen) comes before the engine's compared ones")
+    func theChosenOneFirst() throws {
+        let rows = try list(candidate("a", byDefault: true), candidate("b", chosen: true))
+        #expect(StageCandidateChoice.preselected(rows) == ["b"])
     }
 
     @Test("a reader made for another period is never ticked for the person")
