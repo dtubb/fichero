@@ -17,6 +17,9 @@ final class NewProjectStore {
     }
 
     var name = "Untitled Project"
+    /// The model the project searches with, chosen here and kept (`search.embedding.chosen-at-project-creation`);
+    /// changing it later is a re-embed run (`EmbeddingChangeStore`).
+    var embeddingModel = EmbeddingModelChoice.defaultModel
     var place: Place = .insideFichero
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -27,8 +30,8 @@ final class NewProjectStore {
 
     private let libraryManager: LibraryManager
     /// Has the engine open the new project (`POST /api/library`). A seam so a test can stand in
-    /// for the engine; the app's is the project's own `initializeLibrary`.
-    private let openInEngine: (LibraryManager.LibraryReference) async throws -> Void
+    /// for the engine; without one it is the project's own `initializeLibrary`, with the chosen search model.
+    private let openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)?
 
     /// Moves the package to the Trash (recoverable, never an unlink). A seam for the test.
     private let trash: (URL) throws -> Void
@@ -38,7 +41,7 @@ final class NewProjectStore {
          trash: ((URL) throws -> Void)? = nil) {
         self.libraryManager = libraryManager
         self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
-        self.openInEngine = openInEngine ?? { try await $0.apiClient.initializeLibrary(path: $0.url.path) }
+        self.openInEngine = openInEngine
     }
 
     /// The name as a file name: what a folder cannot hold is replaced, and an empty name is
@@ -96,7 +99,11 @@ final class NewProjectStore {
         defer { isCreating = false }
         do {
             let project = try libraryManager.createProject(at: url)
-            try await openInEngine(project)
+            if let openInEngine {
+                try await openInEngine(project)
+            } else {
+                try await project.apiClient.initializeLibrary(path: project.url.path, embeddingModel: embeddingModel)
+            }
             created = project
             return project
         } catch {

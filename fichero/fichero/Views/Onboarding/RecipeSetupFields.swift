@@ -39,6 +39,19 @@ struct SetupWhereItLivesFields: View {
             }
             .setupRadioGroup()
             .disabled(store.created != nil)
+            LabeledContent("Search model") {
+                Picker("Search model", selection: $store.embeddingModel) {
+                    ForEach(EmbeddingModelChoice.all) { choice in
+                        Text(choice.name).tag(choice.model)
+                    }
+                }
+                .labelsHidden()
+                .disabled(store.created != nil)
+            }
+            Text((EmbeddingModelChoice.all.first { $0.model == store.embeddingModel }?.blurb ?? "")
+                 + " Changing it later means embedding every page again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             if let url = store.projectURL {
                 Text(url.path)
                     .font(.caption)

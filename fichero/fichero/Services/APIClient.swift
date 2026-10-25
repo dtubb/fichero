@@ -106,9 +106,11 @@ class APIClient {
     /// workflow/Inbox seeding — gets paid, explicitly, instead of landing on
     /// whichever data fetch happens to arrive first and blowing its deadline
     /// (2026-08-12: a fresh library only opened on the SECOND attempt).
-    func initializeLibrary(path: String) async throws {
+    /// `embeddingModel`: the model the new project searches with, chosen now and kept
+    /// (`search.embedding.chosen-at-project-creation`); nil keeps the engine's default.
+    func initializeLibrary(path: String, embeddingModel: String? = nil) async throws {
         let response = try await client.api.createLibraryApiLibraryPost(
-            .init(body: .json(.init(path: path)))
+            .init(body: .json(.init(path: path, embeddingModel: embeddingModel)))
         )
         switch response {
         case .ok:
