@@ -47,7 +47,8 @@ struct IOSConnectionMenu: View {
                 appState.engine.markSetupNeeded()
             }
         } message: {
-            Text("This device signs out and returns to Connect. The projects stay on the Mac.")
+            Text("This device signs out and returns to Connect. The projects stay on the Mac, "
+                + "which keeps listing this device as paired until its owner removes it in Sharing.")
         }
     }
 
