@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Paleographer Review afterwards to refine.
+Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Review the Reading afterwards to refine.
 
 | | |
 | --- | --- |

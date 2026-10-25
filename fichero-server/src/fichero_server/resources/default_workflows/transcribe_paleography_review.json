@@ -1,5 +1,5 @@
 {
- "name": "Paleographer Review",
+ "name": "Review the Reading",
  "description": "Use this when: a document ALREADY has a transcription (from any Transcribe preset, any model) and you want a paleographer's review of it against the image. Three staged passes with extended thinking — abbreviations & formulary, orthography & consistency, names, dates & the final check — all on the ONE model you pick at run time (transcribe with one model, review with another if you like). Writes the reviewed text as the document's content. Replaces the Ensemble preset.",
  "format": "nodes",
  "is_template": true,
@@ -13,7 +13,7 @@
   "artifact"
  ],
  "config": {
-  "preset_version": 3,
+  "preset_version": 4,
   "variant_group": "paleographer-review",
   "variant": "review"
  },

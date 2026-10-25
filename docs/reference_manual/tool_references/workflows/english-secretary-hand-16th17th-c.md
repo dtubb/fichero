@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have English secretary hand — depositions, indentures, wills, parish and court records of the 16th–17th centuries. One careful whole-page pass; run Paleographer Review afterwards to refine.
+Use this when: you have English secretary hand — depositions, indentures, wills, parish and court records of the 16th–17th centuries. One careful whole-page pass; run Review the Reading afterwards to refine.
 
 | | |
 | --- | --- |

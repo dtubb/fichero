@@ -270,7 +270,7 @@ the page, (4) a loose artifact, (5) nothing kept.
 | Line finding (Kraken, Apple, VLM boxes) | 1; Kraken's lines nested in its regions (#5487, 2026-10-06), the others flat | no nesting for Apple and VLM boxes | #5489 |
 | Reading lines (Kraken reader, line reader) | 2, readings on the working pass's lines (#5487, 2026-10-06); 1 + 2 only on a page with no lines | none | — |
 | Reading a page (LLM Transcribe) | 4, page text; tied onto the lines by the `tie-text-to-lines` job, queued after every page reading on a page with lines (#5444, #5558, 2026-10-06) | the cluster reader drops Kraken's regions; older tie passes stay | #5558 |
-| Correcting (Paleographer Review) | 4, page text, AND readings on the working pass's lines (`source.job.correct-onto-lines`, #5654) | the page text is still overwritten by the last round | #5486 |
+| Correcting (Review the Reading) | 4, page text, AND readings on the working pass's lines (`source.job.correct-onto-lines`, #5654) | the page text is still overwritten by the last round | #5486 |
 | Checking | 2, verdicts and corrections on segments | none: the model for the rest | — |
 | Names | 3, tied to the document only | spans discarded; no mention on a segment | #5488 |
 | Statements | 3, page text offsets and an optional rect | no segment anchor | #4932 |
@@ -341,7 +341,7 @@ tools reach the page model in one of five ways:
 |---|---|
 | a pass of segments, readings on lines | Detect Regions (Kraken, VLM, Apple), Read Lines Kraken + Vision, Transcribe Kraken / HTR, Backfill Text Geometry (`detect_regions`, `merge_geometry`), Recombine Segments |
 | page text, then tied to lines (#5444) | every Transcribe preset, Capture–OCR–Transcribe, Transcribe Auto-detect (`transcribe`, `update_page_content=True`, `workflows/tools/transcribe.py:42`) |
-| page text over the top, never tied | Paleographer Review, Review Pipeline, Economy HTR (`transcribe_review`, `economy_htr`; #5486) |
+| page text over the top, never tied | Review the Reading, Review Pipeline, Economy HTR (`transcribe_review`, `economy_htr`; #5486) |
 | nodes (children of the page or folder) | Split Diary Entries (entry nodes), Split Pages, Split Images, Split Chapters, Segment Images, Group Same Documents |
 | document fields | Work Out Dates (date columns), Extract Geo (`geo_points`) |
 | KG rows tied to the document | Catalogue stages 2–5, NER per page, Extract Events Timeline |

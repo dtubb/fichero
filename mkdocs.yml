@@ -165,12 +165,12 @@ nav:
               - NER per-page (local): reference_manual/tool_references/workflows/ner-per-page-local.md
               - Paleografía Española (s. XVIII–XIX): reference_manual/tool_references/workflows/paleografia-espanola-s-xviiixix.md
               - Paleografía Española (s. XVI–XVII): reference_manual/tool_references/workflows/paleografia-espanola-s-xvixvii.md
-              - Paleographer Review: reference_manual/tool_references/workflows/paleographer-review.md
               - Prepare Images for OCR: reference_manual/tool_references/workflows/prepare-images-for-ocr.md
               - Read Lines (Kraken lines, vision model): reference_manual/tool_references/workflows/read-lines-kraken-lines-vision-model.md
               - Recombine Segments: reference_manual/tool_references/workflows/recombine-segments.md
               - Regesto (Archival Abstract): reference_manual/tool_references/workflows/regesto-archival-abstract.md
               - Remove Background Images: reference_manual/tool_references/workflows/remove-background-images.md
+              - Review the Reading: reference_manual/tool_references/workflows/review-the-reading.md
               - Rotate / Auto-Orient Images: reference_manual/tool_references/workflows/rotate-auto-orient-images.md
               - Segment Images: reference_manual/tool_references/workflows/segment-images.md
               - Split Chapters: reference_manual/tool_references/workflows/split-chapters.md

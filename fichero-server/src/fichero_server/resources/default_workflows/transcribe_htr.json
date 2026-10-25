@@ -1,6 +1,6 @@
 {
  "name": "Transcribe HTR",
- "description": "Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Paleographer Review afterwards for hard documents.",
+ "description": "Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Review the Reading afterwards for hard documents.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -13,7 +13,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 8,
+  "preset_version": 9,
   "variant_group": "transcribe-single-pass",
   "variant": "htr",
   "tested": true

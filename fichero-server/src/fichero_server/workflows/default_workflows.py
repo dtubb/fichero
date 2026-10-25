@@ -47,6 +47,8 @@ _PRESETS_DIR = Path(__file__).resolve().parent.parent / "resources" / "default_w
 # system/template rows. These variants were removed from shipped JSON but
 # can remain in existing libraries from older versions.
 _DEPRECATED_PRESET_NAMES: set[str] = {
+    # Renamed "Review the Reading" (#6128): the job is not titled for a role
+    "Paleographer Review",
     "Catalogue (composable)",
     "Catalogue (Apple Vision)",
     "Catalogue Full Pipeline",
@@ -62,7 +64,7 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     "Spanish Paleography (18th–19th C.)",
     # 2026-08-26 redesign (Daniel: single model per run, review as a
     # standalone act on an already-transcribed document): the cross-model
-    # ensemble is replaced by "Paleographer Review", and the Spanish Script
+    # ensemble is replaced by "Review the Reading", and the Spanish Script
     # v2 pair by "Paleografía Española (s. XVIII–XIX)".
     "Transcribe Paleography (Ensemble + Deep Review)",
     "Spanish Script v2 Child Passes (19th-20th C.)",

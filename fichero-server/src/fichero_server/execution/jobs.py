@@ -2274,7 +2274,7 @@ def _lane_of(job_id: str, kind: str) -> str:
 
 
 def _holder_words(db: "Database", job_id: str) -> str:
-    """What a running job is, in words: the run it reads for ("Paleographer Review is reading"),
+    """What a running job is, in words: the run it reads for ("Review the Reading is reading"),
     else its kind ("Embed for search is running")."""
     row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id])
     if row is None:
@@ -2304,7 +2304,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
                    created_at: Any = None, run_after: Any = None) -> str:
     """THE one place a waiting row's reason is decided (`activity.waiting-says-why`, #5606): what it
     truly waits for now, never None. In order: paused by you (not work a person waits for); the lane
-    full, naming what holds it ("Waiting for the model lane: Paleographer Review is reading"), which
+    full, naming what holds it ("Waiting for the model lane: Review the Reading is reading"), which
     it would wait for even if the person stepped away (#5622); one heavy job at a time while memory is
     busy (#5622); the throttle's reason, only while the throttle gives one now (so "you're using the
     Mac" only while the Mac is in use, and never while Start is on); thumbnails made first (#5585); a

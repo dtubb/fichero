@@ -98,7 +98,7 @@ The prior transcription appears in the Context section above. The image
 follows."""
 
 
-#: Asked of the model whatever prompt a node carries (the Paleographer Review preset has its own, three): a page's
+#: Asked of the model whatever prompt a node carries (the Review the Reading preset has its own, three): a page's
 #: lines are shown as `<segment id> | x y w h | maker | text`, and a correction is only tied back to its line when the
 #: answer names it (`source.job.review-asks-one-answer-line-per-segment-id`).
 ANSWER_BY_ID = (

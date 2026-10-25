@@ -775,7 +775,7 @@ def workflow_override_target_tools(
 # The run-level model choice (R-11, Daniel 2026-09-04)
 #
 # "The model chosen is not the model used." The chip said claude-opus-5 while
-# a Paleographer Review ran on gemini-flash-lite, and a Catalogue folder run
+# a Review the Reading ran on gemini-flash-lite, and a Catalogue folder run
 # stamped its artifacts apple - apple-intelligence. Two holes, one rule.
 #
 # ONE precedence, everywhere: step pin > run-level explicit choice > tier

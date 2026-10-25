@@ -35,7 +35,7 @@ MATRIX = [  # (answers, the profile it must get, a word of its direction the pro
 
 def test_the_shipped_profiles_are_found_and_each_has_every_lens():
     """A floor under the rest, so they cannot pass by finding nothing; every profile has the generic one's lenses."""
-    assert {"generic", "es-colonial", "de-kurrent", "aramaic", "zh"} <= set(profiles())
+    assert {"generic", "es-colonial", "de-kurrent", "aramaic", "zh", "en-secretary", "latin", "es-moderna"} <= set(profiles())
     assert len(lens_ids()) == 3
     assert all(set(p.lenses) == set(lens_ids()) for p in profiles().values())
 
@@ -44,7 +44,7 @@ def test_the_shipped_profiles_are_found_and_each_has_every_lens():
 def test_an_english_secretary_hand_project_is_never_sent_the_spanish_review(lens):
     prompt, said = review_prompt(lens, ENGLISH)
     assert "carta de poder" not in prompt and "ç/c/z" not in prompt and "mer[ce]d" not in prompt
-    assert "generic" in said and "English" in said
+    assert "secretary" in said, "English handwriting of 1600 has its own profile since #6128"
 
 
 @pytest.mark.parametrize("lens", lens_ids())

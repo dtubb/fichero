@@ -176,8 +176,8 @@
   "sha256": "091efc0361e6c70c27eb10f2948b6789fc1493111366f19351c4a6032239fed8"
  },
  "transcribe_htr.json": {
-  "preset_version": 8,
-  "sha256": "65c3b798a9be178fae8b2e3e652ef173a2f5269d17450dc06ec31f5819a9fb53"
+  "preset_version": 9,
+  "sha256": "3bc310998c35411cc3b4d8ae4338aea0532976c2382003fbeffd2bfe20ae665d"
  },
  "transcribe_kraken.json": {
   "preset_version": 4,
@@ -188,36 +188,36 @@
   "sha256": "0588c8d2b62720c6badd3f495ce9bb4a7de23651f1374537fec64ec4f3603c52"
  },
  "transcribe_paleography.json": {
-  "preset_version": 8,
-  "sha256": "8b50b35334c21a7188c240533a3da58f62743d27a5f9fa4aabad0e99ff686bf4"
+  "preset_version": 9,
+  "sha256": "fb14108c34be8e708cf96b4d96c2152666ab809156304ee2b70b5a5b9d43d460"
  },
  "transcribe_paleography_economy.json": {
   "preset_version": 3,
   "sha256": "3405548bd45cf93fad9eeac695c90d79e7b5d8efd104d15f758e43312376bb9f"
  },
  "transcribe_paleography_en_secretary.json": {
-  "preset_version": 1,
-  "sha256": "393e0b0198f99e2fa624281087dd7455cd5aa0da5ffe63b11f222adbb853066f"
+  "preset_version": 2,
+  "sha256": "48188528d168e8c9c14792a45c24e393ce72544fd221566ea80427cdd2e81129"
  },
  "transcribe_paleography_es_colonial.json": {
-  "preset_version": 1,
-  "sha256": "194dc9d7c21582f3909b1d910e1f7ab4ae4f9d80359e8135f8854d2b44c7c11c"
+  "preset_version": 2,
+  "sha256": "ecb0796d316a19d0323dd545999bcb9b241426bd8c068ce0fa73cf8302d2db26"
  },
  "transcribe_paleography_es_moderna.json": {
-  "preset_version": 1,
-  "sha256": "ed3bf6b1205e128fd7f42e8061d712667d937a88cbbbadbca135e9581ee1b9f5"
+  "preset_version": 2,
+  "sha256": "5d6b8bc9d626c4090dd0ea87c90e286fa8cabf0f588f7172daa31febf663db55"
  },
  "transcribe_paleography_latin.json": {
-  "preset_version": 1,
-  "sha256": "15b8d361b04170a63190e2055cde7634db9e0c8d039472fba87d32e8c33cf34e"
+  "preset_version": 2,
+  "sha256": "ac51149a4e0b8a0f2d2315c9c07a7f5fbbcc4329e823d97aeff496ccde84ab6c"
  },
  "transcribe_paleography_review.json": {
-  "preset_version": 3,
-  "sha256": "23a02e61d00b21a9de5fb02fd2bf33d9c83903b5fbbf7d97bcc238a018007c8f"
+  "preset_version": 4,
+  "sha256": "5faaa59acbe8bc6c2d1a2701d2287ddaf81fe86fff6381f8adca1d95d3be86f1"
  },
  "transcribe_review_pipeline.json": {
-  "preset_version": 1,
-  "sha256": "a0e9d7924801710c7994865cccf2a70ce8c6145ecaecf4ef012bbba62b101399"
+  "preset_version": 2,
+  "sha256": "9f2197c0df1112659937a12f6cbbd00714def3804300c7b4a206eae97b03237c"
  },
  "transcribe_typescript.json": {
   "preset_version": 4,
