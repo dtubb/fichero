@@ -263,6 +263,7 @@ read of the calling loop before it can be called fully resolved.
   `tests/unit/api/test_warm_up_after_ready.py` (launch loads no model) and
   `tests/unit/api/test_prefetch.py::test_prefetch_loads_no_embedding_model`. Not yet measured on
   a running engine (the footprint after the idle spell).
+  The idle spell is `FICHERO_EMBEDDER_IDLE_SECONDS` (600 by default); the embedder's own process ends with the release and its memory goes back with it, checked against the real model where it is installed (skipped where it is not): `fichero-server/tests/unit/db/test_idle_embedder_returns_its_memory_6129.py` (#6129).
 - `search.unify-retrieval-as-one-index` — **[PARTIAL, north-star]** (#1824) the four-leg response
   plus leg visibility is real, meaningful movement toward "one queryable index, many lenses" —
   but the issue's own full list (graph + RAG + vector + full-text + hermeneutics + ontology +
