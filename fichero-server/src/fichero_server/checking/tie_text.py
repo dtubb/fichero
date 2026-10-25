@@ -151,6 +151,27 @@ def _snap(text: str, cut: int, low: int, high: int) -> int:
     return cut
 
 
+def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str] | None:
+    """The lines' reads when this Kraken reader already made them on these lines (the Read step's Transcribe (Kraken), whose
+    readings are written onto the page's lines): its newest reading of each line. None unless every line has one, then
+    Kraken reads the page again. Reading the same lines with the same reader again took ~48 s a page (#6127)."""
+    from fichero_server.llm.kraken_runtime import ReadLine
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    stem = Path(model).stem
+    made = {a.id for a in db.query(Artifact, document_id=doc_id) if a.provider == "kraken" and a.model in (model, stem)}
+    if not made:
+        return None
+    newest: dict[str, Any] = {}
+    for r in db.query(ContentRepresentation, document_id=doc_id):
+        if r.segment_id and r.derived_from_artifact_id in made and (
+                r.segment_id not in newest or r.created_at > newest[r.segment_id].created_at):
+            newest[r.segment_id] = r
+    if not rows or any(row.id not in newest for row in rows):
+        return None
+    return [ReadLine(newest[row.id].content or "", confidence=newest[row.id].machine_confidence) for row in rows]
+
+
 def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:
     """Each line's stretch, its score against its own rough read, and whether it is tied."""
     out = []
@@ -325,7 +346,8 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         with Image.open(photo) as image:
             width, height = found.page_size(image)  # in the frame the lines were measured on
         lines = [in_pixels(row, width, height) for row in found.lines]
-        reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+        reads = earlier_reads(db, doc.id, found.lines, request.model) or \
+            kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1

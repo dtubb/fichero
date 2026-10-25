@@ -335,3 +335,17 @@ def test_each_aligned_line_carries_how_well_the_text_matched_it(client, db, page
     assert tied and all(made.machine_confidence is not None and 0.0 <= made.machine_confidence <= 1.0
                         for _row, made in tied), [m.machine_confidence for _r, m in tied]
     assert all(made.machine_confidence >= tie_text.THRESHOLD for _row, made in tied), "a tied line matched at the threshold or above"
+
+
+def test_lines_a_kraken_read_already_gave_are_not_read_by_kraken_again(client, db, page, reader):
+    """#6127: the tie ran Kraken over every page again, ~48 s a page, though Transcribe (Kraken) had read the same lines
+    with the same reader. WHY: a 20-page Read spent 16 minutes on reads it already held."""
+    kraken_read = Artifact(document_id=page["doc"].id, artifact_type="transcription", content="", model=READER,
+                           provider="kraken")
+    db.save(kraken_read)
+    for row, text in zip(_lines(db, page["kraken"].id), page["before"]):
+        db.save(ContentRepresentation(document_id=page["doc"].id, kind="transcription", content=text, segment_id=row.id,
+                                      source_anchor=row.anchor, derived_from_artifact_id=kraken_read.id))
+    _job_id, status = _run(client, db, page)
+    assert reader.lines == [], "Kraken read the lines again"
+    assert status["counts"]["tied"] > 5
