@@ -1,6 +1,8 @@
 """Activity shows which models the engine holds and what each takes (#6129): the engine's own memory is part of 'memory is tight'."""
 from __future__ import annotations
 
+import time
+
 from fichero_server.db import embeddings
 from fichero_server.execution import models_held as held
 from fichero_server.execution import throttle
@@ -31,3 +33,11 @@ def test_the_machine_state_carries_them(monkeypatch):
 
 def test_a_process_that_is_gone_has_no_size():
     assert held.process_bytes(None) is None and held.process_bytes(0) is None
+
+
+def test_the_size_cache_forgets_a_process_that_was_not_asked_about_for_a_while(monkeypatch):
+    held._RSS.clear()
+    held._RSS[111] = (time.monotonic() - 1000, 5)
+    monkeypatch.setattr(held.subprocess, "run", lambda *a, **k: type("R", (), {"stdout": "2048\n"})())
+    assert held.process_bytes(222) == 2048 * 1024
+    assert 111 not in held._RSS and 222 in held._RSS

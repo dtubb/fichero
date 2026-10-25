@@ -10,6 +10,7 @@ from typing import Any
 
 _RSS: dict[int, tuple[float, int | None]] = {}
 _RSS_SECONDS = 5.0
+_RSS_FORGET_SECONDS = 60.0
 
 
 def process_bytes(pid: int | None) -> int | None:
@@ -25,6 +26,8 @@ def process_bytes(pid: int | None) -> int | None:
         size: int | None = int(out) * 1024 if out else None
     except (OSError, ValueError, subprocess.SubprocessError):
         size = None
+    for gone in [p for p, (when, _size) in _RSS.items() if now - when > _RSS_FORGET_SECONDS]:
+        del _RSS[gone]  # a child that ended is not remembered for ever
     _RSS[pid] = (now, size)
     return size
 
