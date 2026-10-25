@@ -30,9 +30,14 @@ final class NewProjectStore {
     /// for the engine; the app's is the project's own `initializeLibrary`.
     private let openInEngine: (LibraryManager.LibraryReference) async throws -> Void
 
+    /// Moves the package to the Trash (recoverable, never an unlink). A seam for the test.
+    private let trash: (URL) throws -> Void
+
     init(libraryManager: LibraryManager,
-         openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil) {
+         openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil,
+         trash: ((URL) throws -> Void)? = nil) {
         self.libraryManager = libraryManager
+        self.trash = trash ?? { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
         self.openInEngine = openInEngine ?? { try await $0.apiClient.initializeLibrary(path: $0.url.path) }
     }
 
@@ -99,5 +104,22 @@ final class NewProjectStore {
             errorMessage = "\(Self.cannotWrite) (\(error.localizedDescription))"
             return nil
         }
+    }
+
+    /// Cancel on a new project's Set Up: close the project this store made and move its package to the Trash
+    /// (#6117). Deletes only `created`, never a project the store did not make. Returns whether it deleted one.
+    @discardableResult
+    func discard() -> Bool {
+        guard let project = created else { return false }
+        let url = project.url
+        libraryManager.closeAndUnregisterLibrary(project.id)
+        created = nil
+        do {
+            try trash(url)
+        } catch {
+            errorMessage = "The project could not be moved to the Trash: \(error.localizedDescription)"
+            return false
+        }
+        return true
     }
 }
