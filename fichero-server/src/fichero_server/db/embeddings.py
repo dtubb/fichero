@@ -1090,48 +1090,56 @@ class DatabaseEmbeddingMixin:
         self, target: EmbeddingSpaceSpec, *, mode: Literal["passage", "page"],
         on_progress: Callable[[int, int], None] | None,
     ) -> dict[str, Any]:
-        """Build every vector in `target`'s space beside the live ones, then swap them in whole. Search reads the old vectors
-        until the swap; a run stopped part-way leaves its shadow to be carried on, and a page whose new vector is already
-        written is not embedded again. Pages added while it ran are caught up after the swap."""
+        """Build every vector in `target`'s space beside the live ones, then swap them in whole (`db.vector_swap`: it rolls
+        back on a failure and `recover` finishes or undoes it after a crash). Search reads the old vectors until the swap. A
+        run stopped part-way leaves its shadow to be carried on, and a page, entity or claim whose new vector is already
+        written is not embedded again. Pages added while it ran are caught up after the swap.
+
+        Other open connections on this library: a connection holds only the folder's path and opens each table when it is
+        used, so after the swap it reads the new folder; `Database.lance` also reconnects when `embedding.json` changes."""
         import copy
         import shutil
 
-        from fichero_server.db.embedding_choice import write_choice
+        from fichero_server.db import vector_swap
         from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
         tables = (EMBEDDINGS_TABLE, KG_ENTITY_EMBEDDINGS_TABLE, KG_CLAIM_EMBEDDINGS_TABLE)
         package = Path(str(self.path)).parent
+        with self._lance_lock:
+            vector_swap.recover(package, self._lance_path)  # a swap an earlier crash cut short is finished or undone first
         before = self.embedding_table_model_ids()
         shadow = copy.copy(self)  # same records, its own vector folder and its own (new) space
-        shadow._lance_path = self._lance_path.with_name(self._lance_path.name + "-next")
+        shadow._lance_path = vector_swap.folders(self._lance_path)[0]
         shadow._lance_db = None
         shadow._lance_lock = threading.RLock()
         shadow._embedding_space_override = target
         shadow._embedder = None
+        if shadow._lance_path.exists() and any(
+            i != target.model_id for ids in shadow.embedding_table_model_ids().values() for i in ids
+        ):
+            shutil.rmtree(shadow._lance_path)  # a shadow of another model, or half-stamped: not carried on
+            shadow._lance_db = None
         documents_indexed = shadow._embed_pages_unless_current(on_progress)
         entities = self.all(KnowledgeEntity)
         claims = self.all(KnowledgeClaim)
         entities_indexed = shadow.embed_entities(entities) if entities else 0
         claims_indexed = shadow.embed_claims(claims) if claims else 0
 
-        retired = self._lance_path.with_name(self._lance_path.name + "-old")
         with self._lance_lock:
             shadow._lance_db = None
-            if retired.exists():
-                shutil.rmtree(retired)
-            self._lance_path.rename(retired)
-            for other in retired.glob("*.lance"):  # a table that is not an embedding table is carried over as it was
+            shadow._lance_path.mkdir(parents=True, exist_ok=True)
+            for other in self._lance_path.glob("*.lance"):  # a table that is not an embedding table is carried over as it was
                 if other.name[: -len(".lance")] not in tables and not (shadow._lance_path / other.name).exists():
                     shutil.copytree(other, shadow._lance_path / other.name)
-            shadow._lance_path.mkdir(parents=True, exist_ok=True)
-            shadow._lance_path.rename(self._lance_path)
+            self._lance_db = None  # closed before its folder is renamed
+            vector_swap.swap(package, self._lance_path, target.source_model_name)
             self._lance_db = None
-            write_choice(package, target.source_model_name)
             self._embedding_space_cache = None
             self._embedder = None
-        shutil.rmtree(retired, ignore_errors=True)
 
-        caught_up = self._embed_pages_unless_current(None)  # pages that arrived during the run: embedded now, in the new space
+        # Catch up what arrived while it ran, in the new space: each is looked at, and only a page, entity or claim with no
+        # current new vector is embedded (the same check the shadow used), so none is embedded twice.
+        caught_up = self._embed_pages_unless_current(None)
         if entities:
             self.embed_entities(self.all(KnowledgeEntity))
         if claims:

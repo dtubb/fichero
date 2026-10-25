@@ -7448,7 +7448,7 @@ def fichero_search_start_embedding_change(
     confirm: Annotated[Optional[bool], Field(description='true once the person has seen the plan: pages, time and cost. Default: false.')] = None,
     model: Annotated[str, Field(description='Model.')],
 ) -> Any:
-    "Start Embedding Change\n\nStart the re-embed run that changes the project's embedding model: the one `reindex` job (its progress shows in\nActivity), migrating to `body.model` in a shadow and swapping it in whole. `confirm` must be true: the plan comes first.\n\nRoute: POST /api/search/embedding/change (toolset `search`; changes data, as the agent account when one exists)."
+    "Start Embedding Change\n\nStart the re-embed run that changes the project's embedding model (`search.change_embedding_model`, an audited\naction): the one `reindex` job (its progress shows in Activity), migrating to `body.model` in a shadow and swapping it\nin whole. `confirm` must be true: the plan comes first.\n\nRoute: POST /api/search/embedding/change (toolset `search`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/search/embedding/change", json=_rt.body({"confirm": confirm, "model": model}))
 
 

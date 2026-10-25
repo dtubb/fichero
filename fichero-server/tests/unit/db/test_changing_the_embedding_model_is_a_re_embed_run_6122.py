@@ -143,6 +143,9 @@ def test_the_routes_show_the_plan_then_queue_the_one_reindex_job(client, db, mon
     started = client.post("/api/search/embedding/change", json={"model": E5, "confirm": True})
     assert started.status_code == 200, started.text
     assert started.json()["status"] == "started" and started.json()["job_id"]
+    from fichero_server.actions.registry import registry
+
+    assert "search.change_embedding_model" in registry.names(), "the route queues the job through the audited action"
 
 
 def test_the_reindex_job_with_a_target_model_runs_the_migration_and_a_failure_keeps_the_old_vectors(db, monkeypatch):

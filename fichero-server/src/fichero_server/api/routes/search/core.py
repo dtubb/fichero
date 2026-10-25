@@ -2625,29 +2625,23 @@ def get_embedding_change_plan(model: str, db: Database = Depends(get_library_dat
 
 
 @router.post("/embedding/change", response_model=EmbeddingChangeStarted)
-async def start_embedding_change(body: EmbeddingChangeStartRequest,
-                                 db: Database = Depends(get_library_database_for_write)) -> EmbeddingChangeStarted:
-    """Start the re-embed run that changes the project's embedding model: the one `reindex` job (its progress shows in
-    Activity), migrating to `body.model` in a shadow and swapping it in whole. `confirm` must be true: the plan comes first."""
-    from pathlib import Path
+def start_embedding_change(body: EmbeddingChangeStartRequest,
+                           db: Database = Depends(get_library_database_for_write),
+                           ctx: "ActionContext" = Depends(action_context)) -> EmbeddingChangeStarted:
+    """Start the re-embed run that changes the project's embedding model (`search.change_embedding_model`, an audited
+    action): the one `reindex` job (its progress shows in Activity), migrating to `body.model` in a shadow and swapping it
+    in whole. `confirm` must be true: the plan comes first."""
+    from fichero_server.actions.registry import ActionRefused
 
-    from fichero_server.workflows.tasks import TaskType, job_task_queue
-
-    if not body.confirm:
-        raise HTTPException(status_code=422, detail="Show the plan first (GET /api/search/embedding/change-plan) and "
-                                                    "send confirm=true once the person has seen its pages, time and cost.")
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
     try:
-        plan = db.embedding_change_plan(body.model)
+        result = registry.invoke(db, "search.change_embedding_model", body.model_dump(), ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if plan["same"]:
-        raise HTTPException(status_code=409, detail=f"This project already searches with {plan['to_model']}.")
-    task = await job_task_queue(str(Path(db.path).parent)).create_task(
-        TaskType.REINDEX, f"Embed every page again with {plan['to_model']}", {"to_model": plan["to_model"]})
-    return EmbeddingChangeStarted(
-        status="started", job_id=task.task_id,
-        message=f"Embedding {plan['pages']} pages with {plan['to_model']}. Search keeps the old vectors until it finishes; "
-                "its progress shows in Activity.")
+    return EmbeddingChangeStarted(**result.result)
 
 
 class SetEmbeddingModelParams(BaseModel):
@@ -2682,6 +2676,42 @@ def _action_search_set_embedding_model(
     result = {"model": space.source_model_name}
     return result, ChangeSpec(domains=["search"], target_ids=[], before={"model": current.model}, after=result,
                               emit_type="search.embedding_model_set")
+
+
+class ChangeEmbeddingModelParams(BaseModel):
+    """``search.change_embedding_model`` — queue the re-embed run that moves the project to another model."""
+
+    model: str = Field(description="a supported embedding model, e.g. BAAI/bge-m3")
+    confirm: bool = Field(default=False, description="true once the person has seen the plan: pages, time and cost")
+
+
+@action("search.change_embedding_model", ChangeEmbeddingModelParams, domains=["search"], undoable=False)
+def _action_search_change_embedding_model(
+    db: Database, params: ChangeEmbeddingModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Queue the one `reindex` job with `to_model`: the plan must have been seen (`confirm`), and the same model is refused."""
+    import json
+
+    from fichero_server.actions.registry import ActionRefused, started_by_for
+    from fichero_server.execution import jobs
+
+    if not params.confirm:
+        raise ValueError("Show the plan first (GET /api/search/embedding/change-plan) and send confirm=true once the person "
+                         "has seen its pages, time and cost.")
+    plan = db.embedding_change_plan(params.model)  # ValueError for an unsupported model
+    if plan["same"]:
+        raise ActionRefused(f"This project already searches with {plan['to_model']}.")
+    options = {"to_model": plan["to_model"]}
+    name = f"Embed every page again with {plan['to_model']}"
+    job_id = jobs.enqueue(db, "reindex", json.dumps(options, sort_keys=True), started_by=started_by_for(ctx),
+                          detail=json.dumps({"name": name, "options": options}))
+    result = {
+        "status": "started", "job_id": job_id,
+        "message": f"Embedding {plan['pages']} pages with {plan['to_model']}. Search keeps the old vectors until it finishes; "
+                   "its progress shows in Activity.",
+    }
+    return result, ChangeSpec(domains=["search"], target_ids=[], before={"model": plan["from_model"]}, after=result,
+                              emit_type="search.embedding_change_started")
 
 
 # =============================================================================

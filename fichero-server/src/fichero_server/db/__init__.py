@@ -5591,12 +5591,26 @@ class Database(DatabaseEmbeddingMixin):
 
     @property
     def lance(self):
-        """Lazy-load LanceDB connection."""
+        """Lazy-load LanceDB connection. A re-embed swap a crash cut short is finished or undone before the folder is opened
+        (`db.vector_swap.recover`), and the connection is made again when the project's embedding choice changed under it
+        (another connection swapped the folder, #6122)."""
+        package = self._lance_path.parent
+        try:
+            stamp = (package / "embedding.json").stat().st_mtime_ns
+        except OSError:
+            stamp = None
+        if self._lance_db is not None and getattr(self, "_lance_stamp", stamp) != stamp:
+            self._lance_db = None
         if self._lance_db is None:
             import lancedb
 
+            from fichero_server.db.vector_swap import recover
+
+            if getattr(self, "_embedding_space_override", None) is None:  # not a re-embed run's own shadow folder
+                recover(package, self._lance_path)
             self._lance_path.mkdir(parents=True, exist_ok=True)
             self._lance_db = lancedb.connect(str(self._lance_path))
+            self._lance_stamp = stamp
         return self._lance_db
 
     def _lance_tables(self) -> list[str]:
