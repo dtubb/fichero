@@ -96,11 +96,11 @@ model = "qwen/qwen3.8-27b"
 [[roles.coder]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-4-5"
+model = "claude-sonnet-5-5"
 [[roles.reviewer]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-4-5"
+model = "claude-sonnet-5-5"
 [[roles.manager]]
 kind = "pi"
 provider = "openrouter"
