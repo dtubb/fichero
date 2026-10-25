@@ -93555,6 +93555,12 @@
             "type": "string",
             "nullable": true,
             "title": "Why"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this reader is, as the plan said it: 'Also reads print pages with Apple Vision'; the same text as `RecipeStep.readers[].sentence`, shown as it stands (#6134); null for pages read by the stage's own reader"
           }
         },
         "type": "object",

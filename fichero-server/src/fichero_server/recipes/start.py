@@ -617,7 +617,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if step.get("readers"):
                 # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
                 # off a Mac that keeps them, is read by the step's own reader.
-                entry["readers"] = {r["material"]: run for r in step["readers"]
+                from fichero_server.recipes.assemble import reader_sentence
+
+                entry["readers"] = {r["material"]: {**run, "sentence": r.get("sentence") or reader_sentence(r)}
+                                    for r in step["readers"]
                                     if r.get("material") and r.get("model") and not (stays_local and _uses_cloud(r))
                                     and (run := _reading_run(job, r["model"])) is not None}
             # Kraken finds its own lines before reading them: one run carries both steps.

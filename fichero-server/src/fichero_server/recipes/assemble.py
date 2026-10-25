@@ -769,7 +769,8 @@ def reader_sentence(reader: dict[str, Any]) -> str:
     """One sentence for an extra reader a step carries by kind of material: who reads which pages besides the step's own. The
     app (Ready) and the run's Activity row show this text as it stands (#6121, #6134)."""
     card = reader.get("card") or {}
-    who = card.get("note") or card.get("id") or "another reader"
+    pin = reader.get("model") if isinstance(reader.get("model"), dict) else {}
+    who = card.get("note") or card.get("id") or (str(next(iter(pin.values()))) if pin else "another reader")
     return f"Also reads {str(reader.get('material') or 'other').replace('_', ' ')} pages with {who}"
 
 

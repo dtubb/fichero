@@ -32,6 +32,9 @@ class StageReader(BaseModel):
     child_id: Optional[str] = None
     state: str
     why: Optional[str] = None
+    sentence: Optional[str] = Field(default=None, description=(
+        "who this reader is, as the plan said it: 'Also reads print pages with Apple Vision'; the same text as "
+        "`RecipeStep.readers[].sentence`, shown as it stands (#6134); null for pages read by the stage's own reader"))
 
 
 class StageEntries(BaseModel):

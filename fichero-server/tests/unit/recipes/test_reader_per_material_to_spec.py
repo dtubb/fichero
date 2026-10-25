@@ -147,6 +147,9 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     assert step["blank_versos"] == 1 and step["kinds"] == {"handwriting": 1, "typescript": 2}
     assert sorted((r["material"], r["pages"], r["model"], r["state"]) for r in step["readers"]) == [
         ("handwriting", 1, hand_model, "done"), ("typescript", 2, type_model, "done")]
+    # Each reader says who it is, in the plan's own words, for the Activity row (#6134).
+    assert {r["material"]: r["sentence"] for r in step["readers"]} == {
+        "handwriting": f"Also reads handwriting pages with {HAND}", "typescript": f"Also reads typescript pages with {TYPE}"}
 
     def attrs(key):
         return client.get(f"/api/documents/{ids[key]}").json()["attributes"]
