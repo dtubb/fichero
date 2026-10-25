@@ -31,6 +31,7 @@ def test_mcp_has_no_approve_or_answer_tool():
 
 
 def test_mcp_server_builds_with_the_sdk():
+    pytest.importorskip("mcp", reason="the MCP SDK is in the repo venv; a bare interpreter skips this one")
     server = mcp_server.build("coder")
     names = {t.name for t in server._tool_manager.list_tools()}
     assert names == {"report", "ask", "done"}

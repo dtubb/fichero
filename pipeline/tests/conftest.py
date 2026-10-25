@@ -2,6 +2,7 @@
 test profile and a fake coder. Nothing here touches the real worktrees, GitHub, tmux or Pi."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from collections import Counter
@@ -10,6 +11,25 @@ from pathlib import Path
 import pytest
 
 from pipeline import ROOT, coder, core, journal
+
+# The stub `ruff` the scratch repo's ready check runs: `ruff check [--output-format concise] [-q] <files>`, one rule
+# (F401: a bare `import x` whose name never appears again), the same concise line shape as the real tool.
+STUB_RUFF = f'''#!{__import__("sys").executable}
+import re, sys
+files = [a for a in sys.argv[1:] if not a.startswith("-") and a != "check"]
+bad = 0
+for f in files:
+    try:
+        lines = open(f).read().splitlines()
+    except OSError:
+        continue
+    for n, line in enumerate(lines, 1):
+        m = re.match(r"^import (\\w+)\\s*$", line)
+        if m and not any(m.group(1) in other for i, other in enumerate(lines, 1) if i != n):
+            print(f"{{f}}:{{n}}:8: F401 `{{m.group(1)}}` imported but unused")
+            bad += 1
+sys.exit(1 if bad else 0)
+'''
 
 
 def git(cwd, *args) -> str:
@@ -54,6 +74,13 @@ def scratch(tmp_path, monkeypatch):
     state = tmp_path / "state"
     for mod in (journal, core, coder):
         monkeypatch.setattr(mod, "STATE", state)
+    # Hermetic: the ready check calls `ruff`; the suite must not depend on the host's ruff (or on any host guard,
+    # origin or machine). A stub ruff with ONE rule (F401 for a bare `import x` never used again) goes first on PATH.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "ruff").write_text(STUB_RUFF)
+    (bin_dir / "ruff").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}")
     cfg = {
         "name": "scratch",
         "repo": {"path": str(repo), "base": "origin/integration", "main": "main", "worktrees": ".worktrees/pipeline",

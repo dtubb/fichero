@@ -143,7 +143,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `xcodebuild test` without the embedded engine is shown to work on a free runner); `close-fixed-issues.yml` runs
   `close_fixed_issues.py --apply` after a push to integration (a `Part of #N` never closes); `issue-milestone.yml`
   labels a new issue with no milestone `no-milestone` and one by an outside author `from-user`. Anything more on
-  GitHub needs a reason. Tests: `fichero-server/tests/unit/scripts/test_workflows.py` (the YAML is parsed and each
+  GitHub needs a reason. Tests: a `test_workflows` pytest under `fichero-server/tests/unit/scripts/`, written with
+  Step 1.1 (the YAML is parsed and each
   workflow's trigger, condition and command are asserted); run on a test PR.
 
 ### Running the work (the runner + the feeder)
@@ -160,7 +161,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   proofreading; it loads and validates, nothing more is built for it). Tests:
   `pipeline/tests/test_config.py::test_runner_code_names_no_project_specifics`,
   `pipeline/tests/test_config.py::test_example_writing_profile_loads_and_validates`.
-- `pipeline.resume-from-journal` [PARTIAL] (#6116) — the journal is append-only JSONL under `pipeline/state/`; state
+- `pipeline.resume-from-journal` [PARTIAL] (#6116) — the journal is append-only JSONL under `~/.local/state/pipeline/<checkout>/`; state
   is the journal replayed; an intent line precedes each side effect (commit, gh write, tell, worktree) and a done
   line follows it; on restart an item with an open intent is reconciled against the world (the `Fixes #N` commit on
   the branch, the marker in the GitHub comment, the worktree) before anything is redone, so nothing is lost or
@@ -272,7 +273,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   every fallback: a cost-cap stop, a credit or quota error (402, 429, "insufficient"), two failed retries and a
   Claude Code usage limit all move the role to the next entry; after the last entry the item goes to the queue,
   which asks for budget, never assumes it. A `claude-code` worker is an interactive `claude` in its own tmux window
-  with cwd the task worktree; its project-local `.claude/settings.json` sets the model, the MCP servers (jcodemunch,
+  with cwd the task worktree; its worktree-local Claude Code settings file sets the model, the MCP servers (jcodemunch,
   jdocmunch, the runner's own), the ponytail plugin and the lanes' permission mode; replies and idleness come from
   its JSONL under `~/.claude/projects/<encoded cwd>/`; its tokens are recorded without a price. Both kinds get the
   same prompt, tools, checks and journal. The end state — every role local through oMLX, one small model on a 16 GB
@@ -411,7 +412,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   reference to `agents/skills` or `agents/prompts`; `scripts/verify_python.sh`'s "autoloop" comment is fixed;
   `architecture/pi_agent_harness.md` is updated or marked superseded by this spec. Done outside the repo already:
   the fs_* Pi skills moved to `~/.pi/agent/skills.retired-2026-10-25/`, the Claude `fs_session` plugin disabled.
-  Test: `fichero-server/tests/unit/scripts/test_no_agents_dir.py`.
+  Test: a `test_no_agents_dir` pytest under `fichero-server/tests/unit/scripts/`, written with Step 4.1.
 
 ### Merged ids (2026-10-25, for readers of the earlier drafts)
 `journal-lock` → `resume-from-journal` · `gate-runs-in-the-worktree` → `pinned-checks` · `build-order-readable` →
@@ -530,7 +531,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 #### Step 1.1 — the three GitHub workflows
 - Behaviours: `pipeline.github-actions`
-- Tests: fichero-server/tests/unit/scripts/test_workflows.py
+- Tests: fichero-server/tests/unit/scripts/ (a test_workflows pytest, written with the step)
 - Depends on: 0.5
 - Size: S
 
@@ -620,7 +621,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 #### Step 4.1 — retire agents/ and rewrite AGENTS.md
 - Behaviours: `pipeline.retire-fs-skills`
-- Tests: fichero-server/tests/unit/scripts/test_no_agents_dir.py
+- Tests: fichero-server/tests/unit/scripts/ (a test_no_agents_dir pytest, written with the step)
 - Depends on: 1.3
 - Size: S
 
