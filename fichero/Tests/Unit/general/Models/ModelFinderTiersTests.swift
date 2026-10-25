@@ -52,7 +52,7 @@ struct ModelFinderTiersTests {
         )
         let groups = ModelFinderTiers.groups(candidates)
         #expect(groups.first?.title == nil)
-        #expect(groups.first?.candidates.map(\.id) == ["cloud-measured", "qwen-chosen"])
+        #expect(groups.first?.candidates.map(\.id) == ["cloud-measured"], "only the measured reader heads the list (ebdb68c47)")
         #expect(groups.dropFirst().map(\.title) == ["Specialist line reader", "Small vision model, on this Mac"])
         #expect(groups.dropFirst().first?.candidates.map(\.id) == ["kraken-a", "kraken-b"])
         #expect(groups.last?.candidates.map(\.id) == ["qwen-chosen"], "the chosen row stays in place")
