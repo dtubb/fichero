@@ -26,7 +26,10 @@ def sh(args: list[str], **kw) -> subprocess.CompletedProcess:
 def allowed_env(cfg: dict) -> dict:
     """The coder's environment: PATH, HOME, TERM, LANG and Pi's agent dir. The key is added by the wrapper."""
     env = {k: os.environ[k] for k in ALLOWED_ENV if k in os.environ}
-    env["PI_CODING_AGENT_DIR"] = str(ROOT / cfg["workers"]["agent_dir"])
+    agent = ROOT / cfg["workers"]["agent_dir"]
+    env["PI_CODING_AGENT_DIR"] = str(agent)
+    # the MCP servers are found by name on PATH (Pi's adapter does not expand ${VAR} in a command)
+    env["PATH"] = f"{agent / 'bin'}:{Path.home() / '.local' / 'bin'}:{env.get('PATH', '/usr/bin:/bin')}"
     return env
 
 

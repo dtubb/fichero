@@ -2,12 +2,24 @@
 one-coder-per-milestone, resume-from-journal, point-at-a-milestone, maintainer-queue (spec harness/deterministic-conductor.md)."""
 from __future__ import annotations
 
+import json
 import subprocess
 
 import pytest
 
 from pipeline import core, journal
 from pipeline.tests.conftest import git
+
+
+def test_start_from_a_local_issue_file_for_an_unfiled_step(scratch, fake_coder, tmp_path):
+    fake_coder()
+    f = tmp_path / "step.json"
+    f.write_text(json.dumps({"number": 6116, "part_of": True, "author": "dtubb", "title": "Step 1.2", "body": "do the guard",
+                             "labels": [], "milestone": "m"}))
+    out = core.start([6116], task="step-1-2", from_file=str(f))
+    assert out["items"][6116] == "checked"
+    text = core.brief(json.loads(f.read_text()), "step-1-2")
+    assert "(Part of #6116)" in text and "Fixes" not in text
 
 
 def test_states_table_is_the_only_transition_path(scratch):

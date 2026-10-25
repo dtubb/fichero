@@ -4,6 +4,7 @@ rate-limited, waiting, paused. An item moves only through the transitions here, 
 writing one journal line; a model's report never moves an item (pipeline.one-state-machine)."""
 from __future__ import annotations
 
+import json
 import re
 import shlex
 import subprocess
@@ -132,7 +133,7 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not touch {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by.",
-             f"5. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (Fixes #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
+             f"5. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({'Part of' if issue.get('part_of') else 'Fixes'} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
              f"6. When committed, call the `done` tool with task `{task}`. Use `ask` for a question (the maintainer answers), `report` for progress.",
              "7. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
     return "\n".join(text)
@@ -179,10 +180,13 @@ def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
     return session_dir
 
 
-def start(issues: list[int], milestone: str | None = None, task: str | None = None, worker_index: int = 0) -> dict:
-    """queued → coding → (checks) for a batch of issues in one coder context; blocks until the batch is done."""
+def start(issues: list[int], milestone: str | None = None, task: str | None = None, worker_index: int = 0,
+          from_file: str | None = None) -> dict:
+    """queued → coding → (checks) for a batch of issues in one coder context; blocks until the batch is done.
+    `from_file`: a local JSON issue (number, title, body, author, part_of) for a step not yet filed on GitHub."""
     _require_running()
     c = cfg()
+    read_issue = ISSUE if not from_file else (lambda n: json.loads(Path(from_file).read_text()))
     task = task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     s = state()
     live = [w for w in s["workers"].values() if not w.get("idle") and w.get("task") != task]
@@ -192,7 +196,7 @@ def start(issues: list[int], milestone: str | None = None, task: str | None = No
     for n in issues:  # every issue is read and allow-listed before anything starts
         if str(n) in s["items"] and s["items"][str(n)]["state"] not in ("queued", "coding", "failed"):
             continue  # finished or under review: never redone (pipeline.resume-from-journal)
-        briefs[n] = ISSUE(n)
+        briefs[n] = read_issue(n)
         if briefs[n].get("author") not in c["github"]["allowed_authors"]:
             _queue("triage", f"#{n} by {briefs[n].get('author')}: outside text, rewrite it into a triaged issue", task=task)
             raise PermissionError(f"#{n} is by {briefs[n].get('author')}: not allow-listed (pipeline.outside-bugs)")

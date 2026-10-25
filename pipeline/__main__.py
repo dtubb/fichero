@@ -21,7 +21,8 @@ from pipeline import core
 # command -> positional arguments, then options (name, kwargs)
 COMMANDS = {
     "status": [], "queue": [], "pause": [], "resume": [],
-    "start": [("issues", {"type": int, "nargs": "+"}), ("--milestone", {}), ("--task", {})],
+    "start": [("issues", {"type": int, "nargs": "+"}), ("--milestone", {}), ("--task", {}),
+              ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"})],
     "check": [("issue", {"type": int})],
     "verdict": [("issue", {"type": int}), ("sha", {}), ("verdict", {}), ("--by", {"default": "reviewer"}), ("--findings", {"default": ""})],
     "tell": [("window", {}), ("text", {})],
