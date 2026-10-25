@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-24
+
+- Onboarding: one Start runs every stage to Catalogue and runs again on new material; stop, quit or engine loss resumes without redoing done pages or lines (#5390).
+- New stages: Leave Out (#6070) and Catalogue (#6087); Find Lines defaults to Kraken (#6088); Translate and Correct list models (#6089, #6090).
+- Cloud: the cheapest adequate cloud text model is picked for Translate, Correct and Catalogue when cloud is allowed and a key is set; retired models are not offered (#6096); the estimate prices only what is left to do.
+- Reading: EXIF-rotated photos read upright; reading order (#6080); one reading per line; who read it; Reader corrections save and refresh the Inspector.
+- Inspector and Preview: multi-select bulk edits (#6082), delete boxes, boxes on finished pages, folder canvas, Order tab, drag hang fixed (#6009).
+- Sharing: a rewritten key file says so (#6030); /api/pair/invites returns {items, count}.
+- Fixes: folders named in either Unicode form; finder rows name cloud models; Gemini 3 text-part replies; the app shows the engine's words on a refusal (#6109).
+
 ## 2026-10-22
 
 - Recipes: a model is proposed for each step from the project's pages; on a 16 GB Mac one large model runs at a time.
