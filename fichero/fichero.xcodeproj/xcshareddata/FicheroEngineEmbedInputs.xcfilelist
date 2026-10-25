@@ -224,6 +224,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/checking/verdicts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/atomic_json.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/cores.py
@@ -248,6 +249,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/document_tree.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embed_process.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/embedding_choice.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embeddings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/library_paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/manager.py
@@ -260,6 +262,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/run_reviews.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage_snapshots.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/vector_swap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/leiden.py
 $(SRCROOT)/../fichero-server/src/fichero_server/errors.py

@@ -495,5 +495,7 @@
   "POST /api/editorial/many": "undoable in the engine (editorial.record_many, audited, one audit id with an inverse: editorial.withdraw_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
   "POST /api/editorial/withdraw-many": "undoable in the engine (editorial.withdraw_many, audited, one audit id with an inverse: editorial.restore_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
   "POST /api/rights/many": "undoable in the engine (rights.set_many, audited, one audit id with an inverse: rights.withdraw_many), undone from the audit row the result names; the app's UndoManager wiring is the app side of #6082",
-  "POST /api/source-settings/resolve-many": "read-only: resolves the settings, hands, certainty and rights of a multi-selection and writes nothing, so there is nothing to undo (#6082)"
+  "POST /api/source-settings/resolve-many": "read-only: resolves the settings, hands, certainty and rights of a multi-selection and writes nothing, so there is nothing to undo (#6082)",
+  "PUT /api/search/embedding": "audited (search.set_embedding_model, undoable=False on purpose, #6122): it only works on a project holding no vectors, so nothing is lost by choosing again; undoing is the same call with the earlier model, and the app chooses at creation (POST /api/library), so no UndoManager wiring",
+  "POST /api/search/embedding/change": "audited (search.change_embedding_model, undoable=False on purpose, #6122): a re-embed run that keeps the old vectors until it finishes and then discards them at the swap, so there is no inverse to replay; going back is another change run, and the plan is shown before it starts"
 }
