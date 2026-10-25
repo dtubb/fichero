@@ -16297,6 +16297,28 @@
         }
       }
     },
+    "/api/recipes/project/review-instructions": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Review Instructions",
+        "description": "Each review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.",
+        "operationId": "get_review_instructions_api_recipes_project_review_instructions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewInstructions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/allow-cloud": {
       "post": {
         "tags": [
@@ -87577,6 +87599,60 @@
           "state"
         ],
         "title": "RetryResponse"
+      },
+      "ReviewInstruction": {
+        "properties": {
+          "lens": {
+            "type": "string",
+            "title": "Lens",
+            "description": "the pass's lens: abbreviations, orthography or names-and-dates"
+          },
+          "default": {
+            "type": "string",
+            "title": "Default",
+            "description": "the instructions built from the project's language, script and date"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "what the pass is sent: the project's edit, else the default"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "whether the project edited this pass's instructions"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "description": "the sentence saying which profile the default was built from"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lens",
+          "default",
+          "text",
+          "edited",
+          "profile"
+        ],
+        "title": "ReviewInstruction"
+      },
+      "ReviewInstructions": {
+        "properties": {
+          "passes": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewInstruction"
+            },
+            "type": "array",
+            "title": "Passes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passes"
+        ],
+        "title": "ReviewInstructions"
       },
       "ReviewListResponse": {
         "properties": {

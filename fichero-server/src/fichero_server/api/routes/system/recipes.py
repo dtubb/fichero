@@ -1882,6 +1882,35 @@ async def get_project_setup(db: Database = Depends(get_library_database)) -> Pro
     return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")))
 
 
+class ReviewInstruction(BaseModel):
+    lens: str = Field(description="the pass's lens: abbreviations, orthography or names-and-dates")
+    default: str = Field(description="the instructions built from the project's language, script and date")
+    text: str = Field(description="what the pass is sent: the project's edit, else the default")
+    edited: bool = Field(description="whether the project edited this pass's instructions")
+    profile: str = Field(description="the sentence saying which profile the default was built from")
+
+
+class ReviewInstructions(BaseModel):
+    passes: list[ReviewInstruction]
+
+
+@router.get("/project/review-instructions", response_model=ReviewInstructions)
+async def get_review_instructions(db: Database = Depends(get_library_database)) -> ReviewInstructions:
+    """Each review pass's instructions, the default built from the project's setup and the project's edit if it has one
+    (`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`."""
+    from fichero_server.recipes.review_profiles import lens_ids, review_prompt
+
+    answers = read_project_setup(_library(db))["answers"]
+    edits = ((answers or {}).get("job_answers") or {}).get("review_instructions") or {}
+    out = []
+    for lens in lens_ids():
+        default, said = review_prompt(lens, answers)
+        edited = bool((edits.get(lens) or "").strip())
+        out.append(ReviewInstruction(lens=lens, default=default, text=edits[lens] if edited else default,
+                                     edited=edited, profile=said))
+    return ReviewInstructions(passes=out)
+
+
 @router.put("/project", response_model=ProjectSetup)
 async def save_project_setup(
     request: ProjectSetup,

@@ -13888,6 +13888,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("get-review-instructions")
+    def recipes_get_review_instructions_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Review Instructions (GET /api/recipes/project/review-instructions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/review-instructions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("runs")
     def recipes_runs_get(
         ctx: typer.Context,

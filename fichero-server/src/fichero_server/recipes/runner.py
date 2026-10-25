@@ -300,6 +300,16 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
 
         workflow = workflow.model_copy(deep=True)
         workflow.nodes, workflow.edges = keep_lenses(workflow.nodes, workflow.edges, card["lenses"])
+    if card.get("review_instructions"):
+        from fichero_server.recipes.review_profiles import with_instructions
+
+        workflow = workflow.model_copy(deep=True)
+        from pathlib import Path
+
+        from fichero_server.recipes.project import read_project_setup
+
+        workflow.nodes = with_instructions(workflow.nodes, card["review_instructions"],
+                                           read_project_setup(Path(db.path).parent)["answers"])
     if card.get("tool_config"):
         # The step's settings from setup's answers (which kinds of names, #5478), on this run's copy only.
         workflow = workflow.model_copy(deep=True)

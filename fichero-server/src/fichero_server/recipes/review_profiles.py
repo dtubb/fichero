@@ -74,6 +74,22 @@ def lens_ids() -> list[str]:
     return list(profiles()[GENERIC].lenses)
 
 
+def with_instructions(nodes: list[dict], edits: dict[str, str], answers: dict[str, Any] | None) -> list[dict]:
+    """`nodes` with each review pass that has a lens the person edited sent a prompt of its own (#6128): for each lens
+    of the pass the person's text, else that lens's profile-built default (built from `answers`), joined; a pass with
+    no edited lens keeps the default the step builds at run time."""
+    out = []
+    for node in nodes:
+        lens = (node.get("config") or {}).get("lens") if node.get("tool") == "transcribe_review" else None
+        names = [x.strip() for x in (lens or "").split(",") if x.strip()]
+        if not any(x in edits for x in names):
+            out.append(node)
+            continue
+        prompt = "\n\n".join(edits[x] if x in edits else review_prompt(x, answers)[0] for x in names)
+        out.append({**node, "config": {**node["config"], "prompt": prompt}})
+    return out
+
+
 #: The shipped review preset a recipe's Correct step runs (`start.WORKFLOW_FOR_JOB["correct"]`).
 REVIEW_PRESET = "transcribe_paleography_review"
 #: The name a run made before the rename carries as its `workflow` (#6128), read as the preset it became.

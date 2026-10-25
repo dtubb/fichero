@@ -678,6 +678,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      "turn a lens on under the purpose in the project's setup")
                 continue
             entry["lenses"] = lenses
+        edited = {k: v for k, v in ((job_answers or {}).get("review_instructions") or {}).items() if v.strip()}
+        if job == "correct" and edited:
+            # The person's own words for a pass (#6128): a lens left alone keeps the profile-built default.
+            entry["review_instructions"] = edited
         if job == "correct" and settings.get("only_below_confidence") is not None:
             # Kraken reads, the model re-reads only the lines Kraken was under this sure of (variant A).
             entry["tool_config"] = {**entry.get("tool_config", {}), "transcribe_review": {

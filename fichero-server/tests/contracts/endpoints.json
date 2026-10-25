@@ -9609,6 +9609,16 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/review-instructions",
+        "operation_id": "get_review_instructions_api_recipes_project_review_instructions_get",
+        "summary": "Get Review Instructions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReviewInstructions"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project/runs",
         "operation_id": "recipe_runs_api_recipes_project_runs_get",
         "summary": "Recipe Runs",

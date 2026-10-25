@@ -6585,6 +6585,12 @@ def fichero_recipes_change_project_layers(
     return _rt.call("POST", "/api/recipes/project/layers", json=_rt.body({"languages": languages, "layers": layers, "remove": remove}))
 
 
+def fichero_recipes_get_review_instructions(
+) -> Any:
+    "Get Review Instructions\n\nEach review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.\n\nRoute: GET /api/recipes/project/review-instructions (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/project/review-instructions")
+
+
 def fichero_recipes_runs(
 ) -> Any:
     "Recipe Runs\n\nThe project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a\nworkflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576).\n\nRoute: GET /api/recipes/project/runs (toolset `recipes`; reads)."
@@ -9836,6 +9842,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
+    GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),
     GeneratedTool("fichero_recipes_run_summary", "recipes", "GET", "/api/recipes/project/runs/{job_id}/summary", fichero_recipes_run_summary),
