@@ -138,7 +138,9 @@ struct SegmentMappingTests {
             // A georeferencing pass's transformation type (#5122): what ranks it apart from text passes.
             "transformation",
             // Marked ground truth (#5513): what the bake-off and evaluation score against.
-            "ground_truth"
+            "ground_truth",
+            // The working pass has no shape and another is drawn in its stead (#4955): carried on the value.
+            "shapeless"
         ]
         #expect(declared == accounted, "PassRead's fields changed. Unaccounted: \(declared.subtracting(accounted).sorted()).")
     }

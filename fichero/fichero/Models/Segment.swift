@@ -314,6 +314,9 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     var transformation: String?
     /// The pass is marked ground truth (#5513): its corrected text is what a bake-off and an evaluation score against.
     var groundTruth = false
+    /// The working pass has no shape to draw and another pass is drawn in its stead (#4955, the engine's `shapeless`).
+    /// Carried, not read by a surface yet.
+    var shapeless = false
 
     /// A georeferencing pass, ranked apart from the page's text passes (the engine's `georeferences`).
     var isGeoreferencing: Bool { transformation != nil }
@@ -392,5 +395,6 @@ extension SegmentPassValue {
         self.rank = generated.rank
         self.transformation = generated.transformation
         self.groundTruth = generated.groundTruth ?? false
+        self.shapeless = generated.shapeless ?? false
     }
 }

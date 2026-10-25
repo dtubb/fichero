@@ -202,18 +202,15 @@ struct ReaderHeadShowsWhatItDisplaysTests {
         )
     }
 
-    @Test("the + menu no longer carries a duplicate pin row")
-    func splitMenuHasNoPinRow() throws {
+    @Test("the pane head's + is the pane menu: split, pin and close from one place (2026-10-17)")
+    func splitMenuIsThePaneMenu() throws {
+        // The pane menu carries Pin Pane / Unpin Pane beside split and close (bc06da6c4), and the head's pin toggle
+        // shows the same state from the same binding, so the two cannot disagree about whether the pane is pinned.
         let chrome = try source(chromeMenuPath)
-        #expect(
-            !chrome.contains("isPinned"),
-            """
-            Two places to pin the same pane is two places to disagree about \
-            whether it is pinned — PaneChromeMenu is the SPLIT menu now.
-            """
-        )
+        #expect(chrome.contains("var isPinned: Binding<Bool>?"))
         let head = try source(paneHeadPath)
-        #expect(head.contains("PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)"))
+        #expect(head.contains("splitActions: canSplit ? splitAxisActions : nil,"))
+        #expect(head.contains("isPinned: isPinned,"))
         // #4705 increment 2: `canSplit` is the new invariant here — a
         // Preview pane showing the workflow canvas must not offer to split
         // into a second `WorkflowEditor` (two editors bound to the same
