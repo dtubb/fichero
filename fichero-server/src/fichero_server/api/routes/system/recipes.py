@@ -1616,7 +1616,7 @@ async def model_candidates(
     saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
                 cloud_allowed=(cloud_allowed and places.allows("cloud")) or places.may_leave_to(saved, "cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
-                search_embedder=search_embedder(), period=period or "")
+                search_embedder=search_embedder(library_path or None), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
         search = await run_in_threadpool(_search_job, request, library_path, tags, job)

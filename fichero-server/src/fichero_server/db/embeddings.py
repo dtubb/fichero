@@ -17,6 +17,7 @@ import os
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable, Literal
 
 from fichero_server.errors import ErrorCategory, handle_error
@@ -403,10 +404,23 @@ def _configured_embedding_space() -> EmbeddingSpaceSpec:
     return space
 
 
-def search_embedder() -> str:
-    """The model this engine embeds pages with for search (its one embedding space): what a recipe's
-    search step must name to run (#5574)."""
-    return _configured_embedding_space().source_model_name
+def chosen_embedding_space(package: Any) -> EmbeddingSpaceSpec | None:
+    """The space a project chose at creation (`search.embedding.chosen-at-project-creation`, #6122), or None."""
+    from fichero_server.db.embedding_choice import read_choice
+
+    model = read_choice(package) if package else None
+    return SUPPORTED_EMBEDDING_SPACES.get(model.lower()) if model else None
+
+
+def library_embedding_space(package: Any = None) -> EmbeddingSpaceSpec:
+    """The project's own space, else the engine's default (`FICHERO_EMBED_MODEL`, else bge-m3)."""
+    return chosen_embedding_space(package) or _configured_embedding_space()
+
+
+def search_embedder(package: Any = None) -> str:
+    """The model this engine embeds a project's pages with for search: what a recipe's search step must name to run
+    (#5574). `package`: the project's folder, whose own choice wins."""
+    return library_embedding_space(package).source_model_name
 
 
 def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
@@ -1022,8 +1036,9 @@ class DatabaseEmbeddingMixin:
         return self._get_embedding_space().source_model_name
 
     def _get_embedding_space(self) -> EmbeddingSpaceSpec:
-        """Return the explicit embedding-space contract."""
-        return _configured_embedding_space()
+        """Return the explicit embedding-space contract: the project's own choice (#6122), else the engine's default."""
+        path = getattr(self, "path", None)
+        return library_embedding_space(Path(str(path)).parent if path else None)
 
     def _get_embedding_model_id(self) -> str:
         """Return the stamped model-id for newly written vectors."""

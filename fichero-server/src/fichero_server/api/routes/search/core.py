@@ -1732,6 +1732,59 @@ async def reindex_all(db: Database = Depends(get_library_database_for_write)) ->
     )
 
 
+class EmbeddingChoiceRequest(BaseModel):
+    model: str
+
+
+class EmbeddingChoiceResponse(BaseModel):
+    """The embedding model a project searches with (`search.embedding.chosen-at-project-creation`, #6122)."""
+
+    model: str
+    models: list[str]
+    vectors: int
+    changeable: bool
+
+
+def _embedding_choice(db: Database) -> EmbeddingChoiceResponse:
+    from fichero_server.db.embeddings import EMBEDDINGS_TABLE, SUPPORTED_EMBEDDING_SPACES
+
+    vectors = int(db._vector_table_stats(EMBEDDINGS_TABLE)["indexed_count"])
+    return EmbeddingChoiceResponse(
+        model=db._get_embedding_space().source_model_name,
+        models=sorted({s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}),
+        vectors=vectors, changeable=vectors == 0)
+
+
+@router.get("/embedding", response_model=EmbeddingChoiceResponse)
+def get_embedding_choice(db: Database = Depends(get_library_database)) -> EmbeddingChoiceResponse:
+    """Which embedding model this project searches with, the models it may choose, and how many vectors it holds."""
+    return _embedding_choice(db)
+
+
+@router.put("/embedding", response_model=EmbeddingChoiceResponse)
+def put_embedding_choice(body: EmbeddingChoiceRequest,
+                         db: Database = Depends(get_library_database_for_write)) -> EmbeddingChoiceResponse:
+    """Choose the embedding model of a project that holds no vectors yet. A project that does is never switched silently
+    (`search.embedding.change-is-a-re-embed-run`): 409, and the way to change it is the re-embed run."""
+    from pathlib import Path
+
+    from fichero_server.db.embedding_choice import write_choice
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(body.model.lower())
+    if space is None:
+        raise HTTPException(status_code=422, detail=f"{body.model!r} is not an embedding model Fichero supports")
+    current = _embedding_choice(db)
+    if space.source_model_name != current.model and not current.changeable:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This project's {current.vectors} vectors were made with {current.model}; vectors from two models "
+                   "are never mixed, and changing the model is a re-embed run of every page, not yet built.")
+    write_choice(Path(db.path).parent, space.source_model_name)
+    db._embedder = None  # the next embed resolves the new space
+    return _embedding_choice(db)
+
+
 @router.post("/embed/{doc_id}")
 @off_loop
 def embed_document(doc_id: str, db: Database = Depends(get_library_database_for_write)) -> EmbedDocumentResponse:

@@ -10576,6 +10576,7 @@ def register_generated_openapi_commands(
     @target_app.command("create-library")
     def library_create_library_post(
         ctx: typer.Context,
+        embedding_model: Optional[str] = typer.Option(None, '--embedding-model', help="the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)"),
         path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Create Library (POST /api/library)."""
@@ -10583,8 +10584,10 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/library"
             params = None
             payload = _build_json_payload({
+                "embedding_model": embedding_model,
                 "path": path,
             }, {
+                "embedding_model": {'type': 'string', 'nullable': True, 'title': 'Embedding Model', 'description': "the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)", 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -15693,6 +15696,34 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/search/embed/{doc_id}"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-embedding-choice")
+    def search_get_embedding_choice_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Embedding Choice (GET /api/search/embedding)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-embedding-choice")
+    def search_put_embedding_choice_put(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Put Embedding Choice (PUT /api/search/embedding)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding"
+            params = None
+            payload = _build_json_payload({
+                "model": model,
+            }, {
+                "model": {'type': 'string', 'title': 'Model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("explain-a-query", hidden=True)

@@ -5032,10 +5032,11 @@ def fichero_library_remove_entity_type(
 
 def fichero_library_create(
     *,
+    embedding_model: Annotated[Optional[str], Field(description="the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)")] = None,
     path: Annotated[str, Field(description='Path.')],
 ) -> Any:
     'Create Library\n\nCreate a new ``.fichero`` package (or report it already exists).\n\nBehaviour:\n  * Validates ``request.path`` against the allowlist (403 on miss).\n  * If the package directory already contains a ``fichero.duckdb``,\n    returns ``created=False`` without touching the filesystem.\n  * Otherwise creates the package directory plus ``files/`` and\n    ``vectors/`` subdirs, then triggers schema initialization by\n    calling ``db_manager.get_database(path)`` (which also runs all\n    migrations and seeds default workflows).\n\nRoute: POST /api/library (toolset `library`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/library", json=_rt.body({"path": path}))
+    return _rt.call("POST", "/api/library", json=_rt.body({"embedding_model": embedding_model, "path": path}))
 
 
 def fichero_library_items_columns(
@@ -7426,6 +7427,20 @@ def fichero_search_embed_document(
 ) -> Any:
     'Embed Document\n\nCreate embedding for a specific document.\n\nRoute: POST /api/search/embed/{doc_id} (toolset `search`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/search/embed/{doc_id}")
+
+
+def fichero_search_get_embedding_choice(
+) -> Any:
+    'Get Embedding Choice\n\nWhich embedding model this project searches with, the models it may choose, and how many vectors it holds.\n\nRoute: GET /api/search/embedding (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding")
+
+
+def fichero_search_put_embedding_choice(
+    *,
+    model: Annotated[str, Field(description='Model.')],
+) -> Any:
+    'Put Embedding Choice\n\nChoose the embedding model of a project that holds no vectors yet. A project that does is never switched silently\n(`search.embedding.change-is-a-re-embed-run`): 409, and the way to change it is the re-embed run.\n\nRoute: PUT /api/search/embedding (toolset `search`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/search/embedding", json=_rt.body({"model": model}))
 
 
 def fichero_search_explanation_explain(
@@ -9887,6 +9902,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_schedules_trigger", "schedules", "POST", "/api/schedules/{schedule_id}/trigger", fichero_schedules_trigger),
     GeneratedTool("fichero_search_enhanced", "search", "POST", "/api/search", fichero_search_enhanced),
     GeneratedTool("fichero_search_embed_document", "search", "POST", "/api/search/embed/{doc_id}", fichero_search_embed_document),
+    GeneratedTool("fichero_search_get_embedding_choice", "search", "GET", "/api/search/embedding", fichero_search_get_embedding_choice),
+    GeneratedTool("fichero_search_put_embedding_choice", "search", "PUT", "/api/search/embedding", fichero_search_put_embedding_choice),
     GeneratedTool("fichero_search_explanation_explain", "search-explanation", "POST", "/api/search/explain", fichero_search_explanation_explain),
     GeneratedTool("fichero_search_explanation_explain_path", "search-explanation", "GET", "/api/search/explain/{query}", fichero_search_explanation_explain_path),
     GeneratedTool("fichero_search_keyword_cloud", "search", "GET", "/api/search/keywords", fichero_search_keyword_cloud),

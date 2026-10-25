@@ -29896,6 +29896,68 @@
         }
       }
     },
+    "/api/search/embedding": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Get Embedding Choice",
+        "description": "Which embedding model this project searches with, the models it may choose, and how many vectors it holds.",
+        "operationId": "get_embedding_choice_api_search_embedding_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChoiceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Put Embedding Choice",
+        "description": "Choose the embedding model of a project that holds no vectors yet. A project that does is never switched silently\n(`search.embedding.change-is-a-re-embed-run`): 409, and the way to change it is the re-embed run.",
+        "operationId": "put_embedding_choice_api_search_embedding_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChoiceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search/embed/{doc_id}": {
       "post": {
         "tags": [
@@ -64000,6 +64062,51 @@
         ],
         "title": "EmbedEntitiesResponse"
       },
+      "EmbeddingChoiceRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "EmbeddingChoiceRequest"
+      },
+      "EmbeddingChoiceResponse": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "vectors": {
+            "type": "integer",
+            "title": "Vectors"
+          },
+          "changeable": {
+            "type": "boolean",
+            "title": "Changeable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "models",
+          "vectors",
+          "changeable"
+        ],
+        "title": "EmbeddingChoiceResponse",
+        "description": "The embedding model a project searches with (`search.embedding.chosen-at-project-creation`, #6122)."
+      },
       "EmbeddingStatsResponse": {
         "properties": {
           "indexed_count": {
@@ -73515,6 +73622,12 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "embedding_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Embedding Model",
+            "description": "the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)"
           }
         },
         "type": "object",

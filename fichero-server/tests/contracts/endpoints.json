@@ -10696,6 +10696,26 @@
         "response_model": "EmbedDocumentResponse"
       },
       {
+        "method": "GET",
+        "path": "/search/embedding",
+        "operation_id": "get_embedding_choice_api_search_embedding_get",
+        "summary": "Get Embedding Choice",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmbeddingChoiceResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/search/embedding",
+        "operation_id": "put_embedding_choice_api_search_embedding_put",
+        "summary": "Put Embedding Choice",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EmbeddingChoiceRequest",
+        "response_model": "EmbeddingChoiceResponse"
+      },
+      {
         "method": "POST",
         "path": "/search/explain",
         "operation_id": "explain_search_api_search_explain_post",
