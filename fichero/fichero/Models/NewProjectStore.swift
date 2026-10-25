@@ -112,10 +112,10 @@ final class NewProjectStore {
     func discard() -> Bool {
         guard let project = created else { return false }
         let url = project.url
-        libraryManager.closeAndUnregisterLibrary(project.id)
         created = nil
         do {
-            try trash(url)
+            try LibraryManager.closeAndTrash(url, close: { libraryManager.closeAndUnregisterLibrary(project.id) },
+                                             trash: trash)
         } catch {
             errorMessage = "The project is closed, but its folder could not be moved to the Trash: \(error.localizedDescription)"
             return false
