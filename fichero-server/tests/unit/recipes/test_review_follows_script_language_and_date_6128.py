@@ -55,3 +55,21 @@ def test_a_latin_project_is_sent_the_latin_guidance():
 def test_the_profile_is_chosen_by_script_language_and_date_only():
     assert choose({**SPANISH_1590S, "period": "1590"})[0].id == "es-colonial"
     assert choose({**ENGLISH_1620, "period": "1950"})[0].id == "generic"
+
+
+def test_a_page_reviewed_under_the_old_name_still_counts_reviewed_6128(db):
+    """A preset's workflow id is uuid5(name): the rename made a new id, so a review run before it must still count as done
+    for a step with no model of its own (`recipes.done._has_review` / `_by_the_step`), not be reviewed again."""
+    from fichero_server.models import Artifact, DocType, Document
+    from fichero_server.recipes.done import REVIEWED, _has_review
+    from fichero_server.workflows.default_workflows import preset_workflow_id
+
+    page = Document(name="p", doc_type=DocType.page)
+    db.save(page)
+    db.save(Artifact(document_id=page.id, artifact_type=REVIEWED, content="reviewed",
+                     workflow_id=preset_workflow_id("Paleographer Review")))
+    new_id = preset_workflow_id("Review the Reading")
+    assert new_id != preset_workflow_id("Paleographer Review")
+    assert _has_review(db, page.id, None, new_id), "reviewed under the old id counts for the new one"
+    other = preset_workflow_id("Some Other Preset")
+    assert not _has_review(db, page.id, None, other), "another workflow's review is still not this step's"

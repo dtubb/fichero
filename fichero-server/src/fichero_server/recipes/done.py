@@ -408,7 +408,17 @@ def _has_rewrite(db: Any, doc_id: str, card: dict[str, Any]) -> bool:
 def _by_the_step(artifact: Any, model: str | None, workflow_id: str | None) -> bool:
     if model is not None:
         return artifact.model == model
-    return workflow_id is None or artifact.workflow_id == workflow_id
+    return workflow_id is None or artifact.workflow_id in _ids_it_has_had(workflow_id)
+
+
+def _ids_it_has_had(workflow_id: str) -> set[str]:
+    """A shipped preset's id and the id it had before a rename (a preset's id is uuid5 of its name, #6128): a page reviewed
+    under the old name is still reviewed, never done again for the new id."""
+    from fichero_server.recipes.review_profiles import RENAMED
+    from fichero_server.workflows.default_workflows import preset_workflow_id
+
+    return {workflow_id, *(preset_workflow_id(old) for old, new in RENAMED.items()
+                           if preset_workflow_id(new) == workflow_id)}
 
 
 def effective_model(db: Any, card: dict[str, Any]) -> str | None:
