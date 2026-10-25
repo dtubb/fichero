@@ -14,6 +14,7 @@ Through the public surface with the real scheduler, as test_start_stop_restart_r
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -42,12 +43,22 @@ WRITTEN = "Yten dixo el testigo"
 
 
 class Hold:
-    """Wraps `module.name`: the first call waits (saying it entered) until let go; every call is kept as its unit."""
+    """Wraps `module.name`: the first call waits (saying it entered) until let go; every call is kept as its unit.
+    `let_through` calls go by first, and with `hold_rest` every call after the one that waits waits too: the stop then lands
+    with a known number of calls finished, whatever the machine's speed."""
 
-    def __init__(self, monkeypatch, module, name, unit_of):
+    def __init__(self, monkeypatch, module, name, unit_of, *, let_through=0, hold_rest=False):
         self.entered, self.release, self.units = threading.Event(), threading.Event(), []
+        self.let_through, self.hold_rest = let_through, hold_rest
         real = getattr(module, name)
         gate = self
+
+        def waits() -> bool:
+            n = len(gate.units)
+            if n == gate.let_through + 1:
+                gate.entered.set()
+                return True
+            return gate.hold_rest and n > gate.let_through + 1
 
         async def _wait_async():
             import asyncio
@@ -57,15 +68,13 @@ class Hold:
         if _is_coroutine(real):
             async def held(*args, **kwargs):
                 gate.units.append(unit_of(args, kwargs))
-                if len(gate.units) == 1:
-                    gate.entered.set()
+                if waits():
                     await _wait_async()
                 return await real(*args, **kwargs)
         else:
             def held(*args, **kwargs):
                 gate.units.append(unit_of(args, kwargs))
-                if len(gate.units) == 1:
-                    gate.entered.set()
+                if waits():
                     assert gate.release.wait(30), "the test never let the stage go"
                 return real(*args, **kwargs)
 
@@ -149,9 +158,13 @@ def stubs(monkeypatch, engine):
     return engine
 
 
-def _hold_and_stop(client, gate) -> None:
+def _hold_and_stop(client, gate, until=lambda: True) -> None:
     job_id = _start(client)
     assert gate.entered.wait(60), _run_status(client, job_id)
+    deadline = time.monotonic() + 30
+    while not until() and time.monotonic() < deadline:  # what went by is saved before the Stop lands
+        time.sleep(0.05)
+    assert until(), "the unit let through never finished"
     assert _stop(client, job_id) == "stopping"
     gate.release.set()
     assert _finished(client, job_id)["state"] == "cancelled"
@@ -163,16 +176,19 @@ def test_a_stage_stopped_on_its_first_unit_resumes_and_redoes_nothing(stage, cli
     case = _stage_cases()[stage]
     module, name = case["target"]
     unit_of = case["unit_of"] or (lambda args, kwargs: len(args) + len(kwargs))  # a call: counted, not named
-    gate = Hold(monkeypatch, module, name, unit_of)
+    # One page goes by whole (its one call passes), the next waits and every call after it: the Stop lands with exactly one page done.
+    monkeypatch.setitem(jobs.LANES, "network", 1)
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    gate = Hold(monkeypatch, module, name, unit_of, let_through=1, hold_rest=True)
     _save(client, _recipe(tmp_path, *case["steps"]))
     try:
-        _hold_and_stop(client, gate)
+        _hold_and_stop(client, gate, until=lambda: bool(case["done"](db)))
     finally:
         gate.release.set()
     done_first = case["done"](db)
     calls_first = len(gate.units)
     assert calls_first >= 1
-    assert done_first < set(_page_names(db, _all_pages(db))), f"{stage}: the Stop came after every page: nothing to resume"
+    assert done_first < set(_page_names(db, _all_pages(db))), f"{stage}: the Stop came after every page: nothing to resume ({len(gate.units)} calls, let through {gate.let_through})"
 
     run = _finished(client, _start(client))
 
