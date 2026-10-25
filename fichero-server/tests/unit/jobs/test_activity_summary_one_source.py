@@ -119,3 +119,6 @@ def test_a_live_recipes_follow_on_work_is_not_an_up_next_row_6126():
 
     assert rows(with_run=True) == ["x"], "only work the run did not cause is still its own row"
     assert rows(with_run=False) == ["e", "t", "d", "x"], "with no recipe going, each waits as its own row, saying why"
+
+    waiting_run = [_job("run", "run-a-recipe", "waiting", name="Run the recipe"), _job("e", "embed", "waiting")]
+    assert [i.id for i in up_next(order_for_activity(waiting_run))] == ["run", "e"], "a queued run has caused nothing yet"
