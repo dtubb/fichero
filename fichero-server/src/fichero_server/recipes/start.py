@@ -619,7 +619,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 # off a Mac that keeps them, is read by the step's own reader.
                 from fichero_server.recipes.assemble import reader_sentence
 
-                entry["readers"] = {r["material"]: {**run, "sentence": r.get("sentence") or reader_sentence(r)}
+                entry["readers"] = {r["material"]: {**run, "sentence": r.get("sentence") or reader_sentence(r),
+                                                    "card_id": (r.get("card") or {}).get("id"),
+                                                    "note": (r.get("card") or {}).get("note"), "runs_on": r.get("runs_on")}
                                     for r in step["readers"]
                                     if r.get("material") and r.get("model") and not (stays_local and _uses_cloud(r))
                                     and (run := _reading_run(job, r["model"])) is not None}

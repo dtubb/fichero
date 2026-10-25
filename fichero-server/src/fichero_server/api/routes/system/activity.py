@@ -523,6 +523,19 @@ class BackgroundJobsResponse(BaseModel):
     activity: Optional[ActivitySummary] = None
 
 
+class TreeReader(BaseModel):
+    """One reader of a reading stage, as the Activity row names it (#6134): `sentence` is the text to show as it stands."""
+
+    material: Optional[str] = None
+    card_id: Optional[str] = None
+    note: Optional[str] = None
+    runs_on: Optional[str] = None
+    sentence: Optional[str] = None
+    model: Optional[str] = None
+    pages: int = 0
+    state: Optional[str] = None
+
+
 class JobTree(BaseModel):
     """A job and everything under it: a run, its steps, their pages (`activity.jobs-are-a-tree`)."""
 
@@ -564,6 +577,10 @@ class JobTree(BaseModel):
     # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
     # included, each workflow stage with its run's account; null on any other job.
     stages: Optional[list[RecipeRunStep]] = None
+    # The readers of a reading stage (#6134): on a recipe run's child that is a stage's main run, each reader the stage used by
+    # kind of material (card id, name, where it runs, the sentence to show); empty on any other row.
+    # The same readers are in the run status's `stages[].readers`, which the Activity stage row draws; this copy is for the tree view.
+    readers: list[TreeReader] = Field(default_factory=list)
     # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
     summary: Optional[RecipeRunSummary] = None
     summary_unavailable: Optional[str] = Field(None, description=(
@@ -1054,7 +1071,10 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     found["state"], found["reason"], status = await _recipe_state(db, found["id"])
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
+    readers = {s["child_id"]: s["readers"] for s in status["steps"] if s.get("child_id") and s.get("readers")}
     for child in found["children"]:
+        if child["id"] in readers:  # the stage reads with a reader per kind: the row names each (#6134)
+            child["readers"] = [dict(r) if isinstance(r, dict) else r.model_dump() for r in readers[child["id"]]]
         account = accounts.get(child["id"])
         if account is not None:
             child["account"] = account

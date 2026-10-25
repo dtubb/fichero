@@ -71334,6 +71334,13 @@
             "nullable": true,
             "title": "Stages"
           },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/TreeReader"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
           "summary": {
             "$ref": "#/components/schemas/RecipeRunSummary",
             "nullable": true
@@ -93606,6 +93613,24 @@
             "nullable": true,
             "title": "Why"
           },
+          "card_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Card Id",
+            "description": "its model card's id, when the plan knew a card"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "its model card's name for a person"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On",
+            "description": "where it runs: this-mac or cloud:<provider>"
+          },
           "sentence": {
             "type": "string",
             "nullable": true,
@@ -98389,6 +98414,53 @@
           "max_depth"
         ],
         "title": "TraverseResponse"
+      },
+      "TreeReader": {
+        "properties": {
+          "material": {
+            "type": "string",
+            "nullable": true,
+            "title": "Material"
+          },
+          "card_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Card Id"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "default": 0
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "title": "TreeReader",
+        "description": "One reader of a reading stage, as the Activity row names it (#6134): `sentence` is the text to show as it stands."
       },
       "TriangleRow": {
         "properties": {

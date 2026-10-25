@@ -32,6 +32,9 @@ class StageReader(BaseModel):
     child_id: Optional[str] = None
     state: str
     why: Optional[str] = None
+    card_id: Optional[str] = Field(default=None, description="its model card's id, when the plan knew a card")
+    note: Optional[str] = Field(default=None, description="its model card's name for a person")
+    runs_on: Optional[str] = Field(default=None, description="where it runs: this-mac or cloud:<provider>")
     sentence: Optional[str] = Field(default=None, description=(
         "who this reader is, as the plan said it: 'Also reads print pages with Apple Vision'; the same text as "
         "`RecipeStep.readers[].sentence`, shown as it stands (#6134); null for pages read by the stage's own reader"))
