@@ -5604,13 +5604,17 @@ class Database(DatabaseEmbeddingMixin):
         if self._lance_db is None:
             import lancedb
 
-            from fichero_server.db.vector_swap import recover
+            from fichero_server.db.vector_swap import package_lock, recover
 
-            if getattr(self, "_embedding_space_override", None) is None:  # not a re-embed run's own shadow folder
-                recover(package, self._lance_path)
-            self._lance_path.mkdir(parents=True, exist_ok=True)
-            self._lance_db = lancedb.connect(str(self._lance_path))
-            self._lance_stamp = stamp
+            with package_lock(package):  # a swap in progress finishes first: its marker is not read as a crash
+                if getattr(self, "_embedding_space_override", None) is None:  # not a re-embed run's own shadow folder
+                    recover(package, self._lance_path)
+                self._lance_path.mkdir(parents=True, exist_ok=True)
+                self._lance_db = lancedb.connect(str(self._lance_path))
+                try:
+                    self._lance_stamp = (package / "embedding.json").stat().st_mtime_ns
+                except OSError:
+                    self._lance_stamp = None
         return self._lance_db
 
     def _lance_tables(self) -> list[str]:

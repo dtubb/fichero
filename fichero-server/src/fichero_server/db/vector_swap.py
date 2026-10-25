@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -27,6 +28,17 @@ from fichero_server.db.embedding_choice import read_choice, write_choice
 logger = logging.getLogger(__name__)
 
 MARKER = "swap.json"
+
+_LOCKS_GUARD = threading.Lock()
+_LOCKS: dict[str, threading.RLock] = {}
+
+
+def package_lock(package: Path) -> "threading.RLock":
+    """The one lock for a project's vector folders in this process. `swap` holds it for its whole body, and `recover` and
+    `Database.lance` (open or reopen) hold it, so a connection reopening mid-swap waits for the swap to finish instead of
+    reading its marker and rolling it back."""
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(str(Path(package).resolve()), threading.RLock())
 
 #: Called after each step with its name; tests raise from it to fail (an Exception) or die (a BaseException) there.
 _hook: Callable[[str], None] = lambda step: None  # noqa: E731
@@ -49,6 +61,11 @@ def _roll_back(live: Path, nxt: Path, old: Path) -> None:
 
 def swap(package: Path, live: Path, target_model: str) -> None:
     """Make `-next` the live vectors and `target_model` the project's model, as one step that rolls back on failure."""
+    with package_lock(package):
+        _swap_locked(package, live, target_model)
+
+
+def _swap_locked(package: Path, live: Path, target_model: str) -> None:
     nxt, old = folders(live)
     marker = package / MARKER
     previous = read_choice(package)
@@ -76,7 +93,13 @@ def swap(package: Path, live: Path, target_model: str) -> None:
 
 
 def recover(package: Path, live: Path) -> str | None:
-    """Leave the live vector folder whole after a swap a crash cut short. What it did, or None when there was nothing to do."""
+    """Leave the live vector folder whole after a swap a crash cut short. What it did, or None when there was nothing to do.
+    Nothing else may name a folder `<live>-old`: the 'cleaned' branch deletes it."""
+    with package_lock(package):
+        return _recover_locked(package, live)
+
+
+def _recover_locked(package: Path, live: Path) -> str | None:
     nxt, old = folders(live)
     marker = package / MARKER
     if marker.exists():

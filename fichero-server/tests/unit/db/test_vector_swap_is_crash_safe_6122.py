@@ -142,3 +142,46 @@ def test_entities_and_claims_are_embedded_once_per_change(library):
     assert {m for m, _t in seen} == {E5_ID}
     assert len(texts) == len(set(texts)), "no entity, claim or page text was embedded twice"
     assert any("Cartagena" in t for t in texts) and any("Santa Marta" in t for t in texts)
+
+
+def test_a_connection_opening_during_the_swap_waits_for_it_and_never_rolls_it_back(library, monkeypatch):
+    """Review ## 1285: `recover` read a swap's marker mid-swap and rolled it back, leaving the old vectors under the new model.
+    A thread opens the library (Database.lance) at every step of the swap; it must wait and see the finished swap."""
+    import threading
+    import time
+
+    db, _seen = library
+    package = _package(db)
+    saw_marker: list[str] = []
+    real_recover = vector_swap.recover
+
+    def watching(pkg, live):
+        if (Path(pkg) / vector_swap.MARKER).exists():
+            saw_marker.append("recover ran while a swap was in progress")
+        return real_recover(pkg, live)
+
+    monkeypatch.setattr(vector_swap, "recover", watching)
+    threads: list[threading.Thread] = []
+    errors: list[BaseException] = []
+
+    def open_library():
+        try:
+            db._lance_db = None
+            db.lance.open_table(EMBEDDINGS_TABLE).count_rows()
+        except BaseException as exc:  # noqa: BLE001 -- reported by the test below
+            errors.append(exc)
+
+    def hook(step):
+        thread = threading.Thread(target=open_library)
+        thread.start()
+        threads.append(thread)
+        time.sleep(0.05)  # long enough for it to reach the lock and wait
+
+    monkeypatch.setattr(vector_swap, "_hook", hook)
+    db.migrate_embedding_space(confirm=True, to_model=E5)
+    for thread in threads:
+        thread.join(timeout=30)
+    assert len(threads) == 5 and not any(t.is_alive() for t in threads)
+    assert not saw_marker and not errors, (saw_marker, errors)
+    monkeypatch.setattr(vector_swap, "_hook", lambda step: None)
+    assert _state(db)[1:] == ({E5_ID}, E5) and not (package / vector_swap.MARKER).exists()
