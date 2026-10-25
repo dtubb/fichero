@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +104,7 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
     from fichero_server.llm.catalogue_lint import enforce
     from fichero_server.llm.prompts import get_prompt
 
-    system = get_prompt("catalogue", "folder_description").render(output_language=language, max_words=max_words)
+    system = get_prompt("catalogue", "folder_description", version=3).render(output_language=language, max_words=max_words)
 
     async def call(note: str = "") -> str:
         return (await chat_with_fallback(material, config=config, system=system + ("\n\n" + note if note else ""),
@@ -170,6 +171,62 @@ def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool
     return True
 
 
+#: The description's labelled fields that also become the folder's attributes (#6141): label -> (attribute key, a list?).
+ATTRIBUTE_FIELDS = {
+    "Title": ("catalogue_title", False), "Dates": ("catalogue_dates", False), "Extent": ("catalogue_extent", False),
+    "Creator and hands": ("catalogue_creators", True), "Language and script": ("catalogue_language_script", False),
+    "Condition": ("catalogue_condition", False), "Access points": ("catalogue_access_points", True),
+}
+_YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
+_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)")
+
+
+def _years(dates: str) -> list[str]:
+    """The four-digit years a Dates field names; a short end of a range ("1850-60", "1850/60") is the year it ends: 1860."""
+    years = _YEAR.findall(dates)
+    for start, tail in _SHORT_END.findall(dates):
+        end = int(start[:2] + tail)
+        years.append(str(end + 100 if end < int(start) else end))  # "1899-01" ends in 1901, not 1801
+    return years
+
+
+def parse_fields(text: str) -> dict[str, Any]:
+    """The folder attributes in a description's labelled lines (#6141): `{attribute key: value}`, a list for creators and access
+    points (split at semicolons), and the Dates field also as ISO 8601 years (`catalogue_date_start`, `catalogue_date_end`: the
+    earliest and latest four-digit year it names, none when it names none). A field the text lacks is not in the result."""
+    found: dict[str, Any] = {}
+    for line in text.splitlines():
+        label, sep, value = line.partition(":")
+        entry = ATTRIBUTE_FIELDS.get(label.strip())
+        value = value.strip().rstrip(".") if entry and entry[1] else value.strip()
+        if not sep or entry is None or not value:
+            continue
+        key, is_list = entry
+        found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
+    if years := _years(found.get("catalogue_dates", "")):
+        found["catalogue_date_start"], found["catalogue_date_end"] = min(years), max(years)
+    return found
+
+
+def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, run_id: str | None, provider: str,
+                      model: str) -> list[str]:
+    """The description's fields as the folder's attributes, through the one attribute path (#6141): each value cites this run
+    and its artifact; a value a person set is never overwritten, and a value an earlier run wrote that this description no
+    longer has is taken away. Returns the keys written."""
+    from fichero_server.models import Document
+    from fichero_server.workflows import attribute_sources as sources
+
+    doc = db.get(Document, folder_id)
+    if doc is None:
+        return []
+    values = parse_fields(text)
+    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end"]
+    gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
+    source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
+                                    provider=provider, model=model, said=text)
+    return sources.write_answers_from_run(db, doc, {k: (v, source) for k, v in {**values, **gone}.items()})
+
+
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
                      stop: Any = lambda: False, language: str | None = None,
                      max_words: int = FOLDER_DESCRIPTION_MAX_WORDS) -> dict[str, Any]:
@@ -214,6 +271,7 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         except ReembedNotQueued as exc:  # the content stands; a failed get or save is NOT this and still fails the step
             logger.exception("could not queue the re-embed of folder %s", folder.id)
             account["flags"].append(f"{folder.name}: its description is saved, but search was not told: {exc}")
+        put_in_attributes(db, folder.id, text, art.id, run_id=run_id, provider=config.provider, model=config.model)
         account["described"] += 1
         account["flags"].extend(f"{folder.name}: {f}" for f in flags)
     return account
