@@ -49,3 +49,21 @@ def test_the_vision_catalogue_never_offers_a_retired_model(monkeypatch):
     monkeypatch.setattr("fichero_server.llm.model_types.list_models_for_provider",
                         lambda p: [{"model_id": RETIRED, "supports_vision": True}])  # the newest flash on its list
     assert discovery.frontier_catalog_models("gemini") == []
+
+
+def test_a_vertex_date_does_not_retire_the_google_key_model(monkeypatch):
+    """litellm's bare "gemini-2.5-pro" is Vertex AI's listing (deprecated 2026-10-20); Google AI Studio's, which a Google
+    key calls, is "gemini/gemini-2.5-pro" with no date. The refreshed price list must not drop Gemini 2.5 Pro for a Google
+    key (it left the bake-off one Gemini short, test_bakeoff_cloud_models_5718)."""
+    from fichero_server.llm import model_types
+
+    monkeypatch.setattr(model_types, "_PRICE_TABLE", {
+        "gemini-2.5-pro": {"litellm_provider": "vertex_ai-language-models", "deprecation_date": "2026-10-20"},
+        "gemini/gemini-2.5-pro": {"litellm_provider": "gemini"},
+        "gemini-1.0-pro": {"litellm_provider": "vertex_ai-language-models", "deprecation_date": "2025-04-09"},
+        "gemini/gemini-1.0-pro": {"litellm_provider": "gemini", "deprecation_date": "2025-04-09"},
+        "old-model": {"litellm_provider": "openai", "deprecation_date": "2026-01-01"},
+    })
+    assert model_types.retired_because("gemini-2.5-pro", today="2026-10-24") is None
+    assert model_types.retired_because("gemini-1.0-pro", today="2026-10-24")  # AI Studio retired it too
+    assert model_types.retired_because("old-model", today="2026-10-24")  # a first-party date still counts

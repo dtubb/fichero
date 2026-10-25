@@ -160,7 +160,12 @@ def retired_because(model: str, today: str | None = None) -> str | None:
     bare = model.split("/")[-1]
     if bare in RETIRED_MODELS:
         return RETIRED_MODELS[bare]
-    when = (_resolve_entry(model) or {}).get("deprecation_date")
+    entry = _resolve_entry(model) or {}
+    if str(entry.get("litellm_provider", "")).startswith("vertex_ai"):
+        # litellm keys Vertex AI's Gemini under the bare name and Google AI Studio's (the person's Google key) under
+        # "gemini/...": Vertex's date is not the person's provider's (gemini-2.5-pro: Vertex 2026-10-20, AI Studio none).
+        entry = _price_table().get(f"gemini/{bare}") or entry
+    when = entry.get("deprecation_date")
     if when and str(when) <= (today or datetime.date.today().isoformat()):
         return f"retired by its provider on {when} (price list)"
     return None
