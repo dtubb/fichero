@@ -233,15 +233,31 @@ def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, in
     return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
 
 
-def pages_with_lines(db: Any, pages: list[str]) -> set[str]:
-    """`_has_lines(db, page, None)` for all these pages in two reads, not two or more a page: the pages with a live line under a
-    live pass."""
+def pages_with_lines(db: Any, pages: list[str], model: str | None = None) -> set[str]:
+    """`_has_lines(db, page, model)` for all these pages in two reads, not two or more a page: the pages with a live line under a
+    live pass (of that model, when one is named)."""
     from fichero_server.models import Segment
     from fichero_server.models.segments import SegmentPass
 
-    passes = {p.id: p.document_id for p in db.query_in(SegmentPass, "document_id", pages) if not p.deleted_at}
+    passes = {p.id: p.document_id for p in db.query_in(SegmentPass, "document_id", pages)
+              if not p.deleted_at and (model is None or p.model == model)}
     return {passes[s.pass_id] for s in db.query_in(Segment, "pass_id", list(passes))
             if s.kind == "line" and not s.deleted_at and s.pass_id in passes}
+
+
+def pages_with_line_readings(db: Any, pages: list[str], model: str | None) -> set[str]:
+    """`_has_line_readings(db, page, model)` for all these pages, in a few reads for all of them."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    have = pages_with_lines(db, pages, model)
+    by_model: dict[str, set[str]] = {}
+    for a in db.query_in(Artifact, "document_id", [p for p in pages if p not in have]):
+        if model is None or a.model == model:
+            by_model.setdefault(a.document_id, set()).add(a.id)
+    for r in db.query_in(ContentRepresentation, "document_id", list(by_model)):
+        if r.segment_id and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
+            have.add(r.document_id)
+    return have
 
 
 def lines_states(db: Any, pages: list[str], model: str | None = None) -> dict[str, tuple[int, int, int]]:
@@ -526,11 +542,9 @@ def _split_done(db: Any, card: dict[str, Any], pages: list[str],
     if card.get("job") == "read-a-line":
         model = card.get("model_override")
         states = lines_states(db, pages, model)
-        todo = []
-        for p in pages:
-            found, unread, blank = states.get(p, (0, 0, 0))
-            if not (found > 0 and not unread and (blank == found or _has_line_readings(db, p, model))):
-                todo.append(p)
+        settled = {p for p in pages if states.get(p, (0, 0, 0))[0] > 0 and not states[p][1]}
+        asked = pages_with_line_readings(db, [p for p in settled if states[p][2] != states[p][0]], model)
+        todo = [p for p in pages if p not in settled or (states[p][2] != states[p][0] and p not in asked)]
         return todo, len(pages) - len(todo)
     if card.get("job") == "prepare-the-image":  # the runs read once, not once per page
         ran = pages_a_run_did(db, "prepare-the-image")

@@ -41,7 +41,7 @@ def test_the_one_read_agrees_with_asking_each_page(db, card):
     pages = [_page(db, *shape) for shape in [(3, 3), (10, 3), (4, 0), (0, 0)] * 2]
     todo, finished = done.split_done(db, card, pages)
     assert todo == [p for p in pages if not done.is_done(db, card, p)]
-    assert finished == len(pages) - len(todo) == 2
+    assert finished == len(pages) - len(todo) == {"find-lines": 6, "read-a-line": 2}[card["job"]]
 
 
 def test_the_plan_works_out_what_each_step_has_done_once(client, db, folder, with_material, monkeypatch):  # noqa: F811
