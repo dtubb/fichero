@@ -179,7 +179,8 @@ maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ 
 
 ## Build order
 
-The first two weeks are steps 1–3 only; each step gets an issue (filed when this spec is approved) and its line
+Steps run in order, each as soon as the one before is green — no calendar; the aim is a pipeline Qwen can run, then
+the move to the maintainer's own laptop. Each step gets an issue (filed when this spec is approved) and its line
 here ends with that number, as `pipeline.build-order-readable` asks of every spec.
 
 1. GitHub Actions: `ci.yml` on pushes to integration as well as PRs (ruff, engine-free guards and pytest, Swift unit
@@ -189,6 +190,8 @@ here ends with that number, as `pipeline.build-order-readable` asks of every spe
 3. The feeder (milestone → Bernstein tasks, several issues per task) and `brief_lint.py`, writing exactly the fields
    `spec-to-issues` writes; ten issues from one guards/lint/docs milestone through Pi + Qwen.
    **Success:** at least 8 of 10 merged without a human edit, under US$5, no false "done".
+   If Qwen's OpenRouter budget runs out, the same lane runs Claude (Sonnet) through Pi on the Anthropic key; a higher
+   budget is asked for in the maintainer's queue, never assumed.
 4. The nightly gate on the M4 → push → nightly dev build.
 5. The maintainer's queue on the page; resume from the journal.
 6. The test-machine queue, rebase-after-push; a second coder.
