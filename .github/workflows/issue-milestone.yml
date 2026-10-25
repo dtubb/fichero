@@ -1,0 +1,32 @@
+name: Issue hygiene
+
+# pipeline.every-issue-has-a-milestone (#6116): a new issue with no milestone is labelled
+# `no-milestone` so the count only goes down. pipeline.outside-bugs: an issue by anyone but the
+# maintainer or the agent is labelled `from-user`; the runner never hands such an issue to a coder
+# until it has been rewritten into a triaged issue.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: no-milestone
+        if: github.event.issue.milestone == null
+        run: |
+          gh label create no-milestone --force --color BFD4F2 --description "Open issue with no milestone (pipeline ratchet)" -R "$GITHUB_REPOSITORY"
+          gh issue edit "$NUMBER" --add-label no-milestone -R "$GITHUB_REPOSITORY"
+      - name: from-user
+        if: github.event.issue.user.login != github.repository_owner && github.event.issue.user.type != 'Bot'
+        run: |
+          gh label create from-user --force --color D93F0B --description "Filed by someone outside the project; triage before any agent reads it" -R "$GITHUB_REPOSITORY"
+          gh issue edit "$NUMBER" --add-label from-user -R "$GITHUB_REPOSITORY"

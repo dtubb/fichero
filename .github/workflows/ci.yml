@@ -1,23 +1,45 @@
 name: CI (Python + OpenAPI drift)
 
-# Runs on push to main + on PR events only.
-# (Not on every branch — worker ms/* branches would each burn a CI run and
-#  spam failure notifications before the manager merges them. They're validated
-#  locally pre-merge; CI is the trunk + PR safety net.)
-# Linux runner only — Swift work is handled by Xcode Cloud (separate setup).
+# Runs on pushes to main and integration, and on PR events (pipeline.actions-engine-free-checks, #6116).
+# (Not on every branch — worker branches would each burn a CI run and spam failure
+#  notifications before the manager merges them. They're validated locally pre-merge.)
+# Linux runner only — Swift unit tests need the embedded engine and signing, so they stay
+# on the Macs (see the spec's build order).
 #
 # Catches:
 #   - Python lint regressions (ruff)
+#   - the guard scripts that need no Mac tool (scripts/check_*.py)
 #   - Backend unit-test regressions (pytest, ML-heavy + embedding tests skipped)
 #   - OpenAPI drift (regenerated openapi.json different from committed → would
 #     have caught the #1237-style break that silently broke the Swift build)
+#   - on a PR: scripts/lane_ready_check.sh (agent author, issue cited, lint, a test with the source)
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'integration']
   pull_request:
 
 jobs:
+  ready-check:
+    name: Lane ready check (PRs)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff
+      - name: lane_ready_check.sh against origin/integration
+        run: |
+          git fetch origin integration
+          bash scripts/lane_ready_check.sh HEAD
+
   python:
     name: Python lint + tests
     runs-on: ubuntu-latest
@@ -61,6 +83,31 @@ jobs:
           python scripts/check_spec_milestones.py
           python scripts/check_spec_manual_refs.py
           python scripts/check_specs_have_tests.py
+
+      # Every guard that needs no Mac tool, no running engine and no local git state (#6116).
+      # The skip list names the ones that do: swiftlint/xcodebuild/plutil/codesign, a release build,
+      # an xcresult, an app_packages path, or the worktrees and stashes of a developer's checkout.
+      # ponytail: measured on a Mac with the venv (all green in ~1 min); the first PR run on Linux
+      # tells us which of the remaining ones still assume a Mac — add those here, don't fork them.
+      - name: Guard scripts (engine-free)
+        env:
+          PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
+          FICHERO_FEATURE_TIER: dev
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip='check_closed_issues_landed|check_unmerged_work|check_merged_worktrees|check_no_orphan_stashes'
+          skip="$skip|check_coverage_ratchet|check_embedded_engine_signing|check_hang_ratchet|check_mac_app_store_target"
+          skip="$skip|check_release_staples_app|check_sparkle_update_ready|check_swiftlint_warning_ratchet"
+          skip="$skip|check_test_plans_runnable|check_engine_imports_bundled|check_release_size_ratchet"
+          skip="$skip|check_spec_milestones|check_spec_manual_refs|check_specs_have_tests"   # ran above
+          red=0
+          for s in scripts/check_*.py; do
+            echo "$s" | grep -qE "$skip" && continue
+            echo "::group::$s"
+            if ! python "$s"; then echo "::error::$s failed"; red=1; fi
+            echo "::endgroup::"
+          done
+          exit $red
 
       - name: pytest (unit, skip ML/embedding)
         env:
