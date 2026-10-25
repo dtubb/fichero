@@ -32,3 +32,16 @@ def test_each_tier_names_a_scheme_and_configuration_that_exist(tier):
                                    ("MAC_APP_STORE_SCHEME", "MAC_APP_STORE_CONFIG")):
         assert (PROJECT / "xcshareddata" / "xcschemes" / f"{got[scheme_key]}.xcscheme").is_file(), (tier, got[scheme_key])
         assert got[config_key] in names, (tier, got[config_key])
+
+
+@pytest.mark.parametrize("tier", ["release", "beta", "alpha", "dev", "unknown"])
+def test_the_mac_app_store_archive_embeds_the_engine_where_the_mas_scripts_look(tier):
+    """#6112: the 2026.10.24 TestFlight archive used the tier config, which embeds in Resources (the DMG
+    location), while resign_engine_in_archive.sh and validate_mas_bundle.sh require Contents/Helpers."""
+    config = _map(tier)["MAC_APP_STORE_CONFIG"]
+    pbx = (PROJECT / "project.pbxproj").read_text()
+    block = re.search(rf'/\* {re.escape(config)} configuration for PBXNativeTarget "Fichero" \*/ = \{{.*?\n\t\t\}};', pbx, re.S)
+    assert block, config
+    assert "Contents/Helpers/Fichero Server.app" in block.group(0), (tier, config)
+    for script in ("resign_engine_in_archive.sh", "validate_mas_bundle.sh"):
+        assert "Contents/Helpers/Fichero Server.app" in (ROOT / "scripts" / script).read_text(), script
