@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fichero_server.llm.catalogue_lint import FOLDER_DESCRIPTION_MAX_WORDS
+from fichero_server.llm.catalogue_lint import FOLDER_DESCRIPTION_MAX_WORDS, MAX_WORDS, cut_to_cap
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,15 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
 
     text, found = await enforce(await call(), call, long_item=False, source=material, max_words=max_words, aim_min=0)
     flags.extend(found)
-    return text
+    return _cap_description(text)
+
+
+def _cap_description(text: str) -> str:
+    """The `Description:` field (the last) is never over MAX_WORDS (#6123), cut at a sentence end like any entry."""
+    head, sep, tail = text.rpartition("Description:")
+    if not sep or (head and not head.endswith("\n")):
+        return text
+    return head + sep + " " + cut_to_cap(tail.strip(), MAX_WORDS)
 
 
 def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:

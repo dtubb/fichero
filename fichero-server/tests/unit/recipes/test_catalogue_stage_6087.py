@@ -140,3 +140,15 @@ def test_a_generative_text_model_is_a_card_for_the_catalogue_job():
     assert all("describe-for-the-catalogue" in _describes_folders(c).jobs for c in text)
     spacy = [c for c in seed_cards() if c.id.startswith("spacy:")]
     assert spacy and not any("describe-for-the-catalogue" in _describes_folders(c).jobs for c in spacy)
+
+
+def test_the_description_field_is_150_to_200_words_show_dont_tell_and_cut_at_200_6123():
+    """#6123: the prompt asks for a Description of 150-200 words in the show-don't-tell voice; one over 200 is cut."""
+    from fichero_server.llm.prompts import get_prompt
+
+    prompt = get_prompt("catalogue", "folder_description").render(output_language="English", max_words=500)
+    assert "Description:" in prompt and "150 to 200 words" in prompt and "SHOW, DON'T TELL" in prompt
+    long = "Title: A box.\nDescription: " + " ".join(f"Word{i} here." for i in range(150))  # 300 words
+    out = catalogue_step._cap_description(long)
+    assert out.startswith("Title: A box.\nDescription: ") and len(out.split("Description:")[1].split()) <= 200
+    assert catalogue_step._cap_description("Scope and content: Letters.") == "Scope and content: Letters."
