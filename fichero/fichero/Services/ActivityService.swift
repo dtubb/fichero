@@ -173,10 +173,7 @@ class ActivityService {
         case .undocumented(let statusCode, let payload):
             // A 401/403 is the engine refusing the app's credentials (#5431: an
             // engine respawn's token change); typed, so the window can say so.
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -212,10 +209,7 @@ class ActivityService {
         case .ok(let okResponse):
             return try okResponse.body.json.items
         case .undocumented(let statusCode, let payload):
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -229,10 +223,7 @@ class ActivityService {
             return nil
         case .undocumented(let statusCode, let payload):
             if statusCode == 404 { return nil }
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -262,10 +253,7 @@ class ActivityService {
         case .undocumented(let statusCode, let payload):
             // A refusal keeps the engine's typed body (#5469): the footer names
             // WHY (the project's location vs the app's credentials).
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -442,6 +430,15 @@ enum ActivityServiceError: LocalizedError {
     /// The engine said no, in its own words (a 409 refusal): shown as it is.
     case refused(String)
 
+    /// What an undocumented answer means, from ONE read of its body (a body streams once): an access denial
+    /// (#5431), else the engine's own words (`{"detail": "The project is busy"}`) as `.refused`, else the status.
+    static func failure(statusCode: Int, payload: UndocumentedPayload) async -> Error {
+        let body = await AccessError.collectDenialBody(payload)
+        if let denial = AccessError.classify(statusCode: statusCode, body: body) { return denial }
+        if let words = EngineErrorDetail.message(from: body) { return refused(words) }
+        return unexpectedResponse(statusCode)
+    }
+
     var errorDescription: String? {
         switch self {
         case .refused(let words):
@@ -473,12 +470,7 @@ extension ActivityService {
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             if statusCode == 404 { return nil }
-            // One read of the body serves both: the denial check and the engine's words (a body streams once).
-            let body = await AccessError.collectDenialBody(payload)
-            if let denial = AccessError.classify(statusCode: statusCode, body: body) { throw denial }
-            // A refusal with a body says why in the engine's own words (`{"detail": "The project is busy"}`).
-            if let words = EngineErrorDetail.message(from: body) { throw ActivityServiceError.refused(words) }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -497,10 +489,7 @@ extension ActivityService {
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             if statusCode == 404 { return nil }
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -516,10 +505,7 @@ extension ActivityService {
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -557,10 +543,7 @@ extension ActivityService {
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -584,10 +567,7 @@ extension ActivityService {
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -616,10 +596,7 @@ extension ActivityService {
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 

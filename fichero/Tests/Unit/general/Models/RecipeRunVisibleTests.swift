@@ -271,6 +271,20 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertNotNil(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
     }
 
+    func testActivityService_aRefusalWithABodySaysTheEnginesWordsOnEveryUndocumentedBranch() async throws {
+        // WHY (#6109): each `.undocumented` branch threw `unexpectedResponse(500)` and dropped `{"detail": ...}`;
+        // they share `ActivityServiceError.failure`, so the run list stands for them all.
+        let body = Data(#"{"detail":"The project is busy"}"#.utf8)
+        MockTransportURLProtocol.reset([Stub(path: "/api/workflow-execution/runs", method: "GET", status: 500, body: body)])
+        let service = ActivityService(ficheroClient: Self.client())
+        do {
+            _ = try await service.listWorkflowRuns()
+            XCTFail("a 500 must throw")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "The project is busy")
+        }
+    }
+
     func testRecipeRunDetails_aStageRunsChangeRereadsTheRecipeRun() async throws {
         // WHY: the details follow the row (`activity.details.follows-the-row`): a stage's pages done and left
         // must move while the recipe run's details are open, though the change names the stage's run.
