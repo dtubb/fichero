@@ -31,7 +31,8 @@ struct ReviewInstructionsEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Instructions for each pass")
                 .font(.headline)
-            Text("Changes apply to pages reviewed from now on; pages already reviewed are not reviewed again. The defaults follow your saved answers: save to see them change.")
+            Text("Changes apply to pages reviewed from now on; pages already reviewed are not reviewed again. "
+                 + "The defaults follow your saved answers: save to see them change.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
