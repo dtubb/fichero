@@ -439,6 +439,7 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
   expanded), per model, per page, per script and per hand, so an archive of many scripts and hands
   is judged where it differs. Each figure names its policy.
 - `distill.eval.stored-on-the-model-node` — **[PARTIAL]** (#5441, #5439) *Built: each evaluation is
+- `distill.eval.card-writes-are-atomic` — **[PARTIAL]** (#6136; engine tested) writing an evaluation on a model's card is one step that cannot be interleaved or half done: `training/evaluation.record_on_card` reads, appends and writes under a lock for that card's path, and writes a temp file in the card's folder then replaces the card with it (`os.replace`), so two evaluations finishing together both land (the card holds both) and a reader never sees half a file (a card that does not parse is still never overwritten). Test: `fichero-server/tests/unit/training/test_record_on_card_is_atomic_6136.py`. *One engine process is assumed; a second process writing the same card is not guarded.*
   appended to the model's card (a Kraken reader's install record, a trained vision model's
   `fichero-card.json`, a card of its own for a downloaded vision model) and never overwrites one;
   `GET /api/evaluation/scores` (MCP `fichero_evaluation_model_scores`) reads them back. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
