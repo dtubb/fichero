@@ -127,12 +127,13 @@ def run_all(wt, cfg, since=None, pinned=None) -> list[dict]:
     pinned = pinned or cfg["repo"].get("pinned") or ROOT
     since = since or cfg["repo"]["base"]
     files = changed_files(wt, since)
-    # a coder may ADD a guard (a Stage 1 step) but never change or remove a check it is judged by
-    hit = touches(changed_files(wt, since, "MDR"), cfg["repo"]["check_paths"])
+    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
+    # a coder may add a guard, and keep editing a guard of its own that the pinned runner does not have yet (a
+    # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
+    hit = [f for f in changed_files(wt, since, "MDR") if f in overlay]
     if hit:
         return [{"name": "pinned-checks", "ok": False, "seconds": 0,
                  "text": f"the diff changes the checks themselves ({', '.join(hit[:5])}): needs-maintainer"}]
-    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
     tree = scratch_tree(wt, git(wt, "rev-parse", "HEAD"), pinned_sha, overlay)
     results = [{"name": "pinned-checks", "ok": True, "seconds": 0,
                 "text": f"checks from {pinned_sha[:9]} ({len(overlay)} files) over the task's HEAD"}]

@@ -100,6 +100,11 @@ def test_a_new_guard_may_be_added_but_no_check_changed(scratch):
     assert results["pinned-checks"]["ok"] and results["fast-guards"]["ok"]
     wt2 = lane(scratch, "editguard", {"scripts/lane_ready_check.sh": "#!/bin/bash\nexit 0\n"})
     assert not checks.run_all(wt2, scratch["cfg"])[0]["ok"]
+    # the coder keeps editing ITS OWN new guard over a second commit: not a pinned check, so allowed (retry proof 2026-10-25)
+    (wt / "scripts" / "check_new_thing.py").write_text("import sys\nprint('v2')\nsys.exit(0)\n")
+    git(wt, "add", ".")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard v2 (Fixes #1001)")
+    assert checks.run_all(wt, scratch["cfg"])[0]["ok"]
 
 
 def test_checks_cwd_is_the_scratch_tree_of_the_worktree(scratch):
