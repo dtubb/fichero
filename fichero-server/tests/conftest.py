@@ -1440,7 +1440,7 @@ def _no_embedder_leaks_between_tests():
     cache = embeddings._EMBEDDER_CACHE
     if not isinstance(cache, dict):
         return  # a test replaced it and its monkeypatch has not been undone yet: not ours to touch
-    for name in [n for n in cache if n not in before]:
+    for name in [n for n in cache if n not in before and not embeddings._EMBEDDER_IN_USE.get(n)]:  # one still embedding is left, as release_idle_embedders does
         gone = cache.pop(name)
         if hasattr(gone, "close"):
             gone.close()
