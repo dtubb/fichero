@@ -100,7 +100,7 @@ struct DocumentEqualityTests {
             "isWorkspace", "childCount", "dateOriginal", "dateJdn",
             "sortOrder", "prototypeKey", "nodeKind", "aliasTargetId",
             "createdAt", "updatedAt", "expectedThumbnailPath",
-            "expectedDisplayPath",
+            "expectedDisplayPath", "readFlag",
             // knowingly skipped (expensive; server writes bump updatedAt)
             "metadata", "pageContent", "curatedItems", "structure",
             "dateMeta", "languageMeta", "attributes"

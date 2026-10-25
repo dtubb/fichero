@@ -12,9 +12,11 @@ struct OnboardingTextTests {
         #expect(RecipeDownloadRows.withFreeDisk("Start downloads X.", free: nil) == "Start downloads X.")
     }
 
-    @Test("the welcome's last paragraph ends on how many projects, not on the always-there one")
+    @Test("the welcome ends on the originals, and the hand-off says how many projects, not the always-there one")
     func welcomeEnd() {
-        #expect(FirstLaunchChoices.welcomeParagraphs.last?.hasSuffix("as many as you like.") == true)
+        // The owner's words of 2026-10-19 (#5828) moved the projects sentence from the welcome to Your First Project.
+        #expect(FirstLaunchChoices.welcomeParagraphs.last?.hasSuffix("Your originals are never changed.") == true)
+        #expect(FirstLaunchChoices.handOffParagraphs.first?.hasSuffix("You can have as many as you like.") == true)
     }
 
     @Test("the bake-off columns and the licence sheet speak plainly")

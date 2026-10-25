@@ -51,6 +51,7 @@ extension Document {
             && lhs.createdAt == rhs.createdAt
             && lhs.expectedThumbnailPath == rhs.expectedThumbnailPath
             && lhs.expectedDisplayPath == rhs.expectedDisplayPath
+            && lhs.readFlag == rhs.readFlag  // a small value: the flagged-read note must never render stale
         // Deliberately NOT compared (expensive; changes arrive with an
         // updatedAt bump): metadata, pageContent, curatedItems, structure,
         // dateMeta, languageMeta, attributes.
