@@ -178,6 +178,16 @@ ATTRIBUTE_FIELDS = {
     "Condition": ("catalogue_condition", False), "Access points": ("catalogue_access_points", True),
 }
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
+_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)")
+
+
+def _years(dates: str) -> list[str]:
+    """The four-digit years a Dates field names; a short end of a range ("1850-60", "1850/60") is the year it ends: 1860."""
+    years = _YEAR.findall(dates)
+    for start, tail in _SHORT_END.findall(dates):
+        end = int(start[:2] + tail)
+        years.append(str(end + 100 if end < int(start) else end))  # "1899-01" ends in 1901, not 1801
+    return years
 
 
 def parse_fields(text: str) -> dict[str, Any]:
@@ -193,7 +203,7 @@ def parse_fields(text: str) -> dict[str, Any]:
             continue
         key, is_list = entry
         found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
-    if years := _YEAR.findall(found.get("catalogue_dates", "")):
+    if years := _years(found.get("catalogue_dates", "")):
         found["catalogue_date_start"], found["catalogue_date_end"] = min(years), max(years)
     return found
 

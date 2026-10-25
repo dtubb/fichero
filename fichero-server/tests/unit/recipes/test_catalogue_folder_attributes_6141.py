@@ -81,3 +81,21 @@ def test_a_value_a_person_set_is_unchanged_and_a_rerun_replaces_only_the_runs_ow
     folder = db.get(Document, box)
     assert "catalogue_extent" not in folder.attributes  # the run's own value that the new description no longer has
     assert folder.attributes["catalogue_title"] == "My own title"
+
+
+@pytest.mark.parametrize("dates,start,end", [
+    ("1850-60", "1850", "1860"), ("1850\u201360", "1850", "1860"), ("1850/60", "1850", "1860"),
+    ("1899-01", "1899", "1901"), ("1850-1860", "1850", "1860"), ("1776, 1780 and 1779", "1776", "1780"),
+])
+def test_a_short_end_of_a_range_is_read_as_the_year_it_ends(dates, start, end):
+    got = catalogue_step.parse_fields(f"Dates: {dates}")
+    assert (got["catalogue_date_start"], got["catalogue_date_end"]) == (start, end)
+
+
+def test_creators_are_split_at_the_semicolons_the_prompt_asks_for():
+    from pathlib import Path
+
+    prompt = (Path(catalogue_step.__file__).parent.parent / "resources/prompts/catalogue/folder_description_v2.md").read_text()
+    assert "records name or the facts give, separated by semicolons" in " ".join(prompt.split())
+    assert catalogue_step.parse_fields("Creator and hands: Ana Ruiz, scribe; Luis Pérez")["catalogue_creators"] == [
+        "Ana Ruiz, scribe", "Luis Pérez"]

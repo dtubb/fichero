@@ -9,6 +9,7 @@ changelog: |
     A new prompt name: folder_v1 (150-200 words, one paragraph) stays the summaries' prompt.
   - v2 (#6123, owner 2026-10-25): a last field, `Description:`, 150-200 words written to the catalogue-writing guidance
     (show, don't tell; describe, never analyse), never over 200. The other fields stay short.
+  - (#6141) Creator and hands are separated by semicolons, as access points are: the fields become the folder's attributes as lists.
 ---
 You are an archivist. Write the archival description of one folder in {output_language}, from what the folder holds, as a
 short set of labelled fields, each on its own line: `Title:`, `Dates:`, `Extent:`, `Creator and hands:`, `Scope and content:`,
@@ -24,7 +25,7 @@ DESCRIBE, NEVER ANALYSE. It repeats no field word for word and is not padded to 
 
 Title: the folder's name as given, or a short title made of what the records name. Dates: the earliest and latest dates the
 records state, as written. Extent: the number of pages and documents. Creator and hands: the writers, scribes or hands the
-records name or the facts give. Arrangement: how the folder is ordered or divided (its subfolders, as named). Language and
+records name or the facts give, separated by semicolons. Arrangement: how the folder is ordered or divided (its subfolders, as named). Language and
 script: as given. Condition: only what the records or facts state ([ilegible], [uncertain] marks, pages without text, missing
 pages). Access points: the people, places and organisations the records name, as written, separated by semicolons.
 
