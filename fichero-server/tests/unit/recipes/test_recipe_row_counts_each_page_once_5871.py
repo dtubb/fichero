@@ -8,12 +8,12 @@ from types import SimpleNamespace
 from fichero_server.api.routes.system.activity import _recipe_pages_done, _recipe_pages_in_all
 
 
-def _step(done, total):
-    return {"card": "workflow", "account": SimpleNamespace(pages_done=done, pages_total=total)}
+def _step(done, total, state="done"):
+    return {"card": "workflow", "state": state, "account": SimpleNamespace(pages_done=done, pages_total=total)}
 
 
 def test_a_new_stage_holds_the_row_at_zero_of_the_runs_pages_not_92_of_184():
-    status = {"steps": [_step(92, 92), _step(0, 92), {"card": "workflow", "account": None}]}
+    status = {"steps": [_step(92, 92), _step(0, 92, "waiting"), {"card": "workflow", "account": None}]}
     assert _recipe_pages_done(status) == 0
     assert _recipe_pages_in_all(status, 92) == 92
 
@@ -21,3 +21,20 @@ def test_a_new_stage_holds_the_row_at_zero_of_the_runs_pages_not_92_of_184():
 def test_one_stage_reads_as_before_and_no_stage_as_zero():
     assert (_recipe_pages_done({"steps": [_step(30, 92)]}), _recipe_pages_in_all({"steps": [_step(30, 92)]}, 92)) == (30, 92)
     assert _recipe_pages_done({"steps": [{"card": "workflow", "account": None}]}) == 0
+
+
+def test_a_running_stage_is_the_rows_count_the_numbers_details_show_6125():
+    """Owner 2026-10-25: the row read "0 of 23" while Details showed Find Lines 20 of 20 and Read running 20 of 20."""
+    status = {"steps": [_step(20, 20), _step(20, 20, "running")]}
+    assert (_recipe_pages_done(status), _recipe_pages_in_all(status, 23)) == (20, 20)
+    mid = {"steps": [_step(20, 20), _step(7, 20, "running"), {"card": "workflow", "account": None}]}
+    assert (_recipe_pages_done(mid), _recipe_pages_in_all(mid, 23)) == (7, 20)
+
+
+def test_the_workflow_runs_under_a_recipe_run_are_its_own_not_top_level_rows_6125():
+    from fichero_server.api.routes.system.activity import _run_ids_under
+
+    tree = {"id": "recipe", "children": [{"id": "find-lines", "children": []},
+                                         {"id": "read", "children": [{"id": "page-job", "children": []}]}]}
+    assert _run_ids_under(tree) == {"find-lines", "read", "page-job"}
+    assert _run_ids_under(None) == set()
