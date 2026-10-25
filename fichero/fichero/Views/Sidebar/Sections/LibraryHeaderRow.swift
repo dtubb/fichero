@@ -155,9 +155,8 @@ struct LibraryHeaderRow: View {
     /// and Finder shows exactly what happened.
     private func deleteLibraryMovingToTrash() {
         let packageURL = library.url
-        onClose()
         do {
-            try LibraryManager.trashPackage(at: packageURL)
+            try LibraryManager.closeAndTrash(packageURL, close: onClose)
         } catch {
             libraryHeaderLogger.error(
                 "Delete Library: trash failed for \(packageURL.path): \(error.localizedDescription)"

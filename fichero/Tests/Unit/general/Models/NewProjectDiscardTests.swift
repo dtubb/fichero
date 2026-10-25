@@ -61,12 +61,26 @@ final class NewProjectDiscardTests: XCTestCase {
         XCTAssertNil(LibraryManager.shared.getLibrary(id: made.id))
     }
 
-    func testDeleteProjectAndASetUpCancelShareOneTrashPath() throws {
-        let sidebar = try AppSource.code("Views/Sidebar/Sections/LibraryHeaderRow.swift")
-        let store = try AppSource.code("Models/NewProjectStore.swift")
-        XCTAssertTrue(sidebar.contains("LibraryManager.trashPackage(at:"))
-        XCTAssertTrue(store.contains("LibraryManager.trashPackage(at:"))
-        XCTAssertFalse(sidebar.contains("FileManager.default.trashItem"))
+    func testDeleteProjectAndASetUpCancelGoThroughOneCloseThenTrashSequence() async throws {
+        // The sequence itself: closed first, then the package to the Trash, whatever the caller.
+        var steps: [String] = []
+        let url = folder.appendingPathComponent("P.fichero")
+        try LibraryManager.closeAndTrash(url, close: { steps.append("close") }, trash: { steps.append("trash \($0.lastPathComponent)") })
+        XCTAssertEqual(steps, ["close", "trash P.fichero"])
+
+        // A cancelled new project goes through it: its close unregisters the library, then its Trash is asked.
+        let store = store()
+        let made = try XCTUnwrap(await store.create())
+        XCTAssertTrue(store.discard())
+        XCTAssertEqual(trashed, [made.url], "the store's Trash is the one closeAndTrash calls")
+        XCTAssertNil(LibraryManager.shared.getLibrary(id: made.id), "closed before the Trash was asked")
+    }
+
+    func testTheTrashRefusingAfterTheCloseIsThrownNotSwallowed() {
+        struct Refused: Error {}
+        var closed = false
+        XCTAssertThrowsError(try LibraryManager.closeAndTrash(folder, close: { closed = true }, trash: { _ in throw Refused() }))
+        XCTAssertTrue(closed)
     }
 
     func testOnlyANewProjectsSetUpCancelDeletes() {
