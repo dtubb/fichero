@@ -103,3 +103,19 @@ def test_a_recipe_runs_status_is_read_off_the_event_loop(monkeypatch):
     monkeypatch.setattr(jobs, "state_and_reason", lambda *_a: None)
     asyncio.run(activity._recipe_state(None, "rec"))
     assert seen == [True]  # on a worker thread, not the loop's
+
+
+def test_a_live_recipes_follow_on_work_is_not_an_up_next_row_6126():
+    """Owner 2026-10-25: Up Next listed 'Processing imported pages', 'Embed for search' and 'Tie text to lines' as rows beside
+    a running recipe, which read as if they ran before Read. They are the run's own work: its row and Details show them."""
+    from fichero_server.api.routes.system.activity import up_next
+
+    def rows(with_run):
+        jobs = [_job("e", "embed", "waiting", reason="waiting for the model lane"), _job("t", "tie-text-to-lines", "waiting"),
+                _job("d", "derivatives", "waiting", name="Processing imported pages"), _job("x", "download-model", "waiting")]
+        if with_run:
+            jobs.insert(0, _job("run", "run-a-recipe", "running", name="Run the recipe"))
+        return [i.id for i in up_next(order_for_activity(jobs))]
+
+    assert rows(with_run=True) == ["x"], "only work the run did not cause is still its own row"
+    assert rows(with_run=False) == ["e", "t", "d", "x"], "with no recipe going, each waits as its own row, saying why"

@@ -422,6 +422,12 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     return blocks
 
 
+#: The work a recipe run causes for its own pages, which waits on the model lanes: embedding (the Search stage's), tying text
+#: to lines, the NLP draft, and the import's derivative queue. With a recipe run live they are the run's, shown in its row and
+#: Details, never top-level Up Next rows that read as if they ran before or beside Read (#6126).
+_FOLLOW_ON_KINDS = frozenset({"thumbnail", "embed", "embed-knowledge", "nlp-draft", "tie-text-to-lines", "derivatives"})
+
+
 def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | None" = None) -> list[UpNextItem]:
     """The work not yet started, in the order of the ordered list: each waiting row with what it waits for, and, under a
     recipe run that is going, each of its stages not yet started with the stage before it as `after` (a field of the run's
@@ -429,8 +435,11 @@ def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | 
     from fichero_server.recipes.stages import stage_of
 
     items = []
+    going = any(j.task_type == "run-a-recipe" and j.state in _LIVE_STATES for j in jobs)
     for job in jobs:
         if job.parent_id or job.group != "live":
+            continue
+        if going and job.task_type in _FOLLOW_ON_KINDS:
             continue
         if job.state == "waiting":
             stage = stage_of(job.task_type)
