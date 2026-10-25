@@ -381,11 +381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/QueuedItem"
-                  },
-                  "title": "Response List Queued Items Api Activity Jobs Kind  Kind  Items Get"
+                  "$ref": "#/components/schemas/QueuedItemListResponse"
                 }
               }
             }
@@ -83174,6 +83170,27 @@
           "state"
         ],
         "title": "QueuedItem"
+      },
+      "QueuedItemListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueuedItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "QueuedItemListResponse"
       },
       "QuotationKind": {
         "type": "string",

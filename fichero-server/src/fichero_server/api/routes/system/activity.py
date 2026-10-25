@@ -278,6 +278,11 @@ class QueuedItem(BaseModel):
     reason: Optional[str] = None
 
 
+class QueuedItemListResponse(BaseModel):
+    items: list[QueuedItem]
+    count: int
+
+
 class LiveBlock(BaseModel):
     """What is working right now (`activity.window.live-block`, `activity.popover.same-summary`; #5839, #5851, #5852):
     the recipe, the stage it is in and the workflow that stage runs, with the pages done, failed and left."""
@@ -908,19 +913,19 @@ def _queue_summary(db: Database, listed: list[dict[str, Any]]) -> Optional[Queue
     return QueueSummary(**said) if said else None
 
 
-@router.get("/jobs/kind/{kind}/items", response_model=list[QueuedItem])
+@router.get("/jobs/kind/{kind}/items", response_model=QueuedItemListResponse)
 async def list_queued_items(
     kind: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Database = Depends(get_library_database),
-) -> list[QueuedItem]:
+) -> QueuedItemListResponse:
     """The pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the
     order the lane will pick them, running first."""
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return [QueuedItem(**i) for i in items]
+    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)

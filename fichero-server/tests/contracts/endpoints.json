@@ -432,7 +432,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[QueuedItem]"
+        "response_model": "QueuedItemListResponse"
       },
       {
         "method": "PUT",
