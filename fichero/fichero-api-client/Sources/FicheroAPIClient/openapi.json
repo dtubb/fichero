@@ -68569,6 +68569,32 @@
         "title": "HealthResponse",
         "description": "Response from ``GET /api/health`` endpoint.\n\nIf library path is provided in the request header, returns stats for that\nlibrary. Otherwise, returns general backend health."
       },
+      "HeldModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "what holds it: the search embedder, Kraken"
+          },
+          "memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Bytes",
+            "description": "its resident size when it has a process of its own; null when it lives inside the engine's memory or is unknown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "HeldModel",
+        "description": "A model the engine holds in memory (`models_held`, #6129)."
+      },
       "HermeneuticCircleState": {
         "properties": {
           "id": {
@@ -75768,6 +75794,13 @@
             "type": "string",
             "nullable": true,
             "title": "Why Wait"
+          },
+          "models_held": {
+            "items": {
+              "$ref": "#/components/schemas/HeldModel"
+            },
+            "type": "array",
+            "title": "Models Held"
           }
         },
         "type": "object",
