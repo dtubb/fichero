@@ -581,6 +581,14 @@ def _no_htr_united_in_tests() -> dict:
 
 
 _htr_united._harvest = _no_htr_united_in_tests
+
+# Nor the upstream price list (#6108): the engine refreshes its model registry from litellm on a background thread, so a
+# test's prices and retired models depended on the network and on whether that thread had finished (it took Gemini out of
+# test_bakeoff_cloud_models_5718 in one gate run, not the next). Every test reads the vendored snapshot; a test of the
+# refresh sets `_REFRESH_STARTED` back itself (test_registry_refresh_nonblocking).
+import fichero_server.llm.model_types as _model_types  # noqa: E402
+
+_model_types._REFRESH_STARTED = True
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that
 # reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
 # NEW function objects that no route uses; the `client` fixture importing them at its own time
