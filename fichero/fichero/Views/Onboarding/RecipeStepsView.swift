@@ -164,12 +164,12 @@ extension RecipeStepsView {
         return lines
     }
 
-    /// One line for each reader a step carries by kind of material, named by its card's note (else its id), so Ready
-    /// never hides one (#6121); nothing when the step has none.
+    /// One line for each reader a step carries by kind of material, in the engine's own words (`StepReader.sentence`), so
+    /// Ready never hides one (#6121); nothing for a reader the engine sent no sentence for, or when the step has none.
     static func readersLines(_ readers: [Components.Schemas.StepReader]) -> [StepLine] {
-        readers.map { reader in
-            let name = [reader.card?.note, reader.card?.id].compactMap { $0 }.first { !$0.isEmpty } ?? "another reader"
-            return .alsoReads("Also reads \(reader.material.replacingOccurrences(of: "_", with: " ")) pages with \(name)")
+        readers.compactMap { reader in
+            guard let sentence = reader.sentence, !sentence.isEmpty else { return nil }
+            return .alsoReads(sentence)
         }
     }
 

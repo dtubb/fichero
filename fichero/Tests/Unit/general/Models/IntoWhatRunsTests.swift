@@ -36,18 +36,21 @@ struct IntoWhatRunsTests {
         }
     }
 
-    /// `source.recipe.ready-names-each-reader` (#6121): a step with extra readers by kind of material says each one.
-    @MainActor @Test func aStepNamesEachExtraReaderByItsCard() throws {
+    /// `source.recipe.ready-names-each-reader` (#6121): a step with extra readers by kind of material shows each one's sentence,
+    /// the engine's words as sent.
+    @MainActor @Test func aStepShowsEachExtraReadersSentenceAsTheEngineSentIt() throws {
         func step(_ readers: String) throws -> Components.Schemas.RecipeStep {
             let json = #"{"id":"read","job":"transcribe","readers":\#(readers)}"#
             return try JSONDecoder().decode(Components.Schemas.RecipeStep.self, from: Data(json.utf8))
         }
         let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
-        let readers = #"[{"material":"handwritten","card":{"id":"c1","note":"Gemini Flash Lite"}},"#
-            + #"{"material":"printed_text","card":{"id":"kraken-print"}}]"#
+        let readers = #"[{"material":"handwritten","sentence":"Also reads handwritten pages with Gemini Flash Lite"},"#
+            + #"{"material":"printed_text","sentence":"Also reads printed text pages with Apple Vision"},"#
+            + #"{"material":"other"}]"#
         let two = RecipeStepsView.lines(for: try step(readers), store: store, inSetup: true)
         #expect(two.contains(.alsoReads("Also reads handwritten pages with Gemini Flash Lite")))
-        #expect(two.contains(.alsoReads("Also reads printed text pages with kraken-print")), "no note: the card id, never blank")
+        #expect(two.contains(.alsoReads("Also reads printed text pages with Apple Vision")))
+        #expect(two.filter { if case .alsoReads = $0 { true } else { false } }.count == 2, "no sentence, no line")
         let none = RecipeStepsView.lines(for: try step("[]"), store: store, inSetup: true)
         #expect(!none.contains { if case .alsoReads = $0 { true } else { false } }, "no readers, nothing extra")
     }
