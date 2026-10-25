@@ -304,5 +304,11 @@
     "method": "resync",
     "class": "by-design",
     "reason": "by-design 2026-10-11 (#5243): an explicit RESYNC after a reconnect re-reads the Trash, since events were missed while the stream was down; load() merges by id (TrashStore.merge), so entries are removed, inserted and replaced one at a time, never reassigned (TrashStoreTests.reloadMergesOneEntryAtATime)"
+  },
+  {
+    "file": "fichero/fichero/Models/SetupStageTryStore.swift",
+    "method": "preselect",
+    "class": "by-design",
+    "reason": "by-design 2026-10-25 (#6119): a one-time initial fill of an empty set, not a reload: it runs once per visit (preselected flag) and only while chosenCandidates is empty, when the finder's first list arrives, so there is no prior item to splice against and a person's later unticking is never overwritten; the identity of the set is the stage's best model, chosen once"
   }
 ]
