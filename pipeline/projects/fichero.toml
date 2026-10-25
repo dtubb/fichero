@@ -40,9 +40,12 @@ test_glob = ["*test*.py", "*Tests*.swift"]
 pytest = "{python} -m pytest -q -p no:cacheprovider -x {files}"
 [[ladder]]
 name = "gate-part"
+# ponytail: off until Stage 2.2 maps touched folders to `scripts/gate areas` names; the named tests + fast guards
+# cover an item meanwhile, and the nightly gate runs everything.
+enabled = false
 cmd = "{pinned}/scripts/gate part {area}"
 areas_cmd = "{pinned}/scripts/gate areas"
-when = "engine-or-app-diff"
+paths = ["fichero-server/src/", "fichero/fichero/"]
 needs_mb = 4000
 [[ladder]]
 name = "fast-guards"
@@ -50,11 +53,14 @@ glob = "{pinned}/scripts/check_*.py"
 skip = ["check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
         "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
         "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
-        "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths"]
+        "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths",
+        # ponytail: red on origin/integration today (the Dev Pipeline spec is not in the MkDocs nav); a guard that is
+        # red on the base blocks every item, so it waits for the nav fix. Stage 2.2 makes the fast guards regression-only.
+        "check_docs_publication"]
 timeout_s = 60
 [[ladder]]
 name = "contract-current"
-when = "engine-diff"
+paths = ["fichero-server/src/"]
 cmd = ["{python} {pinned}/scripts/check_openapi_route_set_current.py",
        "{python} {pinned}/scripts/check_contract_identity_current.py",
        "{python} {pinned}/scripts/check_mcp_generated_current.py"]
