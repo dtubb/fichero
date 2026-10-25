@@ -8,7 +8,7 @@ from pipeline import journal
 
 def test_replay_gives_the_same_state(scratch):
     from pipeline import core
-    journal.append("item", issue=5, task="t", title="x", window="w", worktree="/wt")
+    journal.append("item", issue=5, key="5", task="t", title="x", window="w", worktree="/wt", ids=[])
     journal.append("transition", issue=5, to="coding", why="a")
     journal.append("check", issue=5, ok=False, sha="abc", results=[{"name": "ready", "ok": False, "text": "no", "seconds": 1}])
     journal.append("transition", issue=5, to="coding", why="retry")

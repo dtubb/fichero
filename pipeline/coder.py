@@ -148,8 +148,10 @@ def brief_file(task: str, name: str, text: str) -> Path:
 # --- reading the session log ---------------------------------------------------------------------------------
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
-         "model": "", "turns": 0, "prompts": 0, "started": False, "error": ""}
+         "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False}
 QUOTA = re.compile(r"\b(402|429|rate.?limit|usage limit|insufficient|quota|credit)", re.I)
+TRANSIENT = re.compile(r"\b5\d\d\b|overloaded|timed? ?out|temporarily|connection", re.I)  # passing: back off, then look again
+TRANSIENT_RETRIES = 4
 
 
 def session_files(session_dir: Path) -> list[Path]:
@@ -185,6 +187,7 @@ def parse_session(path: Path) -> dict:
             err = m.get("errorMessage") if stop == "error" else (m.get("content") if o.get("isApiErrorMessage") else "")
             out["rate_limited"] = bool(err) and bool(QUOTA.search(str(err)))
             out["error"] = str(err)[:300] if err and not out["rate_limited"] else ""  # any other API error, latest turn
+            out["transient"] = bool(out["error"]) and bool(TRANSIENT.search(out["error"]))
             for c in content:
                 if c.get("type") in ("toolCall", "tool_use"):
                     name, args = c.get("name", "?"), c.get("arguments") or c.get("input") or {}
@@ -208,7 +211,7 @@ def wait_idle(session_dir: Path, cap_usd: float, after_turns: int = 0, poll: flo
               note=None) -> dict:
     """Block until the worker has ANSWERED the message (more assistant turns than before the tell) and its last
     turn ended with no tool pending — or the cost cap is hit, or the time is up (then `stopped` says why)."""
-    t0 = time.time()
+    t0, transient_seen = time.time(), 0
     while True:
         s = status(session_dir)
         if s["started"] and s["cost_usd"] > cap_usd:
@@ -216,8 +219,13 @@ def wait_idle(session_dir: Path, cap_usd: float, after_turns: int = 0, poll: flo
             return s
         if s["rate_limited"] or (s["idle"] and s["turns"] > after_turns):
             return s
-        if s.get("error") and s["turns"] > after_turns:  # a non-quota API error: stop now, not after the hour
-            s["stopped"] = f"API error: {s['error']}"
+        if s.get("error") and s["turns"] > after_turns:
+            if s.get("transient") and transient_seen < TRANSIENT_RETRIES:  # 5xx, overloaded, timeout: back off, look again
+                from pipeline import budget
+                time.sleep(budget.backoff(transient_seen))
+                transient_seen += 1
+                continue
+            s["stopped"] = f"API error: {s['error']}"  # a 4xx other than 402/429, or a transient one that stayed
             return s
         if time.time() - t0 > timeout_s:
             s["stopped"] = f"no idle turn in {int(timeout_s)} s"

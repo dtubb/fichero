@@ -178,6 +178,29 @@ def test_a_non_quota_api_error_stops_the_wait_at_once(tmp_path, monkeypatch):
     assert s["stopped"].startswith("API error: 400") and s["rate_limited"] is False
 
 
+def test_a_transient_api_error_backs_off_and_a_good_turn_recovers(tmp_path, monkeypatch):
+    """Round-3 R2: a 529/5xx/timeout fails the item only if it is still the latest turn after the backoff."""
+    sd = tmp_path / "s"
+    sd.mkdir()
+    overloaded = {"type": "message", "message": {"role": "assistant", "stopReason": "error", "usage": {},
+                                                 "errorMessage": "529 overloaded_error: Overloaded", "content": []}}
+    _write(sd / "a.jsonl", [USER, overloaded])
+    slept = []
+
+    def sleep_then_recover(secs):
+        slept.append(secs)
+        if len(slept) == 2:
+            _write(sd / "a.jsonl", [USER, overloaded, USER, END])  # Pi retried and the model answered
+
+    monkeypatch.setattr(coder.time, "sleep", sleep_then_recover)
+    s = coder.wait_idle(sd, cap_usd=1.0, after_turns=0, timeout_s=600)
+    assert "stopped" not in s and s["idle"] and len(slept) == 2, "backed off twice, then saw the good turn"
+    _write(sd / "b.jsonl", [USER, overloaded])
+    monkeypatch.setattr(coder.time, "sleep", lambda secs: None)
+    s = coder.wait_idle(sd, cap_usd=1.0, after_turns=0, timeout_s=600)
+    assert s["stopped"].startswith("API error: 529"), "still the latest turn after the retries: stopped"
+
+
 def test_session_fixture_shows_jcodemunch_and_jdocmunch_calls():
     s = coder.parse_session(FIXTURES / "pi-session-mcp-tools.jsonl")
     used = coder.uses_tools(s, "jcodemunch", "jdocmunch")

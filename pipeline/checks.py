@@ -7,6 +7,7 @@ from __future__ import annotations
 import fnmatch
 import glob
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -54,8 +55,11 @@ def isolated(script: str, env: dict) -> list[str]:
     """Run a guard with `python -I`: site runs on the interpreter's own path, so a coder-added sitecustomize.py or
     .pth in the tree is never imported and PYTHONPATH is not read from the environment; the tree's script dir and
     its source paths are added only afterwards, by us."""
-    paths = [str(Path(script).parent), *env.get("PYTHONPATH", "").split(":")]
-    code = f"import sys, runpy; sys.path[:0] = {[p for p in paths if p]!r}; runpy.run_path({script!r}, run_name='__main__')"
+    paths = [p for p in [str(Path(script).parent), *env.get("PYTHONPATH", "").split(":")] if p]
+    # the tree's paths go AFTER the stdlib and site entries, so a coder-added pathlib.py or json.py in a source root
+    # cannot shadow the stdlib the guards import (round-3 review R1)
+    code = (f"import sys, runpy; i = next((n for n, p in enumerate(sys.path) if 'site-packages' in p), len(sys.path)); "
+            f"sys.path[i:i] = {paths!r}; runpy.run_path({script!r}, run_name='__main__')")
     return [sys.executable, "-I", "-c", code]
 
 
@@ -81,9 +85,11 @@ def scratch_tree(wt, at, pinned_sha=None, files=()) -> str:
 BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
 
 
-def bypass_files(wt, since) -> list[str]:
+def bypass_files(wt, since, cfg) -> list[str]:
     """Added files that would run before or instead of the checks: a sitecustomize/usercustomize or a .pth anywhere,
-    a conftest.py outside a test dir, or a scripts/*.py named like a stdlib module (it would shadow the import)."""
+    a conftest.py outside a test dir, or a module named like a stdlib one at a root on the guards' path (scripts/
+    or any `python_path` folder), which would shadow the import (round-3 review R1)."""
+    roots = ["scripts", *[p.strip("/") for p in (cfg["repo"].get("python_path") or "").split(":") if p]]
     bad = []
     for f in changed_files(wt, since, "A"):
         p = Path(f)
@@ -91,23 +97,53 @@ def bypass_files(wt, since) -> list[str]:
             bad.append(f)
         elif p.name == "conftest.py" and not any("test" in part.lower() for part in p.parent.parts):
             bad.append(f)
-        elif p.parent.name == "scripts" and p.suffix == ".py" and p.stem in sys.stdlib_module_names:
-            bad.append(f)
+        elif p.suffix == ".py" or p.name == "__init__.py":
+            for root in roots:
+                rel = Path(f).relative_to(root) if root != "." and f.startswith(root + "/") else (Path(f) if root == "." else None)
+                if rel is not None and (rel.parts[0].removesuffix(".py") in sys.stdlib_module_names):
+                    bad.append(f)
+                    break
     return bad
 
 
+TAG_RE = re.compile(r"\[(?:OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)[^\]]*\]|\(#\d+\)")
+
+
+def acceptance_lines(text: str, ids) -> list[str]:
+    """The item's acceptance in a spec, normalised: its behaviour bullets (continuation lines included) and the
+    Behaviours/Tests lines of the build-order step that names one of its ids — with status tags and `(#N)` removed,
+    so flipping [MISSING] to [OK] or adding the issue number is not a change (round-3 review R4)."""
+    out, lines = [], text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"\s*- `[a-z][a-z0-9-]*\.[a-z0-9.-]+`", line) and any(f"`{x}`" in line for x in ids):
+            block = [line]
+            for nxt in lines[i + 1:]:
+                if nxt.startswith("  ") and not nxt.lstrip().startswith("- "):
+                    block.append(nxt)
+                else:
+                    break
+            out.append(" ".join(b.strip() for b in block))
+    for m in re.finditer(r"^#### Step .*?(?=^#### Step |^### |^## |\Z)", text, re.S | re.M):
+        step = m.group(0)
+        if any(f"`{x}`" in step for x in ids):
+            out += [s.strip() for s in step.splitlines() if s.strip().startswith(("- Tests:", "- Behaviours:"))]
+    return [re.sub(r"\s+", " ", TAG_RE.sub("", s)).strip() for s in out]
+
+
 def acceptance_changed(wt, since, spec_dir, ids) -> list[str]:
-    """Changed spec lines that carry one of the item's behaviour ids, or a build-order Behaviours/Tests line: the
-    coder may not rewrite its own acceptance (dogfood 6, 2026-10-25)."""
+    """The item's own acceptance differs between `since` and HEAD in some changed spec file: the coder may not
+    rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4). Returns the lines that differ."""
     if not spec_dir or not ids:
         return []
-    diff = sh(["git", "diff", f"{since}...HEAD", "--", spec_dir], cwd=wt).stdout.splitlines()
     hits = []
-    for line in diff:
-        if line[:1] in "+-" and not line.startswith(("+++", "---")):
-            body = line[1:].strip()
-            if any(f"`{i}`" in body for i in ids) or body.startswith(("- Tests:", "- Behaviours:")):
-                hits.append(line[:120])
+    for f in changed_files(wt, since):
+        if not f.startswith(spec_dir.rstrip("/") + "/") or not f.endswith(".md"):
+            continue
+        old = sh(["git", "show", f"{since}:{f}"], cwd=wt).stdout
+        new = (Path(wt) / f).read_text() if (Path(wt) / f).exists() else ""
+        before, after = acceptance_lines(old, ids), acceptance_lines(new, ids)
+        if before != after:
+            hits += [f"{f}: - {s[:160]}" for s in before if s not in after] + [f"{f}: + {s[:160]}" for s in after if s not in before]
     return hits
 
 
@@ -157,7 +193,11 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
                     bad.append(f"{Path(s).name}:\n{tail(r.stdout + r.stderr)}")
             except subprocess.TimeoutExpired:
                 bad.append(f"{Path(s).name}: timeout")
-        return not bad, "\n".join(bad) or "all guards green"
+        if not bad:
+            return True, "all guards green"
+        # the HEAD of the list of failing guards is never lost; each guard's output is its own tail
+        names = ", ".join(b.split(":", 1)[0] for b in bad)
+        return False, f"{len(bad)} guard(s) red: {names}\n\n" + "\n\n".join(bad)[:12000]
     out = []
     for cmd in rung["cmd"] if isinstance(rung["cmd"], list) else [rung["cmd"]]:
         r = sh(fill(cmd, tree, files=" ".join(files)), cwd=tree, env=env)
@@ -167,10 +207,12 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
     return True, "\n".join(out)[-600:]
 
 
-def tail(text: str, lines: int = 40) -> str:
-    """A failing rung's text carries its tool's actual output: the last 40 lines (a coder told only "ruff failed"
-    fixed the wrong thing twice on 2026-10-25)."""
-    return "\n".join(text.strip().splitlines()[-lines:])
+def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
+    """A failing rung's text carries its tool's actual output: the last 40 lines, each at most 300 chars, 4000 in
+    all (a coder told only "ruff failed" fixed the wrong thing twice on 2026-10-25; the caps keep the journal and
+    the brief bounded)."""
+    kept = [ln[:line_chars] for ln in text.strip().splitlines()[-lines:]]
+    return "\n".join(kept)[-chars:]
 
 
 def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
@@ -185,7 +227,7 @@ def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
     # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
     hit = [f for f in changed_files(wt, since, "MDR") if f in overlay]
     why = f"the diff changes the checks themselves ({', '.join(hit[:5])})" if hit else ""
-    bypass = bypass_files(wt, since)
+    bypass = bypass_files(wt, since, cfg)
     if bypass and not why:
         why = f"the diff adds a file that would run before or instead of the checks ({', '.join(bypass[:5])})"
     changed = acceptance_changed(wt, since, cfg["repo"].get("specs"), protected_ids)

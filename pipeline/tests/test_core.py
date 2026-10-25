@@ -17,9 +17,64 @@ def test_start_from_a_local_issue_file_for_an_unfiled_step(scratch, fake_coder, 
     f.write_text(json.dumps({"number": 6116, "part_of": True, "author": "dtubb", "title": "Step 1.2", "body": "do the guard",
                              "labels": [], "milestone": "m"}))
     out = core.start([6116], task="step-1-2", from_file=str(f))
-    assert out["items"][6116] == "checked"
+    assert out["items"]["6116@step-1-2"] == "checked", "a from-file step is keyed by number@task"
     text = core.brief(json.loads(f.read_text()), "step-1-2")
     assert "(Part of #6116)" in text and "Fixes" not in text
+
+
+def test_two_unfiled_steps_sharing_part_of_one_issue_both_run(scratch, fake_coder, tmp_path):
+    """Round-3 R3: every bootstrap step carries number 6116; keyed by number they collided and step 1.3 never ran."""
+    fc = fake_coder()
+    for step in ("1-2", "1-3"):
+        (tmp_path / f"{step}.json").write_text(json.dumps({"number": 6116, "part_of": True, "author": "dtubb", "title": f"Step {step}",
+                                                           "body": f"step {step}", "labels": [], "milestone": "m"}))
+    core.start([6116], task="step-1-2", from_file=str(tmp_path / "1-2.json"))
+    it = core.state()["items"]["6116@step-1-2"]
+    assert core.verdict("6116@step-1-2", it["sha"], "READY", by="reviewer")["state"] == "reviewed"
+    out = core.start([6116], task="step-1-3", from_file=str(tmp_path / "1-3.json"))
+    assert out["items"]["6116@step-1-3"] == "checked" and len(fc.windows) == 2
+    s = core.state()
+    assert s["items"]["6116@step-1-2"]["state"] == "reviewed" and s["items"]["6116@step-1-3"]["attempts"] == 0
+    with pytest.raises(KeyError, match="names several items"):
+        core.check(6116)
+    assert core.verdict("6116@step-1-3", s["items"]["6116@step-1-3"]["sha"], "PENDING", by="manager")["issue"] == "6116@step-1-3"
+
+
+def test_retry_refuses_a_record_without_start_args_and_repair_fixes_it(scratch, issues, fake_coder):
+    """Round-3: no more hand edits of the journal. An old record (no ids) is refused; `repair` appends the lines."""
+    fake_coder("bad")
+    core.start([1001])  # needs-maintainer after three reds; now forge an old-style record by replaying without ids
+    lines = [json.loads(ln) for ln in journal.path().read_text().splitlines()]
+    for e in lines:
+        if e["event"] == "item":
+            e.pop("ids", None)
+    journal.path().write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+    assert core.state()["items"]["1001"]["start_args"]["ids"] is None
+    with pytest.raises(RuntimeError, match="repair 1001"):
+        core.retry(1001)
+    out = core.repair(1001, base="origin/integration", since="origin/integration", why="record predates start args")
+    assert out["repaired"] == ["start args", f"since {git(scratch['repo'], 'rev-parse', 'origin/integration')[:9]}"]
+    it = core.state()["items"]["1001"]
+    assert it["start_args"]["ids"] == [] and it["start_args"]["base"] == "origin/integration"
+    assert it["notes"][-1].startswith("repair: start args, since")
+    with pytest.raises(ValueError, match="journal item line lacks"):
+        journal.append("item", issue=1, task="t", title="x", window="w", worktree="/wt")
+
+
+def test_tag_flip_is_allowed_but_an_acceptance_rewrite_is_red(scratch, issues, fake_coder):
+    """Round-3 R4: the reviewer's spec-diff rule expects [MISSING] -> [OK] on the item's own behaviour."""
+    fc = fake_coder()
+    real = fc._tell
+
+    def tell_and_flip(window, text):
+        real(window, text)
+        spec = fc.cwd / "specs" / "s.md"
+        spec.write_text(spec.read_text().replace("[MISSING]", "[OK] (#1001)"))
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "flip (Fixes #1001)")
+
+    fc._tell = tell_and_flip
+    assert core.start([1001])["items"]["1001"] == "checked"
 
 
 def test_start_takes_a_base_for_a_bootstrap_step(scratch, issues, fake_coder):
@@ -33,7 +88,7 @@ def test_start_takes_a_base_for_a_bootstrap_step(scratch, issues, fake_coder):
     git(repo, "checkout", "-q", "integration")
     out = core.start([1001], task="boot", base="runner-branch")
     wt = scratch["repo"] / ".worktrees" / "pipeline" / "boot"
-    assert (wt / "RUNNER").exists() and out["items"][1001] == "checked"
+    assert (wt / "RUNNER").exists() and out["items"]["1001"] == "checked"
 
 
 def test_states_table_is_the_only_transition_path(scratch, issues, fake_coder):
@@ -45,9 +100,9 @@ def test_states_table_is_the_only_transition_path(scratch, issues, fake_coder):
     core.start([1001])  # checked
     for bad in ("queued", "pushed", "closed", "candidate"):
         with pytest.raises(RuntimeError, match="no transition checked ->"):
-            core._move(1001, bad)
+            core._move("1001", bad)
     with pytest.raises(RuntimeError, match="no transition"):
-        core._move(1001, "merged")
+        core._move("1001", "merged")
     rows = {(a, b) for a, b in core.ALLOWED}
     for a, b in rows:
         assert a in core.STATES and b in core.STATES
@@ -72,7 +127,7 @@ def test_paused_runner_starts_nothing(scratch, issues, fake_coder):
         core.tell("coder-x", "hi")
     assert fc.windows == []
     core.resume()
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
 
 
 def test_worktree_is_made_off_base_and_removed_with_git(scratch, issues, fake_coder):
@@ -90,7 +145,7 @@ def test_worktree_is_made_off_base_and_removed_with_git(scratch, issues, fake_co
 def test_batch_of_three_issues_gives_three_commits_and_three_check_lines(scratch, issues, fake_coder):
     fc = fake_coder()
     out = core.start([1001, 1002, 1003], milestone="demo")
-    assert [out["items"][n] for n in (1001, 1002, 1003)] == ["checked"] * 3
+    assert [out["items"][n] for n in ("1001", "1002", "1003")] == ["checked"] * 3
     assert len(fc.windows) == 1, "one context for the batch"
     log = git(fc.cwd, "log", "--format=%s", "origin/integration..HEAD").splitlines()
     assert log == ["fix (Fixes #1003)", "fix (Fixes #1002)", "fix (Fixes #1001)"]
@@ -104,7 +159,7 @@ def test_batch_of_three_issues_gives_three_commits_and_three_check_lines(scratch
 
 def test_failed_check_retries_twice_then_needs_maintainer(scratch, issues, fake_coder):
     fc = fake_coder("bad")  # its test passes on the base: never red
-    assert core.start([1001])["items"][1001] == "needs-maintainer"
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
     assert len([t for t in fc.told if "#1001" in t[1]]) == 3, "first try + two retries"
     briefs = sorted((scratch["state"] / "briefs").rglob("issue-1001-attempt-*.md"))
     assert len(briefs) == 3 and "NOT RED ON BASE" in briefs[-1].read_text(), "the retry carries the failure text"
@@ -115,13 +170,13 @@ def test_failed_check_retries_twice_then_needs_maintainer(scratch, issues, fake_
 def test_a_coder_that_breaks_a_guard_is_red(scratch, issues, fake_coder):
     """HIGH 1 through the whole path: the guard sees the coder's tree."""
     fake_coder("breaks-a-guard")
-    assert core.start([1001])["items"][1001] == "needs-maintainer"
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
     assert "src/bad.py is forbidden" in core.state()["items"]["1001"]["retry_text"]
 
 
 def test_retry_with_the_failure_can_recover(scratch, issues, fake_coder):
     fc = fake_coder("fix-on-retry")
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
     assert len([t for t in fc.told if "#1001" in t[1]]) == 2
 
 
@@ -153,7 +208,7 @@ def test_not_ready_sends_the_item_back_to_coding_with_the_findings(scratch, issu
     core.start([1001])
     it = core.state()["items"]["1001"]
     out = core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="L3: f1 should log")
-    assert out == {"issue": 1001, "state": "coding", "attempts": 1}
+    assert out == {"issue": "1001", "state": "coding", "attempts": 1}
     it = core.state()["items"]["1001"]
     assert it["state"] == "coding" and it["attempts"] == 1 and "f1 should log" in it["retry_text"]
     core.start([1001])  # the maintainer resumes; the brief carries the findings and the attempt count continues
@@ -223,11 +278,11 @@ def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fa
     f = tmp_path / "issue.json"
     f.write_text(json.dumps(dict(issues[1001])))
     core.start([1001], task="boot", base="runner-branch", from_file=str(f))
-    it = core.state()["items"]["1001"]
+    it = core.state()["items"]["1001@boot"]
     assert it["start_args"] == {"task": "boot", "milestone": None, "base": "runner-branch", "from_file": str(f), "ids": ["demo.one"]}
-    core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="rename f1001")
+    core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="rename f1001")  # a bare number resolves to the one item
     out = core.retry(1001)
-    assert out["task"] == "boot" and out["items"][1001] == "checked"
+    assert out["task"] == "boot" and out["items"]["1001@boot"] == "checked"
     assert len(fc.windows) == 2 and fc.windows[1][1] == scratch["repo"] / ".worktrees" / "pipeline" / "boot"
     brief = sorted((scratch["state"] / "briefs" / "boot").glob("issue-1001-attempt-2.md"))[0].read_text()
     assert "rename f1001" in brief
@@ -254,7 +309,7 @@ def test_a_retry_is_measured_from_the_items_first_start(scratch, issues, fake_co
     core.start([1001])
     it = core.state()["items"]["1001"]
     core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="tidy the import")
-    assert core.retry(1001)["items"][1001] == "checked"
+    assert core.retry(1001)["items"]["1001"] == "checked"
     sinces = [e["sha"] for e in journal.read() if e["event"] == "since" and e["issue"] == 1001]
     assert len(sinces) == 2 and sinces[0] == sinces[1], "the retry keeps the item's first since"
 
@@ -283,7 +338,7 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
         git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)")
 
     fc._tell = tell_and_edit_spec
-    assert core.start([1001])["items"][1001] == "needs-maintainer"
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
     assert "rewrites the item's own acceptance" in core.state()["items"]["1001"]["retry_text"]
 
 
@@ -295,7 +350,7 @@ def test_brief_requires_the_doc_lookup_first_and_forbids_acceptance_edits(scratc
 
 def test_tools_unused_is_a_note_not_a_failure(scratch, issues, fake_coder):
     fake_coder()  # its fake session shows jcodemunch but no jdocmunch
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
     assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jdocmunch"]
 
 
@@ -374,9 +429,9 @@ def test_retry_after_a_rate_limited_stop_takes_the_next_worker(scratch, issues, 
     stopped = dict(cost_usd=0.0, tokens=0, tool_calls={}, idle=False, last_text="", rate_limited=True, model="qwen/x",
                    turns=1, prompts=1, started=True)
     monkeypatch.setattr(core.coder, "wait_idle", lambda *a, **k: stopped)
-    assert core.start([1001])["items"][1001] == "rate-limited"
+    assert core.start([1001])["items"]["1001"] == "rate-limited"
     monkeypatch.setattr(core.coder, "wait_idle", fc.wait_idle)
-    assert core.retry(1001)["items"][1001] == "checked"
+    assert core.retry(1001)["items"]["1001"] == "checked"
     models = [e["model"] for e in journal.read() if e["event"] == "worker"]
     assert models == ["openrouter/qwen/x", "anthropic/claude-sonnet-4-5"]
 
@@ -387,7 +442,7 @@ def test_cost_cap_stops_the_worker_and_moves_to_the_fallback(scratch, issues, fa
     stopped = dict(cost_usd=5.0, tokens=1, tool_calls={}, idle=False, last_text="", rate_limited=False, model="qwen/x",
                    turns=1, started=True, stopped="cost cap: $5.00 > $1.00")
     monkeypatch.setattr(core.coder, "wait_idle", lambda *a, **k: stopped)
-    assert core.start([1001])["items"][1001] == "rate-limited"
+    assert core.start([1001])["items"]["1001"] == "rate-limited"
     assert fc.stopped == ["coder-issues-1001"]
     assert [q["kind"] for q in core.queue()] == ["fallback"]
     assert any(e["event"] == "worker_gone" for e in journal.read())

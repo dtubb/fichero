@@ -43,7 +43,7 @@ def test_mcp_start_and_check_take_the_dispatch_lock(scratch, issues, fake_coder)
     with journal.Lock("dispatch"):
         with pytest.raises(BlockingIOError):
             mcp_server.tools_for("manager")["start"]([1001])
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
     with journal.Lock("dispatch"):
         with pytest.raises(BlockingIOError):
             core.check(1001)

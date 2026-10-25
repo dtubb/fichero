@@ -18,7 +18,7 @@ def test_item_waits_with_reason_when_memory_is_short(scratch, issues, fake_coder
     monkeypatch.setattr(budget, "machine", lambda: next(readings, {"free_mb": 9000, "pressure": "normal", "load1": 1.0}))
     monkeypatch.setattr(core.time, "sleep", lambda s: None)
     scratch["cfg"]["workers"]["needs_mb"] = {"pi": 1000, "pytest": 0}
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
     waits = [e for e in journal.read() if e["event"] == "wait"]
     assert len(waits) == 2 and "pi needs 1000 MB, 100 MB free" in waits[0]["text"]
 
@@ -77,7 +77,7 @@ def test_coder_cap_refuses_a_second_live_coder(scratch, issues, fake_coder, monk
         core.start([1001])
     # a window that died no longer counts (review MED 15)
     monkeypatch.setattr(core.coder, "live_windows", lambda cfg: set())
-    assert core.start([1001])["items"][1001] == "checked"
+    assert core.start([1001])["items"]["1001"] == "checked"
     assert any(e["event"] == "worker_gone" and e["window"] == "coder-other" for e in journal.read())
 
 

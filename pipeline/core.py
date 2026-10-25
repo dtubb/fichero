@@ -1,7 +1,10 @@
 """The state machine and the one set of functions the CLI, the MCP server and the page call (`API`).
 States: queued → coding → checked → reviewed → candidate → gated → pushed → closed, plus failed, needs-maintainer,
 rate-limited, waiting. An item moves only through the transitions in ALLOWED, each running its own check and
-writing one journal line; a model's report never moves an item (pipeline.one-state-machine)."""
+writing one journal line; a model's report never moves an item (pipeline.one-state-machine).
+
+An item is keyed by its issue number, or by `<number>@<task>` for a step run from a local file (several unfilled
+steps share "Part of #N"; round-3 review R3). Every function that takes `issue` accepts either form."""
 from __future__ import annotations
 
 import json
@@ -30,6 +33,8 @@ ISSUE = gh.issue  # the one read of an issue; tests replace it
 DRY_RUN = True    # GitHub writes: the CLI flips this with --apply; tests and the proof run never do
 ANSWER_DEADLINE_S = 4 * 3600
 TOOLS_WANTED = ("jdocmunch", "jcodemunch")
+ITEM_FIELDS = ("issue", "task", "sha", "to", "why", "ok", "results", "verdict", "by", "findings", "usd", "tokens", "model",
+               "tools", "session", "text")
 
 
 def cfg() -> dict:
@@ -39,24 +44,49 @@ def cfg() -> dict:
     return CFG
 
 
+# --- keys ------------------------------------------------------------------------------------------------------
+
+def item_key(issue: int, task: str | None = None, from_file: str | None = None) -> str:
+    return f"{issue}@{task}" if from_file else str(issue)
+
+
+def resolve(issue, items: dict) -> str:
+    """The item key for what the caller typed: a key as is, a number that is an item, or a number with exactly one
+    `number@task` item."""
+    k = str(issue)
+    if k in items:
+        return k
+    hits = [x for x in items if x.startswith(f"{k}@")]
+    if len(hits) == 1:
+        return hits[0]
+    if hits:
+        raise KeyError(f"#{k} names several items: {', '.join(sorted(hits))}; give the key")
+    raise KeyError(f"#{k} is not an item")
+
+
+def _n(key: str) -> int:
+    return int(str(key).split("@")[0])
+
+
 # --- state = the journal replayed -------------------------------------------------------------------------------
 
 def state() -> dict:
     s = {"items": {}, "tasks": {}, "queue": {}, "point": None, "paused": False, "workers": {}, "machine": None}
     for e in journal.read():
-        ev, it = e["event"], s["items"].get(str(e.get("issue")))
+        ev = e["event"]
+        k = e.get("key") or (str(e["issue"]) if "issue" in e else None)
+        it = s["items"].get(k) if k else None
         if ev == "item":
-            args = {k: e.get(k) for k in ("task", "milestone", "base", "from_file", "ids")}
+            args = {x: e.get(x) for x in ("task", "milestone", "base", "from_file", "ids")}
             if it:  # the item moves to a new task (a retry on another base): keep its record, re-bind it
                 it.update(task=e["task"], start_args=args)
             else:
-                s["items"][str(e["issue"])] = {"issue": e["issue"], "task": e["task"], "title": e.get("title", ""),
-                                               "state": "queued", "attempts": 0, "checks": [], "verdicts": [],
-                                               "cost_usd": 0.0, "history": [], "sha": "", "check_ok": False,
-                                               "retry_text": "", "start_args": args}
+                s["items"][k] = {"key": k, "issue": e["issue"], "task": e["task"], "title": e.get("title", ""),
+                                 "state": "queued", "attempts": 0, "checks": [], "verdicts": [], "cost_usd": 0.0,
+                                 "history": [], "sha": "", "check_ok": False, "retry_text": "", "start_args": args}
             s["tasks"].setdefault(e["task"], {"issues": [], "window": e.get("window"), "worktree": e.get("worktree")})
-            if e["issue"] not in s["tasks"][e["task"]]["issues"]:
-                s["tasks"][e["task"]]["issues"].append(e["issue"])
+            if k not in s["tasks"][e["task"]]["issues"]:
+                s["tasks"][e["task"]]["issues"].append(k)
         elif ev == "transition" and it:
             it["state"] = e["to"]
             it["history"].append(f"{e['ts']} {e['to']}: {e.get('why', '')}")
@@ -71,14 +101,14 @@ def state() -> dict:
         elif ev == "reset" and it:  # the maintainer: the attempts so far were the runner's fault, not the coder's
             it["attempts"] = 0
         elif ev == "verdict" and it:
-            it["verdicts"].append({k: e[k] for k in ("sha", "verdict", "by", "findings")})
+            it["verdicts"].append({x: e[x] for x in ("sha", "verdict", "by", "findings")})
         elif ev == "cost" and it:
             it["cost_usd"] = round(it["cost_usd"] + e["usd"], 4)
             it["tokens"], it["model"] = e["tokens"], e["model"]
         elif ev == "note" and it:
             it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
-            s["queue"][e["id"]] = {k: e.get(k) for k in ("id", "kind", "text", "options", "task", "window", "ts")}
+            s["queue"][e["id"]] = {x: e.get(x) for x in ("id", "kind", "text", "options", "task", "window", "ts")}
         elif ev == "answer":
             s["queue"].pop(e["id"], None)
         elif ev == "point":
@@ -86,7 +116,7 @@ def state() -> dict:
         elif ev in ("pause", "resume"):
             s["paused"] = ev == "pause"
         elif ev == "worker":
-            s["workers"][e["window"]] = {k: e.get(k) for k in ("window", "task", "model", "session_dir", "cwd", "role")}
+            s["workers"][e["window"]] = {x: e.get(x) for x in ("window", "task", "model", "session_dir", "cwd", "role")}
         elif ev == "worker_gone":
             s["workers"].pop(e["window"], None)
         elif ev == "undelivered" and e.get("window") in s["workers"]:
@@ -98,7 +128,7 @@ def state() -> dict:
     for w in s["workers"].values():
         st = coder.status(Path(w["session_dir"])) if w.get("session_dir") else {}
         w.update(idle=st.get("idle"), cost_usd=round(st.get("cost_usd", 0.0), 3), last_text=(st.get("last_text") or "")[-300:])
-    s["stuck"] = [i for i, it in s["items"].items() if _stuck(it)]
+    s["stuck"] = [k for k, it in s["items"].items() if _stuck(it)]
     return s
 
 
@@ -115,11 +145,17 @@ def status() -> dict:
     return s
 
 
-def _move(issue: int, to: str, why: str = "") -> None:
-    cur = state()["items"][str(issue)]["state"]
+def _item(issue) -> tuple[str, dict, dict]:
+    s = state()
+    k = resolve(issue, s["items"])
+    return k, s["items"][k], s
+
+
+def _move(key: str, to: str, why: str = "") -> None:
+    cur = state()["items"][key]["state"]
     if (cur, to) not in ALLOWED:
-        raise RuntimeError(f"#{issue}: no transition {cur} -> {to} in the states table")
-    journal.append("transition", issue=issue, to=to, why=why)
+        raise RuntimeError(f"{key}: no transition {cur} -> {to} in the states table")
+    journal.append("transition", issue=_n(key), key=key, to=to, why=why)
 
 
 def _queue(kind: str, text: str, options=None, task=None, window=None) -> str:
@@ -177,7 +213,8 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
-             "5. Never change your own acceptance: the spec lines for your behaviour ids and the build order's Behaviours/Tests lines stay as they are. If they are wrong, call `pipeline_ask`.",
+             "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
+             "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
              f"6. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
              f"7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
@@ -243,25 +280,48 @@ def _live_coders(s: dict, task: str) -> list[str]:
 def start(issues: list[int], milestone: str | None = None, task: str | None = None, worker_index: int = 0,
           from_file: str | None = None, base: str | None = None) -> dict:
     """queued → coding → (checks) for a batch of issues in one coder context; blocks until the batch is done.
-    `from_file`: a local JSON issue (number, title, body, author, part_of) for a step not yet filed on GitHub.
+    `from_file`: a local JSON issue (number, title, body, author, part_of) for a step not yet filed on GitHub; such
+    an item is keyed `<number>@<task>`, so several steps may share "Part of #N".
     `base`: the branch the worktree comes off (default the profile's), e.g. the runner branch for a bootstrap step."""
     with journal.Lock("dispatch", wait=False):
         return _start(issues, milestone, task, worker_index, from_file, base)
 
 
-def retry(issue: int, worker: int | None = None) -> dict:
+def retry(issue, worker: int | None = None) -> dict:
     """Run the item again with the start arguments its record keeps (task, base, from_file, milestone); the brief
     carries the retry text from the red check or the NOT_READY review (dogfood 5). The worker is the next entry of
-    the role's fallback list after each rate-limited stop, unless given."""
-    it = state()["items"].get(str(issue))
-    if not it:
-        raise KeyError(f"#{issue} is not an item")
+    the role's fallback list after each rate-limited stop, unless given. A record without start arguments (made
+    before they were kept) is refused: `repair` it first."""
+    key, it, _ = _item(issue)
     a = it["start_args"]
+    if a.get("ids") is None:
+        raise RuntimeError(f"{key}: its record has no start arguments; run `python -m pipeline repair {key} "
+                           f"--base <ref> [--from-file <json>] [--since <sha>]` first")
     if worker is None:
         stops = sum(1 for h in it["history"] if " rate-limited:" in h)
         worker = min(stops, len(cfg()["roles"]["coder"]) - 1)
-    return start([issue], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"),
+    return start([it["issue"]], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"),
                  worker_index=worker)
+
+
+def repair(issue, base: str | None = None, from_file: str | None = None, since: str | None = None, why: str = "") -> dict:
+    """Correct an item's record by APPENDING: an `item` line with the start arguments, and/or a tagged `since` line
+    for its task. Nobody edits the journal by hand; the repair is journaled with its reason (round-3 review)."""
+    key, it, s = _item(issue)
+    t = s["tasks"][it["task"]]
+    done = []
+    if base or from_file:
+        iss = json.loads(Path(from_file).read_text()) if from_file else {"title": it["title"], "body": ""}
+        journal.append("item", issue=it["issue"], key=key, task=it["task"], title=iss.get("title", it["title"]), window=t["window"],
+                       worktree=t["worktree"], milestone=it["start_args"].get("milestone"), base=base, from_file=from_file,
+                       ids=issue_ids(iss))
+        done.append("start args")
+    if since:
+        sha = checks.git(t["worktree"], "rev-parse", "--verify", f"{since}^{{commit}}")
+        journal.append("since", issue=it["issue"], key=key, task=it["task"], sha=sha)
+        done.append(f"since {sha[:9]}")
+    journal.append("note", issue=it["issue"], key=key, text=f"repair: {', '.join(done) or 'nothing'}; {why}")
+    return {"key": key, "repaired": done}
 
 
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
@@ -275,83 +335,90 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     read_issue = ISSUE if not from_file else (lambda n: json.loads(Path(from_file).read_text()))
     briefs = {}
     for n in issues:  # every issue is read and allow-listed before anything starts
-        it = s["items"].get(str(n))
+        k = item_key(n, task, from_file)
+        it = s["items"].get(k)
         if it and it["state"] not in ("queued", "coding", "failed", "needs-maintainer", "rate-limited"):
             continue  # finished or under review: never redone (pipeline.resume-from-journal)
-        briefs[n] = read_issue(n)
-        if briefs[n].get("author") not in c["github"]["allowed_authors"]:
-            _queue("triage", f"#{n} by {briefs[n].get('author')}: outside text, rewrite it into a triaged issue", task=task)
-            raise PermissionError(f"#{n} is by {briefs[n].get('author')}: not allow-listed (pipeline.outside-bugs)")
+        briefs[k] = read_issue(n)
+        if briefs[k].get("author") not in c["github"]["allowed_authors"]:
+            _queue("triage", f"#{n} by {briefs[k].get('author')}: outside text, rewrite it into a triaged issue", task=task)
+            raise PermissionError(f"#{n} is by {briefs[k].get('author')}: not allow-listed (pipeline.outside-bugs)")
     if not briefs:
         return {"task": task, "done": "nothing left to do"}
     wt = _worktree(task, base)
     window = f"coder-{task}"
-    for n, iss in briefs.items():
-        if str(n) not in s["items"] or s["items"][str(n)]["task"] != task:
-            journal.append("item", issue=n, task=task, title=iss["title"], window=window, worktree=str(wt),
+    for k, iss in briefs.items():
+        if k not in s["items"] or s["items"][k]["task"] != task:
+            journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
     worker = c["roles"]["coder"][worker_index]
     _wait_room(worker["kind"], task)
     session_dir = _start_worker(task, wt, worker, window)
     summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}
-    for n, iss in briefs.items():
-        summary["items"][n] = _run_issue(task, n, iss, wt, window, session_dir, worker, worker_index)
-        if summary["items"][n] in ("rate-limited", "failed"):
+    for k, iss in briefs.items():
+        summary["items"][k] = _run_issue(task, k, iss, wt, window, session_dir, worker, worker_index)
+        if summary["items"][k] in ("rate-limited", "failed"):
             break  # the fallback list: the next worker takes the rest of the batch in a fresh context
     return summary
 
 
-def _since(issue: int, task: str) -> str | None:
-    """The sha the item started from in this task: the first `since` recorded for (issue, task). Red-on-base and
+def _since(key: str, task: str) -> str | None:
+    """The sha the item started from in this task: the first `since` recorded for (key, task). Red-on-base and
     the changed-files set are measured from there, not from a retry's own start, or a retry that only fixes lint
     in a test file could never be red on the base (live, 2026-10-25)."""
-    return next((e["sha"] for e in journal.read() if e["event"] == "since" and e["issue"] == issue and e.get("task") == task), None)
+    lines = [e for e in journal.read() if e["event"] == "since" and (e.get("key") or str(e["issue"])) == key]
+    tagged = [e["sha"] for e in lines if e.get("task") == task]
+    if tagged:
+        return tagged[0]
+    tasks = {e.get("task") for e in lines}
+    return lines[0]["sha"] if lines and tasks == {None} else None  # untagged lines, one task so far: the first one
 
 
-def _run_issue(task, n, iss, wt, window, session_dir, worker, worker_index) -> str:
+def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) -> str:
     c = cfg()
-    since = _since(n, task) or _head(wt)
-    journal.append("since", issue=n, task=task, sha=since)
-    it = state()["items"][str(n)]
+    n = _n(key)
+    since = _since(key, task) or _head(wt)
+    journal.append("since", issue=n, key=key, task=task, sha=since)
+    it = state()["items"][key]
     failure, attempt = it["retry_text"], it["attempts"]
     while attempt <= c["workers"]["retries"]:
-        _move(n, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
+        _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
         path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
         before = coder.status(session_dir)
         tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
         st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
-        st = _wait_answers(task, n, session_dir, st)
+        st = _wait_answers(task, session_dir, st)
         # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
         spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
-        journal.append("cost", issue=n, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
+        journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
                        tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
-        unused = [t for t, k in coder.uses_tools(st, *TOOLS_WANTED).items() if not k]
+        unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
         if unused:  # information only, never a failure (dogfood 7)
-            journal.append("note", issue=n, text=f"tools unused by the first done: {', '.join(unused)}")
+            journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
         if st.get("stopped") or st.get("rate_limited"):
             coder.stop_window(c, window)
             journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
             if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
-                _move(n, "rate-limited", st.get("stopped") or "quota or credit failure")
+                _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
                 nxt = worker_index + 1 < len(c["roles"]["coder"])
-                _queue("fallback" if nxt else "budget", f"#{n}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
+                _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
                        + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
                 return "rate-limited"
-            _move(n, "failed", st["stopped"])
+            _move(key, "failed", st["stopped"])
             return "failed"
-        results = check(n, since=since, locked=True)
+        results = check(key, since=since, locked=True)
         if all(r["ok"] for r in results):
             return "checked"
         if results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
             return "needs-maintainer"
-        failure = state()["items"][str(n)]["retry_text"]
+        failure = state()["items"][key]["retry_text"]
         attempt += 1
-    _move(n, "needs-maintainer", failure[-500:])
-    _queue("failed-checks", f"#{n} failed its checks or review {attempt} times:\n{failure[-1500:]}", task=task, window=window)
+    _move(key, "needs-maintainer", failure[-500:])
+    _queue("failed-checks", f"{key} failed its checks or review {attempt} times:\n{failure[-1500:]}", task=task, window=window)
     return "needs-maintainer"
 
 
-def _wait_answers(task: str, issue: int, session_dir: Path, st: dict) -> dict:
+def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
     """An idle worker that asked a question waits for the maintainer's answer, then for its next idle turn."""
     t0 = time.time()
     while any(q["task"] == task and q["kind"] == "ask" for q in state()["queue"].values()):
@@ -363,19 +430,16 @@ def _wait_answers(task: str, issue: int, session_dir: Path, st: dict) -> dict:
     return st
 
 
-def check(issue: int, since: str | None = None, locked: bool = False) -> list[dict]:
+def check(issue, since: str | None = None, locked: bool = False) -> list[dict]:
     """→ checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
     mid-check is a red (the sha moved). Red: a checked or reviewed item goes back to coding (review HIGH N1), a
     pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry."""
     if not locked:
         with journal.Lock("dispatch", wait=False):
             return check(issue, since, locked=True)
-    s = state()
-    it = s["items"].get(str(issue))
-    if not it:
-        raise KeyError(f"#{issue} is not an item")
+    key, it, s = _item(issue)
     wt = Path(s["tasks"][it["task"]]["worktree"])
-    since = since or _since(issue, it["task"])
+    since = since or _since(key, it["task"])
     sha = _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
@@ -383,45 +447,42 @@ def check(issue: int, since: str | None = None, locked: bool = False) -> list[di
     if _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
-    journal.append("check", issue=issue, ok=ok, sha=sha, results=results)
+    journal.append("check", issue=it["issue"], key=key, ok=ok, sha=sha, results=results)
     gh.cache_clear()
     if ok:
-        _move(issue, "checked", f"{len(results)} rungs green at {sha[:9]}")
+        _move(key, "checked", f"{len(results)} rungs green at {sha[:9]}")
     elif results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
-        _move(issue, "needs-maintainer", results[0]["text"])
+        _move(key, "needs-maintainer", results[0]["text"])
     elif it["state"] in ("checked", "reviewed"):
-        _move(issue, "coding", f"red check at {sha[:9]}: {next(r['name'] for r in results if not r['ok'])}")
+        _move(key, "coding", f"red check at {sha[:9]}: {next(r['name'] for r in results if not r['ok'])}")
     return results
 
 
-def verdict(issue: int, sha: str, verdict: str, by: str, findings: str = "") -> dict:
+def verdict(issue, sha: str, verdict: str, by: str, findings: str = "") -> dict:
     """checked → reviewed on READY from the reviewer role for the worktree's LIVE head, which must be the sha the
     last check PASSED on; a binding NOT_READY sends the item back to coding with the findings as its retry text and
     counts an attempt. Anything else is recorded only."""
-    s = state()
-    it = s["items"].get(str(issue))
-    if not it:
-        raise KeyError(f"#{issue} is not an item")
+    key, it, s = _item(issue)
     wt = s["tasks"][it["task"]]["worktree"]
     try:
         sha = checks.git(wt, "rev-parse", "--verify", f"{sha}^{{commit}}")
     except RuntimeError:
         pass
     head = _head(wt)
-    journal.append("verdict", issue=issue, sha=sha, verdict=verdict, by=by, findings=findings[:4000])
+    journal.append("verdict", issue=it["issue"], key=key, sha=sha, verdict=verdict, by=by, findings=findings[:4000])
     binding = by == "reviewer" and sha == head == it["sha"] and it["check_ok"] and it["state"] in ("checked", "reviewed")
     if binding and verdict == "READY":
         if it["state"] == "checked":
-            _move(issue, "reviewed", f"READY by {by} at {sha[:9]}")
-        return {"issue": issue, "state": "reviewed"}
+            _move(key, "reviewed", f"READY by {by} at {sha[:9]}")
+        return {"issue": key, "state": "reviewed"}
     if binding and verdict == "NOT_READY":
-        journal.append("retry", issue=issue, text=f"Review NOT_READY at {sha[:9]}:\n{findings}")
-        _move(issue, "coding", f"NOT_READY by {by} at {sha[:9]}; `retry {issue}` sends the findings to the coder")
-        return {"issue": issue, "state": "coding", "attempts": it["attempts"] + 1}
+        journal.append("retry", issue=it["issue"], key=key, text=f"Review NOT_READY at {sha[:9]}:\n{findings}")
+        _move(key, "coding", f"NOT_READY by {by} at {sha[:9]}; `retry {key}` sends the findings to the coder")
+        return {"issue": key, "state": "coding", "attempts": it["attempts"] + 1}
     why = "" if sha == head else f"verdict is for {sha[:9]}, head is {head[:9]}: not binding"
     if head != it["sha"] or not it["check_ok"]:
-        why = f"head {head[:9]} has not passed a check (last check: {it['sha'][:9]} {'green' if it['check_ok'] else 'red'}): run `check {issue}` first"
-    return {"issue": issue, "state": it["state"], "recorded": verdict, "note": why}
+        why = f"head {head[:9]} has not passed a check (last check: {it['sha'][:9]} {'green' if it['check_ok'] else 'red'}): run `check {key}` first"
+    return {"issue": key, "state": it["state"], "recorded": verdict, "note": why}
 
 
 # --- messages, queue, pointing ----------------------------------------------------------------------------------
@@ -478,12 +539,11 @@ def point(milestone: str) -> dict:
     return {"point": milestone}
 
 
-def reset(issue: int, why: str = "") -> dict:
+def reset(issue, why: str = "") -> dict:
     """The maintainer zeroes an item's attempts when the reds were the runner's fault, not the coder's."""
-    if str(issue) not in state()["items"]:
-        raise KeyError(f"#{issue} is not an item")
-    journal.append("reset", issue=issue, text=why)
-    return {"issue": issue, "attempts": 0}
+    key, it, _ = _item(issue)
+    journal.append("reset", issue=it["issue"], key=key, text=why)
+    return {"issue": key, "attempts": 0}
 
 
 def pause() -> dict:
@@ -508,11 +568,11 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
-API = {"status": status, "start": start, "retry": retry, "check": check, "verdict": verdict, "tell": tell, "report": report,
-       "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause, "resume": resume,
-       "file_bug": file_bug, "reset": reset}
+API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "verdict": verdict, "tell": tell,
+       "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
+       "resume": resume, "file_bug": file_bug, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "retry", "check", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "check", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "repair", "check", "pause", "resume", "point", "tell", "reset")

@@ -227,7 +227,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   the runner reads cost, replies and idleness from its JSONL; pane text is never scraped for state; a lock per
   window serialises `tell` with anyone typing. A worker is idle only after it has ANSWERED the latest message: a new
   assistant turn (more turns than before the tell) that ended with no tool call pending. The cost cap stops the
-  worker (Escape, then the window is killed) and a window that died no longer counts toward the coder cap. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
+  worker (Escape, then the window is killed) and a window that died no longer counts toward the coder cap. An API
+  error on the latest turn is read from Pi's structured error, never from prose: a passing one (5xx, overloaded, a
+  timeout) backs off with jitter and is looked at again, up to four times; a 4xx other than 402/429 stops the item
+  at once as `failed`; 402/429 is `rate-limited` and the fallback list moves on. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
 - `pipeline.messages` [OK] — the runner sends a worker its next issue, a check's failure text, a
   verdict or the maintainer's answer with `tell` (lifted from `agent-work/status/briefs/tell.sh`: tmux send-keys,
   text, pause, C-m); the send is not trusted: delivery is confirmed by a new user turn in the session log within
@@ -256,8 +259,9 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   coder's prompt makes the first step a REQUIRED `jdocmunch_search_sections` for the item's spec id (plus
   `plan_turn` for the code) followed by a `pipeline_report` of what it found; when the session log shows no such
   call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8 made 0
-  such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (its
-  behaviour lines, the build order's Behaviours/Tests lines): such a diff is a pinned-checks red; `ask` instead.
+  such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (the text of its
+  behaviour lines and of its step's Behaviours/Tests lines, compared with the status tag and `(#N)` stripped, so
+  flipping [MISSING] to [OK] is allowed): such a diff is a pinned-checks red; `ask` instead.
   Tests:
   `pipeline/tests/test_coder.py::test_pi_command_loads_only_the_pipeline_agent_dir`,
   `pipeline/tests/test_coder.py::test_session_fixture_shows_jcodemunch_and_jdocmunch_calls`,
@@ -332,7 +336,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   item back to `coding`, so a READY can never bind over a red (re-review HIGH N1). A binding NOT_READY sends the item back
   to coding with the findings as its retry text and counts an attempt; `reset <issue>` zeroes attempts the runner
   itself caused; `retry <issue>` runs the item again from the start arguments its record keeps (task, base,
-  from_file), with the red check's or the review's text as the brief's failure section. Claude's verdict binds; the Qwen
+  from_file), with the red check's or the review's text as the brief's failure section, on the fallback list's next
+  worker after a rate-limited stop; it refuses a record without start arguments and names the `repair` to run.
+  `repair <issue> --base --from-file --since` corrects a record by APPENDING journal lines with a note; nobody edits
+  the journal by hand. An unfiled step run from a local file is keyed `<number>@<task>`, so several steps may share
+  "Part of #N" and each is its own item. Claude's verdict binds; the Qwen
   shadow runs beside it (`trial2/shadow/watch-reviews.sh`); once Qwen's precision passes the bar over 30 items
   (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
   Qwen and Claude reviews the batch diff at the gate. The reviewer applies the ponytail lens (shortest working diff,
@@ -422,7 +430,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 | queued | coding | `start` | worktree made off the base; worker window up; brief told | `test_core.py::test_worktree_is_made_off_base_and_removed_with_git` |
 | coding | checked | `check` (or `done` → `check`) | ready check, red-on-base, named tests, gate part, fast guards, contract guards — all green, from the pinned checkout, in the worktree | `test_core.py::test_done_never_moves_state_without_checks` |
 | coding | coding | `check` red | attempt < retries: failure text told to the coder | `test_core.py::test_failed_check_retries_twice_then_needs_maintainer` |
-| coding | needs-maintainer | `check` red | attempts exhausted; or the diff changes a pinned check, adds a file that would run before the checks (`sitecustomize.py`, `.pth`, a stray `conftest.py`, a `scripts/<stdlib>.py`), or rewrites the item's own acceptance in the spec | `test_checks.py::test_diff_touching_check_paths_needs_maintainer` |
+| coding | needs-maintainer | `check` red | attempts exhausted; or the diff changes a pinned check, adds a file that would run before the checks (`sitecustomize.py`, `.pth`, a stray `conftest.py`, a stdlib-named module at `scripts/` or any `python_path` root), or rewrites the item's own acceptance in the spec (a `[TAG]` flip or an added `(#N)` is not a rewrite) | `test_checks.py::test_diff_touching_check_paths_needs_maintainer` |
 | coding | rate-limited | worker log | quota / credit / usage-limit line; the role's list moves on | `test_coder.py::test_one_fallback_list_serves_cost_quota_and_retries` |
 | coding | waiting | budget | memory or cap refused; reason journaled | `test_budget.py::test_item_waits_with_reason_when_memory_is_short` |
 | checked | reviewed | `verdict` | READY from the reviewer role, sha = live head = checked sha | `test_core.py::test_verdict_only_from_reviewer_for_current_sha` |

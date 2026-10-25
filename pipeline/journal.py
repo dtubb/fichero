@@ -14,7 +14,13 @@ def path():
     return STATE / "journal.jsonl"
 
 
+REQUIRED = {"item": ("issue", "task", "title", "window", "worktree", "ids", "key"), "since": ("issue", "task", "sha", "key")}
+
+
 def append(event: str, **fields) -> dict:
+    missing = [k for k in REQUIRED.get(event, ()) if k not in fields]
+    if missing:  # an incomplete item or since line can never be written again (round-3 review)
+        raise ValueError(f"journal {event} line lacks {', '.join(missing)}")
     line = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "event": event, **fields}
     p = path()
     p.parent.mkdir(parents=True, exist_ok=True)

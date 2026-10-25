@@ -42,7 +42,7 @@ def refused(url, path, **kw):
 
 
 def test_api_endpoints_return_their_shape_from_a_fixture_journal(server):
-    journal.append("item", issue=7, task="t", title="seven", window="coder-t", worktree="/wt")
+    journal.append("item", issue=7, key="7", task="t", title="seven", window="coder-t", worktree="/wt", ids=[])
     journal.append("transition", issue=7, to="coding", why="go")
     journal.append("worker", window="coder-t", task="t", role="coder", model="m", session_dir="s", cwd="/wt")
     journal.append("queue", id="q1", kind="ask", text="?", options=["a"], task="t", window="coder-t")

@@ -44,6 +44,24 @@ def test_a_coder_sitecustomize_cannot_green_the_guards(scratch):
     assert r.returncode == 1 and "forbidden" in r.stdout, "the guard ran and saw bad.py; sitecustomize did not exit it"
 
 
+def test_a_stdlib_named_module_at_a_python_path_root_is_red_and_cannot_shadow(scratch):
+    """Round-3 R1: a coder-added pathlib.py at the python_path root (`.` here) gave every guard green."""
+    planted = "import os\nos._exit(0)\n"
+    wt = lane(scratch, "shadow", {**REAL_FIX, "src/bad.py": "# forbidden\n", "pathlib.py": planted})
+    r = checks.run_all(wt, scratch["cfg"])[0]
+    assert r["name"] == "pinned-checks" and not r["ok"] and "pathlib.py" in r["text"]
+    # and even if it slipped through, the isolated runner puts the tree AFTER the stdlib: the guard still runs
+    env = checks.test_env(wt, scratch["cfg"])
+    res = checks.sh(checks.isolated(str(wt / "scripts" / "check_no_bad.py"), env), cwd=wt, env=env)
+    assert res.returncode == 1 and "forbidden" in res.stdout
+
+
+def test_failing_rung_text_is_capped_by_chars_and_lines(scratch):
+    long = "\n".join("x" * 1000 for _ in range(100))
+    out = checks.tail(long)
+    assert len(out.splitlines()) <= 40 and len(out) <= 4000 and max(len(ln) for ln in out.splitlines()) <= 300
+
+
 def test_pth_conftest_and_stdlib_shadow_files_need_maintainer(scratch):
     for name, path in (("pth", "scripts/evil.pth"), ("conftest", "src/conftest.py"), ("shadow", "scripts/json.py")):
         wt = lane(scratch, name, {**REAL_FIX, path: "# planted\n"})
