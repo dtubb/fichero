@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import json
 import shutil
+
+from fichero_server.core.atomic_json import write_json_atomic
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -150,7 +152,7 @@ def _kraken_global(package: str | Path, model_id: str, stamp: dict[str, Any]) ->
     record = {**record, "model_path": str(target),
               "trained": {**record.get("trained", {}), "made_global_from": stamp}}
     recognition_model_dir().mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps(record, indent=1), encoding="utf-8")
+    write_json_atomic(marker, record)
     return {"model_id": model_id, "global_path": str(target), "may_publish": _may_publish(record["trained"])}
 
 
@@ -181,7 +183,7 @@ def _mlx_global(package: str | Path, model_id: str, stamp: dict[str, Any]) -> di
     if isinstance(builds.get("hf"), dict):  # the merged weights stay in the project (or the bucket), never copied
         builds["hf"].pop("merged_here", None)
         builds["hf"]["adapter_here"] = card.get("adapter_path")
-    (dest / TRAINED_CARD).write_text(json.dumps(card, indent=1), encoding="utf-8")
+    write_json_atomic(dest / TRAINED_CARD, card)
     return {"model_id": model_id, "global_path": str(dest), "may_publish": _may_publish(card)}
 
 

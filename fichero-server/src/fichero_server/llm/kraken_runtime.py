@@ -81,6 +81,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
+from fichero_server.core.atomic_json import write_json_atomic
 from fichero_server.db.paths import model_store_root
 from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.media.ocr_geometry import (
@@ -1621,10 +1622,11 @@ def download_recognition_model(
     model_path = str(found[0])
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
-    _marker_path(model_id, home).write_text(
-        json.dumps({**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
-                    "model_path": model_path, "bytes": found[0].stat().st_size}),
-        encoding="utf-8",
+    write_json_atomic(
+        _marker_path(model_id, home),
+        {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
+         "model_path": model_path, "bytes": found[0].stat().st_size},
+        indent=None,
     )
 
 
