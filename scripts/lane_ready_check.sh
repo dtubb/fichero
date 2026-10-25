@@ -28,10 +28,12 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   local py sw
   py=$(git diff --name-only --diff-filter=AM "$base" "$rev" -- '*.py')
   sw=$(git diff --name-only --diff-filter=AM "$base" "$rev" -- '*.swift')
+  # the findings are printed (first 40 lines): a coder told only "ruff failed" fixed the wrong thing twice (2026-10-25)
+  local out
   if [ -n "$py" ] && [ "$rev" = HEAD ]; then
-    echo "$py" | tr '\n' '\0' | xargs -0 ruff check -q >/dev/null 2>&1 || { echo "FAIL: ruff on the changed Python"; fails=$((fails+1)); }; fi
+    out=$(echo "$py" | tr '\n' '\0' | xargs -0 ruff check --output-format concise 2>&1) || { echo "FAIL: ruff on the changed Python"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   if [ -n "$sw" ] && [ "$rev" = HEAD ] && command -v swiftlint >/dev/null; then
-    echo "$sw" | tr '\n' '\0' | xargs -0 swiftlint lint --quiet --strict >/dev/null 2>&1 || { echo "FAIL: swiftlint on the changed Swift"; fails=$((fails+1)); }; fi
+    out=$(echo "$sw" | tr '\n' '\0' | xargs -0 swiftlint lint --quiet --strict 2>&1) || { echo "FAIL: swiftlint on the changed Swift"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   # 5. a source change comes with a test change
   local src tst
   src=$(git diff --name-only "$base" "$rev" -- 'fichero-server/src/*.py' 'fichero/fichero/*.swift' | head -1)

@@ -154,17 +154,23 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
             try:
                 r = sh(isolated(s, env), cwd=tree, env=env, timeout=rung.get("timeout_s", 60))
                 if r.returncode:
-                    bad.append(f"{Path(s).name}: {(r.stdout + r.stderr).strip()[-400:]}")
+                    bad.append(f"{Path(s).name}:\n{tail(r.stdout + r.stderr)}")
             except subprocess.TimeoutExpired:
                 bad.append(f"{Path(s).name}: timeout")
         return not bad, "\n".join(bad) or "all guards green"
     out = []
     for cmd in rung["cmd"] if isinstance(rung["cmd"], list) else [rung["cmd"]]:
         r = sh(fill(cmd, tree, files=" ".join(files)), cwd=tree, env=env)
-        out.append((r.stdout + r.stderr).strip()[-2000:])
+        out.append(tail(r.stdout + r.stderr))
         if r.returncode:
             return False, "\n".join(out)
     return True, "\n".join(out)[-600:]
+
+
+def tail(text: str, lines: int = 40) -> str:
+    """A failing rung's text carries its tool's actual output: the last 40 lines (a coder told only "ruff failed"
+    fixed the wrong thing twice on 2026-10-25)."""
+    return "\n".join(text.strip().splitlines()[-lines:])
 
 
 def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:

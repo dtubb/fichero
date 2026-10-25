@@ -155,6 +155,15 @@ def test_checks_cwd_is_the_scratch_tree_of_the_worktree(scratch):
         checks.drop_tree(wt, tree)
 
 
+def test_a_ruff_failure_names_the_file_line_and_rule(scratch):
+    """Two coders fixed the wrong thing on 2026-10-25 because the retry text said only 'ruff failed'."""
+    wt = lane(scratch, "lint", {**REAL_FIX, "tests/test_1.py": "import os\nfrom src.mod import f1\n\ndef test_f1():\n    assert f1() == 1\n"})
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
+    assert not r["ready"]["ok"]
+    assert "tests/test_1.py:1:8" in r["ready"]["text"] and "F401" in r["ready"]["text"] and "`os` imported but unused" in r["ready"]["text"]
+    assert len(r["ready"]["text"].splitlines()) <= 45
+
+
 def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):
     wt = lane(scratch, "author", REAL_FIX, author="someone@example.com", msg="no issue")
     r = checks.run_all(wt, scratch["cfg"])[1]
