@@ -203,7 +203,7 @@ runs and lets the activity system remake exactly what a correction touched.
   today. It is the natural base for a recipe's profile and for overrides.
 - **Fichero's own licence is the GNU Affero GPL, version 3** (`LICENSE` at the root).
 - **No project settings.** Nothing between the app and a document carries settings. First-run
-  onboarding (`fichero/fichero/Views/Onboarding/FirstRunWindow.swift`) makes a library and asks
+  onboarding (`fichero/fichero/Views/Onboarding/FirstRun/FirstRunWindow.swift`) makes a library and asks
   about permissions and AI providers; it asks nothing about purpose, languages, scripts or
   period.
 - **Folder watching exists** for automation triggers (`workflows/file_watcher.py`, on

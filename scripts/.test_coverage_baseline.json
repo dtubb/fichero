@@ -2166,7 +2166,7 @@
       "Views/Chat/ModelComparison/ModelResultCard.swift::ModelResultCard",
       "Views/Chat/ModelComparison/NodeComparisonSheet.swift::NodeComparisonSheet",
       "Views/Chat/ModelComparison/PresetPickerSheet.swift::PresetPickerSheet",
-      "Views/Onboarding/FirstRunWindow.swift::FirstRunWindow",
+      "Views/Onboarding/FirstRun/FirstRunWindow.swift::FirstRunWindow",
       "Views/Chat/Research/ResearchBrowserPane.swift::ResearchBrowserPane",
       "Views/Chat/Research/ResearchChatPane.swift::ResearchChatPane",
       "Views/Chat/Research/ResearchProjectListView.swift::ResearchProjectListView",
