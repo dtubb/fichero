@@ -137,7 +137,7 @@ STAGES: tuple[Stage, ...] = (
           (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
-          "Makes the pages searchable by meaning as well as by their words.",
+          "Makes the pages searchable by meaning as well as by their words. What is embedded is each page's text as read (line by line, or given whole) and, separately, the claims and entities found in it; one search model serves the whole project.",
           "Searching “historia” finds the lines that say “Historia”.",
           (),
           needs=("read",)),
