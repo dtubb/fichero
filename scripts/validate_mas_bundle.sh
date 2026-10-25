@@ -117,8 +117,7 @@ fi
 # ── 2. Every nested executable is sandboxed (90296) ───────────────────────────
 # By Mach-O TYPE, not by path — the whole point of the fm-bridge rejection is that
 # the offender was somewhere nobody thought to look.
-EXECS="$(find "$APP" -type f -exec file {} + 2>/dev/null \
-  | LC_ALL=C awk -F': ' '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u)"
+EXECS="$("$(dirname "$0")/list_machos.sh" "$APP" --executables)"
 
 EXEC_COUNT=0
 UNSANDBOXED=0

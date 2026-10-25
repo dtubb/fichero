@@ -253,6 +253,12 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw>
 
 Do not run that command in the script; it needs the local login password.
 
+**Every nested Mach-O is signed and every executable sandboxed (ITMS-90296, #6132).** The App Store archive's signing and
+validation sweeps list the engine's Mach-O files with `scripts/list_machos.sh` (one `file -f`, no argument limit), never with
+`find -exec file {} +`: under xcodebuild's large environment that batched exec overflowed and the embed phase signed 8 of
+about 871 files, so `torch/bin/protoc` shipped unsandboxed. The helper fails when it lists fewer Mach-O files than the tree has
+`.so`/`.dylib` files. Guard: `fichero-server/tests/unit/scripts/test_list_machos.py`.
+
 ## Troubleshooting
 
 DMG notarization:

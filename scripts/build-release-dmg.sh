@@ -165,9 +165,7 @@ fi
 # how two release runs died today, both at this line. C locale treats input as
 # bytes, which is all this filter needs.
 macho_list="$(mktemp)"
-find "$APP" -type f -exec file {} + 2>/dev/null \
-  | LC_ALL=C awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
-  | sort -u > "$macho_list"
+"$(dirname "$0")/list_machos.sh" "$APP" > "$macho_list"
 macho_count=$(wc -l < "$macho_list" | tr -d ' ')
 echo "  $macho_count Mach-O binaries to sign (Developer ID + hardened runtime + secure timestamp)"
 
