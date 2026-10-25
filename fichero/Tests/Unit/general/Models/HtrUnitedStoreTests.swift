@@ -8,7 +8,7 @@ struct HtrUnitedStoreTests {
     private func dataset(as uses: [String]) throws -> Components.Schemas.HtrUnitedDataset {
         let json = """
         {"title":"T","url":"https://example.org","description":"d","languages":["la"],"scripts":["Latn"],
-         "handwriting":true,"format":"PAGE","licence":{"name":"CC-BY","url":""},"as":\(uses.map { "\"\($0)\"" }),
+         "handwriting":true,"format":"PAGE","licence":{"name":"CC-BY","url":""},"as":[\(uses.map { "\"\($0)\"" }.joined(separator: ","))],
          "importable":true}
         """
         return try JSONDecoder().decode(Components.Schemas.HtrUnitedDataset.self, from: Data(json.utf8))
