@@ -1426,7 +1426,7 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
             from fichero_server.workflows.run_account import PageFailure
 
             counted = {f.document_id for f in lost}
-            for page, reason in failed_reads(db, documents):
+            for page, reason in failed_reads(db, documents, mark_blank=True):
                 if page not in counted:
                     doc = db.get(Document, page)
                     lost.append(PageFailure(page=doc.name if doc else page, document_id=page, reason=reason))
