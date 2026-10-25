@@ -23,6 +23,29 @@ The pieces were built a year ago and never joined: `choose_next.py` (pick work),
 done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
 report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
 
+## Where it lives: fichero-skills, for every project
+
+The conductor is general: the same loop serves the other repos in `~/code` that use fichero-skills (about a dozen;
+the code ones track GitHub issues). It is built once as a plugin, `fichero-skills/plugins/fs_conductor/` (scripts:
+`conductor.py`, `choose.py`, `brief_lint.py`, `ready_check.sh`, `jail_run.sh`, `close_on_push.py`; thin skills that
+call them; a brief template and a config template). Each project opts in with `.fichero/conductor.toml` (repo, base
+branch, gate command, test machine, label names, size-to-model table, cost cap); with no config file the plugin
+refuses to run. Fichero is the first project: its `choose_next.py`, `close_fixed_issues.py`, `run.sh` and
+`lane_ready_check.sh` move into the plugin, generalised; its engine gate, spec-tag guards, test-machine queue and
+Actions workflows stay in this repo.
+
+**The last attempt, `fs_autoloop` (May–Sept 2026, removed in fichero-skills b1c9ed2), and what changes:** its state was
+a markdown queue the model and sed edited; "done" was the model's report, later guessed from the HEAD commit; the loop
+was driven by prompts; there was no jail, no machine check and no per-issue brief; it ran free-tier Qwen. The
+conductor keeps state in script-owned JSON, decides done only by the machine check, drives the loop in code, jails
+the worker, and lints the brief first.
+
+**Adopt before building:** a second survey (2026-10-25) found one candidate worth a day: Bernstein (Apache-2.0; a plain
+Python scheduler, no LLM scheduling; per-task worktrees; lint/test gates; retry or another model on failure; Qwen and
+Ollama adapters; a dashboard). Missing: a GitHub-issues task source and a Pi adapter; one maintainer, beta. Plan: a
+one-day trial on one repo; if it holds, write its GitHub-issues source and use `ready_check.sh` as its gate; if not,
+build v1 thin and borrow its rules (and Issue-Orchestrator's: re-check state, never trust the agent's done).
+
 ## Who does what
 
 - **The maintainer + Claude Opus (interactive, a personal plan):** talk, decide, write and approve specs, handle
