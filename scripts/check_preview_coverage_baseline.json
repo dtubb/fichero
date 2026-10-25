@@ -149,7 +149,7 @@
   "Library/ViewModes/Table/LibraryContentKindControl.swift": "declares a View, no #Preview",
   "Library/Workspace/LibraryWorkspaceRoot.swift": "declares a View, no #Preview",
   "Library/Workspace/WorkspaceItemPicker.swift": "declares a View, no #Preview",
-  "Onboarding/FirstRunWindow.swift": "declares a View, no #Preview",
+  "Onboarding/FirstRun/FirstRunWindow.swift": "declares a View, no #Preview",
   "Preview/DocumentCanvas.swift": "declares a View, no #Preview",
   "Preview/EntrySourcePreview.swift": "declares a View, no #Preview",
   "Preview/FolderContentsPreview.swift": "declares a View, no #Preview",

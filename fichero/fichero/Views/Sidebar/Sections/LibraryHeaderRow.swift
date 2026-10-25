@@ -157,7 +157,7 @@ struct LibraryHeaderRow: View {
         let packageURL = library.url
         onClose()
         do {
-            try FileManager.default.trashItem(at: packageURL, resultingItemURL: nil)
+            try LibraryManager.trashPackage(at: packageURL)
         } catch {
             libraryHeaderLogger.error(
                 "Delete Library: trash failed for \(packageURL.path): \(error.localizedDescription)"
