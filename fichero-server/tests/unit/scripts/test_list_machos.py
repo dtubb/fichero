@@ -1,7 +1,8 @@
-"""The Mach-O sweep behind the MAS signing phase sees every binary, even under xcodebuild's huge environment (#6132).
+"""The Mach-O sweep behind the MAS signing phase sees every binary, even under a large environment (#6132).
 
-The 2026.10.24 Mac TestFlight archive failed ITMS-90296: the embed phase signed 8 of ~871 Mach-Os because its
-`find -exec file {} +` overflowed the argument list under the inherited environment, with the errors hidden.
+The 2026.10.24 Mac TestFlight archive failed ITMS-90296: the embed phase signed 8 of ~871 Mach-Os. The cause is
+unconfirmed (an argument-list overflow was suspected, but the old find lists all of them under a 1 MB environment), so
+this pins the replacement: every binary listed, a short list fails, no batched exec left.
 """
 
 from __future__ import annotations
