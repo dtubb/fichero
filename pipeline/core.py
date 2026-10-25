@@ -65,6 +65,8 @@ def state() -> dict:
         elif ev == "retry" and it:  # a binding NOT_READY: counts as an attempt, its findings are the retry text
             it["attempts"] += 1
             it["retry_text"] = e["text"]
+        elif ev == "reset" and it:  # the maintainer: the attempts so far were the runner's fault, not the coder's
+            it["attempts"] = 0
         elif ev == "verdict" and it:
             it["verdicts"].append({k: e[k] for k in ("sha", "verdict", "by", "findings")})
         elif ev == "cost" and it:
@@ -164,7 +166,8 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              f"5. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
-             f"6. When committed, call the `done` tool with task `{task}`. Use `ask` for a question (the maintainer answers), `report` for progress.",
+             f"6. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
+             "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
              "7. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
     return "\n".join(text)
 
@@ -177,7 +180,8 @@ def _worktree(task: str, base: str | None = None) -> Path:
     wt = Path(c["repo"]["path"]) / c["repo"]["worktrees"] / task
     if not wt.exists():
         journal.append("intent", task=task, what="worktree", ref=str(wt))
-        if "/" in base:
+        remotes = checks.git(c["repo"]["path"], "remote").split()
+        if base.split("/")[0] in remotes:  # a remote-tracking base is refreshed first; a local branch is used as is
             subprocess.run(["git", "fetch", "-q", base.split("/")[0]], cwd=c["repo"]["path"], check=False)
         checks.git(c["repo"]["path"], "worktree", "add", "-q", "-b", f"pipeline/{task}", str(wt), base)
         subprocess.run(["git", "config", "extensions.worktreeConfig", "true"], cwd=wt, check=False, capture_output=True)
@@ -428,6 +432,14 @@ def point(milestone: str) -> dict:
     return {"point": milestone}
 
 
+def reset(issue: int, why: str = "") -> dict:
+    """The maintainer zeroes an item's attempts when the reds were the runner's fault, not the coder's."""
+    if str(issue) not in state()["items"]:
+        raise KeyError(f"#{issue} is not an item")
+    journal.append("reset", issue=issue, text=why)
+    return {"issue": issue, "attempts": 0}
+
+
 def pause() -> dict:
     journal.append("pause")
     return {"paused": True}
@@ -451,9 +463,10 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
 API = {"status": status, "start": start, "check": check, "verdict": verdict, "tell": tell, "report": report, "ask": ask,
-       "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause, "resume": resume, "file_bug": file_bug}
+       "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause, "resume": resume, "file_bug": file_bug,
+       "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "check", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "check", "pause", "resume", "point", "tell")
+WORKER_FORBIDDEN = ("verdict", "answer", "start", "check", "pause", "resume", "point", "tell", "reset")

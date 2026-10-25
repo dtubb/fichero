@@ -222,6 +222,17 @@ def test_ask_queues_and_answer_is_told_to_the_right_window(scratch, monkeypatch)
     assert core.queue() == []
 
 
+def test_reset_zeroes_attempts_but_keeps_the_retry_text(scratch, issues, fake_coder):
+    fake_coder("bad")
+    core.start([1001])  # three red attempts
+    it = core.state()["items"]["1001"]
+    assert it["attempts"] == 3 and "NOT RED ON BASE" in it["retry_text"]
+    core.reset(1001, "the runner's fault")
+    it = core.state()["items"]["1001"]
+    assert it["attempts"] == 0 and "NOT RED ON BASE" in it["retry_text"]
+    assert "reset" in core.WORKER_FORBIDDEN
+
+
 def test_point_is_journaled_and_read_by_the_feeder(scratch):
     core.point("demo")
     assert core.state()["point"] == "demo"

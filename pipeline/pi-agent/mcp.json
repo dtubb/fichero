@@ -14,7 +14,8 @@
     },
     "pipeline": {
       "command": "pipeline-mcp",
-      "lifecycle": "eager"
+      "lifecycle": "eager",
+      "directTools": ["report", "ask", "done", "verdict"]
     }
   }
 }

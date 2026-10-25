@@ -23,15 +23,19 @@ def build(role: str):
 
 
 def _wrap(fn):
-    def tool(**kwargs) -> str:
-        try:
-            return json.dumps(fn(**kwargs), default=str)
-        except Exception as e:  # noqa: BLE001 - the model gets the error text, the state does not move
-            return json.dumps({"error": f"{type(e).__name__}: {e}"})
+    import inspect
 
+    def tool(**kwargs):
+        try:
+            return json.loads(json.dumps(fn(**kwargs), default=str))  # plain JSON types, whatever the function returns
+        except Exception as e:  # noqa: BLE001 - the model gets the error text, the state does not move
+            return {"error": f"{type(e).__name__}: {e}"}
+
+    # the parameters are the function's; the return annotation is dropped, or FastMCP would validate a `dict`
+    # declaration against the list that `queue` returns (seen live on 2026-10-25 as a string-vs-dict error)
     tool.__name__, tool.__doc__ = fn.__name__, fn.__doc__
-    tool.__signature__ = __import__("inspect").signature(fn)
-    tool.__annotations__ = dict(getattr(fn, "__annotations__", {}))
+    tool.__signature__ = inspect.signature(fn).replace(return_annotation=inspect.Signature.empty)
+    tool.__annotations__ = {k: v for k, v in getattr(fn, "__annotations__", {}).items() if k != "return"}
     return tool
 
 

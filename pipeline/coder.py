@@ -179,7 +179,10 @@ def parse_session(path: Path) -> dict:
                 c.get("type") in ("toolCall", "tool_use") for c in content)
             for c in content:
                 if c.get("type") in ("toolCall", "tool_use"):
-                    out["tool_calls"][c.get("name", "?")] += 1
+                    name, args = c.get("name", "?"), c.get("arguments") or c.get("input") or {}
+                    if name == "mcp" and isinstance(args, dict):  # the adapter's generic call: the real tool is inside
+                        name = args.get("tool") or f"mcp:{args.get('server', '?')}"
+                    out["tool_calls"][name] += 1
                 elif c.get("type") == "text" and c.get("text"):
                     out["last_text"] = c["text"]
                     if re.search(r"usage limit|rate limit|out of credits|insufficient", c["text"], re.I):

@@ -33,6 +33,7 @@ COMMANDS = {
     "tell": [("window", {}), ("text", {})],
     "answer": [("qid", {}), ("text", {})],
     "point": [("milestone", {})],
+    "reset": [("issue", {"type": int}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
     "serve": [("--port", {"type": int, "default": 8765})],
 }
