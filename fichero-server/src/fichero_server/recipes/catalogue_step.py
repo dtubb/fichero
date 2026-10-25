@@ -21,21 +21,23 @@ def _is_folder(doc: Any) -> bool:
 
 
 def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
-    """The folders above these pages (all the way up), deepest first; each once."""
+    """The folders above these pages (all the way up), deepest first; each once. The documents are read once, not one
+    read a page and a parent."""
     from fichero_server.models import Document
 
+    nodes = {d.id: d for d in db.query(Document)}
     seen: dict[str, Any] = {}
     for page_id in page_ids:
-        node = db.get(Document, page_id)
+        node = nodes.get(page_id)
         while node is not None and node.parent_id:
-            node = db.get(Document, node.parent_id)
+            node = nodes.get(node.parent_id)
             if node is not None and _is_folder(node) and not node.deleted_at:
                 seen.setdefault(node.id, node)
     depth: dict[str, int] = {}
 
     def level(doc: Any) -> int:
         if doc.id not in depth:
-            parent = db.get(Document, doc.parent_id) if doc.parent_id else None
+            parent = nodes.get(doc.parent_id) if doc.parent_id else None
             depth[doc.id] = 0 if parent is None else 1 + level(parent)
         return depth[doc.id]
 
