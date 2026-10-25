@@ -342,6 +342,19 @@ def test_resume_after_kill_between_intent_and_done(scratch, issues, fake_coder):
     assert len(journal.read()) == before
 
 
+def test_retry_after_a_rate_limited_stop_takes_the_next_worker(scratch, issues, fake_coder, monkeypatch):
+    """One ordered fallback list per role: a 402 on Qwen means the retry runs on the next entry (Sonnet)."""
+    fc = fake_coder()
+    stopped = dict(cost_usd=0.0, tokens=0, tool_calls={}, idle=False, last_text="", rate_limited=True, model="qwen/x",
+                   turns=1, prompts=1, started=True)
+    monkeypatch.setattr(core.coder, "wait_idle", lambda *a, **k: stopped)
+    assert core.start([1001])["items"][1001] == "rate-limited"
+    monkeypatch.setattr(core.coder, "wait_idle", fc.wait_idle)
+    assert core.retry(1001)["items"][1001] == "checked"
+    models = [e["model"] for e in journal.read() if e["event"] == "worker"]
+    assert models == ["openrouter/qwen/x", "anthropic/claude-sonnet-4-5"]
+
+
 def test_cost_cap_stops_the_worker_and_moves_to_the_fallback(scratch, issues, fake_coder, monkeypatch):
     """Review MED 8: on the cap the window is stopped, not left spending."""
     fc = fake_coder()

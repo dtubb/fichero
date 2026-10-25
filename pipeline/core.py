@@ -249,14 +249,19 @@ def start(issues: list[int], milestone: str | None = None, task: str | None = No
         return _start(issues, milestone, task, worker_index, from_file, base)
 
 
-def retry(issue: int) -> dict:
+def retry(issue: int, worker: int | None = None) -> dict:
     """Run the item again with the start arguments its record keeps (task, base, from_file, milestone); the brief
-    carries the retry text from the red check or the NOT_READY review (dogfood 5)."""
+    carries the retry text from the red check or the NOT_READY review (dogfood 5). The worker is the next entry of
+    the role's fallback list after each rate-limited stop, unless given."""
     it = state()["items"].get(str(issue))
     if not it:
         raise KeyError(f"#{issue} is not an item")
     a = it["start_args"]
-    return start([issue], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"))
+    if worker is None:
+        stops = sum(1 for h in it["history"] if " rate-limited:" in h)
+        worker = min(stops, len(cfg()["roles"]["coder"]) - 1)
+    return start([issue], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"),
+                 worker_index=worker)
 
 
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
