@@ -351,15 +351,34 @@ FAILED_READ_REASONS = frozenset({NOTHING_FOR_PAGE, MOSTLY_NOTHING_FOR_PAGE})
 NOT_ANSWERED = "no reader has answered for the line: the read step did not reach it, or ended before it did"
 
 
-def failed_reads(db: Any, pages: list[str]) -> list[tuple[str, str]]:
+def failed_reads(db: Any, pages: list[str], mark_blank: bool = False) -> list[tuple[str, str]]:
     """(page id, why) for each of these pages the reader failed: every unread line of it carries a failed-read reason
-    (the reader gave no text for all of its lines, or for most). Such a page is a lost page of its step, not a read one."""
+    (the reader gave no text for all of its lines, or for most). Such a page is a lost page of its step, not a read one.
+
+    A blank page is no failure (#6130): a cover, a flyleaf or the back of a leaf comes back empty because there is
+    nothing on it. Before the reader is blamed, a page whose image holds almost no ink is marked `blank` (the sorting's
+    own rule, `sorting.kinds`; a page attribute the person can see and change) when `mark_blank` is set, and a page
+    called blank, by sorting or by a person, is left out of the failures. "May not suit this hand" is said only of a
+    page with ink."""
     out = []
     for page in pages:
         reasons = set(unread_reasons(db, page).values())
         if reasons and reasons <= FAILED_READ_REASONS:
             out.append((page, MOSTLY_NOTHING_FOR_PAGE if MOSTLY_NOTHING_FOR_PAGE in reasons else NOTHING_FOR_PAGE))
-    return out
+    if out and mark_blank:
+        from fichero_server.recipes import sorting
+
+        sorting.kinds(db, [page for page, _ in out], [])
+    return [(page, why) for page, why in out if not _called_blank(db, page)]
+
+
+def _called_blank(db: Any, page: str) -> bool:
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+
+    doc = db.get(Document, page)
+    attrs = doc.attributes if doc is not None and isinstance(doc.attributes, dict) else {}
+    return attrs.get(sorting.KIND) == sorting.BLANK
 
 
 def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
