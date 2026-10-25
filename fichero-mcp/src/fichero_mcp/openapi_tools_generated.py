@@ -7443,6 +7443,23 @@ def fichero_search_put_embedding_choice(
     return _rt.call("PUT", "/api/search/embedding", json=_rt.body({"model": model}))
 
 
+def fichero_search_start_embedding_change(
+    *,
+    confirm: Annotated[Optional[bool], Field(description='true once the person has seen the plan: pages, time and cost. Default: false.')] = None,
+    model: Annotated[str, Field(description='Model.')],
+) -> Any:
+    "Start Embedding Change\n\nStart the re-embed run that changes the project's embedding model: the one `reindex` job (its progress shows in\nActivity), migrating to `body.model` in a shadow and swapping it in whole. `confirm` must be true: the plan comes first.\n\nRoute: POST /api/search/embedding/change (toolset `search`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/search/embedding/change", json=_rt.body({"confirm": confirm, "model": model}))
+
+
+def fichero_search_get_embedding_change_plan(
+    *,
+    model: Annotated[str, Field(description='Model')],
+) -> Any:
+    'Get Embedding Change Plan\n\nPages, time and cost of re-embedding every page with `model`, before anything runs\n(`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes.\n\nRoute: GET /api/search/embedding/change-plan (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding/change-plan", params={"model": model})
+
+
 def fichero_search_explanation_explain(
     *,
     limit: Annotated[Optional[int], Field(description='Limit. Default: 10.')] = None,
@@ -9904,6 +9921,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_search_embed_document", "search", "POST", "/api/search/embed/{doc_id}", fichero_search_embed_document),
     GeneratedTool("fichero_search_get_embedding_choice", "search", "GET", "/api/search/embedding", fichero_search_get_embedding_choice),
     GeneratedTool("fichero_search_put_embedding_choice", "search", "PUT", "/api/search/embedding", fichero_search_put_embedding_choice),
+    GeneratedTool("fichero_search_start_embedding_change", "search", "POST", "/api/search/embedding/change", fichero_search_start_embedding_change),
+    GeneratedTool("fichero_search_get_embedding_change_plan", "search", "GET", "/api/search/embedding/change-plan", fichero_search_get_embedding_change_plan),
     GeneratedTool("fichero_search_explanation_explain", "search-explanation", "POST", "/api/search/explain", fichero_search_explanation_explain),
     GeneratedTool("fichero_search_explanation_explain_path", "search-explanation", "GET", "/api/search/explain/{query}", fichero_search_explanation_explain_path),
     GeneratedTool("fichero_search_keyword_cloud", "search", "GET", "/api/search/keywords", fichero_search_keyword_cloud),

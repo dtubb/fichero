@@ -30302,6 +30302,91 @@
         }
       }
     },
+    "/api/search/embedding/change-plan": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Get Embedding Change Plan",
+        "description": "Pages, time and cost of re-embedding every page with `model`, before anything runs\n(`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes.",
+        "operationId": "get_embedding_change_plan_api_search_embedding_change_plan_get",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChangePlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/embedding/change": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Start Embedding Change",
+        "description": "Start the re-embed run that changes the project's embedding model: the one `reindex` job (its progress shows in\nActivity), migrating to `body.model` in a shadow and swapping it in whole. `confirm` must be true: the plan comes first.",
+        "operationId": "start_embedding_change_api_search_embedding_change_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingChangeStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChangeStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/model-profiles": {
       "get": {
         "tags": [
@@ -64083,6 +64168,112 @@
           "table"
         ],
         "title": "EmbedEntitiesResponse"
+      },
+      "EmbeddingChangePlan": {
+        "properties": {
+          "from_model": {
+            "type": "string",
+            "title": "From Model"
+          },
+          "to_model": {
+            "type": "string",
+            "title": "To Model"
+          },
+          "same": {
+            "type": "boolean",
+            "title": "Same"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "passages": {
+            "type": "integer",
+            "title": "Passages"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "seconds_estimate": {
+            "type": "integer",
+            "title": "Seconds Estimate"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          },
+          "keeps_old_vectors_until_done": {
+            "type": "boolean",
+            "title": "Keeps Old Vectors Until Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_model",
+          "to_model",
+          "same",
+          "pages",
+          "passages",
+          "entities",
+          "claims",
+          "seconds_estimate",
+          "cost_usd",
+          "runs_on",
+          "keeps_old_vectors_until_done"
+        ],
+        "title": "EmbeddingChangePlan",
+        "description": "What re-embedding the project with another model would do, said before it runs (#6122)."
+      },
+      "EmbeddingChangeStartRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "description": "true once the person has seen the plan: pages, time and cost",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "EmbeddingChangeStartRequest"
+      },
+      "EmbeddingChangeStarted": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "job_id",
+          "message"
+        ],
+        "title": "EmbeddingChangeStarted"
       },
       "EmbeddingChoiceRequest": {
         "properties": {

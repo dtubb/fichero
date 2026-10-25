@@ -15726,6 +15726,40 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("start-embedding-change")
+    def search_start_embedding_change_post(
+        ctx: typer.Context,
+        confirm: Optional[bool] = typer.Option(None, '--confirm/--no-confirm', help='true once the person has seen the plan: pages, time and cost. Default: false.'),
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Start Embedding Change (POST /api/search/embedding/change)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/change"
+            params = None
+            payload = _build_json_payload({
+                "confirm": confirm,
+                "model": model,
+            }, {
+                "confirm": {'type': 'boolean', 'title': 'Confirm', 'description': 'true once the person has seen the plan: pages, time and cost', 'default': False, 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-embedding-change-plan")
+    def search_get_embedding_change_plan_get(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Get Embedding Change Plan (GET /api/search/embedding/change-plan)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/change-plan"
+            params = {
+                "model": model,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("explain-a-query", hidden=True)
     @target_app.command("explain")
     def search_explain_post(

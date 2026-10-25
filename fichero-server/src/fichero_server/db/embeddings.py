@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 # thousands per call and the Air's jetsam killed the engine three times.
 _EMBED_SLICE = 64
 
+#: What a change of embedding model is estimated with (`embedding_change_plan`): a passage is about this many characters
+#: (`split_text_passages`), and a model reads about this many passages a second on an Apple-silicon Mac (an estimate, said
+#: as one; the run's own progress is the measure).
+EMBED_PASSAGE_CHARS = 432
+EMBED_PASSAGES_PER_SECOND = {"BAAI/bge-m3": 6.0, "intfloat/multilingual-e5-large": 10.0, "": 6.0}
+
 # Default embedding model (FastEmbed - no scikit-learn dependency).
 #
 # NOTE: The default stays pinned to multilingual-e5-large until Fichero has an
@@ -953,8 +959,14 @@ class DatabaseEmbeddingMixin:
         include_entities: bool = True,
         include_claims: bool = True,
         mode: Literal["passage", "page"] = "passage",
+        to_model: str | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> dict[str, Any]:
         """Explicitly rebuild embedding tables for the active embedding space.
+
+        With `to_model` naming ANOTHER space, this is the project's model change (`search.embedding.change-is-a-re-embed-run`,
+        #6122): the new vectors are built in a shadow folder while search keeps reading the old ones, then swapped in whole,
+        and only then is the project's choice written. The same model (or none) is the destructive in-place rebuild below.
 
         This is intentionally destructive and opt-in: selected LanceDB vector
         tables are dropped before being rebuilt from DuckDB source records. It
@@ -968,6 +980,13 @@ class DatabaseEmbeddingMixin:
             )
 
         from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+        if to_model is not None:
+            target = SUPPORTED_EMBEDDING_SPACES.get(to_model.lower())
+            if target is None:
+                raise ValueError(f"{to_model!r} is not an embedding model Fichero supports")
+            if target != self._get_embedding_space():
+                return self._migrate_to_other_space(target, mode=mode, on_progress=on_progress)
 
         before = self.embedding_table_model_ids()
         table_names: list[str] = []
@@ -1031,17 +1050,122 @@ class DatabaseEmbeddingMixin:
             "after": after,
         }
 
+    def _embed_pages_unless_current(self, on_progress: Callable[[int, int], None] | None, batch_size: int = 32) -> int:
+        """Every page that has no current vector in this object's space, in batches; a page whose vector already carries this
+        space's model id and text is left (a run stopped part-way, or the pages arrived during one). The number embedded."""
+        from fichero_server.models import Document
+
+        docs = self.all(Document)
+        total, embedded = len(docs), 0
+        for start in range(0, total, batch_size):
+            _current, done, _wanted = self.embed_many_unless_current(docs[start : start + batch_size])
+            embedded += done
+            if on_progress:
+                on_progress(min(start + batch_size, total), total)
+        return embedded
+
+    def embedding_change_plan(self, to_model: str) -> dict[str, Any]:
+        """What changing the project's embedding model would do, said before anything runs (#6122): the pages, entities and
+        claims to embed again, a time estimate, and the cost (none: the model runs on this Mac)."""
+        from fichero_server.models import Document
+        from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+        target = SUPPORTED_EMBEDDING_SPACES.get(to_model.lower())
+        if target is None:
+            raise ValueError(f"{to_model!r} is not an embedding model Fichero supports")
+        texts = [self._embedding_text_for_document(doc) or "" for doc in self.all(Document)]
+        pages = sum(1 for text in texts if text)
+        passages = sum(max(1, len(text) // EMBED_PASSAGE_CHARS) for text in texts if text)
+        entities, claims = len(self.all(KnowledgeEntity)), len(self.all(KnowledgeClaim))
+        rate = EMBED_PASSAGES_PER_SECOND.get(target.source_model_name, EMBED_PASSAGES_PER_SECOND[""])
+        return {
+            "from_model": self._get_embedding_space().source_model_name, "to_model": target.source_model_name,
+            "same": target == self._get_embedding_space(),
+            "pages": pages, "passages": passages, "entities": entities, "claims": claims,
+            "seconds_estimate": int((passages + entities + claims) / rate) + 1,
+            "cost_usd": 0.0, "runs_on": "this-mac", "keeps_old_vectors_until_done": True,
+        }
+
+    def _migrate_to_other_space(
+        self, target: EmbeddingSpaceSpec, *, mode: Literal["passage", "page"],
+        on_progress: Callable[[int, int], None] | None,
+    ) -> dict[str, Any]:
+        """Build every vector in `target`'s space beside the live ones, then swap them in whole. Search reads the old vectors
+        until the swap; a run stopped part-way leaves its shadow to be carried on, and a page whose new vector is already
+        written is not embedded again. Pages added while it ran are caught up after the swap."""
+        import copy
+        import shutil
+
+        from fichero_server.db.embedding_choice import write_choice
+        from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+        tables = (EMBEDDINGS_TABLE, KG_ENTITY_EMBEDDINGS_TABLE, KG_CLAIM_EMBEDDINGS_TABLE)
+        package = Path(str(self.path)).parent
+        before = self.embedding_table_model_ids()
+        shadow = copy.copy(self)  # same records, its own vector folder and its own (new) space
+        shadow._lance_path = self._lance_path.with_name(self._lance_path.name + "-next")
+        shadow._lance_db = None
+        shadow._lance_lock = threading.RLock()
+        shadow._embedding_space_override = target
+        shadow._embedder = None
+        documents_indexed = shadow._embed_pages_unless_current(on_progress)
+        entities = self.all(KnowledgeEntity)
+        claims = self.all(KnowledgeClaim)
+        entities_indexed = shadow.embed_entities(entities) if entities else 0
+        claims_indexed = shadow.embed_claims(claims) if claims else 0
+
+        retired = self._lance_path.with_name(self._lance_path.name + "-old")
+        with self._lance_lock:
+            shadow._lance_db = None
+            if retired.exists():
+                shutil.rmtree(retired)
+            self._lance_path.rename(retired)
+            for other in retired.glob("*.lance"):  # a table that is not an embedding table is carried over as it was
+                if other.name[: -len(".lance")] not in tables and not (shadow._lance_path / other.name).exists():
+                    shutil.copytree(other, shadow._lance_path / other.name)
+            shadow._lance_path.mkdir(parents=True, exist_ok=True)
+            shadow._lance_path.rename(self._lance_path)
+            self._lance_db = None
+            write_choice(package, target.source_model_name)
+            self._embedding_space_cache = None
+            self._embedder = None
+        shutil.rmtree(retired, ignore_errors=True)
+
+        caught_up = self._embed_pages_unless_current(None)  # pages that arrived during the run: embedded now, in the new space
+        if entities:
+            self.embed_entities(self.all(KnowledgeEntity))
+        if claims:
+            self.embed_claims(self.all(KnowledgeClaim))
+        return {
+            "embedding_model_id": self._get_embedding_model_id(),
+            "documents_indexed": documents_indexed,
+            "entities_indexed": entities_indexed,
+            "claims_indexed": claims_indexed,
+            "caught_up_documents": caught_up,
+            "stale_rows_swept": 0,
+            "before": before,
+            "after": self.embedding_table_model_ids(),
+        }
+
     def _get_embedding_model_name(self) -> str:
         """Return the configured source model name for the local embedding space."""
         return self._get_embedding_space().source_model_name
 
     def _get_embedding_space(self) -> EmbeddingSpaceSpec:
         """Return the explicit embedding-space contract: the project's own choice (#6122), else the engine's default."""
+        override = getattr(self, "_embedding_space_override", None)
+        if override is not None:  # the shadow a re-embed run builds in: the new model, while search stays on the old
+            return override
+        path = getattr(self, "path", None)
+        package = Path(str(path)).parent if path else None
+        try:
+            stamp = (package / "embedding.json").stat().st_mtime_ns if package else None
+        except OSError:
+            stamp = None  # no choice file: the default
         cached = getattr(self, "_embedding_space_cache", None)
-        if cached is None:  # embedding.json is read once per open library; the choosing action clears it
-            path = getattr(self, "path", None)
-            cached = self._embedding_space_cache = library_embedding_space(Path(str(path)).parent if path else None)
-        return cached
+        if cached is None or cached[0] != stamp:  # keyed on embedding.json, so every open connection sees a change
+            cached = self._embedding_space_cache = (stamp, library_embedding_space(package))
+        return cached[1]
 
     def _get_embedding_model_id(self) -> str:
         """Return the stamped model-id for newly written vectors."""

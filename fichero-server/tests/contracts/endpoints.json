@@ -10717,6 +10717,32 @@
       },
       {
         "method": "POST",
+        "path": "/search/embedding/change",
+        "operation_id": "start_embedding_change_api_search_embedding_change_post",
+        "summary": "Start Embedding Change",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EmbeddingChangeStartRequest",
+        "response_model": "EmbeddingChangeStarted"
+      },
+      {
+        "method": "GET",
+        "path": "/search/embedding/change-plan",
+        "operation_id": "get_embedding_change_plan_api_search_embedding_change_plan_get",
+        "summary": "Get Embedding Change Plan",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EmbeddingChangePlan"
+      },
+      {
+        "method": "POST",
         "path": "/search/explain",
         "operation_id": "explain_search_api_search_explain_post",
         "summary": "Explain a search query",

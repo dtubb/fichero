@@ -2587,6 +2587,69 @@ def _action_search_reindex(
     return result, spec
 
 
+class EmbeddingChangeStartRequest(BaseModel):
+    model: str
+    confirm: bool = Field(default=False, description="true once the person has seen the plan: pages, time and cost")
+
+
+class EmbeddingChangePlan(BaseModel):
+    """What re-embedding the project with another model would do, said before it runs (#6122)."""
+
+    from_model: str
+    to_model: str
+    same: bool
+    pages: int
+    passages: int
+    entities: int
+    claims: int
+    seconds_estimate: int
+    cost_usd: float
+    runs_on: str
+    keeps_old_vectors_until_done: bool
+
+
+class EmbeddingChangeStarted(BaseModel):
+    status: str
+    job_id: str
+    message: str
+
+
+@router.get("/embedding/change-plan", response_model=EmbeddingChangePlan)
+def get_embedding_change_plan(model: str, db: Database = Depends(get_library_database)) -> EmbeddingChangePlan:
+    """Pages, time and cost of re-embedding every page with `model`, before anything runs
+    (`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes."""
+    try:
+        return EmbeddingChangePlan(**db.embedding_change_plan(model))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/embedding/change", response_model=EmbeddingChangeStarted)
+async def start_embedding_change(body: EmbeddingChangeStartRequest,
+                                 db: Database = Depends(get_library_database_for_write)) -> EmbeddingChangeStarted:
+    """Start the re-embed run that changes the project's embedding model: the one `reindex` job (its progress shows in
+    Activity), migrating to `body.model` in a shadow and swapping it in whole. `confirm` must be true: the plan comes first."""
+    from pathlib import Path
+
+    from fichero_server.workflows.tasks import TaskType, job_task_queue
+
+    if not body.confirm:
+        raise HTTPException(status_code=422, detail="Show the plan first (GET /api/search/embedding/change-plan) and "
+                                                    "send confirm=true once the person has seen its pages, time and cost.")
+    try:
+        plan = db.embedding_change_plan(body.model)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if plan["same"]:
+        raise HTTPException(status_code=409, detail=f"This project already searches with {plan['to_model']}.")
+    task = await job_task_queue(str(Path(db.path).parent)).create_task(
+        TaskType.REINDEX, f"Embed every page again with {plan['to_model']}", {"to_model": plan["to_model"]})
+    return EmbeddingChangeStarted(
+        status="started", job_id=task.task_id,
+        message=f"Embedding {plan['pages']} pages with {plan['to_model']}. Search keeps the old vectors until it finishes; "
+                "its progress shows in Activity.")
+
+
 class SetEmbeddingModelParams(BaseModel):
     """``search.set_embedding_model`` — the project's embedding model, while it holds no vectors."""
 
@@ -2611,7 +2674,8 @@ def _action_search_set_embedding_model(
     if space.source_model_name != current.model and not current.changeable:
         raise ActionRefused(
             f"This project's {current.vectors} vectors were made with {current.model}; vectors from two models are "
-            "never mixed, and changing the model is a re-embed run of every page, not yet built.")
+            "never mixed, and changing the model is a re-embed run of every page (POST /api/search/embedding/change, after "
+            "GET /api/search/embedding/change-plan has shown its cost).")
     write_choice(Path(db.path).parent, space.source_model_name)
     db._embedder = None  # the next embed resolves the new space
     db._embedding_space_cache = None
