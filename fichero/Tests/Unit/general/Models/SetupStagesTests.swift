@@ -173,10 +173,14 @@ struct SetupStagesTests {
     func stagesFromTheEngine() async {
         StagesMockURLProtocol.replies = ["GET /api/recipes/stages": (200, """
         {"items": [
-          {"id": "find-lines", "title": "Find Lines", "sentence": "Finds the lines.", "example": "", "jobs": ["find-lines"],
+          {"id": "find-lines", "title": "Find Lines", "sentence": "Finds the lines.", "example": "",
+           "example_credit": {"title": "", "short_credit": "", "licence": "", "source_url": "", "licence_url": ""},
+           "jobs": ["find-lines"],
            "on": true, "jobs_in_recipe": ["find-lines"], "questions": [], "needs": [], "sampleable": true,
            "tried_by": "bake-off"},
-          {"id": "names", "title": "Names", "sentence": "Finds names.", "example": "", "jobs": ["find-names-tag-words"],
+          {"id": "names", "title": "Names", "sentence": "Finds names.", "example": "",
+           "example_credit": {"title": "", "short_credit": "", "licence": "", "source_url": "", "licence_url": ""},
+           "jobs": ["find-names-tag-words"],
            "on": false, "jobs_in_recipe": [], "questions": [], "needs": [], "sampleable": true, "tried_by": "workflow"}
         ], "count": 2}
         """)]
@@ -195,10 +199,14 @@ struct SetupStagesTests {
     func aStageThatCannotBeTriedSaysSo() async {
         StagesMockURLProtocol.replies = ["GET /api/recipes/stages": (200, """
         {"items": [
-          {"id": "find-lines", "title": "Find Lines", "sentence": "Finds the lines.", "example": "", "jobs": ["find-lines"],
+          {"id": "find-lines", "title": "Find Lines", "sentence": "Finds the lines.", "example": "",
+           "example_credit": {"title": "", "short_credit": "", "licence": "", "source_url": "", "licence_url": ""},
+           "jobs": ["find-lines"],
            "on": true, "jobs_in_recipe": ["find-lines"], "questions": [], "needs": [], "sampleable": true,
            "tried_by": "bake-off", "not_tried": null},
-          {"id": "names", "title": "Names", "sentence": "Finds names.", "example": "", "jobs": ["find-names-tag-words"],
+          {"id": "names", "title": "Names", "sentence": "Finds names.", "example": "",
+           "example_credit": {"title": "", "short_credit": "", "licence": "", "source_url": "", "licence_url": ""},
+           "jobs": ["find-names-tag-words"],
            "on": false, "jobs_in_recipe": [], "questions": [], "needs": [], "sampleable": false, "tried_by": "workflow",
            "not_tried": "This stage cannot be tried on sample pages yet; it runs when you press Start."}
         ], "count": 2}
@@ -356,8 +364,12 @@ struct SetupStagesTests {
         {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],
          "estimate":{"pages":92,"runs":[],"total_cost_usd":0},
          "train_offers":[
-           {"step":"s2","job":"read-a-line","title":"Read each line","ways":[],"setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.","readiness":{"ready":false}},
-           {"step":"s5","job":"find-names-tag-words","title":"Find names","ways":[],"setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.","readiness":{"ready":false}}]}
+           {"step":"s2","job":"read-a-line","title":"Read each line","ways":[],
+             "setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.",
+             "readiness":{"ready":false}},
+           {"step":"s5","job":"find-names-tag-words","title":"Find names","ways":[],
+             "setting":{"mode":"offered","why":"asks first"},"does":"Trains once enough lines are corrected.",
+             "readiness":{"ready":false}}]}
         """)]
         let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
         await store.loadStartPlan()

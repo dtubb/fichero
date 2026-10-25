@@ -387,6 +387,7 @@ struct RecipeSetupStoreTests {
         store.languages = ["es"]
         store.scripts = ["Latn"]
         store.ingestMode = .move
+        store.cloudChoice = false  // the person answered "no": an unanswered question is not saved (inherits the app's)
         await store.assemble()
 
         let saved = await store.save()
@@ -850,6 +851,8 @@ extension RecipeSetupStoreTests {
         let menu = StepChoiceMenu(step: "correct", name: "Correct", chosenBy: .setup, inPlan: false,
                                   turnOnWords: "Have a second model check the reading, in Set Up",
                                   turnOnAnswer: "correct_with_a_second_model", turnOnValue: .yesNo(true), candidates: [])
+        store.languages = ["es"]  // assemble needs the language and script answers, or it proposes nothing to save
+        store.scripts = ["Latn"]
         await store.loadStartPlan()
         #expect(store.stepMenus.first?.inPlan == false)
 
