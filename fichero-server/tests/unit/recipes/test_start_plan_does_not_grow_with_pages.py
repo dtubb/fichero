@@ -53,3 +53,22 @@ def test_the_plan_works_out_what_each_step_has_done_once(client, db, folder, wit
     monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: asked.append(card["job"]) or real(db_, card, pages, own))
     routes._start_plan(db, None, clusters=[])
     assert asked and len(asked) == len(set(asked)), f"asked twice: {asked}"
+
+
+def test_the_cards_a_translate_step_makes_for_two_levels_are_counted_apart(monkeypatch):
+    """Cards as the plan builds them (they carry no id): one step asked for two levels is two cards that differ only in
+    their tool_config."""
+    from fichero_server.recipes.start import plan_start
+    from tests.unit.recipes.test_find_where_readers_disagree_step_5665 import _recipe
+    from tests.unit.recipes.test_installed_model_first_to_spec import SEVEN
+
+    step = {"id": "norm", "job": "translate-transliterate-normalise", "model": SEVEN, "runs_on": "this-mac"}
+    plan = plan_start(_recipe(step), stays_local=True, job_answers={"normalise_how_far": ["as_written", "expanded"]})
+    cards = [r for r in plan["runs"] if r["job"] == "translate-transliterate-normalise"]
+    assert len(cards) == 2 and "id" not in cards[0], plan["skipped"]
+    calls: list[dict] = []
+    monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: calls.append(card) or ([], len(calls)))
+    memo: dict = {}
+    first, second = (done.split_done(None, c, ["p"], memo=memo) for c in cards)
+    assert first != second and len(calls) == 2
+    assert done.split_done(None, cards[0], ["p"], memo=memo) == first and len(calls) == 2

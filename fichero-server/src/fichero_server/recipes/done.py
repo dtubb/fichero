@@ -22,6 +22,7 @@ Every other card cannot tell, and runs on every page.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -509,10 +510,12 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
 def split_done(db: Any, card: dict[str, Any], pages: list[str], own: set[str] | None = None,
                memo: dict | None = None) -> tuple[list[str], int | None]:
     """`_split_done`, kept in `memo` for one plan: the estimate and the notes ask it of the same card on the same pages, and
-    a page is looked at once a plan, not twice (Start's plan grew with the pages)."""
+    a page is looked at once a plan, not twice (Start's plan grew with the pages). The plan's cards carry no id: the key has their steps
+    and tool_config, since one translate step makes a card per level and they differ only in tool_config."""
     if memo is None:
         return _split_done(db, card, pages, own)
-    key = (card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
+    key = (tuple(card.get("steps") or ()), json.dumps(card.get("tool_config"), sort_keys=True, default=str),
+           card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
            tuple(pages), frozenset(own or ()))
     if key not in memo:
         memo[key] = _split_done(db, card, pages, own)
