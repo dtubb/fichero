@@ -233,6 +233,40 @@ def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, in
     return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
 
 
+def pages_with_lines(db: Any, pages: list[str]) -> set[str]:
+    """`_has_lines(db, page, None)` for all these pages in two reads, not two or more a page: the pages with a live line under a
+    live pass."""
+    from fichero_server.models import Segment
+    from fichero_server.models.segments import SegmentPass
+
+    passes = {p.id: p.document_id for p in db.query_in(SegmentPass, "document_id", pages) if not p.deleted_at}
+    return {passes[s.pass_id] for s in db.query_in(Segment, "pass_id", list(passes))
+            if s.kind == "line" and not s.deleted_at and s.pass_id in passes}
+
+
+def lines_states(db: Any, pages: list[str], model: str | None = None) -> dict[str, tuple[int, int, int]]:
+    """`lines_state` for all these pages in two reads (a page with no live line is absent), the same numbers."""
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    lines: dict[str, list[Any]] = {}
+    for x in db.query_in(Segment, "document_id", pages):
+        if x.kind == "line" and x.deleted_at is None:
+            lines.setdefault(x.document_id, []).append(x)
+    read: dict[str, set[str]] = {}
+    for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
+        if r.segment_id:
+            read.setdefault(r.document_id, set()).add(r.segment_id)
+    out: dict[str, tuple[int, int, int]] = {}
+    for doc_id, found in lines.items():
+        seen = read.get(doc_id, set())
+        blank = [x for x in found if x.id not in seen and isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
+                 and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, ""))]
+        out[doc_id] = (len(found), sum(1 for x in found if x.id not in seen) - len(blank), len(blank))
+    return out
+
+
 @dataclass
 class PageLines:
     """One page's lines as a reader left them (what `lines_state` and `unread_reasons` give, for the Activity summary)."""
@@ -456,8 +490,21 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     return None
 
 
-def split_done(db: Any, card: dict[str, Any], pages: list[str],
-               own: set[str] | None = None) -> tuple[list[str], int | None]:
+def split_done(db: Any, card: dict[str, Any], pages: list[str], own: set[str] | None = None,
+               memo: dict | None = None) -> tuple[list[str], int | None]:
+    """`_split_done`, kept in `memo` for one plan: the estimate and the notes ask it of the same card on the same pages, and
+    a page is looked at once a plan, not twice (Start's plan grew with the pages)."""
+    if memo is None:
+        return _split_done(db, card, pages, own)
+    key = (card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
+           tuple(pages), frozenset(own or ()))
+    if key not in memo:
+        memo[key] = _split_done(db, card, pages, own)
+    return memo[key]
+
+
+def _split_done(db: Any, card: dict[str, Any], pages: list[str],
+                own: set[str] | None = None) -> tuple[list[str], int | None]:
     """(the pages still to do, how many are done; None when the card cannot tell). `own`: what the run now going (or resumed) has
     already noted on this step, page by page (`page_finished`); a run that has ended is read through `pages_a_run_did`."""
     own = own or set()
@@ -469,7 +516,21 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str],
         return todo, len(pages) - len(todo)
     if card.get("job") == "leave-out":  # judged on the pass it has now: a page whose lines were found again is judged again
         ran = pages_a_run_did(db, "leave-out") | own
-        todo = [p for p in pages if judged_key(db, p) not in ran]
+        judged = {k.partition("@")[0] for k in ran}  # a page no run noted is not done: its pass is not looked up
+        todo = [p for p in pages if p not in judged or judged_key(db, p) not in ran]
+        return todo, len(pages) - len(todo)
+    if card.get("job") == "find-lines":  # one read for all the pages, not a few queries a page
+        have = pages_with_lines(db, pages)
+        todo = [p for p in pages if p not in have]
+        return todo, len(pages) - len(todo)
+    if card.get("job") == "read-a-line":
+        model = card.get("model_override")
+        states = lines_states(db, pages, model)
+        todo = []
+        for p in pages:
+            found, unread, blank = states.get(p, (0, 0, 0))
+            if not (found > 0 and not unread and (blank == found or _has_line_readings(db, p, model))):
+                todo.append(p)
         return todo, len(pages) - len(todo)
     if card.get("job") == "prepare-the-image":  # the runs read once, not once per page
         ran = pages_a_run_did(db, "prepare-the-image")
@@ -492,7 +553,8 @@ def _note(done: int | None, of: int, unit: str) -> str:
     return f"already done on {done} of {of} {unit}; runs on the other {of - done}"
 
 
-def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, redo: set[str] | None = None) -> dict[str, int]:
+def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, redo: set[str] | None = None,
+                memo: dict | None = None) -> dict[str, int]:
     """Per job, the pages a run would still do (`split_done`, as `annotate` counts them), for the estimate to price: a done
     page is not paid for twice. A card that cannot tell, or was asked to redo, is every page and is left out."""
     out: dict[str, int] = {}
@@ -500,20 +562,20 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         if card.get("card") != "workflow" or (redo and redo.intersection(card["steps"])):
             continue
         pages = [p for p in pages_for(db, card, None) if within is None or p in within]
-        todo, done = split_done(db, card, pages)
+        todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
             out[card["job"]] = len(todo)
     return out
 
 
 def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None,
-             within: set[str] | None = None, redo: set[str] | None = None) -> dict[str, Any]:
+             within: set[str] | None = None, redo: set[str] | None = None, memo: dict | None = None) -> dict[str, Any]:
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
     for card in plan.get("runs", []):
         pages = [p for p in pages_for(db, card, None) if within is None or p in within]
-        _todo, done = split_done(db, card, pages)
+        _todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)

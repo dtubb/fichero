@@ -2527,9 +2527,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
+    memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes
     plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
                                 catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
-                                todo=todo_counts(db, plan, within))
+                                todo=todo_counts(db, plan, within, memo=memo))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
@@ -2589,7 +2590,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
         # Nothing to run on: said, not run (seen 2026-10-11, a Start whose material never arrived ran every step
         # on nothing and failed each, "not run on 1 of 0 folders").
         plan["refusals"] = [*plan["refusals"], NO_MATERIAL]
-    annotate(db, plan, unfinished, within)
+    annotate(db, plan, unfinished, within, memo=memo)
     return plan
 
 
@@ -2613,10 +2614,11 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
     from fichero_server.recipes.done import material, todo_counts
 
+    memo: dict = {}
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=_catalogue_runs(plan["runs"]),
                                    folders=_folders_covering(db, material(db, within)["ids"]),
-                                   todo=todo_counts(db, plan, within, set(started["redo"]))), "counted": counted}
-    return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
+                                   todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo)), "counted": counted}
+    return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
 
 _OFFER_SECONDS = 5.0
