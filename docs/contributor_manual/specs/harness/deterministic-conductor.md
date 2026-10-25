@@ -105,20 +105,26 @@ maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ 
   speculative code) as a named check in every review.
 
 ### Landing, closing, building, releasing
-- `pipeline.batch-gate` [PARTIAL] — reviewed items merge into a candidate; the full engine gate runs at K items or a
-  set hour (Air by day, M4 by night); green → push integration; nothing pushes main except the weekly release.
+- `pipeline.quick-checks-per-item` [PARTIAL] — each item: the ready check, its own tests, red on base and green on
+  the branch, and the test folders it touches (`gate part`), minutes on the Pro or Air.
+- `pipeline.nightly-gate` [PARTIAL] — reviewed items merge into the night's candidate; the full engine gate runs on
+  the M4 overnight; green → push integration → the nightly build; red → nothing is pushed and the page says which
+  part and which item; nothing pushes main except the weekly release.
 - `pipeline.rebase-after-push` [MISSING] — every live coder rebases on integration after a push; a conflict after
   the rebase stops that coder and goes to the queue.
 - `pipeline.close-on-push` [PARTIAL] — a GitHub Action on push to integration runs `close_fixed_issues.py --apply`
   (the script exists and works); a `Part of #N` leaves the issue open with a comment.
 - `pipeline.actions-engine-free-checks` [MISSING] — GitHub Actions runs ruff, the guard scripts that need no
-  engine, the unit tests that need no models, and `lane_ready_check.sh` on every PR and push (`ci.yml` today runs
-  only on main).
-- `pipeline.xcode-cloud-builds` [PROPOSED] — Xcode Cloud builds and runs the Swift unit tests on every push to
+  engine, the unit tests that need no models, and `lane_ready_check.sh` on every PR and push (`ci.yml` today runs on main and on pull requests, not on
+  pushes to integration); Swift unit tests run there too, on the free macOS runners (no engine, no signing).
+- `pipeline.xcode-cloud-builds` [PROPOSED, not now] (ruled 2026-10-25: not now; if tried later, with a prebuilt engine
+  artifact from the M4, iOS TestFlight only, since a Briefcase engine rebuilt per cloud build eats the 25 hours) — Xcode Cloud builds and runs the Swift unit tests on every push to
   integration, archives Mac and iOS nightly, and delivers the dev build to TestFlight; the spike must show the
   embedded Python engine (Briefcase) can be built in `ci_post_clone.sh` within the time budget, else Xcode Cloud
   builds the app against a prebuilt engine artifact from the M4.
-- `pipeline.nightly-build` [MISSING] — on a green gate: dev DMG (notarized) and dev TestFlight; the Mac, iPhone and
+- `pipeline.resume-from-journal` [MISSING] — after a restart of Bernstein, the Pro or a test Mac, an unfinished task
+  continues from its journal and worktree; finished issues and existing model results are not redone.
+- `pipeline.nightly-build` [MISSING] — on the green nightly gate, built on the M4: dev DMG (notarized) and dev TestFlight; the Mac, iPhone and
   iPad get it; a red gate sends nothing and says why on the page.
 - `pipeline.weekly-release` [PARTIAL] — `release-all.sh` on a schedule prepares the release (version, notes check,
   DMGs, TestFlight, GitHub release, Sparkle, site) and stops for the maintainer's yes before anything is public;
@@ -152,6 +158,15 @@ maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ 
 - 2026-10-25: Fichero first, in this repo; a shared home (fichero-skills or a new name) only after it runs Fichero
   reliably, for the other projects in use (assistant, research_assistant).
 - 2026-10-25: no OpenCode; Pi is the harness.
+- 2026-10-25: never rerun a model pass whose result already exists for the same input and model; a resumed task
+  continues from Bernstein's journal and the repo's state, it does not redo finished work.
+- 2026-10-25 (pipeline questions): one coder at a time while the pipeline beds in; each item gets the quick checks
+  (ready check, its own tests, the test folders it touches, on the Pro or Air, minutes); the full engine gate runs
+  once a night on the M4, integration is pushed after that green gate, then the nightly dev build goes out (Mac,
+  iPhone, iPad) — the nightly build is in effect a nightly release to the testers; the public release stays weekly.
+  The first milestone for the Qwen coder is a guards/lint/docs one. The Claude reviewer stays binding until Qwen's
+  reviews are measured over 30 items (bar: no missed HIGH, at least 90% agreement on verdicts). Xcode Cloud: not now.
+  Onboarding work leaves the 230-issue `source-model` milestone; it goes with the Recipe Designer spec's milestone.
 
 ## Trial findings (Bernstein 3.23.0, 2026-10-25, #6100, Pi + Qwen 3.8 27B via OpenRouter)
 
@@ -164,14 +179,19 @@ maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ 
 
 ## Build order
 
-1. GitHub Actions: `ci.yml` on integration + PRs (engine-free checks, ready check); close-on-push; milestone label.
-2. Bernstein round 2 workarounds in config (gate in the worktree, no stray tasks, pricing).
-3. The feeder (milestone → Bernstein tasks, several issues per task) and `brief_lint.py`; ten small issues from one
-   guard/lint milestone through Pi + Qwen, scored (claims vs reality, reviewer load, cost).
-4. Xcode Cloud spike: one workflow building the Mac app with the embedded engine, Swift unit tests, and a dev
-   TestFlight delivery; decide `pipeline.xcode-cloud-builds`.
-5. Nightly build on a green gate; the maintainer's queue on the page.
-6. The test-machine queue, red-on-base proof, rebase-after-push; a second coder.
+The first two weeks are steps 1–3 only; each step gets an issue (filed when this spec is approved) and its line
+here ends with that number, as `pipeline.build-order-readable` asks of every spec.
+
+1. GitHub Actions: `ci.yml` on pushes to integration as well as PRs (ruff, engine-free guards and pytest, Swift unit
+   tests on macOS, the ready check); close-on-push; a label for an issue with no milestone.
+2. Bernstein workarounds in config or a gate wrapper (the gate in the task's worktree, no stray tasks, a price for
+   the model), with red-on-base inside the wrapper.
+3. The feeder (milestone → Bernstein tasks, several issues per task) and `brief_lint.py`, writing exactly the fields
+   `spec-to-issues` writes; ten issues from one guards/lint/docs milestone through Pi + Qwen.
+   **Success:** at least 8 of 10 merged without a human edit, under US$5, no false "done".
+4. The nightly gate on the M4 → push → nightly dev build.
+5. The maintainer's queue on the page; resume from the journal.
+6. The test-machine queue, rebase-after-push; a second coder.
 7. The weekly release on a schedule.
 
 ## Test matrix
@@ -185,10 +205,5 @@ maintainer + Opus ──spec (APPROVED)──▶ spec→issues script ──▶ 
 
 ## Open questions
 
-1. N coders at once and K items per gate: proposed N = 1 for the first week (one milestone at a time), K = 5.
-2. First milestone for the Qwen coder: proposed a guard/lint/docs milestone.
-3. Claude reviewer binding until Qwen's precision is measured over 30 items: OK?
-4. Xcode Cloud: try it for the nightly and TestFlight builds (the spike in step 4), or keep all Apple builds on the
-   test Macs?
-5. The 230-issue `source-model` milestone holds onboarding work too: split out an `onboarding` milestone (and point
-   the onboarding spec at it)?
+1. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
+   diff and the conflicting commit in front of it.
