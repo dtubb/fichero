@@ -627,6 +627,7 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
     MARKETING_VERSION="$TESTFLIGHT_MARKETING_VERSION" \
     CURRENT_PROJECT_VERSION="$TESTFLIGHT_BUILD_VERSION" \
     SPARKLE_FEED_URL="$SPARKLE_FEED_URL" \
+    FICHERO_FEATURE_TIER="$MAC_ARCHIVE_FEATURE_TIER" \
     archive; then
     echo "error: macOS archive failed; check Xcode signing, sandbox, and embedded engine build phase" >&2
     exit 1
