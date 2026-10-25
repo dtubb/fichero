@@ -6,10 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
 from fichero_server.llm.catalogue_lint import FOLDER_DESCRIPTION_MAX_WORDS
+
+logger = logging.getLogger(__name__)
 
 ARTIFACT_TYPE = "catalogue.narrative"
 PAGE_CHARS = 1500  # of one page's reading given to the model
@@ -125,6 +128,36 @@ def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
     return todo, current
 
 
+#: `Document.metadata` key marking a folder's content as the Catalogue stage's description (the artifact it came from),
+#: so a re-run may replace its own text and never a person's (#6131).
+CONTENT_FROM = "catalogue_content_from"
+
+
+def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool:
+    """The description as the folder's content (#6131): what selecting the folder shows and search and export read. Only
+    where the folder has no content, or has the Catalogue stage's own earlier description: text a person wrote, or
+    edited, stays the content (the description is still its `description` reading). True when written."""
+    from fichero_server.models import Document
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited, page_text_is_derived
+
+    doc = db.get(Document, folder_id)
+    if doc is None or page_content_is_user_edited(doc) or page_text_is_derived(db, folder_id):
+        return False
+    metadata = dict(doc.metadata or {})
+    if (doc.page_content or "").strip() and CONTENT_FROM not in metadata:
+        return False
+    doc.page_content = text
+    doc.metadata = {**metadata, CONTENT_FROM: artifact_id}
+    db.save(doc)
+    try:
+        from fichero_server.actions.page_text_cache import queue_reembed
+
+        queue_reembed(db, [folder_id])  # search reads it
+    except Exception:  # noqa: BLE001 -- the content stands; a missed re-embed is repaired by the next one
+        logger.exception("could not queue the re-embed of folder %s", folder_id)
+    return True
+
+
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
                      stop: Any = lambda: False, language: str | None = None,
                      max_words: int = FOLDER_DESCRIPTION_MAX_WORDS) -> dict[str, Any]:
@@ -164,6 +197,7 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         db.save(art)
         _describe_container(db, folder.id, text, art.id, [old.id] if old is not None else [],
                             run_id=run_id, library_path=library_path)
+        put_in_content(db, folder.id, text, art.id)
         account["described"] += 1
         account["flags"].extend(f"{folder.name}: {f}" for f in flags)
     return account

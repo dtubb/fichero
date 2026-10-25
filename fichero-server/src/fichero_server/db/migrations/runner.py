@@ -1160,6 +1160,8 @@ class MigrationRunner:
               JOIN documents d ON d.id = a.document_id
              WHERE a.artifact_type = 'catalogue.narrative'
                AND d.page_content IS NOT NULL
+               -- a folder whose content the Catalogue STAGE wrote on purpose is not the old workflow's leftover (#6131)
+               AND json_extract_string(d.metadata, '$.catalogue_content_from') IS NULL
              ORDER BY d.id, a.created_at DESC
             """
         )
