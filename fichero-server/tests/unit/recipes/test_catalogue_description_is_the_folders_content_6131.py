@@ -57,3 +57,35 @@ def test_a_rerun_replaces_its_own_earlier_description(db, asked, monkeypatch):  
     monkeypatch.setattr("fichero_server.llm.chat_with_fallback", fresh)
     catalogue_step.describe_folders(db, pages, CONFIG, run_id=None)
     assert db.get(Document, box).page_content.startswith("Title: A box, redone.")
+
+
+def test_the_open_migration_does_not_wipe_the_description_the_stage_wrote(db, asked):  # noqa: F811
+    """The #5599 migration runs at every project open and clears a folder whose text equals its catalogue.narrative
+    artifact (the old workflow's leftover). The stage writes exactly that on purpose (#6131), so it must be skipped."""
+    from fichero_server.db.migrations.runner import move_catalogue_narratives_on_open
+
+    top, box, pages = _tree(db)
+    catalogue_step.describe_folders(db, pages, CONFIG, run_id=None)
+    assert db.get(Document, box).page_content == DESCRIPTION
+
+    move_catalogue_narratives_on_open(db)
+
+    assert db.get(Document, box).page_content == DESCRIPTION
+    assert db.get(Document, top).page_content == DESCRIPTION
+
+
+def test_the_migration_still_clears_the_old_workflows_leftover(db):
+    """A folder whose text equals a narrative artifact but that the stage did not mark is the old behaviour's leftover."""
+    from fichero_server.db.migrations.runner import move_catalogue_narratives_on_open
+
+    folder = Document(name="Old", doc_type=catalogue_step_doc_type(), page_content=DESCRIPTION)
+    db.save(folder)
+    db.save(Artifact(document_id=folder.id, artifact_type=catalogue_step.ARTIFACT_TYPE, content=DESCRIPTION, data={}))
+    move_catalogue_narratives_on_open(db)
+    assert not (db.get(Document, folder.id).page_content or "").strip()
+
+
+def catalogue_step_doc_type():
+    from fichero_server.models import DocType
+
+    return DocType.folder

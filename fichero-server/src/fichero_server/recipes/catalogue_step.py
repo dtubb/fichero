@@ -138,10 +138,10 @@ def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool
     where the folder has no content, or has the Catalogue stage's own earlier description: text a person wrote, or
     edited, stays the content (the description is still its `description` reading). True when written."""
     from fichero_server.models import Document
-    from fichero_server.workflows.curation_guard import page_content_is_user_edited
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited, page_text_is_derived
 
     doc = db.get(Document, folder_id)
-    if doc is None or page_content_is_user_edited(doc):
+    if doc is None or page_content_is_user_edited(doc) or page_text_is_derived(db, folder_id):
         return False
     metadata = dict(doc.metadata or {})
     if (doc.page_content or "").strip() and CONTENT_FROM not in metadata:

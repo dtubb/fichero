@@ -562,7 +562,7 @@ level it was made for.
   kinds keep their own proposal (`finddocs.*`); `classify_text` and `classify_script` still write
   only their artifact.*
 - `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
-  narrative is a reading of kind description on the folder, and (#6131, owner 2026-10-25) also the folder's content when it has none, or has this stage's own earlier description: a person's own content, or one they edited, is never overwritten (`catalogue_step.put_in_content`).
+  narrative is a reading of kind description on the folder, and, written by the recipe's Catalogue STAGE only (#6131, owner 2026-10-25; the Catalogue workflow still never writes `page_content`), also the folder's content when it has none, or has the stage's own earlier description (the open migration skips such a folder, `catalogue_content_from`): a person's own content, or one they edited, is never overwritten (`catalogue_step.put_in_content`).
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from
   the `catalogue.narrative` artifact; a re-run retracts the machine description it replaces, so the
   folder is described once. Pinned by `fichero-server/tests/unit/workflows/
