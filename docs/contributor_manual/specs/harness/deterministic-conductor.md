@@ -192,8 +192,10 @@ library.
    the work.
 3. Does the Claude reviewer stay binding for every item, or can a `mini` item pass on the machine check plus the Qwen
    review alone? Proposed: Claude stays binding until Qwen's adjudicated precision is measured over 30 items.
-4. Adopt or build: build the thin conductor around the existing scripts, or adopt an existing orchestrator (a tool
-   survey is pending)? Proposed: build v1 thin (step 3 above is about 200 lines) unless the survey finds a tool that
-   drives Pi/OpenCode on local models, reads GitHub issues and works in git worktrees.
+4. Adopt or build: build the thin conductor around the existing scripts, or adopt an existing orchestrator Survey 2026-10-25: no tool does all of it. Worktree GUIs (Conductor, Superset, Claude Squad,
+   vibe-kanban, the last shut down 2026-04) are chat-driven with no machine check; issue-driven ones (OpenAI's Symphony
+   and its Pi port, Kata Symphony, the OpenHands resolver, OpenCode's GitHub action) assume Linear, Codex or a cloud
+   runner. Proposed: build v1 thin over Pi; borrow Symphony's idea (poll the board, one workspace per issue, restart a
+   stalled agent) and look again at Kata Symphony when the loop is built.
 5. Should the conductor and Fichero's in-app agent later share one runner? Proposed: not before both have run for a
    month; share the design now.
