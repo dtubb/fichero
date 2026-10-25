@@ -26,14 +26,30 @@ struct IntoWhatRunsTests {
             return try JSONDecoder().decode(Components.Schemas.RecipeStep.self, from: Data(json.utf8))
         }
         let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
-        let two = RecipeStepsView.lines(for: try step(#""reasons":["Compares Kraken with Apple Vision"],"compares":["Kraken","Apple Vision"]"#),
-                                        store: store, inSetup: true)
+        let compared = #""reasons":["Compares Kraken with Apple Vision"],"compares":["Kraken","Apple Vision"]"#
+        let two = RecipeStepsView.lines(for: try step(compared), store: store, inSetup: true)
         #expect(two.contains(.place("Built in · Compares Kraken with Apple Vision", cloud: false)))
         let one = RecipeStepsView.lines(for: try step(#""needs":"needs a second reader: tick one in Read""#), store: store, inSetup: true)
         #expect(one.contains(.place("needs a second reader: tick one in Read", cloud: false)))
         for lines in [two, one] {
             #expect(!lines.contains { if case .problem = $0 { true } else if case .fix = $0 { true } else { false } })
         }
+    }
+
+    /// `source.recipe.ready-names-each-reader` (#6121): a step with extra readers by kind of material says each one.
+    @MainActor @Test func aStepNamesEachExtraReaderByItsCard() throws {
+        func step(_ readers: String) throws -> Components.Schemas.RecipeStep {
+            let json = #"{"id":"read","job":"transcribe","readers":\#(readers)}"#
+            return try JSONDecoder().decode(Components.Schemas.RecipeStep.self, from: Data(json.utf8))
+        }
+        let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+        let readers = #"[{"material":"handwritten","card":{"id":"c1","note":"Gemini Flash Lite"}},"#
+            + #"{"material":"printed_text","card":{"id":"kraken-print"}}]"#
+        let two = RecipeStepsView.lines(for: try step(readers), store: store, inSetup: true)
+        #expect(two.contains(.alsoReads("Also reads handwritten pages with Gemini Flash Lite")))
+        #expect(two.contains(.alsoReads("Also reads printed text pages with kraken-print")), "no note: the card id, never blank")
+        let none = RecipeStepsView.lines(for: try step("[]"), store: store, inSetup: true)
+        #expect(!none.contains { if case .alsoReads = $0 { true } else { false } }, "no readers, nothing extra")
     }
 
     @Test func aStepWithMoreThanOneRunSaysSoOnItsRow() {

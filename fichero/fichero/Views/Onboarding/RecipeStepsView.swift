@@ -55,7 +55,9 @@ struct RecipeStepsView: View {
                 }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
                 if onFix != nil, finder != nil, store.offersFinder(step.job) {
-                    Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") { findingFor = FinderStep(id: step.id, job: step.job) }
+                    Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") {
+                        findingFor = FinderStep(id: step.id, job: step.job)
+                    }
                         .controlSize(.small)
                         .help(store.readsMaterial(step.job)
                               ? "The readers for this project's scripts and languages, and where to get them"
@@ -134,6 +136,8 @@ extension RecipeStepsView {
         case detail(String)
         /// Whether the step's model fits this Mac, with the engine's reason (#5641).
         case fit(CandidateFit)
+        /// An extra reader the step uses for one kind of material, named by its card (#6121).
+        case alsoReads(String)
     }
 
     /// What a step's row says: in setup its title, one sentence, and either its problem once
@@ -155,8 +159,18 @@ extension RecipeStepsView {
         }
         // The engine names the Normalise step's runs (`run_titles`, #5795); the app keeps no list of its own.
         if let runs = runsLine(step.runTitles ?? []) { lines.append(.runs(runs)) }
+        lines.append(contentsOf: readersLines(step.readers ?? []))
         if let fit { lines.append(.fit(fit)) }
         return lines
+    }
+
+    /// One line for each reader a step carries by kind of material, named by its card's note (else its id), so Ready
+    /// never hides one (#6121); nothing when the step has none.
+    static func readersLines(_ readers: [Components.Schemas.StepReader]) -> [StepLine] {
+        readers.map { reader in
+            let name = [reader.card?.note, reader.card?.id].compactMap { $0 }.first { !$0.isEmpty } ?? "another reader"
+            return .alsoReads("Also reads \(reader.material.replacingOccurrences(of: "_", with: " ")) pages with \(name)")
+        }
     }
 
     /// "2 runs: As written · Modernised" when a step writes more than one reading; nil for one.
@@ -210,6 +224,8 @@ struct RecipeStepRow: View {
             Text(text).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
         case .fit(let fit):
             CandidateFitLabel(fit: fit, useSmaller: useSmaller)
+        case .alsoReads(let text):
+            Label(text, systemImage: "doc.text.magnifyingglass").font(.callout).foregroundStyle(.secondary)
         }
     }
 
