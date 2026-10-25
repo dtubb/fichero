@@ -530,14 +530,17 @@ def remote_reader_cards() -> list[Card]:
         info = get_provider_info(ptype)
         provider_vision = bool(info and info.supports_vision)
         saved = [m for m in app_db.list_models(row.id) if (m.model_id or "").strip()]
-        if not saved:
-            # A key with no model saved under it (owner 2026-10-23: providers were listed, not models): its newest
-            # frontier vision models from the vendored price list, one per family.
-            for model_id in frontier_catalog_models(ptype):
-                out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
-                                jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
-                                runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", short_name=model_id, source="remote",
-                                offered_only=True, offered_because=f"a vision model {row.name} serves"))
+        # A key with no model saved under it (owner 2026-10-23: providers were listed, not models), or with models of
+        # some families only (owner 2026-10-25, #6120: Gemini via OpenRouter saved, Claude never offered): its newest
+        # frontier vision models from the vendored price list, one per family not already saved.
+        covered = {_family(m.model_id) for m in saved if m.enabled}
+        for model_id in frontier_catalog_models(ptype):
+            if _family(model_id) in covered or any(m.model_id == model_id for m in saved):
+                continue
+            out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
+                            jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
+                            runs_on=f"cloud:{ptype}", note=f"{row.name}: {model_id}", short_name=model_id, source="remote",
+                            offered_only=True, offered_because=f"a vision model {row.name} serves"))
         for model in saved:
             # The tri-state rule (`llm._configured_vision_model_suggestions`): a model saved with no capabilities, as a
             # Gemini model added with a key is, inherits its provider's vision support.

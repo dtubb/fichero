@@ -13,6 +13,7 @@ def test_uncapped_models_inherit_provider_vision(monkeypatch):
               "r2": [NS(model_id="gemini-2.5-pro", name=None, enabled=True, capabilities=None)]}
     db = NS(list_providers=lambda: rows, list_models=lambda rid: models[rid])
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: db)
+    monkeypatch.setattr(discovery, "frontier_catalog_models", lambda provider: [])  # the saved models alone, here
     ids = {c.pin["model"] for c in discovery.remote_reader_cards() if c.pin["cloud"] != "anthropic"}
     assert ids == {"qwen/qwen3-vl", "gemini-2.5-pro"}
 
@@ -124,3 +125,19 @@ def test_a_long_cloud_model_id_is_the_rows_name_not_the_provider_alone(monkeypat
                         lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
     card = next(c for c in discovery.remote_reader_cards() if c.pin["model"] == long_id)
     assert discovery.short_name(card) == long_id
+
+
+def test_frontier_models_of_families_not_saved_are_offered_beside_the_saved_ones_6120(monkeypatch):
+    # Owner 2026-10-25: Gemini via OpenRouter was saved, so Claude via OpenRouter was never offered and the page said to
+    # add Claude in Settings > AI although the key was set.
+    rows = [NS(id="r1", name="OpenRouter", enabled=True, api_base=None, provider_type=NS(value="openrouter"))]
+    models = {"r1": [NS(model_id="google/gemini-3-flash", name=None, enabled=True, capabilities=["vision"])]}
+    monkeypatch.setattr("fichero_server.db.app.get_app_db",
+                        lambda: NS(list_providers=lambda: rows, list_models=lambda rid: models[rid]))
+    monkeypatch.setattr(discovery, "frontier_catalog_models",
+                        lambda provider: ["anthropic/claude-opus-4.7", "google/gemini-3-flash"])
+    cards = discovery.remote_reader_cards()
+    ids = [c.pin["model"] for c in cards]
+    assert ids == ["anthropic/claude-opus-4.7", "google/gemini-3-flash"]  # gemini is not offered twice
+    assert all(c.runs_here for c in cards)
+    assert not any(c.id == "anthropic:claude@settings" for c in cards), "Claude is reachable through OpenRouter"
