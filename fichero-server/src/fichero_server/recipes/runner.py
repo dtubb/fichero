@@ -32,7 +32,9 @@ each other's checks.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextlib
+import contextvars
 import json
 import logging
 import sys
@@ -40,7 +42,7 @@ import time
 import uuid
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from fichero_server.db import document_tree
 from fichero_server.execution import jobs
@@ -1227,12 +1229,145 @@ def _failures_words(db: Any, cards: list[dict[str, Any]], steps: list[dict[str, 
     return "; ".join(out)
 
 
+#: The reading jobs that may run side by side: a local reader (Kraken) and a hosted one use different resources, so the
+#: run takes about as long as the slower (owner, #6127: Kraken, then the cloud reader, 16 min + the cloud's time).
+_BESIDE = frozenset({"read-a-line", "read-a-page"})
+
+
+def _beside(cards: list[dict[str, Any]], states: list[Any], detail: dict[str, Any], index: int) -> int | None:
+    """The index of the step after this one when it can run at the same time (a local reading step and a hosted one that
+    neither takes what the other gives, and no download to wait for), else None. Only the next step: ponytail, a
+    wider reach when a recipe has two such pairs."""
+    after = index + 1
+    if after >= len(cards) or states[after] is not None:
+        return None
+    one, other = cards[index], cards[after]
+    if one.get("job") not in _BESIDE or other.get("job") not in _BESIDE or one["job"] == other["job"]:
+        return None
+    if "takes" not in one or "takes" not in other:  # a card queued before cards declared their inputs waits on all before
+        return None
+    if str(one.get("runs_on", "")).startswith("cloud") == str(other.get("runs_on", "")).startswith("cloud"):
+        return None
+    if set(one.get("gives") or ()) & set(other["takes"]) or set(other.get("gives") or ()) & set(one["takes"]):
+        return None
+    if any(set(e["steps"]) & set(other["steps"]) and not e.get("landed") for e in detail.get("awaited") or []):
+        return None
+    return after
+
+
+class _Beside(NamedTuple):
+    documents: list[str]
+    scratch: dict[str, Any]
+    kinds: dict[str, str]
+    future: concurrent.futures.Future
+
+
+def _asked_again(card: dict[str, Any], redo: set[str]) -> dict[str, Any]:
+    """A reading card asked to read again: every line, not just the unread ones (`source.recipe.read-resumes-per-line`)."""
+    if card.get("job") != "read-a-line" or not redo.intersection(card["steps"]):
+        return card
+    return {**card, "tool_config": {**(card.get("tool_config") or {}),
+                                    "transcribe": {**((card.get("tool_config") or {}).get("transcribe") or {}),
+                                                   "read_all_lines": True}}}
+
+
+def _text_is_the_hosted_readers(card: dict[str, Any]) -> dict[str, Any]:
+    """The local reader's card for a read that runs beside a hosted one: it writes its lines' readings but not the page's
+    text, which is the model's whichever finishes first (`source.recipe.kraken-lines-cloud-reads`)."""
+    if str(card.get("runs_on", "")).startswith("cloud"):
+        return card
+    tool_config = card.get("tool_config") or {}
+    return {**card, "tool_config": {**tool_config, "transcribe": {**(tool_config.get("transcribe") or {}),
+                                                                  "update_page_content": False,
+                                                                  "force_ocr": False}}}
+
+
+def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree, started_by: str,
+                  index: int) -> _Beside | None:
+    """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
+    card, step = detail["runs"][index], detail["steps"][index]
+    documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    card = _text_is_the_hosted_readers(_asked_again(card, set(detail.get("redo") or [])))
+    if not documents or _stop_asked(job_id):
+        return None
+    pool = concurrent.futures.ThreadPoolExecutor(1, thread_name_prefix="recipe-beside")
+    future = pool.submit(contextvars.copy_context().run, _run_card, db, card, documents, kinds, job_id, scratch, started_by)
+    pool.shutdown(wait=False)
+    return _Beside(documents, scratch, kinds, future)
+
+
+def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict[str, Any], tree: _Tree,
+                detail: dict[str, Any]) -> tuple[list[str], dict[str, Any], dict[str, str]]:
+    """The pages a step works on in this batch, as it is about to run: (pages, its scratch notes, the pages' kinds)."""
+    from fichero_server.recipes.done import split_done
+
+    redo = set(detail.get("redo") or [])
+    scratch: dict[str, Any] = {}
+    # The pages are worked out now, so pages a split made earlier in this batch are among them.
+    documents = _card_pages(db, card, batch["units"], tree)
+    if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
+        from fichero_server.recipes.done import pages_for
+
+        documents = pages_for(db, card, detail.get("documents"))
+    elif not redo.intersection(card["steps"]):
+        documents, scratch["already_done"] = split_done(db, card, documents, own=set(step.get("ran_on") or []))
+    if documents and _reads_page_images(card.get("job")):
+        # A recording is not a page: the steps that read page images leave it out and say so, instead of
+        # failing the step on a file they can never read (2026-10-10, found in the Dev Embedded app).
+        recordings = _recordings(db, documents)
+        if recordings:
+            documents = [d for d in documents if d not in recordings]
+            scratch["recordings_left_out"] = len(recordings)
+    kinds: dict[str, str] = {}
+    if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
+        # The pages sorted by kind (#5578); blank ones, the backs of leaves as their images show or a page a
+        # person called blank, are not lined or read (#5579).
+        from fichero_server.recipes import sorting
+
+        kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
+        blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
+        if blank:
+            documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
+            scratch["blank_versos"] = len(blank)
+            # Each page left out, named with why (#5691): a count alone left "Read 91 of 92" unexplained.
+            from fichero_server.models import Document as _Document
+
+            def _why(doc: Any) -> str:
+                attrs = getattr(doc, "attributes", None) or {}
+                return sorting.PERSON_BLANK_WHY if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else \
+                    sorting.BLANK_WHY
+
+            scratch["left_out"] = [{"page_id": d, "page": getattr(doc, "name", None) or d, "why": _why(doc)}
+                                   for d in blank for doc in (db.get(_Document, d),)]
+        if card.get("readers"):
+            scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
+    if card.get("job") in _NAMES_JOBS and documents:
+        uncertain = too_uncertain_for_names(db, documents)
+        if uncertain:
+            gone = {e["page_id"] for e in uncertain}
+            documents = [d for d in documents if d not in gone]
+            scratch["left_out"] = [*(scratch.get("left_out") or []), *uncertain]
+    return documents, scratch, kinds
+
+
 def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
                started_by: str, *, final: bool) -> list[str]:
+    """`_run_batch_steps`, and whatever ended it, a step still running beside another is waited for: it is never left
+    running unseen, for a resume to start again (a page read twice)."""
+    ahead: dict[int, _Beside | None] = {}  # a step already running beside the one before it
+    try:
+        return _run_batch_steps(db, job_id, detail, batch, tree, started_by, ahead, final=final)
+    finally:
+        for beside in ahead.values():
+            if beside is not None:
+                concurrent.futures.wait([beside.future])
+
+
+def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
+                     started_by: str, ahead: dict[int, _Beside | None], *, final: bool) -> list[str]:
     """Every step on one batch, in order (`source.recipe.batch-at-archive-scale`); each step's end on it is saved
     as it ends, so a resume runs only the steps still to do on it (`source.recipe.batch-checkpoint`). The problems."""
     from fichero_server.recipes.done import NOTES as done_notes
-    from fichero_server.recipes.done import split_done
 
     cards, steps, states = detail["runs"], detail["steps"], detail["batch_states"]
     redo = set(detail.get("redo") or [])
@@ -1244,7 +1379,10 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         if states[index] is not None:  # done on this batch before an interruption
             continue
         named = ", ".join(card["steps"])
-        if _stop_asked(job_id):  # Stop on the run's row: no step after the stopped one runs (#5609)
+        # A step already running beside the one before it keeps the pages it started on: its pages are not worked out again
+        # mid-flight (they would be counted done, or read twice), and its end is taken as it ended, Stop included.
+        early = ahead.pop(index, None)
+        if _stop_asked(job_id) and early is None:  # Stop on the run's row: no step after the stopped one runs (#5609)
             here[index]["state"] = "not run"
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
@@ -1257,51 +1395,10 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             continue
         if card["card"] in ("publish", "catalogue") and not final:  # written once, at the end, over the whole run
             continue
-        scratch: dict[str, Any] = {}
-        # The pages are worked out now, so pages a split made earlier in this batch are among them.
-        documents = _card_pages(db, card, batch["units"], tree)
-        if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
-            from fichero_server.recipes.done import pages_for
-
-            documents = pages_for(db, card, detail.get("documents"))
-        elif not redo.intersection(card["steps"]):
-            documents, scratch["already_done"] = split_done(db, card, documents, own=set(step.get("ran_on") or []))
-        if documents and _reads_page_images(card.get("job")):
-            # A recording is not a page: the steps that read page images leave it out and say so, instead of
-            # failing the step on a file they can never read (2026-10-10, found in the Dev Embedded app).
-            recordings = _recordings(db, documents)
-            if recordings:
-                documents = [d for d in documents if d not in recordings]
-                scratch["recordings_left_out"] = len(recordings)
-        kinds: dict[str, str] = {}
-        if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
-            # The pages sorted by kind (#5578); blank ones, the backs of leaves as their images show or a page a
-            # person called blank, are not lined or read (#5579).
-            from fichero_server.recipes import sorting
-
-            kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
-            blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
-            if blank:
-                documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
-                scratch["blank_versos"] = len(blank)
-                # Each page left out, named with why (#5691): a count alone left "Read 91 of 92" unexplained.
-                from fichero_server.models import Document as _Document
-
-                def _why(doc: Any) -> str:
-                    attrs = getattr(doc, "attributes", None) or {}
-                    return sorting.PERSON_BLANK_WHY if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else \
-                        sorting.BLANK_WHY
-
-                scratch["left_out"] = [{"page_id": d, "page": getattr(doc, "name", None) or d, "why": _why(doc)}
-                                       for d in blank for doc in (db.get(_Document, d),)]
-            if card.get("readers"):
-                scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
-        if card.get("job") in _NAMES_JOBS and documents:
-            uncertain = too_uncertain_for_names(db, documents)
-            if uncertain:
-                gone = {e["page_id"] for e in uncertain}
-                documents = [d for d in documents if d not in gone]
-                scratch["left_out"] = [*(scratch.get("left_out") or []), *uncertain]
+        if early is not None:
+            documents, scratch, kinds = early.documents, early.scratch, early.kinds
+        else:
+            documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1309,7 +1406,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 step.update(state="done", child_id=None, why="already done on every page")
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
-        _wait_out_a_pause(db, job_id)  # Pause between steps holds the next step until Resume or Stop (#5933)
+        if early is None:  # a step already running beside the one before it is not held back: it is running
+            _wait_out_a_pause(db, job_id)  # Pause between steps holds the next step until Resume or Stop (#5933)
         # Running on this batch: its state is its own until this batch's job ends, not an earlier batch's job's.
         before, before_child = step["state"], step.get("child_id")
         step.update(state="running", child_id=None)
@@ -1325,13 +1423,16 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 jobs.save_detail(db, job_id, json.dumps(detail))
 
             done_notes[job_id] = _noted
-        if card.get("job") == "read-a-line" and redo.intersection(card["steps"]):
-            # Asked to read again: every line, not just the unread ones (`source.recipe.read-resumes-per-line`).
-            card = {**card, "tool_config": {**(card.get("tool_config") or {}),
-                                            "transcribe": {**((card.get("tool_config") or {}).get("transcribe") or {}),
-                                                           "read_all_lines": True}}}
+        card = _asked_again(card, redo)
+        if early is None and not adopt and (after := _beside(cards, states, detail, index)) is not None:
+            ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
+            if ahead[after] is not None:
+                card = _text_is_the_hosted_readers(card)
         try:
-            child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
+            if early is not None:  # it has been running beside the step before: its end is what this step ended with
+                child, state, why = early.future.result()
+            else:
+                child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
             detail.pop("awaiting", None)
         except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):
             raise  # the queue's own: stopped, to come back later, out of reach

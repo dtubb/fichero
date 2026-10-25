@@ -151,6 +151,51 @@ def _snap(text: str, cut: int, low: int, high: int) -> int:
     return cut
 
 
+def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str] | None:
+    """The lines' reads when this Kraken reader already made them on these lines (the Read step's Transcribe (Kraken), whose
+    readings are written onto the page's lines): its newest reading of each line. None unless every line has one (or was marked as having no writing by this reader), then
+    Kraken reads the page again. Reading the same lines with the same reader again took ~48 s a page (#6127)."""
+    from fichero_server.llm.kraken_runtime import ReadLine
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    stem = Path(model).stem
+    made = {a.id for a in db.query(Artifact, document_id=doc_id) if a.provider == "kraken" and a.model in (model, stem)}
+    if not made:
+        return None
+    newest: dict[str, Any] = {}
+    for r in db.query(ContentRepresentation, document_id=doc_id):
+        if r.segment_id and r.derived_from_artifact_id in made and (
+                r.segment_id not in newest or r.created_at > newest[r.segment_id].created_at):
+            newest[r.segment_id] = r
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+
+    def blank(row: Any) -> bool:  # Kraken looked and found no writing: it wrote no reading, and that is its read
+        return ((getattr(row, "metadata", None) or {}).get(NO_WRITING_MARK) or {}).get("model") in (model, stem)
+
+    if not rows or any(row.id not in newest and not blank(row) for row in rows):
+        return None
+    return [ReadLine(newest[row.id].content or "", confidence=newest[row.id].machine_confidence) if row.id in newest
+            else ReadLine("") for row in rows]
+
+
+#: How long the tie waits before it looks again for Kraken's reads of a page a live run is still reading.
+WAIT_FOR_KRAKEN_SECONDS = 15
+#: ... and how many times (a quarter of an hour) before it stops waiting for a Kraken run that never ends.
+MOST_WAITS_FOR_KRAKEN = 60
+
+
+def kraken_is_reading(db: Any, doc_id: str) -> bool:
+    """Whether a live run of the shipped Transcribe (Kraken) workflow in this project is reading this page. Read runs
+    it beside the cloud reader (#6127); the tie waits for its reads rather than read the lines a second time, which also
+    puts the cloud reader's text after Kraken's, as the recipe orders them."""
+    from fichero_server.execution.runner import LIVE_RUN_STATUSES, _running_workflows
+    from fichero_server.recipes.start import WORKFLOW_FOR_JOB, _shipped
+
+    name = _shipped(WORKFLOW_FOR_JOB["read-a-line"])[0]
+    return any(s.get("workflow_name") == name and s.get("db_path") == str(db.path) and s.get("status") in LIVE_RUN_STATUSES
+               and doc_id in (s.get("documents") or ()) for s in list(_running_workflows.values()))
+
+
 def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:
     """Each line's stretch, its score against its own rough read, and whether it is tied."""
     out = []
@@ -325,7 +370,16 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         with Image.open(photo) as image:
             width, height = found.page_size(image)  # in the frame the lines were measured on
         lines = [in_pixels(row, width, height) for row in found.lines]
-        reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+        reads = earlier_reads(db, doc.id, found.lines, request.model)
+        if reads is None:
+            detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+            if kraken_is_reading(db, doc.id) and detail.get("waited_for_kraken", 0) < MOST_WAITS_FOR_KRAKEN:
+                # Read runs it beside the cloud reader: its reads land first (#6127). Not for ever: a Kraken run that hangs
+                # in 'running' is waited for this many times, then the tie reads the lines itself.
+                jobs.save_detail(db, job_id, json.dumps({**detail, "waited_for_kraken": detail.get("waited_for_kraken", 0) + 1}))
+                jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
+                raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
+            reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1
