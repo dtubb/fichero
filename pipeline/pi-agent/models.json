@@ -4,7 +4,8 @@
     "anthropic": {
       "models": [
         {"id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "contextWindow": 200000, "maxTokens": 64000,
-         "reasoning": true, "input": ["text", "image"], "cost": {"input": 3.0, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75}}
+         "reasoning": false, "input": ["text", "image"], "cost": {"input": 3.0, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75},
+         "_note": "reasoning off: Pi 0.75.5 sends thinking.type=enabled, which this model refuses with a 400 (it wants thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it — then flip reasoning back on"}
       ]
     },
     "omlx": {

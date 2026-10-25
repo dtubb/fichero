@@ -166,6 +166,18 @@ def test_undelivered_tell_flags_the_worker(scratch, monkeypatch):
     assert "undelivered" not in core.state()["workers"]["coder-w"]
 
 
+def test_a_non_quota_api_error_stops_the_wait_at_once(tmp_path, monkeypatch):
+    """Live 2026-10-25: a 400 (thinking params) on the first turn left the runner waiting its full hour."""
+    sd = tmp_path / "s"
+    sd.mkdir()
+    err = {"type": "message", "message": {"role": "assistant", "stopReason": "error", "usage": {},
+                                          "errorMessage": '400 {"type":"error","error":{"message":"thinking.type.enabled is not supported"}}', "content": []}}
+    _write(sd / "a.jsonl", [USER, err])
+    monkeypatch.setattr(coder.time, "sleep", lambda s: None)
+    s = coder.wait_idle(sd, cap_usd=1.0, after_turns=0, timeout_s=60)
+    assert s["stopped"].startswith("API error: 400") and s["rate_limited"] is False
+
+
 def test_session_fixture_shows_jcodemunch_and_jdocmunch_calls():
     s = coder.parse_session(FIXTURES / "pi-session-mcp-tools.jsonl")
     used = coder.uses_tools(s, "jcodemunch", "jdocmunch")

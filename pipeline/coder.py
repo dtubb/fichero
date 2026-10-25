@@ -148,7 +148,7 @@ def brief_file(task: str, name: str, text: str) -> Path:
 # --- reading the session log ---------------------------------------------------------------------------------
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
-         "model": "", "turns": 0, "prompts": 0, "started": False}
+         "model": "", "turns": 0, "prompts": 0, "started": False, "error": ""}
 QUOTA = re.compile(r"\b(402|429|rate.?limit|usage limit|insufficient|quota|credit)", re.I)
 
 
@@ -184,6 +184,7 @@ def parse_session(path: Path) -> dict:
             # "error" + errorMessage; Claude Code: isApiErrorMessage), never from what the model wrote (review MED C)
             err = m.get("errorMessage") if stop == "error" else (m.get("content") if o.get("isApiErrorMessage") else "")
             out["rate_limited"] = bool(err) and bool(QUOTA.search(str(err)))
+            out["error"] = str(err)[:300] if err and not out["rate_limited"] else ""  # any other API error, latest turn
             for c in content:
                 if c.get("type") in ("toolCall", "tool_use"):
                     name, args = c.get("name", "?"), c.get("arguments") or c.get("input") or {}
@@ -214,6 +215,9 @@ def wait_idle(session_dir: Path, cap_usd: float, after_turns: int = 0, poll: flo
             s["stopped"] = f"cost cap: ${s['cost_usd']:.2f} > ${cap_usd:.2f}"
             return s
         if s["rate_limited"] or (s["idle"] and s["turns"] > after_turns):
+            return s
+        if s.get("error") and s["turns"] > after_turns:  # a non-quota API error: stop now, not after the hour
+            s["stopped"] = f"API error: {s['error']}"
             return s
         if time.time() - t0 > timeout_s:
             s["stopped"] = f"no idle turn in {int(timeout_s)} s"
