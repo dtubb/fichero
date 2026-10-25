@@ -562,7 +562,7 @@ level it was made for.
   kinds keep their own proposal (`finddocs.*`); `classify_text` and `classify_script` still write
   only their artifact.*
 - `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
-  narrative is a reading of kind description on the folder, never written into its `page_content`.
+  narrative is a reading of kind description on the folder, and (#6131, owner 2026-10-25) also the folder's content when it has none, or has this stage's own earlier description: a person's own content, or one they edited, is never overwritten (`catalogue_step.put_in_content`).
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from
   the `catalogue.narrative` artifact; a re-run retracts the machine description it replaces, so the
   folder is described once. Pinned by `fichero-server/tests/unit/workflows/
