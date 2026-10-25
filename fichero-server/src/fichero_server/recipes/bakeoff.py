@@ -667,6 +667,10 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
                         offered_because="chosen by you")
         for stale in ("gap", "problem"):
             step.pop(stale, None)
+        if step.get("job") in ("read-a-line", "read-a-page"):
+            # The person's reader replaces the whole reader set: the readers the rules added by kind of material stay out
+            # unless the person picks them (#6121: Apple Vision read pages the person had given to Gemini).
+            step.pop("readers", None)
         measured = replace(card, cer_measured_here=override.get("cer"))
         step.update(_chosen(Choice(step["job"], measured, reasons=[override.get("because") or "chosen by you"])))
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
