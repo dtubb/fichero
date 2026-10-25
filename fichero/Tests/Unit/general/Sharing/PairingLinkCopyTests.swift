@@ -37,7 +37,7 @@ struct PairingLinkCopyTests {
                                               write: { _ in Issue.record("nothing to write") }, read: { nil })
         guard case .notCopied(let reason) = outcome else { Issue.record("expected a reason"); return }
         #expect(reason.contains("Preparing the security certificate"))
-        #expect(reason.contains("Turning sharing off and on"), "the cure is named")
+        #expect(reason.contains("restarts sharing"), "the cure is named")
     }
 
     @Test func withNoLinkAndNoBlockerTheGeneralReasonIsGiven() {
@@ -70,7 +70,8 @@ struct PairingInvitePinTests {
 
     @Test func aHostServingItsOwnCertificateNeedsItsPin() {
         #expect(RemoteClientPairing.invitePin("", for: ownCert) == .missing)
-        #expect(RemoteClientPairing.invitePin(validPin, for: ownCert) == .pin(validPin))
+        // the pin is advertised in its normal form: sha256/<base64 digest>
+        #expect(RemoteClientPairing.invitePin(validPin, for: ownCert) == .pin("sha256/\(validPin)"))
     }
 
     @Test func aPubliclyTrustedHostGetsAnUnpinnedLinkThatSystemTLSValidates() throws {

@@ -11,7 +11,7 @@ struct ModelFinderTiersTests {
         if chosen { tierJSON += #","chosen":true"# }
         if let cer { tierJSON += #","cer_measured_here":\#(cer)"# }
         return """
-        {"id":"\(id)","name":"\(id)","source":"shipped","offered_because":"","pin":null,"jobs":[],"open_licence":true,
+        {"id":"\(id)","name":"\(id)","source":"shipped","offered_because":"","pin":{},"jobs":[],"open_licence":true,
          "size":"16 MB","measured":"","in_recipe_rules":true,"runs_where":"this_mac","availability":"installed",
          "availability_words":"on this Mac"\(tierJSON)}
         """
