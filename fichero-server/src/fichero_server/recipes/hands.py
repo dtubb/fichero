@@ -50,7 +50,7 @@ HANDS: tuple[Hand, ...] = (
     Hand("copperplate", "Copperplate", "Latn", 18, 19, ("copperplate",), "round, slanted, thick and thin strokes"),
     Hand("palmer", "Palmer method", "Latn", 19, 20, ("palmer", "palmer-method"),
          "upright, rounded and joined; the school cursive of the Americas (letra Palmer)"),
-    Hand("modern-cursive", "Modern cursive", "Latn", 20, 21, ("modern-cursive", "cursive"),
+    Hand("modern-cursive", "Modern cursive", "Latn", 20, 21, ("modern-cursive",),
          "today's joined everyday handwriting"),
     Hand("naskh", "Naskh", "Arab", 10, 20, ("naskh",), "rounded and clear, the book hand"),
     Hand("nastaliq", "Nastaʿlīq", "Arab", 14, 20, ("nastaliq",), "hanging, sloping words"),
