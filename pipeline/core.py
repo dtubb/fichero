@@ -301,10 +301,17 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     return summary
 
 
+def _since(issue: int, task: str) -> str | None:
+    """The sha the item started from in this task: the first `since` recorded for (issue, task). Red-on-base and
+    the changed-files set are measured from there, not from a retry's own start, or a retry that only fixes lint
+    in a test file could never be red on the base (live, 2026-10-25)."""
+    return next((e["sha"] for e in journal.read() if e["event"] == "since" and e["issue"] == issue and e.get("task") == task), None)
+
+
 def _run_issue(task, n, iss, wt, window, session_dir, worker, worker_index) -> str:
     c = cfg()
-    since = _head(wt)
-    journal.append("since", issue=n, sha=since)
+    since = _since(n, task) or _head(wt)
+    journal.append("since", issue=n, task=task, sha=since)
     it = state()["items"][str(n)]
     failure, attempt = it["retry_text"], it["attempts"]
     while attempt <= c["workers"]["retries"]:
@@ -368,7 +375,7 @@ def check(issue: int, since: str | None = None, locked: bool = False) -> list[di
     if not it:
         raise KeyError(f"#{issue} is not an item")
     wt = Path(s["tasks"][it["task"]]["worktree"])
-    since = since or next((e["sha"] for e in reversed(journal.read()) if e["event"] == "since" and e["issue"] == issue), None)
+    since = since or _since(issue, it["task"])
     sha = _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):

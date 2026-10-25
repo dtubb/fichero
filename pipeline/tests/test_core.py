@@ -233,6 +233,32 @@ def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fa
     assert "rename f1001" in brief
 
 
+def test_a_retry_is_measured_from_the_items_first_start(scratch, issues, fake_coder):
+    """Live 2026-10-25: a retry that only fixed an unused import in the test file was 'NOT RED ON BASE' because the
+    base was the retry's own start. Red-on-base and the changed files are measured from the item's first start."""
+    fc = fake_coder()
+    real = fc._tell
+    calls = {"n": 0}
+
+    def lint_fix_on_retry(window, text):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return real(window, text)
+        test = fc.cwd / "tests" / "test_1001.py"
+        test.write_text(test.read_text().replace("from src.mod import f1001", "from src.mod import f1001  # tidy"))
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "lint (Fixes #1001)")
+        fc.turns += 1
+
+    fc._tell = lint_fix_on_retry
+    core.start([1001])
+    it = core.state()["items"]["1001"]
+    core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="tidy the import")
+    assert core.retry(1001)["items"][1001] == "checked"
+    sinces = [e["sha"] for e in journal.read() if e["event"] == "since" and e["issue"] == 1001]
+    assert len(sinces) == 2 and sinces[0] == sinces[1], "the retry keeps the item's first since"
+
+
 def test_each_window_start_gets_its_own_session_dir(scratch, issues, fake_coder):
     """Re-review MED B: a restarted worker read the OLD session file (40 turns) and never looked idle."""
     fake_coder()
