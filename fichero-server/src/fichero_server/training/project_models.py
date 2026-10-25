@@ -24,11 +24,11 @@ from __future__ import annotations
 
 import json
 import shutil
-
-from fichero_server.core.atomic_json import write_json_atomic
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 MODELS_DIRNAME = "models"
 CARD = "fichero-card.json"
@@ -135,7 +135,11 @@ def make_global(package: str | Path, model_id: str) -> dict[str, Any]:
 
 
 def _kraken_global(package: str | Path, model_id: str, stamp: dict[str, Any]) -> dict[str, Any]:
-    from fichero_server.llm.kraken_runtime import _global_marker_path, recognition_data_home, recognition_model_dir
+    from fichero_server.llm.kraken_runtime import (
+        _global_marker_path,
+        recognition_data_home,
+        recognition_model_dir,
+    )
 
     record_path = kraken_record(package, model_id)
     if not record_path.is_file():

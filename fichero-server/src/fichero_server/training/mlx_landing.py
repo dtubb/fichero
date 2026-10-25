@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-
-from fichero_server.core.atomic_json import write_json_atomic
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 #: Attached kind on the local ML lane: the conversion is handed in by the training job, which waits.
 CONVERT_KIND = "convert-a-model"

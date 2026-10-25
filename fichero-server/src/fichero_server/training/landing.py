@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import re
 import shutil
-
-from fichero_server.core.atomic_json import write_json_atomic
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 _MODEL_SUFFIXES = (".safetensors", ".mlmodel")
 _EPOCH = re.compile(r"_(\d+)$")
@@ -58,7 +58,11 @@ def land_trained_reader(out_dir: str | Path, *, job_id: str, model_name: str, ca
     With `project` (the package it was trained for) the reader lands inside it (#5539,
     `training.project_models`): `models/<reader id>/` holds the model file and its record, the file
     named relative to the record. Without, it lands in the engine's global store as before."""
-    from fichero_server.llm.kraken_runtime import _marker_path, recognition_data_home, recognition_model_dir
+    from fichero_server.llm.kraken_runtime import (
+        _marker_path,
+        recognition_data_home,
+        recognition_model_dir,
+    )
 
     source = best_model_file(out_dir, model_name)
     reader_id = reader_id_for_job(job_id)

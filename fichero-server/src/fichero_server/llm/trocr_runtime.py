@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 import re
 import tempfile
-
-from fichero_server.core.atomic_json import write_json_atomic
 from pathlib import Path
 from typing import Any, Callable
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 _READER = re.compile(r"^trocr-hf-([A-Za-z0-9_.-]+?)--([A-Za-z0-9_.-]+)$")
 #: A strip is cut a little wider than the outline, as the economy tool does, so a stroke at the edge is not lost.
