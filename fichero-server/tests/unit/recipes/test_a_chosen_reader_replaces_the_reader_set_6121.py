@@ -29,3 +29,12 @@ def test_the_same_for_a_line_reading_step():
 def test_a_folder_override_changes_neither_the_model_nor_the_readers():
     (step,) = apply_project_overrides(_recipe("read-a-page", scope="folder"), [])["steps"]
     assert step["model"] == {"hf": "org/auto"} and len(step["readers"]) == 2
+
+
+def test_each_extra_reader_is_named_in_the_steps_reasons():
+    from fichero_server.recipes.assemble import readers_named
+
+    step = {"readers": [{"material": "print", "card": {"note": "Apple Vision"}},
+                        {"material": "handwriting", "card": {"id": "glm-ocr"}}]}
+    assert readers_named(step) == ["also reads print pages with Apple Vision", "also reads handwriting pages with glm-ocr"]
+    assert readers_named({}) == []

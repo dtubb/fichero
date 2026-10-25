@@ -765,6 +765,16 @@ def _chosen(choice: Choice) -> dict[str, Any]:
     }
 
 
+def readers_named(step: dict[str, Any]) -> list[str]:
+    """One sentence for each extra reader a step carries by kind of material: who reads which pages besides the step's own."""
+    out = []
+    for reader in step.get("readers") or []:
+        card = reader.get("card") or {}
+        who = card.get("note") or card.get("id") or "another reader"
+        out.append(f"also reads {str(reader.get('material') or 'other').replace('_', ' ')} pages with {who}")
+    return out
+
+
 def _pin_link(pin: dict) -> str | None:
     """Where a person reads about the model a pin names (#5802): its Zenodo record, its Hugging Face page, or the
     tool's own page; None when the pin has no page of its own."""
@@ -1100,6 +1110,8 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             step["material"] = a.material
             step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in read]
         step.update(_chosen(choice))
+        if step.get("readers"):  # an extra reader is never silent: Ready says each one (#6121)
+            step["reasons"] = [*(step.get("reasons") or []), *readers_named(step)]
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
             step["settings"] = {setting: a.job_answers[answer]}
