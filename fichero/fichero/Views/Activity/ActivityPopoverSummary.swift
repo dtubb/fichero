@@ -140,8 +140,7 @@ struct ActivityPopoverSummary: Equatable {
         }?.key
         heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
                                  waitingReason: waitingReason)
-        macReadings = (machine.map(Self.readings) ?? [])
-            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+        macReadings = Self.macReadings(machine, processCpuPercent: processCpuPercent, cpuCount: cpuCount)
     }
 
     /// A failed job counts toward the badge and, while few, is listed with its cause.
@@ -300,7 +299,7 @@ struct ActivityPopoverSummary: Equatable {
             .trimmingCharacters(in: .whitespaces)
     }
 
-    private static func readings(_ machine: Components.Schemas.MachineState) -> [MacReading] {
+    static func readings(_ machine: Components.Schemas.MachineState) -> [MacReading] {
         var readings: [MacReading] = []
         if let memory = machine.memoryPressure {
             let value: String
@@ -337,7 +336,7 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     /// The app's processor use, where 100% is one core busy; the help says of how much.
-    private static func cpuReading(_ percent: Double, cpuCount: Int) -> MacReading {
+    static func cpuReading(_ percent: Double, cpuCount: Int) -> MacReading {
         let value = "\(Int(percent.rounded()))%"
         let whole = cpuCount > 0 ? " of \(cpuCount * 100)% (\(cpuCount) cores)" : ""
         return MacReading(id: "cpu", symbol: "cpu", value: value, help: "Fichero's processor use: " + value + whole)
