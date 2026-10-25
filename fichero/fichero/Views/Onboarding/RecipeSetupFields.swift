@@ -42,7 +42,7 @@ struct SetupWhereItLivesFields: View {
             LabeledContent("Search model") {
                 Picker("Search model", selection: $store.embeddingModel) {
                     ForEach(store.embeddingChoices) { choice in
-                        Text(choice.name).tag(choice.model)
+                        Text(choice.recommended ? "\(choice.name) (recommended)" : choice.name).tag(choice.model)
                     }
                 }
                 .labelsHidden()

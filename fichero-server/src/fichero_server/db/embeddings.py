@@ -105,7 +105,7 @@ SUPPORTED_EMBEDDING_SPACES = {
 #: What Set Up says about each search model a project may be made with (`search.embedding.choices-come-from-the-engine`,
 #: #6144): its short name and one line. The model is recommended first; a space with no entry is not offered.
 EMBEDDING_MODEL_BLURBS = {
-    BGE_M3_MODEL: ("bge-m3", "Reads every script, including old and rare ones. Recommended."),
+    BGE_M3_MODEL: ("bge-m3", "Reads every script, including old and rare ones."),
     DEFAULT_MODEL: ("multilingual-e5-large", "Fast, for modern European languages."),
 }
 RECOMMENDED_EMBEDDING_MODEL = BGE_M3_MODEL

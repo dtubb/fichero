@@ -8,6 +8,8 @@ struct EmbeddingModelChoice: Identifiable, Equatable {
     let name: String
     /// One line: what it is good for.
     let blurb: String
+    /// The engine's flag for the model it recommends; the menu says so, the blurb does not repeat it.
+    var recommended = false
 
     var id: String { model }
 
@@ -15,7 +17,7 @@ struct EmbeddingModelChoice: Identifiable, Equatable {
 
     static let all: [EmbeddingModelChoice] = [
         EmbeddingModelChoice(model: defaultModel, name: "bge-m3",
-                             blurb: "Reads every script, including old and rare ones. Recommended."),
+                             blurb: "Reads every script, including old and rare ones.", recommended: true),
         EmbeddingModelChoice(model: "intfloat/multilingual-e5-large", name: "multilingual-e5-large",
                              blurb: "Fast, for modern European languages.")
     ]
@@ -24,7 +26,7 @@ struct EmbeddingModelChoice: Identifiable, Equatable {
     static func fetch(client: FicheroClient) async -> [EmbeddingModelChoice]? {
         guard case .ok(let success)? = try? await client.api.listEmbeddingModelsApiSearchEmbeddingModelsGet(.init()),
               let list = try? success.body.json.models, !list.isEmpty else { return nil }
-        return list.map { EmbeddingModelChoice(model: $0.model, name: $0.name, blurb: $0.blurb) }
+        return list.map { EmbeddingModelChoice(model: $0.model, name: $0.name, blurb: $0.blurb, recommended: $0.recommended) }
     }
 
     /// What a project that already holds vectors made with `model` is called; the engine's own name when it is not listed.

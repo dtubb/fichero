@@ -119,3 +119,4 @@ def test_the_models_route_lists_every_supported_model_with_its_blurb_before_any_
     assert [m["recommended"] for m in models[1:]] == [False] * (len(models) - 1)
     assert all(m["name"] and m["blurb"] for m in models)
     assert {m["model"] for m in models} == {s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}
+    assert not any("ecommended" in m["blurb"] for m in models), "the flag says it once, the blurb does not repeat it"
