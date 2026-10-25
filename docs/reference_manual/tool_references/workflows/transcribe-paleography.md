@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have archaic or specialist pre-18th C. script in any language and want ONE careful, whole-page pass with extended thinking. Language-specific presets (Español s. XVI–XVII / s. XVIII–XIX, Latin, English secretary) carry deeper period advice; run Paleographer Review afterwards to refine the result. Model: whatever you pick at run time.
+Use this when: you have archaic or specialist pre-18th C. script in any language and want ONE careful, whole-page pass with extended thinking. Language-specific presets (Español s. XVI–XVII / s. XVIII–XIX, Latin, English secretary) carry deeper period advice; run Review the Reading afterwards to refine the result. Model: whatever you pick at run time.
 
 | | |
 | --- | --- |

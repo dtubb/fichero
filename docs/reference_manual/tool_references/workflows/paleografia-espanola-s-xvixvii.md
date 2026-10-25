@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have early-modern Spanish script — procesal, cortesana, itálica — from Spain or colonial America (notarial records, audiencia files, cartas de poder, confesiones, probanzas). One careful whole-page pass with deep period advice; run Paleographer Review afterwards to refine.
+Use this when: you have early-modern Spanish script — procesal, cortesana, itálica — from Spain or colonial America (notarial records, audiencia files, cartas de poder, confesiones, probanzas). One careful whole-page pass with deep period advice; run Review the Reading afterwards to refine.
 
 | | |
 | --- | --- |

@@ -1,0 +1,30 @@
+id: es-moderna
+title: Spanish, s. XVIII–XIX (humanística, bastarda, letra de oficio)
+status: shipped
+# Guidance reused from the Transcribe preset "Paleografía Española (s. XVIII–XIX)" (#6128).
+suits:
+  languages: [es]
+  scripts: [Latn]
+  material: [handwriting]
+  period: [1700, 1900]
+context: >-
+  The documents are Spanish administrative and notarial writing of the 18th and 19th centuries: escrituras, oficios,
+  expedientes. Abbreviation is lighter than in earlier centuries; long-s persists into the early 19th century.
+lenses:
+  abbreviations:
+    title: abbreviations, contractions and formulary
+    text: |
+      - Verify every expansion; brackets only around letters supplied by expansion. Usual abbreviations: D.n / D.a = Don/Doña · S.or / S.ra · Ex.mo · Yll.e / Ill.e · dro = derecho · q.e = que · p.a = para · p.r = por · am.o = amigo · fho = fecho · corr.te = corriente · S.n = San.
+      - Administrative and notarial formulary: salutation and date lines follow fixed patterns; propose damaged formula text only as [UNCERTAIN: ...], never as clean text.
+  orthography:
+    title: orthography, letterforms and consistency
+    text: |
+      - Long-s persists into the early 19th century: do not read it as f.
+      - Period orthography stands: havia, oy, mui, exemplo, dixo, muger; accents are rare, so transcribe without adding them.
+      - Rubricated signatures and papel sellado stamps are common: mark them ([Rúbrica], [Sello]), never read them as text.
+  names-and-dates:
+    title: names, dates and the final check
+    text: |
+      - Collect every personal name, place name and date on the page (and in any reference material provided). The same person must read the same way throughout; a date must agree with the document's own heading or docket. Mark what cannot be resolved [UNCERTAIN: ...].
+      - Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading; every [ILLEGIBLE] is confirmed truly unreadable at this resolution.
+      - Layout check: line breaks, marginalia, insertions, [deleted: ...], [Rúbrica]/[Sello] are where the page has them.

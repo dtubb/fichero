@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Paleographer Review afterwards for hard documents.
+Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Review the Reading afterwards for hard documents.
 
 | | |
 | --- | --- |

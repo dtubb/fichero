@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you have 18th–19th century Spanish administrative, notarial, or secretarial hands (humanística, bastarda, letra de oficio). Replaces the Spanish Script v2 presets. One careful whole-page pass; run Paleographer Review afterwards to refine.
+Use this when: you have 18th–19th century Spanish administrative, notarial, or secretarial hands (humanística, bastarda, letra de oficio). Replaces the Spanish Script v2 presets. One careful whole-page pass; run Review the Reading afterwards to refine.
 
 | | |
 | --- | --- |

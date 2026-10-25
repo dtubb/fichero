@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Paleographer Review workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.
+Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Review the Reading workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.
 
 | | |
 | --- | --- |
@@ -31,7 +31,7 @@ Settings this step uses:
 | `output_mapping` | {"text": "$.nodes.transcribe.text"} |
 | `workflow_ref` | Transcribe Paleography |
 
-### 3. Stage 2 — Paleographer Review
+### 3. Stage 2 — Review the Reading
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -42,4 +42,4 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "files", "description": "The same page images, for review against the strokes.", "id": "files", "required": true}, {"data_type": "any", "description": "Per-page document metadata (index-aligned with files).", "id": "documents", "required": false}, {"data_type": "text", "description": "Stage 1's transcription \u2014 ordering edge; the review also reads the freshly written page content.", "id": "context", "required": false}] |
 | `output_contract` | [{"data_type": "text", "description": "The reviewed, final transcription.", "id": "text", "required": true}] |
 | `output_mapping` | {"text": "$.nodes.r3.text"} |
-| `workflow_ref` | Paleographer Review |
+| `workflow_ref` | Review the Reading |

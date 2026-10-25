@@ -12,7 +12,7 @@ import pytest
 from fichero_server.recipes.start import estimate
 from fichero_server.workflows import model_comparison
 
-REVIEW = {"workflow": "Paleographer Review", "steps": ["correct"], "job": "correct", "runs_on": "cloud:openai",
+REVIEW = {"workflow": "Review the Reading", "steps": ["correct"], "job": "correct", "runs_on": "cloud:openai",
           "provider_override": "openai", "model_override": "gpt-5"}
 
 
@@ -59,7 +59,8 @@ def test_a_review_whose_passes_cannot_be_counted_is_unpriced_never_free():
 def test_the_review_is_priced_by_its_own_workflow():
     from fichero_server.recipes.review_profiles import review_passes
 
-    assert review_passes("Paleographer Review", None) == 3  # the name a run carries
+    assert review_passes("Review the Reading", None) == 3  # the name a run carries
+    assert review_passes("Paleographer Review", None) == 3  # a run made before the rename (#6128)
     assert review_passes("transcribe_paleography_review", ["orthography"]) == 1  # or the preset's key
     assert review_passes("No Such Preset", None) is None
     assert review_passes("transcribe_paleography_review", []) == 0  # every lens off: no call

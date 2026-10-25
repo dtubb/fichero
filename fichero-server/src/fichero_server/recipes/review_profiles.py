@@ -76,6 +76,8 @@ def lens_ids() -> list[str]:
 
 #: The shipped review preset a recipe's Correct step runs (`start.WORKFLOW_FOR_JOB["correct"]`).
 REVIEW_PRESET = "transcribe_paleography_review"
+#: The name a run made before the rename carries as its `workflow` (#6128), read as the preset it became.
+RENAMED = {"Paleographer Review": "Review the Reading"}
 
 
 def review_passes(preset: str, lenses: list[str] | None) -> int | None:
@@ -87,6 +89,7 @@ def review_passes(preset: str, lenses: list[str] | None) -> int | None:
 
     from fichero_server.workflows.default_workflows import _PRESETS_DIR, shipped_preset
 
+    preset = RENAMED.get(preset, preset)
     found = shipped_preset(preset)
     if found is None:
         for path in sorted(_PRESETS_DIR.glob("*.json")):
@@ -175,6 +178,12 @@ def _fits(profile: Profile, a: Any) -> bool:
     return in_period(card, a) is not False
 
 
+def _span(profile: Profile) -> int:
+    """The years a profile's period covers: of two that fit, the narrower is the nearer to the project's date."""
+    period = profile.card.period
+    return period[1] - period[0] if period else 10**6
+
+
 def choose(answers: dict[str, Any] | None) -> tuple[Profile, str]:
     """The profile for the project's setup answers, and a sentence saying which and why. Among those that fit, the
     one whose period states the project's, then by id; the generic profile when no other fits, said in words and
@@ -184,7 +193,7 @@ def choose(answers: dict[str, Any] | None) -> tuple[Profile, str]:
 
     a = _answers(answers)
     fitting = sorted((p for p in profiles().values() if p.id != GENERIC and _fits(p, a)),
-                     key=lambda p: (in_period(p.card, a) is not True, p.id))
+                     key=lambda p: (in_period(p.card, a) is not True, _span(p) if in_period(p.card, a) else 0, p.id))
     if fitting:
         best = fitting[0]
         stub = (" It is a stub: it says what makes the hand hard, not yet the genres and spellings."

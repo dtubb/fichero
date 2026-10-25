@@ -1,6 +1,6 @@
 {
  "name": "Latin Paleography",
- "description": "Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Paleographer Review afterwards to refine.",
+ "description": "Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Review the Reading afterwards to refine.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -13,7 +13,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 1,
+  "preset_version": 2,
   "variant_group": "transcribe-single-pass",
   "variant": "paleography-latin"
  },
