@@ -87,9 +87,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   behaviour is in no step or in two, a step has no Behaviours or no Tests, a step is Size L or has more than five
   behaviours, or Depends-on points forward; a DRAFT spec only warns. The cut into stages and steps is Opus's
   judgement with the maintainer, by the rules in `specs/_TEMPLATE.md` ("Build order"). Existing specs are not
-  rewritten; the self-test parses `source/source-model.md`'s slices and reports the distance. Tests:
-  `pipeline/tests/test_specs.py::test_build_order_parses`,
-  `pipeline/tests/test_specs.py::test_build_order_guard_fails_on_orphan_behaviour`,
+  rewritten; the self-test proves each rule against fixtures (orphan, prose-masked tag, forward
+  dependency, step-level rules, rulings-scan) and reports the distance for `source/source-model.md`'s
+  slices. Tests:
+  `scripts/check_spec_build_order_shape.py --self-test`,
   `fichero-server/tests/unit/scripts/test_check_spec_build_order_shape.py`.
 - `pipeline.brief-lint` [MISSING] (#6116) — work starts only from an APPROVED spec's step or a bug issue; an issue
   without a spec id (or the bug label), an acceptance line or a test path is not dispatched; it goes to the queue
@@ -536,7 +537,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 #### Step 1.2 — the build-order guard (the Stage 0 proof step)
 - Behaviours: `pipeline.build-order-shape`
-- Tests: pipeline/tests/test_specs.py, fichero-server/tests/unit/scripts/test_check_spec_build_order_shape.py
+- Tests: scripts/check_spec_build_order_shape.py --self-test, fichero-server/tests/unit/scripts/test_check_spec_build_order_shape.py
 - Depends on: 0.5
 - Size: S
 
