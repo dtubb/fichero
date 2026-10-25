@@ -99,13 +99,11 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
         ))
-        // The table (#5415) replaced the unified list: double-click on any row
-        // (the table's primary action) opens THAT row's details (#5561) → the
-        // detail Window, as its ⓘ does.
-        XCTAssertTrue(monitorSource.contains("let row = Self.find(id, in: sortedRows) else { return }\n            showDetails(for: row)"))
-        XCTAssertTrue(monitorSource.contains(
-            "openWindow(id: ActivityWindowSelectionState.detailWindowID)"
-        ))
+        // The grouped list (NOW / UP NEXT / DONE TODAY) replaced the table: opening a row shows ITS
+        // details in the monitor window itself (`openedID`); the detail Window is still opened by the
+        // row's own ⓘ and double-click (ActivityViewHelpers, asserted below).
+        XCTAssertTrue(monitorSource.contains("open: { openedID = $0.id }"))
+        XCTAssertTrue(monitorSource.contains("let row = Self.find(id, in: allRows), let selection = row.selection"))
         // The detail window injects the ONE shared chain now (#4284), which carries documentStore.
         let serviceChain = try Self.appSource("Views/Shell/LibraryServiceEnvironment.swift")
         XCTAssertTrue(

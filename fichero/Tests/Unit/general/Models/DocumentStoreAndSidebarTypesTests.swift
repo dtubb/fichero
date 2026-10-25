@@ -580,22 +580,26 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
-        // The pairing surface is ShareSettingsView's Add Device sheet, which renders the PairingCardView
-        // (defined in PairingCardView.swift) beside the Devices list (`sharing.settings.add-device-sheet`, #5928). No scanner.
+        // The pairing surface is ShareSettingsView's Add Device sheet: the QR, the code and when it expires, drawn from
+        // AddDeviceSheetModel's words, beside the Devices list (`sharing.settings.add-device-sheet`, #5928). No scanner.
+        // PairingCardView.swift keeps the card for the Project inspector's paired devices.
         let shareSource = try Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift")
-        let remoteAccessSource = try Self.appSource("Views/Settings/Sharing/Pairing/PairingCardView.swift")
+        let modelSource = try Self.appSource("Views/Settings/Sharing/Pairing/AddDeviceSheetModel.swift")
+        let cardSource = try Self.appSource("Views/Settings/Sharing/Pairing/PairingCardView.swift")
 
-        XCTAssertTrue(shareSource.contains("PairingCardView("))
         XCTAssertTrue(shareSource.contains("SharingPaneText.addDevice"))
         XCTAssertTrue(shareSource.contains("activePairedDevices(from: pairedDevices)"))
-        XCTAssertTrue(remoteAccessSource.contains("ProgressView(\"Preparing QR code…\")"))
-        XCTAssertTrue(remoteAccessSource.contains(".accessibilityLabel(\"Pairing QR code\")"))
-        XCTAssertTrue(remoteAccessSource.contains("Expires \\($0.formatted(date: .omitted, time: .shortened))"))
-        XCTAssertTrue(remoteAccessSource.contains("Never expires"))
-        XCTAssertFalse(remoteAccessSource.contains("Show Pairing QR"))
-        XCTAssertFalse(remoteAccessSource.contains("Generate Pairing QR"))
-        XCTAssertFalse(remoteAccessSource.contains(".sheet(isPresented:"))
-        XCTAssertFalse(remoteAccessSource.contains("QRCodeScannerSheet"))
+        XCTAssertTrue(shareSource.contains(".accessibilityLabel(\"Pairing QR code\")"))
+        XCTAssertTrue(shareSource.contains("AddDeviceSheetModel.expiresText(expiresAt: code.expiresAt)"))
+        XCTAssertTrue(modelSource.contains("Never expires"))
+        XCTAssertTrue(cardSource.contains("ProgressView(\"Preparing QR code…\")"))
+        XCTAssertTrue(cardSource.contains("Never expires"))
+        for source in [shareSource, cardSource] {
+            XCTAssertFalse(source.contains("Show Pairing QR"))
+            XCTAssertFalse(source.contains("Generate Pairing QR"))
+            XCTAssertFalse(source.contains("QRCodeScannerSheet"))
+        }
+        XCTAssertFalse(cardSource.contains(".sheet(isPresented:"))
     }
 
     func testServerSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {

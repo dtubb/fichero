@@ -6,7 +6,10 @@ import XCTest
 final class ActivityClearFinishedShapeTests: XCTestCase {
     func testTheToolbarOffersClearFinishedBehindAConfirmation() throws {
         let window = try AppSource.code("Views/Activity/Window/ActivityMonitorWindow.swift")
-        XCTAssertTrue(window.contains("Button(\"Clear Finished…\", role: .destructive) { confirmingClearFinished = true }"))
+        // The button sits under the DONE TODAY heading (ActivityGroupsView) and asks the window to confirm.
+        let groups = try AppSource.code("Views/Activity/Window/ActivityGroupsView.swift")
+        XCTAssertTrue(groups.contains("Button(\"Clear Finished…\", role: .destructive, action: clearFinished)"))
+        XCTAssertTrue(window.contains("clearFinished: { confirmingClearFinished = true }"))
         XCTAssertTrue(window.contains(".confirmationDialog(\"Remove every finished run?\""))
     }
 
