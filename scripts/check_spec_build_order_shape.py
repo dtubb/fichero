@@ -30,7 +30,7 @@ SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 
 # Patterns for parsing build order
 STAGE_RE = re.compile(r"^###\s+Stage\s+(\d+)\s+—\s+(.+)$")
-STEP_RE = re.compile(r"^####\s+Step\s+(\d+\.\d+)\s+—\s+([^(]+?)(?:\s+\(#(\d+)\))?$")
+STEP_RE = re.compile(r"^####\s+Step\s+(\d+\.\d+)\s+—\s+(.+?)(?:\s+\(#(\d+)\))?$")
 BEHAVIOURS_RE = re.compile(r"^-\s+Behaviours?:\s+(.+)$")
 TESTS_RE = re.compile(r"^-\s+Tests?:\s+(.+)$")
 DEPENDS_RE = re.compile(r"^-\s+Depends\s+on:\s+(.+)$")
@@ -38,6 +38,9 @@ SIZE_RE = re.compile(r"^-\s+Size:\s+(S|M|L)$")
 
 # Behavior id pattern: backticked lowercase dotted ids
 BEHAVIOR_ID_RE = re.compile(r"`([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)`")
+
+# A behaviour line: "- `id` [TAG] ..."
+BEHAVIOUR_LINE_RE = re.compile(r"^-\s+" + BEHAVIOR_ID_RE.pattern)
 
 # Tag pattern for behavior status
 TAG_RE = re.compile(
@@ -209,13 +212,11 @@ def _get_all_behaviours_in_spec(text: str) -> dict[str, str]:
     behaviours = {}
 
     for line in lines:
-        # Find behavior ids
-        for match in BEHAVIOR_ID_RE.finditer(line):
-            behavior_id = match.group(1)
-            # Find tag in same line
-            tag_match = TAG_RE.search(line)
-            tag = tag_match.group(1) if tag_match else "OK"
-            behaviours[behavior_id] = tag
+        # A behaviour is a list line that opens with its backticked id and carries a tag;
+        # an id mentioned in prose (a file name like `ci.yml`) is not one.
+        m = BEHAVIOUR_LINE_RE.match(line)
+        if m and (tag_match := TAG_RE.search(line)):
+            behaviours[m.group(1)] = tag_match.group(1)
 
     return behaviours
 

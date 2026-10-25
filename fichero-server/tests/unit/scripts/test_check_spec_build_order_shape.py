@@ -361,3 +361,38 @@ def test_get_all_behaviours_extracts_tags():
 def test_self_test_passes():
     """The guard's own self-test should pass."""
     assert _mod._self_test() == 0
+
+
+PAREN_TITLE_AND_PROSE_ID = """# Test Spec
+
+**Status: APPROVED**
+
+- `test.one` [MISSING] — a behaviour; `ci.yml` in prose is a file name, not a behaviour.
+
+## Build order
+
+#### Step 0.1 — the guard (a note in parentheses) (#77)
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+
+#### Step 0.2 — next
+- Behaviours: `test.one`
+- Tests: test/two.py
+- Depends on: 0.1
+- Size: S
+"""
+
+
+def test_step_title_may_contain_parentheses_and_still_carry_an_issue():
+    parsed = _mod._parse_build_order(PAREN_TITLE_AND_PROSE_ID)
+    assert parsed is not None
+    steps = parsed["stages"][0]["steps"]
+    assert [s["number"] for s in steps] == ["0.1", "0.2"]
+    assert steps[0]["title"] == "the guard (a note in parentheses)"
+    assert steps[0]["issue"] == "77"
+
+
+def test_only_behaviour_lines_define_behaviours_not_ids_in_prose():
+    behaviours = _mod._get_all_behaviours_in_spec(PAREN_TITLE_AND_PROSE_ID)
+    assert behaviours == {"test.one": "MISSING"}
