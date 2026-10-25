@@ -13,7 +13,7 @@ extension RecipeSetupStore {
         let when = period.trimmingCharacters(in: .whitespaces)
         do {
             if case .ok(let success) = try await client.api.listHandsApiRecipesHandsGet(
-                query: .init(script: script, period: when.isEmpty ? nil : when)
+                query: .init(script: script, period: when.isEmpty ? nil : when, languages: Self.handLanguages(languages))
             ) {
                 handOptions = try success.body.json.items
             }
@@ -21,6 +21,12 @@ extension RecipeSetupStore {
             if error.isCancellationError { return }
             handOptions = []
         }
+    }
+
+    /// The project's languages as the hands query asks them (#6118): the engine leaves out a hand particular to others
+    /// (Kurrent for a Spanish project). Sent from the page's own answers: the saved ones lag until Continue.
+    nonisolated static func handLanguages(_ languages: [String]) -> String? {
+        languages.isEmpty ? nil : languages.joined(separator: ",")
     }
 
     /// Tick or untick a hand. "Not sure" stands alone: it clears the others, and a hand ticked clears it.
