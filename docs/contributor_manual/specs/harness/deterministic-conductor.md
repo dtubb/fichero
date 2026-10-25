@@ -23,6 +23,13 @@ The pieces were built a year ago and never joined: `choose_next.py` (pick work),
 done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
 report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
 
+## Who does what
+
+- **The maintainer + Claude Opus (interactive, a personal plan):** talk, decide, write and approve specs, handle
+  exceptions. The only place judgement is spent.
+- **Pi + Qwen (OpenRouter now, a local model on a 128 GB Mac later):** one issue at a time, inside the harness.
+- **Scripts and GitHub Actions:** everything else (choose, check, close, log). No OpenCode, no LLM lead in the loop.
+
 ## Version 1, and nothing more
 
 Four pieces, each a short script with a self-test, so the process runs the same on the Pro today and on a laptop with
@@ -59,7 +66,7 @@ waits until v1 has done ten real issues and the numbers say it is worth building
    not claimed. Order: the milestone's spec build order if it has one, else issue number.
 3. **Pick the harness and model.** `dispatch_advisor.py` sizes each issue; a table in `agents/lanes.toml` maps the size
    to a harness and model, so swapping models is one edit:
-   `mini` → Pi (tight: rules + checklist) + Qwen 3.8 27B or Flash; `regular` → the same, escalating to Sonnet; `frontier` → Claude Opus. (2026-10-18 trial: Qwen 3.8 in tight Pi wrote the right tests 6/6–7/7 and caught 3/3 planted bugs; Qwen3-coder-next missed one in Claude Code, OpenCode and Pi alike, so the model matters more than the harness.)
+   `mini` → Pi (tight: rules + checklist) + Qwen 3.8 27B or Flash; `regular` → the same, retried once with the failure; `frontier` → not dispatched: it goes back to the spec with Opus. (2026-10-18 trial: Qwen 3.8 in tight Pi wrote the right tests 6/6–7/7 and caught 3/3 planted bugs; Qwen3-coder-next missed one in Claude Code, OpenCode and Pi alike, so the model matters more than the harness.)
 4. **Launch, jailed.** Worktree `m-<milestone>` from origin/integration; the harness may write only inside it (sandbox
    + deny rules, as `run.sh` does); no push rights. The brief is generated from a template plus the issue: its spec
    ids, its acceptance lines, and the tests to run. The harness session id is saved in the lane state.
