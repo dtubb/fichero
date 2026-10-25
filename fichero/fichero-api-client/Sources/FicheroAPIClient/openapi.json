@@ -68569,6 +68569,32 @@
         "title": "HealthResponse",
         "description": "Response from ``GET /api/health`` endpoint.\n\nIf library path is provided in the request header, returns stats for that\nlibrary. Otherwise, returns general backend health."
       },
+      "HeldModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "what holds it: the search embedder, Kraken"
+          },
+          "memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Bytes",
+            "description": "its resident size when it has a process of its own; null when it lives inside the engine's memory or is unknown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "HeldModel",
+        "description": "A model the engine holds in memory (`models_held`, #6129)."
+      },
       "HermeneuticCircleState": {
         "properties": {
           "id": {
@@ -75768,6 +75794,13 @@
             "type": "string",
             "nullable": true,
             "title": "Why Wait"
+          },
+          "models_held": {
+            "items": {
+              "$ref": "#/components/schemas/HeldModel"
+            },
+            "type": "array",
+            "title": "Models Held"
           }
         },
         "type": "object",
@@ -93555,6 +93588,12 @@
             "type": "string",
             "nullable": true,
             "title": "Why"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this reader is, as the plan said it: 'Also reads print pages with Apple Vision'; the same text as `RecipeStep.readers[].sentence`, shown as it stands (#6134); null for pages read by the stage's own reader"
           }
         },
         "type": "object",
@@ -94986,6 +95025,12 @@
             },
             "type": "array",
             "title": "Reasons"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this extra reader is, in a sentence, as the app and Activity show it: 'Also reads print pages with Apple Vision'"
           },
           "gap": {
             "type": "string",

@@ -221,6 +221,15 @@ def _remote_row(db, row: dict) -> "RemoteRunRow | None":
         return None
 
 
+class HeldModel(BaseModel):
+    """A model the engine holds in memory (`models_held`, #6129)."""
+
+    name: str
+    kind: str = Field(description="what holds it: the search embedder, Kraken")
+    memory_bytes: Optional[int] = Field(default=None, description=(
+        "its resident size when it has a process of its own; null when it lives inside the engine's memory or is unknown"))
+
+
 class MachineState(BaseModel):
     """This Mac's state, as the throttle reads it (`activity.popover.summary`, #5415)."""
 
@@ -233,6 +242,8 @@ class MachineState(BaseModel):
     in_use: bool = False
     # Why heavy local work is held back right now, in words; None when it may go ahead.
     why_wait: Optional[str] = None
+    # The models the engine itself holds in memory now, with what each takes (#6129): what it could hand back when memory is tight.
+    models_held: list[HeldModel] = Field(default_factory=list)
 
 
 def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:

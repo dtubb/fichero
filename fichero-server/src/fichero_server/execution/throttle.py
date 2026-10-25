@@ -555,6 +555,12 @@ def decide(person_waiting: bool = False, *, model: str | None = None, loaded: bo
     return Decision("slow", busy, "background") if busy else Decision("go", None, "balanced")
 
 
+def _models_held() -> list[dict]:
+    from fichero_server.execution.models_held import models_held
+
+    return models_held()
+
+
 def machine_state() -> dict:
     """This Mac's state for the Activity popover (`activity.popover.summary`, #5415): the same
     readings the probes act on, plus `why_wait`, the reason heavy work is held back now (None
@@ -571,4 +577,5 @@ def machine_state() -> dict:
         "on_battery": on_battery() is not None,
         "in_use": mac_is_in_use() is not None,
         "why_wait": why_wait(),
+        "models_held": _models_held(),
     }

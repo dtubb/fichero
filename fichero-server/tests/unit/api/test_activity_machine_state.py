@@ -47,6 +47,7 @@ def test_activity_popover_summary__the_jobs_route_carries_the_macs_state_with_it
         "on_battery": False,
         "in_use": False,
         "why_wait": None,
+        "models_held": [],  # nothing loaded in this engine (#6129)
     }
 
 

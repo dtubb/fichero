@@ -233,6 +233,8 @@ class StepReader(BaseModel):
     card: Optional[RecipeCard] = None
     runs_on: Optional[str] = None
     reasons: list[str] = Field(default_factory=list)
+    sentence: Optional[str] = Field(default=None, description=(
+        "who this extra reader is, in a sentence, as the app and Activity show it: 'Also reads print pages with Apple Vision'"))
     gap: Optional[str] = None
     problem: Optional[StepProblem] = None
 

@@ -625,7 +625,8 @@ def _run_by_reader(db: Any, card: dict[str, Any], documents: list[str], kinds: d
             break
         child, state, why = _run_workflow(db, {**card, **card["readers"][kind]} if kind else card, pages, parent)
         ran.append({"material": kind, "pages": len(pages), "model": (card["readers"][kind] if kind else card)
-                    ["model_override"], "child_id": child, "state": state, "why": why})
+                    ["model_override"], "child_id": child, "state": state, "why": why,
+                    "sentence": card["readers"][kind].get("sentence") if kind else None})
     step["readers"] = ran
     failed = [r for r in ran if r["state"] != "done"]
     first = (failed or ran)[0]
