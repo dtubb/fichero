@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "jcodemunch": {
+      "command": "${HOME}/.local/bin/jcodemunch-mcp",
+      "args": ["serve"],
+      "directTools": ["plan_turn", "resolve_repo", "index_folder", "search_symbols", "search_text", "get_file_outline",
+                      "get_symbol_source", "get_context_bundle", "find_references", "find_importers", "get_blast_radius",
+                      "get_repo_outline"]
+    },
+    "jdocmunch": {
+      "command": "${HOME}/.local/bin/jdocmunch-mcp"
+    },
+    "pipeline": {
+      "command": "${PIPELINE_PYTHON}",
+      "args": ["-m", "pipeline.mcp_server", "--role", "${PIPELINE_ROLE}"],
+      "env": {"PYTHONPATH": "${PIPELINE_ROOT}", "PIPELINE_ROOT": "${PIPELINE_ROOT}", "PIPELINE_STATE": "${PIPELINE_STATE}"}
+    }
+  }
+}

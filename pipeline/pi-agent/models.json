@@ -1,0 +1,14 @@
+{
+  "_comment": "pipeline.model-per-role: the end state declares a local oMLX endpoint to Pi as an OpenAI-compatible provider. Not run now; the self-test loads nothing. Pi's models.json shape: providers -> baseUrl, api, apiKey (env var name), models.",
+  "providers": {
+    "omlx": {
+      "baseUrl": "http://127.0.0.1:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "OMLX_API_KEY",
+      "models": [
+        {"id": "qwen3.5-9b", "name": "Qwen 3.5 9B (local, oMLX)", "contextWindow": 65536, "maxTokens": 16384,
+         "reasoning": false, "input": ["text"], "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}
+      ]
+    }
+  }
+}
