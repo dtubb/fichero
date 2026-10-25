@@ -23,16 +23,12 @@ The pieces were built a year ago and never joined: `choose_next.py` (pick work),
 done, may it merge, close the issue) is a script reading GitHub and the repo, deterministic and logged. A model's own
 report is never evidence. An LLM is called only to do one issue, to review a diff, or to handle an exception.
 
-## Where it lives: fichero-skills, for every project
+## Where it lives: Fichero first
 
-The conductor is general: the same loop serves the other repos in `~/code` that use fichero-skills (about a dozen;
-the code ones track GitHub issues). It is built once as a plugin, `fichero-skills/plugins/fs_conductor/` (scripts:
-`conductor.py`, `choose.py`, `brief_lint.py`, `ready_check.sh`, `jail_run.sh`, `close_on_push.py`; thin skills that
-call them; a brief template and a config template). Each project opts in with `.fichero/conductor.toml` (repo, base
-branch, gate command, test machine, label names, size-to-model table, cost cap); with no config file the plugin
-refuses to run. Fichero is the first project: its `choose_next.py`, `close_fixed_issues.py`, `run.sh` and
-`lane_ready_check.sh` move into the plugin, generalised; its engine gate, spec-tag guards, test-machine queue and
-Actions workflows stay in this repo.
+The goal now is the app, so the conductor is built for Fichero, in this repo (`scripts/` and `.bernstein/` or
+`agents/conductor/`), against Fichero's gate, test machines and issues. Only once it has run Fichero's lanes reliably
+does it move into a shared home (fichero-skills or a new name) for the other projects in use (assistant,
+research_assistant). Nothing is generalised before then.
 
 **The last attempt, `fs_autoloop` (May–Sept 2026, removed in fichero-skills b1c9ed2), and what changes:** its state was
 a markdown queue the model and sed edited; "done" was the model's report, later guessed from the HEAD commit; the loop
