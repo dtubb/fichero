@@ -46,7 +46,7 @@ def test_a_project_with_no_recipe_cannot_start():
 
 def test_steps_become_shipped_workflows_by_name_with_the_steps_model():
     """Kraken finds its own lines before reading, so lines+read are one run of Transcribe (Kraken),
-    told which reader to use; the correction runs Paleographer Review with the step's MLX model.
+    told which reader to use; the correction runs Review the Reading with the step's MLX model.
     Workflows are referred to by their stable preset id, never copied, and each named workflow
     really is in the store."""
     plan = plan_start(_recipe(LINES, READ, CORRECT), stays_local=True)
@@ -54,7 +54,7 @@ def test_steps_become_shipped_workflows_by_name_with_the_steps_model():
     kraken, review = plan["workflows"]
     assert kraken["steps"] == ["lines", "read"] and kraken["workflow"] == "Transcribe (Kraken)"
     assert (kraken["provider_override"], kraken["model_override"]) == ("kraken", "kraken-mccatmus")
-    assert review["steps"] == ["correct"] and review["workflow"] == "Paleographer Review"
+    assert review["steps"] == ["correct"] and review["workflow"] == "Review the Reading"
     assert (review["provider_override"], review["model_override"]) == (
         "omlx", "mlx-community/Qwen2.5-VL-7B-Instruct-4bit")
     for w in plan["workflows"]:
