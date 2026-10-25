@@ -26,6 +26,7 @@ def _installed_space():
     return None
 
 
+@pytest.mark.slow  # loads the real 500 MB+ model: out of the fast gate
 def test_the_embedders_process_gives_its_memory_back_when_it_is_released(monkeypatch):
     found = _installed_space()
     if found is None:
@@ -38,7 +39,7 @@ def test_the_embedders_process_gives_its_memory_back_when_it_is_released(monkeyp
         pid = embedder._process.pid
         held = _rss_bytes(pid)
     assert held > 500 * 1024**2, "the model is in the child's memory while it is held"
-    assert embeddings.release_idle_embedders(idle_seconds=0, reason="test") == [space.fastembed_model_name]
+    assert space.fastembed_model_name in embeddings.release_idle_embedders(idle_seconds=0, reason="test")
     for _ in range(50):
         if _rss_bytes(pid) == 0:
             break

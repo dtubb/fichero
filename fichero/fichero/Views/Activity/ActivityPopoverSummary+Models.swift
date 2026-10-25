@@ -18,7 +18,7 @@ extension ActivityPopoverSummary {
         guard !held.isEmpty else { return [] }
         let known = held.compactMap(\.memoryBytes)
         let total = known.reduce(0, +)
-        let value = known.isEmpty ? "\(held.count)" : gigabytes(total)
+        let value = known.isEmpty ? "\(held.count) model\(held.count == 1 ? "" : "s")" : gigabytes(total)
         let lines = held.map { model in
             model.memoryBytes.map { "\(model.name): \(gigabytes($0))" } ?? model.name
         }
