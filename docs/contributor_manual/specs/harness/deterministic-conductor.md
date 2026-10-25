@@ -61,6 +61,17 @@ Ollama adapters; a dashboard). Missing: a GitHub-issues task source and a Pi ada
 one-day trial on one repo; if it holds, write its GitHub-issues source and use `ready_check.sh` as its gate; if not,
 build v1 thin and borrow its rules (and Issue-Orchestrator's: re-check state, never trust the agent's done).
 
+## Ruling (maintainer, 2026-10-25): build on Bernstein
+
+Build on what works rather than reinvent: Bernstein (Apache-2.0) is the engine (deterministic scheduler, YAML run
+graphs, a worktree per task, gates, retries / model fallback, schedules, the signed journal, the browser dashboard).
+Fichero adds only a thin layer: (1) a milestone feeder (next milestone → its issues in spec order → Bernstein
+tasks), (2) Fichero's checks as Bernstein's gates (`lane_ready_check.sh`, pytest, xcodebuild on the test machine),
+(3) GitHub Actions for closing issues and milestone hygiene, (4) the release scripts on Bernstein's schedule.
+Bernstein bugs found on the way are reported upstream with a reproduction, and worked around in config, not forked.
+`conductor.py` below is replaced by the feeder plus Bernstein's own run; the loop described in this spec is what
+the feeder + Bernstein config must produce.
+
 ## Who does what
 
 - **The maintainer + Claude Opus (interactive, a personal plan):** talk, decide, write and approve specs, handle
