@@ -964,6 +964,10 @@ routes below too, applied to every job they stand for that has not started, and
 `GET /api/activity/jobs/derivatives` reads the import as a tree of its stages (#5623).
 `GET /api/activity/jobs/kind/{kind}/items` lists the queued jobs behind one kind's row (`limit`, `offset`), each a line in the order
 the lane will pick them, running first (`activity.window.expands-to-pages`, #5839).
+Response: `200`, `{items, count}`, each item `{id, subject, state, reason}`.
+Wire change (2026-10-25, #6101): this was a bare array. An app and an engine of different builds read each other's shape
+wrongly (the pages list shows an error, nothing else breaks), so the app and its engine are updated together; the engine's
+contract identity differs between the two builds.
 
 One job: `PUT /api/activity/jobs/{job_id}/paused` with `{"paused": true}` holds a waiting job
 (it stays paused across relaunch) and `false` resumes it, through the undoable action

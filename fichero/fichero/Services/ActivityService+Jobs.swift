@@ -34,8 +34,7 @@ extension ActivityService {
             path: .init(jobId: id), query: .init(detail: developer ? .developer : .person))
         switch response {
         case .ok(let okResponse):
-            let lines = okResponse.body.json.lines ?? []
-            return lines.enumerated().map { ActivityJobLogLine(index: $0.offset, $0.element) }
+            return try okResponse.body.json.lines?.enumerated().map { ActivityJobLogLine(index: $0.offset, $0.element) } ?? []
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
