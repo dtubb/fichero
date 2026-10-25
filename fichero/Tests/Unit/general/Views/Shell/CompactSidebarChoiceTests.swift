@@ -7,9 +7,16 @@ import XCTest
 final class CompactSidebarChoiceTests: XCTestCase {
     func testCompactWidthMovesToTheContentColumnFromEitherColumn() {
         for current in [NavigationSplitViewColumn.sidebar, .content, .detail] {
+            // The compact flow is iOS only (`shouldUseCompactNavigationFlow` is false on macOS): the Mac test run
+            // proves nothing moves there, the simulator run proves the move.
+            #if os(macOS)
+            let expected = current
+            #else
+            let expected = NavigationSplitViewColumn.detail
+            #endif
             XCTAssertEqual(
                 ContentView.preferredCompactColumnAfterSidebarChoice(horizontalSizeClass: .compact, current: current),
-                .detail, "from \(current)")
+                expected, "from \(current)")
         }
     }
 

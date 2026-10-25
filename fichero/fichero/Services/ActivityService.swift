@@ -473,9 +473,11 @@ extension ActivityService {
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             if statusCode == 404 { return nil }
-            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
-                throw denial
-            }
+            // One read of the body serves both: the denial check and the engine's words (a body streams once).
+            let body = await AccessError.collectDenialBody(payload)
+            if let denial = AccessError.classify(statusCode: statusCode, body: body) { throw denial }
+            // A refusal with a body says why in the engine's own words (`{"detail": "The project is busy"}`).
+            if let words = EngineErrorDetail.message(from: body) { throw ActivityServiceError.refused(words) }
             throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }
