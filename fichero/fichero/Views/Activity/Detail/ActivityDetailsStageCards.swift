@@ -19,6 +19,17 @@ struct ActivityDetailsStageCards: View {
         .accessibilityIdentifier("activity.details.stageCards")
     }
 
+    /// What the stage made, and each of its readers when it reads with several (#6134).
+    @ViewBuilder
+    private func stageLines(_ card: ActivityDetails.StageCard) -> some View {
+        ForEach(card.made, id: \.self) { line in
+            Text(line).font(.callout)
+        }
+        ForEach(card.readers, id: \.self) { line in
+            Text(line).font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
     private func cardView(_ card: ActivityDetails.StageCard) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -39,9 +50,7 @@ struct ActivityDetailsStageCards: View {
                 .controlSize(.small)
                 .tint(card.state == .failed ? .red : .accentColor)
             }
-            ForEach(card.made, id: \.self) { line in
-                Text(line).font(.callout)
-            }
+            stageLines(card)
             if let failed = card.failed {
                 HStack(alignment: .firstTextBaseline) {
                     Label(failed.text, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
