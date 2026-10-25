@@ -1762,6 +1762,27 @@ def _embedding_choice(db: Database) -> EmbeddingChoiceResponse:
         vectors=vectors, changeable=vectors == 0)
 
 
+class EmbeddingModelOption(BaseModel):
+    model: str
+    name: str = Field(description="its short name")
+    blurb: str = Field(description="one line: what it is good for")
+    recommended: bool
+
+
+class EmbeddingModelList(BaseModel):
+    models: list[EmbeddingModelOption]
+
+
+@router.get("/embedding/models", response_model=EmbeddingModelList)
+def list_embedding_models() -> EmbeddingModelList:
+    """The search models a project may be made with, the recommended first, each with its one line
+    (`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,
+    for the menu on Your project and the change sheet alike."""
+    from fichero_server.db.embeddings import embedding_model_choices
+
+    return EmbeddingModelList(models=[EmbeddingModelOption(**c) for c in embedding_model_choices()])
+
+
 @router.get("/embedding", response_model=EmbeddingChoiceResponse)
 def get_embedding_choice(db: Database = Depends(get_library_database)) -> EmbeddingChoiceResponse:
     """Which embedding model this project searches with, the models it may choose, and how many vectors it holds."""

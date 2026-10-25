@@ -1,8 +1,8 @@
 import Foundation
 
 /// The search models a project may be made with (`search.embedding.chosen-at-project-creation`, #6122). The engine
-/// holds the same list (`GET /api/search/embedding`); a new project has no engine to ask yet, so the names are here
-/// and the engine refuses any it does not know.
+/// holds the list and the blurbs (`GET /api/search/embedding/models`, library-free, #6144); `all` is only the fallback
+/// for an engine that cannot be reached, and the engine refuses any model it does not know.
 struct EmbeddingModelChoice: Identifiable, Equatable {
     let model: String
     let name: String
@@ -20,8 +20,15 @@ struct EmbeddingModelChoice: Identifiable, Equatable {
                              blurb: "Fast, for modern European languages.")
     ]
 
+    /// The engine's list, the recommended model first; nil when it cannot be read (the caller keeps `all`).
+    static func fetch(client: FicheroClient) async -> [EmbeddingModelChoice]? {
+        guard case .ok(let success)? = try? await client.api.listEmbeddingModelsApiSearchEmbeddingModelsGet(.init()),
+              let list = try? success.body.json.models, !list.isEmpty else { return nil }
+        return list.map { EmbeddingModelChoice(model: $0.model, name: $0.name, blurb: $0.blurb) }
+    }
+
     /// What a project that already holds vectors made with `model` is called; the engine's own name when it is not listed.
-    static func name(of model: String) -> String {
-        all.first { $0.model == model }?.name ?? model
+    static func name(of model: String, in choices: [EmbeddingModelChoice] = all) -> String {
+        choices.first { $0.model == model }?.name ?? model
     }
 }

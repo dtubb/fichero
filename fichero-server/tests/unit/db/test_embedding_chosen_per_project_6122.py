@@ -106,3 +106,16 @@ def test_choosing_the_model_is_an_audited_action():
     import fichero_server.api.routes.search.core  # noqa: F401  (registers the action)
 
     assert "search.set_embedding_model" in registry.names()
+
+
+def test_the_models_route_lists_every_supported_model_with_its_blurb_before_any_project_exists(client):
+    """#6144 (`search.embedding.choices-come-from-the-engine`): library-free, the recommended model first."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    got = client.get("/api/search/embedding/models")
+    assert got.status_code == 200
+    models = got.json()["models"]
+    assert models[0]["model"] == "BAAI/bge-m3" and models[0]["recommended"]
+    assert [m["recommended"] for m in models[1:]] == [False] * (len(models) - 1)
+    assert all(m["name"] and m["blurb"] for m in models)
+    assert {m["model"] for m in models} == {s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}

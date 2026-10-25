@@ -29918,6 +29918,28 @@
         }
       }
     },
+    "/api/search/embedding/models": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "List Embedding Models",
+        "description": "The search models a project may be made with, the recommended first, each with its one line\n(`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,\nfor the menu on Your project and the change sheet alike.",
+        "operationId": "list_embedding_models_api_search_embedding_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search/embedding": {
       "get": {
         "tags": [
@@ -64363,6 +64385,52 @@
         ],
         "title": "EmbeddingChoiceResponse",
         "description": "The embedding model a project searches with (`search.embedding.chosen-at-project-creation`, #6122)."
+      },
+      "EmbeddingModelList": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingModelOption"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "EmbeddingModelList"
+      },
+      "EmbeddingModelOption": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "its short name"
+          },
+          "blurb": {
+            "type": "string",
+            "title": "Blurb",
+            "description": "one line: what it is good for"
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "name",
+          "blurb",
+          "recommended"
+        ],
+        "title": "EmbeddingModelOption"
       },
       "EmbeddingStatsResponse": {
         "properties": {

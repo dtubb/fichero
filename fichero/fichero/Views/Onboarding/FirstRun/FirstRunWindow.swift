@@ -141,6 +141,7 @@ struct FirstRunWindow: View {
             await appState.loadProviders()
             await loadClusterNames()
         }
+        .task { await newProject.loadEmbeddingChoices(client: appState.ficheroClient) }
     }
 
     private func loadClusterNames() async {

@@ -10752,6 +10752,16 @@
         "response_model": "EmbeddingChangePlan"
       },
       {
+        "method": "GET",
+        "path": "/search/embedding/models",
+        "operation_id": "list_embedding_models_api_search_embedding_models_get",
+        "summary": "List Embedding Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmbeddingModelList"
+      },
+      {
         "method": "POST",
         "path": "/search/explain",
         "operation_id": "explain_search_api_search_explain_post",

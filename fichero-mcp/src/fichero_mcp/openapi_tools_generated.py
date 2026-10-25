@@ -7466,6 +7466,12 @@ def fichero_search_get_embedding_change_plan(
     return _rt.call("GET", "/api/search/embedding/change-plan", params={"model": model})
 
 
+def fichero_search_list_embedding_models(
+) -> Any:
+    'List Embedding Models\n\nThe search models a project may be made with, the recommended first, each with its one line\n(`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,\nfor the menu on Your project and the change sheet alike.\n\nRoute: GET /api/search/embedding/models (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding/models")
+
+
 def fichero_search_explanation_explain(
     *,
     limit: Annotated[Optional[int], Field(description='Limit. Default: 10.')] = None,
@@ -9930,6 +9936,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_search_put_embedding_choice", "search", "PUT", "/api/search/embedding", fichero_search_put_embedding_choice),
     GeneratedTool("fichero_search_start_embedding_change", "search", "POST", "/api/search/embedding/change", fichero_search_start_embedding_change),
     GeneratedTool("fichero_search_get_embedding_change_plan", "search", "GET", "/api/search/embedding/change-plan", fichero_search_get_embedding_change_plan),
+    GeneratedTool("fichero_search_list_embedding_models", "search", "GET", "/api/search/embedding/models", fichero_search_list_embedding_models),
     GeneratedTool("fichero_search_explanation_explain", "search-explanation", "POST", "/api/search/explain", fichero_search_explanation_explain),
     GeneratedTool("fichero_search_explanation_explain_path", "search-explanation", "GET", "/api/search/explain/{query}", fichero_search_explanation_explain_path),
     GeneratedTool("fichero_search_keyword_cloud", "search", "GET", "/api/search/keywords", fichero_search_keyword_cloud),

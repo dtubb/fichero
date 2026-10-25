@@ -20,6 +20,9 @@ final class NewProjectStore {
     /// The model the project searches with, chosen here and kept (`search.embedding.chosen-at-project-creation`);
     /// changing it later is a re-embed run (`EmbeddingChangeStore`).
     var embeddingModel = EmbeddingModelChoice.defaultModel
+    /// The models the menu offers: the engine's list with its one lines once read (`GET /api/search/embedding/models`,
+    /// library-free, #6144), the built-in one until then or when the engine cannot be reached.
+    private(set) var embeddingChoices = EmbeddingModelChoice.all
     var place: Place = .insideFichero
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -42,6 +45,13 @@ final class NewProjectStore {
         self.libraryManager = libraryManager
         self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
         self.openInEngine = openInEngine
+    }
+
+    /// Read the engine's list of search models; a choice it no longer offers falls back to the first (the recommended).
+    func loadEmbeddingChoices(client: FicheroClient) async {
+        guard let listed = await EmbeddingModelChoice.fetch(client: client) else { return }
+        embeddingChoices = listed
+        if !listed.contains(where: { $0.model == embeddingModel }), let first = listed.first { embeddingModel = first.model }
     }
 
     /// The name as a file name: what a folder cannot hold is replaced, and an empty name is

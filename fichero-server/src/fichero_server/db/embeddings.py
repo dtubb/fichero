@@ -102,6 +102,24 @@ SUPPORTED_EMBEDDING_SPACES = {
 }
 
 
+#: What Set Up says about each search model a project may be made with (`search.embedding.choices-come-from-the-engine`,
+#: #6144): its short name and one line. The model is recommended first; a space with no entry is not offered.
+EMBEDDING_MODEL_BLURBS = {
+    BGE_M3_MODEL: ("bge-m3", "Reads every script, including old and rare ones. Recommended."),
+    DEFAULT_MODEL: ("multilingual-e5-large", "Fast, for modern European languages."),
+}
+RECOMMENDED_EMBEDDING_MODEL = BGE_M3_MODEL
+
+
+def embedding_model_choices() -> list[dict[str, Any]]:
+    """The search models a project may choose, the recommended one first: each supported space with its blurb."""
+    models = {space.source_model_name for space in SUPPORTED_EMBEDDING_SPACES.values()}
+    ordered = sorted((m for m in models if m in EMBEDDING_MODEL_BLURBS),
+                     key=lambda m: (m != RECOMMENDED_EMBEDDING_MODEL, m))
+    return [{"model": m, "name": EMBEDDING_MODEL_BLURBS[m][0], "blurb": EMBEDDING_MODEL_BLURBS[m][1],
+             "recommended": m == RECOMMENDED_EMBEDDING_MODEL} for m in ordered]
+
+
 class EmbeddingSpaceMismatchError(RuntimeError):
     """Raised when a query would mix vectors from incompatible embedding spaces."""
 

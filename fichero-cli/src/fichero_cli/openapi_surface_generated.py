@@ -15771,6 +15771,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-embedding-models")
+    def search_list_embedding_models_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Embedding Models (GET /api/search/embedding/models)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/models"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("explain-a-query", hidden=True)
     @target_app.command("explain")
     def search_explain_post(

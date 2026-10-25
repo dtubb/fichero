@@ -26,6 +26,12 @@ private final class EmbeddingRoutesURLProtocol: URLProtocol {
         switch (request.httpMethod ?? "GET", url.path) {
         case ("GET", "/api/search/embedding"):
             json = #"{"model":"BAAI/bge-m3","models":["BAAI/bge-m3","intfloat/multilingual-e5-large"],"vectors":12,"changeable":false}"#
+        case ("GET", "/api/search/embedding/models"):
+            json = #"""
+                {"models":[{"model":"BAAI/bge-m3","name":"bge-m3","blurb":"From the engine.","recommended":true},
+                           {"model":"intfloat/multilingual-e5-large","name":"e5-large","blurb":"Also from the engine.",
+                            "recommended":false}]}
+                """#
         case ("GET", "/api/search/embedding/change-plan"):
             json = #"""
                 {"from_model":"BAAI/bge-m3","to_model":"intfloat/multilingual-e5-large","same":false,"pages":3,"passages":40,
@@ -71,6 +77,24 @@ struct EmbeddingChangeStoreTests {
         let store = EmbeddingChangeStore(client: makeClient())
         await store.load()
         #expect(store.current?.model == "BAAI/bge-m3" && store.current?.vectors == 12)
+    }
+
+    @Test("the models and their lines are the engine's once it answers; the built-in list is only the start")
+    func choicesComeFromTheEngine() async {
+        let store = EmbeddingChangeStore(client: makeClient())
+        #expect(store.choices == EmbeddingModelChoice.all)
+        await store.load()
+        #expect(store.choices.map(\.blurb) == ["From the engine.", "Also from the engine."])
+        #expect(EmbeddingModelChoice.name(of: "intfloat/multilingual-e5-large", in: store.choices) == "e5-large")
+    }
+
+    @Test("the creation menu reads the same list and keeps a choice the engine still offers")
+    func creationMenuReadsIt() async {
+        let project = NewProjectStore(libraryManager: LibraryManager.shared)
+        project.embeddingModel = "intfloat/multilingual-e5-large"
+        await project.loadEmbeddingChoices(client: makeClient())
+        #expect(project.embeddingChoices.map(\.name) == ["bge-m3", "e5-large"])
+        #expect(project.embeddingModel == "intfloat/multilingual-e5-large")
     }
 
     @Test("the plan is asked for the chosen model and said in words before anything runs")

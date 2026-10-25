@@ -13,6 +13,8 @@ final class EmbeddingChangeStore {
     private(set) var started: Components.Schemas.EmbeddingChangeStarted?
     private(set) var errorMessage: String?
     private(set) var isBusy = false
+    /// The models the engine offers with their one lines (`GET /api/search/embedding/models`); the built-in list until it answers.
+    private(set) var choices = EmbeddingModelChoice.all
 
     private let client: FicheroClient
 
@@ -22,6 +24,7 @@ final class EmbeddingChangeStore {
 
     /// The model the project uses and how many vectors it holds (`GET /api/search/embedding`).
     func load() async {
+        if let listed = await EmbeddingModelChoice.fetch(client: client) { choices = listed }
         do {
             switch try await client.api.getEmbeddingChoiceApiSearchEmbeddingGet(.init()) {
             case .ok(let success):
@@ -95,12 +98,13 @@ final class EmbeddingChangeStore {
     }
 
     /// The plan in one sentence, before anything runs.
-    static func sentence(for plan: Components.Schemas.EmbeddingChangePlan) -> String {
+    static func sentence(for plan: Components.Schemas.EmbeddingChangePlan,
+                         choices: [EmbeddingModelChoice] = EmbeddingModelChoice.all) -> String {
         var parts = ["\(plan.pages) page\(plan.pages == 1 ? "" : "s")"]
         if plan.entities > 0 { parts.append("\(plan.entities) name\(plan.entities == 1 ? "" : "s")") }
         if plan.claims > 0 { parts.append("\(plan.claims) statement\(plan.claims == 1 ? "" : "s")") }
         let cost = plan.costUsd == 0 ? "free, it runs on this Mac" : String(format: "$%.2f", plan.costUsd)
-        return "Embeds " + parts.joined(separator: ", ") + " again with \(EmbeddingModelChoice.name(of: plan.toModel)): "
+        return "Embeds " + parts.joined(separator: ", ") + " again with \(EmbeddingModelChoice.name(of: plan.toModel, in: choices)): "
             + time(seconds: plan.secondsEstimate) + ", " + cost + "."
     }
 }

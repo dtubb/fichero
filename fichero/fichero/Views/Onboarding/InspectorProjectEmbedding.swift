@@ -12,7 +12,8 @@ struct InspectorProjectEmbedding: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let current = store?.current {
-                Text("Search model: \(EmbeddingModelChoice.name(of: current.model))\(vectorsWords(current))")
+                let name = EmbeddingModelChoice.name(of: current.model, in: store?.choices ?? EmbeddingModelChoice.all)
+                Text("Search model: \(name)\(vectorsWords(current))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -44,7 +45,7 @@ struct EmbeddingChangeSheet: View {
     @State private var model = ""
 
     private var others: [EmbeddingModelChoice] {
-        EmbeddingModelChoice.all.filter { $0.model != store.current?.model }
+        store.choices.filter { $0.model != store.current?.model }
     }
 
     var body: some View {
@@ -60,7 +61,7 @@ struct EmbeddingChangeSheet: View {
                 }
             }
             if let plan = store.plan {
-                Text(EmbeddingChangeStore.sentence(for: plan))
+                Text(EmbeddingChangeStore.sentence(for: plan, choices: store.choices))
                 if let started = store.started {
                     Label(started.message, systemImage: "checkmark.circle")
                 }
