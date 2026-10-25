@@ -1262,11 +1262,21 @@ class _Beside(NamedTuple):
     future: concurrent.futures.Future
 
 
+def _asked_again(card: dict[str, Any], redo: set[str]) -> dict[str, Any]:
+    """A reading card asked to read again: every line, not just the unread ones (`source.recipe.read-resumes-per-line`)."""
+    if card.get("job") != "read-a-line" or not redo.intersection(card["steps"]):
+        return card
+    return {**card, "tool_config": {**(card.get("tool_config") or {}),
+                                    "transcribe": {**((card.get("tool_config") or {}).get("transcribe") or {}),
+                                                   "read_all_lines": True}}}
+
+
 def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree, started_by: str,
                   index: int) -> _Beside | None:
     """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
     card, step = detail["runs"][index], detail["steps"][index]
     documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    card = _asked_again(card, set(detail.get("redo") or []))
     if not documents or _stop_asked(job_id):
         return None
     pool = concurrent.futures.ThreadPoolExecutor(1, thread_name_prefix="recipe-beside")
@@ -1359,7 +1369,13 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             continue
         if card["card"] in ("publish", "catalogue") and not final:  # written once, at the end, over the whole run
             continue
-        documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+        # A step already running beside the one before it keeps the pages it started on: its pages are not worked out again
+        # mid-flight (they would be counted done, or read twice), and its end is taken as it ended.
+        early = ahead.pop(index, None)
+        if early is not None:
+            documents, scratch, kinds = early.documents, early.scratch, early.kinds
+        else:
+            documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1383,22 +1399,13 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 jobs.save_detail(db, job_id, json.dumps(detail))
 
             done_notes[job_id] = _noted
-        if card.get("job") == "read-a-line" and redo.intersection(card["steps"]):
-            # Asked to read again: every line, not just the unread ones (`source.recipe.read-resumes-per-line`).
-            card = {**card, "tool_config": {**(card.get("tool_config") or {}),
-                                            "transcribe": {**((card.get("tool_config") or {}).get("transcribe") or {}),
-                                                           "read_all_lines": True}}}
-        early = ahead.pop(index, None)
+        card = _asked_again(card, redo)
         if early is None and not adopt and (after := _beside(cards, states, detail, index)) is not None:
             ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
         try:
-            if early is not None and early.documents == documents:
-                scratch, kinds = early.scratch, early.kinds
+            if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
             else:
-                if early is not None:  # its pages changed since: the run beside it is let finish, then this one runs
-                    with contextlib.suppress(Exception):
-                        early.future.result()
                 child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
             detail.pop("awaiting", None)
         except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):

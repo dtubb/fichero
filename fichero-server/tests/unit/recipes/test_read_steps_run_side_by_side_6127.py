@@ -15,16 +15,24 @@ CLOUD = {"card": "workflow", "job": "read-a-page", "steps": ["b"], "runs_on": "c
          "gives": ["page_reading"]}
 
 
-def _run(monkeypatch, cards, work):
-    """`_run_batch` over `cards`, each step's work being `work(card)`; the states it ends with."""
-    for name, value in {"_step_pages": lambda *a, **k: (["p1"], {}, {}), "_blocked": lambda *a: None,
+def _run(monkeypatch, cards, work, pages=None, redo=()):
+    """`_run_batch` over `cards`, each step's work being `work(card)`; the states it ends with. `pages(card)` is the pages a
+    step finds to do each time it asks (a step's pages are worked out again as it is about to run)."""
+    asked: dict[str, int] = {}
+
+    def pages_now(db, card, *a, **k):
+        asked[card["job"]] = asked.get(card["job"], 0) + 1
+        return ((pages or (lambda c, n: ["p1"]))(card, asked[card["job"]]), {}, {})
+
+    for name, value in {"_step_pages": pages_now, "_blocked": lambda *a: None,
                         "_await_downloads": lambda *a: None, "_stop_asked": lambda *a: False,
                         "_wait_out_a_pause": lambda *a: None, "_after_the_step": lambda *a, **k: None,
                         "_let_go_after_the_last_served_step": lambda *a: None,
                         "_run_card": lambda db, card, *a, **k: (card["steps"][0], *work(card))}.items():
         monkeypatch.setattr(runner, name, value)
     monkeypatch.setattr(jobs, "save_detail", lambda *a, **k: None)
-    detail = {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards)}
+    detail = {"runs": cards, "steps": [{"state": "waiting"} for _ in cards], "batch_states": [None] * len(cards),
+              "redo": list(redo)}
     runner._run_batch(None, "job", detail, {"units": ["p1"]}, {}, "test", final=True)
     return [step["state"] for step in detail["steps"]]
 
@@ -56,3 +64,29 @@ def test_two_steps_that_share_a_resource_or_an_input_run_one_after_the_other(mon
 
     assert _run(monkeypatch, [KRAKEN, other], work) == ["done", "done"]
     assert most[0] == 1
+
+
+def test_a_step_that_ran_beside_the_one_before_keeps_its_own_end_and_is_not_run_again(monkeypatch):
+    """review 1185 items 2: the pages of the step beside were worked out again as its turn came, so a step that had read
+    them all was recorded done whatever it ended with, and one that had not was run a second time."""
+    ran: list[str] = []
+
+    def work(card):
+        ran.append(card["job"])
+        return ("failed", "the cloud said no") if card["job"] == "read-a-page" else ("done", None)
+
+    # Asked again, the cloud step finds nothing left to do (it read them all, and failed on one).
+    assert _run(monkeypatch, [KRAKEN, CLOUD], work, pages=lambda c, n: ["p1"] if n == 1 else []) == ["done", "failed"]
+    assert sorted(ran) == ["read-a-line", "read-a-page"]
+
+
+def test_a_read_again_reaches_the_step_that_runs_beside(monkeypatch):
+    """review 1185 item 3: Redo's read-all-lines was put on the step's card only when its turn came."""
+    seen: dict[str, dict] = {}
+
+    def work(card):
+        seen[card["job"]] = card
+        return "done", None
+
+    assert _run(monkeypatch, [CLOUD, KRAKEN], work, redo=["a"]) == ["done", "done"]
+    assert seen["read-a-line"]["tool_config"]["transcribe"]["read_all_lines"] is True
