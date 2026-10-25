@@ -843,7 +843,7 @@
 				"  fi",
 				"}",
 				"",
-				"# Collect every Mach-O through list_machos.sh (one `file -f`, #6132); this phase has no set -e, so a failed sweep exits;",
+				"# Collect every Mach-O through list_machos.sh (LC_ALL=C throughout, #6132); this phase has no set -e, so a failed sweep exits;",
 				"# a short list fails the phase.",
 				"macho_list=\"$(mktemp)\"",
 				"\"${SRCROOT}/../scripts/list_machos.sh\" \"$ENGINE_DST\" > \"$macho_list\" || exit 1",
