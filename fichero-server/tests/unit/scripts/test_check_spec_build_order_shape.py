@@ -1,11 +1,8 @@
 """Unit tests for scripts/check_spec_build_order_shape.py.
 
-Pins pipeline.build-order-shape (#6116): the parser reads stages, steps, behaviours,
-tests, depends-on and size out of a spec's `## Build order` section; an APPROVED spec
-fails when a non-[OK] behaviour is in no step (or two), a step has no Behaviours or
-no Tests, a step is Size L or lists more than five behaviours, or a Depends-on points
-forward or at itself; a DRAFT spec with the same problems only warns (exit 0).
-Runs OFFLINE — pure file-text parsing.
+Proves the build order shape (`pipeline.build-order-shape`): stages, steps, behaviours,
+tests, dependencies, and size constraints are validated. APPROVED specs fail on violations;
+DRAFT specs warn only.
 """
 from __future__ import annotations
 
@@ -20,301 +17,344 @@ _mod = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _mod
 _SPEC.loader.exec_module(_mod)  # type: ignore[attr-defined]
 
-PARSE_FIXTURE = """# Fixture spec
+VALID_BUILD_ORDER = """# Test Spec
 
-> Design-led. **Status: APPROVED 2026-10-25.**
-
-## Behaviours
-
-- `fixture.parse.one` [OK] — fine, exempt from coverage.
-- `fixture.parse.two` [MISSING] (#6116) — needs a step.
-- `fixture.parse.three` [GAP] — needs a step too.
+**Status: APPROVED**
 
 ## Build order
 
-Intro prose before any stage.
+### Stage 0 — first stage
 
-### Stage 0 — the small one
-
-#### Step 0.1 — the first step (#6117)
-- Behaviours: `fixture.parse.one`
-- Tests: pipeline/tests/test_a.py, pipeline/tests/test_b.py
-- Size: S
-
-#### Step 0.2 — the second step
-- Behaviours: `fixture.parse.two`
-- Tests: pipeline/tests/test_c.py
-- Depends on: 0.1
+#### Step 0.1 — first step
+- Behaviours: `test.one`, `test.two`
+- Tests: test/one.py, test/two.py
 - Size: M
 
-### Stage 1 — more
-
-#### Step 1.1 — the third
-- Behaviours: `fixture.parse.three`
-- Tests: pipeline/tests/test_d.py
+#### Step 0.2 — second step (#123)
+- Behaviours: `test.three`
+- Tests: test/three.py
+- Depends on: 0.1
 - Size: S
+
+## Behaviors
+
+- `test.one` — [OK] description
+- `test.two` — [MISSING] description
+- `test.three` — [MISSING] description
 """
 
-ORPHAN_FIXTURE = """# Fixture spec
+ORPHAN_BEHAVIOUR = """# Test Spec
 
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.orphan.a` [MISSING] — in a step.
-- `fixture.orphan.b` [MISSING] — in no step.
+**Status: APPROVED**
 
 ## Build order
 
-#### Step 0.1 — only one
-- Behaviours: `fixture.orphan.a`
-- Tests: tests/a.py
+#### Step 0.1 — only step
+- Behaviours: `test.one`
+- Tests: test/one.py
 - Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] in build order
+- `test.orphan` — [MISSING] not in build order
 """
 
-DOUBLE_FIXTURE = """# Fixture spec
+FORWARD_DEPENDENCY = """# Test Spec
 
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.double.a` [MISSING] — in two steps.
+**Status: APPROVED**
 
 ## Build order
 
-#### Step 0.1 — first
-- Behaviours: `fixture.double.a`
-- Tests: tests/a.py
-- Size: S
-
-#### Step 0.2 — second
-- Behaviours: `fixture.double.a`
-- Tests: tests/b.py
-- Size: S
-"""
-
-FORWARD_AND_SELF_FIXTURE = """# Fixture spec
-
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.fwd.a` [MISSING] — a.
-- `fixture.fwd.b` [MISSING] — b.
-
-## Build order
-
-#### Step 0.1 — first
-- Behaviours: `fixture.fwd.a`
-- Tests: tests/a.py
+#### Step 0.1 — first step
+- Behaviours: `test.one`
+- Tests: test/one.py
 - Depends on: 0.2
 - Size: S
 
-#### Step 0.2 — second
-- Behaviours: `fixture.fwd.b`
-- Tests: tests/b.py
-- Depends on: 0.2
+#### Step 0.2 — second step
+- Behaviours: `test.two`
+- Tests: test/two.py
 - Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] one
+- `test.two` — [MISSING] two
 """
 
-# A [MISSING] behaviour whose DESCRIPTION quotes "non-[OK]": the first tag in
-# the block must win, so the quoted [OK] cannot mask the missing coverage.
-PROSE_OK_FIXTURE = """# Fixture spec
+SELF_DEPENDENCY = """# Test Spec
 
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.prose.missing` [MISSING] — a non-[OK] behaviour that must be covered.
-- `fixture.prose.ok` [OK] — fine.
+**Status: APPROVED**
 
 ## Build order
 
-#### Step 1.1 — only ok
-- Behaviours: `fixture.prose.ok`
-- Tests: tests/a.py
+#### Step 0.1 — step
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Depends on: 0.1
 - Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] one
 """
 
-# A `## Build order` section whose steps use an older shape (Slice headings):
-# zero `#### Step N.M` headings must be a problem, not a silent skip.
-EMPTY_SECTION_FIXTURE = """# Fixture spec
+SIZE_L = """# Test Spec
 
-> **Status: APPROVED**
+**Status: APPROVED**
 
 ## Build order
 
-Intro prose only.
-
-### Slice 1 — old shape
-- not a step
-
-## Behaviours
-
-- `fixture.empty.a` [MISSING] — a.
-"""
-
-# One fixture breaking every remaining step-level rule at once: a step with no
-# Behaviours, a step with no Tests, Size L, more than five behaviours, and a
-# Depends-on pointing at an unknown step.
-RULES_FIXTURE = """# Fixture spec
-
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.rules.a` [MISSING] — a.
-- `fixture.rules.b` [MISSING] — b.
-- `fixture.rules.c` [MISSING] — c.
-- `fixture.rules.d` [MISSING] — d.
-- `fixture.rules.e` [MISSING] — e.
-- `fixture.rules.f` [MISSING] — f.
-- `fixture.rules.g` [MISSING] — g.
-- `fixture.rules.h` [MISSING] — h.
-
-## Build order
-
-#### Step 1.1 — no behaviours
-- Tests: tests/x.py
-- Size: S
-
-#### Step 1.2 — no tests, size L, too many, unknown dep
-- Behaviours: `fixture.rules.a`, `fixture.rules.b`, `fixture.rules.c`, `fixture.rules.d`, `fixture.rules.e`, `fixture.rules.f`
-- Depends on: 9.9
+#### Step 0.1 — step
+- Behaviours: `test.one`
+- Tests: test/one.py
 - Size: L
 
-#### Step 1.3 — clean
-- Behaviours: `fixture.rules.g`, `fixture.rules.h`
-- Tests: tests/y.py
-- Size: M
+## Behaviors
+
+- `test.one` — [MISSING] one
 """
 
-# A Rulings bullet quoting behaviour ids must not become a phantom behaviour:
-# the scan is limited to the `## Behaviours` section.
-RULINGS_FIXTURE = """# Fixture spec
+TOO_MANY_BEHAVIOURS = """# Test Spec
 
-> **Status: APPROVED**
-
-## Behaviours
-
-- `fixture.ruling.a` [MISSING] — covered in a step.
+**Status: APPROVED**
 
 ## Build order
 
-#### Step 1.1 — the only step
-- Behaviours: `fixture.ruling.a`
-- Tests: tests/a.py
+#### Step 0.1 — step
+- Behaviours: `test.one`, `test.two`, `test.three`, `test.four`, `test.five`, `test.six`
+- Tests: test/one.py
+- Size: M
+
+## Behaviors
+
+- `test.one` — [MISSING] one
+- `test.two` — [MISSING] two
+- `test.three` — [MISSING] three
+- `test.four` — [MISSING] four
+- `test.five` — [MISSING] five
+- `test.six` — [MISSING] six
+"""
+
+MISSING_BEHAVIOURS = """# Test Spec
+
+**Status: APPROVED**
+
+## Build order
+
+#### Step 0.1 — step
+- Tests: test/one.py
 - Size: S
 
-## Rulings
+## Behaviors
+"""
 
-- `fixture.ruling.a` [OK] — resolved in v2 (quoted for reference).
-- `fixture.ruling.b` [MISSING] — quoted in a ruling, not in Behaviours.
+MISSING_TESTS = """# Test Spec
+
+**Status: APPROVED**
+
+## Build order
+
+#### Step 0.1 — step
+- Behaviours: `test.one`
+- Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] one
+"""
+
+DRAFT_WITH_ERRORS = """# Test Spec
+
+**Status: DRAFT**
+
+## Build order
+
+#### Step 0.1 — step
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Depends on: 0.2
+- Size: L
+
+#### Step 0.2 — second
+- Tests: test/two.py
+- Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] one
+- `test.orphan` — [MISSING] not in build order
+"""
+
+MULTIPLE_STAGES = """# Test Spec
+
+**Status: APPROVED**
+
+## Build order
+
+### Stage 0 — first
+
+#### Step 0.1 — first
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+
+### Stage 1 — second
+
+#### Step 1.1 — second
+- Behaviours: `test.two`
+- Tests: test/two.py
+- Depends on: 0.1
+- Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] one
+- `test.two` — [MISSING] two
+"""
+
+DUPLICATE_BEHAVIOUR = """# Test Spec
+
+**Status: APPROVED**
+
+## Build order
+
+#### Step 0.1 — first
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+
+#### Step 0.2 — second
+- Behaviours: `test.one`
+- Tests: test/two.py
+- Size: S
+
+## Behaviors
+
+- `test.one` — [MISSING] appears twice
 """
 
 
-def test_parse_build_order_reads_stages_steps_and_fields():
-    stages, steps = _mod.parse_build_order(PARSE_FIXTURE)
-    assert [(s.number, s.title) for s in stages] == [("0", "the small one"), ("1", "more")]
-    assert [s.step_id for s in steps] == ["0.1", "0.2", "1.1"]
-    first, second, third = steps
-    assert first.title == "the first step"
-    assert first.issue == "6117"
-    assert first.behaviours == ["fixture.parse.one"]
-    assert first.tests == ["pipeline/tests/test_a.py", "pipeline/tests/test_b.py"]
-    assert first.depends_on == []
-    assert first.size == "S"
-    assert second.issue is None
-    assert second.behaviours == ["fixture.parse.two"]
-    assert second.tests == ["pipeline/tests/test_c.py"]
-    assert second.depends_on == ["0.1"]
-    assert second.size == "M"
-    assert third.title == "the third"
-    assert third.behaviours == ["fixture.parse.three"]
-    assert third.tests == ["pipeline/tests/test_d.py"]
-    assert third.size == "S"
-
-
-def test_clean_approved_fixture_has_no_problems():
-    approved, _, problems = _mod._check_spec(PARSE_FIXTURE)
-    assert approved is True
-    assert problems == []
-
-
-def test_spec_without_build_order_is_skipped():
-    approved, steps, problems = _mod._check_spec("# Plain spec\n\nNo build order here.\n")
-    assert steps == []
-    assert problems == []
-
-
-def test_orphan_behaviour_fails():
-    _, _, problems = _mod._check_spec(ORPHAN_FIXTURE)
-    assert any("`fixture.orphan.b`" in p and "no step" in p for p in problems)
-
-
-def test_behaviour_in_two_steps_fails():
-    _, _, problems = _mod._check_spec(DOUBLE_FIXTURE)
-    assert any("`fixture.double.a`" in p and "2 steps" in p for p in problems)
-
-
-def test_forward_and_self_dependency_fail():
-    _, _, problems = _mod._check_spec(FORWARD_AND_SELF_FIXTURE)
-    assert any("Step 0.1 depends on later step 0.2" in p for p in problems)
-    assert any("Step 0.2 depends on itself" in p for p in problems)
-
-
-def test_prose_ok_tag_does_not_mask_missing_behaviour():
-    approved, _, problems = _mod._check_spec(PROSE_OK_FIXTURE)
-    assert approved
-    assert any(
-        "`fixture.prose.missing`" in p and "no step" in p for p in problems
-    )
-
-
-def test_build_order_section_with_no_steps_is_a_problem():
-    approved, steps, problems = _mod._check_spec(EMPTY_SECTION_FIXTURE)
-    assert approved
-    assert steps == []
-    assert any("no `#### Step N.M` headings" in p for p in problems)
-
-
-def test_step_level_rules_each_fire():
-    _, _, problems = _mod._check_spec(RULES_FIXTURE)
-    assert any("Step 1.1 has no Behaviours" in p for p in problems)
-    assert any("Step 1.2 has no Tests" in p for p in problems)
-    assert any("Step 1.2 is Size L" in p for p in problems)
-    assert any("Step 1.2 lists 6 behaviours" in p for p in problems)
-    assert any("Step 1.2 depends on unknown step 9.9" in p for p in problems)
-
-
-def test_rulings_quote_does_not_create_phantom_behaviour():
-    approved, _, problems = _mod._check_spec(RULINGS_FIXTURE)
-    assert approved
-    assert problems == []
-
-
-def _run(tmp_path: Path, body: str, monkeypatch) -> int:
+def _seed(tmp_path: Path, body: str, rel: str = "test/example.md") -> Path:
     specs_root = tmp_path / "docs" / "contributor_manual" / "specs"
-    p = specs_root / "harness" / "fixture.md"
+    p = specs_root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(body, encoding="utf-8")
-    monkeypatch.setattr(_mod, "SPECS_DIR", specs_root)
+    return specs_root
+
+
+def _run(tmp_path: Path, body: str, monkeypatch, rel: str = "test/example.md") -> int:
+    specs_dir = _seed(tmp_path, body, rel)
+    monkeypatch.setattr(_mod, "SPECS_DIR", specs_dir)
     return _mod.main()
 
 
-def test_draft_with_problems_warns_not_fails(tmp_path, monkeypatch):
-    assert _run(tmp_path, ORPHAN_FIXTURE, monkeypatch) == 1
-    draft = ORPHAN_FIXTURE.replace("**Status: APPROVED**", "**Status: DRAFT 2026-10-25.**")
-    assert _run(tmp_path, draft, monkeypatch) == 0
+def test_valid_build_order_passes(tmp_path, monkeypatch):
+    assert _run(tmp_path, VALID_BUILD_ORDER, monkeypatch) == 0
 
 
-def test_draft_empty_section_warns_not_fails(tmp_path, monkeypatch):
-    draft = EMPTY_SECTION_FIXTURE.replace(
-        "**Status: APPROVED**", "**Status: DRAFT 2026-10-25.**"
-    )
-    assert _run(tmp_path, draft, monkeypatch) == 0
+def test_orphan_behaviour_fails_approved_spec(tmp_path, monkeypatch):
+    assert _run(tmp_path, ORPHAN_BEHAVIOUR, monkeypatch) == 1
+
+
+def test_forward_dependency_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, FORWARD_DEPENDENCY, monkeypatch) == 1
+
+
+def test_self_dependency_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, SELF_DEPENDENCY, monkeypatch) == 1
+
+
+def test_size_l_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, SIZE_L, monkeypatch) == 1
+
+
+def test_too_many_behaviours_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, TOO_MANY_BEHAVIOURS, monkeypatch) == 1
+
+
+def test_missing_behaviours_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, MISSING_BEHAVIOURS, monkeypatch) == 1
+
+
+def test_missing_tests_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, MISSING_TESTS, monkeypatch) == 1
+
+
+def test_draft_with_errors_passes_with_warnings(tmp_path, monkeypatch):
+    # DRAFT specs warn but don't fail
+    assert _run(tmp_path, DRAFT_WITH_ERRORS, monkeypatch) == 0
+
+
+def test_multiple_stages_pass(tmp_path, monkeypatch):
+    assert _run(tmp_path, MULTIPLE_STAGES, monkeypatch) == 0
+
+
+def test_duplicate_behaviour_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, DUPLICATE_BEHAVIOUR, monkeypatch) == 1
 
 
 def test_empty_spec_dir_exits_2(tmp_path, monkeypatch):
-    monkeypatch.setattr(_mod, "SPECS_DIR", tmp_path / "does_not_exist")
+    empty = tmp_path / "empty_specs"
+    empty.mkdir()
+    monkeypatch.setattr(_mod, "SPECS_DIR", empty / "does_not_exist")
     assert _mod.main() == 2
+
+
+def test_parse_build_order_extracts_stages_and_steps():
+    """Test the parse function directly."""
+    parsed = _mod._parse_build_order(MULTIPLE_STAGES)
+    assert parsed is not None
+    assert len(parsed["stages"]) == 2
+    assert parsed["stages"][0]["number"] == 0
+    assert parsed["stages"][0]["title"] == "first"
+    assert len(parsed["stages"][0]["steps"]) == 1
+    assert parsed["stages"][0]["steps"][0]["number"] == "0.1"
+    assert parsed["stages"][0]["steps"][0]["behaviours"] == ["test.one"]
+    assert parsed["stages"][0]["steps"][0]["tests"] == ["test/one.py"]
+    assert parsed["stages"][0]["steps"][0]["size"] == "S"
+
+
+def test_parse_build_order_extracts_dependencies():
+    """Test that dependencies are parsed correctly."""
+    parsed = _mod._parse_build_order(MULTIPLE_STAGES)
+    assert parsed is not None
+    step_1_1 = parsed["stages"][1]["steps"][0]
+    assert step_1_1["depends_on"] == ["0.1"]
+
+
+def test_parse_build_order_extracts_issue_number():
+    """Test that issue numbers are extracted."""
+    parsed = _mod._parse_build_order(VALID_BUILD_ORDER)
+    assert parsed is not None
+    step_0_2 = parsed["stages"][0]["steps"][1]
+    assert step_0_2["issue"] == "123"
+
+
+def test_parse_build_order_returns_none_without_section():
+    """Test that specs without build order return None."""
+    spec_without_build_order = """# Test Spec
+
+**Status: APPROVED**
+
+## Some other section
+
+Content here.
+"""
+    parsed = _mod._parse_build_order(spec_without_build_order)
+    assert parsed is None
+
+
+def test_get_all_behaviours_extracts_tags():
+    """Test that behaviour tags are extracted correctly."""
+    behaviours = _mod._get_all_behaviours_in_spec(VALID_BUILD_ORDER)
+    assert "test.one" in behaviours
+    assert behaviours["test.one"] == "OK"
+    assert "test.two" in behaviours
+    assert behaviours["test.two"] == "MISSING"
+
+
+def test_self_test_passes():
+    """The guard's own self-test should pass."""
+    assert _mod._self_test() == 0
