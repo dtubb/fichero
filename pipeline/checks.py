@@ -104,10 +104,12 @@ def run_all(wt, cfg, since=None, pinned=None) -> list[dict]:
     pinned = pinned or cfg["repo"].get("pinned") or ROOT
     files = changed_files(wt, since or cfg["repo"]["base"])
     results = []
-    hit = touches(files, cfg["repo"]["check_paths"])
+    # a coder may ADD a guard (a Stage 1 step) but never change or remove a check it is judged by
+    edited = git(wt, "diff", "--name-only", "--diff-filter=MDR", f"{since or cfg['repo']['base']}...HEAD").splitlines()
+    hit = touches(edited, cfg["repo"]["check_paths"])
     if hit:
         return [{"name": "pinned-checks", "ok": False, "seconds": 0,
-                 "text": f"the diff touches the checks themselves ({', '.join(hit[:5])}): needs-maintainer"}]
+                 "text": f"the diff changes the checks themselves ({', '.join(hit[:5])}): needs-maintainer"}]
     for rung in cfg["ladder"]:
         t = time.time()
         try:

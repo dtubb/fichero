@@ -137,7 +137,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   tests. Tests: `pipeline/tests/test_gh.py::test_every_write_goes_through_one_function_and_dry_run_writes_nothing`,
   `pipeline/tests/test_core.py::test_claimed_label_follows_the_state`,
   `pipeline/tests/test_feeder.py::test_claimed_issues_are_skipped`.
-- `pipeline.github-actions` [PARTIAL] — GitHub keeps a small, natural role, one workflow each: `ci.yml` runs ruff,
+- `pipeline.github-actions` [PARTIAL] (#6116) — GitHub keeps a small, natural role, one workflow each: `ci.yml` runs ruff,
   the guard scripts that need no Mac tool, the unit tests that need no models, on pushes to integration as well as
   main and on PRs, plus `lane_ready_check.sh` on PRs (Swift unit tests stay on the Macs until an unsigned
   `xcodebuild test` without the embedded engine is shown to work on a free runner); `close-fixed-issues.yml` runs
@@ -147,11 +147,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   workflow's trigger, condition and command are asserted); run on a test PR.
 
 ### Running the work (the runner + the feeder)
-- `pipeline.one-state-machine` [MISSING] (#6116) — an item moves only by the runner's transitions, each in the
+- `pipeline.one-state-machine` [OK] — an item moves only by the runner's transitions, each in the
   states table below with its check; the transition writes one journal line; a model's report never moves an item;
   `start`, `check`, `verdict`, `candidate`, `gate`, `push`, `close` are the only paths. Test:
   `pipeline/tests/test_core.py::test_states_table_is_the_only_transition_path`.
-- `pipeline.project-profile` [MISSING] (#6116) — everything specific to Fichero lives in ONE file,
+- `pipeline.project-profile` [OK] — everything specific to Fichero lives in ONE file,
   `pipeline/projects/fichero.toml` (stdlib `tomllib`): the repo path and branches; the spec folder; the check ladder
   naming the scripts per rung; the build targets and the schedule; the milestone and label names; the worker roles
   and their models; the machine names. The runner's code names no Fichero path, script or label; the self-test greps
@@ -160,7 +160,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   proofreading; it loads and validates, nothing more is built for it). Tests:
   `pipeline/tests/test_config.py::test_runner_code_names_no_project_specifics`,
   `pipeline/tests/test_config.py::test_example_writing_profile_loads_and_validates`.
-- `pipeline.resume-from-journal` [MISSING] (#6116) — the journal is append-only JSONL under `pipeline/state/`; state
+- `pipeline.resume-from-journal` [PARTIAL] (#6116) — the journal is append-only JSONL under `pipeline/state/`; state
   is the journal replayed; an intent line precedes each side effect (commit, gh write, tell, worktree) and a done
   line follows it; on restart an item with an open intent is reconciled against the world (the `Fixes #N` commit on
   the branch, the marker in the GitHub comment, the worktree) before anything is redone, so nothing is lost or
@@ -169,28 +169,30 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_journal.py::test_replay_gives_the_same_state`,
   `pipeline/tests/test_core.py::test_resume_after_kill_between_intent_and_done`,
   `pipeline/tests/test_journal.py::test_second_dispatcher_waits_on_the_journal_lock`.
-- `pipeline.pause-all` [MISSING] (#6116) — a kill switch: `python -m pipeline pause` (and `resume`) writes a journal
+- `pipeline.pause-all` [OK] — a kill switch: `python -m pipeline pause` (and `resume`) writes a journal
   line after which no transition starts a coder, a check or a job; running work finishes its current step. The page
   shows PAUSED. Test: `pipeline/tests/test_core.py::test_paused_runner_starts_nothing`.
-- `pipeline.pinned-checks` [MISSING] (#6116) — the checks (`scripts/lane_ready_check.sh`, `scripts/check_*`,
+- `pipeline.pinned-checks` [OK] — the checks (`scripts/lane_ready_check.sh`, `scripts/check_*`,
   `scripts/gate`, `pipeline/`) run from the runner's own pinned checkout, WITH the task's worktree as their working
   directory (the trial's engine ran them in the project root and failed a correct fix), and never from the
   worktree's copies, so a coder cannot edit the check it is judged by (the runner builds itself, so this matters
-  most). A diff that touches those paths goes to `needs-maintainer`. The runner moves to a new sha only on the
+  most). A diff that changes or removes a file under those paths goes to `needs-maintainer`; adding a new guard is
+  allowed, since the pinned runner does not run it until the maintainer pulls it in. The runner moves to a new sha only on the
   maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
   `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
+  `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
   `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`.
-- `pipeline.three-faces` [MISSING] (#6116) — the CLI, the MCP server and the page call the same functions
+- `pipeline.three-faces` [OK] — the CLI, the MCP server and the page call the same functions
   (`core.API`) and nothing skips a check. MCP tools are per role: the coder gets `report`, `ask`, `done`; the
   reviewer gets `verdict`; the manager gets `status`, `next`, `start`, `check`, `tell`, `file_bug`, `point`. Approve
   (a spec draft, the weekly release) and `answer` exist on the page and the CLI only, never over MCP: a model cannot
   answer its own question. Tests: `pipeline/tests/test_faces.py::test_cli_mcp_and_page_call_the_same_function`,
   `pipeline/tests/test_faces.py::test_mcp_has_no_approve_or_answer_tool`.
-- `pipeline.feeder-picks-the-milestone` [PARTIAL] — the milestone the maintainer pointed at, else the first
+- `pipeline.feeder-picks-the-milestone` [PARTIAL] (#6116) — the milestone the maintainer pointed at, else the first
   milestone with an open step whose dependencies are closed (`choose_next.py` is retired with `agents/ROADMAP.md`);
   within it urgent bugs, bugs, then steps in build order, then priority label, then number. Test:
   `pipeline/tests/test_feeder.py::test_pointed_milestone_wins_then_build_order`.
-- `pipeline.one-coder-per-milestone` [MISSING] (#6116) — one Pi context takes several issues in a row (a stage's
+- `pipeline.one-coder-per-milestone` [PARTIAL] (#6116) — one Pi context takes several issues in a row (a stage's
   steps, or bugs grouped by the files or spec they touch). Each issue gets its own commit range on the branch and its
   own per-item checks; a failed item blocks the later ones on that branch until it is fixed or dropped, and the
   candidate lands the green ranges without the red one (cherry-picked, in order). The context carries on to the next
@@ -198,10 +200,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `context_tokens_max` (measured). The next context starts from a short handoff the runner writes from the journal
   (issues done, files touched, failures), never from the model's own summary. Test:
   `pipeline/tests/test_core.py::test_batch_of_three_issues_gives_three_commits_and_three_check_lines`.
-- `pipeline.worktree-per-task` [MISSING] (#6116) — each task is a worktree off origin/integration at
+- `pipeline.worktree-per-task` [OK] — each task is a worktree off origin/integration at
   `.worktrees/pipeline/<task>` (`git worktree add`, removed only with `git worktree remove`). Test:
   `pipeline/tests/test_core.py::test_worktree_is_made_off_base_and_removed_with_git`.
-- `pipeline.jailed-agent` [PARTIAL] — Pi runs with `--no-extensions` plus only the adapter path, in an
+- `pipeline.jailed-agent` [PARTIAL] (#6116) — Pi runs with `--no-extensions` plus only the adapter path, in an
   allow-listed environment (PATH, HOME, TERM, LANG, the agent dir, the runner's own variables); the worktree is the
   only writable path (the Pi sandbox or the wrapper's deny rules). The key is a lane key with its own credit limit
   (`~/.config/<provider>/key-lane`, else the main key), read from its file by the worker wrapper into the one
@@ -209,12 +211,12 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_coder.py::test_env_allow_list_drops_everything_else`,
   `pipeline/tests/test_coder.py::test_runner_never_reads_the_key_and_prefers_the_lane_key`,
   `pipeline/tests/test_coder.py::test_write_outside_worktree_fails`.
-- `pipeline.workers-in-tmux` [MISSING] (#6116) — every worker (each coder, the reviewer, later the Pi + Qwen
+- `pipeline.workers-in-tmux` [PARTIAL] (#6116) — every worker (each coder, the reviewer, later the Pi + Qwen
   manager) is an INTERACTIVE Pi session in its own window of one tmux session `pipeline` (windows `coder-<task>`,
   `reviewer`, `manager`, `jobs`), so the maintainer can attach, watch or type. Pi gets `--session-dir` per task so
   the runner reads cost, replies and idleness from its JSONL; pane text is never scraped for state; a lock per
   window serialises `tell` with anyone typing. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
-- `pipeline.messages` [MISSING] (#6116) — the runner sends a worker its next issue, a check's failure text, a
+- `pipeline.messages` [OK] — the runner sends a worker its next issue, a check's failure text, a
   verdict or the maintainer's answer with `tell` (lifted from `agent-work/status/briefs/tell.sh`: tmux send-keys,
   text, pause, Enter); long text goes in a brief file the message points at; one message, then wait for idle. Idle =
   the last assistant turn in the session JSONL ended (`stop`/`end_turn`) with no tool call pending. Workers answer
@@ -231,7 +233,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `spec/<name>` branch, runs the spec guards and queues "review spec draft". Approval is the maintainer's alone, on
   the page; an approved spec flows into spec-to-issues; until Qwen is measured on spec work, Opus reviews a draft
   first. Test: `pipeline/tests/test_core.py::test_spec_draft_queues_review_and_only_the_page_approves`.
-- `pipeline.tools-in-the-right-places` [MISSING] (#6116) — the coder and the reviewer find and read code through
+- `pipeline.tools-in-the-right-places` [PARTIAL] (#6116) — the coder and the reviewer find and read code through
   the jcodemunch MCP and docs and specs through the jdocmunch MCP (indexed on `docs/`). Pi loads MCP through the
   `pi-mcp-adapter` extension, so the runner gives Pi its own agent directory (`PI_CODING_AGENT_DIR=pipeline/pi-agent`)
   that loads only that adapter, those two servers plus the runner's own, the `_shared` principles and a ponytail
@@ -255,16 +257,16 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_coder.py::test_worker_kind_selection_and_fallback_on_rate_limit`,
   `pipeline/tests/test_coder.py::test_idle_state_from_fixture_jsonl_of_each_kind`,
   `pipeline/tests/test_coder.py::test_model_per_role_from_config`.
-- `pipeline.cost-cap` [MISSING] (#6116) — the runner sums `message.usage.cost.total` from Pi's session JSONL per
+- `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
   task while the coder runs and stops the task at `cost_cap_usd`; the lane key's own OpenRouter limit is the
   backstop. Tokens and dollars are recorded per issue and per model, so the open-model share is measured. Tests:
   `pipeline/tests/test_coder.py::test_cost_parser_on_redacted_real_sample`,
   `pipeline/tests/test_coder.py::test_cost_cap_stops_the_task`,
   `pipeline/tests/test_coder.py::test_cost_is_recorded_per_issue_and_model`.
-- `pipeline.retry-with-the-failure` [MISSING] (#6116) — a failed check is told to the coder with the failure text;
+- `pipeline.retry-with-the-failure` [OK] — a failed check is told to the coder with the failure text;
   `retries` (2) retries, then the fallback list, then the queue. Test:
   `pipeline/tests/test_core.py::test_failed_check_retries_twice_then_needs_maintainer`.
-- `pipeline.machine-budget` [MISSING] (#6116) — Stage 0 hard-codes: coders 1, one test run at a time (a FIFO
+- `pipeline.machine-budget` [PARTIAL] (#6116) — Stage 0 hard-codes: coders 1, one test run at a time (a FIFO
   `flock`), and a free-memory check (`vm_stat` pages free + speculative + purgeable, `memory_pressure` not critical)
   before a coder, a check or a test run; below the job kind's need the item waits with its reason in the journal.
   Later: `sysctl vm.swapusage` and load; per-kind needs in the profile (a cloud coder small, a local model its RSS,
@@ -292,11 +294,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 - `pipeline.ready-check` [OK] — `scripts/lane_ready_check.sh` (self-tested): current integration history, no
   private folders, agent author, every commit cites an issue, lint on the diff, a source change has a test change.
   Test: `scripts/lane_ready_check.sh --self-test`.
-- `pipeline.test-red-on-base` [MISSING] (#6116) — the branch's changed or new test files are copied into a scratch
+- `pipeline.test-red-on-base` [OK] — the branch's changed or new test files are copied into a scratch
   worktree at origin/integration and must fail there, and must pass on the branch; a test that passes on the base
   proves nothing. Tests: `pipeline/tests/test_checks.py::test_red_on_base_fails_a_test_that_passes_on_base`,
   `pipeline/tests/test_checks.py::test_red_on_base_passes_a_real_fix`.
-- `pipeline.quick-checks-per-item` [PARTIAL] — each item, in order, stopping at the first red: the ready check,
+- `pipeline.quick-checks-per-item` [PARTIAL] (#6116) — each item, in order, stopping at the first red: the ready check,
   the test files the spec's Test matrix and the issue name (red on base, green on the branch), `scripts/gate part`
   for the areas the diff touches, the fast guards, and on an engine diff the contract guards
   (`check_openapi_route_set_current`, `check_contract_identity_current`, `check_mcp_generated_current`, so stale
@@ -304,7 +306,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   counts (a flaky suite does not burn a retry). Tests: `pipeline/tests/test_checks.py::test_run_all_records_each_rung`,
   `pipeline/tests/test_checks.py::test_contract_guards_run_on_an_engine_diff`,
   `pipeline/tests/test_checks.py::test_red_reruns_once_before_it_counts`.
-- `pipeline.review` [PARTIAL] — a verdict is `verdict(task, sha, READY|NOT_READY, findings)`, accepted only from the
+- `pipeline.review` [PARTIAL] (#6116) — a verdict is `verdict(task, sha, READY|NOT_READY, findings)`, accepted only from the
   reviewer role and only for the task's current head sha; a new commit voids it. Claude's verdict binds; the Qwen
   shadow runs beside it (`trial2/shadow/watch-reviews.sh`); once Qwen's precision passes the bar over 30 items
   (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
@@ -314,7 +316,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_core.py::test_new_commit_voids_the_verdict`.
 
 ### Landing, closing, building, releasing
-- `pipeline.nightly-gate` [PARTIAL] — reviewed items merge into the night's candidate; the full engine gate runs on
+- `pipeline.nightly-gate` [PARTIAL] (#6116) — reviewed items merge into the night's candidate; the full engine gate runs on
   the M4 overnight; green → push integration → the nightly targets (dev DMG plus both TestFlights; Mac, iPhone and
   iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
   main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,
@@ -333,7 +335,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   processed, or failed with the reason) shows on the Builds page; a failed target files a bug through bug-intake,
   de-duplicated, and never blocks the other targets. Test:
   `pipeline/tests/test_nightly.py::test_failed_target_files_one_bug_and_the_others_run`.
-- `pipeline.weekly-release` [PARTIAL] — on its schedule the weekly release runs every target and stops for the
+- `pipeline.weekly-release` [PARTIAL] (#6116) — on its schedule the weekly release runs every target and stops for the
   maintainer's yes (on the page or the CLI, never over MCP) before anything public: the GitHub release, Sparkle, the
   product site (tubb.ca/apps/fichero, appcast, release page), the App Store submission; the pre-release scan checks
   private docs as well as keys and paths. The docs site (MkDocs) is its own schedule job: it refreshes after a green
@@ -343,7 +345,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_nightly.py::test_docs_deploy_builds_from_a_clean_checkout_of_the_sha`.
 
 ### Following along
-- `pipeline.dashboard-minimal` [MISSING] (#6116) — one local page (127.0.0.1 only; one HTML file, plain CSS, a
+- `pipeline.dashboard-minimal` [OK] — one local page (127.0.0.1 only; one HTML file, plain CSS, a
   little JS, system fonts, Safari) with sections: items and their states, workers (window, task, idle or busy,
   cost, last report), the queue with an answer box, a tell box per worker, point-at-milestone, pause and resume,
   file a bug, the machine's memory. It polls `/api/state` every few seconds. Every POST carries a token minted per
@@ -363,10 +365,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   GitHub data is cached by the runner, refreshed every few minutes and on each transition. Tests:
   `pipeline/tests/test_web.py::test_page_loads_and_every_link_resolves`,
   `pipeline/tests/test_core.py::test_item_past_stuck_minutes_is_flagged`.
-- `pipeline.point-at-a-milestone` [MISSING] (#6116) — the maintainer sets which milestone runs next, and can pause
+- `pipeline.point-at-a-milestone` [PARTIAL] (#6116) — the maintainer sets which milestone runs next, and can pause
   or resume one; the feeder follows that before its own order. Test:
   `pipeline/tests/test_core.py::test_point_is_journaled_and_read_by_the_feeder`.
-- `pipeline.maintainer-queue` [MISSING] (#6116) — every question for the maintainer is one queue item with options;
+- `pipeline.maintainer-queue` [PARTIAL] (#6116) — every question for the maintainer is one queue item with options;
   the answer is written back (told to the worker, or into the spec or issue) and the work it unblocks resumes; no
   lane messages him for status. Test: `pipeline/tests/test_core.py::test_ask_queues_and_answer_is_told_to_the_right_window`.
 - `pipeline.retire-fs-skills` [MISSING] (#6116) — the old skills system leaves the repo once the runner runs work:

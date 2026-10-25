@@ -18,9 +18,16 @@ def _out(args: list[str]) -> str:
 
 
 def machine() -> dict:
-    vm = _out(["vm_stat"])
-    free = sum(int(m) for m in re.findall(r"Pages (?:free|speculative|purgeable):\s+(\d+)", vm)) * PAGE // 2**20
+    """free_mb from memory_pressure's system-wide free percentage (vm_stat's "free" pages are tiny on macOS, which
+    keeps RAM as file cache: 87 MB "free" on a healthy 16 GB machine); vm_stat is the fallback."""
     mp = _out(["memory_pressure"]).lower()
+    pct = re.search(r"free percentage:\s*(\d+)%", mp)
+    total = int((_out(["sysctl", "-n", "hw.memsize"]) or "0").strip() or 0) // 2**20
+    if pct and total:
+        free = total * int(pct.group(1)) // 100
+    else:
+        vm = _out(["vm_stat"])
+        free = sum(int(m) for m in re.findall(r"Pages (?:free|speculative|purgeable):\s+(\d+)", vm)) * PAGE // 2**20
     pressure = "critical" if "critical" in mp else "warn" if "warn" in mp else "normal" if mp else "?"
     return {"free_mb": free, "pressure": pressure, "load1": round(os.getloadavg()[0], 2)}
 

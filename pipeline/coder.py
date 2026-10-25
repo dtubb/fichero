@@ -69,6 +69,7 @@ def start_window(cfg: dict, name: str, cwd: Path, cmd: list[str], env: dict) -> 
             "env", "-i", *[f"{k}={v}" for k, v in env.items()], *cmd])
     if r.returncode:
         raise RuntimeError(f"tmux new-window: {r.stderr.strip()}")
+    time.sleep(10)  # ponytail: Pi's TUI takes a few seconds to accept input; a readiness probe when this bites
 
 
 def tell(cfg: dict, window: str, text: str) -> None:

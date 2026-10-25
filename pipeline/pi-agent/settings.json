@@ -1,5 +1,6 @@
 {
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "medium",
-  "quietStartup": true
+  "quietStartup": true,
+  "lastChangelogVersion": "0.75.5"
 }

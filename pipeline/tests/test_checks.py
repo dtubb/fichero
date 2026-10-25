@@ -50,6 +50,16 @@ def test_diff_touching_check_paths_needs_maintainer(scratch):
     assert "needs-maintainer" in results[0]["text"]
 
 
+def test_a_new_guard_may_be_added_but_no_check_changed(scratch):
+    """A Stage 1 step adds scripts/check_*.py; that is allowed. Changing an existing check is not."""
+    wt = lane(scratch, "newguard", {"scripts/check_new_thing.py": "import sys\nsys.exit(0)\n",
+                                    "tests/test_g.py": "from src.mod import base\n\ndef test_g():\n    assert base() == 0\n"})
+    names = [r["name"] for r in checks.run_all(wt, scratch["cfg"])]
+    assert names[0] != "pinned-checks" and "ready" in names
+    wt2 = lane(scratch, "editguard", {"scripts/lane_ready_check.sh": "#!/bin/bash\nexit 0\n"})
+    assert checks.run_all(wt2, scratch["cfg"])[0]["name"] == "pinned-checks"
+
+
 def test_checks_run_from_the_pinned_checkout(scratch):
     """The ready check is the PINNED copy, so a worktree whose copy is broken is still judged by the real one."""
     wt = lane(scratch, "pinned", {"tests/test_t.py": "def test_t():\n    assert True\n"})
