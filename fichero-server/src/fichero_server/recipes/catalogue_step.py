@@ -157,12 +157,9 @@ def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool
     doc.page_content = text
     doc.metadata = {**metadata, CONTENT_FROM: artifact_id}
     db.save(doc)
-    try:
-        from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.actions.page_text_cache import queue_reembed
 
-        queue_reembed(db, [folder_id])  # search reads it
-    except Exception:  # noqa: BLE001 -- the content stands; a missed re-embed is repaired by the next one
-        logger.exception("could not queue the re-embed of folder %s", folder_id)
+    queue_reembed(db, [folder_id])  # search reads it; a failure here raises AFTER the content is saved (describe_folders flags it)
     return True
 
 
@@ -205,7 +202,11 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         db.save(art)
         _describe_container(db, folder.id, text, art.id, [old.id] if old is not None else [],
                             run_id=run_id, library_path=library_path)
-        put_in_content(db, folder.id, text, art.id)
+        try:
+            put_in_content(db, folder.id, text, art.id)
+        except Exception as exc:  # noqa: BLE001 -- the content stands; the search index missed it, said on the step
+            logger.exception("could not queue the re-embed of folder %s", folder.id)
+            account["flags"].append(f"{folder.name}: its description is saved, but search was not told: {exc}")
         account["described"] += 1
         account["flags"].extend(f"{folder.name}: {f}" for f in flags)
     return account
