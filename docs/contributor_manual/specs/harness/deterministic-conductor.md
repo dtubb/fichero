@@ -173,12 +173,14 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   line after which no transition starts a coder, a check or a job; running work finishes its current step. The page
   shows PAUSED. Test: `pipeline/tests/test_core.py::test_paused_runner_starts_nothing`.
 - `pipeline.pinned-checks` [OK] — the checks (`scripts/lane_ready_check.sh`, `scripts/check_*`,
-  `scripts/gate`, `pipeline/`) run from the runner's own pinned checkout, WITH the task's worktree as their working
-  directory (the trial's engine ran them in the project root and failed a correct fix), and never from the
-  worktree's copies, so a coder cannot edit the check it is judged by (the runner builds itself, so this matters
-  most). A diff that changes or removes a file under those paths goes to `needs-maintainer`; adding a new guard is
+  `scripts/gate`, `pipeline/`) run in a SCRATCH TREE made of the task's committed HEAD with the pinned checkout's
+  check files laid over it (`git worktree add --detach`, then `git checkout <pinned sha> -- <check paths>`), so a
+  guard that scans `ROOT = Path(__file__).parent.parent` sees the coder's diff and never the pinned tree, uncommitted
+  edits or the worktree's own copies; a coder cannot edit the check it is judged by (the runner builds itself, so
+  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer`; adding a new guard is
   allowed, since the pinned runner does not run it until the maintainer pulls it in. The runner moves to a new sha only on the
-  maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
+  maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_a_coder_change_that_breaks_a_guard_turns_the_check_red`,
+  `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
   `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
   `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`.
@@ -204,18 +206,25 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `.worktrees/pipeline/<task>` (`git worktree add`, removed only with `git worktree remove`). Test:
   `pipeline/tests/test_core.py::test_worktree_is_made_off_base_and_removed_with_git`.
 - `pipeline.jailed-agent` [PARTIAL] (#6116) — Pi runs with `--no-extensions` plus only the adapter path, in an
-  allow-listed environment (PATH, HOME, TERM, LANG, the agent dir, the runner's own variables); the worktree is the
-  only writable path (the Pi sandbox or the wrapper's deny rules). The key is a lane key with its own credit limit
+  allow-listed environment (PATH, HOME, TERM, LANG, the agent dir, `PIPELINE_WORKER`); no runner path is in that
+  environment: the worker's MCP server is a wrapper generated under the state dir (outside every worktree) and put
+  on PATH; the CLI refuses the runner's controls (`verdict`, `answer`, `start`, `check`, `tell`, `pause`, `point`,
+  `reset`) from a shell that carries `PIPELINE_WORKER`. Known gap until the write jail exists: the worker runs as
+  the same user, so a shell inside it can read the wrapper and reach the journal; the role split is a convention
+  the CLI and the MCP tool tables enforce, not a boundary. The key is a lane key with its own credit limit
   (`~/.config/<provider>/key-lane`, else the main key), read from its file by the worker wrapper into the one
   variable Pi expects; the runner never holds, prints, logs or writes it. Tests:
   `pipeline/tests/test_coder.py::test_env_allow_list_drops_everything_else`,
   `pipeline/tests/test_coder.py::test_runner_never_reads_the_key_and_prefers_the_lane_key`,
-  `pipeline/tests/test_coder.py::test_write_outside_worktree_fails`.
+  `pipeline/tests/test_coder.py::test_worker_env_carries_no_runner_path_only_a_generated_wrapper_on_path`,
+  `pipeline/tests/test_faces.py::test_a_worker_shell_cannot_run_the_runners_controls`.
 - `pipeline.workers-in-tmux` [PARTIAL] (#6116) — every worker (each coder, the reviewer, later the Pi + Qwen
   manager) is an INTERACTIVE Pi session in its own window of one tmux session `pipeline` (windows `coder-<task>`,
   `reviewer`, `manager`, `jobs`), so the maintainer can attach, watch or type. Pi gets `--session-dir` per task so
   the runner reads cost, replies and idleness from its JSONL; pane text is never scraped for state; a lock per
-  window serialises `tell` with anyone typing. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
+  window serialises `tell` with anyone typing. A worker is idle only after it has ANSWERED the latest message: a new
+  assistant turn (more turns than before the tell) that ended with no tool call pending. The cost cap stops the
+  worker (Escape, then the window is killed) and a window that died no longer counts toward the coder cap. Test: `pipeline/tests/test_coder.py::test_worker_window_command_names_session_dir`.
 - `pipeline.messages` [OK] — the runner sends a worker its next issue, a check's failure text, a
   verdict or the maintainer's answer with `tell` (lifted from `agent-work/status/briefs/tell.sh`: tmux send-keys,
   text, pause, C-m); the send is not trusted: delivery is confirmed by a new user turn in the session log within
@@ -309,8 +318,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   counts (a flaky suite does not burn a retry). Tests: `pipeline/tests/test_checks.py::test_run_all_records_each_rung`,
   `pipeline/tests/test_checks.py::test_contract_guards_run_on_an_engine_diff`,
   `pipeline/tests/test_checks.py::test_red_reruns_once_before_it_counts`.
-- `pipeline.review` [PARTIAL] (#6116) — a verdict is `verdict(task, sha, READY|NOT_READY, findings)`, accepted only from the
-  reviewer role and only for the task's current head sha; a new commit voids it. Claude's verdict binds; the Qwen
+- `pipeline.review` [PARTIAL] (#6116) — a verdict is `verdict(issue, sha, READY|NOT_READY, by, findings)`; a short sha
+  is resolved with `rev-parse`; it binds only from the reviewer role and only when the sha is BOTH the worktree's
+  live head and the sha the checks passed on, so a new commit voids it. A binding NOT_READY sends the item back
+  to coding with the findings as its retry text and counts an attempt; `reset <issue>` zeroes attempts the runner
+  itself caused. Claude's verdict binds; the Qwen
   shadow runs beside it (`trial2/shadow/watch-reviews.sh`); once Qwen's precision passes the bar over 30 items
   (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
   Qwen and Claude reviews the batch diff at the gate. The reviewer applies the ponytail lens (shortest working diff,
@@ -403,13 +415,16 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 | coding | needs-maintainer | `check` red | attempts exhausted, or the diff touches a check path | `test_checks.py::test_diff_touching_check_paths_needs_maintainer` |
 | coding | rate-limited | worker log | quota / credit / usage-limit line; the role's list moves on | `test_coder.py::test_one_fallback_list_serves_cost_quota_and_retries` |
 | coding | waiting | budget | memory or cap refused; reason journaled | `test_budget.py::test_item_waits_with_reason_when_memory_is_short` |
-| checked | reviewed | `verdict` | READY from the reviewer role for the current head sha | `test_core.py::test_verdict_only_from_reviewer_for_current_sha` |
+| checked | reviewed | `verdict` | READY from the reviewer role, sha = live head = checked sha | `test_core.py::test_verdict_only_from_reviewer_for_current_sha` |
+| checked, reviewed | coding | `verdict` NOT_READY (binding) | the findings become the retry text; counts an attempt; `start` resumes | `test_core.py::test_not_ready_sends_the_item_back_to_coding_with_the_findings` |
+| checked | checked | `check` | a re-check at a new head; a commit landing mid-check is red (`head-moved`) | `test_core.py::test_a_commit_landing_mid_check_is_red` |
 | reviewed | checked | new commit | the verdict is voided | `test_core.py::test_new_commit_voids_the_verdict` |
 | reviewed | candidate | `candidate` | reviewed; range cherry-picks cleanly onto the night's candidate (Stage 3) | `test_nightly.py` |
 | candidate | gated | `gate` | the full gate green on the M4 (Stage 3) | `test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part` |
 | gated | pushed | `push` | gated; the push is its own step | `test_nightly.py` |
 | pushed | closed | close-on-push | `Fixes #N` on integration | `test_workflows.py` |
-| any | paused | `pause` | — (running steps finish; nothing new starts) | `test_core.py::test_paused_runner_starts_nothing` |
+| (runner) | paused | `pause` | — (running steps finish; nothing new starts) | `test_core.py::test_paused_runner_starts_nothing` |
+| needs-maintainer, failed, rate-limited | coding | `start` | the maintainer resumes; the brief carries the retry text; `reset` zeroes runner-caused attempts | `test_core.py::test_reset_zeroes_attempts_but_keeps_the_retry_text` |
 | any | failed | — | a transition's own error, journaled with the text | `test_core.py` |
 
 ## Who does what
