@@ -199,3 +199,19 @@ def test_a_page_the_hosted_reader_lost_is_listed_as_failed_beside_the_local_one(
     assert _run(monkeypatch, [KRAKEN, CLOUD], lambda card: ("done", None), detail=detail, keep=("_after_the_step",),
                 db=db) == ["done", "partial"]
     assert detail["steps"][1]["failed_pages"] == [{"page": "IMG_002", "reason": "the cloud refused it"}]
+
+
+@pytest.mark.parametrize("order", [(KRAKEN, CLOUD), (CLOUD, KRAKEN)], ids=["local first", "hosted first"])
+def test_a_hosted_read_that_fails_is_not_covered_by_krakens_text(monkeypatch, order):
+    """Owner ruling 2026-10-25 (#6127): when the hosted reader fails on a page (after the one retry layer's backoff,
+    `ai.where.one-retry-policy`), the page is failed, never given Kraken's text instead. Kraken's card is the same with the
+    hosted step failed, and it is not run again to write the page."""
+    ran: list[dict] = []
+
+    def work(card):
+        ran.append(card)
+        return ("failed", "the cloud refused it") if card["job"] == "read-a-page" else ("done", None)
+
+    assert sorted(_run(monkeypatch, list(order), work)) == ["done", "failed"]
+    (kraken,) = [c for c in ran if c["job"] == "read-a-line"]
+    assert kraken["tool_config"]["transcribe"] == {"update_page_content": False, "force_ocr": False}
