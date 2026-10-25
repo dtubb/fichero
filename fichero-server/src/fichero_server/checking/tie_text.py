@@ -153,7 +153,7 @@ def _snap(text: str, cut: int, low: int, high: int) -> int:
 
 def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str] | None:
     """The lines' reads when this Kraken reader already made them on these lines (the Read step's Transcribe (Kraken), whose
-    readings are written onto the page's lines): its newest reading of each line. None unless every line has one, then
+    readings are written onto the page's lines): its newest reading of each line. None unless every line has one (or was marked as having no writing by this reader), then
     Kraken reads the page again. Reading the same lines with the same reader again took ~48 s a page (#6127)."""
     from fichero_server.llm.kraken_runtime import ReadLine
     from fichero_server.models import Artifact, ContentRepresentation
@@ -167,9 +167,15 @@ def earlier_reads(db: Any, doc_id: str, rows: list[Any], model: str) -> list[str
         if r.segment_id and r.derived_from_artifact_id in made and (
                 r.segment_id not in newest or r.created_at > newest[r.segment_id].created_at):
             newest[r.segment_id] = r
-    if not rows or any(row.id not in newest for row in rows):
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+
+    def blank(row: Any) -> bool:  # Kraken looked and found no writing: it wrote no reading, and that is its read
+        return ((getattr(row, "metadata", None) or {}).get(NO_WRITING_MARK) or {}).get("model") in (model, stem)
+
+    if not rows or any(row.id not in newest and not blank(row) for row in rows):
         return None
-    return [ReadLine(newest[row.id].content or "", confidence=newest[row.id].machine_confidence) for row in rows]
+    return [ReadLine(newest[row.id].content or "", confidence=newest[row.id].machine_confidence) if row.id in newest
+            else ReadLine("") for row in rows]
 
 
 def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:

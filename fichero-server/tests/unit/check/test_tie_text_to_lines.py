@@ -349,3 +349,23 @@ def test_lines_a_kraken_read_already_gave_are_not_read_by_kraken_again(client, d
     _job_id, status = _run(client, db, page)
     assert reader.lines == [], "Kraken read the lines again"
     assert status["counts"]["tied"] > 5
+
+
+def test_a_line_kraken_found_no_writing_on_is_not_a_reason_to_read_the_page_again(client, db, page, reader):
+    """#6127 (review 1185): Kraken writes no reading for a blank line, it marks the line; one blank line made the tie read the
+    whole page again."""
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+
+    kraken_read = Artifact(document_id=page["doc"].id, artifact_type="transcription", content="", model=READER,
+                           provider="kraken")
+    db.save(kraken_read)
+    rows = _lines(db, page["kraken"].id)
+    blank = rows[2]
+    blank.metadata = {**(blank.metadata or {}), NO_WRITING_MARK: {"model": READER}}
+    db.save(blank)
+    for row, text in zip(rows, page["before"]):
+        if row.id != blank.id:
+            db.save(ContentRepresentation(document_id=page["doc"].id, kind="transcription", content=text, segment_id=row.id,
+                                          source_anchor=row.anchor, derived_from_artifact_id=kraken_read.id))
+    _run(client, db, page)
+    assert reader.lines == [], "Kraken read the page again for one blank line"
