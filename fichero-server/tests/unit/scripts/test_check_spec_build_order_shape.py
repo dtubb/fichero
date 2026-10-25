@@ -367,6 +367,8 @@ PAREN_TITLE_AND_PROSE_ID = """# Test Spec
 
 **Status: APPROVED**
 
+## Behaviors
+
 - `test.one` [MISSING] — a behaviour; `ci.yml` in prose is a file name, not a behaviour.
 
 ## Build order
@@ -396,3 +398,107 @@ def test_step_title_may_contain_parentheses_and_still_carry_an_issue():
 def test_only_behaviour_lines_define_behaviours_not_ids_in_prose():
     behaviours = _mod._get_all_behaviours_in_spec(PAREN_TITLE_AND_PROSE_ID)
     assert behaviours == {"test.one": "MISSING"}
+
+
+PROPOSED_NEEDS_NO_STEP = """# Test Spec
+
+**Status: APPROVED**
+
+## Behaviors
+
+- `test.one` [MISSING] — covered.
+- `test.later` [PROPOSED] — not committed to, needs no step.
+
+## Build order
+
+#### Step 0.1 — only
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+"""
+
+
+def test_proposed_behaviour_needs_no_step(tmp_path, monkeypatch):
+    assert _run(tmp_path, PROPOSED_NEEDS_NO_STEP, monkeypatch) == 0
+
+
+NO_READABLE_STEPS = """# Test Spec
+
+**Status: APPROVED**
+
+## Behaviors
+
+- `test.one` [MISSING] — one
+
+## Build order
+
+### Slice 1 — the old shape
+"""
+
+
+def test_approved_spec_with_unreadable_build_order_fails(tmp_path, monkeypatch):
+    assert _run(tmp_path, NO_READABLE_STEPS, monkeypatch) == 1
+    draft = NO_READABLE_STEPS.replace("APPROVED", "DRAFT")
+    assert _run(tmp_path, draft, monkeypatch) == 0
+
+
+def test_step_heading_accepts_a_hyphen():
+    parsed = _mod._parse_build_order(
+        "## Build order\n\n#### Step 2.1 - plain hyphen (#9)\n- Behaviours: `a.b`\n"
+    )
+    step = parsed["stages"][0]["steps"][0]
+    assert (step["number"], step["title"], step["issue"]) == (
+        "2.1",
+        "plain hyphen",
+        "9",
+    )
+
+
+STATUS_IN_BODY_ONLY = (
+    """# Test Spec
+
+**Status: DRAFT**
+
+"""
+    + "\n" * 25
+    + """A later note quoting **Status: APPROVED** in prose.
+
+## Build order
+
+#### Step 0.1 — step
+- Tests: test/one.py
+- Size: S
+"""
+)
+
+
+def test_approved_is_read_from_the_header_only(tmp_path, monkeypatch):
+    assert _run(tmp_path, STATUS_IN_BODY_ONLY, monkeypatch) == 0
+
+
+BEHAVIOUR_IN_RULINGS = """# Test Spec
+
+**Status: APPROVED**
+
+## Behaviors
+
+- `test.one` [MISSING] — one
+
+## Build order
+
+#### Step 0.1 — only
+- Behaviours: `test.one`
+- Tests: test/one.py
+- Size: S
+
+## Rulings
+
+- `test.ghost` [MISSING] — quoted in a ruling, not a behaviour.
+"""
+
+
+def test_behaviours_are_read_from_the_behaviours_section_only(tmp_path, monkeypatch):
+    assert _mod._get_all_behaviours_in_spec(BEHAVIOUR_IN_RULINGS) == {
+        "test.one": "MISSING"
+    }
+    assert _run(tmp_path, BEHAVIOUR_IN_RULINGS, monkeypatch) == 0
