@@ -32,3 +32,19 @@ def test_a_typed_answer_is_never_among_the_offered_hands(client):
     assert client.put("/api/recipes/project", json={"answers": answers, "recipe": saved["recipe"]}).status_code == 200
     offered = client.get("/api/recipes/hands", params={"script": "Latn", "period": "20th century"}).json()["items"]
     assert not [h for h in offered if h["title"].lower() in ("typewriter", "20th century handwritten script")]
+
+
+def test_a_spanish_20th_century_latin_project_is_not_offered_only_kurrent_6118():
+    """#6118: the owner's Spanish, Latin, 20th-century project listed Kurrent (German cursive) as its only hand."""
+    ids = [h.id for h in hands_for("Latn", "20th century", ["es"])]
+    assert "kurrent" not in ids
+    assert {"palmer", "modern-cursive"} <= set(ids)
+
+
+def test_a_hand_from_another_tradition_is_never_the_only_one_shown_6118():
+    for period in ("20th century", "1950", "19th century"):
+        for languages in (None, [], ["es"], ["en"], ["de"]):
+            ids = [h.id for h in hands_for("Latn", period, languages)]
+            assert ids, (period, languages)
+            if languages and not set(languages) & {"de"}:
+                assert ids != ["kurrent"], (period, languages)
