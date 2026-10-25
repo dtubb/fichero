@@ -2535,19 +2535,11 @@ def release_idle_models(besides: str | None = None) -> list[str]:
     return freed
 
 
-def why_wait_freeing_idle(**kwargs: Any) -> str | None:
-    """`throttle.why_wait`, but when what holds the work is memory, the engine first lets go of the models it holds idle and asks
-    again: it never reports 'memory is tight' while it could hand memory back itself (#6129). The model asked for keeps its own
-    family (releasing the embedder for an embed job would only load it again)."""
-    from fichero_server.execution import throttle
+def memory_holds(reason: str | None) -> bool:
+    """Whether a throttle reason is the memory one (the only hold the engine can lift by handing memory back)."""
+    from fichero_server.execution.throttle import MEMORY_REASON
 
-    reason = throttle.why_wait(**kwargs)
-    if reason and reason.startswith(throttle.MEMORY_REASON):
-        freed = release_idle_models(besides=_family(kwargs.get("model")))
-        if freed:
-            logger.info("model-lane: released %s, memory was tight", ", ".join(freed))
-            reason = throttle.why_wait(**kwargs)
-    return reason
+    return bool(reason) and reason.startswith(MEMORY_REASON)
 
 
 #: The order the lane takes model groups when it has a choice (`activity.lane.model-order`, #5939): Kraken's block first,
@@ -2696,6 +2688,9 @@ class _Lane:
         #: switch that is waiting for the quiet spell.
         self.loaded_used_at = 0.0
         self.look_again_at: float | None = None
+        #: A claim found the lane held by memory: the next claim frees the models the engine holds idle BEFORE it takes any lock
+        #: (closing a process and a collect under `_heavy_pick` stalled every heavy lane, #6129).
+        self.free_idle_next = False
         #: What each running job is for, by job id (its model, `provider:model`): the network
         #: lane's share per provider counts these.
         self.running: dict[str, str | None] = {}
@@ -2916,10 +2911,22 @@ class _Scheduler:
                     return job_id
         return None
 
+    def _free_idle_when_asked(self, lane: _Lane) -> None:
+        """If the last claim for this lane was held by memory, let go of the models the engine holds idle now, with no lock held
+        (the lane's loaded family stays: its next page is the one this claim may be about to start)."""
+        if not lane.free_idle_next:
+            return
+        lane.free_idle_next = False
+        freed = release_idle_models(besides=_family(lane.loaded_model))
+        if freed:
+            logger.info("model-lane: released %s, memory was tight", ", ".join(freed))
+            lane.look_again_at = time.monotonic()  # look again at once: memory may be free now
+
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         """Pick the next job for this lane and mark it running, as one step among its threads. A heavy
         lane picks under `_heavy_pick` and, while memory is busy, starts nothing while any heavy job runs
         (`activity.throttle.one-heavy-when-memory-tight`, #5622): whatever started it, in any project."""
+        self._free_idle_when_asked(lane)
         if lane.name not in HEAVY_LANES:
             return self._claim_one(lane)
         from fichero_server.execution.throttle import memory_is_busy
@@ -2986,7 +2993,10 @@ class _Scheduler:
             # person is waiting for is looked at; each held row says why, and the lane looks again.
             held = None
             if lane.name in THROTTLED_LANES:
-                held = why_wait_freeing_idle(person_waiting=False)
+                from fichero_server.execution.throttle import why_wait
+
+                held = why_wait(person_waiting=False)
+                lane.free_idle_next = lane.free_idle_next or memory_holds(held)
                 if held:
                     self._say_why_background_waits(lane, held)
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
@@ -3009,8 +3019,9 @@ class _Scheduler:
                     return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
-                    reason = why_wait_freeing_idle(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
+                    reason = why_wait(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
                     if reason:
+                        lane.free_idle_next = lane.free_idle_next or memory_holds(reason)
                         db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'", [reason, row[0]])
                         lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                         return None

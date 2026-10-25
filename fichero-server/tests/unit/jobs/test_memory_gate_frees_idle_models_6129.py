@@ -1,7 +1,10 @@
-"""The memory gate lets go of the models the engine holds idle before it says 'memory is tight' (#6129). Owner, 2026-10-25: the
-engine's embedding worker held ~10 GB while 'Make vectors' and 'Tie text' sat in Activity at 'Waiting: memory is tight'."""
+"""The memory hold lets go of the models the engine holds idle (#6129). Owner, 2026-10-25: the engine's embedding worker held ~10 GB
+while 'Make vectors' and 'Tie text' sat in Activity at 'Waiting: memory is tight'. Review 1236: the freeing runs with no lock held
+(closing a process and a collect under `_heavy_pick` stalled every heavy lane), keeps the lane's loaded family, and leaves Kraken
+alone while a page reads."""
 from __future__ import annotations
 
+import threading
 import time
 
 from fichero_server.db import embeddings
@@ -15,37 +18,86 @@ class _Embedder:
         self.closed = True
 
 
-def _tight_while_an_embedder_is_held(monkeypatch):
+def _embedder_held(monkeypatch):
     held = _Embedder()
     monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", {"bge-m3": held})
     monkeypatch.setattr(embeddings, "_EMBEDDER_IN_USE", {})
-    monkeypatch.setattr(embeddings, "_EMBEDDER_LAST_USE", {"bge-m3": time.monotonic()})  # used a moment ago: not idle by the clock
-    monkeypatch.setattr(throttle, "why_wait",
-                        lambda **k: f"{throttle.MEMORY_REASON}: a model needs about 2.5 GB" if embeddings._EMBEDDER_CACHE else None)
+    monkeypatch.setattr(embeddings, "_EMBEDDER_LAST_USE", {"bge-m3": time.monotonic()})  # used a moment ago
     return held
 
 
-def test_the_idle_embedder_is_released_before_a_wait_is_reported(monkeypatch):
-    held = _tight_while_an_embedder_is_held(monkeypatch)
-    assert jobs.why_wait_freeing_idle(person_waiting=True, model="kraken:blla") is None
-    assert held.closed and not embeddings._EMBEDDER_CACHE
+def test_a_memory_hold_asks_for_the_idle_models_to_be_freed_on_the_next_claim(monkeypatch):
+    sched, lane = jobs._scheduler, jobs._scheduler.lanes["local-ml"]
+    lane.free_idle_next = False
+    monkeypatch.setattr(throttle, "why_wait", lambda **k: f"{throttle.MEMORY_REASON}: a model needs about 2.5 GB")
+    monkeypatch.setattr(sched, "_say_why_background_waits", lambda *a: None)
+    monkeypatch.setattr(sched, "_next", lambda lane, background=True: None)
+    sched._claim_one(lane)
+    assert lane.free_idle_next is True
+    lane.free_idle_next = False
 
 
-def test_an_embedder_a_call_is_using_stays_and_the_wait_is_said(monkeypatch):
-    held = _tight_while_an_embedder_is_held(monkeypatch)
+def test_the_freeing_runs_before_the_heavy_pick_lock_is_taken(monkeypatch):
+    sched, lane = jobs._scheduler, jobs._scheduler.lanes["local-ml"]
+    held = _embedder_held(monkeypatch)
+    locked_at_release = []
+    real = jobs.release_idle_models
+    monkeypatch.setattr(jobs, "release_idle_models",
+                        lambda **k: locked_at_release.append((sched._heavy_pick.locked(), lane.pick.locked())) or real(**k))
+    monkeypatch.setattr(throttle, "battery_or_low_power", lambda: False)
+    monkeypatch.setattr(throttle, "memory_is_busy", lambda: False)
+    monkeypatch.setattr(sched, "_claim_one", lambda lane: None)
+    lane.free_idle_next, lane.loaded_model = True, None
+    sched._claim(lane)
+    assert locked_at_release == [(False, False)], "the freeing ran with a lock held"
+    assert held.closed and not lane.free_idle_next
+
+
+def test_the_lanes_loaded_family_is_kept(monkeypatch):
+    sched, lane = jobs._scheduler, jobs._scheduler.lanes["local-ml"]
+    held = _embedder_held(monkeypatch)
+    monkeypatch.setattr(sched, "_claim_one", lambda lane: None)
+    monkeypatch.setattr(throttle, "battery_or_low_power", lambda: False)
+    monkeypatch.setattr(throttle, "memory_is_busy", lambda: False)
+    lane.free_idle_next, lane.loaded_model = True, "embedder"
+    try:
+        sched._claim(lane)
+    finally:
+        lane.loaded_model = None
+    assert not held.closed, "the embedder is the next job's: it was released"
+
+
+def test_an_embedder_a_call_is_using_stays(monkeypatch):
+    held = _embedder_held(monkeypatch)
     monkeypatch.setattr(embeddings, "_EMBEDDER_IN_USE", {"bge-m3": 1})
-    assert jobs.why_wait_freeing_idle(person_waiting=True, model="kraken:blla").startswith(throttle.MEMORY_REASON)
+    assert jobs.release_idle_models() == []
     assert not held.closed
 
 
-def test_the_asked_models_own_family_is_kept(monkeypatch):
-    held = _tight_while_an_embedder_is_held(monkeypatch)
-    assert jobs.why_wait_freeing_idle(person_waiting=True, model="embedder").startswith(throttle.MEMORY_REASON)
-    assert not held.closed
+def test_kraken_stays_while_a_page_reads(monkeypatch):
+    from fichero_server.llm import kraken_runtime
+
+    monkeypatch.setattr(kraken_runtime, "_RESIDENT", {"read": ("model", object())})
+    reading, done = threading.Event(), threading.Event()
+
+    def page():
+        with kraken_runtime._INFERENCE_LOCK:  # a page reading holds Kraken's lock
+            reading.set()
+            done.wait(10)
+
+    thread = threading.Thread(target=page)
+    thread.start()
+    reading.wait(10)
+    try:
+        assert "Kraken" not in jobs.release_idle_models()
+        assert kraken_runtime._RESIDENT, "Kraken's readers were released under a page that reads"
+    finally:
+        done.set()
+        thread.join(10)
+    assert "Kraken" in jobs.release_idle_models()  # idle again: it goes
+    assert not kraken_runtime._RESIDENT
 
 
-def test_another_reason_than_memory_releases_nothing(monkeypatch):
-    held = _tight_while_an_embedder_is_held(monkeypatch)
-    monkeypatch.setattr(throttle, "why_wait", lambda **k: "Waiting: the Mac is on battery")
-    assert jobs.why_wait_freeing_idle(person_waiting=False) == "Waiting: the Mac is on battery"
-    assert not held.closed
+def test_only_the_memory_hold_asks_for_it():
+    assert jobs.memory_holds(f"{throttle.MEMORY_REASON}: x") and not jobs.memory_holds("Waiting: the Mac is on battery")
+    assert not jobs.memory_holds(None)
