@@ -18,7 +18,7 @@ def test_env_allow_list_drops_everything_else(scratch, monkeypatch):
     env = coder.allowed_env(scratch["cfg"], "t", "coder")
     for k in ("PLANTED_SECRET", "OPENROUTER_API_KEY", "PYTHONPATH", "PIPELINE_STATE", "PIPELINE_ROOT", "PIPELINE_PYTHON"):
         assert k not in env, k
-    assert set(env) <= {"PATH", "HOME", "TERM", "LANG", "PI_CODING_AGENT_DIR", "PIPELINE_WORKER"}
+    assert set(env) <= {"PATH", "HOME", "TERM", "LANG", "USER", "LOGNAME", "SHELL", "TMPDIR", "PI_CODING_AGENT_DIR", "PIPELINE_WORKER"}
     assert env["PI_CODING_AGENT_DIR"].endswith("pipeline/pi-agent") and env["PIPELINE_WORKER"] == "coder"
 
 

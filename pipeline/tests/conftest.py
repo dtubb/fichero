@@ -175,7 +175,7 @@ class FakeCoder:
     def status(self, session_dir):
         return idle(self.turns, 0.01 * self.turns)
 
-    def wait_idle(self, session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None):
+    def wait_idle(self, session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None, token_cap=None):
         assert self.turns > after_turns, "the runner waited before the worker answered"
         return idle(self.turns, 0.01 * self.turns)
 

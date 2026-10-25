@@ -77,31 +77,40 @@ m4 = "m4"
 tmux_session = "pipeline"
 pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
 agent_dir = "pipeline/pi-agent"
-cost_cap_usd = 3.0
-context_tokens_max = 120000     # ponytail: a guess at Qwen 3.8's useful context; measure and set
+cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
+daily_cap_usd = 10.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
 retries = 2
 stuck_minutes = 45
-needs_mb = { pi = 300, claude-code = 600, pytest = 1500, gate-part = 4000 }
+needs_mb = { pi = 300, pytest = 1500, gate-part = 4000 }
 caps = { coders = 1, test_runs = 1 }
 owner_process = "Fichero Server"   # the maintainer's own engine; busy under pressure => the runner yields
 
-# One ordered fallback list per role (pipeline.fallback-list). kind: pi (provider + model) or claude-code.
-[[roles.coder]]
-kind = "pi"
-provider = "openrouter"
-model = "qwen/qwen3.8-27b"
+# One ordered fallback list per role (pipeline.worker-roles): kind pi, provider + model (as Pi spells it). Ruled
+# 2026-10-25: every role runs on the Anthropic API through Pi, the key from ~/.config/anthropic/key passed only through
+# env by the worker wrapper; Qwen stays configured but off (`enabled = false` entries are skipped).
 [[roles.coder]]
 kind = "pi"
 provider = "anthropic"
 model = "claude-sonnet-5-5"
+[[roles.coder]]
+kind = "pi"
+provider = "openrouter"
+model = "qwen/qwen3.8-27b"
+enabled = false
+# items labelled small
+[[roles.coder-small]]
+kind = "pi"
+provider = "anthropic"
+model = "claude-haiku-5-5"
 [[roles.reviewer]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+model = "claude-opus-5-5"
 [[roles.manager]]
 kind = "pi"
-provider = "openrouter"
-model = "qwen/qwen3.8-27b"
+provider = "anthropic"
+model = "claude-sonnet-5-5"
 # The end state, not run now: every role local through oMLX (OpenAI-compatible; declared to Pi in
 # pipeline/pi-agent/models.json). The self-test loads nothing.
 # [[roles.coder]]

@@ -6,6 +6,7 @@ import json
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -114,3 +115,64 @@ def test_foreign_host_is_refused_on_get_and_post(server):
 
 def test_bound_to_loopback_only(server):
     assert server.startswith("http://127.0.0.1:")
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "journal-2026-10-25.jsonl"
+
+
+@pytest.fixture
+def todays_journal(scratch, monkeypatch):
+    """Today's real journal as the state, with the worker's session read as an idle, finished Pi session."""
+    journal.path().parent.mkdir(parents=True, exist_ok=True)
+    journal.path().write_text(FIXTURE.read_text())
+    monkeypatch.setattr(core.coder, "status", lambda d: {"idle": True, "cost_usd": 2.14, "tokens": 900000, "last_text":
+                        "Committed bd579b3fa. I did not touch the Dev Pipeline spec or any existing `scripts/check_*` file. Calling pipeline_done"})
+    return core.state()
+
+
+def test_now_line_answers_what_is_happening_and_what_needs_me(todays_journal):
+    s = todays_journal
+    assert s["now"].startswith("6116 Dev Pipeline Step 1.2") and "reviewed READY, ready to land." in s["now"]
+    assert "No worker busy." in s["now"] and "Nothing needs you." in s["now"]
+
+
+def test_each_item_has_one_status_sentence_and_the_verdict_at_the_live_head(todays_journal):
+    it = todays_journal["items"]["6116"]
+    assert it["summary"] == "Reviewed READY at 2b4ae9020, all 6 checks green; next: the lead lands it."
+    assert it["verdict_now"]["verdict"] == "READY" and it["verdict_now"]["sha"].startswith("2b4ae9020")
+    assert len(it["verdicts"]) > 1, "the history is kept for the disclosure; only the current one is the status"
+
+
+def test_queue_shows_only_open_items_and_resolved_ones_go_to_done(todays_journal):
+    s = todays_journal
+    assert s["queue"] == {}, "the 16:13 fallback and the 16:21 failed-checks resolved themselves"
+    kinds = sorted((q["kind"], q["ts"][11:16]) for q in s["queue_done"].values())
+    assert kinds == [("failed-checks", "16:21"), ("fallback", "16:13")]
+    assert "Needs you" in web.PAGE and "queue_done" in web.PAGE
+
+
+def test_worker_last_said_is_a_full_sentence_and_idle_means_task_done(todays_journal):
+    w = todays_journal["workers"]["coder-step-1-2-r2"]
+    assert w["idle_text"] == "idle — task done"
+    assert w["last_said"] == "Calling pipeline_done" or w["last_said"].endswith(".")
+    assert core.last_sentence("First. Second sentence is here! A third one that is rather long " + "x" * 200)[-1] == "…"
+    assert core.last_sentence("No punctuation at all") == "No punctuation at all"
+
+
+def test_summaries_for_each_state():
+    base = {"sha": "abcdef1234", "checks": [{"name": "ready", "ok": True}], "verdicts": [], "attempts": 1, "retry_text": "",
+            "history": ["2026-10-25T10:00:00 failed: boom"], "check_ok": True, "verdict_now": None}
+    assert core.summary({**base, "state": "queued"}).startswith("Queued")
+    assert "attempt 2" in core.summary({**base, "state": "coding"})
+    assert "next: a review" in core.summary({**base, "state": "checked"})
+    assert "PENDING (manager)" in core.summary({**base, "state": "checked", "verdict_now": {"verdict": "PENDING", "by": "manager", "sha": "abcdef1234"}})
+    assert core.summary({**base, "state": "needs-maintainer", "retry_text": "[ready] FAIL: ruff\nmore"}).startswith("Needs you at abcdef123: [ready] FAIL: ruff")
+    assert "fallback" in core.summary({**base, "state": "rate-limited"})
+    assert core.summary({**base, "state": "failed"}).startswith("Failed: boom")
+
+
+def test_page_has_the_plain_labels_and_the_stage_1_note(server):
+    _, html = call(server, "/")
+    for word in ("Status", "Started", "Last change", "Cost", "Last said", "Needs you", "Done",
+                 "GitHub specs, milestones and issues come in Stage 1", "<details"):
+        assert word in html, word

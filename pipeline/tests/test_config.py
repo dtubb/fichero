@@ -29,7 +29,16 @@ def test_current_profile_loads_with_every_required_section():
         for k in keys:
             assert k in cfg[section], f"[{section}] {k}"
     assert any(r.get("kind") == "red-on-base" for r in cfg["ladder"])
-    assert config.pi_model_id(cfg["roles"]["coder"][0]) == "openrouter/qwen/qwen3.8-27b"
+    coders = cfg["roles"]["coder"]
+    assert config.pi_model_id(coders[0]) == "anthropic/claude-sonnet-5-5", "the Anthropic API through Pi first (ruled 2026-10-25)"
+    assert coders[1]["provider"] == "openrouter" and coders[1]["enabled"] is False, "Qwen stays configured but off"
+    assert config.pi_model_id(cfg["roles"]["reviewer"][0]) == "anthropic/claude-opus-5-5"
+    assert config.pi_model_id(cfg["roles"]["coder-small"][0]) == "anthropic/claude-haiku-5-5"
+    assert all(w["kind"] == "pi" for role in cfg["roles"].values() for w in role), "no other worker kind on this branch"
+    assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 10.0, "US$5 per session, US$10 per day"
+    import json
+    declared = {m["id"] for m in json.load(open(config.ROOT / "pipeline/pi-agent/models.json"))["providers"]["anthropic"]["models"]}
+    assert {"claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"} <= declared, "Pi knows the models' context and price"
 
 
 def test_missing_section_is_an_error(tmp_path, monkeypatch):

@@ -62,6 +62,29 @@ def test_failing_rung_text_is_capped_by_chars_and_lines(scratch):
     assert len(out.splitlines()) <= 40 and len(out) <= 4000 and max(len(ln) for ln in out.splitlines()) <= 300
 
 
+def test_a_change_under_the_worktrees_claude_dir_is_red_committed_or_untracked(scratch):
+    """Round-2 MED: a hook planted in .claude/ would run outside the sandbox at the next session start."""
+    wt = lane(scratch, "hook", {**REAL_FIX, ".claude/settings.local.json": '{"hooks": {}}\n'})
+    r = checks.run_all(wt, scratch["cfg"])[0]
+    assert r["name"] == "pinned-checks" and not r["ok"] and ".claude/settings.local.json" in r["text"]
+    wt2 = lane(scratch, "untracked", REAL_FIX)
+    (wt2 / ".claude").mkdir()
+    (wt2 / ".claude" / "settings.local.json").write_text("{}")  # not committed, not even staged
+    r = checks.run_all(wt2, scratch["cfg"])[0]
+    assert not r["ok"] and "untracked" not in r["text"] and ".claude/settings.local.json" in r["text"]
+
+
+def test_scratch_trees_and_base_dirs_live_under_the_state_dir(scratch, monkeypatch):
+    """Round-2 MED: the coder can write its TMPDIR, so the checks' scratch trees must not be there."""
+    monkeypatch.setattr(checks, "STATE", scratch["state"])
+    made = []
+    real = checks.tempfile.mkdtemp
+    monkeypatch.setattr(checks.tempfile, "mkdtemp", lambda prefix, dir=None: made.append(dir) or real(prefix=prefix, dir=dir))
+    wt = lane(scratch, "where", REAL_FIX)
+    assert all(r["ok"] for r in checks.run_all(wt, scratch["cfg"]))
+    assert made and all(Path(d) == scratch["state"] / "tmp" for d in made), made
+
+
 def test_pth_conftest_and_stdlib_shadow_files_need_maintainer(scratch):
     for name, path in (("pth", "scripts/evil.pth"), ("conftest", "src/conftest.py"), ("shadow", "scripts/json.py")):
         wt = lane(scratch, name, {**REAL_FIX, path: "# planted\n"})

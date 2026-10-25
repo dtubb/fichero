@@ -267,9 +267,15 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_coder.py::test_pi_command_loads_only_the_pipeline_agent_dir`,
   `pipeline/tests/test_coder.py::test_session_fixture_shows_jcodemunch_and_jdocmunch_calls`,
   `pipeline/tests/test_coder.py::test_reviewer_prompt_carries_the_ponytail_lens`.
-- `pipeline.worker-roles` [MISSING] (#6116) — the worker is a config entry per role (coder, reviewer, manager), one
-  ORDERED list each: kind `pi` with provider (`openrouter`, `anthropic`, or `omlx` at its local OpenAI-compatible
-  endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id, or kind `claude-code`. One list serves
+- `pipeline.worker-roles` [PARTIAL] (#6116) — the worker is a config entry per role (coder, coder-small, reviewer,
+  manager), one ORDERED list each: kind `pi` with provider (`openrouter`, `anthropic`, or `omlx` at its local
+  OpenAI-compatible endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id. Ruled 2026-10-25
+  (evening): every role runs on the Anthropic API through Pi — coder claude-sonnet-5-5, coder-small claude-haiku-5-5,
+  reviewer claude-opus-5-5, the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
+  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on `pipeline/claude-code-worker`.
+  Known limit, accepted for now: the Pi worker's jail is a convention — it can write the shared git common dir and
+  `config.worktree`; the runner's own git runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false` so a
+  planted hook or monitor never runs in the runner, and the checks' scratch trees live under the state dir. One list serves
   every fallback: a cost-cap stop, a credit or quota error (402, 429, "insufficient"), two failed retries and a
   Claude Code usage limit all move the role to the next entry; after the last entry the item goes to the queue,
   which asks for budget, never assumes it. A `claude-code` worker is an interactive `claude` in its own tmux window
@@ -283,8 +289,13 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_coder.py::test_idle_state_from_fixture_jsonl_of_each_kind`,
   `pipeline/tests/test_coder.py::test_model_per_role_from_config`.
 - `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
-  task while the coder runs and stops the task at `cost_cap_usd`; the lane key's own OpenRouter limit is the
-  backstop. Tokens and dollars are recorded per issue and per model, so the open-model share is measured. Tests:
+  task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
+  shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
+  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$10, summed from
+  the journal's cost lines) refuses `start`
+  and `review`, stops a running item as `rate-limited` ("daily cap"), and lifts only with the next day or the
+  maintainer's `resume --raise-cap <usd>` (journaled); the page shows today's spend against the cap. Items drain
+  one at a time, sequentially: `start 6140 6139` runs them in order, each checked before the next. Tokens and dollars are recorded per issue and per model, so the open-model share is measured. Tests:
   `pipeline/tests/test_coder.py::test_cost_parser_on_redacted_real_sample`,
   `pipeline/tests/test_coder.py::test_cost_cap_stops_the_task`,
   `pipeline/tests/test_coder.py::test_cost_is_recorded_per_issue_and_model`.
@@ -346,7 +357,9 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
   Qwen and Claude reviews the batch diff at the gate. The reviewer applies the ponytail lens (shortest working diff,
   no speculative code) as one named check, from `pipeline/pi-agent/rules/ponytail-reviewer.md`, beside correctness,
-  the spec diff and security. Tests: `pipeline/tests/test_core.py::test_verdict_only_from_reviewer_for_current_sha`,
+  the spec diff and security. `python -m pipeline review <item>` runs it: a Pi window (role reviewer) told a brief with
+  the item's diff range, spec lines and check results, blocking until its `pipeline_verdict` for the checked head is
+  in the journal; its cost counts toward the item's cap. Tests: `pipeline/tests/test_core.py::test_verdict_only_from_reviewer_for_current_sha`,
   `pipeline/tests/test_core.py::test_new_commit_voids_the_verdict`.
 
 ### Landing, closing, building, releasing
