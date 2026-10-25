@@ -2048,20 +2048,8 @@ async def _run_workflow_body(
             config=config,
             version="v2",
         ):
-            # #4402: honor BOTH pause signals — the registry-entry flag (set
-            # by the pause endpoint for a tracked run) and the shared pause
-            # event (reachable even after registry eviction, and the one the
-            # per-item boundary consults).
-            if state.get("pause_requested") or pause_requested(thread_id):
-                from fichero_server.workflows.builder import pages_reading
-
-                # Pages of a fan-out still reading are not cut off (#5932): returning here closes the stream and LangGraph
-                # cancels them, losing their paid reads and making Resume read them again. Keep driving the stream; the
-                # fan-out raises the pause (`except WorkflowPaused` below) once every page still reading has finished.
-                if not pages_reading(thread_id):
-                    await _finish_as_paused()
-                    return
-
+            # A run both paused and stopped is stopped (as at the per-item boundary): Stop is checked first, so a Pause
+            # waiting for its reading pages ends cancelled, not paused, whichever event reaches this loop first.
             # #1127 — cancellation check. If the user POSTed
             # /threads/{id}/cancel, the cancel endpoint sets
             # state["cancel_requested"]=True. Break out of the stream;
@@ -2075,6 +2063,20 @@ async def _run_workflow_body(
             if state.get("cancel_requested") or cancellation_requested(thread_id):
                 await _finish_as_cancelled()
                 return
+
+            # #4402: honor BOTH pause signals — the registry-entry flag (set
+            # by the pause endpoint for a tracked run) and the shared pause
+            # event (reachable even after registry eviction, and the one the
+            # per-item boundary consults).
+            if state.get("pause_requested") or pause_requested(thread_id):
+                from fichero_server.workflows.builder import pages_reading
+
+                # Pages of a fan-out still reading are not cut off (#5932): returning here closes the stream and LangGraph
+                # cancels them, losing their paid reads and making Resume read them again. Keep driving the stream; the
+                # fan-out raises the pause (`except WorkflowPaused` below) once every page still reading has finished.
+                if not pages_reading(thread_id):
+                    await _finish_as_paused()
+                    return
 
             event_kind = event.get("event", "")
             # A sub-workflow's nodes run inside this run's step, and their events reach this stream

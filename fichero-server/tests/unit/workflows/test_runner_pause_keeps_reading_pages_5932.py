@@ -95,3 +95,25 @@ def test_a_stop_while_the_pause_waits_for_reading_pages_stops_the_run(client, wo
     model.gates[0].set()
     assert _wait_for(lambda: _status(client, run) == "cancelled")
     assert model.calls == 1, "nothing was started after the Stop"
+
+
+def test_a_run_paused_and_stopped_is_stopped_whichever_event_comes_first(client, workflow, pages, monkeypatch):
+    """The event loop checks Stop before Pause (as the per-item boundary does): with no page left reading, a run asked to
+    pause and then to stop ends cancelled, not paused, instead of depending on which event reaches the loop first."""
+    import fichero_server.llm as llm
+    from fichero_server.workflows import builder, validation
+
+    model = GatedModel()
+    monkeypatch.setattr(llm, "vision", model)
+    monkeypatch.setattr(validation, "validate_workflow_llm_preflight", lambda *a, **k: [])
+    monkeypatch.setitem(jobs.LANES, "network", 1)
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    monkeypatch.setattr(builder, "pages_reading", lambda run_id: 0)  # nothing left reading: the loop may settle at once
+
+    run = _execute(client, workflow, pages)
+    assert model.started[0].wait(30)
+    assert client.put(f"/api/activity/jobs/{run}/paused", json={"paused": True}).status_code == 200
+    assert client.post(f"/api/activity/jobs/{run}/cancel").status_code == 200
+    model.gates[0].set()
+    assert _wait_for(lambda: _status(client, run) in ("cancelled", "paused"))
+    assert _status(client, run) == "cancelled"
