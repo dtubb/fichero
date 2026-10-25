@@ -127,16 +127,21 @@ def test_a_language_with_no_kraken_reader_still_gets_hugging_face_and_remote_con
                                                                          "lines": 30} for i in range(10)], []))
     said = bakeoff.next_run(None, a, [*all_seed_cards(), found_on_hub], volume=1000)
     assert said["pages"] == 10 and said["sentence"].startswith("The comparison costs ")
-    assert "1 cloud reader on 10 pages" in said["sentence"]
+    # The saved model and the frontier ones its key serves (#6120) are offered; the cap takes PER_KIND of them.
+    assert len(bakeoff.cloud_readers()) > bakeoff.PER_KIND
+    assert f"{bakeoff.PER_KIND} cloud readers on 10 pages" in said["sentence"]
 
 
 def test_the_finder_lists_the_remote_endpoints_every_time(client, claude_row):
     r = client.get("/api/recipes/candidates", params={"scripts": "Latn", "languages": "la", "mac_memory_gb": 16})
     assert r.status_code == 200, r.text
     sources = {s["source"]: s for s in r.json()["sources"]}
-    assert sources["remote-endpoints"]["count"] == 1 and "remote endpoints" in sources["remote-endpoints"]["detail"]
+    # The one saved model plus the frontier models its key serves (#6120): every card the endpoints offer is counted.
+    assert sources["remote-endpoints"]["count"] == len(discovery.remote_reader_cards())
+    assert "remote endpoints" in sources["remote-endpoints"]["detail"]
     remote = [c for c in r.json()["items"] if c["source"] == "remote"]
-    assert remote and all("remote endpoint" in c["offered_because"] for c in remote if c["id"] != "anthropic:claude@settings")
+    assert remote and all("remote endpoint" in c["offered_because"] or " serves" in c["offered_because"]  # a frontier model its key serves (#6120)
+                          for c in remote if c["id"] != "anthropic:claude@settings")
     # Offered, never the rules': the bake-off measures it.
     assert all(c["in_recipe_rules"] is False for c in remote)
     # The comma reader is listed for Latin too, as a shipped card.

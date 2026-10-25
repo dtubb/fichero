@@ -141,6 +141,10 @@ def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
 CONTENT_FROM = "catalogue_content_from"
 
 
+class ReembedNotQueued(RuntimeError):
+    """The folder's content is saved but queueing its re-embed failed (#6131): search has not been told."""
+
+
 def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool:
     """The description as the folder's content (#6131): what selecting the folder shows and search and export read. Only
     where the folder has no content, or has the Catalogue stage's own earlier description: text a person wrote, or
@@ -157,12 +161,12 @@ def put_in_content(db: Any, folder_id: str, text: str, artifact_id: str) -> bool
     doc.page_content = text
     doc.metadata = {**metadata, CONTENT_FROM: artifact_id}
     db.save(doc)
-    try:
-        from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.actions.page_text_cache import queue_reembed
 
+    try:
         queue_reembed(db, [folder_id])  # search reads it
-    except Exception:  # noqa: BLE001 -- the content stands; a missed re-embed is repaired by the next one
-        logger.exception("could not queue the re-embed of folder %s", folder_id)
+    except Exception as exc:  # noqa: BLE001 -- typed, so the caller tells it from a failed save
+        raise ReembedNotQueued(str(exc)) from exc  # raised AFTER the content is saved
     return True
 
 
@@ -205,7 +209,11 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         db.save(art)
         _describe_container(db, folder.id, text, art.id, [old.id] if old is not None else [],
                             run_id=run_id, library_path=library_path)
-        put_in_content(db, folder.id, text, art.id)
+        try:
+            put_in_content(db, folder.id, text, art.id)
+        except ReembedNotQueued as exc:  # the content stands; a failed get or save is NOT this and still fails the step
+            logger.exception("could not queue the re-embed of folder %s", folder.id)
+            account["flags"].append(f"{folder.name}: its description is saved, but search was not told: {exc}")
         account["described"] += 1
         account["flags"].extend(f"{folder.name}: {f}" for f in flags)
     return account

@@ -149,7 +149,7 @@ STAGES: tuple[Stage, ...] = (
           "it does not tell. It describes; it does not interpret.",
           "A folder of letters described as: Title, Dates 1782–1790, Extent 214 pages, Scope and content: letters between "
           "the named parties, in Spanish; Description: 214 pages of letters from Cádiz to Veracruz, 31 of them naming the same "
-          "merchant, with a ledger of 40 entries bound in.",
+          "merchant, with 40 accounts bound in.",
           (),
           needs=("read",)),
 )
