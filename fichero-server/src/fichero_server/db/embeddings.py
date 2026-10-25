@@ -1188,9 +1188,10 @@ class DatabaseEmbeddingMixin:
             stamp = (package / "embedding.json").stat().st_mtime_ns if package else None
         except OSError:
             stamp = None  # no choice file: the default
+        key = (stamp, os.getenv(EMBED_MODEL_ENV))  # the environment is the default's input: a change is seen at once
         cached = getattr(self, "_embedding_space_cache", None)
-        if cached is None or cached[0] != stamp:  # keyed on embedding.json, so every open connection sees a change
-            cached = self._embedding_space_cache = (stamp, library_embedding_space(package))
+        if cached is None or cached[0] != key:  # keyed on embedding.json, so every open connection sees a change
+            cached = self._embedding_space_cache = (key, library_embedding_space(package))
         return cached[1]
 
     def _get_embedding_model_id(self) -> str:

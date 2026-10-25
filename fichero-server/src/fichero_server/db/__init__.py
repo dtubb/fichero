@@ -5594,6 +5594,8 @@ class Database(DatabaseEmbeddingMixin):
         """Lazy-load LanceDB connection. A re-embed swap a crash cut short is finished or undone before the folder is opened
         (`db.vector_swap.recover`), and the connection is made again when the project's embedding choice changed under it
         (another connection swapped the folder, #6122)."""
+        if self._lance_db is not None and not hasattr(self, "_lance_path"):
+            return self._lance_db  # a connection handed in with no folder behind it (a test double)
         package = self._lance_path.parent
         try:
             stamp = (package / "embedding.json").stat().st_mtime_ns

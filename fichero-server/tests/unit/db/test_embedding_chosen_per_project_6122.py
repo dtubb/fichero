@@ -120,3 +120,14 @@ def test_the_models_route_lists_every_supported_model_with_its_blurb_before_any_
     assert all(m["name"] and m["blurb"] for m in models)
     assert {m["model"] for m in models} == {s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}
     assert not any("ecommended" in m["blurb"] for m in models), "the flag says it once, the blurb does not repeat it"
+
+
+def test_a_change_of_the_default_model_in_the_environment_is_seen_without_reopening(tmp_path, monkeypatch):
+    """The cached space is keyed on the choice file AND the environment default's input (the gate's drift test)."""
+    from fichero_server.db import Database
+
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "intfloat/multilingual-e5-large")
+    db = Database(tmp_path / "P.fichero" / "library.duckdb")
+    assert db._get_embedding_space().source_model_name == "intfloat/multilingual-e5-large"
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
+    assert db._get_embedding_space().source_model_name == "BAAI/bge-m3"
