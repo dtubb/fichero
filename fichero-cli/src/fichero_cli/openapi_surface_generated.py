@@ -14025,6 +14025,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("use-readers-for-step")
+    def recipes_use_readers_for_step_post(
+        ctx: typer.Context,
+        cards: list[str] = typer.Option(..., '--cards', help="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        step: str = typer.Option(..., '--step', help="the Find where the readers disagree step's id."),
+    ) -> None:
+        """Use Readers For Step (POST /api/recipes/project/steps/use-readers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/use-readers"
+            params = None
+            payload = _build_json_payload({
+                "cards": cards,
+                "step": step,
+            }, {
+                "cards": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Cards', 'description': "two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the Find where the readers disagree step's id", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("use-setup-pick-for-step")
     def recipes_use_setup_pick_for_step_post(
         ctx: typer.Context,

@@ -2888,6 +2888,49 @@ async def use_candidate_for_step(
     return _whole_setup(result.result)
 
 
+class UseReadersRequest(BaseModel):
+    """Choose the readers Find where the readers disagree compares (#6121)."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the Find where the readers disagree step's id")
+    cards: list[str] = Field(description="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)")
+
+
+@router.post("/project/steps/use-readers", response_model=ProjectSetup)
+async def use_readers_for_step(
+    request: UseReadersRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """The readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared
+    besides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`
+    (audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find
+    where the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.start import use_readers
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    try:
+        a = _answers(setup["answers"]) if setup["answers"] else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    offered = _offered_cards(a)
+    cards = []
+    for card_id in request.cards:
+        named = [c for c in offered if c.id == card_id]
+        card = next((c for c in named if "read-a-page" in c.jobs or "read-a-line" in c.jobs), named[0] if named else None)
+        if card is None:
+            raise HTTPException(status_code=422, detail=f"{card_id} is not a model Fichero has found here")
+        cards.append(card)
+    try:
+        recipe = use_readers(setup["recipe"], request.step, cards, now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
 async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path, setup: dict[str, Any],
                                  request: "UseCandidateRequest", offered: list[Any]) -> ProjectSetup:
     """`corrects-unsure:<cloud card>` on the READ step (`source.recipe.kraken-reads-cloud-corrects-unsure`): Kraken stays the reader and

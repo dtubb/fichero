@@ -16633,6 +16633,70 @@
         }
       }
     },
+    "/api/recipes/project/steps/use-readers": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Readers For Step",
+        "description": "The readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared\nbesides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`\n(audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find\nwhere the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers.",
+        "operationId": "use_readers_for_step_api_recipes_project_steps_use_readers_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseReadersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/steps/use-setup-pick": {
       "post": {
         "tags": [
@@ -100146,6 +100210,31 @@
         ],
         "title": "UseInsteadRequest",
         "description": "Use an installed model instead of downloading the one the plan waits for (#5583), or the same model at a free\nplace instead of on this Mac, which cannot run it (#5592). Exactly one of `card` and `provider`."
+      },
+      "UseReadersRequest": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "the Find where the readers disagree step's id"
+          },
+          "cards": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cards",
+            "description": "two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step",
+          "cards"
+        ],
+        "title": "UseReadersRequest",
+        "description": "Choose the readers Find where the readers disagree compares (#6121)."
       },
       "UseSetupPickRequest": {
         "properties": {
