@@ -137,7 +137,7 @@ extension View {
     /// Adds delete confirmation and error alerts for sidebar items.
     func sidebarDeleteAlerts(
         deleteState: DeleteStateManager,
-        performDelete: @escaping @MainActor (SidebarItem) async -> Void
+        performDelete: @escaping @MainActor ([SidebarItem]) async -> Void
     ) -> some View {
         self.modifier(SidebarDeleteAlertsModifier(
             deleteState: deleteState,
@@ -153,7 +153,7 @@ extension View {
 
 private struct SidebarDeleteAlertsModifier: ViewModifier {
     @Bindable var deleteState: DeleteStateManager
-    let performDelete: @MainActor (SidebarItem) async -> Void
+    let performDelete: @MainActor ([SidebarItem]) async -> Void
 
     // `confirmationDialog` is more reliable than `.alert(presenting:)`
     // on macOS inside List(selection:) — the `presenting:`/`isPresented:`
@@ -170,9 +170,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                 Button("Delete", role: .destructive) {
                     let items = deleteState.itemsToDelete
                     Task { @MainActor in
-                        for item in items {
-                            await performDelete(item)
-                        }
+                        await performDelete(items)  // one batch, one undo step (#6175)
                     }
                 }
                 Button("Cancel", role: .cancel) {

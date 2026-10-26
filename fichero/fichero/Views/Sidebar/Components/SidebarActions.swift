@@ -168,6 +168,41 @@ extension SidebarView {
         #endif
     }
 
+    /// The confirmed delete of every item: several documents of one library are ONE undoable batch and one refresh, so one
+    /// Cmd-Z restores them all (`delete.multi-is-one-undo-step`, #6175, `undo.batches`); anything else goes one by one.
+    func performDeletes(_ items: [SidebarItem]) async {
+        let documents: [Document] = items.compactMap {
+            if case .document(let doc) = $0.itemType { return doc }
+            return nil
+        }
+        let libraryIds = Set(items.compactMap(\.libraryId))
+        guard items.count > 1, documents.count == items.count, libraryIds.count == 1, let libraryId = libraryIds.first,
+              let library = libraryManager.getLibrary(id: libraryId) else {
+            for item in items { await performDelete(item: item) }
+            return
+        }
+        do {
+            try await UndoableChange.batch(
+                documents,
+                named: { UndoableChange.named("Move", count: $0, one: "Item to Trash", many: "Items to Trash") },
+                service: library.actionsService, steps: windowState.steps,
+                afterEach: { await library.documentStore.refresh() },
+                change: { doc in
+                    [try await library.actionsService.invokeAction(
+                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId]
+                }
+            )
+            logger.info("Delete successful: \(documents.count) items in one step")
+            rebuildCaches(for: libraryId)
+            selectedItemId = nil  // nothing is selected after a batch: no row is left for the next Delete to act on
+            deleteState.inheritedSelectionId = nil
+        } catch {
+            logger.error("Failed to delete: \(error.localizedDescription)")
+            deleteState.showError(message: error.localizedDescription)
+        }
+        await library.documentStore.refresh()
+    }
+
     // Perform the actual deletion
     func performDelete(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")

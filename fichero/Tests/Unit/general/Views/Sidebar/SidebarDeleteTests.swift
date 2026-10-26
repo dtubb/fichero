@@ -43,3 +43,10 @@ struct SidebarDeleteTests {
         #expect(state.inheritedSelectionId == nil)
     }
 }
+
+extension SidebarDeleteTests {
+    @Test func theBatchStepIsNamedByHowManyItemsItHolds() {
+        let name = UndoableChange.named("Move", count: 3, one: "Item to Trash", many: "Items to Trash")
+        #expect(name == "Move 3 Items to Trash")
+    }
+}
