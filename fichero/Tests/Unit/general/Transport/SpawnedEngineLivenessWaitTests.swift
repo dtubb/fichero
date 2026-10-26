@@ -124,6 +124,23 @@ struct SpawnedEngineLivenessWaitTests {
         #expect(text.contains("its last lines follow"))
     }
 
+    /// #3958: a UI-test launch gate must fail with the engine log, not sit in the 300s wait.
+    @Test("under a UI test the wait gives up early and the diagnosis names the wait")
+    func uiTestCapIsShortAndDiagnosed() {
+        let cap = EmbeddedBackendService.effectiveSpawnCap(uiTesting: true)
+        #expect(cap < EmbeddedBackendService.spawnedEngineInsanityCap)
+        #expect(cap > 23.1 * 2)
+        #expect(EmbeddedBackendService.effectiveSpawnCap(uiTesting: false) == EmbeddedBackendService.spawnedEngineInsanityCap)
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .notResponding, exitDiagnosis: nil, elapsed: cap, cap: cap
+            ) == .neverBecameReady
+        )
+        let text = EmbeddedBackendService.neverBoundDiagnosis(cap: cap)
+        #expect(text.contains("for \(Int(cap)) seconds"))
+        #expect(text.contains("its last lines follow"))
+    }
+
     /// An unreadable log and an empty log are different facts, and both are
     /// diagnostic. Neither may arrive as an empty string that reads as "no
     /// information available".
