@@ -90,6 +90,8 @@ def state() -> dict:
             if k not in s["tasks"][e["task"]]["issues"]:
                 s["tasks"][e["task"]]["issues"].append(k)
         elif ev == "transition" and it:
+            if it["state"] == "asking" and e["to"] == "coding":
+                it.pop("answer", None)  # used: a later ask must not wake on this one
             it["state"] = e["to"]
             it["history"].append(f"{e['ts']} {e['to']}: {e.get('why', '')}")
         elif ev == "check" and it:
@@ -574,7 +576,9 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
         _move(k, "coding", "write-up turn")
         parts = _writeup(task, k, briefs[k], wt, window, session_dir, worker)
         briefs[k] = feeder.apply_writeup(briefs[k], parts)
-        if miss := feeder.lint(briefs[k], c["labels"], _approved(wt)):  # the worktree's specs: the new [GAP] line is there
+        journal.append("item", issue=_n(k), key=k, task=task, title=briefs[k]["title"], window=window, worktree=str(wt),
+                       milestone=milestone, base=base, from_file=from_file, ids=issue_ids(briefs[k]))  # the write-up's id is protected from here on
+        if miss := feeder.lint(briefs[k], c["labels"], _approved()):  # the repo's specs, not the worktree's: the runner's own new [GAP] line must never count as approval
             briefs.pop(k)
             out[k] = "needs-maintainer"
             why = f"written up, not fit to dispatch (lacks {'; '.join(miss)}): ID {parts.get('id', '?')}; ACCEPTANCE {parts.get('acceptance', '?')}; TEST {parts.get('test', '?')}"
@@ -872,11 +876,20 @@ def answer(qid: str, text: str, resume: bool = True) -> dict:
     if q.get("key") and state()["items"][q["key"]]["state"] == "asking":
         if resume:
             import threading
-            threading.Thread(target=resume_asked, args=(q["key"],), daemon=True).start()
+            threading.Thread(target=_resume_bg, args=(q["key"],), daemon=True).start()
         return {"answered": qid, "resuming": q["key"]}
     if q.get("window"):
         tell(q["window"], f"Answer to your question ({q['text'][:80]}): {text}", task=q.get("task"))
     return {"answered": qid, "told": q.get("window")}
+
+
+def _resume_bg(key: str) -> None:
+    """The background resume of `answer`: a failure is journaled (the item stays `asking` with its answer, so the
+    scheduler's next pass or `resume-asked` picks it up), never lost with the thread."""
+    try:
+        resume_asked(key)
+    except Exception as e:  # noqa: BLE001
+        journal.append("note", issue=_n(key), key=key, text=f"resume after the answer failed: {type(e).__name__}: {e}")
 
 
 def resume_asked(issue) -> dict:
@@ -965,7 +978,8 @@ def _writeup(task, key, iss, wt, window, session_dir, worker) -> dict:
     before = coder.status(session_dir)
     tell(window, f"Read and do {path} — write-up for #{n}. Reply with the three lines; edit nothing.", task=task)
     st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
-    journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"], 4),
+    spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))  # the session's running total, as in _turn
+    journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
                    tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
     parts = feeder.parse_writeup(st.get("last_text") or "")
     if spec and parts.get("id") and f"`{parts['id']}`" not in spec.read_text():  # only ever a new [GAP] line, in the worktree

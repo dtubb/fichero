@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from pipeline import core, journal
-from pipeline.tests.conftest import git
+from pipeline.tests.conftest import ISSUES, git
 
 
 def test_start_from_a_local_issue_file_for_an_unfiled_step(scratch, fake_coder, tmp_path):
@@ -818,21 +818,68 @@ def test_an_unfit_issue_gets_one_write_up_and_waits_for_the_maintainer(scratch, 
     assert len([t for t in fc.told if "write-up" in t[1]]) == 1
 
 
-def test_a_written_up_issue_in_an_approved_spec_is_coded_in_the_same_session(scratch, issues, fake_coder):
+def approve_spec(scratch):
     repo = Path(scratch["cfg"]["repo"]["path"])
     spec = repo / "specs" / "s.md"
     spec.write_text("**Status: APPROVED**\n\n" + spec.read_text())
     git(repo, "add", ".")
     git(repo, "commit", "-qm", "approve the spec")
     git(repo, "push", "-q", "origin", "integration")
+
+
+def test_a_written_up_issue_citing_an_approved_id_is_coded_in_the_same_session(scratch, issues, fake_coder, monkeypatch):
+    approve_spec(scratch)
+    monkeypatch.setattr(core, "ISSUE", lambda n: dict(ISSUES[n], body="Spec `demo.one`. Do it.", title="f(2) is 2"))
     fc = fake_coder()
-    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
+    fc.reply = "ID: `demo.other`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
     out = core.start([1002], writeup=True)
     assert out["items"] == {"1002": "checked"}
     assert len(fc.windows) == 1, "the write-up and the fix share one worker session"
     assert [t[1] for t in fc.told].index(next(t[1] for t in fc.told if "write-up" in t[1])) == 0
     brief = sorted((scratch["state"] / "briefs").rglob("issue-1002-attempt-1.md"))[0].read_text()
-    assert "Spec `demo.two`." in brief, "the write-up output is the brief"
+    assert "Acceptance: f(2) is 2." in brief and "demo.other" not in brief, "the write-up output is the brief; the id the issue cites stays"
+
+
+def test_the_runners_own_gap_line_never_approves_a_worker_invented_id(scratch, issues, fake_coder):
+    """Review fix 1: the id the write-up worker invents is added to an APPROVED spec by the runner; that is not approval,
+    and the id is protected (journaled with the item) so the coder cannot rewrite its line unchecked."""
+    approve_spec(scratch)
+    fc = fake_coder()
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
+    out = core.start([1002], writeup=True)
+    assert out["items"] == {"1002": "needs-maintainer"} and not [t for t in fc.told if "issue #1002" in t[1]]
+    assert core.state()["items"]["1002"]["start_args"]["ids"] == ["demo.two"]
+
+
+def test_a_writeup_in_a_reused_session_journals_its_cost_not_the_session_total(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder()
+    fc.turns = 5  # five turns (0.05) already spent in this session
+    real = core._start_worker
+
+    def started(*a, **k):
+        d = real(*a, **k)
+        journal.append("cost", issue=1002, key="1002", task="t", session=str(d), usd=0.05, tokens=1, model="m")
+        return d
+    monkeypatch.setattr(core, "_start_worker", started)
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_2.py::test_f2"
+    core.start([1002], writeup=True)
+    assert round(sum(e["usd"] for e in journal.read() if e["event"] == "cost"), 4) == 0.06
+
+
+def test_an_answer_is_used_once_and_a_failed_background_resume_is_journaled(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder("asks")
+    core.start([1001])
+    (q,) = [q for q in core.queue() if q["kind"] == "ask"]
+    core.answer(q["id"], "tabs", resume=False)
+    real = core.resume_asked
+    monkeypatch.setattr(core, "resume_asked", lambda key: (_ for _ in ()).throw(BlockingIOError("dispatch busy")))
+    core._resume_bg("1001")
+    st = core.state()["items"]["1001"]
+    assert st["state"] == "asking" and st["answer"] == "tabs" and any("resume after the answer failed: BlockingIOError" in n for n in st["notes"])
+    monkeypatch.setattr(core, "resume_asked", real)
+    core.resume_asked("1001")
+    assert "answer" not in core.state()["items"]["1001"], "used: a later ask must not wake on it"
+    assert fc.windows
 
 
 def test_ask_parks_the_item_and_an_answer_wakes_the_same_session_after_a_restart(scratch, issues, fake_coder):
