@@ -122,6 +122,14 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+def _cannot_run_on_apple_vision(func: Callable) -> bool:
+    """Whether the tool's module declares (`TOOL_CONFIG.supports_apple_vision` False) that it answers a prompt (#6029)."""
+    import sys
+
+    config = getattr(sys.modules.get(getattr(func, "__module__", "")), "TOOL_CONFIG", None)
+    return getattr(config, "supports_apple_vision", True) is False
+
+
 def register_tool(
     name: str,
     display_name: str,
@@ -172,6 +180,9 @@ def register_tool(
     def decorator(func: Callable) -> Callable:
         # Store the function
         _TOOLS[name] = func
+        # A vision tool whose module says it does not support Apple Vision answers a prompt, which recognition-only Apple Vision
+        # ignores: say so here, so the preflight refuses it once before the run, not page by page at read time (#6029).
+        needs_generative = requires_generative_model or _cannot_run_on_apple_vision(func)
 
         # Default ports only when omitted (None), not when explicitly empty.
         # Source tools intentionally pass [] to indicate no input ports.
@@ -204,7 +215,7 @@ def register_tool(
         parallelism=parallelism,
             supports_streaming=supports_streaming,
             supports_structured_output=supports_structured_output,
-            requires_generative_model=requires_generative_model,
+            requires_generative_model=needs_generative,
             sort_order=sort_order,
             tested=tested,
         ))

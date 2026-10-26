@@ -198,6 +198,7 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         "AI Redraw as SVG",
         "English Secretary Hand (16th–17th C.)",
         "Classify Script",  # #5726: the script is told from the picture by a vision model
+        "Describe (visual)",  # #6029: Describe answers a prompt; on Apple Vision it was refused page by page (220 times in one run)
         "Extract Table",
         "Group Same Documents",
         "Latin Paleography",
