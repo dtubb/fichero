@@ -14,7 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pipeline import ROOT, STATE, budget, checks, coder, config, feeder, gh, journal, localise
+from pipeline import ROOT, STATE, budget, checks, coder, config, feeder, gh, journal, localise, steps
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
@@ -656,7 +656,7 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, fi
             results = check(key, since=since, locked=True, sha=sha) if not end else None
         if end:
             return end
-        if all(r["ok"] for r in results):
+        if steps.route(c["steps"], "checks", 0 if all(r["ok"] for r in results) else 1) != "code":  # the profile's route
             return "checked"
         if results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
             return "needs-maintainer"

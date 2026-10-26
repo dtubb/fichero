@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline import ROOT, coder, core, journal
+from pipeline import ROOT, coder, config, core, journal
 
 # The stub `ruff` the scratch repo's ready check runs: `ruff check [--output-format concise] [-q] <files>`, one rule
 # (F401: a bare `import x` whose name never appears again), the same concise line shape as the real tool.
@@ -116,6 +116,7 @@ def scratch(tmp_path, monkeypatch):
         "workers": {"tmux_session": "pipeline-test", "pi_adapter": "/nowhere/adapter.ts", "agent_dir": "pipeline/pi-agent",
                     "cost_cap_usd": 1.0, "context_tokens_max": 1000, "context_tokens": 1000, "batch_end_pct": 80, "park_ttl_minutes": 30, "retries": 2, "stuck_minutes": 45,
                     "needs_mb": {"pi": 0, "pytest": 0}, "caps": {"coders": 1, "test_runs": 1}, "owner_process": ""},
+        "steps": config.load("fichero")["steps"],
         "roles": {"coder": [{"kind": "pi", "provider": "openrouter", "model": "qwen/x"},
                             {"kind": "pi", "provider": "anthropic", "model": "claude-sonnet-4-5"}]},
         "keys": {"openrouter": {"env": "OPENROUTER_API_KEY", "files": [str(tmp_path / "no-such-key")]},

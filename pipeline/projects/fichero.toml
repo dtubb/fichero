@@ -75,6 +75,52 @@ cmd = ["{python} {pinned}/scripts/check_openapi_route_set_current.py",
        "{python} {pinned}/scripts/check_contract_identity_current.py",
        "{python} {pinned}/scripts/check_mcp_generated_current.py"]
 
+# The pipeline as data (pipeline.pipeline-as-data): each item runs these steps; a script step is routed on its exit
+# code (0 -> on_ok, else on_fail); `max_iter` caps a step a route loops back to. config.load validates this.
+[[steps]]
+name = "brief"
+kind = "script"
+in = ["issue"]
+out = ["brief"]
+timeout_s = 120
+on_ok = "code"
+[[steps]]
+name = "code"
+kind = "model"
+in = ["brief"]
+out = ["commit"]
+max_iter = 3                      # the first try and two retries ([workers] retries)
+on_ok = "checks"
+[[steps]]
+name = "checks"
+kind = "script"
+in = ["commit"]
+out = ["results"]
+timeout_s = 1800
+on_ok = "review"
+on_fail = "code"
+[[steps]]
+name = "review"
+kind = "model"
+in = ["commit", "results"]
+out = ["verdict"]
+max_iter = 2
+on_ok = "land"
+on_fail = "code"
+[[steps]]
+name = "land"
+kind = "manual"
+in = ["verdict"]
+out = ["landed"]
+on_ok = "close"
+[[steps]]
+name = "close"
+kind = "script"
+in = ["landed"]
+out = ["closed"]
+timeout_s = 120
+on_ok = "end"
+
 [nightly]
 gate = "scripts/gate verify-all"
 verify_all = "scripts/verify_all.sh"

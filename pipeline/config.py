@@ -6,7 +6,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from pipeline import ROOT
+from pipeline import ROOT, steps
 
 PROJECTS = ROOT / "pipeline" / "projects"
 REQUIRED = {"repo": ["base", "worktrees", "check_paths"], "labels": ["bug", "claimed"], "github": ["allowed_authors", "agent_email"],
@@ -21,6 +21,8 @@ def load(name: str | None = None) -> dict:
             if k not in cfg.get(section, {}):
                 raise ValueError(f"{name}.toml: [{section}] lacks {k}")
     cfg["name"] = name
+    if "steps" in cfg and (bad := steps.validate(cfg["steps"])):  # validate before run
+        raise ValueError(f"{name}.toml: steps: {'; '.join(bad)}")
     for role in cfg["roles"].values():  # a role names a tier; the provider's tier pair names the model
         for w in role:
             if "model" not in w:

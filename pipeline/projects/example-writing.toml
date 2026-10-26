@@ -55,3 +55,20 @@ model = "claude-sonnet-4-5"
 
 [keys]
 anthropic = { env = "ANTHROPIC_API_KEY", files = ["~/.config/anthropic/key"] }
+
+# a shorter pipeline: no review, the maintainer lands it (see fichero.toml for the full one)
+[[steps]]
+name = "code"
+kind = "model"
+in = ["issue"]
+out = ["commit"]
+max_iter = 2
+on_ok = "checks"
+[[steps]]
+name = "checks"
+kind = "script"
+in = ["commit"]
+out = ["results"]
+timeout_s = 600
+on_ok = "end"
+on_fail = "code"

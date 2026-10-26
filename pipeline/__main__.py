@@ -81,7 +81,7 @@ def self_test() -> int:
     import tempfile
     from pathlib import Path
 
-    from pipeline import ROOT, budget, checks, coder, config
+    from pipeline import ROOT, budget, checks, coder, config, steps
 
     fails = []
 
@@ -106,6 +106,7 @@ def self_test() -> int:
     must(project not in code.lower(), f"runner code names no project (grep '{project}' outside comments)")
     env = coder.allowed_env(config.load(profiles[0]))
     must(set(env) <= set(coder.ALLOWED_ENV) | {"PI_CODING_AGENT_DIR", "PIPELINE_WORKER"}, "env allow-list drops everything else")
+    must(steps.validate([{"name": "a", "kind": "script", "on_ok": "b"}]) != [], "a pipeline with a missing step or timeout refuses")
     must(not budget.room_for("pytest", {"pytest": 10**9}, {"free_mb": 100, "pressure": "normal"})[0], "memory check can refuse")
     must(not budget.room_for("pi", {"pi": 0}, {"free_mb": 10**6, "pressure": "critical"})[0], "critical pressure refuses")
     delays = [budget.backoff(i, rng=lambda: 1.0) for i in range(4)]

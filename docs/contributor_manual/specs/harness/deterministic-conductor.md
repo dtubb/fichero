@@ -437,6 +437,15 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   the issue body with what is left and leaves it open; a milestone closes when its last open issue closes; the page
   shows what was closed today. Tests: `pipeline/tests/test_core.py::test_landing_closes_through_the_one_closer_after_a_dry_run_line`,
   `pipeline/tests/test_core.py::test_a_residue_leaves_the_issue_open_with_what_is_left`.
+- `pipeline.pipeline-as-data` [PARTIAL] (#6116) — the profile's `[[steps]]` declare what each item goes through (brief,
+  code, checks, review, land, close): each step's kind (script, model or manual), what it reads and writes, where its
+  exit code sends it (`on_ok`, `on_fail`), and its caps (`timeout_s` for a script, `max_iter` for a step a route loops
+  back to). `config.load` validates the list before anything runs (a name that is not a step, an input nobody writes, a
+  loop without a cap, a script without a timeout, an unreachable step all refuse the profile); `steps.route` is the
+  whole of the routing, no model call. Today the checks → code/review route reads it; the rest of the loop still
+  follows the same order in code. Tests: `pipeline/tests/test_steps.py::test_the_profiles_pipeline_is_valid_and_routes_on_exit_code`,
+  `pipeline/tests/test_steps.py::test_validate_refuses_a_broken_pipeline`,
+  `pipeline/tests/test_steps.py::test_a_profile_with_a_broken_pipeline_refuses_to_load`.
 - `pipeline.rebase-after-push` [MISSING] (#6116) — every live coder rebases on integration after a push; a conflict
   after the rebase stops that coder and goes to the queue (resolved by the Opus session with the maintainer). Test:
   `pipeline/tests/test_core.py::test_rebase_conflict_stops_the_coder_and_queues`.
@@ -654,8 +663,8 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Size: M
 
 #### Step 1.8 — the batch session, caching and closing
-- Behaviours: `pipeline.batch-session`, `pipeline.prompt-cache`, `pipeline.closes-issues`
-- Tests: pipeline/tests/test_core.py, pipeline/tests/test_coder.py, pipeline/tests/test_feeder.py
+- Behaviours: `pipeline.batch-session`, `pipeline.prompt-cache`, `pipeline.closes-issues`, `pipeline.pipeline-as-data`
+- Tests: pipeline/tests/test_core.py, pipeline/tests/test_coder.py, pipeline/tests/test_feeder.py, pipeline/tests/test_steps.py
 - Depends on: 1.3
 - Size: M
 
