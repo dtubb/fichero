@@ -133,7 +133,7 @@ def claude_dir_changed(wt, since, head="HEAD") -> list[str]:
 TAG_RE = re.compile(r"\[(?:OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)[^\]]*\]|\(#\d+\)")
 
 
-def acceptance_lines(text: str, ids) -> list[str]:
+def acceptance_lines(text: str, ids, steps: bool = True) -> list[str]:
     """The item's acceptance in a spec, normalised: its behaviour bullets (continuation lines included) and the
     Behaviours/Tests lines of the build-order step that names one of its ids — with status tags and `(#N)` removed,
     so flipping [MISSING] to [OK] or adding the issue number is not a change (round-3 review R4)."""
@@ -147,25 +147,60 @@ def acceptance_lines(text: str, ids) -> list[str]:
                 else:
                     break
             out.append(" ".join(b.strip() for b in block))
-    for m in re.finditer(r"^#### Step .*?(?=^#### Step |^### |^## |\Z)", text, re.S | re.M):
+    for m in re.finditer(r"^#### Step .*?(?=^#### Step |^### |^## |\Z)", text, re.S | re.M) if steps else ():
         step = m.group(0)
         if any(f"`{x}`" in step for x in ids):
             out += [s.strip() for s in step.splitlines() if s.strip().startswith(("- Tests:", "- Behaviours:"))]
     return [re.sub(r"\s+", " ", TAG_RE.sub("", s)).strip() for s in out]
 
 
+STATUS_RE = re.compile(r"\[(OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)")
+TEST_PATH_RE = re.compile(r"[\w./-]+\.(?:py|swift|ts|js)\b")
+
+
+def flipped_ids(old: str, new: str, ids, changed: list[str]) -> list[str]:
+    """Ids whose own spec line went from a not-yet-OK tag to [OK] in the same diff that adds/changes a test file the
+    line names, and which names no fewer tests than before: a legitimate status flip with its prose, not a rewrite."""
+    out = []
+    for x in ids:
+        o, n = acceptance_lines_raw(old, x), acceptance_lines_raw(new, x)
+        so, sn = STATUS_RE.search(o or ""), STATUS_RE.search(n or "")
+        tests = set(TEST_PATH_RE.findall(n or ""))
+        if (o and n and so and sn and so.group(1) != "OK" and sn.group(1) == "OK" and len(TEST_PATH_RE.findall(o)) <= len(tests)
+                and any(f == t or f.endswith("/" + t) for f in changed for t in tests)):
+            out.append(x)
+    return out
+
+
+def acceptance_lines_raw(text: str, x: str) -> str:
+    """The item's behaviour bullet for id `x`, tags kept (continuation lines included); "" when absent."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"\s*- `[a-z][a-z0-9-]*\.[a-z0-9.-]+`", line) and f"`{x}`" in line:
+            block = [line]
+            for nxt in lines[i + 1:]:
+                if not (nxt.startswith("  ") and not nxt.lstrip().startswith("- ")):
+                    break
+                block.append(nxt)
+            return " ".join(b.strip() for b in block)
+    return ""
+
+
 def acceptance_changed(wt, since, spec_dir, ids, head="HEAD") -> list[str]:
     """The item's own acceptance differs between `since` and HEAD in some changed spec file: the coder may not
-    rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4). Returns the lines that differ."""
+    rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4), and so is an [OK] flip with its prose when the diff touches the test the line names. Returns the lines that differ."""
     if not spec_dir or not ids:
         return []
-    hits = []
-    for f in changed_files(wt, since, head=head):
+    hits, changed = [], changed_files(wt, since, head=head)
+    for f in changed:
         if not f.startswith(spec_dir.rstrip("/") + "/") or not f.endswith(".md"):
             continue
         old = sh(["git", "show", f"{since}:{f}"], cwd=wt).stdout
         new = sh(["git", "show", f"{head}:{f}"], cwd=wt).stdout
         before, after = acceptance_lines(old, ids), acceptance_lines(new, ids)
+        for x in flipped_ids(old, new, ids, changed):  # the flipped line (tag and prose) is not a change; step lines still are
+            before = [b for b in before if b not in acceptance_lines(old, [x], steps=False)]
+            after = [a for a in after if a not in acceptance_lines(new, [x], steps=False)]
         if before != after:
             hits += [f"{f}: - {s[:160]}" for s in before if s not in after] + [f"{f}: + {s[:160]}" for s in after if s not in before]
     return hits

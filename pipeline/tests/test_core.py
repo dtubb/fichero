@@ -346,6 +346,33 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
     assert "rewrites the item's own acceptance" in core.state()["items"]["1001"]["retry_text"]
 
 
+def _spec_edit_coder(fake_coder, old, new):
+    fc = fake_coder()
+    real = fc._tell
+
+    def tell_and_edit_spec(window, text):
+        real(window, text)
+        spec = fc.cwd / "specs" / "s.md"
+        spec.write_text(spec.read_text().replace(old, new))
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)")
+
+    fc._tell = tell_and_edit_spec
+
+
+def test_an_ok_flip_with_prose_is_allowed_when_the_diff_adds_the_named_test(scratch, issues, fake_coder):
+    _spec_edit_coder(fake_coder, "[MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py",
+                     "[OK] — acceptance: f(1) is 1, app-side too. Test: tests/test_1001.py")
+    got = core.start([1001])["items"]["1001"]
+    assert got == "checked", core.state()["items"]["1001"]["retry_text"]
+
+
+def test_an_ok_flip_that_drops_the_named_test_still_needs_maintainer(scratch, issues, fake_coder):
+    _spec_edit_coder(fake_coder, "[MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py", "[OK] — acceptance: f(1) is 1.")
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
+    assert "rewrites the item's own acceptance" in core.state()["items"]["1001"]["retry_text"]
+
+
 def test_brief_requires_the_doc_lookup_first_and_forbids_acceptance_edits(scratch, issues):
     """The name is kept (the spec cites it); the first step is now: do not explore, read only what you edit."""
     text = core.brief(issues[1001], "t")
