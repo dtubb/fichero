@@ -415,7 +415,8 @@ enum RemoteClientPairing {
     @MainActor
     static func revokeOwnPairing(client: FicheroClient, timeout: Double = 5) async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
+            // MainActor-isolated so the non-Sendable client is not sent across isolation.
+            group.addTask { @MainActor in
                 guard case .ok? = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
                 return true
             }
