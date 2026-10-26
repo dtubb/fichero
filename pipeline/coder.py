@@ -35,7 +35,7 @@ def sh(args: list[str], **kw) -> subprocess.CompletedProcess:
 def mcp_bin(task: str, role: str) -> Path:
     """A per-task bin dir under the state dir holding `pipeline-mcp`, which knows the runner's python, root and
     state; it goes on the worker's PATH so the worker env itself names no runner path."""
-    d = STATE / "bin" / task
+    d = STATE / "bin" / task / role  # one path per role: the reviewer never overwrites the coder's wrapper (#6145)
     d.mkdir(parents=True, exist_ok=True)
     w = d / "pipeline-mcp"
     # the wrapper names no state path: the MCP server resolves it itself (its default, from HOME); the role split

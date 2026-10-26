@@ -477,6 +477,24 @@ def test_an_item_that_hits_the_daily_cap_mid_run_stops_as_rate_limited(scratch, 
         core.start([1002])  # and nothing new starts today
 
 
+def test_wait_idle_gets_the_smaller_of_session_cap_and_what_is_left_today(scratch, issues, fake_coder, monkeypatch):
+    """#6145: the daily cap is enforced inside the turn (as wait_idle's cap), and its stop queues 'budget'."""
+    fc = fake_coder()
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 0.5
+    caps = []
+    real = fc.wait_idle
+    monkeypatch.setattr(core.coder, "wait_idle", lambda sd, cap, **kw: (caps.append(cap), real(sd, cap, **kw))[1])
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 0.005
+    assert core.start([1001])["items"]["1001"] == "rate-limited"
+    assert caps and caps[0] == pytest.approx(0.005) and caps[0] < scratch["cfg"]["workers"]["cost_cap_usd"]
+    assert [q["kind"] for q in core.state()["queue"].values()] == ["budget"], "every worker is under the same cap: ask for budget"
+
+
+def test_each_role_has_its_own_mcp_wrapper(scratch):
+    a, b = core.coder.mcp_bin("t1", "coder"), core.coder.mcp_bin("t1", "reviewer")
+    assert a != b and "role coder" in (a / "pipeline-mcp").read_text().replace("--role", "role") and (b / "pipeline-mcp").exists()
+
+
 def test_review_runs_a_pi_reviewer_and_binds_its_verdict(scratch, issues, fake_coder, monkeypatch):
     """The smallest Pi reviewer path: a reviewer window, a brief, a wait for `pipeline_verdict`, its cost on the item."""
     fc = fake_coder()

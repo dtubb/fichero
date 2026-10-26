@@ -284,6 +284,13 @@ def daily_cap() -> float:
     return max([cfg()["workers"].get("daily_cap_usd", 25.0), *raised])
 
 
+def cap_for(session_dir) -> float:
+    """What wait_idle may let this session spend: the session cap, or what is left of today's cap if that is less
+    (#6145: the daily cap used to be checked only after a turn, so one session could overshoot it)."""
+    mine = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+    return min(cfg()["workers"]["cost_cap_usd"], mine + max(0.0, daily_cap() - spend_today()))
+
+
 def _require_budget() -> None:
     """Nothing new starts once today's spend has reached the cap; the next day or `resume --raise-cap` lifts it."""
     spent, cap = spend_today(), daily_cap()
@@ -515,7 +522,7 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
         path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
         before = coder.status(session_dir)
         tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
-        st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"], token_cap=worker.get("token_cap"))
+        st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
         st = _wait_answers(task, session_dir, st)
         # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
         spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
@@ -524,7 +531,8 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
         unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
         if unused:  # information only, never a failure (dogfood 7)
             journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
-        if spend_today() >= daily_cap() and not st.get("stopped"):
+        daily = spend_today() >= daily_cap()
+        if daily:  # every worker is under the same cap: the queue asks for budget, not for the next worker
             st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
             st["rate_limited"] = True
         if st.get("stopped") or st.get("rate_limited"):
@@ -532,7 +540,7 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
             journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
             if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
                 _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
-                nxt = worker_index + 1 < len(workers())
+                nxt = worker_index + 1 < len(workers()) and not daily
                 _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
                        + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
                 return "rate-limited"
@@ -558,7 +566,7 @@ def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
             st["stopped"] = f"question unanswered for {ANSWER_DEADLINE_S // 3600} h"
             return st
         time.sleep(15)
-        st = coder.wait_idle(session_dir, cfg()["workers"]["cost_cap_usd"], after_turns=st["turns"])
+        st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=st["turns"])
     return st
 
 
@@ -723,7 +731,7 @@ def review(issue, worker_index: int = 0) -> dict:
         path = coder.brief_file(task, f"review-{it['sha'][:9]}", text)
         before = coder.status(session)
         tell(window, f"Read and do {path} — review {key} at {it['sha'][:9]}; record your verdict with pipeline_verdict.", task=task)
-        st = coder.wait_idle(session, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
+        st = coder.wait_idle(session, cap_for(session), after_turns=before["turns"])
         journal.append("cost", issue=it["issue"], key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
                        tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
         coder.stop_window(c, window)

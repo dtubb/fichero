@@ -27,7 +27,7 @@ def test_worker_env_carries_no_runner_path_only_a_generated_wrapper_on_path(scra
     dir, on PATH, never through the worker's environment."""
     env = coder.allowed_env(scratch["cfg"], "t9", "coder")
     bin_dir = Path(env["PATH"].split(":")[0])
-    assert bin_dir == scratch["state"] / "bin" / "t9" and (bin_dir / "pipeline-mcp").exists()
+    assert bin_dir == scratch["state"] / "bin" / "t9" / "coder" and (bin_dir / "pipeline-mcp").exists()
     text = (bin_dir / "pipeline-mcp").read_text()
     assert "--role coder" in text and "PIPELINE_WORKER=coder" in text
     assert "PIPELINE_STATE" not in text, "the wrapper names no state path; the MCP server resolves it alone"
