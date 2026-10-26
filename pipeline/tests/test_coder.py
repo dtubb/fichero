@@ -5,7 +5,9 @@ import json
 import subprocess
 from pathlib import Path
 
-from pipeline import ROOT, coder
+import pytest
+
+from pipeline import ROOT, coder, core
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -30,7 +32,7 @@ def test_worker_env_carries_no_runner_path_only_a_generated_wrapper_on_path(scra
     assert bin_dir == scratch["state"] / "bin" / "t9" / "coder" and (bin_dir / "pipeline-mcp").exists()
     text = (bin_dir / "pipeline-mcp").read_text()
     assert "--role coder" in text and "PIPELINE_WORKER=coder" in text
-    assert "PIPELINE_STATE" not in text, "the wrapper names no state path; the MCP server resolves it alone"
+    assert f"PIPELINE_STATE={scratch['state']}" in text, "the MCP server writes to the runner's journal, not a default"
     assert str(scratch["state"]) not in " ".join(f"{k}={v}" for k, v in env.items() if k != "PATH")
 
 
@@ -251,3 +253,12 @@ def test_cost_is_recorded_per_issue_and_model(scratch, issues, fake_coder):
     costs = [e for e in journal.read() if e["event"] == "cost"]
     assert [(e["issue"], e["model"], round(e["usd"], 2)) for e in costs] == [(1001, "qwen/x", 0.01), (1002, "qwen/x", 0.01)]
     assert costs[0]["tools"] == {"jcodemunch_plan_turn": 1}
+
+
+def test_start_fails_fast_without_the_mcp_sdk(scratch, issues, fake_coder, monkeypatch):
+    """No MCP SDK in the runner's python: `start` refuses before any worktree or window (first live run lost done/ask)."""
+    import importlib.util
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    with pytest.raises(RuntimeError, match="MCP SDK"):
+        core.start([1001])
+    assert not (scratch["repo"] / ".worktrees").exists()

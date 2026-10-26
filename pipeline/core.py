@@ -462,6 +462,7 @@ def repair(issue, base: str | None = None, from_file: str | None = None, since: 
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     _require_running()
     _require_budget()
+    coder.require_mcp_sdk()
     c = cfg()
     task = task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     s = state()
