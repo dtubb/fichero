@@ -225,7 +225,7 @@ struct ActivityDetailsView: View {
         }
     }
 
-    private func openSetUp(_ stage: String) -> String? {
+    private func openSetUp(_ stage: String?) -> String? {
         guard let libraryId = selection.libraryId else {
             return "Couldn't open the project's setup: open it with Project › Set Up…"
         }
