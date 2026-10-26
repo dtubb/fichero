@@ -2543,6 +2543,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.done import annotate, material, todo_counts
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
+    from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.start import estimate, place_runs, plan_start
     from fichero_server.recipes.train_offers import counted, offered, train_ahead, train_offers
 
@@ -2566,7 +2567,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                                 todo=todo_counts(db, plan, within, memo=memo))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
-               bound_cluster=_bound_cluster(setup["answers"], clusters))
+               bound_cluster=_bound_cluster(setup["answers"], clusters),
+               hf_allowed=places.may_leave_to(setup["answers"], "huggingface"),
+               hf_cap_usd=spend_cap(setup["answers"]))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
@@ -2832,6 +2835,35 @@ async def use_installed_instead(
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
     try:
         recipe = use_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["downloads"], request.model, card, now=now)
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
+class StepPlaceRequest(BaseModel):
+    """Where a reading step runs (`source.recipe.step-runs-on-huggingface`, #6173)."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the recipe step's id (a reading step)")
+    place: str = Field(description="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step")
+
+
+@router.post("/project/steps/place", response_model=ProjectSetup)
+async def put_step_on_a_place(
+    request: StepPlaceRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Put a reading step on Hugging Face Jobs, or back on this Mac, through `project.save_setup` (audited, undoable)
+    (`source.recipe.step-runs-on-huggingface`). Choosing only records where it runs: Start sends pages only with the
+    project's yes, the app's Hugging Face place and a monthly cap above $0. Refused (422) for a step the recipe lacks, a
+    step that is not a reading, or another place."""
+    from fichero_server.recipes.start import set_step_place
+
+    setup = read_project_setup(_library(db))
+    try:
+        recipe = set_step_place(setup["recipe"], request.step, request.place)
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

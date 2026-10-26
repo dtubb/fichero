@@ -775,23 +775,30 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 
 def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                   started_by: str) -> tuple[str | None, str, str | None]:
-    """A read the plan placed on the project's cluster (`source.recipe.placement-by-scale`): sent there as one
-    read-at-scale run under this step, and waited on as any child; a cluster that refuses fails the step by name.
-    The person's yes is read now, not when the plan was made: pages may leave only while the project says so."""
+    """A read the plan placed on the project's cluster or on Hugging Face Jobs (`source.recipe.placement-by-scale`,
+    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step, and waited on as any
+    child; a place that refuses fails the step by name. The person's yes is read now, not when the plan was made: pages
+    may leave only while the project says so, the app allows the place, and (Hugging Face) the monthly cap is above $0."""
     from fichero_server.models.compute_requests import ReadAtScaleRequest
+    from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.remote_read import job as read_job
 
     from fichero_server.recipes import places
 
-    if not places.may_leave_to(read_project_setup(_library(db))["answers"], "acenet"):
-        return None, "failed", f"pages may not leave this Mac; this step was placed on {card['target']}"
+    on_hf = card["target"] == read_job.TARGET
+    answers = read_project_setup(_library(db))["answers"]
+    where = "Hugging Face" if on_hf else f"the cluster {card['target']}"
+    if not places.may_leave_to(answers, "huggingface" if on_hf else "acenet"):
+        return None, "failed", f"pages may not leave this Mac; this step was placed on {where}"
+    if on_hf and spend_cap(answers) <= 0:
+        return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
                                                       parent_job_id=parent), started_by=started_by)["job_id"]
     except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
-        return None, "failed", f"could not send the read to the cluster {card['target']}: {exc}"
+        return None, "failed", f"could not send the read to {where}: {exc}"
     return _wait(db, child, parent)
 
 
@@ -1509,7 +1516,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
 def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], job_id: str,
               scratch: dict[str, Any], started_by: str, adopt: str | None = None) -> tuple[str | None, str, str | None]:
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
-    if card.get("place") == "cluster":
+    if card.get("place") in ("cluster", "huggingface"):
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
