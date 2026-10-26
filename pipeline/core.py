@@ -107,6 +107,10 @@ def state() -> dict:
         elif ev == "cost" and it:
             it["cost_usd"] = round(it["cost_usd"] + e["usd"], 4)
             it["tokens"], it["model"] = e["tokens"], e["model"]
+        elif ev == "done_requested" and it and e.get("text"):
+            it["residue"] = e["text"]
+        elif ev == "issue_done" and it:
+            it.setdefault("dones", []).append({x: e[x] for x in ("sha", "turns", "tokens", "usd")})
         elif ev == "note" and it:
             it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
@@ -534,12 +538,7 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     worker = config.at_tier(c, workers()[worker_index], tier)
     _wait_room(worker["kind"], task)
     session_dir = _start_worker(task, wt, worker, window, docs=any(cites_docs(i) for i in briefs.values()))
-    summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}
-    for k, iss in briefs.items():
-        summary["items"][k] = _run_issue(task, k, iss, wt, window, session_dir, worker, worker_index)
-        if summary["items"][k] in ("rate-limited", "failed"):
-            break  # the fallback list: the next worker takes the rest of the batch in a fresh context
-    return summary
+    return {"task": task, "window": window, "worktree": str(wt), "items": _run_batch(task, briefs, wt, window, session_dir, worker, worker_index)}
 
 
 def _since(key: str, task: str) -> str | None:
@@ -554,45 +553,64 @@ def _since(key: str, task: str) -> str | None:
     return lines[0]["sha"] if lines and tasks == {None} else None  # untagged lines, one task so far: the first one
 
 
-def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) -> str:
+def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt) -> tuple[str | None, str]:
+    """One coding turn: tell the brief, wait for the worker's idle turn, journal its cost and the `done` line (sha and
+    usage so far; an issue's turns, tokens and dollars are the difference between two done lines). → (terminal
+    state or None, the commit the worker finished on). A stopped worker ends the item here."""
+    c, n = cfg(), _n(key)
+    _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
+    path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
+    before = coder.status(session_dir)
+    tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
+    st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
+    st = _wait_answers(task, session_dir, st)
+    # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
+    spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+    journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
+                   tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+    sha = _head(wt)
+    journal.append("issue_done", issue=n, key=key, task=task, sha=sha, turns=st["turns"], tokens=st["tokens"], usd=st["cost_usd"])
+    if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
+        journal.append("brief_miss", issue=n, key=key, task=task, calls=st["proxy_calls"] - before.get("proxy_calls", 0))
+    unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
+    if unused:  # information only, never a failure (dogfood 7)
+        journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
+    daily = spend_today() >= daily_cap()
+    if daily:  # every worker is under the same cap: the queue asks for budget, not for the next worker
+        st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
+        st["rate_limited"] = True
+    if st.get("stopped") or st.get("rate_limited"):
+        coder.stop_window(c, window)
+        journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
+        if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
+            _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
+            nxt = worker_index + 1 < len(workers()) and not daily
+            _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
+                   + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
+            return "rate-limited", sha
+        _move(key, "failed", st["stopped"])
+        return "failed", sha
+    return None, sha
+
+
+def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, first=None) -> str:
+    """The item's turn/check/retry loop. `first` = (turn result, check results, the attempt count before them) when the batch already ran the first
+    turn and is checking it while the worker codes the next issue."""
     c = cfg()
-    n = _n(key)
     since = _since(key, task) or _head(wt)
-    journal.append("since", issue=n, key=key, task=task, sha=since)
+    if not first:
+        journal.append("since", issue=_n(key), key=key, task=task, sha=since)
     it = state()["items"][key]
-    failure, attempt = it["retry_text"], it["attempts"]
+    failure, attempt = it["retry_text"], first[2] if first else it["attempts"]
     while attempt <= c["workers"]["retries"]:
-        _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
-        path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
-        before = coder.status(session_dir)
-        tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
-        st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
-        st = _wait_answers(task, session_dir, st)
-        # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
-        spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
-        journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
-                       tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
-        if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
-            journal.append("brief_miss", issue=n, key=key, task=task, calls=st["proxy_calls"] - before.get("proxy_calls", 0))
-        unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
-        if unused:  # information only, never a failure (dogfood 7)
-            journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
-        daily = spend_today() >= daily_cap()
-        if daily:  # every worker is under the same cap: the queue asks for budget, not for the next worker
-            st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
-            st["rate_limited"] = True
-        if st.get("stopped") or st.get("rate_limited"):
-            coder.stop_window(c, window)
-            journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
-            if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
-                _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
-                nxt = worker_index + 1 < len(workers()) and not daily
-                _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
-                       + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
-                return "rate-limited"
-            _move(key, "failed", st["stopped"])
-            return "failed"
-        results = check(key, since=since, locked=True)
+        if first:
+            end, results, _ = first
+            first = None
+        else:
+            end, sha = _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt)
+            results = check(key, since=since, locked=True, sha=sha) if not end else None
+        if end:
+            return end
         if all(r["ok"] for r in results):
             return "checked"
         if results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
@@ -602,6 +620,37 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
     _move(key, "needs-maintainer", failure[-500:])
     _queue("failed-checks", f"{key} failed its checks or review {attempt} times:\n{failure[-1500:]}", task=task, window=window)
     return "needs-maintainer"
+
+
+def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index) -> dict:
+    """The issues in order in one worker context. Each issue's first turn is checked on its done sha in a thread while
+    the worker already codes the next one (pipeline.batch-session); a red check is handled (retry turns) before the
+    batch goes on, so a failed item blocks the later ones."""
+    from concurrent.futures import ThreadPoolExecutor
+    out, pending = {}, None  # pending: (key, future of its first check results, attempts before them)
+
+    def settle(p):
+        k, fut, attempts = p
+        out[k] = _run_issue(task, k, briefs[k], wt, window, session_dir, worker, worker_index, first=(None, fut.result(), attempts))
+        return out[k]
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        for k, iss in briefs.items():
+            since = _since(k, task) or _head(wt)
+            journal.append("since", issue=_n(k), key=k, task=task, sha=since)
+            it = state()["items"][k]
+            end, sha = _turn(task, k, iss, wt, window, session_dir, worker, worker_index, since, it["retry_text"], it["attempts"])
+            if pending and settle(pending) != "checked":
+                out[k] = "queued"  # blocked behind the failed item; its commit stays on the branch
+                break
+            pending = None
+            if end:
+                out[k] = end
+                break  # the fallback list: the next worker takes the rest of the batch in a fresh context
+            pending = (k, pool.submit(check, k, since, True, sha), it["attempts"])
+        if pending:
+            settle(pending)
+    return out
 
 
 def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
@@ -616,22 +665,24 @@ def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
     return st
 
 
-def check(issue, since: str | None = None, locked: bool = False) -> list[dict]:
+def check(issue, since: str | None = None, locked: bool = False, sha: str | None = None) -> list[dict]:
     """→ checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
     mid-check is a red (the sha moved). Red: a checked or reviewed item goes back to coding (review HIGH N1), a
-    pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry."""
+    pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry. `sha`: judge this commit
+    (an issue's done sha while the worker codes the next one), not the live head."""
     if not locked:
         with journal.Lock("dispatch", wait=False):
-            return check(issue, since, locked=True)
+            return check(issue, since, locked=True, sha=sha)
     key, it, s = _item(issue)
     wt = Path(s["tasks"][it["task"]]["worktree"])
     since = since or _since(key, it["task"])
-    sha = _head(wt)
+    given = sha  # a given sha is judged as it is; the live head must also hold still while its checks run
+    sha = sha or _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
         results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()),
-                                approved=tuple(it.get("approved_checks", ())))
-    if _head(wt) != sha:
+                                approved=tuple(it.get("approved_checks", ())), head=sha)
+    if not given and _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
     journal.append("check", issue=it["issue"], key=key, ok=ok, sha=sha, results=results)
@@ -701,9 +752,10 @@ def ask(task: str, question: str, options: list[str] | None = None) -> dict:
     return {"queued": qid, "note": "the maintainer's answer will be told to your window; carry on with what you can"}
 
 
-def done(task: str) -> dict:
-    """Only REQUESTS the check transition: the runner runs the checks when the worker's turn ends."""
-    journal.append("done_requested", task=task, text="")
+def done(task: str, issue: int | None = None, residue: str = "") -> dict:
+    """Only REQUESTS the check transition: the runner runs the checks when the worker's turn ends. `issue`: the one
+    just committed; `residue`: anything the issue's acceptance left undone (the closer updates the issue with it)."""
+    journal.append("done_requested", task=task, issue=issue, text=residue)
     return {"ok": True, "note": "the runner runs the checks; nothing moves on your word"}
 
 

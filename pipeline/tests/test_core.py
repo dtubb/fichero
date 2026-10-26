@@ -592,3 +592,32 @@ def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues
     assert it["approved_checks"] == ["scripts/check_no_bad.py"] and "approved the guard change" in it["retry_text"]
     with pytest.raises(RuntimeError, match="approve-checks is for a needs-maintainer"):
         core.approve_checks(1001, "again")
+
+
+def test_batch_done_per_issue_checks_while_the_worker_moves_on(scratch, issues, fake_coder, monkeypatch):
+    """Issue 1's checks run on ITS done sha while issue 2's brief is already with the worker; each issue has a done line."""
+    import time
+
+    from pipeline import checks
+    fc = fake_coder()
+    real, seen = checks.run_all, {}
+
+    def run_all(wt, cfg, *a, head="HEAD", **kw):
+        n = int(git(wt, "log", "-1", "--format=%s", head).split("#")[1].rstrip(")"))
+        if n == 1001:  # the sequential runner never gets past this wait: it tells 1002 only after the check returns
+            t0 = time.time()
+            while git(wt, "rev-parse", "HEAD") == git(wt, "rev-parse", head) and time.time() - t0 < 30:
+                time.sleep(0.05)  # waits for the worker's next commit
+            seen["moved_on"] = any("#1002" in t for _, t in fc.told) and git(wt, "rev-parse", "HEAD") != git(wt, "rev-parse", head)
+        return real(wt, cfg, *a, head=head, **kw)
+
+    monkeypatch.setattr(checks, "run_all", run_all)
+    out = core.start([1001, 1002], milestone="demo")
+    assert seen["moved_on"] and [out["items"][n] for n in ("1001", "1002")] == ["checked", "checked"]
+    dones = [e for e in journal.read() if e["event"] == "issue_done"]
+    assert [e["issue"] for e in dones] == [1001, 1002] and dones[0]["sha"] != dones[1]["sha"]
+    s = core.state()["items"]
+    assert [i["dones"][0]["sha"] for i in (s["1001"], s["1002"])] == [d["sha"] for d in dones]
+    assert s["1001"]["sha"] == dones[0]["sha"], "the check judged the done sha, not the moved head"
+    core.done("demo-1001", 1002, "the second acceptance line is left")
+    assert core.state()["items"]["1002"]["residue"] == "the second acceptance line is left"
