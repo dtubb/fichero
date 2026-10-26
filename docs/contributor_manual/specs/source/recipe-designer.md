@@ -11,7 +11,7 @@
 > needed and why); **"Reading the numbers"** (CER, WER, line recall, the noise band, the insertion rate
 > and why a large cloud model may invent text); **"Costs while it runs"**; **"Sharing a recipe"** (what a
 > recipe file holds and never holds, starting from one, following a published one).
-> Status: APPROVED 2026-10-24 (rulings below). Create
+> **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
@@ -456,6 +456,23 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
 
+- `designer.model.every-model-step-chooses` [MISSING] (#6168, #6167, #6173) — the shared "Which model does it"
+  chooser is offered for EVERY stage that runs a model, none left out (Statements, Entities and Leave out
+  included): the ways to do the stage, each with its cost, its time and where it runs (this Mac with Apple or
+  MLX, Kraken, a local model, a cloud model, Hugging Face Jobs, a cluster), the default marked, the choice
+  saved in the plan and used by the run. A stage with no model (pure rules) says so. Pinned by a test that
+  walks the jobs registry and fails for any model-capable job without a chooser.
+- `designer.model.chooser-is-one-component` [MISSING] (#6168) — there is ONE chooser, engine list and app
+  view, shared by every stage; a stage does not carry its own copy, so a new way to run a job appears in
+  every stage that can use it at once.
+- `designer.model.one-resident-local-model` [MISSING] (#6167, #6168) — never two local models loaded at
+  once: a stage that needs another local model swaps (or waits for the stage before it) and the run says
+  so in words; two stages that choose the same local model share it.
+- `designer.model.where-it-runs-is-part-of-the-choice` [MISSING] (#6173) — where a stage runs (this Mac,
+  Hugging Face Jobs, a cluster, a cloud model) is chosen in the same chooser as the model, never
+  separately; pages leave this Mac only where the project allows and the cap holds, and a place that is
+  not allowed is listed with the reason, never hidden.
+
 ### 8. On every stage page: measured on your pages, measured on the benchmark, compared by itself
 
 **Exists.** The bake-off scores CER, WER and line recall on marked or person-made passes under named
@@ -827,7 +844,7 @@ screenshots (`docs/assets/recipe-designer/`).
 All strings through the String Catalog; no `Text(verbatim:)`. Presence scans are not behavioural tests;
 every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()` covers it.
 
-## Build order (person-visible value first; each step shippable alone)
+## Order of value (a summary of the build order below)
 
 0. **Screens-review fixes** (app and engine, all PARTIAL today): one visible selection, cloud permission
    said once, nothing-found from the engine, Choose a model… on every model step, says-what-it-cannot-
@@ -900,7 +917,7 @@ line per step with Change…; the duplicate grey example line removed (one is ke
 12. Only Find Lines has a "who does it" note; one engine sentence per sampleable stage is wanted.
 13. The grey stage example line is drawn twice.
 
-## Proposed build order (proposed, not approved)
+## Build order (person-visible value first; each step shippable alone)
 
 ### Stage 1 — Screens-review fixes (app and engine)
 
@@ -1074,4 +1091,23 @@ Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #544
 #### Step 15.1 — Recipe search (catalogue first), results with their source, publish and follow
 - Behaviours: `designer.share.recipe-search`, `designer.share.search-results-say-their-source`, `designer.share.publish-is-an-offer`
 - Tests: fichero-server/tests/unit/recipes/test_find_recipes_job.py, fichero-server/tests/unit/recipes/test_recipe_publish.py
+- Size: M
+
+### Stage 16 — A model chooser for every model-run stage (owner, 2026-10-26)
+
+#### Step 16.1 — One shared chooser, offered by every model-run stage (#6168)
+- Behaviours: `designer.model.chooser-is-one-component`, `designer.model.every-model-step-chooses`
+- Tests: fichero-server/tests/unit/recipes/test_model_chooser_every_job.py, fichero/Tests/Unit/general/Recipes/StageModelChooserTests.swift
+- Size: M
+
+#### Step 16.2 — One resident local model; Leave out chooses a model (#6167)
+- Behaviours: `designer.model.one-resident-local-model`
+- Tests: fichero-server/tests/unit/recipes/test_one_resident_local_model.py, fichero-server/tests/unit/recipes/test_leave_out.py, fichero/Tests/Unit/general/Recipes/LeaveOutModelChoiceTests.swift
+- Depends on: 16.1
+- Size: M
+
+#### Step 16.3 — Where it runs is part of the choice: Hugging Face Jobs first (#6173)
+- Behaviours: `designer.model.where-it-runs-is-part-of-the-choice`
+- Tests: fichero-server/tests/unit/recipes/test_recipe_remote_placement.py
+- Depends on: 16.1
 - Size: M
