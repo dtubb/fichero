@@ -300,3 +300,14 @@ def test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer(s
     assert not checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
     wt = lane(scratch, "stronger", {"tests/test_base.py": base + "    assert base() < 1\n\ndef test_more():\n    assert 1\n"})
     assert checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
+
+
+def test_a_new_test_that_mentions_skip_passes_but_a_skipping_conftest_needs_maintainer(scratch):
+    base = "from src.mod import base\n\ndef test_base():\n    assert base() == 0\n"
+    mention = base + '\ndef test_new():\n    s = "@pytest.mark.skip and xfail"\n    assert s\n'
+    wt = lane(scratch, "mention", {"tests/test_base.py": mention, "tests/test_new_file.py": "def test_y():\n    assert 'skip'\n"})
+    assert checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
+    commit_on_base(scratch, {"tests/conftest.py": "import pytest\n\n@pytest.fixture\ndef f():\n    return 1\n"})
+    wt = lane(scratch, "conftest", {"tests/conftest.py": "import pytest\n\n@pytest.fixture(autouse=True)\ndef f():\n    pytest.skip('x')\n"})
+    r = checks.run_all(wt, profile_cfg(scratch))[0]
+    assert not r["ok"] and "needs-maintainer" in r["text"]

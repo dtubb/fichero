@@ -294,9 +294,14 @@ def changed_checks(wt, since, cfg, pinned=None, approved=None, head="HEAD") -> t
     return pinned_sha, overlay, [f for f in changed_files(wt, since, "MDR", head) if f in overlay]
 
 
+# a skip/xfail marker or call that STARTS a line, so the word inside a fixture string does not count
+SKIP_LINE = r"(?m)^\s*(?:@pytest\.mark\.(?:skip|skipif|xfail)\b|pytestmark\b.*\bpytest\.mark\.(?:skip|skipif|xfail)\b|pytest\.(?:skip|xfail)\()"
+
+
 def weakened_tests(wt, since, head="HEAD") -> list[str]:
     """Base test files the diff deletes or weakens: a test function removed, fewer `assert`s, or more skip/xfail.
-    New tests and runner code are not pinned (the reviewer is the gate). ponytail: counts per file by regex, and a
+    New tests and runner code are not pinned (the reviewer is the gate); conftest.py is, as it can skip every test.
+    ponytail: counts per file by regex (a skip marker inside a triple-quoted string at line start still counts), and a
     renamed file is not compared; an AST diff if a coder ever games the counts."""
     base = git(wt, "merge-base", since, head)
 
@@ -304,10 +309,10 @@ def weakened_tests(wt, since, head="HEAD") -> list[str]:
         r = sh(["git", "show", f"{rev}:{f}"], cwd=wt)
         t = r.stdout if r.returncode == 0 else ""
         return (set(re.findall(r"(?m)^\s*(?:async )?def (test_\w+)", t)), len(re.findall(r"\bassert\b", t)),
-                len(re.findall(r"\b(?:skip|skipif|xfail)\b", t)))
+                len(re.findall(SKIP_LINE, t)))
     bad = []
     for f in changed_files(wt, since, "MD", head):
-        if not (f.endswith(".py") and fnmatch.fnmatch(f, "*test*.py")):
+        if not (f.endswith(".py") and (fnmatch.fnmatch(f, "*test*.py") or f.endswith("conftest.py"))):
             continue
         (t0, a0, s0), (t1, a1, s1) = counts(base, f), counts(head, f)
         if t0 - t1 or a1 < a0 or s1 > s0:
