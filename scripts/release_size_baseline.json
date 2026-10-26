@@ -1,14 +1,14 @@
 {
   "release.app_binary": {
-    "bytes": 274349792,
-    "note": "manually updated"
+    "bytes": 296516176,
+    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
   },
   "release.app_bundle": {
-    "bytes": 2795553248,
-    "note": "manually updated"
+    "bytes": 3657400375,
+    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
   },
   "release.dmg": {
-    "bytes": 974629244,
-    "note": "manually updated"
+    "bytes": 1287519677,
+    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
   }
 }
