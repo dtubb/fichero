@@ -7,6 +7,7 @@ import types
 import pytest
 
 from pipeline import core, journal, runner
+from pipeline.tests.conftest import git
 
 
 def ready(*nums, write_up=()):
@@ -123,3 +124,60 @@ def test_a_review_that_leaves_no_verdict_is_asked_about_not_repeated(scratch, is
     runner.run(once=True)
     runner.run(once=True)
     assert calls == ["1001"] and [q["text"][:6] for q in core.queue() if q["kind"] == "blocked"] == ["1001: "]
+
+
+def reviewed_item(scratch, fake_coder, monkeypatch):
+    fake_coder()
+    monkeypatch.setattr(core, "next_issues", ready())
+    reviewer(monkeypatch)
+    core.start([1001])
+    runner.run()
+    it = core.state()["items"]["1001"]
+    assert it["state"] == "reviewed"
+    return it
+
+
+def origin_head(scratch):
+    return git(scratch["origin"], "rev-parse", "integration")
+
+
+def test_land_dry_run_runs_every_guard_and_pushes_nothing(scratch, issues, fake_coder, monkeypatch):
+    it = reviewed_item(scratch, fake_coder, monkeypatch)
+    before = origin_head(scratch)
+    out = runner.land("1001")
+    assert out["landed"] is False and out["would_push"].endswith(f"{it['sha']}:refs/heads/integration")
+    assert "all guards green" in out["text"] and origin_head(scratch) == before and core.state()["items"]["1001"]["state"] == "reviewed"
+
+
+def test_land_apply_pushes_the_reviewed_sha_to_integration_only(scratch, issues, fake_coder, monkeypatch):
+    it = reviewed_item(scratch, fake_coder, monkeypatch)
+    monkeypatch.setattr(core, "DRY_RUN", False)
+    assert runner.land("1001")["landed"] is True
+    assert origin_head(scratch) == it["sha"] and core.state()["items"]["1001"]["state"] == "pushed"
+    assert git(scratch["origin"], "branch", "--list").split() == ["*", "integration"] or "main" not in git(scratch["origin"], "branch", "--list")
+    assert git(scratch["origin"], "tag", "--list") == ""
+
+
+def test_land_refuses_a_red_guard_a_moved_base_an_unreviewed_item_and_a_main_base(scratch, issues, fake_coder, monkeypatch):
+    it = reviewed_item(scratch, fake_coder, monkeypatch)
+    monkeypatch.setattr(core, "DRY_RUN", False)
+    before = origin_head(scratch)
+    monkeypatch.setattr(runner.checks, "run_rung", lambda *a, **k: (False, "1 guard(s) red: check_x.py"))
+    out = runner.land("1001")
+    assert out["landed"] is False and "red" in out["text"] and origin_head(scratch) == before and core.state()["items"]["1001"]["state"] == "reviewed"
+    scratch["cfg"]["repo"]["base"] = "origin/main"
+    with pytest.raises(RuntimeError, match="not an integration branch"):
+        runner.land("1001")
+    scratch["cfg"]["repo"]["base"] = "origin/integration"
+    other = scratch["tmp"] / "other"
+    git(scratch["tmp"], "clone", "-q", str(scratch["origin"]), str(other))
+    (other / "x.txt").write_text("x")
+    git(other, "add", ".")
+    git(other, "-c", "user.name=M", "-c", "user.email=m@example.com", "commit", "-qm", "moved")
+    git(other, "push", "-q", "origin", "HEAD:integration")
+    with pytest.raises(RuntimeError, match="has moved on"):
+        runner.land("1001")
+    journal.append("transition", issue=1001, key="1001", to="coding", why="test")
+    with pytest.raises(RuntimeError, match="only a reviewed READY item lands"):
+        runner.land("1001")
+    assert it["sha"] != origin_head(scratch)

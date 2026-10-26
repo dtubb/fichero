@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from pipeline import core, journal
+from pipeline import checks, core, journal
 
 
 class Stop(Exception):
@@ -127,5 +127,48 @@ def run(once: bool = False, poll_s: float | None = None) -> dict:
         time.sleep(poll)
 
 
-core.API.update(run=run)
-core.WORKER_FORBIDDEN += ("run",)
+def land(issue) -> dict:
+    """reviewed READY → pushed (pipeline.nightly-gate, the manual `land` step). Refuses unless the item is reviewed READY
+    by the reviewer at its live head; runs EVERY scripts/check_*.py (no skip list) in a scratch tree of that head; pushes
+    that sha fast-forward to the profile's integration branch and nowhere else (never main, never a tag, never forced).
+    A dry run unless `--apply` (core.DRY_RUN): it then runs the guards and says what it would push."""
+    with journal.Lock("dispatch", wait=False):
+        core._require_running()
+        key, it, s = core._item(issue)
+        c, sha = core.cfg(), it["sha"]
+        wt = Path(s["tasks"][it["task"]]["worktree"])
+        remote, _, branch = c["repo"]["base"].partition("/")
+        if it["state"] not in ("reviewed", "gated"):
+            raise RuntimeError(f"{key} is {it['state']}: only a reviewed READY item lands")
+        if not any((v["sha"], v["verdict"], v["by"]) == (sha, "READY", "reviewer") for v in it["verdicts"]):
+            raise RuntimeError(f"{key}: no reviewer READY for {sha[:9]}")
+        if core._head(wt) != sha:
+            raise RuntimeError(f"{key}: the worktree head moved past the reviewed {sha[:9]}; check and review again")
+        if not branch or branch in (c["repo"]["main"], "main", "master") or branch.startswith("v"):
+            raise RuntimeError(f"the profile's base {c['repo']['base']} is not an integration branch: land refuses")
+        checks.git(wt, "fetch", "-q", remote)
+        if checks.sh(["git", "merge-base", "--is-ancestor", c["repo"]["base"], sha], cwd=wt).returncode:
+            raise RuntimeError(f"{key}: {c['repo']['base']} has moved on; rebase the branch, check and review again")
+        tree = checks.scratch_tree(wt, sha)
+        try:  # every guard, the slow and network ones too: this is the last look before integration
+            ok, text = checks.run_rung({"glob": "{pinned}/scripts/check_*.py", "timeout_s": c.get("run", {}).get("land_guard_s", 900)}, wt, tree, c, [], None, sha)
+        finally:
+            checks.drop_tree(wt, tree)
+        journal.append("land", issue=it["issue"], key=key, sha=sha, ok=ok, apply=not core.DRY_RUN, text=text[:2000])
+        if not ok:
+            return {"issue": key, "landed": False, "text": text}
+        refspec = f"{sha}:refs/heads/{branch}"
+        if core.DRY_RUN:
+            return {"issue": key, "landed": False, "would_push": f"git push {remote} {refspec}", "text": text}
+        if it["state"] == "reviewed":
+            core._move(key, "candidate", f"all guards green at {sha[:9]}")
+            core._move(key, "gated", "guards run on the candidate head")
+        r = checks.sh(["git", "push", remote, refspec], cwd=wt)
+        if r.returncode:
+            raise RuntimeError(f"{key}: push refused ({r.stderr.strip()[-300:]}); it stays gated, `land` again after fixing")
+        core._move(key, "pushed", f"{sha[:9]} to {remote}/{branch}")
+        return {"issue": key, "landed": True, "pushed": f"{remote}/{branch}", "sha": sha}
+
+
+core.API.update(run=run, land=land)
+core.WORKER_FORBIDDEN += ("run", "land")

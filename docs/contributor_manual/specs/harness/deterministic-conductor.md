@@ -425,7 +425,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_core.py::test_new_commit_voids_the_verdict`.
 
 ### Landing, closing, building, releasing
-- `pipeline.nightly-gate` [PARTIAL] (#6116) — reviewed items merge into the night's candidate; the full engine gate runs on
+- `pipeline.nightly-gate` [PARTIAL] (#6116) — built: `python -m pipeline land <item> [--apply]`, the manual landing of ONE reviewed READY item: every `scripts/check_*.py` (no skip list) in a scratch tree of the reviewed head, then a fast-forward push of that sha to the profile's integration branch only (never main, never a tag, never forced); a dry run unless `--apply`; the scheduler queues "ready to land" and never pushes. Not built: the night's candidate merge, the M4 engine gate and the targets. Reviewed items merge into the night's candidate; the full engine gate runs on
   the M4 overnight; green → push integration → the nightly targets (dev DMG plus both TestFlights; Mac, iPhone and
   iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
   main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,

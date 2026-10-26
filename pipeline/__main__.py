@@ -10,6 +10,7 @@
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
   python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
   python -m pipeline run [--once] [--poll-s N]   the scheduler: no model call of its own; stops at the cap, a pause or when nothing is ready
+  python -m pipeline land <item> [--apply]     every scripts/check_*.py on the reviewed head, then push it to the integration branch only
   python -m pipeline serve [--port N] [--host ADDR]
   python -m pipeline --self-test
 
@@ -47,6 +48,7 @@ COMMANDS = {
     "reset": [("issue", {}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
     "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
+    "land": [("issue", {}), ("--apply", {"action": "store_true", "help": "really push (default: run every guard and say what would be pushed)"})],
     "run": [("--once", {"action": "store_true", "help": "one pass, then stop"}), ("--poll-s", {"type": float, "dest": "poll_s", "help": "seconds between passes while an answer is awaited (profile [run] poll_s, default 60)"})],
     "serve": [("--port", {"type": int, "default": 8765}), ("--host", {"default": "127.0.0.1", "help": "the address to bind (never 0.0.0.0 unless you mean to expose it; a Tailscale address works)"})],
 }
@@ -71,7 +73,7 @@ def main(argv=None) -> int:
         from pipeline import web
         web.serve(a.port, host=a.host)
         return 0
-    if a.cmd in ("file-bug", "close-landed"):
+    if a.cmd in ("file-bug", "close-landed", "land"):
         core.DRY_RUN = not a.apply
     kwargs = {k: v for k, v in vars(a).items() if k not in ("cmd", "self_test", "apply") and v is not None}
     print(json.dumps(core.API[name](**kwargs), indent=1, default=str))
