@@ -204,8 +204,9 @@ def run_rung(rung, wt, tree, cfg, files, since, head="HEAD") -> tuple[bool, str]
         return True, "skipped (diff does not touch its paths)"
     if rung.get("kind") == "red-on-base":
         tests = [f for f in changed_files(wt, since, "AM", head) if f.endswith(".py") and any(fnmatch.fnmatch(f, g) for g in rung["test_glob"])]
-        if not tests and not any(f.endswith(".py") for f in files):  # pytest cannot run a .swift path: the gate lane covers Swift
-            return True, "no python tests changed (no python files in the diff; Swift is covered by the gate lane)"
+        source = [f for f in files if f.endswith(".py") and not touches([f], cfg["repo"]["check_paths"])]  # a guard is not source
+        if not tests and not source:  # pytest cannot run a .swift path: the gate lane covers Swift
+            return True, "no python tests changed (no python source in the diff; guards and Swift are covered elsewhere)"
         return red_on_base(wt, tree, since, tests, rung, cfg, head)
     env = test_env(tree, cfg)
     if "glob" in rung:  # the fast guards

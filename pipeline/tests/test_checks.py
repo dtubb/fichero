@@ -251,3 +251,11 @@ def test_a_swift_only_change_skips_red_on_base_instead_of_handing_pytest_a_swift
     assert r["red-on-base"]["ok"] and "no python tests changed" in r["red-on-base"]["text"]
     py = lane(scratch, "pyonly", {"src/mod.py": "def base():\n    return 0\n\n\ndef g():\n    return 2\n"})
     assert not {x["name"]: x for x in checks.run_all(py, scratch["cfg"])}["red-on-base"]["ok"], "a python change with no test is still red"
+
+
+def test_an_approved_guard_edit_beside_swift_is_not_python_source_needing_a_test(scratch):
+    """Live, #3961: a one-line guard allowlist change (approved) plus Swift said "a source change needs a test"."""
+    f = "scripts/check_no_bad.py"
+    wt = lane(scratch, "guardswift", {f: "import sys\nsys.exit(0)\n", "App/Store.swift": "// code\n"})
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], approved={f: checks.blob(wt, "HEAD", f)})}
+    assert r["red-on-base"]["ok"] and "no python tests changed" in r["red-on-base"]["text"]
