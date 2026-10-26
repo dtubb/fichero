@@ -1371,6 +1371,7 @@ and node, not by job); a retry action for failed pages.
   Kraken: its line finder and reader stay resident (`llm/kraken_runtime.py` `_resident`), and the
   lane runs a folder's pages for one reader together (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: batching, and
   the other runtimes.
+- `activity.lane.kraken-stays-while-a-run-has-pages` — **[OK]** (#6178; `fichero-server/tests/unit/llm/test_kraken_stays_resident_while_a_run_has_pages_6178.py`) the idle release (120 s without a page) never lets go of Kraken's reader while a Kraken run still has pages in flight or waiting at its gate: a slow page is not an idle spell; the timer looks again later. Ann's engine reloaded Kraken 23 times in a day.
 - `activity.lane.group-by-model` — **[PARTIAL]** (#5358) the local ML lane runs ready work grouped by the model it
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages

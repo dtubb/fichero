@@ -1229,10 +1229,19 @@ def _release_when_idle() -> None:
     _idle_timer.start()
 
 
+def _a_run_has_pages_in_flight() -> bool:
+    from fichero_server.execution import jobs
+
+    return jobs._kraken_pages_in_flight()
+
+
 def _release_if_idle() -> None:
     if not _INFERENCE_LOCK.acquire(blocking=False):
         return  # a page is running: it re-arms the timer when it ends
     try:
+        if _a_run_has_pages_in_flight():
+            _release_when_idle()  # the run is still going (a slow page is not an idle spell, #6178): look again later
+            return
         release_resident_models("idle")
     finally:
         _INFERENCE_LOCK.release()
