@@ -122,3 +122,29 @@ def test_a_live_recipes_follow_on_work_is_not_an_up_next_row_6126():
 
     waiting_run = [_job("run", "run-a-recipe", "waiting", name="Run the recipe"), _job("e", "embed", "waiting")]
     assert [i.id for i in up_next(order_for_activity(waiting_run))] == ["run", "e"], "a queued run has caused nothing yet"
+
+
+def test_a_running_recipe_row_names_its_stage_and_pages_6125(monkeypatch):
+    """Owner 2026-10-25 (Test 17): the row said "Running step 2 of 5" while Details showed Read at 20 of 20; the row's
+    reason is the stage in words with its pages while nothing waits, and what it waits for when something does."""
+    import asyncio
+
+    from fichero_server.api.routes.system import activity
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import run_view, runner
+
+    waiting = {"for": None}
+    monkeypatch.setattr(runner, "status", lambda _db, _id: {"steps": [], "state": "running",
+                                                            "reason": "Read each line: 20 of 20 pages"})
+
+    async def with_accounts(_db, st):
+        st["waiting_for"] = waiting["for"]
+        return st
+
+    monkeypatch.setattr(run_view, "with_accounts", with_accounts)
+    monkeypatch.setattr(jobs, "state_and_reason", lambda *_a: ("running", "Running step 2 of 5"))
+    _, reason, _ = asyncio.run(activity._recipe_state(None, "rec"))
+    assert reason == "Read each line: 20 of 20 pages"
+    waiting["for"] = "Waiting for the model lane"
+    _, reason, _ = asyncio.run(activity._recipe_state(None, "rec"))
+    assert reason == "Waiting for the model lane"
