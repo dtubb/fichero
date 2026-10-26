@@ -223,3 +223,8 @@ def test_behaviour_text_cannot_add_a_dependency(scratch, planned, monkeypatch):
     plan.plan_approve("specs/demo.md")
     body = remote.issues[0][1]
     assert "#7" not in body and not feeder.blocked({"body": body}, {7, 35}), "a behaviour's words never make an issue wait on another"
+
+
+def test_behaviours_accept_a_bold_tag_after_a_dash_and_a_plain_tag():
+    bold = "- `a.one` — **[GAP]** (#5) does one.\n- `a.two` — **[PARTIAL: wired]** (#6) two.\n- `a.ok` — **[OK]** done.\n- `a.three` [BROKEN] (#7) three.\n"
+    assert [(b["id"], b["tag"]) for b in plan.behaviours(bold)] == [("a.one", "GAP"), ("a.two", "PARTIAL"), ("a.three", "BROKEN")]

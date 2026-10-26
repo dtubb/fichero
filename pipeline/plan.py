@@ -14,7 +14,7 @@ from pipeline import ROOT, STATE, checks, coder, core, gh, journal
 
 MAX_BEHAVIOURS = 120  # ponytail: one call writes the whole plan; a bigger spec needs a per-section plan first
 PROPOSED = "## Proposed build order (proposed, not approved)"
-OWN = re.compile(r"^- `([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)` \[(PARTIAL|MISSING|GAP|BROKEN|OK)[^\]]*\]", re.M)
+OWN = re.compile(r"^- `([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)` (?:— )?\*{0,2}\[(PARTIAL|MISSING|GAP|BROKEN|OK)[^\]]*\]", re.M)
 TEST_REF = re.compile(r"[\w./-]*test[\w./-]*\.(?:py|swift)(?:::\w+)?", re.I)
 TOKEN = re.compile(r"`([A-Za-z_][\w./-]*(?:\(\))?)`")
 
