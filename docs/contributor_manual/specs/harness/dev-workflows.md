@@ -12,7 +12,11 @@
 > Revised 2026-10-26 from the owner's correction of the same day: Fichero already has tasks and task lists in the
 > Research workspace, but no spec layer, no plan layer and no GitHub tie-in. This spec now COMBINES them into one model
 > of project work (§ One model of project work), synced two ways with GitHub, which the dev pipeline uses first and
-> the Research workspace uses for every other project.
+> the Research workspace uses for every other project. Further owner additions of the same day: retire chains
+> (recipes do what chains did), the folder importer joins the one activity system, a code project is a
+> **workspace** source indexed lazily in place, the pipeline acts as a GitHub App bot identity, invited users can
+> contribute through the same model, and the release becomes a dev workflow with the owner's yes before anything
+> public. Every behaviour names its test (§ Behaviour tests).
 >
 > Related, not edited here: `harness/deterministic-conductor.md` (the stdlib runner, `pipeline/`),
 > `ui/workflows.md` (the canvas and run log), `ui/workflow-node-config.md` (node popover), `ui/research.md` (the
@@ -97,6 +101,39 @@ driver* of that state, and Fichero's mirror never wins a disagreement about stat
   `close_landed` the closer: landed sha + checks green, residue leaves the issue open, a milestone closes with its
   last issue), and `scripts/close_fixed_issues.py`. There is no `plan` or `plan-approve` command in `pipeline/` at
   this spec's base (`pipeline/__main__.py` `COMMANDS`); spec approval is the status line `feeder.approved_ids` reads.
+
+- Chains (to be retired): `execution/chaining.py` (868 lines; `WorkflowChain` :143; `ChainStore` :831 keeps chains
+  **in memory only**, "could be extended to persist to database"), `api/routes/workflow/chains.py` (1,280 lines:
+  CRUD :497-618, paleography preset :626-643, legacy `execute_chain` :666 with no thread, #4949, `stop_chain` :825,
+  the step helpers `_load_step_workflow` :846, `_validate_step_workflow` :856, `_record_step_run_accepted` :866,
+  `_run_step_workflow` :883, `_step_run_outcome` :895, `execute_chain_steps` :1196 for the Workflow Bar).
+  Dependants: `recipes/runner.py` imports the four step helpers (:274-279) and `_step_run_outcome` (:382, :393, :525);
+  `execution/jobs.py` registers kind `chain` with `_cancel_chain` → `stop_chain` (:447-458) and `record_chain`
+  (:540); the client has `Models/ChainStore.swift`, `Models/WorkflowChain.swift`, `Services/ChainService.swift`
+  (+`StepExecution`), `Views/Shell/Toolbar/WorkflowBarChainPersistence.swift` (the bar's one shared chain named
+  "Workflow Bar"), `ContentView+WorkflowChainEngine.swift`/`+WorkflowChainActualCost.swift`,
+  `Views/Workflow/Library/WorkflowChainListView.swift` and its parts, `Views/Workflow/Editor/ChainEditorView.swift`,
+  sidebar entries (`SidebarItem.swift`, `SidebarItem+MoreFactories.swift`, `SidebarItemBuilder+Sections.swift`,
+  `SidebarViewTypes.swift`, `AddItemMenu.swift`), `AppState+Readiness.swift` (:60, the chains fetch), the feature
+  `workflowChains` (`features.yaml` → `FeatureTiers.generated.swift`, `api/feature_tiers_generated.py`,
+  `FeatureManager+Tiers.swift`), the AppleScript class `workflow chain` (`Fichero.sdef`), the CLI's generated
+  surface (`fichero-cli/src/fichero_cli/openapi_surface_generated.py`, `client.py`, `__main__.py`) and their tests.
+  Not chains, and staying: `ImageEditChain` (`db/storage.py`, `workflows/tools/image_edit_chains.py`) and the
+  builder's "chain Sends" (`workflows/builder.py:740`).
+- Code indexing: none in the app. No symbol, outline or code search exists in the engine (no tree-sitter, no symbol
+  table; `api/routes/document/inspector.py` `document_outline` outlines a document). `training/bakeoff_lines.py:123`
+  finds the enclosing git work tree. The pipeline's worktrees come from `pipeline/core.py` `_worktree` (:412) under
+  the profile's `repo.worktrees` (`pipeline/config.py:12`). The external precedent is jcodemunch (outline, symbol,
+  text search, files read on demand).
+- Identity and contributors: the pipeline calls `gh` as the maintainer's login (`pipeline/gh.py` `sh`), authors
+  agent commits with `github.agent_email`, and admits work only from `github.allowed_authors`
+  (`pipeline/config.py:12`, `pipeline/core.py:394,542,892`); there is no bot identity and no contributor tier.
+- Release: `scripts/release-all.sh` (Developer ID DMG, Mac and iOS TestFlight, `--github --draft`),
+  `set-release-version.sh`, `stamp_engine_version_into_app.sh` + `check_engine_version_stamp.py`,
+  `release-notes-gen.sh`, `build-release-dmg.sh`, `notarize.sh`, `check_release_staples_app.py`, `appcast_upsert.py`
+  + `check_sparkle_update_ready.py`, `create-github-release.sh`, `deploy-site.sh`, `publish-release.sh`,
+  `nightly-release.sh`; the contract and OpenAPI regeneration is a release commit (274f9af19). The owner runs them by
+  hand; #6142 moves them to a PR flow.
 
 What is missing, stated plainly: (1) a **spec layer**: no record holds a spec, its behaviour ids or their tags; specs
 are Markdown files only the pipeline's regexes read. (2) a **plan layer**: no record holds a build order of steps
@@ -191,11 +228,12 @@ dependency or a `blocked` label → `blocked`; closed `completed` → `completed
   order is accepted and its steps may be filed), **answer question** (a parked run or a write-up resumes). Each
   records who and when; a model never approves or answers (`pipeline/core.py` `WORKER_FORBIDDEN`,
   `pipeline.three-faces`: approve and answer are never over MCP).
-- `dev-workflows.combined.repo-as-project-source` [GAP] (#6116) — a repo becomes a project by tying its folder to a
-  Research project (`api/routes/sync_folders.py` `POST ""`, the audited `sync.tie`, mode `index`) with the ignore
-  rules of `dev-workflows.source.repo-folder-and-index`; Fichero reads `.git/config` for the GitHub remote and
-  proposes the link, which the owner confirms; then the spec folder is read into the spec and plan layers and the
-  first pull runs. Untying keeps the records and stops sync.
+- `dev-workflows.combined.repo-as-project-source` [GAP] (#6116) — a repo becomes a project by adding it as a
+  **workspace** (`dev-workflows.workspace.source-kind`) and attaching that workspace to a Research project; Fichero
+  reads the `origin` remote and proposes the GitHub link, which the owner confirms; then the spec folder is read into
+  the spec and plan layers and the first pull runs. Detaching keeps the records and stops sync. A synced folder
+  (`api/routes/sync_folders.py`, `sync.tie`) is NOT the carrier: `sync_folder.py` writes exports and corrections back
+  into the tied folder, and Fichero must never write into a working tree.
 - `dev-workflows.combined.research-projects` [GAP] (#2070) — the same records serve a non-dev Research project: a
   brief in place of a spec (optional), a plan of ordered steps, milestones, tasks, runs (the agent's tool calls as
   `ResearchStep`s under a job row), checks (a checklist or a reviewer verdict) and closing, with the same three
@@ -300,7 +338,9 @@ dependency or a `blocked` label → `blocked`; closed `completed` → `completed
 ### A repo and GitHub as sources
 
 - `dev-workflows.source.repo-folder-and-index` [PARTIAL] (#6116) — adding the repository to Fichero as a folder works and
-  is indexed (the project side of this is `dev-workflows.combined.repo-as-project-source`): `POST /api/ingest/folder` imports it, `file_watcher.py` keeps it current, and code navigation for
+  is indexed (superseded for code projects by the workspace source, `dev-workflows.workspace.*`, which imports no
+  file; this behaviour now pins only that the folder importer refuses or warns on a git work tree and that its ignore
+  rules are the workspace's): `POST /api/ingest/folder` imports it, `file_watcher.py` keeps it current, and code navigation for
   a researcher uses the same search. Today the import path is built for documents and images; a repo (thousands of
   `.py`/`.swift`/`.md` files, `.venv`, build output) needs ignore rules (`.gitignore` + an explicit deny list), a
   text-only file kind, and a cancel that works (`/folder/{task_id}/cancel` exists). Pass: the Fichero repo itself
@@ -309,7 +349,8 @@ dependency or a `blocked` label → `blocked`; closed `completed` → `completed
   its issues, milestones and PRs appear as nodes in the library with number, state, labels, milestone and body,
   refreshed by a poll or `gh api` read, read-only in Stage 1. Writes come in Stage 2 under
   `dev-workflows.combined.sync-two-way` and `dev-workflows.combined.writes-need-approval`, and only through the `gh`
-  node (`dev-workflows.node.gh`). Auth is the user's `gh` login; Fichero stores no token. Evidence of the gap: no
+  node (`dev-workflows.node.gh`). Auth for a user's project is the user's `gh` login and Fichero stores no token;
+  the dev pipeline acts as the bot identity (`dev-workflows.identity.github-app-bot`). Evidence of the gap: no
   GitHub reader exists in the engine.
 
 ### Rollout
@@ -343,6 +384,12 @@ and timelines in `workflows/activity_store.py` + `workflows/activity.py`.
   (`activity.legacy-chain-retired`, BROKEN, #4949); model downloads and runtime provisioning are not rows
   (`activity.model-work-visible` [GAP], `activity.global-work-is-the-macs` [GAP], #5359); `cli_agent.py` runs a local
   agent with no job row of its own. Each is named so the unify step can close it.
+- `dev-workflows.one-activity-system.folder-import-is-a-job` [GAP] (#5359) — the folder importer runs as a job row
+  (a new kind, e.g. `import-folder`, with one child per file batch) instead of the in-memory `_tasks` dict
+  (`api/routes/ingest/core.py:38`): `GET /folder/{task_id}/status` (:1261) and `POST /folder/{task_id}/cancel`
+  (:1304) read and cancel through `execution/jobs.py` (the routes stay, as thin readers, so clients do not break),
+  progress and the log go to the one run log, the import shows in Activity, Pause Background Work pauses it, and an
+  import interrupted by an engine restart shows as stopped with what it took in, not vanished.
 - `dev-workflows.one-activity-system.one-cancel` [PARTIAL] (#4317) — cancel is one primitive for single runs and
   batches (`execution/cancellation.py`) and `jobs._cancel_run` / `_cancel_chain` reach children; a recipe run's Stop
   reaches its step (`activity.recipe-run.stop-reaches-its-step` [OK]). Not reaching: ingest's own cancel route (above).
@@ -403,16 +450,159 @@ owner's decisions (`dev-workflows.research.one-question-queue`). The pipeline pa
   Inspector, Research tasks, Activity) and adds a source kind and a project node, not a new window or a second task
   or activity list; `pipeline/web.py` is retired only by `pipeline.retire-fs-skills`-style owner decision after parity.
 
+### A code project without importing its files (the workspace source)
+
+A **workspace** is a source kind: one live git repository and its worktrees (a repo can have several), indexed lazily
+in place. Nothing is copied into the library, no document is made per file, and Fichero never writes into a working
+tree. It is what a code project (Fichero's own, or a user's) is attached by (`dev-workflows.combined.repo-as-project-source`).
+Today none of it exists (§ What exists today, "Code indexing").
+
+- `dev-workflows.workspace.source-kind` [GAP] (#6116) — the owner adds a workspace by picking a folder inside a git
+  repo; Fichero resolves the repo root (as `training/bakeoff_lines.py:123` does), lists its worktrees
+  (`git worktree list --porcelain`) and shows the workspace in the sidebar as a source with its worktrees beneath,
+  each with branch, head sha and dirty state. Adding is read-only: no file is imported, moved or written, and
+  removing the workspace deletes only Fichero's index.
+- `dev-workflows.workspace.lazy-index` [GAP] (#6116) — outline, symbol lookup and text search over a worktree, built
+  per file on first need and cached by `(path, blob sha)`, refreshed by `workflows/file_watcher.py` events; file
+  contents are read on demand by line range, never stored whole; ignore rules are `.gitignore` plus a deny list
+  (`.venv*`, `build/`, `DerivedData/`, `node_modules/`, binaries over a size cap). Pass: on this repo, the first symbol
+  query answers without indexing the whole tree, a second answers from cache, and `.venv*` is never read.
+- `dev-workflows.workspace.context-for-agents` [GAP] (#2072) — Research agents, workflow nodes and the MCP read-only
+  tools use a workspace as context through read-only tools in the one registry (outline, symbol, search, read a line
+  range; `dev-workflows.research.same-node-types`); none can write a file through them.
+- `dev-workflows.workspace.worktrees-map-to-tasks` [GAP] (#6116) — the pipeline's worktrees (`pipeline/core.py`
+  `_worktree`, profile `repo.worktrees`) appear as worktrees of the Fichero workspace, each linked to the task (issue)
+  it works on through the combined model, so the project view shows which worktree holds which item.
+- `dev-workflows.workspace.github-tie` [GAP] (#6116) — a workspace's `origin` remote gives the GitHub repo of
+  `dev-workflows.combined.github-mapping`: its issues, milestones and PRs attach to the workspace's project, and a
+  PR's head branch is matched to the worktree that has it checked out.
+
+### Identity: who acts on GitHub
+
+- `dev-workflows.identity.github-app-bot` [GAP] (#6116) — the dev pipeline acts on GitHub as a **GitHub App** (a bot
+  identity), not as the maintainer: permissions issues and pull requests read/write, contents write on non-protected
+  branches only, metadata read; never administration, never a bypass of the branch rules, so `main` stays PR + merge
+  and `v*` tags stay locked for it like anyone. It uses short-lived installation tokens minted on the build machine
+  from a private key held in the owner's keychain; no agent or workflow sees the key. Every agent comment, branch and
+  PR is attributable to the bot, and the owner reviews and approves the bot's PRs. Today: the maintainer's `gh`
+  login (`pipeline/gh.py`) with `github.agent_email`.
+- `dev-workflows.identity.owner-creates-accounts` [PROPOSED] — creating the App, installing it, creating any account,
+  team or token is the owner's act, done by hand; an agent may write the instructions, never perform them.
+- `dev-workflows.identity.contributors-own-accounts` [GAP] (#6116) — a contributor acts as themself: a fork and a PR
+  from their own GitHub account, or an issue that the maintainer's agent picks up (`feeder.pick`'s
+  `allowed_authors` and `triage` path). Fichero never acts on GitHub as a contributor except through that
+  contributor's own login.
+
+### Retire chains (recipes do what chains did)
+
+Chains are retired; a recipe run is the one way to run workflows in order (`recipes/runner.py`, one
+`run-a-recipe` job with its workflow cards as runs beneath it). The chain code cannot be deleted blindly: the recipe
+runner borrows its step helpers (§ What exists today, "Chains").
+
+- `dev-workflows.chains.helpers-move` [GAP] (#4949) — `_load_step_workflow`, `_validate_step_workflow`,
+  `_record_step_run_accepted`, `_run_step_workflow` and `_step_run_outcome` move from `api/routes/workflow/chains.py`
+  into `execution/runner.py` (the one runner, which `recipes/runner.py` already imports `LIVE_CHECK_LOCK` from) as
+  public functions, unchanged in behaviour; `recipes/runner.py` imports them from there and no longer imports an API
+  route module.
+- `dev-workflows.chains.workflow-bar-runs-a-recipe` [GAP] (#4949) — the Workflow Bar's "run these in order" starts a
+  recipe run, not `/chains/execute-steps`; the bar's staged steps (today the one shared chain "Workflow Bar",
+  `WorkflowBarChainPersistence.swift`) persist as that library's bar recipe, so they survive an engine restart,
+  which today they do not (the engine's `ChainStore` is in memory).
+- `dev-workflows.chains.user-chains-become-recipes` [GAP] (#4949) — no user's saved chain is lost. What is
+  persisted: the engine's `ChainStore` is in memory (`execution/chaining.py:831`), so no chain is on disk; a
+  chain lives only while the engine runs, plus the bar's chain the client re-creates by name. The release before
+  removal converts every chain present in the running engine (and the bar's) into a recipe with the same workflows in
+  the same order and the same inputs mapping, reports each conversion, and leaves a chain it cannot convert in the
+  queue as a question with its definition as JSON; a test proves no table or file holds chain definitions before
+  removal.
+- `dev-workflows.chains.removed` [GAP] (#4949) — removed: the `/chains/*` routes (CRUD, paleography preset, the
+  legacy `/chains/{id}/execute`, `/chains/execute-steps`), `execution/chaining.py`, the job kind `chain`
+  (`register_kind`, `_cancel_chain`, `record_chain`, the `RUN_KINDS` entry), the feature `workflowChains` in
+  `features.yaml` and its generated files, the AppleScript `workflow chain` class, the CLI's chain commands
+  (regenerated surface), the Swift chain files and sidebar, menu and readiness entries listed above, and the chain
+  tests. The paleography preset becomes a recipe template first, or is ruled dropped (open question).
+- `dev-workflows.chains.nothing-depends` [GAP] (#4949) — a guard test fails if any source, Swift file, generated
+  surface or spec outside history names `execution.chaining`, `routes.workflow.chains`, `/chains`, `WorkflowChain`,
+  `ChainService` or `ChainStore` (the `ImageEditChain` and builder chain-Send names excepted by exact name).
+
+### User contributions (late; through the same model)
+
+A Fichero user can help develop Fichero through the same model: an issue with context they chose, a spec line, a
+fix proposed by their own model in a scratch worktree, checks, and a PR. `main` stays PR + merge only, the
+maintainer reviews every PR, and nothing auto-merges. All of it is [GAP].
+
+- `dev-workflows.contrib.tier-off-by-default` [GAP] (#6116) — the contributor tier is off for every user and every
+  build until the user turns it on and passes the allow-list check (`dev-workflows.contrib.invite-only`); with it
+  off, no contributor menu, route or tool exists.
+- `dev-workflows.contrib.invite-only` [GAP] (#6116) — contributions are limited to named people: an allow-list of
+  GitHub users and teams kept in the repo (the pipeline profile's `github` table, beside `allowed_authors`), off
+  (empty) by default. The app checks it when the tier is turned on and before each contribution: the user signs in
+  through their own `gh` login, and the app accepts a login named in the list, or one with active membership of a
+  listed team (`GET /orgs/{org}/teams/{team}/memberships/{username}`); the result is cached for at most an hour, so a
+  removal takes effect within the hour. A signed invite in place of team membership is an open question. A user not
+  on the list cannot use the tier.
+- `dev-workflows.contrib.maintainer-manages-people` [GAP] (#6116) — the maintainer adds and removes people by a
+  reviewed change to the list, sets a per-person rate limit (open PRs at once, proposals per day) and revokes a
+  person; a revoked person's open proposals are closed with a comment, never merged.
+- `dev-workflows.contrib.library-stays-local` [GAP] (#6116) — a contributor's library never leaves their machine:
+  the contributor model is bound only to the repo workspace's read-only tools and the scratch worktree, never to the
+  library, documents, transcriptions or the KG, and the egress gate refuses library content on the contribution
+  path. Pass: a contribution run with a library open makes no call that reads a library record.
+- `dev-workflows.contrib.consented-context` [GAP] (#6116) — an issue is drafted with only the context the user picks
+  (app and engine versions, a log excerpt, steps, a screenshot they choose), shown in full before it is sent, and
+  sent from their own account; nothing from the library is offered by default.
+- `dev-workflows.contrib.own-compute-and-caps` [GAP] (#6116) — the proposed fix runs on the user's own local model or
+  their own API key, with a per-proposal and per-day budget cap they set, the running cost shown, and a stop at the
+  cap.
+- `dev-workflows.contrib.scratch-worktree` [GAP] (#6116) — the fix is made in a scratch worktree of the user's clone
+  and checked on a scratch `FICHERO_BASE_PATH` (`security/real_data_guard.py`), so neither touches the user's
+  library or real app data; the worktree is removed after the PR is opened or abandoned.
+- `dev-workflows.contrib.quality-bar-and-pr` [GAP] (#6116) — a PR opens only when the pinned checks are green, the
+  change cites the spec behaviour it serves (a new spec line is marked proposed), and the per-person limit allows;
+  the PR is labelled proposed, goes from the contributor's fork, and is reviewed by the maintainer; nothing merges
+  automatically.
+
+### Release as a dev workflow (late; the end state)
+
+Fichero, with its agent, integrates and pushes releases through the same model, as a workflow of script nodes over
+the existing release scripts; the owner says yes to everything public.
+
+- `dev-workflows.release.stamp-and-notes` [PARTIAL] (#6142) — the workflow stamps the version
+  (`set-release-version.sh`, `stamp_engine_version_into_app.sh`, checked by `check_engine_version_stamp.py`),
+  regenerates the contract and OpenAPI files, and drafts the notes (`release-notes-gen.sh`) as a proposal the owner
+  edits before anything is built. Today the scripts exist and are run by hand.
+- `dev-workflows.release.gate-build-notarize-testflight` [PARTIAL] (#6142) — it runs the gate, builds the DMGs,
+  notarizes and staples (`build-release-dmg.sh`, `notarize.sh`, `check_release_staples_app.py`) and uploads Mac and
+  iOS TestFlight, each a script node calling the existing scripts (`release-all.sh` broken into its lanes); no build
+  logic is rewritten.
+- `dev-workflows.release.credentials-stay-put` [PROPOSED] — signing, notarization and App Store Connect credentials
+  stay in the owner's keychain on the build machine and are used only by the existing scripts; no agent or workflow
+  types, reads, logs or stores one, and the workflow passes no secret as an input.
+- `dev-workflows.release.failure-is-a-question` [GAP] (#6142) — a failed step (for example the Xcode 27.0 `altool`
+  crash on upload) parks the run with a question to the owner carrying the log tail and the options (retry, skip
+  this lane, stop); it is never retried silently.
+- `dev-workflows.release.activity-row` [GAP] (#6142) — every release run is a job row with a child per step and its
+  stored log (`dev-workflows.one-activity-system.dev-uses-it`), so a release is replayable from Activity.
+- `dev-workflows.release.pr-as-bot` [GAP] (#6142) — when the build is good the workflow opens the PR integration →
+  main as the bot identity (`dev-workflows.identity.github-app-bot`) with the notes and the check results.
+- `dev-workflows.release.owner-yes-gate` [GAP] (#6142) — the merge, the GitHub release (`create-github-release.sh`),
+  the Sparkle feed (`appcast_upsert.py`, `check_sparkle_update_ready.py`) and the site (`deploy-site.sh`) each wait
+  for the owner's explicit yes at a human-question node that survives a restart
+  (`dev-workflows.run.pause-resume-durable`); no yes, nothing public changes.
+- `dev-workflows.release.main-and-tags-locked` [PROPOSED] — the workflow never pushes `main` or a `v*` tag; `main`
+  changes only by the merged PR, and the tag is made by the release step the owner said yes to.
+
 ## Rulings
 
 None yet. Everything above is proposed.
 
 ## Build order
 
-Stage 1 proves the combined model **read-only** against GitHub on a scratch base path, with one item through by
-hand. Stage 2 adds two-way sync, the spec and plan layers in the app, and the node types and pause/resume work they
-need. Stage 3 moves the pipeline onto the model, the runner staying until it is proven. Each step is one coder
-context's worth.
+Stage 1 proves the combined model **read-only** against GitHub on a scratch base path, with a repo added as a
+workspace and one item through by hand. Stage 2 adds two-way sync, the bot identity, the spec and plan layers, the
+node types and pause/resume work, one activity system, and retires chains. Stage 3 moves the pipeline onto the
+model, the runner staying until it is proven. Stage 4 opens it to invited contributors; Stage 5 makes the release a
+dev workflow. Each step is one coder context's worth.
 
 ### Stage 1 — prove it read-only against GitHub on a scratch base path
 
@@ -433,9 +623,9 @@ context's worth.
 - Depends on: 1.2
 - Size: M
 
-#### Step 1.4 — a repo as a project source
-- Behaviours: `dev-workflows.combined.repo-as-project-source`, `dev-workflows.source.repo-folder-and-index`
-- Tests: fichero-server/tests/unit/ingest/test_repo_folder_ingest.py
+#### Step 1.4 — a repo as a workspace, read-only and lazily indexed
+- Behaviours: `dev-workflows.workspace.source-kind`, `dev-workflows.workspace.lazy-index`, `dev-workflows.workspace.worktrees-map-to-tasks`, `dev-workflows.combined.repo-as-project-source`, `dev-workflows.source.repo-folder-and-index`
+- Tests: fichero-server/tests/unit/sources/test_workspace_source.py
 - Depends on: 1.2
 - Size: M
 
@@ -451,62 +641,97 @@ context's worth.
 - Depends on: 1.3, 1.5
 - Size: M
 
-### Stage 2 — two-way sync and the spec and plan layers in the app
+### Stage 2 — two-way sync, the spec and plan layers, one activity system, chains retired
 
 #### Step 2.1 — git and gh nodes with their allow-lists
 - Behaviours: `dev-workflows.node.git`, `dev-workflows.node.gh`
 - Tests: fichero-server/tests/unit/workflows/test_git_gh_nodes.py
 - Size: M
 
-#### Step 2.2 — the spec and plan layers
+#### Step 2.2 — the bot identity
+- Behaviours: `dev-workflows.identity.github-app-bot`, `dev-workflows.identity.owner-creates-accounts`, `dev-workflows.identity.contributors-own-accounts`
+- Tests: fichero-server/tests/unit/workflows/test_github_app_identity.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 2.3 — the spec and plan layers
 - Behaviours: `dev-workflows.combined.spec-layer`, `dev-workflows.combined.plan-layer`
 - Tests: fichero-server/tests/unit/research/test_spec_and_plan_layers.py
 - Size: M
 
-#### Step 2.3 — durable pause and resume
+#### Step 2.4 — durable pause and resume
 - Behaviours: `dev-workflows.run.pause-resume-durable`
 - Tests: fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py
 - Size: M
 
-#### Step 2.4 — the human-question node
+#### Step 2.5 — the human-question node
 - Behaviours: `dev-workflows.node.human-question`
 - Tests: fichero-server/tests/unit/workflows/test_human_question_node.py
-- Depends on: 2.3
+- Depends on: 2.4
 - Size: M
 
-#### Step 2.5 — one task model, one question queue, the three approvals
+#### Step 2.6 — one task model, one question queue, the three approvals
 - Behaviours: `dev-workflows.research.one-task-model`, `dev-workflows.research.one-question-queue`, `dev-workflows.research.proposals-are-reviewable`, `dev-workflows.research.same-node-types`, `dev-workflows.combined.approvals`
 - Tests: fichero-server/tests/unit/research/test_dev_task_and_question_model.py
-- Depends on: 2.2, 2.4
+- Depends on: 2.3, 2.5
 - Size: M
 
-#### Step 2.6 — two-way sync with its conflict, close and approval rules
+#### Step 2.7 — two-way sync with its conflict, close and approval rules
 - Behaviours: `dev-workflows.combined.sync-two-way`, `dev-workflows.combined.close-only-by-closer`, `dev-workflows.combined.writes-need-approval`
 - Tests: fichero-server/tests/unit/research/test_github_two_way_sync.py
-- Depends on: 2.1, 2.5
+- Depends on: 2.2, 2.6
 - Size: M
 
-#### Step 2.7 — offline and rate limits
+#### Step 2.8 — offline and rate limits
 - Behaviours: `dev-workflows.combined.offline`, `dev-workflows.combined.rate-limits`
 - Tests: fichero-server/tests/unit/research/test_sync_offline_and_rate_limited.py
+- Depends on: 2.7
+- Size: M
+
+#### Step 2.9 — Research projects on the same model
+- Behaviours: `dev-workflows.combined.research-projects`
+- Tests: fichero-server/tests/unit/research/test_research_project_uses_combined_model.py
 - Depends on: 2.6
 - Size: M
 
-#### Step 2.8 — Research projects on the same model
-- Behaviours: `dev-workflows.combined.research-projects`
-- Tests: fichero-server/tests/unit/research/test_research_project_uses_combined_model.py
-- Depends on: 2.5
+#### Step 2.10 — a workspace as agent context, tied to GitHub
+- Behaviours: `dev-workflows.workspace.context-for-agents`, `dev-workflows.workspace.github-tie`
+- Tests: fichero-server/tests/unit/sources/test_workspace_context_and_github.py
+- Depends on: 1.4, 2.7
 - Size: M
 
-#### Step 2.9 — worker node with role, model alias and cap
+#### Step 2.11 — worker node with role, model alias and cap
 - Behaviours: `dev-workflows.node.worker`, `dev-workflows.run.small-models-only`, `dev-workflows.run.no-model-rerun`
 - Tests: fichero-server/tests/unit/workflows/test_worker_node.py
 - Size: M
 
-#### Step 2.10 — unify the activity bypasses
+#### Step 2.12 — unify the activity bypasses
 - Behaviours: `dev-workflows.one-activity-system.one-job-table`, `dev-workflows.one-activity-system.bypasses`, `dev-workflows.one-activity-system.one-cancel`, `dev-workflows.one-activity-system.one-pause`, `dev-workflows.one-activity-system.one-run-log`
 - Tests: fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py
-- Depends on: 2.3
+- Depends on: 2.4
+- Size: M
+
+#### Step 2.13 — the folder importer is a job
+- Behaviours: `dev-workflows.one-activity-system.folder-import-is-a-job`
+- Tests: fichero-server/tests/unit/ingest/test_folder_import_is_a_job_row.py
+- Depends on: 2.12
+- Size: M
+
+#### Step 2.14 — chain helpers move to the runner; the Workflow Bar runs a recipe
+- Behaviours: `dev-workflows.chains.helpers-move`, `dev-workflows.chains.workflow-bar-runs-a-recipe`
+- Tests: fichero-server/tests/unit/recipes/test_recipe_runner_without_chains.py
+- Size: M
+
+#### Step 2.15 — saved chains become recipes
+- Behaviours: `dev-workflows.chains.user-chains-become-recipes`
+- Tests: fichero-server/tests/unit/recipes/test_chains_become_recipes.py
+- Depends on: 2.14
+- Size: M
+
+#### Step 2.16 — remove chains
+- Behaviours: `dev-workflows.chains.removed`, `dev-workflows.chains.nothing-depends`
+- Tests: fichero-server/tests/unit/seams/test_nothing_names_chains.py
+- Depends on: 2.15
 - Size: M
 
 ### Stage 3 — move the pipeline onto the model
@@ -540,13 +765,135 @@ context's worth.
 - Depends on: 3.4
 - Size: M
 
+### Stage 4 — user contributions
+
+#### Step 4.1 — the contributor tier, invite-only
+- Behaviours: `dev-workflows.contrib.tier-off-by-default`, `dev-workflows.contrib.invite-only`, `dev-workflows.contrib.maintainer-manages-people`
+- Tests: fichero-server/tests/unit/contrib/test_contributor_allow_list.py
+- Size: M
+
+#### Step 4.2 — private, on the contributor's own compute, in scratch
+- Behaviours: `dev-workflows.contrib.library-stays-local`, `dev-workflows.contrib.own-compute-and-caps`, `dev-workflows.contrib.scratch-worktree`
+- Tests: fichero-server/tests/unit/contrib/test_contribution_isolation.py
+- Depends on: 4.1
+- Size: M
+
+#### Step 4.3 — from a consented issue to a reviewed PR
+- Behaviours: `dev-workflows.contrib.consented-context`, `dev-workflows.contrib.quality-bar-and-pr`
+- Tests: fichero-server/tests/unit/contrib/test_contribution_to_pr.py
+- Depends on: 4.2
+- Size: M
+
+### Stage 5 — release as a dev workflow
+
+#### Step 5.1 — stamp, notes, gate, build and upload
+- Behaviours: `dev-workflows.release.stamp-and-notes`, `dev-workflows.release.gate-build-notarize-testflight`, `dev-workflows.release.credentials-stay-put`, `dev-workflows.release.failure-is-a-question`, `dev-workflows.release.activity-row`
+- Tests: fichero-server/tests/unit/workflows/test_release_workflow_build.py
+- Size: M
+
+#### Step 5.2 — the PR and the owner's yes
+- Behaviours: `dev-workflows.release.pr-as-bot`, `dev-workflows.release.owner-yes-gate`, `dev-workflows.release.main-and-tags-locked`
+- Tests: fichero-server/tests/unit/workflows/test_release_workflow_owner_gate.py
+- Depends on: 5.1
+- Size: M
+
+## Behaviour tests
+
+Every behaviour names the test that pins it (the step's test file, one test per behaviour; a [PROPOSED] rule's test
+pins the rule once it is ruled). None of these tests exists yet; each is written in its step.
+
+| Behaviour | Step | Test |
+|-----------|------|------|
+| `dev-workflows.run.headless-on-scratch` | 1.1 | `fichero-server/tests/unit/workflows/test_headless_scratch_run.py::test_headless_on_scratch` |
+| `dev-workflows.run.pinned-engine` | 1.1 | `fichero-server/tests/unit/workflows/test_headless_scratch_run.py::test_pinned_engine` |
+| `dev-workflows.combined.entities` | 1.2 | `fichero-server/tests/unit/research/test_combined_model_records.py::test_entities` |
+| `dev-workflows.combined.github-mapping` | 1.2 | `fichero-server/tests/unit/research/test_combined_model_records.py::test_github_mapping` |
+| `dev-workflows.source.github-as-source` | 1.2 | `fichero-server/tests/unit/research/test_combined_model_records.py::test_github_as_source` |
+| `dev-workflows.combined.read-only-first` | 1.3 | `fichero-server/tests/unit/research/test_github_read_only_mirror.py::test_read_only_first` |
+| `dev-workflows.workspace.source-kind` | 1.4 | `fichero-server/tests/unit/sources/test_workspace_source.py::test_source_kind` |
+| `dev-workflows.workspace.lazy-index` | 1.4 | `fichero-server/tests/unit/sources/test_workspace_source.py::test_lazy_index` |
+| `dev-workflows.workspace.worktrees-map-to-tasks` | 1.4 | `fichero-server/tests/unit/sources/test_workspace_source.py::test_worktrees_map_to_tasks` |
+| `dev-workflows.combined.repo-as-project-source` | 1.4 | `fichero-server/tests/unit/sources/test_workspace_source.py::test_repo_as_project_source` |
+| `dev-workflows.source.repo-folder-and-index` | 1.4 | `fichero-server/tests/unit/sources/test_workspace_source.py::test_repo_folder_and_index` |
+| `dev-workflows.node.script` | 1.5 | `fichero-server/tests/unit/workflows/test_script_node.py::test_script` |
+| `dev-workflows.node.validate-before-run` | 1.5 | `fichero-server/tests/unit/workflows/test_script_node.py::test_validate_before_run` |
+| `dev-workflows.rollout.prove-one-item` | 1.6 | `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_prove_one_item` |
+| `dev-workflows.rollout.stdlib-runner-stays` | 1.6 | `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_stdlib_runner_stays` |
+| `dev-workflows.node.git` | 2.1 | `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_git` |
+| `dev-workflows.node.gh` | 2.1 | `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_gh` |
+| `dev-workflows.identity.github-app-bot` | 2.2 | `fichero-server/tests/unit/workflows/test_github_app_identity.py::test_github_app_bot` |
+| `dev-workflows.identity.owner-creates-accounts` | 2.2 | `fichero-server/tests/unit/workflows/test_github_app_identity.py::test_owner_creates_accounts` |
+| `dev-workflows.identity.contributors-own-accounts` | 2.2 | `fichero-server/tests/unit/workflows/test_github_app_identity.py::test_contributors_own_accounts` |
+| `dev-workflows.combined.spec-layer` | 2.3 | `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_spec_layer` |
+| `dev-workflows.combined.plan-layer` | 2.3 | `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_plan_layer` |
+| `dev-workflows.run.pause-resume-durable` | 2.4 | `fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py::test_pause_resume_durable` |
+| `dev-workflows.node.human-question` | 2.5 | `fichero-server/tests/unit/workflows/test_human_question_node.py::test_human_question` |
+| `dev-workflows.research.one-task-model` | 2.6 | `fichero-server/tests/unit/research/test_dev_task_and_question_model.py::test_one_task_model` |
+| `dev-workflows.research.one-question-queue` | 2.6 | `fichero-server/tests/unit/research/test_dev_task_and_question_model.py::test_one_question_queue` |
+| `dev-workflows.research.proposals-are-reviewable` | 2.6 | `fichero-server/tests/unit/research/test_dev_task_and_question_model.py::test_proposals_are_reviewable` |
+| `dev-workflows.research.same-node-types` | 2.6 | `fichero-server/tests/unit/research/test_dev_task_and_question_model.py::test_same_node_types` |
+| `dev-workflows.combined.approvals` | 2.6 | `fichero-server/tests/unit/research/test_dev_task_and_question_model.py::test_approvals` |
+| `dev-workflows.combined.sync-two-way` | 2.7 | `fichero-server/tests/unit/research/test_github_two_way_sync.py::test_sync_two_way` |
+| `dev-workflows.combined.close-only-by-closer` | 2.7 | `fichero-server/tests/unit/research/test_github_two_way_sync.py::test_close_only_by_closer` |
+| `dev-workflows.combined.writes-need-approval` | 2.7 | `fichero-server/tests/unit/research/test_github_two_way_sync.py::test_writes_need_approval` |
+| `dev-workflows.combined.offline` | 2.8 | `fichero-server/tests/unit/research/test_sync_offline_and_rate_limited.py::test_offline` |
+| `dev-workflows.combined.rate-limits` | 2.8 | `fichero-server/tests/unit/research/test_sync_offline_and_rate_limited.py::test_rate_limits` |
+| `dev-workflows.combined.research-projects` | 2.9 | `fichero-server/tests/unit/research/test_research_project_uses_combined_model.py::test_research_projects` |
+| `dev-workflows.workspace.context-for-agents` | 2.10 | `fichero-server/tests/unit/sources/test_workspace_context_and_github.py::test_context_for_agents` |
+| `dev-workflows.workspace.github-tie` | 2.10 | `fichero-server/tests/unit/sources/test_workspace_context_and_github.py::test_github_tie` |
+| `dev-workflows.node.worker` | 2.11 | `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker` |
+| `dev-workflows.run.small-models-only` | 2.11 | `fichero-server/tests/unit/workflows/test_worker_node.py::test_small_models_only` |
+| `dev-workflows.run.no-model-rerun` | 2.11 | `fichero-server/tests/unit/workflows/test_worker_node.py::test_no_model_rerun` |
+| `dev-workflows.one-activity-system.one-job-table` | 2.12 | `fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py::test_one_job_table` |
+| `dev-workflows.one-activity-system.bypasses` | 2.12 | `fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py::test_bypasses` |
+| `dev-workflows.one-activity-system.one-cancel` | 2.12 | `fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py::test_one_cancel` |
+| `dev-workflows.one-activity-system.one-pause` | 2.12 | `fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py::test_one_pause` |
+| `dev-workflows.one-activity-system.one-run-log` | 2.12 | `fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py::test_one_run_log` |
+| `dev-workflows.one-activity-system.folder-import-is-a-job` | 2.13 | `fichero-server/tests/unit/ingest/test_folder_import_is_a_job_row.py::test_folder_import_is_a_job` |
+| `dev-workflows.chains.helpers-move` | 2.14 | `fichero-server/tests/unit/recipes/test_recipe_runner_without_chains.py::test_helpers_move` |
+| `dev-workflows.chains.workflow-bar-runs-a-recipe` | 2.14 | `fichero-server/tests/unit/recipes/test_recipe_runner_without_chains.py::test_workflow_bar_runs_a_recipe` |
+| `dev-workflows.chains.user-chains-become-recipes` | 2.15 | `fichero-server/tests/unit/recipes/test_chains_become_recipes.py::test_user_chains_become_recipes` |
+| `dev-workflows.chains.removed` | 2.16 | `fichero-server/tests/unit/seams/test_nothing_names_chains.py::test_removed` |
+| `dev-workflows.chains.nothing-depends` | 2.16 | `fichero-server/tests/unit/seams/test_nothing_names_chains.py::test_nothing_depends` |
+| `dev-workflows.visibility.canvas-and-log` | 3.1 | `fichero-server/tests/unit/workflows/test_dev_run_log_events.py::test_canvas_and_log` |
+| `dev-workflows.visibility.runs-from-the-pipeline-page` | 3.1 | `fichero-server/tests/unit/workflows/test_dev_run_log_events.py::test_runs_from_the_pipeline_page` |
+| `dev-workflows.run.state-stays-in-github` | 3.1 | `fichero-server/tests/unit/workflows/test_dev_run_log_events.py::test_state_stays_in_github` |
+| `dev-workflows.one-activity-system.dev-uses-it` | 3.2 | `fichero-server/tests/unit/workflows/test_dev_run_is_a_job_row.py::test_dev_uses_it` |
+| `dev-workflows.combined.pipeline-is-first-user` | 3.3 | `pipeline/tests/test_pipeline_uses_combined_model.py::test_pipeline_is_first_user` |
+| `dev-workflows.project-view.overview` | 3.4 | `fichero-server/tests/unit/workflows/test_project_view_read.py::test_overview` |
+| `dev-workflows.project-view.specs-and-build-order` | 3.4 | `fichero-server/tests/unit/workflows/test_project_view_read.py::test_specs_and_build_order` |
+| `dev-workflows.project-view.issues-and-bugs` | 3.4 | `fichero-server/tests/unit/workflows/test_project_view_read.py::test_issues_and_bugs` |
+| `dev-workflows.project-view.runs-turns-tokens-cost` | 3.4 | `fichero-server/tests/unit/workflows/test_project_view_read.py::test_runs_turns_tokens_cost` |
+| `dev-workflows.project-view.tests-and-reviews` | 3.4 | `fichero-server/tests/unit/workflows/test_project_view_read.py::test_tests_and_reviews` |
+| `dev-workflows.project-view.owner-queue` | 3.5 | `fichero-server/tests/unit/workflows/test_project_view_actions.py::test_owner_queue` |
+| `dev-workflows.project-view.issue-actions` | 3.5 | `fichero-server/tests/unit/workflows/test_project_view_actions.py::test_issue_actions` |
+| `dev-workflows.project-view.approve` | 3.5 | `fichero-server/tests/unit/workflows/test_project_view_actions.py::test_approve` |
+| `dev-workflows.project-view.answer-and-control` | 3.5 | `fichero-server/tests/unit/workflows/test_project_view_actions.py::test_answer_and_control` |
+| `dev-workflows.project-view.no-parallel-surface` | 3.5 | `fichero-server/tests/unit/workflows/test_project_view_actions.py::test_no_parallel_surface` |
+| `dev-workflows.contrib.tier-off-by-default` | 4.1 | `fichero-server/tests/unit/contrib/test_contributor_allow_list.py::test_tier_off_by_default` |
+| `dev-workflows.contrib.invite-only` | 4.1 | `fichero-server/tests/unit/contrib/test_contributor_allow_list.py::test_invite_only` |
+| `dev-workflows.contrib.maintainer-manages-people` | 4.1 | `fichero-server/tests/unit/contrib/test_contributor_allow_list.py::test_maintainer_manages_people` |
+| `dev-workflows.contrib.library-stays-local` | 4.2 | `fichero-server/tests/unit/contrib/test_contribution_isolation.py::test_library_stays_local` |
+| `dev-workflows.contrib.own-compute-and-caps` | 4.2 | `fichero-server/tests/unit/contrib/test_contribution_isolation.py::test_own_compute_and_caps` |
+| `dev-workflows.contrib.scratch-worktree` | 4.2 | `fichero-server/tests/unit/contrib/test_contribution_isolation.py::test_scratch_worktree` |
+| `dev-workflows.contrib.consented-context` | 4.3 | `fichero-server/tests/unit/contrib/test_contribution_to_pr.py::test_consented_context` |
+| `dev-workflows.contrib.quality-bar-and-pr` | 4.3 | `fichero-server/tests/unit/contrib/test_contribution_to_pr.py::test_quality_bar_and_pr` |
+| `dev-workflows.release.stamp-and-notes` | 5.1 | `fichero-server/tests/unit/workflows/test_release_workflow_build.py::test_stamp_and_notes` |
+| `dev-workflows.release.gate-build-notarize-testflight` | 5.1 | `fichero-server/tests/unit/workflows/test_release_workflow_build.py::test_gate_build_notarize_testflight` |
+| `dev-workflows.release.credentials-stay-put` | 5.1 | `fichero-server/tests/unit/workflows/test_release_workflow_build.py::test_credentials_stay_put` |
+| `dev-workflows.release.failure-is-a-question` | 5.1 | `fichero-server/tests/unit/workflows/test_release_workflow_build.py::test_failure_is_a_question` |
+| `dev-workflows.release.activity-row` | 5.1 | `fichero-server/tests/unit/workflows/test_release_workflow_build.py::test_activity_row` |
+| `dev-workflows.release.pr-as-bot` | 5.2 | `fichero-server/tests/unit/workflows/test_release_workflow_owner_gate.py::test_pr_as_bot` |
+| `dev-workflows.release.owner-yes-gate` | 5.2 | `fichero-server/tests/unit/workflows/test_release_workflow_owner_gate.py::test_owner_yes_gate` |
+| `dev-workflows.release.main-and-tags-locked` | 5.2 | `fichero-server/tests/unit/workflows/test_release_workflow_owner_gate.py::test_main_and_tags_locked` |
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
 | Pure rule (Swift) | n | dev-node log rows use the existing renderer | — |
 | Availability (Swift) | n | — | — |
-| Backend (pytest) | y | node contracts, restart survival, scratch guard | `fichero-server/tests/unit/workflows/` |
+| Backend (pytest) | y | node contracts, restart survival, scratch guard, sync rules, workspace index, chains gone, contributor isolation, release gates | `fichero-server/tests/unit/{workflows,research,sources,execution,ingest,recipes,seams,contrib}/`, `pipeline/tests/` (§ Behaviour tests) |
 | MCP | n | tools are generated from the contract | — |
 | CLI | y | `fichero workflow run` headless | `fichero-cli/tests/` |
 | Click-around (XCUITest, Mac) | n | not before stage 3 | — |
@@ -584,3 +931,7 @@ context's worth.
    engine is reachable from the internet (it usually is not)?
 8. The pipeline has no `plan` / `plan-approve` command at this spec's base (`pipeline/__main__.py` `COMMANDS`); is
    plan approval a new runner command first, or only the app's (`dev-workflows.combined.approvals`)?
+9. The paleography chain preset (`chains.py` :412, :626-643): becomes a recipe template, or is dropped with chains?
+10. Contributor check: GitHub team membership (needs a GitHub org the owner administers) or a signed invite the
+    maintainer issues (works without an org)? `dev-workflows.contrib.invite-only` proposes the first.
+11. The AppleScript `workflow chain` class goes with chains; does any of the owner's own scripts use it?
