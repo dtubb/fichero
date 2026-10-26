@@ -849,6 +849,13 @@ def test_the_runners_own_gap_line_never_approves_a_worker_invented_id(scratch, i
     out = core.start([1002], writeup=True)
     assert out["items"] == {"1002": "needs-maintainer"} and not [t for t in fc.told if "issue #1002" in t[1]]
     assert core.state()["items"]["1002"]["start_args"]["ids"] == ["demo.two"]
+    (q,) = [q for q in core.queue() if q["kind"] == "proposal"]
+    assert "To approve: put the proposed [GAP] line into the APPROVED spec on integration" in q["text"] and "`start 1002 --writeup`" in q["text"]
+    # the owner approves: the line is in the approved spec on integration; a later start codes the issue
+    spec = Path(scratch["cfg"]["repo"]["path"]) / "specs" / "s.md"
+    spec.write_text(spec.read_text().rstrip("\n") + "\n- `demo.two` [GAP] — f(2) is 2. Test: tests/test_1002.py::test_f1002_v2\n")
+    assert core.start([1002], writeup=True)["items"] == {"1002": "checked"}
+    assert len([t for t in fc.told if "write-up" in t[1]]) == 1, "the journaled write-up is reused, no second turn"
 
 
 def test_a_writeup_in_a_reused_session_journals_its_cost_not_the_session_total(scratch, issues, fake_coder, monkeypatch):

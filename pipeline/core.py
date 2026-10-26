@@ -583,7 +583,7 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
             out[k] = "needs-maintainer"
             why = f"written up, not fit to dispatch (lacks {'; '.join(miss)}): ID {parts.get('id', '?')}; ACCEPTANCE {parts.get('acceptance', '?')}; TEST {parts.get('test', '?')}"
             _move(k, "needs-maintainer", why)
-            _queue("proposal", f"{k}: {why}\nA new [GAP] line is on the task branch; approve the spec, then `start` again.", task=task)
+            _queue("proposal", f"{k}: {why}\nTo approve: put the proposed [GAP] line into the APPROVED spec on integration (it is on the task branch, commit 'spec: proposed [GAP] line'), then `start {_n(k)} --writeup` codes it. The runner's own line never counts as approval; to refuse, answer this and leave the spec alone.", task=task)
     if not briefs:
         coder.stop_window(c, window)
         journal.append("worker_gone", window=window, task=task, why="write-up done")

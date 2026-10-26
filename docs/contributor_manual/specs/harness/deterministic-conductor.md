@@ -404,7 +404,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   counts (a flaky suite does not burn a retry). Tests: `pipeline/tests/test_checks.py::test_run_all_records_each_rung`,
   `pipeline/tests/test_checks.py::test_contract_guards_run_on_an_engine_diff`,
   `pipeline/tests/test_checks.py::test_red_reruns_once_before_it_counts`.
-- `pipeline.review` [PARTIAL] (#6116) — a verdict is `verdict(issue, sha, READY|NOT_READY, by, findings)`; a short sha
+- `pipeline.review` [PARTIAL] (#6116) — built: `python -m pipeline send-back <item>` re-dispatches a NOT_READY item to its coder with the findings (the scheduler does it for a binding one within the retries). a verdict is `verdict(issue, sha, READY|NOT_READY, by, findings)`; a short sha
   is resolved with `rev-parse`; it binds only from the reviewer role and only when the sha is the worktree's live
   head AND the sha of the item's last check AND that check was green: a red check sends a `checked` or `reviewed`
   item back to `coding`, so a READY can never bind over a red (re-review HIGH N1). A binding NOT_READY sends the item back
@@ -591,7 +591,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 ### Stage 0 — the smallest safe runner (by hand)
 
-#### Step 0.1 — the state machine, the journal and its lock
+#### Step 0.1 — the state machine, the journal and its lock (#6148)
 - Behaviours: `pipeline.one-state-machine`, `pipeline.resume-from-journal`, `pipeline.pause-all`, `pipeline.project-profile`
 - Tests: pipeline/tests/test_core.py, pipeline/tests/test_journal.py, pipeline/tests/test_config.py
 - Size: M
@@ -601,19 +601,19 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Tests: pipeline/tests/test_checks.py, pipeline/tests/test_core.py
 - Size: M
 
-#### Step 0.3 — one Pi coder in tmux, jailed, with its key, tools and rules
+#### Step 0.3 — one Pi coder in tmux, jailed, with its key, tools and rules (#6149)
 - Behaviours: `pipeline.workers-in-tmux`, `pipeline.jailed-agent`, `pipeline.tools-in-the-right-places`, `pipeline.cost-cap`
 - Tests: pipeline/tests/test_coder.py
 - Depends on: 0.1
 - Size: M
 
-#### Step 0.4 — messages, the verdict, the CLI and the per-role MCP tools
+#### Step 0.4 — messages, the verdict, the CLI and the per-role MCP tools (#6150)
 - Behaviours: `pipeline.messages`, `pipeline.review`, `pipeline.three-faces`, `pipeline.one-coder-per-milestone`
 - Tests: pipeline/tests/test_core.py, pipeline/tests/test_faces.py
 - Depends on: 0.2, 0.3
 - Size: M
 
-#### Step 0.5 — the minimal page and the hard-coded caps
+#### Step 0.5 — the minimal page and the hard-coded caps (#6151)
 - Behaviours: `pipeline.dashboard-minimal`, `pipeline.point-at-a-milestone`, `pipeline.maintainer-queue`, `pipeline.machine-budget`
 - Tests: pipeline/tests/test_web.py, pipeline/tests/test_budget.py, pipeline/tests/test_core.py
 - Depends on: 0.4
@@ -621,7 +621,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 ### Stage 1 — GitHub and the spec become the input
 
-#### Step 1.1 — the three GitHub workflows
+#### Step 1.1 — the three GitHub workflows (#6152)
 - Behaviours: `pipeline.github-actions`
 - Tests: fichero-server/tests/unit/scripts/ (a test_workflows pytest, written with the step)
 - Depends on: 0.5
@@ -633,7 +633,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Depends on: 0.5
 - Size: S
 
-#### Step 1.3 — the feeder and the brief lint
+#### Step 1.3 — the feeder and the brief lint (#6153)
 - Behaviours: `pipeline.feeder-picks-the-milestone`, `pipeline.brief-lint`
 - Tests: pipeline/tests/test_feeder.py
 - Depends on: 1.2
@@ -657,13 +657,13 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Depends on: 1.4
 - Size: M
 
-#### Step 1.7 — worker roles: kinds, models and the fallback list
+#### Step 1.7 — worker roles: kinds, models and the fallback list (#6154)
 - Behaviours: `pipeline.worker-roles`
 - Tests: pipeline/tests/test_coder.py
 - Depends on: 0.5
 - Size: M
 
-#### Step 1.8 — the batch session, caching and closing
+#### Step 1.8 — the batch session, caching and closing (#6155)
 - Behaviours: `pipeline.batch-session`, `pipeline.prompt-cache`, `pipeline.closes-issues`, `pipeline.pipeline-as-data`
 - Tests: pipeline/tests/test_core.py, pipeline/tests/test_coder.py, pipeline/tests/test_feeder.py, pipeline/tests/test_steps.py
 - Depends on: 1.3
@@ -671,13 +671,13 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 ### Stage 2 — the page and the checks, whole
 
-#### Step 2.1 — the pages
+#### Step 2.1 — the pages (#6156)
 - Behaviours: `pipeline.dashboard-pages`
 - Tests: pipeline/tests/test_web.py, pipeline/tests/test_core.py
 - Depends on: 1.4
 - Size: M
 
-#### Step 2.2 — the quick checks, whole
+#### Step 2.2 — the quick checks, whole (#6157)
 - Behaviours: `pipeline.quick-checks-per-item`
 - Tests: pipeline/tests/test_checks.py
 - Depends on: 0.5
@@ -685,13 +685,13 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 
 ### Stage 3 — nights and weeks
 
-#### Step 3.1 — the schedule, unattended
+#### Step 3.1 — the schedule, unattended (#6158)
 - Behaviours: `pipeline.schedule`
 - Tests: pipeline/tests/test_schedule.py
 - Depends on: 0.5
 - Size: M
 
-#### Step 3.2 — the nightly gate on the M4, push, the build targets
+#### Step 3.2 — the nightly gate on the M4, push, the build targets (#6159)
 - Behaviours: `pipeline.nightly-gate`, `pipeline.build-targets`
 - Tests: pipeline/tests/test_nightly.py
 - Depends on: 3.1
@@ -703,7 +703,7 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Depends on: 3.2
 - Size: S
 
-#### Step 3.4 — the weekly release and the sites
+#### Step 3.4 — the weekly release and the sites (#6160)
 - Behaviours: `pipeline.weekly-release`
 - Tests: pipeline/tests/test_nightly.py
 - Depends on: 3.2

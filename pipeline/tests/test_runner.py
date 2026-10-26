@@ -181,3 +181,44 @@ def test_land_refuses_a_red_guard_a_moved_base_an_unreviewed_item_and_a_main_bas
     with pytest.raises(RuntimeError, match="only a reviewed READY item lands"):
         runner.land("1001")
     assert it["sha"] != origin_head(scratch)
+
+
+def test_one_items_failure_is_journaled_and_the_run_carries_on(scratch, issues, fake_coder, monkeypatch):
+    fake_coder()
+    monkeypatch.setattr(core, "next_issues", ready())
+    core.start([1001])
+    core.start([1002])
+    seen = []
+
+    def review(key, worker_index=0):
+        seen.append(key)
+        if key == "1001":
+            raise BlockingIOError("dispatch busy")
+    monkeypatch.setattr(core, "review", review)
+    out = runner.run(once=True)
+    assert seen == ["1001", "1002"], "1002 is reviewed although 1001 failed"
+    assert any(d.startswith("1001: BlockingIOError") for d in out["did"])
+    assert any("scheduler: BlockingIOError" in n for n in core.state()["items"]["1001"]["notes"])
+
+
+def test_send_back_redispatches_a_not_ready_item_with_the_findings(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder()
+    monkeypatch.setattr(core, "next_issues", ready())
+    core.start([1001])
+    it = core.state()["items"]["1001"]
+    with pytest.raises(RuntimeError, match="nothing to send back"):
+        runner.send_back("1001")
+    core.verdict("1001", it["sha"], "NOT_READY", "manager", "- HIGH f1 ignores negatives")  # recorded, not binding
+    assert core.state()["items"]["1001"]["state"] == "checked"
+    assert runner.send_back("1001")["items"]["1001"] == "checked"
+    brief = sorted((scratch["state"] / "briefs").rglob("issue-1001-attempt-*.md"))[-1].read_text()
+    assert "HIGH f1 ignores negatives" in brief and len([t for t in fc.told if "issue #1001" in t[1]]) == 2
+    with pytest.raises(RuntimeError, match="nothing to send back"):
+        runner.send_back("1001")  # the verdict is for the old head now
+
+
+def test_land_refuses_when_a_later_verdict_at_the_same_sha_is_not_ready(scratch, issues, fake_coder, monkeypatch):
+    it = reviewed_item(scratch, fake_coder, monkeypatch)
+    core.verdict("1001", it["sha"], "NOT_READY", "manager", "- HIGH changed my mind")
+    with pytest.raises(RuntimeError, match="no reviewer READY"):
+        runner.land("1001")

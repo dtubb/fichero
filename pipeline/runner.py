@@ -38,47 +38,60 @@ def tick() -> tuple[list[str], bool]:
     blocked items asked about, then new issues from the feeder."""
     did, moved, c = [], False, core.cfg()
     _go()
-    for key, it in core.state()["items"].items():
-        s = core.state()
-        it, st = s["items"][key], s["items"][key]["state"]
-        if st == "asking" and it.get("answer") and not any(q.get("key") == key for q in s["queue"].values()):
-            _go()
-            core.resume_asked(key)
-            did.append(f"{key}: answered, resumed")
-            moved = True
-        elif st == "checked":
-            wt = Path(s["tasks"][it["task"]]["worktree"])
-            if core._head(wt) != it["sha"] or not it["check_ok"]:
-                core.check(key)
-                did.append(f"{key}: checked")
+    for key in list(core.state()["items"]):
+        try:
+            if _step(key, c, did):
                 moved = True
-                it = core.state()["items"][key]
-            if it["state"] != "checked" or not it["check_ok"]:
-                continue
-            if _scheduled(key, "review", it["sha"]):  # asked once per sha: a reviewer that left no verdict is the maintainer's call
-                if not any(v["sha"] == it["sha"] for v in it["verdicts"]):
-                    _ask_once("blocked", f"{key}: the review of {it['sha'][:9]} left no verdict; `review {key}` to run it again")
-                continue
-            _go()
-            journal.append("schedule", issue=it["issue"], key=key, what="review", sha=it["sha"])
-            core.review(key)
-            did.append(f"{key}: reviewed")
-            moved = True
-        elif st == "coding" and it["retry_text"].startswith("Review NOT_READY"):
-            if it["attempts"] <= c["workers"]["retries"]:
-                _go()
-                core.retry(key)
-                did.append(f"{key}: sent back with the review findings")
-                moved = True
-            else:
-                _ask_once("blocked", f"{key}: NOT_READY {it['attempts']} times; the reviewer's findings are in its record, it needs you")
-        elif st in ("needs-maintainer", "failed", "rate-limited"):
-            _ask_once("blocked", f"{key} is {st}: {it['history'][-1].split(': ', 1)[-1][:300] if it['history'] else ''}")
+        except (BlockingIOError, RuntimeError, OSError) as e:  # one item's failure is journaled and the run carries on
+            it = core.state()["items"][key]
+            journal.append("note", issue=it["issue"], key=key, text=f"scheduler: {type(e).__name__}: {e}"[:500])
+            did.append(f"{key}: {type(e).__name__}: {e}"[:200])
     for key, it in core.state()["items"].items():
         if it["state"] == "reviewed":
             _ask_once("ready-to-land", f"{key} is reviewed READY at {it['sha'][:9]}: `python -m pipeline land {key}`")
     did += _start_new(c)
     return did, moved or any(d.startswith("start") for d in did)
+
+
+def _step(key: str, c: dict, did: list[str]) -> bool:
+    """What the journal says this one item needs next; → whether it moved."""
+    moved = False
+    s = core.state()
+    it, st = s["items"][key], s["items"][key]["state"]
+    if st == "asking" and it.get("answer") and not any(q.get("key") == key for q in s["queue"].values()):
+        _go()
+        core.resume_asked(key)
+        did.append(f"{key}: answered, resumed")
+        moved = True
+    elif st == "checked":
+        wt = Path(s["tasks"][it["task"]]["worktree"])
+        if core._head(wt) != it["sha"] or not it["check_ok"]:
+            core.check(key)
+            did.append(f"{key}: checked")
+            moved = True
+            it = core.state()["items"][key]
+        if it["state"] != "checked" or not it["check_ok"]:
+            return moved
+        if _scheduled(key, "review", it["sha"]):  # asked once per sha: a reviewer that left no verdict is the maintainer's call
+            if not any(v["sha"] == it["sha"] for v in it["verdicts"]):
+                _ask_once("blocked", f"{key}: the review of {it['sha'][:9]} left no verdict; `review {key}` to run it again")
+            return moved
+        _go()
+        journal.append("schedule", issue=it["issue"], key=key, what="review", sha=it["sha"])
+        core.review(key)
+        did.append(f"{key}: reviewed")
+        moved = True
+    elif st == "coding" and it["retry_text"].startswith("Review NOT_READY"):
+        if it["attempts"] <= c["workers"]["retries"]:
+            _go()
+            core.retry(key)
+            did.append(f"{key}: sent back with the review findings")
+            moved = True
+        else:
+            _ask_once("blocked", f"{key}: NOT_READY {it['attempts']} times; the reviewer's findings are in its record, it needs you")
+    elif st in ("needs-maintainer", "failed", "rate-limited"):
+        _ask_once("blocked", f"{key} is {st}: {it['history'][-1].split(': ', 1)[-1][:300] if it['history'] else ''}")
+    return moved
 
 
 def _start_new(c: dict) -> list[str]:
@@ -140,8 +153,9 @@ def land(issue) -> dict:
         remote, _, branch = c["repo"]["base"].partition("/")
         if it["state"] not in ("reviewed", "gated"):
             raise RuntimeError(f"{key} is {it['state']}: only a reviewed READY item lands")
-        if not any((v["sha"], v["verdict"], v["by"]) == (sha, "READY", "reviewer") for v in it["verdicts"]):
-            raise RuntimeError(f"{key}: no reviewer READY for {sha[:9]}")
+        v = core.verdict_now(it)  # the last verdict at the checked sha counts: a later NOT_READY there beats an earlier READY
+        if not v or (v["verdict"], v["by"]) != ("READY", "reviewer"):
+            raise RuntimeError(f"{key}: no reviewer READY for {sha[:9]} (the last verdict there counts)")
         if core._head(wt) != sha:
             raise RuntimeError(f"{key}: the worktree head moved past the reviewed {sha[:9]}; check and review again")
         if not branch or branch in (c["repo"]["main"], "main", "master") or branch.startswith("v"):
@@ -149,7 +163,7 @@ def land(issue) -> dict:
         checks.git(wt, "fetch", "-q", remote)
         if checks.sh(["git", "merge-base", "--is-ancestor", c["repo"]["base"], sha], cwd=wt).returncode:
             raise RuntimeError(f"{key}: {c['repo']['base']} has moved on; rebase the branch, check and review again")
-        tree = checks.scratch_tree(wt, sha)
+        tree = checks.scratch_tree(wt, sha)  # the sha's own tree: check() already ran the pinned overlay over it, so the guards here are the ones that will land
         try:  # every guard, the slow and network ones too: this is the last look before integration
             ok, text = checks.run_rung({"glob": "{pinned}/scripts/check_*.py", "timeout_s": c.get("run", {}).get("land_guard_s", 900)}, wt, tree, c, [], None, sha)
         finally:
@@ -170,5 +184,21 @@ def land(issue) -> dict:
         return {"issue": key, "landed": True, "pushed": f"{remote}/{branch}", "sha": sha}
 
 
-core.API.update(run=run, land=land)
-core.WORKER_FORBIDDEN += ("run", "land")
+def send_back(issue) -> dict:
+    """Re-dispatch a NOT_READY item to its coder with the reviewer's findings as the retry text. A binding NOT_READY has
+    already moved the item to coding (this is then `retry`); a NOT_READY recorded without moving it (the manager's, or
+    one for a head that has since passed a check) is turned into the same retry here. A stale verdict (not for the
+    item's current head) is refused: check and review the new head instead."""
+    key, it, _ = core._item(issue)
+    last = it["verdicts"][-1] if it["verdicts"] else None
+    if it["state"] == "coding" and it["retry_text"].startswith("Review NOT_READY"):
+        return core.retry(key)
+    if it["state"] not in ("checked", "reviewed") or not last or last["verdict"] != "NOT_READY" or last["sha"] != it["sha"]:
+        raise RuntimeError(f"{key} is {it['state']} with no NOT_READY verdict for its head {it['sha'][:9]}: nothing to send back")
+    journal.append("retry", issue=it["issue"], key=key, text=f"Review NOT_READY at {last['sha'][:9]} by {last['by']}:\n{last['findings']}")
+    core._move(key, "coding", f"NOT_READY by {last['by']} at {last['sha'][:9]}: sent back")
+    return core.retry(key)
+
+
+core.API.update(run=run, land=land, send_back=send_back)
+core.WORKER_FORBIDDEN += ("run", "land", "send_back")
