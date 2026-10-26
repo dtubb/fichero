@@ -104,7 +104,7 @@ def scratch(tmp_path, monkeypatch):
         "repo": {"path": str(repo), "base": "origin/integration", "main": "main", "worktrees": ".worktrees/pipeline",
                  "specs": "specs", "check_paths": ["scripts/", "pipeline/"], "python_path": ".", "test_env": {},
                  "scratch_base_env": "", "pinned": str(repo)},
-        "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user"},
+        "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user", "residue": "residue"},
         "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com",
                    "commit_trailer": "Co-Authored-By: Claude <noreply@anthropic.com>"},
         "ladder": [

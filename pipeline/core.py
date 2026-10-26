@@ -14,7 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pipeline import STATE, budget, checks, coder, config, feeder, gh, journal, localise
+from pipeline import ROOT, STATE, budget, checks, coder, config, feeder, gh, journal, localise
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
@@ -109,6 +109,8 @@ def state() -> dict:
             it["tokens"], it["model"] = e["tokens"], e["model"]
         elif ev == "done_requested" and it and e.get("text"):
             it["residue"] = e["text"]
+        elif ev == "closer" and it:
+            it["closer"] = e["what"]
         elif ev == "issue_done" and it:
             it.setdefault("dones", []).append({x: e[x] for x in ("sha", "turns", "tokens", "usd")})
         elif ev == "note" and it:
@@ -937,6 +939,64 @@ def review(issue, worker_index: int = 0) -> dict:
                 "stopped": st.get("stopped")}
 
 
+def _reopened_after(closer, n: int, date: str) -> bool:
+    """A human reopened the issue after the fixing commit (the closer script's rule, read through the one gh seam)."""
+    events = gh.read("api", f"repos/{{owner}}/{{repo}}/issues/{n}/events?per_page=100")
+    return any(e.get("event") == "reopened" and closer._when(e["created_at"]) > closer._when(date) for e in events if e.get("created_at"))
+
+
+def close_landed() -> dict:
+    """The closer (pipeline.closes-issues): an item whose checked commit is on the base branch and whose last check was
+    green gets its issue closed through scripts/close_fixed_issues.py's own rules (never `residue` or `needs-your-test`,
+    never one a human reopened) with a comment naming the sha and the checks; a reported residue is posted on the
+    issue, which gets the residue label and stays open; a milestone closes with its last open issue. Every write is
+    dry-run unless --apply, and a dry-run line is journaled before the real one. ponytail: a spec's unfiled steps are
+    not counted, so a milestone whose spec still has steps without issues can close early; check_spec_milestones guards
+    the header only."""
+    import importlib.util
+    c, lab = cfg(), cfg()["labels"]
+    spec = importlib.util.spec_from_file_location("close_fixed_issues", ROOT / "scripts" / "close_fixed_issues.py")
+    closer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(closer)
+    out, touched = {"closed": [], "residue": [], "milestones": []}, {}
+    for key, it in state()["items"].items():
+        if it.get("closer") or it["start_args"].get("from_file") or not it["check_ok"] or not it["sha"]:
+            continue
+        if checks.sh(["git", "merge-base", "--is-ancestor", it["sha"], c["repo"]["base"]], cwd=c["repo"]["path"]).returncode:
+            continue  # not on the base branch yet
+        n = _n(key)
+        gh.cache_clear()
+        iss = gh.read("issue", "view", str(n), "--json", "state,labels,milestone")
+        names = {x["name"] for x in iss["labels"]}
+        if iss["state"] != "OPEN" or names & {lab["residue"], "needs-your-test"}:
+            continue
+        subject = checks.git(c["repo"]["path"], "log", "-1", "--format=%s", it["sha"])
+        if it.get("residue"):
+            write = [["issue", "comment", str(n), "--body", f"Landed in {it['sha'][:9]}, but this is still owed:\n\n{it['residue']}"],
+                     ["issue", "edit", str(n), "--add-label", lab["residue"]]]
+            what = "residue"
+        elif not _reopened_after(closer, n, checks.git(c["repo"]["path"], "log", "-1", "--format=%cI", it["sha"])):
+            rungs = ", ".join(r["name"] for r in it["checks"])
+            write = [["issue", "close", str(n), "--comment", f"Fixed in {it['sha'][:9]} on integration: {subject}. Checks green: {rungs}."]]
+            what = "closed"
+        else:
+            continue  # a human reopened it after the fix: it did not hold
+        for args in write:
+            gh.write(*args, dry_run=True)  # the dry-run line first, then the real one
+            if not DRY_RUN:
+                gh.write(*args, dry_run=False)
+        if not DRY_RUN:
+            journal.append("closer", issue=n, key=key, what=what, sha=it["sha"])
+        out["closed" if what == "closed" else "residue"].append(n)
+        if what == "closed" and (m := (iss.get("milestone") or {}).get("title")):
+            touched[m] = touched.get(m, 0) + 1
+    for m in gh.read("api", "repos/{owner}/{repo}/milestones?state=open") if touched else []:
+        if m["title"] in touched and m["open_issues"] <= touched[m["title"]] and m["closed_issues"] + touched[m["title"]] >= 1:
+            gh.write("api", "-X", "PATCH", f"repos/{{owner}}/{{repo}}/milestones/{m['number']}", "-f", "state=closed", dry_run=DRY_RUN)
+            out["milestones"].append(m["title"])
+    return out
+
+
 def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
     """A bug issue through the one write function; dry run unless the CLI said --apply (pipeline.bug-intake)."""
     args = ["issue", "create", "--title", title, "--body", text, "--label", cfg()["labels"]["bug"]]
@@ -951,11 +1011,11 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
 API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
        "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
-       "resume": resume, "file_bug": file_bug, "reset": reset}
+       "resume": resume, "file_bug": file_bug, "close_landed": close_landed, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
 # list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
 WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "next", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset", "close_landed")

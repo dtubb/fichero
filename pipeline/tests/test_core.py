@@ -651,3 +651,48 @@ def test_parked_worker_is_woken_for_the_same_kind_within_park_ttl(scratch, issue
     time.sleep(1.1)
     core.start([1003], milestone="demo")
     assert "coder-demo-1001" in fc.stopped
+
+
+def _landed(scratch, monkeypatch, labels=(), residue="", milestone_open=1):
+    """Issue 1001 coded and checked, its commit pushed to the base branch; a fake GitHub that records the writes."""
+    from pipeline import gh
+    core.start([1001], milestone="demo")
+    if residue:
+        core.done("demo-1001", 1001, residue)
+    git(Path(core.state()["tasks"]["demo-1001"]["worktree"]), "push", "-q", "origin", "HEAD:integration")
+    writes = []
+    monkeypatch.setattr(gh, "sh", lambda args, **kw: writes.append(args[1:]) or type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+
+    def read(*a):
+        if a[0] == "issue":
+            return {"state": "OPEN", "labels": [{"name": n} for n in labels], "milestone": {"title": "demo"}}
+        return [{"title": "demo", "number": 7, "open_issues": milestone_open, "closed_issues": 0}] if "milestones" in a[1] else []
+    monkeypatch.setattr(gh, "read", read)
+    return writes
+
+
+def test_landing_closes_through_the_one_closer_after_a_dry_run_line(scratch, issues, fake_coder, monkeypatch):
+    """Dry run writes nothing; --apply journals the dry-run line, then closes with the sha and checks, and the milestone with its last issue."""
+    fake_coder()
+    writes = _landed(scratch, monkeypatch)
+    assert core.close_landed()["closed"] == [1001] and not writes, "the default is a dry run"
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out == {"closed": [1001], "residue": [], "milestones": ["demo"]}
+    close = next(a for a in writes if a[:2] == ["issue", "close"])
+    sha = core.state()["items"]["1001"]["sha"][:9]
+    assert sha in close[-1] and "Checks green" in close[-1]
+    gw = [e["dry_run"] for e in journal.read() if e["event"] == "gh_write" and e["args"][:2] == ["issue", "close"]]
+    assert gw == [True, True, False], "a dry-run line before the real close"
+    assert any(a[:3] == ["api", "-X", "PATCH"] for a in writes)
+    assert core.close_landed()["closed"] == [], "closed once"
+
+
+def test_a_residue_leaves_the_issue_open_with_what_is_left(scratch, issues, fake_coder, monkeypatch):
+    fake_coder()
+    writes = _landed(scratch, monkeypatch, residue="the second acceptance line")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["residue"] == [1001] and not out["closed"] and not out["milestones"]
+    assert any(a[:3] == ["issue", "comment", "1001"] and "second acceptance line" in a[-1] for a in writes)
+    assert any(a[:2] == ["issue", "edit"] and "residue" in a for a in writes) and not any(a[:2] == ["issue", "close"] for a in writes)

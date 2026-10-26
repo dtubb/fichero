@@ -8,6 +8,7 @@
   python -m pipeline tell <window> "<text>"      answer <id> "<text>"      point <milestone>
   python -m pipeline pause | resume
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
+  python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
   python -m pipeline serve [--port N]
   python -m pipeline --self-test
 
@@ -42,6 +43,7 @@ COMMANDS = {
     "point": [("milestone", {})],
     "reset": [("issue", {}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
+    "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
     "serve": [("--port", {"type": int, "default": 8765})],
 }
 
@@ -65,7 +67,7 @@ def main(argv=None) -> int:
         from pipeline import web
         web.serve(a.port)
         return 0
-    if a.cmd == "file-bug":
+    if a.cmd in ("file-bug", "close-landed"):
         core.DRY_RUN = not a.apply
     kwargs = {k: v for k, v in vars(a).items() if k not in ("cmd", "self_test", "apply") and v is not None}
     print(json.dumps(core.API[name](**kwargs), indent=1, default=str))

@@ -430,7 +430,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
   main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,
   `pipeline/tests/test_nightly.py::test_nightly_build_only_after_green_gate`.
-- `pipeline.closes-issues` [MISSING] (#6116) — the runner closes issues and milestones, properly, and never a second
+- `pipeline.closes-issues` [PARTIAL] (#6116) — the runner closes issues and milestones, properly, and never a second
   closer: when an item's commit lands on integration with its checks green, `scripts/close_fixed_issues.py` (the one
   closer, also the close-fixed-issues Action's) closes the issue with a comment naming the sha and the checks; a
   dry-run line goes in the journal before each close; a worker-reported residue (part of the issue not done) updates
