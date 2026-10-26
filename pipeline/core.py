@@ -917,6 +917,18 @@ def resume(raise_cap: float | None = None) -> dict:
     return {"paused": False, "daily_cap": daily_cap(), "spend_today": spend_today()}
 
 
+def _review_base(key: str, task: str, since: str) -> str:
+    """Where this issue's own commits start: the sha of the last other issue's done line before this one's first
+    (issues of a batch share a branch, so the item's `since` range can hold a neighbour's commit)."""
+    base = since
+    for e in journal.read():
+        if e["event"] == "issue_done" and e.get("task") == task:
+            if e["key"] == key:
+                return base
+            base = e["sha"]
+    return since
+
+
 def review(issue, worker_index: int = 0) -> dict:
     """The reviewer: a Pi window (role reviewer: the ponytail lens, the `verdict` tool) told a brief with the item's
     diff, spec lines and check results, for the item's checked head. It blocks until a verdict for that sha is in
@@ -936,7 +948,7 @@ def review(issue, worker_index: int = 0) -> dict:
         coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer", task=task), coder.allowed_env(c, task, "reviewer"))
         journal.append("worker", window=window, task=task, role="reviewer", model=config.pi_model_id(worker), kind="pi",
                        session_dir=str(session), cwd=str(wt))
-        since = _since(key, task) or c["repo"]["base"]
+        since = _review_base(key, task, _since(key, task) or c["repo"]["base"])
         diff = checks.sh(["git", "diff", "--stat", f"{since}...{it['sha']}"], cwd=wt).stdout[-3000:]
         text = "\n".join([f"# Review {key}: {it['title']}", "", f"Head {it['sha']} (checked green: {', '.join(r['name'] for r in it['checks'])}).",
                           f"Diff range: `git diff {since[:9]}...{it['sha'][:9]}`", "```", diff, "```", "",

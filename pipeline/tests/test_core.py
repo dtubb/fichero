@@ -784,3 +784,15 @@ def test_an_issue_over_its_turn_budget_asks_instead_of_retrying(scratch, issues,
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"
     assert len([t for t in fc.told if "#1001" in t[1]]) == 1, "no second attempt"
     assert any(q["kind"] == "ask" and "over its budget" in q["text"] for q in core.queue())
+
+
+def test_review_in_a_batch_diffs_only_that_issues_commit(scratch, issues, fake_coder, monkeypatch):
+    fake_coder()
+    core.start([1001, 1002, 1003], milestone="demo")
+    dones = {e["key"]: e["sha"] for e in journal.read() if e["event"] == "issue_done"}
+    scratch["cfg"]["roles"]["reviewer"] = [{"kind": "pi", "provider": "anthropic", "model": "claude-opus-5-5"}]
+    monkeypatch.setattr(core.coder, "wait_idle", lambda *a, **k: dict(cost_usd=0.1, tokens=1, tool_calls={}, idle=True, last_text="",
+                        rate_limited=False, model="m", turns=1, prompts=1, started=True))
+    core.review("1002")
+    brief = next(scratch["state"].rglob("review-*.md")).read_text()
+    assert f"git diff {dones['1001'][:9]}...{dones['1002'][:9]}" in brief
