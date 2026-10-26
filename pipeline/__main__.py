@@ -10,6 +10,7 @@
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
   python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
   python -m pipeline run [--once] [--poll-s N]   the scheduler: no model call of its own; stops at the cap, a pause or when nothing is ready
+  python -m pipeline plan <spec>               ONE big-model call proposes a build order for a spec with none; queued for approval
   python -m pipeline send-back <item>          re-dispatch a NOT_READY item to its coder with the reviewer's findings
   python -m pipeline land <item> [--apply]     every scripts/check_*.py on the reviewed head, then push it to the integration branch only
   python -m pipeline serve [--port N] [--host ADDR]
@@ -25,7 +26,7 @@ import json
 import os
 import sys
 
-from pipeline import core, runner  # noqa: F401 - runner adds `run` (and later `land`, `send-back`) to core.API
+from pipeline import core, plan, runner  # noqa: F401 - runner and plan add their commands to core.API
 
 # command -> positional arguments, then options (name, kwargs)
 COMMANDS = {
@@ -51,6 +52,7 @@ COMMANDS = {
     "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
     "land": [("issue", {}), ("--apply", {"action": "store_true", "help": "really push (default: run every guard and say what would be pushed)"})],
     "send-back": [("issue", {})],
+    "plan": [("spec", {"help": "a spec path from the repo root, e.g. docs/contributor_manual/specs/source/recipe-designer.md"})],
     "run": [("--once", {"action": "store_true", "help": "one pass, then stop"}), ("--poll-s", {"type": float, "dest": "poll_s", "help": "seconds between passes while an answer is awaited (profile [run] poll_s, default 60)"})],
     "serve": [("--port", {"type": int, "default": 8765}), ("--host", {"default": "127.0.0.1", "help": "the address to bind (never 0.0.0.0 unless you mean to expose it; a Tailscale address works)"})],
 }
