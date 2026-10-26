@@ -1642,6 +1642,18 @@ def _read_old_shapes(steps: list[dict[str, Any]]) -> None:
             step["leave_out"], step["left_out"] = step["left_out"], []
 
 
+def search_is_ahead(db: Any) -> bool:
+    """True while a recipe run is running and its Search (embed) stage has not finished: the pages its earlier stages save
+    are embedded once, by that stage, so none is queued for its own embed (`activity.run.stages-before-search-do-not-embed`,
+    #6126). ponytail: any running run counts, not only the run whose pages these are; key it to the run's pages if an
+    import beside a recipe on other pages must still embed at once."""
+    for (detail,) in db.execute_fetchall("SELECT detail FROM jobs WHERE kind = ? AND state = 'running'", [KIND]):
+        steps = (json.loads(detail or "{}")).get("steps") or []
+        if any(s.get("card") == "embed" and s.get("state") not in ("done", "failed", "cancelled", "not run") for s in steps):
+            return True
+    return False
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
     has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
