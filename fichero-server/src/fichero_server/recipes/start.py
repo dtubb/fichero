@@ -1170,6 +1170,46 @@ def _keep_choice(recipe: dict[str, Any], sid: str, card: Any, because: str, now:
     recipe["overrides"].append(override)
 
 
+READERS_KIND = "readers"
+
+
+def use_readers(recipe: dict[str, Any] | None, step_id: str, cards: list[Any], *, now: str) -> dict[str, Any]:
+    """The recipe with the readers the person chose for Find where the readers disagree: two or more different ones, kept as the
+    step's project-scope override so assembling again keeps them. The choice REPLACES the step's reader set; the rules' readers
+    are not compared besides, and one model chosen twice counts once (`source.disagree.person-chooses-the-readers`, #6121).
+    ValueError, in words."""
+    import copy
+
+    from fichero_server.recipes.bakeoff import apply_project_overrides
+    from fichero_server.recipes.discovery import does_the_step
+
+    if not recipe:
+        raise ValueError("this project has no recipe yet: run setup first")
+    out = copy.deepcopy(recipe)
+    step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
+    if step is None:
+        raise ValueError(f"this project's recipe has no step {step_id!r}")
+    if step.get("job") != DISAGREE_JOB:
+        raise ValueError(f"{step_id!r} is not a Find where the readers disagree step")
+    chosen: list[Any] = []
+    for card in cards:
+        name = card.note.strip().rstrip(".") or card.id
+        if not (does_the_step(card, "read-a-line") or does_the_step(card, "read-a-page")):
+            raise ValueError(f"{name} does not read lines or pages: it does {', '.join(sorted(card.jobs)) or 'no job'}")
+        if card.cannot_run_because.startswith("retired:"):
+            raise ValueError(f"{name} cannot run: {card.cannot_run_because}")
+        if all(card.pin != c.pin for c in chosen):
+            chosen.append(card)
+    if len(chosen) < 2:
+        raise ValueError("Find where the readers disagree compares two or more different readers: choose another")
+    out["overrides"] = [o for o in out.get("overrides") or []
+                        if (o.get("step"), o.get("scope"), o.get("folder_id")) != (step_id, "project", None)]
+    out["overrides"].append({"step": step_id, "scope": "project", "folder_id": None, "kind": READERS_KIND,
+                             "readers": [{"card": c.id, "model": dict(c.pin), "runs_on": c.runs_on} for c in chosen],
+                             "because": "chosen by you: the readers to compare", "at": now})
+    return apply_project_overrides(out, chosen)
+
+
 def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str, because: str | None = None,
                   extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """The recipe with any found candidate `card` set as step `step_id`'s reader, kept as a project-scope override

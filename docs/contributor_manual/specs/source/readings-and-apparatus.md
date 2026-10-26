@@ -434,6 +434,11 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   `find-where-readers-disagree`, stage Read): it reads the project's pages with the readers the step names, or
   one reader sampled N times at a temperature (5 at 0.7 by default), keeps every reading as a reading of the
   line (`source.reading.set`; none counts over another by being compared), and works out the disagreement.
+- `source.disagree.person-chooses-the-readers` — **[PARTIAL]** (#6121; engine: `start.use_readers`, `POST /api/recipes/project/steps/use-readers`; the app's multi-select is
+  not built; tested in `fichero-server/tests/unit/recipes/test_disagree_choose_readers_6121.py`) the person picks the readers "Find where the readers
+  disagree" compares: two or more distinct readers from the models that read lines or pages. The choice REPLACES the step's reader set (kept as a
+  project-scope override, so assembling again keeps it): no reader the rules added is compared besides, and the same model never counts twice, in the
+  choice or in the sentence that names what is compared.
 - `source.disagree.built-in-with-two-readers` — **[OK]** (#5812, #5816; `start.disagreement_runs`; tested in
   `fichero-server/tests/unit/recipes/test_disagree_needs_no_model_5812.py`) when the plan already has two or more readers of the
   lines (a line reader and a Correct step, or two `readers` pinned on the step), "Find where the readers disagree" needs

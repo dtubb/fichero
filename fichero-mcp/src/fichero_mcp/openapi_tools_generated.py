@@ -6656,6 +6656,15 @@ def fichero_recipes_use_candidate_for_step(
     return _rt.call("POST", "/api/recipes/project/steps/use-candidate", json=_rt.body({"card": card, "step": step}))
 
 
+def fichero_recipes_use_readers_for_step(
+    *,
+    cards: Annotated[list[Any], Field(description="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)")],
+    step: Annotated[str, Field(description="the Find where the readers disagree step's id.")],
+) -> Any:
+    "Use Readers For Step\n\nThe readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared\nbesides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`\n(audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find\nwhere the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers.\n\nRoute: POST /api/recipes/project/steps/use-readers (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/use-readers", json=_rt.body({"cards": cards, "step": step}))
+
+
 def fichero_recipes_use_setup_pick_for_step(
     *,
     step: Annotated[str, Field(description="the recipe step's id.")],
@@ -9863,6 +9872,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
+    GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),

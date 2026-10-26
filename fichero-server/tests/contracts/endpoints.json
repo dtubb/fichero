@@ -9709,6 +9709,16 @@
       },
       {
         "method": "POST",
+        "path": "/recipes/project/steps/use-readers",
+        "operation_id": "use_readers_for_step_api_recipes_project_steps_use_readers_post",
+        "summary": "Use Readers For Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UseReadersRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
         "path": "/recipes/project/steps/use-setup-pick",
         "operation_id": "use_setup_pick_for_step_api_recipes_project_steps_use_setup_pick_post",
         "summary": "Use Setup Pick For Step",
