@@ -14,7 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pipeline import STATE, budget, checks, coder, config, gh, journal, localise
+from pipeline import STATE, budget, checks, coder, config, feeder, gh, journal, localise
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
@@ -747,6 +747,32 @@ def approve_checks(issue, findings: str) -> dict:
     return {"approved": hit, **retry(key)}
 
 
+def next_issues(count: int = 3) -> dict:
+    """What to hand a coder next: the pointed milestone, else the first open one with a ready issue (pipeline.feeder-
+    picks-the-milestone). Issues already in a task are skipped; the unfit go to the queue once as "write it up" /
+    "triage", never to a coder."""
+    c, s = cfg(), state()
+    specs = Path(c["repo"]["path"]) / c["repo"]["specs"]
+    approved = feeder.approved_ids(p.read_text() for p in specs.rglob("*.md"))
+    ms = [s["point"]] if s["point"] else feeder.milestone_order(gh.read("api", "repos/{owner}/{repo}/milestones?state=open"))
+    for m in ms:
+        found = gh.read("issue", "list", "--milestone", m, "--state", "open", "--limit", "200", "--json", gh.ISSUE_FIELDS)
+        issues = [gh._slim(d) for d in found]
+        got = feeder.pick(issues, c["labels"], c["github"]["allowed_authors"], approved, {_n(k) for k in s["items"]})
+        queued = {q["text"] for q in s["queue"].values()}
+        for n, miss in got["write_up"].items():
+            text = f"#{n} is not fit to dispatch, write it up: it lacks {'; '.join(miss)}"
+            if text not in queued:
+                _queue("write-up", text)
+        for n in got["triage"]:
+            text = f"#{n} is by someone outside the allow-list (or from-user): triage it"
+            if text not in queued:
+                _queue("triage", text)
+        if got["ready"]:
+            return {"milestone": m, "ready": [{"number": i["number"], "title": i["title"]} for i in got["ready"][:count]]}
+    return {"milestone": s["point"], "ready": []}
+
+
 def pause() -> dict:
     journal.append("pause")
     return {"paused": True}
@@ -815,12 +841,12 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
 API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
-       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
+       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
        "resume": resume, "file_bug": file_bug, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
 # list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
 WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
-              "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "queue", "report")}
+              "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "next", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
 WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")

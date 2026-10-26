@@ -106,7 +106,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_specs.py::test_build_order_parses`,
   `pipeline/tests/test_specs.py::test_build_order_guard_fails_on_orphan_behaviour`,
   `fichero-server/tests/unit/scripts/test_check_spec_build_order_shape.py`.
-- `pipeline.brief-lint` [MISSING] (#6116) — work starts only from an APPROVED spec's step or a bug issue; an issue
+- `pipeline.brief-lint` [PARTIAL] (#6116) — work starts only from an APPROVED spec's step or a bug issue; an issue
   without a spec id (or the bug label), an acceptance line or a test path is not dispatched; it goes to the queue
   as "write it up" (Opus with the maintainer, later the Qwen manager). Tests:
   `pipeline/tests/test_feeder.py::test_brief_lint_names_each_missing_field`,
