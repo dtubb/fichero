@@ -87,9 +87,8 @@ class AppState {
     var isCheckingBackend: Bool { engine.isChecking }
     /// Count of consecutive heartbeat failures since the last successful
     /// ping. Used to avoid UI thrash on transient blips — the offline
-    /// banner flips only after the count crosses `offlineFlipThreshold`.
+    /// banner flips only after the count crosses `EngineRestartPolicy.failuresBeforeRestart` (#6176).
     var heartbeatFailureCount: Int = 0
-    let offlineFlipThreshold: Int = 2
 
     /// Route a mid-session supervised-engine drop back to the app-scoped
     /// lifecycle controller (#4064). Set by `EngineLifecycleController` at

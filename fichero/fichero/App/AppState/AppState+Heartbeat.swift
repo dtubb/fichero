@@ -84,14 +84,16 @@ extension AppState {
         // book import died to our own watchdog, twice). While imports are in
         // flight the flip threshold quadruples (~40s of patience instead of
         // ~10s); a genuinely dead engine still gets restarted, just later.
+        // #6176: far more patience still (`engine.restart-waits-for-the-work`): a missed ping is "busy", and the app
+        // restarts only after 3 minutes without an answer, 10 while an import or a job is running.
         let importsRunning = ImportActivityGauge.shared.inFlight > 0
-        let effectiveThreshold = importsRunning
-            ? offlineFlipThreshold * 4 : offlineFlipThreshold
-        if importsRunning, heartbeatFailureCount < effectiveThreshold {
+        let workRunning = importsRunning || EngineRestartPolicy.runningJobs > 0
+        let effectiveThreshold = EngineRestartPolicy.failuresBeforeRestart(workRunning: workRunning)
+        if heartbeatFailureCount < effectiveThreshold, heartbeatFailureCount % 6 == 1 {
             logger.info(
                 """
-                Backend heartbeat: probe failed during an in-flight import \
-                (\(self.heartbeatFailureCount)/\(effectiveThreshold)) — treating as busy, not dead
+                Backend heartbeat: probe failed (\(self.heartbeatFailureCount)/\(effectiveThreshold)) \
+                — treating as busy, not dead\(workRunning ? " (work is running)" : "")
                 """
             )
         }

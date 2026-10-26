@@ -282,6 +282,7 @@ final class ActivityStore: ChangeEventConsumer {
                 }
                 if Self.aFindDocumentsRunEnded(from: backgroundJobs, to: snapshot.jobs) { findDocumentsRunsEnded += 1 }
                 backgroundJobs = snapshot.jobs
+                EngineRestartPolicy.runningJobs = snapshot.jobs.filter { $0.state.isActive }.count
             }
             await followProjectRun(in: snapshot.jobs)
             if let library { setLoadFailure(nil, library: library.id, source: .jobs) }
