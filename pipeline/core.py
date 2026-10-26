@@ -476,13 +476,14 @@ def _live_coders(s: dict, task: str) -> list[str]:
 
 
 def start(issues: list[int], milestone: str | None = None, task: str | None = None, worker_index: int = 0,
-          from_file: str | None = None, base: str | None = None) -> dict:
+          from_file: str | None = None, base: str | None = None, writeup: bool = False) -> dict:
     """queued → coding → (checks) for a batch of issues in one coder context; blocks until the batch is done.
     `from_file`: a local JSON issue (number, title, body, author, part_of) for a step not yet filed on GitHub; such
     an item is keyed `<number>@<task>`, so several steps may share "Part of #N".
-    `base`: the branch the worktree comes off (default the profile's), e.g. the runner branch for a bootstrap step."""
+    `base`: the branch the worktree comes off (default the profile's), e.g. the runner branch for a bootstrap step.
+    `writeup`: an issue brief-lint refuses gets ONE write-up turn from the small worker first (pipeline.brief-lint)."""
     with journal.Lock("dispatch", wait=False):
-        return _start(issues, milestone, task, worker_index, from_file, base)
+        return _start(issues, milestone, task, worker_index, from_file, base, writeup)
 
 
 def retry(issue, worker: int | None = None) -> dict:
@@ -522,7 +523,7 @@ def repair(issue, base: str | None = None, from_file: str | None = None, since: 
     return {"key": key, "repaired": done}
 
 
-def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
+def _start(issues, milestone, task, worker_index, from_file, base, writeup=False) -> dict:
     _require_running()
     _require_budget()
     coder.require_mcp_sdk()
@@ -552,10 +553,13 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
-    for k, iss in briefs.items():
-        iss["localised"] = localised(iss, task, k)
+    approved = _approved() if writeup else set()
+    unfit = [k for k, iss in briefs.items() if writeup and feeder.lint(iss, c["labels"], approved)]
+    if not unfit:
+        for k, iss in briefs.items():
+            iss["localised"] = localised(iss, task, k)
     # the batch's size routes it: every issue small => the small tier; anything bigger or unplaced => the big one
-    tier = "small" if all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
+    tier = "small" if unfit or all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
     worker = config.at_tier(c, workers()[worker_index], tier)
     docs = any(cites_docs(i) for i in briefs.values())
     if woken:  # the parked worker keeps its window and context: only the new briefs go in
@@ -564,7 +568,22 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     else:
         _wait_room(worker["kind"], task)
         session_dir = _start_worker(task, wt, worker, window, docs=docs)
-    out = _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs)
+    out = {}
+    for k in unfit:  # written up first; the item then waits for the maintainer with the proposed lines
+        _move(k, "coding", "write-up turn")
+        parts = _writeup(task, k, briefs.pop(k), wt, window, session_dir, worker)
+        out[k] = "needs-maintainer"
+        why = f"written up, not dispatched: ID {parts.get('id', '?')}; ACCEPTANCE {parts.get('acceptance', '?')}; TEST {parts.get('test', '?')}"
+        _move(k, "needs-maintainer", why)
+        _queue("proposal", f"{k}: {why}\nA new [GAP] line is on the task branch; approve the spec, then `start` again.", task=task)
+    if not briefs:
+        coder.stop_window(c, window)
+        journal.append("worker_gone", window=window, task=task, why="write-up done")
+        return {"task": task, "window": window, "worktree": str(wt), "items": out}
+    for k, iss in briefs.items():
+        if "localised" not in iss:
+            iss["localised"] = localised(iss, task, k)
+    out |= _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs)
     if milestone and all(v == "checked" for v in out.values()):  # nothing ready now: the window stays, no model calls
         journal.append("park", window=window, task=task, milestone=milestone)
     return {"task": task, "window": window, "worktree": str(wt), "items": out}
@@ -878,6 +897,56 @@ def approve_checks(issue, findings: str) -> dict:
     journal.append("approve_checks", issue=it["issue"], key=key, files=hit, text=findings,
                    blobs={f: checks.blob(wt, "HEAD", f) for f in hit})
     return {"approved": hit, **retry(key)}
+
+
+def _approved() -> set[str]:
+    specs = Path(cfg()["repo"]["path"]) / cfg()["repo"]["specs"]
+    return feeder.approved_ids(p.read_text() for p in specs.rglob("*.md"))
+
+
+def nearest_spec(issue: dict) -> Path | None:
+    """The spec file the issue most likely belongs in: one it names (localise), else the one sharing most words with it."""
+    root = Path(cfg()["repo"]["path"])
+    specs, text = root / cfg()["repo"]["specs"], f"{issue['title']} {issue.get('body') or ''}"
+    named = [root / f for f in localise.localise(str(root), text)["files"] if (root / f).is_relative_to(specs) and f.endswith(".md")]
+    if named:
+        return named[0]
+    words = {w for w in re.findall(r"[a-z]{4,}", text.lower())}
+    best = max(((len(words & set(re.findall(r"[a-z]{4,}", p.read_text().lower()))), p) for p in sorted(specs.rglob("*.md"))), default=(0, None))
+    return best[1] if best[0] else None
+
+
+def _writeup(task, key, iss, wt, window, session_dir, worker) -> dict:
+    """ONE write-up turn for an issue brief-lint refused (pipeline.brief-lint): the small worker, given the issue and
+    the nearest spec, answers ID / ACCEPTANCE / TEST. The runner (not the worker) adds the id to that spec as a new [GAP]
+    line, committed on the branch before the item's `since`, and never touches an existing line. At most one per issue:
+    a later start reuses the journaled answer."""
+    n = _n(key)
+    prior = [e for e in journal.read() if e["event"] == "writeup" and e["key"] == key]
+    if prior:
+        return prior[-1]["parts"]
+    spec = nearest_spec(iss)
+    rel = str(spec.relative_to(cfg()["repo"]["path"])) if spec else "(none found)"
+    path = coder.brief_file(task, f"writeup-{n}", "\n".join([
+        f"# Write up #{n}: {iss['title']}", "", iss.get("body") or "", "", f"Nearest spec: {rel}", "",
+        "The issue lacks a spec behaviour id, an acceptance line or a test path. Do not edit any file. Answer with exactly three "
+        "lines and nothing else:", "ID: `area.name` (a NEW lowercase dotted behaviour id, not one already in the spec)",
+        "ACCEPTANCE: one sentence a test can check", "TEST: tests/path/test_x.py::test_name"]))
+    before = coder.status(session_dir)
+    tell(window, f"Read and do {path} — write-up for #{n}. Reply with the three lines; edit nothing.", task=task)
+    st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
+    journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"], 4),
+                   tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+    parts = feeder.parse_writeup(st.get("last_text") or "")
+    if spec and parts.get("id") and f"`{parts['id']}`" not in spec.read_text():  # only ever a new [GAP] line, in the worktree
+        spec = wt / spec.relative_to(cfg()["repo"]["path"])
+        line = f"- `{parts['id']}` [GAP] — {parts.get('acceptance', 'proposed by the write-up worker')}" + (f" Test: {parts['test']}" if parts.get("test") else "")
+        spec.write_text(spec.read_text().rstrip("\n") + "\n" + line + "\n")
+        checks.git(wt, "add", "--", str(spec))
+        checks.git(wt, "-c", "user.name=Claude", "-c", f"user.email={cfg()['github']['agent_email']}", "commit", "-qm",
+                   f"spec: proposed [GAP] line for {parts['id']} (write-up of #{n})")
+    journal.append("writeup", issue=n, key=key, task=task, parts=parts, spec=rel)
+    return parts
 
 
 def next_issues(count: int = 3) -> dict:

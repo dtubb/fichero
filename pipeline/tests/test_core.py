@@ -800,3 +800,19 @@ def test_review_in_a_batch_diffs_only_that_issues_commit(scratch, issues, fake_c
     core.review("1002")
     brief = next(scratch["state"].rglob("review-*.md")).read_text()
     assert f"git diff {dones['1001'][:9]}...{dones['1002'][:9]}" in brief
+
+
+def test_an_unfit_issue_gets_one_write_up_and_waits_for_the_maintainer(scratch, issues, fake_coder):
+    """1002 has an acceptance line and a test path but no behaviour id: the small worker proposes one, the runner
+    adds it to the nearest spec as a new [GAP] line, and the item stays needs-maintainer with the proposal."""
+    fc = fake_coder()
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_2.py::test_f2"
+    out = core.start([1002], writeup=True)
+    assert out["items"] == {"1002": "needs-maintainer"}
+    spec = (fc.cwd / "specs" / "s.md").read_text()
+    assert "- `demo.one` [MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py\n" in spec, "the existing line is untouched"
+    assert "- `demo.two` [GAP] — f(2) is 2. Test: tests/test_2.py::test_f2" in spec
+    assert any(q["kind"] == "proposal" and "demo.two" in q["text"] for q in core.queue())
+    assert not [t for t in fc.told if "issue #1002" in t[1]], "nothing was coded"
+    core.start([1002], writeup=True)  # one write-up per issue: the second start reuses the answer, no new turn
+    assert len([t for t in fc.told if "write-up" in t[1]]) == 1

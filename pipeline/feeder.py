@@ -79,3 +79,27 @@ def pick(issues: list[dict], labels: dict, allowed: list[str], approved: set[str
 def milestone_order(milestones: list[dict]) -> list[str]:
     """Open milestone titles, earliest due first, undated ones after, then by title."""
     return [m["title"] for m in sorted(milestones, key=lambda m: (m.get("due_on") is None, m.get("due_on") or "", m["title"]))]
+
+
+WRITEUP_LINE = re.compile(r"^\s*(ID|ACCEPTANCE|TEST)\s*:\s*(.+?)\s*$", re.M)
+
+
+def parse_writeup(text: str) -> dict:
+    """The three pieces a write-up worker answers with, one `ID:` / `ACCEPTANCE:` / `TEST:` line each; {} when none parse.
+    The id must look like a behaviour id (`area.name`)."""
+    got = {k.lower(): v.strip("` ") for k, v in WRITEUP_LINE.findall(text)}
+    if "id" in got and not BEHAVIOUR_ID.fullmatch(f"`{got['id']}`"):
+        del got["id"]
+    return got
+
+
+def apply_writeup(issue: dict, parts: dict) -> dict:
+    """The issue with the missing pieces added to its body (never replacing what it already says)."""
+    body, add = issue.get("body") or "", []
+    if "id" in parts and not BEHAVIOUR_ID.search(body):
+        add.append(f"Spec `{parts['id']}`.")
+    if "acceptance" in parts and not re.search(r"accept|expected|should", body, re.I):
+        add.append(f"Acceptance: {parts['acceptance']}")
+    if "test" in parts and not TEST_PATH.search(body):
+        add.append(f"Test: {parts['test']}")
+    return dict(issue, body=body + ("\n\n" + "\n".join(add) if add else ""))

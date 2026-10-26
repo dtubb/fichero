@@ -155,7 +155,7 @@ class FakeCoder:
 
     def __init__(self, scratch, behaviour="good"):
         self.scratch, self.behaviour, self.told, self.windows, self.stopped = scratch, behaviour, [], [], []
-        self.turns, self.tools, self.context, self.keyword = 0, None, 0, "Fixes"
+        self.turns, self.tools, self.context, self.keyword, self.reply = 0, None, 0, "Fixes", None
 
     def start_window(self, cfg, name, cwd, cmd, env):
         self.windows.append((name, Path(cwd), cmd, env))
@@ -175,6 +175,7 @@ class FakeCoder:
     def _tell(self, window, text):
         n = int(text.split("issue #")[1].split(".")[0]) if "issue #" in text else None
         if n is None:
+            self.turns += "write-up" in text  # a write-up turn answers in text and commits nothing
             return
         wt, mine = self.cwd, len([t for t in self.told if f"#{n}" in t[1]])
         src = wt / "src" / "mod.py"
@@ -196,7 +197,7 @@ class FakeCoder:
 
     def wait_idle(self, session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None, token_cap=None):
         assert self.turns > after_turns, "the runner waited before the worker answered"
-        return idle(self.turns, 0.01 * self.turns, self.tools, self.context if self.turns else 0)
+        return {**idle(self.turns, 0.01 * self.turns, self.tools, self.context if self.turns else 0), **({"last_text": self.reply} if self.reply else {})}
 
 
 @pytest.fixture
