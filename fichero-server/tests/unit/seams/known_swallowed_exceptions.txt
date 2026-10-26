@@ -239,3 +239,5 @@ maintenance/page_text_repair.py::repair_classification_page_text 1
 maintenance/page_text_repair.py::repair_on_open 1
 # #5933: saying a failed resume on the recipe's row is a courtesy; the log has the reason.
 recipes/runner.py::_resume_step_run.said 1
+# #6126: a failure to queue the embeds left to Search never replaces the run own result or error (it is logged); the closure keeps it out of the run path.
+recipes/runner.py::_run 1
