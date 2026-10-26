@@ -17,11 +17,11 @@ from pathlib import Path
 from pipeline import ROOT, STATE, budget, checks, coder, config, feeder, gh, journal, localise, steps
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
-          "failed", "needs-maintainer", "rate-limited", "waiting")
+          "failed", "needs-maintainer", "rate-limited", "waiting", "asking")
 # The states table of the spec, as code: (from, to). `start`/`retry` on an item the maintainer sent back re-enters coding.
 ALLOWED = {
     ("queued", "coding"), ("coding", "coding"), ("coding", "checked"), ("coding", "needs-maintainer"),
-    ("coding", "rate-limited"), ("coding", "failed"), ("coding", "waiting"), ("waiting", "coding"),
+    ("coding", "rate-limited"), ("coding", "failed"), ("coding", "waiting"), ("waiting", "coding"), ("coding", "asking"), ("asking", "coding"),
     ("checked", "reviewed"), ("checked", "coding"), ("checked", "checked"), ("checked", "needs-maintainer"),
     ("reviewed", "checked"), ("reviewed", "coding"), ("reviewed", "needs-maintainer"),
     ("needs-maintainer", "coding"), ("needs-maintainer", "checked"), ("failed", "coding"), ("rate-limited", "coding"),
@@ -30,7 +30,6 @@ ALLOWED = {
 CFG: dict = {}
 ISSUE = gh.issue  # the one read of an issue; tests replace it
 DRY_RUN = True    # GitHub writes: the CLI flips this with --apply; tests and the proof run never do
-ANSWER_DEADLINE_S = 4 * 3600
 TOOLS_WANTED = ("jcodemunch",)
 ITEM_FIELDS = ("issue", "task", "sha", "to", "why", "ok", "results", "verdict", "by", "findings", "usd", "tokens", "model",
                "tools", "session", "text")
@@ -126,9 +125,11 @@ def state() -> dict:
         elif ev == "note" and it:
             it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
-            s["queue"][e["id"]] = {x: e.get(x) for x in ("id", "kind", "text", "options", "task", "window", "ts")}
+            s["queue"][e["id"]] = {x: e.get(x) for x in ("id", "kind", "text", "options", "task", "window", "key", "ts")}
         elif ev == "answer":
-            s["queue"].pop(e["id"], None)
+            q = s["queue"].pop(e["id"], None)
+            if q and q.get("key") in s["items"]:  # the answer waits on the item until the worker is woken with it
+                s["items"][q["key"]]["answer"] = e["text"]
         elif ev == "point":
             s["point"] = e["milestone"]
         elif ev in ("pause", "resume"):
@@ -281,9 +282,9 @@ def _move(key: str, to: str, why: str = "") -> None:
     journal.append("transition", issue=_n(key), key=key, to=to, why=why)
 
 
-def _queue(kind: str, text: str, options=None, task=None, window=None) -> str:
+def _queue(kind: str, text: str, options=None, task=None, window=None, key=None) -> str:
     qid = uuid.uuid4().hex[:8]
-    journal.append("queue", id=qid, kind=kind, text=text, options=options or [], task=task, window=window)
+    journal.append("queue", id=qid, kind=kind, text=text, options=options or [], task=task, window=window, key=key)
     return qid
 
 
@@ -634,22 +635,27 @@ def _since(key: str, task: str) -> str | None:
     return lines[0]["sha"] if lines and tasks == {None} else None  # untagged lines, one task so far: the first one
 
 
-def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt) -> tuple[str | None, str]:
+def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt, resume=None) -> tuple[str | None, str]:
     """One coding turn: tell the brief, wait for the worker's idle turn, journal its cost and the `done` line (sha and
     usage so far; an issue's turns, tokens and dollars are the difference between two done lines). → (terminal
     state or None, the commit the worker finished on). A stopped worker ends the item here."""
     c, n = cfg(), _n(key)
     _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
-    path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
     before = coder.status(session_dir)
-    tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
+    if resume:  # the same session, woken by the maintainer's answer: no new brief
+        tell(window, f"The maintainer answered your question: {resume}\nCarry on with issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
+    else:
+        path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
+        tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
     st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
-    st = _wait_answers(task, session_dir, st)
     # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
     spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
     journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
                    tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
     sha = _head(wt)
+    if state()["items"][key]["state"] == "asking":  # the worker asked: park its window, no polling; an answer wakes it (resume_asked)
+        journal.append("park", window=window, task=task, milestone=None)
+        return "asking", sha
     journal.append("issue_done", issue=n, key=key, task=task, sha=sha, turns=st["turns"], tokens=st["tokens"], usd=st["cost_usd"],
                    fresh=st.get("fresh", 0), cache_read=st.get("cache_read", 0), cache_write=st.get("cache_write", 0))
     if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
@@ -755,18 +761,6 @@ def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs
     return out
 
 
-def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
-    """An idle worker that asked a question waits for the maintainer's answer, then for its next idle turn."""
-    t0 = time.time()
-    while any(q["task"] == task and q["kind"] == "ask" for q in state()["queue"].values()):
-        if time.time() - t0 > ANSWER_DEADLINE_S:
-            st["stopped"] = f"question unanswered for {ANSWER_DEADLINE_S // 3600} h"
-            return st
-        time.sleep(15)
-        st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=st["turns"])
-    return st
-
-
 def check(issue, since: str | None = None, locked: bool = False, sha: str | None = None) -> list[dict]:
     """→ checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
     mid-check is a red (the sha moved). Red: a checked or reviewed item goes back to coding (review HIGH N1), a
@@ -850,8 +844,11 @@ def report(task: str, text: str) -> dict:
 def ask(task: str, question: str, options: list[str] | None = None) -> dict:
     s = state()
     window = next((w for w, v in s["workers"].items() if v["task"] == task), None)
-    qid = _queue("ask", question, options, task=task, window=window)
-    return {"queued": qid, "note": "the maintainer's answer will be told to your window; carry on with what you can"}
+    key = next((k for k, it in s["items"].items() if it["task"] == task and it["state"] == "coding"), None)
+    qid = _queue("ask", question, options, task=task, window=window, key=key)
+    if key:  # the item waits visibly; the window is parked when its turn ends and woken by the answer
+        _move(key, "asking", question[:200])
+    return {"queued": qid, "note": "end your turn: the maintainer's answer wakes this session with the answer as its next message"}
 
 
 def done(task: str, issue: int | None = None, residue: str = "") -> dict:
@@ -865,14 +862,44 @@ def queue() -> list[dict]:
     return sorted(state()["queue"].values(), key=lambda q: q["ts"] or "")
 
 
-def answer(qid: str, text: str) -> dict:
+def answer(qid: str, text: str, resume: bool = True) -> dict:
+    """Journal the answer. An item that asked (state `asking`) is then resumed in the background: its parked window
+    is woken with the answer as its next message (`resume_asked`); any other question just tells the window."""
     q = state()["queue"].get(qid)
     if not q:
         raise KeyError(f"no open queue item {qid}")
     journal.append("answer", id=qid, text=text)
+    if q.get("key") and state()["items"][q["key"]]["state"] == "asking":
+        if resume:
+            import threading
+            threading.Thread(target=resume_asked, args=(q["key"],), daemon=True).start()
+        return {"answered": qid, "resuming": q["key"]}
     if q.get("window"):
         tell(q["window"], f"Answer to your question ({q['text'][:80]}): {text}", task=q.get("task"))
     return {"answered": qid, "told": q.get("window")}
+
+
+def resume_asked(issue) -> dict:
+    """An answered `asking` item continues in the SAME worker session: the parked window is woken with the answer as its
+    next message, then the usual checks and review path follow. Everything comes from the journal, so it works after a
+    runner or page restart; the dispatch lock keeps a second resume (the page's and the scheduler's) out."""
+    with journal.Lock("dispatch", wait=False):
+        _require_running()
+        key, it, s = _item(issue)
+        if it["state"] != "asking" or not it.get("answer"):
+            raise RuntimeError(f"{key} is {it['state']}: nothing answered to resume")
+        task, wt = it["task"], Path(s["tasks"][it["task"]]["worktree"])
+        window = s["tasks"][task]["window"]
+        w = s["workers"][window]
+        worker = next((x for x in workers() if config.pi_model_id(x) == w["model"]), workers()[0])
+        iss = json.loads(Path(it["start_args"]["from_file"]).read_text()) if it["start_args"].get("from_file") else ISSUE(_n(key))
+        since = _since(key, task) or _head(wt)
+        journal.append("wake", window=window, task=task, milestone=None)
+        _move(key, "coding", "answered: waking the worker")
+        end, sha = _turn(task, key, iss, wt, window, Path(w["session_dir"]), worker, 0, since, "", it["attempts"], resume=it["answer"])
+        results = check(key, since=since, locked=True, sha=sha) if not end else None
+        return {"issue": key, "state": end or _run_issue(task, key, iss, wt, window, Path(w["session_dir"]), worker, 0,
+                                                          first=(None, results, it["attempts"]))}
 
 
 def point(milestone: str) -> dict:
@@ -1135,7 +1162,7 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
 API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
-       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
+       "tell": tell, "report": report, "ask": ask, "resume_asked": resume_asked, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
        "resume": resume, "file_bug": file_bug, "close_landed": close_landed, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
 # list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
@@ -1143,4 +1170,4 @@ WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "next", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset", "close_landed")
+WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "resume_asked", "point", "tell", "reset", "close_landed")

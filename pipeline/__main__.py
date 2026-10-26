@@ -9,7 +9,7 @@
   python -m pipeline pause | resume
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
   python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
-  python -m pipeline serve [--port N]
+  python -m pipeline serve [--port N] [--host ADDR]
   python -m pipeline --self-test
 
 A worker's shell (PIPELINE_WORKER set) may only run status and queue: the role split is enforced here and in the
@@ -33,6 +33,7 @@ COMMANDS = {
               ("--base", {"help": "the ref the worktree comes off (default: the profile's base)"}),
               ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"}),
               ("--writeup", {"action": "store_true", "help": "an issue brief-lint refuses gets one write-up turn first"})],
+    "resume-asked": [("issue", {})],
     "retry": [("issue", {}), ("--worker", {"type": int, "help": "index into the role's fallback list (default: one past the rate-limited stops)"})],
     "approve-checks": [("issue", {}), ("--findings", {"required": True, "help": "what the coder is told when the item goes back"})],
     "next": [("--count", {"type": int, "default": 3})],
@@ -45,7 +46,7 @@ COMMANDS = {
     "reset": [("issue", {}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
     "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
-    "serve": [("--port", {"type": int, "default": 8765})],
+    "serve": [("--port", {"type": int, "default": 8765}), ("--host", {"default": "127.0.0.1", "help": "the address to bind (never 0.0.0.0 unless you mean to expose it; a Tailscale address works)"})],
 }
 
 
@@ -66,7 +67,7 @@ def main(argv=None) -> int:
         return 2
     if a.cmd == "serve":
         from pipeline import web
-        web.serve(a.port)
+        web.serve(a.port, host=a.host)
         return 0
     if a.cmd in ("file-bug", "close-landed"):
         core.DRY_RUN = not a.apply

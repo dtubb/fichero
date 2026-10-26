@@ -833,3 +833,20 @@ def test_a_written_up_issue_in_an_approved_spec_is_coded_in_the_same_session(scr
     assert [t[1] for t in fc.told].index(next(t[1] for t in fc.told if "write-up" in t[1])) == 0
     brief = sorted((scratch["state"] / "briefs").rglob("issue-1002-attempt-1.md"))[0].read_text()
     assert "Spec `demo.two`." in brief, "the write-up output is the brief"
+
+
+def test_ask_parks_the_item_and_an_answer_wakes_the_same_session_after_a_restart(scratch, issues, fake_coder):
+    fc = fake_coder("asks")
+    assert core.start([1001])["items"]["1001"] == "asking"
+    assert core.state()["items"]["1001"]["state"] == "asking" and fc.stopped == [], "visible state, window kept"
+    assert any(e["event"] == "park" for e in journal.read())
+    (q,) = [q for q in core.queue() if q["kind"] == "ask"]
+    assert q["key"] == "1001"
+    # a restart loses nothing: no in-process wait exists, state() and resume_asked read only the journal
+    out = core.answer(q["id"], "tabs", resume=False)
+    assert out["resuming"] == "1001" and core.state()["items"]["1001"]["answer"] == "tabs"
+    assert core.resume_asked("1001")["state"] == "checked"
+    assert len(fc.windows) == 1, "the SAME session"
+    assert any("The maintainer answered your question: tabs" in t[1] for t in fc.told)
+    with pytest.raises(RuntimeError, match="nothing answered"):
+        core.resume_asked("1001")

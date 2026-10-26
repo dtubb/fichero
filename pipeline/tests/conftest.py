@@ -178,8 +178,13 @@ class FakeCoder:
             self.turns += "write-up" in text  # a write-up turn answers in text and commits nothing
             return
         wt, mine = self.cwd, len([t for t in self.told if f"#{n}" in t[1]])
+        if self.behaviour == "asks" and mine == 1:  # the first turn ends on a question (the `ask` tool), no commit
+            from pipeline import core
+            core.ask(text.split("task ")[1].split(" ")[0], "tabs or spaces?", ["tabs", "spaces"])
+            self.turns += 1
+            return
         src = wt / "src" / "mod.py"
-        if self.behaviour == "good" or (self.behaviour == "fix-on-retry" and mine > 1):
+        if self.behaviour == "good" or (self.behaviour in ("fix-on-retry", "asks") and mine > 1):
             fn = f"f{n}" if mine == 1 else f"f{n}_v{mine}"  # a retry adds something new, so it is red on the base
             src.write_text(src.read_text() + f"\n\ndef {fn}():\n    return {n}\n")
             (wt / "tests" / f"test_{n}.py").write_text(f"from src.mod import {fn}\n\ndef test_{fn}():\n    assert {fn}() == {n}\n")

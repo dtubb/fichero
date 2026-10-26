@@ -232,3 +232,12 @@ def test_write_ups_are_not_counted_as_needs_you(scratch):
     now = core.state()["now"]
     assert "Needs you: 1." in now and "Needs write-up: 1." in now
     assert "writeup-h" in web.PAGE and "q.kind!=='write-up'" in web.PAGE
+
+
+def test_serve_binds_the_given_host_and_allows_its_host_header(monkeypatch):
+    httpd = web.serve(0, block=False, host="127.0.0.1")
+    try:
+        assert httpd.server_address[0] == "127.0.0.1" and web.allowed_hosts(5)  >= {"127.0.0.1:5", "localhost:5"}
+    finally:
+        httpd.shutdown()
+        web.BIND[0] = "127.0.0.1"
