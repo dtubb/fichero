@@ -8597,6 +8597,16 @@
       },
       {
         "method": "POST",
+        "path": "/pair/devices/revoke-self",
+        "operation_id": "revoke_own_device_api_pair_devices_revoke_self_post",
+        "summary": "Revoke Own Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
         "path": "/pair/devices/{device_id}/revoke",
         "operation_id": "revoke_device_api_pair_devices__device_id__revoke_post",
         "summary": "Revoke Device",

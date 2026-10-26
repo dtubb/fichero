@@ -294,6 +294,15 @@ the recommended one first: `model`, `name`, `blurb` (one line) and `recommended`
 `POST /api/search/embedding/change` — body `{"model": "<name>", "confirm": true}`. Starts the re-embed run (audited, one job in
 Activity) and returns `status`, `job_id` and a `message`. Without `confirm: true` it is refused with the instruction to show the plan first; the model the project already uses is refused too.
 
+## A device revokes its own pairing (#6133)
+
+### `/api/pair/devices/revoke-self`
+
+`POST /api/pair/devices/revoke-self` — authenticated by the paired device's own token. Revokes that device's pairing: the Mac stops
+listing it and the token stops working (200 `{"status": "ok"}`; 401 for no device token, an unknown or an already revoked one). The device
+is always the caller's own, never named in the request, so one device cannot revoke another (the owner revokes any device with
+`POST /api/pair/devices/{device_id}/revoke`). Audited as `device.revoke_self`.
+
 ## Review instructions (#6128)
 
 ### `/api/recipes/project/review-instructions`

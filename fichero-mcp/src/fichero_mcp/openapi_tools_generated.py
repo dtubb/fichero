@@ -5885,6 +5885,12 @@ def fichero_pairing_renew_device_token(
     return _rt.call("POST", "/api/pair/devices/renew")
 
 
+def fichero_pairing_revoke_own_device(
+) -> Any:
+    "Revoke Own Device\n\nA paired device revokes its OWN pairing, authenticated by its own token (`m2p.ios.forget-revokes-on-the-mac`, #6133):\nthe Mac stops listing it and the token stops working. The device is the caller's, never named in the request, so a\ndevice cannot revoke another. Audited like renew.\n\nRoute: POST /api/pair/devices/revoke-self (toolset `pairing`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/pair/devices/revoke-self")
+
+
 def fichero_pairing_revoke_device(
     *,
     device_id: Annotated[str, Field(description='Device Id')],
@@ -9772,6 +9778,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_create_code", "pairing", "POST", "/api/pair/code", fichero_pairing_create_code),
     GeneratedTool("fichero_pairing_list_devices", "pairing", "GET", "/api/pair/devices", fichero_pairing_list_devices),
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
+    GeneratedTool("fichero_pairing_revoke_own_device", "pairing", "POST", "/api/pair/devices/revoke-self", fichero_pairing_revoke_own_device),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
     GeneratedTool("fichero_pairing_list_invites", "pairing", "GET", "/api/pair/invites", fichero_pairing_list_invites),
