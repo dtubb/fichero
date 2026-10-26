@@ -58,6 +58,28 @@ class FicheroUISessionTests: XCTestCase {
     nonisolated(unsafe) private static var sharedSeeded: UITestEngineHarness.SeededLibrary?
     nonisolated(unsafe) private static var sharedApp: XCUIApplication?
     nonisolated(unsafe) private static var provisioningError: Error?
+    /// Set once the app failed to reach `library.content.ready`; later tests do not re-wait (#4781).
+    nonisolated(unsafe) private static var libraryNeverReady = false
+
+    /// What a provisioning error means for the run (#4781, `harness.fail-fast-loud`):
+    /// an absent venv/repo is a legitimate skip; a harness that was present and broke fails loud.
+    enum ProvisioningOutcome: Equatable {
+        case skip(String)
+        case fail(String)
+    }
+
+    nonisolated static func provisioningOutcome(for error: Error) -> ProvisioningOutcome {
+        if let harness = error as? UITestEngineHarness.HarnessError, harness.isAbsent {
+            return .skip("Could not provision the UI-test session engine: \(error)")
+        }
+        return .fail("harness connection broken — fix this first. The UI-test engine harness is present but failed: \(error)")
+    }
+
+    /// How long this test may wait for the library: the full timeout once, then none after the
+    /// app has already failed to connect, so a broken connection costs one wait, not N (#4781).
+    nonisolated static func readyWait(full: TimeInterval, priorFailure: Bool) -> TimeInterval {
+        priorFailure ? 0 : full
+    }
 
     /// The seeded fixture the session serves.
     private(set) var seeded: UITestEngineHarness.SeededLibrary!
@@ -84,8 +106,14 @@ class FicheroUISessionTests: XCTestCase {
             }
         }
         if let error = Self.provisioningError {
-            // No venv / seeder / repo on this machine — skip rather than red.
-            throw XCTSkip("Could not provision the UI-test session engine: \(error)")
+            switch Self.provisioningOutcome(for: error) {
+            case .skip(let message):
+                // No venv / repo on this machine — skip rather than red.
+                throw XCTSkip(message)
+            case .fail(let message):
+                XCTFail(message)
+                throw error
+            }
         }
         seeded = Self.sharedSeeded
 
@@ -175,10 +203,14 @@ class FicheroUISessionTests: XCTestCase {
     ) {
         let ready = app.descendants(matching: .any)
             .matching(identifier: "library.content.ready").firstMatch
+        let wait = Self.readyWait(full: readyTimeout, priorFailure: Self.libraryNeverReady)
+        let found = ready.waitForExistence(timeout: wait)
+        if !found { Self.libraryNeverReady = true }
         XCTAssertTrue(
-            ready.waitForExistence(timeout: readyTimeout),
+            found,
             "Library never reached `library.content.ready` within \(Int(readyTimeout))s — "
-            + "the app never connected to the session's seeded UDS engine.",
+            + "the app never connected to the session's seeded UDS engine "
+            + "(harness connection broken — fix this first; later tests do not re-wait).",
             file: file, line: line
         )
     }
