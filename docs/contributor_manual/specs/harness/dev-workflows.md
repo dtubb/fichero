@@ -1,12 +1,12 @@
 # Dev Workflows on the App Engine — Design Spec
 
 > Milestone: dev-workflows
-> Manual: TBD — a contributor section ("How Fichero is built", the page Stage 1 of the Dev Pipeline spec writes)
+> Manual: docs/contributor_manual/how-fichero-is-built.md — a contributor section ("How Fichero is built", the page Stage 1 of the Dev Pipeline spec writes)
 > saying that the dev pipeline is a Fichero workflow you can open on the canvas, and how to run one on a scratch
 > path.
 
-> **Status: DRAFT, proposed, not approved.** Written 2026-10-26 from the maintainer's direction of the same day.
-> Nothing here is built or ruled until the maintainer approves it. Tags: [OK] built · [PARTIAL] exists, not wired ·
+> **Status: APPROVED 2026-10-26 by the maintainer.** Written 2026-10-26 from the maintainer's direction of the same day.
+> Approved as a plan: nothing here is built until its build-order step is done. Tags: [OK] built · [PARTIAL] exists, not wired ·
 > [GAP] not built · [PROPOSED] decided here, not yet ruled.
 >
 > Revised 2026-10-26 from the owner's correction of the same day: Fichero already has tasks and task lists in the
@@ -747,7 +747,7 @@ the existing release scripts; the owner says yes to everything public.
 
 ## Rulings
 
-Owner rulings of 2026-10-26 on this spec's open questions (the spec as a whole stays proposed, not approved):
+Owner rulings of 2026-10-26 on this spec's open questions (the maintainer approved the spec as a whole on 2026-10-26):
 
 - Q1 pinned engine: a separate pinned build first; onto the app's own engine once proven (Stage 3).
   (`dev-workflows.run.pinned-engine`)
