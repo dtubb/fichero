@@ -8,8 +8,9 @@ main = "main"
 worktrees = ".worktrees/pipeline"
 specs = "docs/contributor_manual/specs"
 # A diff touching any of these goes to needs-maintainer: the checks run from the runner's pinned checkout and a
-# coder may not edit the check it is judged by (pipeline.pinned-checks).
-check_paths = ["scripts/check_", "scripts/lane_ready_check.sh", "scripts/gate", "pipeline/"]
+# coder may not edit the check it is judged by (pipeline.pinned-checks). The runner's own code and tests are not
+# listed: new ones pass, and a diff that deletes or weakens a base test goes to needs-maintainer anyway.
+check_paths = ["scripts/check_", "scripts/lane_ready_check.sh", "scripts/gate"]
 python_path = "fichero-server/src:fichero-cli/src:fichero-mcp/src"
 test_env = { FICHERO_FEATURE_TIER = "dev" }   # FICHERO_BASE_PATH is always a fresh mktemp dir
 scratch_base_env = "FICHERO_BASE_PATH"

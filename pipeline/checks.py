@@ -294,6 +294,27 @@ def changed_checks(wt, since, cfg, pinned=None, approved=None, head="HEAD") -> t
     return pinned_sha, overlay, [f for f in changed_files(wt, since, "MDR", head) if f in overlay]
 
 
+def weakened_tests(wt, since, head="HEAD") -> list[str]:
+    """Base test files the diff deletes or weakens: a test function removed, fewer `assert`s, or more skip/xfail.
+    New tests and runner code are not pinned (the reviewer is the gate). ponytail: counts per file by regex, and a
+    renamed file is not compared; an AST diff if a coder ever games the counts."""
+    base = git(wt, "merge-base", since, head)
+
+    def counts(rev, f):
+        r = sh(["git", "show", f"{rev}:{f}"], cwd=wt)
+        t = r.stdout if r.returncode == 0 else ""
+        return (set(re.findall(r"(?m)^\s*(?:async )?def (test_\w+)", t)), len(re.findall(r"\bassert\b", t)),
+                len(re.findall(r"\b(?:skip|skipif|xfail)\b", t)))
+    bad = []
+    for f in changed_files(wt, since, "MD", head):
+        if not (f.endswith(".py") and fnmatch.fnmatch(f, "*test*.py")):
+            continue
+        (t0, a0, s0), (t1, a1, s1) = counts(base, f), counts(head, f)
+        if t0 - t1 or a1 < a0 or s1 > s0:
+            bad.append(f)
+    return bad
+
+
 def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, head="HEAD") -> list[dict]:
     """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
     pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
@@ -305,6 +326,9 @@ def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, h
     # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
     pinned_sha, overlay, hit = changed_checks(wt, since, cfg, pinned, approved, head)
     why = f"the diff changes the checks themselves ({', '.join(hit[:5])})" if hit else ""
+    weak = weakened_tests(wt, since, head)
+    if weak and not why:
+        why = f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})"
     bypass = bypass_files(wt, since, cfg, head)
     if bypass and not why:
         why = f"the diff adds a file that would run before or instead of the checks ({', '.join(bypass[:5])})"

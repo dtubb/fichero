@@ -259,3 +259,44 @@ def test_an_approved_guard_edit_beside_swift_is_not_python_source_needing_a_test
     wt = lane(scratch, "guardswift", {f: "import sys\nsys.exit(0)\n", "App/Store.swift": "// code\n"})
     r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], approved={f: checks.blob(wt, "HEAD", f)})}
     assert r["red-on-base"]["ok"] and "no python tests changed" in r["red-on-base"]["text"]
+
+
+def profile_cfg(scratch):
+    """The scratch config with the REAL fichero profile's check_paths (pipeline.pinned-checks, self-development)."""
+    from pipeline import config
+    return {**scratch["cfg"], "repo": {**scratch["cfg"]["repo"], "check_paths": config.load("fichero")["repo"]["check_paths"]}}
+
+
+def commit_on_base(scratch, files):
+    repo = scratch["repo"]
+    for path, text in files.items():
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(text)
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "more base")
+    git(repo, "push", "-q", "origin", "integration")
+
+
+def test_new_runner_code_and_a_new_test_pass_pinned_checks(scratch):
+    commit_on_base(scratch, {"pipeline/plan.py": "X = 1\n"})
+    wt = lane(scratch, "selfdev", {"pipeline/plan.py": "X = 2\n", "pipeline/tests/test_plan.py": "def test_x():\n    assert 1\n"})
+    assert checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
+
+
+def test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer(scratch):
+    base = "from src.mod import base\n\ndef test_base():\n    assert base() == 0\n"
+    for name, new in (("weak-assert", "from src.mod import base\n\ndef test_base():\n    pass\n"),
+                      ("weak-skip", "import pytest\nfrom src.mod import base\n\n@pytest.mark.skip\ndef test_base():\n    assert base() == 0\n"),
+                      ("weak-xfail", base.replace("def test_base", "@pytest.mark.xfail\ndef test_base")),
+                      ("weak-removed", "from src.mod import base\n\ndef test_other():\n    assert base() == 0\n")):
+        wt = lane(scratch, name, {"tests/test_base.py": new})
+        r = checks.run_all(wt, profile_cfg(scratch))[0]
+        assert not r["ok"] and "needs-maintainer" in r["text"], name
+    wt = lane(scratch, "gone", {"src/x.py": "X = 1\n"})
+    git(wt, "rm", "-q", "tests/test_base.py")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "rm (Fixes #1001)")
+    assert not checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
+    wt = lane(scratch, "guard", {"scripts/check_no_bad.py": "raise SystemExit(0)\n"})
+    assert not checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
+    wt = lane(scratch, "stronger", {"tests/test_base.py": base + "    assert base() < 1\n\ndef test_more():\n    assert 1\n"})
+    assert checks.run_all(wt, profile_cfg(scratch))[0]["ok"]

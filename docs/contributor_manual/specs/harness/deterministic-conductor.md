@@ -195,12 +195,14 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   check files laid over it (`git worktree add --detach`, then `git checkout <pinned sha> -- <check paths>`), so a
   guard that scans `ROOT = Path(__file__).parent.parent` sees the coder's diff and never the pinned tree, uncommitted
   edits or the worktree's own copies; a coder cannot edit the check it is judged by (the runner builds itself, so
-  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer`; adding a new guard is
+  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer` (for the fichero profile those are `scripts/check_*`, `scripts/lane_ready_check.sh` and `scripts/gate`; the runner's own `pipeline/` code and new tests pass this rung and the reviewer is the gate, but a diff that deletes or weakens a base test, by a removed test function, fewer `assert`s or an added skip/xfail, still goes to `needs-maintainer`); adding a new guard is
   allowed, since the pinned runner does not run it until the maintainer pulls it in. The runner moves to a new sha only on the
   maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_a_coder_change_that_breaks_a_guard_turns_the_check_red`,
   `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
   `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
+  `pipeline/tests/test_checks.py::test_new_runner_code_and_a_new_test_pass_pinned_checks`,
+  `pipeline/tests/test_checks.py::test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`,
   `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
   `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
