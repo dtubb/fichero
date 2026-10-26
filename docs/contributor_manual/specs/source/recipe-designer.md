@@ -193,6 +193,12 @@ facts, including the bundled font for a script macOS lacks, come from `recipes/d
   (Canadian Syllabics, U+1400…) have no font here and show as boxes until one is added", naming the
   fallback family. The Reader uses the same answer.
 
+- `designer.onboarding.metadata-language` [MISSING] (#6180) — onboarding (About the Material) offers the METADATA
+  LANGUAGE: the language of the catalogue's field labels and descriptions, which is not necessarily the language
+  of the records. It defaults to the project's primary language and the person can choose another separately; the
+  choice is saved with the project's answers and read by the Catalogue stage (`catalogue.folder-description-fields`,
+  cataloguing.md), which writes labels and descriptions in it. Changing it never re-runs a folder already described.
+
 ### 4. How do you want to work? (new page, after About the Material, before Choose the Stages)
 
 **Exists.** The routes: `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and
@@ -1111,3 +1117,10 @@ Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #544
 - Tests: fichero-server/tests/unit/recipes/test_recipe_remote_placement.py
 - Depends on: 16.1
 - Size: M
+
+### Stage 17 — Onboarding offers the metadata language (owner, 2026-10-26)
+
+#### Step 17.1 — The metadata language question, defaulted to the primary language
+- Behaviours: `designer.onboarding.metadata-language`
+- Tests: fichero-server/tests/unit/recipes/test_metadata_language_answer.py, fichero/Tests/Unit/general/Recipes/MetadataLanguageTests.swift
+- Size: S

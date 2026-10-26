@@ -51,3 +51,8 @@ def test_the_model_chooser_behaviours_are_defined_and_in_stage_16():
     defined, owed, placed, stage16 = _spec()
     assert MODEL_IDS <= owed
     assert MODEL_IDS == {i for i in re.findall(rf"`({ID})`", stage16)}
+
+
+def test_the_metadata_language_behaviour_is_defined_and_placed():
+    defined, owed, placed, _ = _spec()
+    assert "designer.onboarding.metadata-language" in owed and "designer.onboarding.metadata-language" in placed
