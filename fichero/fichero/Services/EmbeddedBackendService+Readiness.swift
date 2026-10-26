@@ -123,6 +123,7 @@ extension EmbeddedBackendService {
         defer { LaunchProfile.endPhase("engine startup wait", waitPhase) }
 
         let startTime = Date()
+        let cap = Self.effectiveSpawnCap()
         var pollInterval: Duration = .milliseconds(100)
         var markedBound = false
         var markedFirstPoll = false
@@ -154,39 +155,17 @@ extension EmbeddedBackendService {
                 LaunchProfile.milestone("engine bound (health + identity answered)")
             }
 
-            switch Self.spawnWaitStep(
+            let step = Self.spawnWaitStep(
                 readiness: result,
                 exitDiagnosis: spawnedEngineExitDiagnosis(),
                 elapsed: Date().timeIntervalSince(startTime),
-                cap: Self.effectiveSpawnCap()
-            ) {
-            case .ready:
+                cap: cap
+            )
+            if step == .ready {
                 logger.info("Backend readiness passed (health 200 + identity + authenticated probe)")
                 return
-            case .engineExited(let diagnosis):
-                // Surface the real reason NOW rather than polling a dead process
-                // until the cap and then blaming a timeout.
-                logger.error("Engine exited during startup — surfacing immediately (#3930)")
-                throw BackendError.engineDidNotStart(diagnosis: diagnosis)
-            case .foreignEngineServing(let pid):
-                // Built as one String first: an OSLogMessage is created at the
-                // interpolation site and cannot be joined with `+`.
-                let holder = "PID \(pid.map(String.init) ?? "unknown")"
-                logger.error(
-                    "Another engine (\(holder, privacy: .public)) already serves this socket — not our child; not waiting out the cap"
-                )
-                throw BackendError.engineDidNotStart(diagnosis: Self.foreignEngineDiagnosis(pid: pid))
-            case .credentialRejected:
-                logger.warning(
-                    "Engine on this socket is serving but rejected the app's token — this is a credential failure, not a start-up failure"
-                )
-                throw BackendError.engineDidNotStart(diagnosis: Self.credentialRejectedDiagnosis())
-            case .neverBecameReady:
-                logger.error("Engine alive but nothing ever answered on the socket within the insanity cap (#3930)")
-                throw BackendError.engineDidNotStart(diagnosis: Self.neverBoundDiagnosis(cap: Self.effectiveSpawnCap()))
-            case .keepWaiting:
-                break
             }
+            if let failure = Self.spawnWaitFailure(for: step, cap: cap) { throw failure }
 
             try await Task.sleep(for: pollInterval)
             if Date().timeIntervalSince(startTime) > 1 {
@@ -198,6 +177,36 @@ extension EmbeddedBackendService {
                 // a local socket, so the extra polls cost nothing measurable.
                 pollInterval = .milliseconds(250)
             }
+        }
+    }
+
+    /// The error a non-ready, non-waiting step ends the wait with; nil while still waiting.
+    /// Each case logs its own situation before it throws (split out of the wait loop to keep it small).
+    private static func spawnWaitFailure(for step: SpawnWaitStep, cap: TimeInterval) -> BackendError? {
+        switch step {
+        case .ready, .keepWaiting:
+            return nil
+        case .engineExited(let diagnosis):
+            // Surface the real reason NOW rather than polling a dead process
+            // until the cap and then blaming a timeout.
+            logger.error("Engine exited during startup — surfacing immediately (#3930)")
+            return .engineDidNotStart(diagnosis: diagnosis)
+        case .foreignEngineServing(let pid):
+            // Built as one String first: an OSLogMessage is created at the
+            // interpolation site and cannot be joined with `+`.
+            let holder = "PID \(pid.map(String.init) ?? "unknown")"
+            logger.error(
+                "Another engine (\(holder, privacy: .public)) already serves this socket — not our child; not waiting out the cap"
+            )
+            return .engineDidNotStart(diagnosis: foreignEngineDiagnosis(pid: pid))
+        case .credentialRejected:
+            logger.warning(
+                "Engine on this socket is serving but rejected the app's token — this is a credential failure, not a start-up failure"
+            )
+            return .engineDidNotStart(diagnosis: credentialRejectedDiagnosis())
+        case .neverBecameReady:
+            logger.error("Engine alive but nothing ever answered on the socket within the cap (#3930, #3958)")
+            return .engineDidNotStart(diagnosis: neverBoundDiagnosis(cap: cap))
         }
     }
 
