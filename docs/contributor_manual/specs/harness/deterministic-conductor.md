@@ -36,6 +36,17 @@ milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
   builds the brief itself, so the model makes one focused edit, which is why an issue costs a few turns, not twenty.
   **Aider's repo map** (a compact symbol map instead of whole files) and **SWE-agent's narrow tool interface** (few
   tools, each shaped for the job) are the models for the brief and for the one tool list every role shares.
+  **mini-SWE-agent** (a bash-only loop of about a hundred lines that scores close to the big agents) is the proof
+  that a short tool list loses little; **AutoCodeRover** and **Moatless Tools** (localise by code search over the
+  AST, then edit) are the models for the brief builder's symbol lookup; **Scrouting** (arXiv 2608.04804: scout the
+  repo cheaply first, then route the task by its expected cost) for sizing an issue and picking its tier.
+- **Deterministic orchestration** cuts tokens: a COBOL-to-Python migration study measured up to 3.5x fewer tokens
+  when a fixed script, not a model, sequenced the steps. **Microsoft Conductor** (github.com/microsoft/conductor,
+  MIT; ideas borrowed, no code): one YAML workflow, routing by templates with no model call, script steps routed on
+  their exit code, explicit inputs and outputs per step, iteration and timeout guards, a validate-before-run, and the
+  cost per node on a dashboard; the profile's per-item steps follow that shape. **Trajectory reduction** and the
+  **OpenHands condenser** (drop or summarise old tool output each turn) are the model for pruning a long-lived
+  worker's history.
 - **Bernstein** (sipyourdrink-ltd/bernstein 3.23.0) was trialled on 2026-10-25 and dropped (ruling below): of the
   31 behaviours here it supplied one (worktree per task); its gate ran outside the task's worktree, its self-upgrade
   spawned stray tasks, it priced nothing for Pi, its intent check passed an unreadable reply, and its dashboard
@@ -49,7 +60,7 @@ milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
   Issue-Orchestrator (re-check state independently; the agent's "done" is a claim); Aider / Ralph loops (test,
   feed the failure back, retry); fichero-skills' `fs_autoloop` (May–Sept 2026) as the counter-example: a markdown
   queue edited by the model, "done" taken from the model's report, a loop driven by prompts, no jail.
-- Surveyed and not adopted: vibe-kanban (shut down 2026-04), Conductor, Superset, Claude Squad, Crystal (worktree
+- Surveyed and not adopted: vibe-kanban (shut down 2026-04), Conductor (the worktree GUI, not Microsoft's), Superset, Claude Squad, Crystal (worktree
   GUIs, chat-driven, no machine check); OpenHands resolver, OpenCode's GitHub action (cloud runners, own agent).
 
 ## The pipeline
@@ -325,7 +336,13 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   milestone's open issues in build order, two or three briefs ahead, and hands the next brief the moment the worker
   says done or goes idle; issues touching the same files go into one brief. The runner PRE-COMPUTES every brief so the
   worker edits and does not explore: the issue text, the spec lines it cites, the files and symbols to touch (from
-  jcodemunch, or a stdlib grep fallback when it is absent) and the failing or new test to write first. Checks run by
+  jcodemunch, or a stdlib grep fallback when it is absent) and the failing or new test to write first. Localisation
+  is model-free first (the spec citations, then jcodemunch or the grep); only when that finds nothing does the runner
+  make one small-tier model call to name the files. The brief's files, symbols and tests size the issue small or big,
+  and the size routes it to the small or the big tier. Every role gets the same short tool list in the same order: a
+  few jcodemunch calls (symbol source, file outline, references, search symbols), jdocmunch only when the brief cites
+  docs, and report, ask and done; a worker may ask for the wide set, which the runner grants and journals as a brief
+  miss (the page counts them). Old tool output is pruned from a long-lived worker's history every turn. Checks run by
   scripts; only a failure goes back to the worker, as capped retry text. `pipeline_done(task, issue, residue)` per
   issue journals the sha and the usage so far and triggers THAT issue's checks while the worker moves on; the
   per-issue turns, tokens and dollars are the difference between two done lines. A profile budget per issue (turns
@@ -717,5 +734,7 @@ runner (ponytail: the times below are from one Pro run on 2026-10-25 with the ve
 
 ## Open questions
 
-1. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
+1. Which big model on the Mac Studio: Qwen3-Coder-Next is the candidate for the big tier under oMLX (the small tier
+   a smaller Qwen); measure it on landed issues against the Sonnet baseline before switching the profile.
+2. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
    diff and the conflicting commit in front of it.
