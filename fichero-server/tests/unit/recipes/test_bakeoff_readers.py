@@ -365,7 +365,7 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     the recipe, like any other".
     WHY: setup's How it will be done screen proposes the recipe again each time it is shown; if that ignored
     the override, the reader the person chose would quietly revert to the rules' choice and Start would read
-    with a reader they turned down. A folder's choice is refused until a run applies it (`source.recipe.per-folder`), so only the project's is kept."""
+    with a reader they turned down. A folder's choice is kept too, as that folder's override, since Start applies it (`source.recipe.per-folder`, #6135)."""
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
                "pages": 1000}
     _set_up(client)
@@ -374,9 +374,9 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     started, _ = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
     assert client.post(url, json={"card": MEDIEVAL, "scope": "project"}).status_code == 200  # not the rules' first
-    # A folder-scoped Use This is refused until a run applies it (`source.recipe.per-folder`, review 2026-10-20).
-    refused = client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": folder.id})
-    assert refused.status_code == 422 and "whole project" in refused.json()["detail"], refused.text
+    # A folder-scoped Use This is stored as that folder's override (`source.recipe.per-folder`, #6135).
+    chosen = client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": folder.id})
+    assert chosen.status_code == 200, chosen.text
 
     again = client.post("/api/recipes/assemble", json=answers)
     assert again.status_code == 200, again.text
@@ -384,13 +384,13 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     (step,) = [s for s in proposed["steps"] if s["job"] == "read-a-line"]
     assert step["card"]["id"] == MEDIEVAL and step["model"] == {"zenodo": "10.5281/zenodo.12743230"}
     assert "bake-off" in step["reasons"][0] and step["card"]["cer_measured_here"] is not None
-    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL)]
+    assert sorted((o["scope"], o["card"]) for o in proposed["overrides"]) == [("folder", PPOCR), ("project", MEDIEVAL)]
     # Saved again as proposed, the choice and its override survive.
     saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": proposed})
     assert saved.status_code == 200, saved.text
     kept = saved.json()["recipe"]
     assert next(s for s in kept["steps"] if s["job"] == "read-a-line")["card"]["id"] == MEDIEVAL
-    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL)]
+    assert sorted((o["scope"], o["card"]) for o in kept["overrides"]) == [("folder", PPOCR), ("project", MEDIEVAL)]
 
 
 def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder, with_material):
