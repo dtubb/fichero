@@ -399,6 +399,24 @@ enum RemoteClientPairing {
         EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 
+    /// Asks the Mac to revoke THIS device's pairing, with the device's own token, so the Mac stops listing it and the
+    /// token stops working (`m2p.ios.forget-revokes-on-the-mac`, #6133). Best effort: false when the Mac cannot be reached
+    /// or says no, and the caller forgets the pairing locally either way.
+    @MainActor
+    static func revokeOwnPairing() async -> Bool {
+        let host = EngineConfig.host
+        let pin = RemoteCertificatePinning.persistedSPKIPin(hostString: host.absoluteString)
+        guard let client = try? FicheroClient(baseURL: host, expectedSPKIPin: pin) else { return false }
+        return await revokeOwnPairing(client: client)
+    }
+
+    /// The call itself, over any client (a test hands one over a stubbed transport).
+    @MainActor
+    static func revokeOwnPairing(client: FicheroClient) async -> Bool {
+        guard case .ok? = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
+        return true
+    }
+
     private static func normalizedLibraryPath(_ path: String?) -> String? {
         let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }

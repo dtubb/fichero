@@ -43,12 +43,17 @@ struct IOSConnectionMenu: View {
         }
         .confirmationDialog("Forget this Mac?", isPresented: $confirmingForget, titleVisibility: .visible) {
             Button("Forget This Mac", role: .destructive) {
-                RemoteClientPairing.forgetPairing()
-                appState.engine.markSetupNeeded()
+                Task {
+                    // The Mac is told first, with this device's own token; unreachable, the device still forgets it.
+                    _ = await RemoteClientPairing.revokeOwnPairing()
+                    RemoteClientPairing.forgetPairing()
+                    appState.engine.markSetupNeeded()
+                }
             }
         } message: {
-            Text("This device signs out and returns to Connect. The projects stay on the Mac, "
-                + "which keeps listing this device as paired until its owner removes it in Sharing.")
+            Text("This device signs out and returns to Connect, and asks the Mac to remove it from its list of paired "
+                + "devices. The projects stay on the Mac. If the Mac cannot be reached now, it keeps listing this "
+                + "device until its owner removes it in Sharing.")
         }
     }
 

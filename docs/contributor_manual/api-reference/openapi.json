@@ -3257,6 +3257,29 @@
         }
       }
     },
+    "/api/pair/devices/revoke-self": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Revoke Own Device",
+        "description": "A paired device revokes its OWN pairing, authenticated by its own token (`m2p.ios.forget-revokes-on-the-mac`, #6133):\nthe Mac stops listing it and the token stops working. The device is the caller's, never named in the request, so a\ndevice cannot revoke another. Audited like renew.",
+        "operationId": "revoke_own_device_api_pair_devices_revoke_self_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/devices/{device_id}/revoke": {
       "post": {
         "tags": [
