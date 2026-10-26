@@ -154,7 +154,7 @@ something goes badly wrong.
   library's data (rows, readings, claims, layout) returns to the snapshot's. The chain's outside anchor only ever grows,
   so nothing looks like tampering. *Test:* take snapshots A and B, act, restore A: B and every record row still exist, the
   restore row is last, the chain verifies, and returning to B works.
-- `safety.net.restore-stops-the-workers-first` — **[GAP]** (#5246; owner 2026-10-26) before a restore (or an Undo of a bulk
+- `safety.net.restore-stops-the-workers-first` — **[PARTIAL]** (built for jobs only: `jobs.stop_everything` runs before `POST /api/storage/snapshots/{id}/restore` and the note says how many stopped; NOT yet: the dev runner and agents, imports and syncs outside the jobs table, the "N runs will stop" sentence before, the wait until each stopped, the Undo of a bulk action; tests `test_stop_everything_before_a_restore_5246.py`) (#5246; owner 2026-10-26) before a restore (or an Undo of a bulk
   action, or returning to a set-aside copy) Fichero stops everything that writes: running recipe steps and jobs, the
   background scheduler, the dev runner and its agents/workers, imports and syncs. It says so first ("3 runs and the
   runner will stop"), waits until each has stopped cleanly (a stop is journalled, not a kill), takes the pre-restore

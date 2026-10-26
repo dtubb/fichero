@@ -1781,6 +1781,21 @@ def cancel_job(db: "Database", job_id: str) -> str:
     return "cancelled"
 
 
+def stop_everything(db: "Database") -> int:
+    """Ask every job not yet ended to stop, and return how many were asked: a restore or a bulk Undo writes
+    over the library, so nothing may be writing (`safety.net.restore-stops-the-workers-first`, #5246). Each stop
+    is the per-job stop (`cancel_job`): a running job finishes the item it is on. Nothing is restarted here."""
+    _ensure(db)
+    ids = [r[0] for r in db.execute_fetchall(
+        "SELECT id FROM jobs WHERE state IN ('waiting', 'running', 'paused') ORDER BY created_at")]
+    for job_id in ids:
+        try:
+            cancel_job(db, job_id)
+        except KeyError:
+            pass  # ended between the list and the stop
+    return len(ids)
+
+
 def row_state(db: "Database", job_id: str) -> str:
     """A row's state now: one job's, or for a row that stands for many (`queue_of`), running while one of
     them runs, else waiting, else paused, else done. KeyError when there is no such row."""
