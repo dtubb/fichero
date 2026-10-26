@@ -57,7 +57,8 @@ def test_an_issue_reopened_after_the_fixing_commit_stays_open(monkeypatch):
 
 def test_a_last_comment_that_says_what_is_left_keeps_the_issue_open(monkeypatch):
     # Live 2026-10-26: #6129 #6133-#6135 were closed with residue in their last comment.
-    for text in ("Residue: the iPad half", "remaining: the docs", "this is still missing", "not yet wired", "needs your test"):
+    for text in ("Residue: the iPad half", "remaining: the docs", "this is still missing", "not yet wired", "needs your test",
+                 "what is left: the docs", "left to do", "not done", "a follow-up is filed", "TODO", "to do: iPad"):
         assert _mod.owes_more(text), text
     assert not _mod.owes_more("Done and verified.") and not _mod.owes_more("")
     monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps({"comments": [{"body": "old"}, {"body": "Residue: x"}]}))

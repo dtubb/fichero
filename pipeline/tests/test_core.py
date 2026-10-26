@@ -739,3 +739,13 @@ def test_the_closer_leaves_an_issue_with_residue_or_a_part_of_commit_open(scratc
     out = core.close_landed()
     assert (out["closed"] == [1001]) == (how == "clean")
     assert any(a[:2] == ["issue", "close"] for a in writes) == (how == "clean")
+
+
+def test_a_part_of_commit_with_reported_residue_still_posts_the_residue(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder()
+    fc.keyword = "Part of"
+    writes = _landed(scratch, monkeypatch, residue="the iPad half")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["residue"] == [1001] and not out["closed"]
+    assert any(a[:2] == ["issue", "comment"] and "iPad half" in a[-1] for a in writes) and any("--add-label" in a for a in writes)

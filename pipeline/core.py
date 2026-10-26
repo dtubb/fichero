@@ -999,13 +999,13 @@ def close_landed() -> dict:
             continue
         if closer.owes_more((iss.get("comments") or [{}])[-1].get("body")):
             continue  # its last comment says what is left
-        if n not in closer.cited(checks.git(c["repo"]["path"], "log", "-1", "--format=%B", it["sha"])):
-            continue  # the commit only says "Part of": it does not claim to finish the issue
         subject = checks.git(c["repo"]["path"], "log", "-1", "--format=%s", it["sha"])
         if it.get("residue"):
             write = [["issue", "comment", str(n), "--body", f"Landed in {it['sha'][:9]}, but this is still owed:\n\n{it['residue']}"],
                      ["issue", "edit", str(n), "--add-label", lab["residue"]]]
             what = "residue"
+        elif n not in closer.cited(checks.git(c["repo"]["path"], "log", "-1", "--format=%B", it["sha"])):
+            continue  # the commit only says "Part of": it does not claim to finish the issue (a residue is still posted)
         elif not _reopened_after(closer, n, checks.git(c["repo"]["path"], "log", "-1", "--format=%cI", it["sha"])):
             rungs = ", ".join(r["name"] for r in it["checks"])
             write = [["issue", "close", str(n), "--comment", f"Fixed in {it['sha'][:9]} on integration: {subject}. Checks green: {rungs}."]]

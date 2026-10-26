@@ -9,7 +9,7 @@ after each push to integration:
     scripts/close_fixed_issues.py --range A..B --apply  # the pushed range only (the Action passes before..sha)
 
 Only a `Fixes #N` / `Closes #N` / `Resolves #N` that starts a line of the message counts (a subject or a
-trailer), never prose such as "revert the fix #5222". An issue whose last comment says what is left (residue, remaining, still, not yet, needs your test) stays open too. An issue labelled `residue` is never closed here: part of
+trailer), never prose such as "revert the fix #5222". An issue whose last comment says what is left (residue, remaining, still, left, not done, todo, follow-up, not yet, needs your test) stays open too. An issue labelled `residue` is never closed here: part of
 it is still owed, and that part gets its own narrower issue. Nor is one labelled `needs-your-test`: it closes
 when the maintainer has checked it on screen. An issue a human REOPENED after the fixing commit stays open: the
 fix did not hold. Only commits already on the remote count, so an issue is never closed against work that has
@@ -34,7 +34,7 @@ def cited(message: str) -> set[int]:
 
 # What a comment says when part of the issue is still owed (live, 2026-10-26: four issues closed with residue in their
 # last comment). Deliberately broad: a false hit leaves an issue open, a miss closes work that is not done.
-OWES = re.compile(r"residue|remaining|\bstill\b|not yet|needs?[ -]your[ -]test", re.IGNORECASE)
+OWES = re.compile(r"residue|remaining|\bstill\b|not yet|needs?[ -]your[ -]test|\bleft\b|not done|to ?do|follow-?up", re.IGNORECASE)
 
 
 def owes_more(comment: str) -> bool:
