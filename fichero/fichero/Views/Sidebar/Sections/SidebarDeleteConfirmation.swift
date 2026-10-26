@@ -72,6 +72,13 @@ func sidebarDeleteTargets(_ items: [SidebarItem], inheritedSelectionId: String?)
     return deletable.filter { $0.id != inherited }
 }
 
+/// The inherited row after the selection is proposed again: it stays only while the proposal is exactly that row (the
+/// List echoing the app's own write), and clears for any other selection, which is the person choosing (#6175).
+func inheritedSelection(afterProposing proposed: [String], inherited: String?) -> String? {
+    guard let inherited, proposed == [inherited] else { return nil }
+    return inherited
+}
+
 /// Items the context-menu Delete acts on. Right-clicking a row inside the
 /// current multi-selection targets the whole deletable selection (Finder
 /// semantics); a row outside the selection targets itself alone. Falls back

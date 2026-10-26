@@ -35,12 +35,12 @@ struct SidebarDeleteTests {
         #expect(sidebarDeleteTargets(rows, inheritedSelectionId: "a").map(\.id) == ["b"])
     }
 
-    @Test func theDeleteStateRemembersAndForgetsTheInheritedRow() {
-        let state = DeleteStateManager()
-        #expect(state.inheritedSelectionId == nil)
-        state.inheritedSelectionId = "p"
-        state.inheritedSelectionId = nil
-        #expect(state.inheritedSelectionId == nil)
+    @Test func theInheritedRowSurvivesOnlyTheListEchoingItAndClearsOnAnyOtherSelection() {
+        #expect(inheritedSelection(afterProposing: ["p"], inherited: "p") == "p")
+        #expect(inheritedSelection(afterProposing: ["other"], inherited: "p") == nil)
+        #expect(inheritedSelection(afterProposing: ["p", "other"], inherited: "p") == nil)
+        #expect(inheritedSelection(afterProposing: [], inherited: "p") == nil)
+        #expect(inheritedSelection(afterProposing: ["p"], inherited: nil) == nil)
     }
 }
 
