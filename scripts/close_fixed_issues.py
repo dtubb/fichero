@@ -9,7 +9,7 @@ after each push to integration:
     scripts/close_fixed_issues.py --range A..B --apply  # the pushed range only (the Action passes before..sha)
 
 Only a `Fixes #N` / `Closes #N` / `Resolves #N` that starts a line of the message counts (a subject or a
-trailer), never prose such as "revert the fix #5222". An issue labelled `residue` is never closed here: part of
+trailer), never prose such as "revert the fix #5222". An issue whose last comment says what is left (residue, remaining, still, not yet, needs your test) stays open too. An issue labelled `residue` is never closed here: part of
 it is still owed, and that part gets its own narrower issue. Nor is one labelled `needs-your-test`: it closes
 when the maintainer has checked it on screen. An issue a human REOPENED after the fixing commit stays open: the
 fix did not hold. Only commits already on the remote count, so an issue is never closed against work that has
@@ -30,6 +30,21 @@ FIXES = re.compile(r"(?:^|[(\[]|[.;,]\s+)\s*(?:fix(?:es|ed)?|close[sd]?|resolve[
 def cited(message: str) -> set[int]:
     """The issue numbers a commit message says it fixes: a Fixes/Closes/Resolves clause, not prose."""
     return {int(n) for n in FIXES.findall(message)}
+
+
+# What a comment says when part of the issue is still owed (live, 2026-10-26: four issues closed with residue in their
+# last comment). Deliberately broad: a false hit leaves an issue open, a miss closes work that is not done.
+OWES = re.compile(r"residue|remaining|\bstill\b|not yet|needs?[ -]your[ -]test", re.IGNORECASE)
+
+
+def owes_more(comment: str) -> bool:
+    """True when a comment says what is left to do."""
+    return bool(OWES.search(comment or ""))
+
+
+def last_comment(number: int) -> str:
+    comments = json.loads(_run("gh", "issue", "view", str(number), "--json", "comments"))["comments"]
+    return comments[-1]["body"] if comments else ""
 
 
 def _run(*args: str) -> str:
@@ -80,6 +95,9 @@ def main() -> int:
             continue
         if "residue" in labels or "needs-your-test" in labels:
             print(f"#{number}: open, labelled {'residue' if 'residue' in labels else 'needs-your-test'} -- left open")
+            continue
+        if owes_more(last_comment(number)):
+            print(f"#{number}: its last comment says what is left -- left open")
             continue
         if reopened_after(number, date):
             print(f"#{number}: reopened after {sha[:9]} -- left open (the fix did not hold)")

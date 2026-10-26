@@ -155,7 +155,7 @@ class FakeCoder:
 
     def __init__(self, scratch, behaviour="good"):
         self.scratch, self.behaviour, self.told, self.windows, self.stopped = scratch, behaviour, [], [], []
-        self.turns, self.tools, self.context = 0, None, 0
+        self.turns, self.tools, self.context, self.keyword = 0, None, 0, "Fixes"
 
     def start_window(self, cfg, name, cwd, cmd, env):
         self.windows.append((name, Path(cwd), cmd, env))
@@ -188,7 +188,7 @@ class FakeCoder:
         else:  # a test that passes on the base proves nothing (a different file each attempt, so each commits)
             (wt / "tests" / f"test_{n}.py").write_text(f"# attempt {mine}\ndef test_trivial():\n    assert True\n")
         git(wt, "add", ".")
-        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix (Fixes #{n})")
+        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix ({self.keyword} #{n})")
         self.turns += 1
 
     def status(self, session_dir):

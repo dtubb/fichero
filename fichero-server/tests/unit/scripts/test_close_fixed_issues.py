@@ -53,3 +53,12 @@ def test_an_issue_reopened_after_the_fixing_commit_stays_open(monkeypatch):
     monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps(events))
     assert _mod.reopened_after(1, "2026-10-22T10:00:00Z") is True, "reopened after the commit: the fix did not hold"
     assert _mod.reopened_after(1, "2026-10-25T10:00:00Z") is False, "reopened before the commit: the commit is the fix"
+
+
+def test_a_last_comment_that_says_what_is_left_keeps_the_issue_open(monkeypatch):
+    # Live 2026-10-26: #6129 #6133-#6135 were closed with residue in their last comment.
+    for text in ("Residue: the iPad half", "remaining: the docs", "this is still missing", "not yet wired", "needs your test"):
+        assert _mod.owes_more(text), text
+    assert not _mod.owes_more("Done and verified.") and not _mod.owes_more("")
+    monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps({"comments": [{"body": "old"}, {"body": "Residue: x"}]}))
+    assert _mod.owes_more(_mod.last_comment(1))

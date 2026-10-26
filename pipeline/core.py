@@ -993,10 +993,14 @@ def close_landed() -> dict:
             continue  # not on the base branch yet
         n = _n(key)
         gh.cache_clear()
-        iss = gh.read("issue", "view", str(n), "--json", "state,labels,milestone")
+        iss = gh.read("issue", "view", str(n), "--json", "state,labels,milestone,comments")
         names = {x["name"] for x in iss["labels"]}
         if iss["state"] != "OPEN" or names & {lab["residue"], "needs-your-test"}:
             continue
+        if closer.owes_more((iss.get("comments") or [{}])[-1].get("body")):
+            continue  # its last comment says what is left
+        if n not in closer.cited(checks.git(c["repo"]["path"], "log", "-1", "--format=%B", it["sha"])):
+            continue  # the commit only says "Part of": it does not claim to finish the issue
         subject = checks.git(c["repo"]["path"], "log", "-1", "--format=%s", it["sha"])
         if it.get("residue"):
             write = [["issue", "comment", str(n), "--body", f"Landed in {it['sha'][:9]}, but this is still owed:\n\n{it['residue']}"],
