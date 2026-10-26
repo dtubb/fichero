@@ -102,7 +102,8 @@ driver* of that state, and Fichero's mirror never wins a disagreement about stat
   (`next_issues` queues `write-up` and `triage` items, `ask`/`answer` the maintainer queue, `approve_checks`,
   `close_landed` the closer: landed sha + checks green, residue leaves the issue open, a milestone closes with its
   last issue), and `scripts/close_fixed_issues.py`. `plan <spec>` and `plan-approve <spec> [--apply]` (dry run by
-  default; one issue per step, stage labels, `(#N)` on headings, the milestone made) are **in review on runner/b4**
+  default; one issue per step, stage labels, `(#N)` on headings, the milestone made; a step already on GitHub by exact title or
+  `<!-- plan-step -->` marker is reused, so a rerun or a crash after create files no duplicate, #6161) are **in review on runner/b4**
   (2858dbb68, unmerged); on this spec's base, spec approval is
   only the status line `feeder.approved_ids` reads.
 
