@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fichero_server.core.atomic_json import write_json_atomic
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
 
 MODELS_DIRNAME = "models"
 CARD = "fichero-card.json"
@@ -147,16 +147,17 @@ def _kraken_global(package: str | Path, model_id: str, stamp: dict[str, Any]) ->
     marker = _global_marker_path(model_id)
     if marker.exists():
         raise FileExistsError(f"{model_id} is already in the global store")
-    record = json.loads(record_path.read_text(encoding="utf-8"))
-    source = record_path.parent / str(record["model_path"])
+    source = record_path.parent / str(json.loads(record_path.read_text(encoding="utf-8"))["model_path"])
     folder = recognition_data_home() / model_id
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / source.name
     shutil.copy2(source, target)
-    record = {**record, "model_path": str(target),
-              "trained": {**record.get("trained", {}), "made_global_from": stamp}}
     recognition_model_dir().mkdir(parents=True, exist_ok=True)
-    write_json_atomic(marker, record)
+    with card_lock(record_path):  # the card is read AFTER the copy, so an evaluation recorded meanwhile comes along (#6138)
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        record = {**record, "model_path": str(target),
+                  "trained": {**record.get("trained", {}), "made_global_from": stamp}}
+        write_json_atomic(marker, record)
     return {"model_id": model_id, "global_path": str(target), "may_publish": _may_publish(record["trained"])}
 
 
