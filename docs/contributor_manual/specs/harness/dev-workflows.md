@@ -318,7 +318,8 @@ dependency or a `blocked` label → `blocked`; closed `completed` → `completed
   proven on it does it move onto the app's own engine (dogfooding, Stage 3,
   `dev-workflows.combined.pipeline-is-first-user`).
 - `dev-workflows.run.state-stays-in-github` [PROPOSED] — a workflow run holds item state only as GitHub issue/label/
-  milestone state plus the runner's journal; the run log is a view of it, and the Fichero task mirror
+  milestone state plus the runner's JSONL journal, which stays the source of truth (owner ruling
+  2026-10-26, Q2); the run log and the activity rows are a view built from it, and the Fichero issue mirror
   (`dev-workflows.combined.sync-two-way`) is a cache of it, never a second truth. A workflow that disagrees with the
   journal or with GitHub stops with a question, it does not win.
 - `dev-workflows.run.small-models-only` [GAP] (#6116) — every dev workflow runs with a model alias at Sonnet or Haiku
@@ -541,13 +542,17 @@ runner borrows its step helpers (§ What exists today, "Chains").
   removal converts every chain present in the running engine (and the bar's) into a recipe with the same workflows in
   the same order and the same inputs mapping, reports each conversion, and leaves a chain it cannot convert in the
   queue as a question with its definition as JSON; a test proves no table or file holds chain definitions before
-  removal.
+  removal. The paleography chain preset (`api/routes/workflow/chains.py` `_build_paleography_chain` :412, the
+  preset routes :626-643) becomes a **recipe template** with the same workflows and order (owner ruling 2026-10-26,
+  Q9).
 - `dev-workflows.chains.removed` [GAP] (#4949) — removed: the `/chains/*` routes (CRUD, paleography preset, the
   legacy `/chains/{id}/execute`, `/chains/execute-steps`), `execution/chaining.py`, the job kind `chain`
   (`register_kind`, `_cancel_chain`, `record_chain`, the `RUN_KINDS` entry), the feature `workflowChains` in
-  `features.yaml` and its generated files, the AppleScript `workflow chain` class, the CLI's chain commands
+  `features.yaml` and its generated files, the AppleScript `workflow chain` class (`Fichero.sdef`; removed with no replacement, owner ruling 2026-10-26, Q11:
+  no script uses it), the CLI's chain commands
   (regenerated surface), the Swift chain files and sidebar, menu and readiness entries listed above, and the chain
-  tests. The paleography preset becomes a recipe template first, or is ruled dropped (open question).
+  tests. The paleography preset is removed only after its recipe template exists
+  (`dev-workflows.chains.user-chains-become-recipes`).
 - `dev-workflows.chains.nothing-depends` [GAP] (#4949) — a guard test fails if any source, Swift file, generated
   surface or spec outside history names `execution.chaining`, `routes.workflow.chains`, `/chains`, `WorkflowChain`,
   `ChainService` or `ChainStore` (the `ImageEditChain` and builder chain-Send names excepted by exact name).
@@ -560,16 +565,20 @@ maintainer reviews every PR, and nothing auto-merges. All of it is [GAP].
 
 - `dev-workflows.contrib.tier-off-by-default` [GAP] (#6116) — the contributor tier is off for every user and every
   build until the user turns it on and passes the allow-list check (`dev-workflows.contrib.invite-only`); with it
-  off, no contributor menu, route or tool exists.
-- `dev-workflows.contrib.invite-only` [GAP] (#6116) — contributions are limited to named people: an allow-list of
-  GitHub users and teams kept in the repo (the pipeline profile's `github` table, beside `allowed_authors`), off
-  (empty) by default. The app checks it when the tier is turned on and before each contribution: the user signs in
-  through their own `gh` login, and the app accepts a login named in the list, or one with active membership of a
-  listed team (`GET /orgs/{org}/teams/{team}/memberships/{username}`); the result is cached for at most an hour, so a
-  removal takes effect within the hour. A signed invite in place of team membership is an open question. A user not
-  on the list cannot use the tier.
+  off, no contributor menu, route or tool exists. Owner ruling 2026-10-26 (Q5): the dev workflows ship **only** in
+  this tier, off by default; this spec promises no release of the combined or shared-project model to all users
+  (that would be a separate decision).
+- `dev-workflows.contrib.invite-only` [GAP] (#6116) — contributions are limited to people the maintainer invites
+  (owner ruling 2026-10-26, Q10: a **signed invite**, no GitHub org needed). The maintainer issues an invite naming
+  one GitHub login, an expiry and the per-person limits, signed with a maintainer key whose public half is kept in
+  the repo; the person enters it in the app, which verifies the signature and expiry, then checks through the
+  person's own `gh` login that they are that GitHub user. The tier stays locked without a valid invite. The app
+  re-checks before each contribution, and a revocation list in the repo (read on each pull) ends an invite at the
+  next check. The account invites in `api/routes/auth/accounts.py` (:549-681: mint, redeem, revoke) are the nearest
+  existing piece and are reused for minting and revoking where they fit. Noted alternatives, not the default: a list
+  of named GitHub logins, or membership of a GitHub team.
 - `dev-workflows.contrib.maintainer-manages-people` [GAP] (#6116) — the maintainer adds and removes people by a
-  reviewed change to the list, sets a per-person rate limit (open PRs at once, proposals per day) and revokes a
+  signed invite and removes them by revoking it, sets a per-person rate limit (open PRs at once, proposals per day) and revokes a
   person; a revoked person's open proposals are closed with a comment, never merged.
 - `dev-workflows.contrib.library-stays-local` [GAP] (#6116) — a contributor's library never leaves their machine:
   the contributor model is bound only to the repo workspace's read-only tools and the scratch worktree, never to the
@@ -678,8 +687,17 @@ Owner rulings of 2026-10-26 on this spec's open questions (the spec as a whole s
 - Q6 names: GitHub's names in the app (Project, Milestone, Issue, Pull Request, Label, Comment, Release, Assignee);
   Spec and Plan are ours. (`dev-workflows.combined.github-names`)
 - Q7 sync: pull only, every 5 minutes and on open; no webhooks. (`dev-workflows.combined.sync-two-way`)
-- Q8 plan approval: the runner's `plan-approve` first (dry run by default; in review on runner/b4, 2858dbb68), the
-  app's approval with the combined model. (`dev-workflows.combined.approvals`)
+- Q8 plan approval: the runner's `plan-approve` first (dry run by default; in review on runner/b4, 2858dbb68,
+  reviewed READY with the caveat #6161), the app's approval with the combined model. (`dev-workflows.combined.approvals`)
+- Q2 journal: the pipeline's JSONL journal stays the source of truth; workflow and activity rows are a view built
+  from it. (`dev-workflows.run.state-stays-in-github`)
+- Q5 ship scope: the dev workflows ship only in the contributor tier, off by default; nothing here promises the
+  combined or shared-project model to all users. (`dev-workflows.contrib.tier-off-by-default`)
+- Q9 paleography chain preset: becomes a recipe template. (`dev-workflows.chains.user-chains-become-recipes`)
+- Q10 contributor check: a signed invite issued by the maintainer; named logins or team membership are noted
+  alternatives only. (`dev-workflows.contrib.invite-only`)
+- Q11 AppleScript `workflow chain` class: removed with chains, no replacement; no script uses it.
+  (`dev-workflows.chains.removed`)
 
 ## Build order
 
@@ -1026,17 +1044,4 @@ pins the rule once it is ruled). None of these tests exists yet; each is written
 
 ## Open questions for the maintainer
 
-Decided 2026-10-26 (see Rulings): Q1 pinned engine, Q3 dev library, Q4 model-node writes, Q6 GitHub names, Q7 pull
-only, Q8 `plan-approve` first. Still open:
-
-2. Should the pipeline's journal move into the engine's DuckDB (one store) or stay JSONL with the workflow as a
-   view? This spec assumes the second (`dev-workflows.run.state-stays-in-github`); the combined model adds an issue
-   mirror in the engine either way, so this is only about the journal.
-5. Do dev workflows ship in the app for every user, or behind a contributor tier (`release-channels-and-feature-tiers.md`)?
-   The combined model (spec, plan, GitHub sync) serves any user's project, so it may ship apart from the dev nodes
-   and the contributor tier.
-9. The paleography chain preset (`chains.py` :412, :626-643): becomes a recipe template, or is dropped with chains?
-10. Contributor check: GitHub team membership (needs a GitHub org the owner administers) or a signed invite the
-    maintainer issues (works without an org; the account invites in `api/routes/auth/accounts.py` :549-681 are the
-    nearest existing piece)? `dev-workflows.contrib.invite-only` proposes the first.
-11. The AppleScript `workflow chain` class goes with chains; does any of the owner's own scripts use it?
+None open. Q1 to Q11 were decided by the owner on 2026-10-26 (§ Rulings).
