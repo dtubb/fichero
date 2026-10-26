@@ -11,9 +11,17 @@ import WebKit
 enum WebKitProbe {
     struct CouldNotStart: Error, CustomStringConvertible {
         let webKitSaid: String
+        /// The sandbox is named only when WebKit's own words say so (error 159, "Sandbox restriction"); any other
+        /// failure (a timeout, another error) is reported as it is, so the probe never blames the shell for something else.
+        var isTheSandbox: Bool {
+            webKitSaid.localizedCaseInsensitiveContains("sandbox") || webKitSaid.contains("159")
+        }
+
         var description: String {
-            "WebKit could not start: the shell running xcodebuild is sandboxed; run the Mac unit step from a "
-                + "GUI-session shell (#6111). WebKit said: \(webKitSaid)"
+            isTheSandbox
+                ? "WebKit could not start: the shell running xcodebuild is sandboxed; run the Mac unit step from a "
+                    + "GUI-session shell (#6111). WebKit said: \(webKitSaid)"
+                : "WebKit could not start (timeout or error): \(webKitSaid)"
         }
     }
 
