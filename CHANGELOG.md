@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-26
+
+- Set Up and Activity: a folder's own reader is used at Start (#6135); a running recipe's Activity row says its stage in words with its pages (#6125); the stages before Search leave their embeds to Search and the embed left to it is queued, not dropped (#6126); the Activity row names each reader of a stage that reads with several (#6134); the Activity window port and its list routes return {items, count} (#6101); more error branches show the engine's words (#6109).
+- Readers and models: Find where the readers disagree takes the readers the person chooses, replacing the rule's set (#6121, engine half; the app's multi-select is still to build); a prompted vision tool on Apple Vision is refused once at the start, not page by page (#6029); a model re-download or Make Global keeps the card's recorded evaluations (#6138); every model-card writer is atomic (#6137); idle models are freed when the lane holds a job for memory, and the engine reports what is loaded (#6129, engine half).
+- Search and review: the search model is chosen when a project is made, and the engine serves the list (#6144); the review stage is "Review the Reading", driven from the project's script, language and date, with each pass's instructions editable on its Set Up page (#6128).
+- iPhone: Forget This Mac asks the Mac to remove the phone from its device list first (#6133).
+- Tests and tooling: the reader's WebKit probe names the sandbox only when WebKit says so (#6111); model-registry tests pin the vendored snapshot (#6108); a flaky WebKit page load is retried once (#4793); the dead DocumentHierarchy type is deleted (#3961); the duplicate-deep-tree spec line is OK (#5100); the runner's closer keeps an issue open when its last comment says what is left, and the runner stops an issue past its budget.
+- Release: the Mac TestFlight upload is held up by a crash inside Apple's upload tools on the Xcode 27.0 beta (recursion in ContentDelivery); the iPhone build is not affected.
+
+## 2026-10-25
+
+- Set Up: cancelling Set Up for a new project removes the half-made project (#6117); the hands follow the writing, with Palmer and Modern cursive added (#6118); a stage page picks the model when there is only one (#6119).
+- Run: blank pages are not counted as failed (#6130); the Catalogue's folder description is saved as the folder's content (#6131) and written to the catalogue guidance (#6123); a model card can no longer be corrupted by two evaluations written at once (#6136); the search-model choices come from the engine (#6143).
+- Release: the site deploy cannot publish the private manuscript pages (#6113); the Mac App Store build signs every engine Mach-O (#6132) and keeps the engine in Helpers (#6112); Start is fast again on large projects (#6115).
+
 ## 2026-10-24
 
 - Onboarding: one Start runs every stage to Catalogue and runs again on new material; stop, quit or engine loss resumes without redoing done pages or lines (#5390).

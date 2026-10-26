@@ -2,6 +2,34 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.26
+What changed since 2026.10.24.
+
+- Several readers can read the same page side by side, and the page's text always comes from the hosted reader when one is chosen. Fichero no longer runs a reader you did not choose. (check owed)
+- Search: you choose the search model when you make a project, and the Ready page says which one will be used. Changing it later is a re-embed run that says what it will do first.
+- Review: the stage is now "Review the Reading", and it picks its instructions from the project's script, language and date. You can read and edit each pass's instructions on the review's page in Set Up. (check owed)
+- iPhone: Forget This Mac now asks the Mac to remove the phone from its device list, then forgets the pairing on the phone. (check owed on a real iPhone and Mac)
+
+**Set Up.**
+- Cancelling Set Up for a new project no longer leaves a half-made project behind.
+- The hands offered for a page follow the writing (a Spanish, Latin-script page is no longer offered Kurrent), with Palmer and Modern cursive added.
+- A stage page no longer asks you to tick a model when there is only one to choose.
+- A reader you choose for one folder is used for that folder when you press Start; folders with a reader of their own are left out of the project-wide run of that step.
+- The Catalogue's description of a folder is saved as the folder's content, and its fields become the folder's attributes.
+
+**Activity.**
+- A run's rows name each reader of a stage that reads with several. (check owed)
+- Pages that came back blank are no longer counted as failed.
+- When memory is tight, idle models are unloaded before the work waits, and Activity can say what is loaded.
+
+**Models.**
+- Re-downloading a model, or making it global, keeps the evaluations already recorded on its card. Model cards are written safely, so a crash can no longer leave half a file.
+- Apple Vision: a step that needs a prompt it cannot take is refused once, at the start, instead of failing page by page.
+
+**Under the hood.** Fixes for the reader's WebKit probe on a sandboxed shell, tests that no longer read this Mac's live model price cache, and the engine's words reaching more error messages in Activity.
+
+**Known.** The Mac App Store (TestFlight) build of this release is held up by a crash inside Apple's upload tools in the Xcode 27.0 beta; the Mac build is available by download and update, and the iPhone TestFlight build is not affected. Without a key set, the Economy preset can no longer run its free Apple + local reading draft (it is refused at the start with the reason): say if that is not wanted.
+
 ## 2026.10.24
 
 What changed since 2026.10.11. (2026.10.22 was prepared but never published; its changes are listed here too.)
