@@ -46,11 +46,24 @@ def tick() -> tuple[list[str], bool]:
             it = core.state()["items"][key]
             journal.append("note", issue=it["issue"], key=key, text=f"scheduler: {type(e).__name__}: {e}"[:500])
             did.append(f"{key}: {type(e).__name__}: {e}"[:200])
+    _adopt_landed(c, did)
     for key, it in core.state()["items"].items():
         if it["state"] == "reviewed":
             _ask_once("ready-to-land", f"{key} is reviewed READY at {it['sha'][:9]}: `python -m pipeline land {key}`")
     did += _start_new(c)
     return did, moved or any(d.startswith("start") for d in did)
+
+
+def _adopt_landed(c: dict, did: list[str]) -> None:
+    """A reviewed item whose checked sha is already on the base branch was landed by hand (a merge by the Lead, a cherry
+    pick): it is pushed, not still waiting to land. Journals the move so the closer sees it and no ready-to-land is asked."""
+    for key, it in list(core.state()["items"].items()):
+        if it["state"] in ("reviewed", "candidate", "gated") and it["sha"] and not checks.sh(
+                ["git", "merge-base", "--is-ancestor", it["sha"], c["repo"]["base"]], cwd=c["repo"]["path"]).returncode:
+            for to in ("candidate", "gated", "pushed"):
+                if (core.state()["items"][key]["state"], to) in core.ALLOWED:
+                    core._move(key, to, f"{it['sha'][:9]} is on {c['repo']['base']} (landed by hand)")
+            did.append(f"{key}: already on {c['repo']['base']}, marked pushed")
 
 
 def _step(key: str, c: dict, did: list[str]) -> bool:
