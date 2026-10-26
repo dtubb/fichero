@@ -1628,13 +1628,14 @@ def download_recognition_model(
             old = json.loads(marker.read_text(encoding="utf-8")) if marker.is_file() else {}
         except (OSError, ValueError):
             old = {}
-        kept = {k: old[k] for k in ("evaluations", "reasons_ab") if isinstance(old, dict) and old.get(k)}
-        write_json_atomic(
-            marker,
-            {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
-             "model_path": model_path, "bytes": found[0].stat().st_size, **kept},
-            indent=None,
-        )
+        new = {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
+               "model_path": model_path, "bytes": found[0].stat().st_size}
+        # Only the same weights keep their measurements: a changed revision or DOI is a different model, and a CER
+        # measured on the old one must not read as the new one's.
+        same = isinstance(old, dict) and all(old.get(k) == new[k] for k in ("hf", "revision", "doi") if k in new) \
+            and not any(k in old and k not in new for k in ("hf", "doi"))
+        kept = {k: old[k] for k in ("evaluations", "reasons_ab") if same and old.get(k)}
+        write_json_atomic(marker, {**new, **kept}, indent=None)
 
 
 def _region_boxes(

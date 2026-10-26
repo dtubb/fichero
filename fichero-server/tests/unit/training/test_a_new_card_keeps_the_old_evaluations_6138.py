@@ -67,3 +67,13 @@ def test_make_global_keeps_an_evaluation_recorded_while_the_weights_were_copied(
     pm._kraken_global(package, model_id, {"at": "now"})
     made = json.loads(kr._global_marker_path(model_id).read_text())
     assert [e["at"] for e in made["evaluations"]] == ["2026-10-25T10:00:00", "later"]
+
+
+def test_a_redownload_of_a_different_revision_does_not_carry_the_old_weights_measurements(data_home):
+    kr.download_recognition_model("kraken-mccatmus", run_call=lambda op: _land())
+    marker = kr._marker_path("kraken-mccatmus")
+    old = json.loads(marker.read_text())
+    marker.write_text(json.dumps({**old, "doi": "10.0000/an-older-version", "evaluations": [EVAL], "reasons_ab": [AB]}))
+    kr.download_recognition_model("kraken-mccatmus", run_call=lambda op: _land())
+    card = json.loads(marker.read_text())
+    assert "evaluations" not in card and "reasons_ab" not in card and card["doi"] != "10.0000/an-older-version"
