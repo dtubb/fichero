@@ -1647,6 +1647,7 @@ _KEYLESS_EXPECTED_REFUSALS = {
     "AI Convert to Markdown",
     "AI Redraw as SVG",
     "Classify Script",
+    "Describe (visual)",  # #6029: Describe answers a prompt, which Apple Vision ignores
     "English Secretary Hand (16th–17th C.)",
     "Extract Table",
     "Group Same Documents",
