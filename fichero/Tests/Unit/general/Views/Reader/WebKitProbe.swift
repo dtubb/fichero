@@ -21,7 +21,7 @@ enum WebKitProbe {
             isTheSandbox
                 ? "WebKit could not start: the shell running xcodebuild is sandboxed; run the Mac unit step from a "
                     + "GUI-session shell (#6111). WebKit said: \(webKitSaid)"
-                : "WebKit could not start (timeout or error): \(webKitSaid)"
+                : "WebKit could not start (timeout or error): \(webKitSaid). If the log shows error 159, run from a GUI-session shell (#6111)"
         }
     }
 
