@@ -9699,6 +9699,16 @@
       },
       {
         "method": "POST",
+        "path": "/recipes/project/steps/place",
+        "operation_id": "put_step_on_a_place_api_recipes_project_steps_place_post",
+        "summary": "Put Step On A Place",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StepPlaceRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
         "path": "/recipes/project/steps/use-candidate",
         "operation_id": "use_candidate_for_step_api_recipes_project_steps_use_candidate_post",
         "summary": "Use Candidate For Step",

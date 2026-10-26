@@ -14005,6 +14005,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("put-step-on-a-place")
+    def recipes_put_step_on_a_place_post(
+        ctx: typer.Context,
+        place: str = typer.Option(..., '--place', help="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step."),
+        step: str = typer.Option(..., '--step', help="the recipe step's id (a reading step)"),
+    ) -> None:
+        """Put Step On A Place (POST /api/recipes/project/steps/place)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/place"
+            params = None
+            payload = _build_json_payload({
+                "place": place,
+                "step": step,
+            }, {
+                "place": {'type': 'string', 'title': 'Place', 'description': "`this-mac` or `huggingface-jobs`: the person's choice, kept on the step", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id (a reading step)", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("use-candidate-for-step")
     def recipes_use_candidate_for_step_post(
         ctx: typer.Context,

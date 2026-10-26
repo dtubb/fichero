@@ -6647,6 +6647,15 @@ def fichero_recipes_use_installed_instead(
     return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model, "provider": provider}))
 
 
+def fichero_recipes_put_step_on_a_place(
+    *,
+    place: Annotated[str, Field(description="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step.")],
+    step: Annotated[str, Field(description="the recipe step's id (a reading step)")],
+) -> Any:
+    "Put Step On A Place\n\nPut a reading step on Hugging Face Jobs, or back on this Mac, through `project.save_setup` (audited, undoable)\n(`source.recipe.step-runs-on-huggingface`). Choosing only records where it runs: Start sends pages only with the\nproject's yes, the app's Hugging Face place and a monthly cap above $0. Refused (422) for a step the recipe lacks, a\nstep that is not a reading, or another place.\n\nRoute: POST /api/recipes/project/steps/place (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/place", json=_rt.body({"place": place, "step": step}))
+
+
 def fichero_recipes_use_candidate_for_step(
     *,
     card: Annotated[str, Field(description="the candidate's card id, as GET /api/recipes/candidates lists it (`id`)")],
@@ -9871,6 +9880,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
+    GeneratedTool("fichero_recipes_put_step_on_a_place", "recipes", "POST", "/api/recipes/project/steps/place", fichero_recipes_put_step_on_a_place),
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
     GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
