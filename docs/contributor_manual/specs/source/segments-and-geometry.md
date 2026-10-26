@@ -92,6 +92,12 @@ the forwarding notes.
   `frame_status` (the engine's word on whether its frame can be trusted), and no checksum or
   scale. The checksum and scale are this design's additions to that one record, not a second
   record of image identity (`ui/reader-overlay-frame-identity.md` owns the frame rules).
+- **The page region.** An image of a photographed or scanned page may carry a `page_region`
+  attribute: the paper's outline (four corners or a box) in fractions of the upright image, the
+  frame it was measured in, the method that found it (`vision`, `contour`, `yolo:<model>`,
+  `person`), its confidence and the settings. It is not a segment: it says where the paper is so
+  that Find Regions looks only there and Preview can draw it. An image without one reads as the
+  whole image. Owned by `image-enhancement.md` (`image.enhance.page-crop`, #6187, #6188).
 
 ### Several images of one page
 
@@ -519,6 +525,7 @@ separate segment search.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Identity and versions
+- `source.image.page-region` — **[GAP]** (#6187) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
 - `source.segment.lasting-id` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestLastingId::test_create_read_back_engine_made_id_client_id_refused`) a segment keeps its id through move, reshape, re-read and
   re-type, and an id is never given to another segment.
 - `source.segment.rerun-is-new-pass` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segmenting a page again adds a pass; nothing existing

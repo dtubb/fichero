@@ -1,0 +1,316 @@
+# Source Model — Image enhancement: page images made easier to read, as nodes, editor tools and renditions — Design Spec (#6185)
+
+> Milestone: image-enhancement
+> Manual: TBD — a section, "Enhancing page images", explaining what Fichero can do to a photograph or scan
+> before reading it (crop to the page, straighten, split, lift the ink, even out stains, quiet ruling and
+> show-through), that the original is never changed, how to preview and undo it on one page or a folder,
+> and how to see whether it helped.
+>
+> Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code makes them pass.
+> **Status: DRAFT — awaiting approval before tests/code** (2026-10-26; owner rulings of the same day).
+> Sibling of `image-preparation.md` (#5382, the 2026-10-03 draft: find the page, split, turn, blanks, the
+> YOLO cards; its `prep.*` ids stay), `../ui/preview-image-editing.md` (the edit chain, `preview.edit.*`)
+> and `recipe-designer.md` (the Leave Out stage, `designer.clean.leaves-out-non-text`, #6070).
+> Tags: [OK] built · [GAP] not built · [PARTIAL] exists elsewhere / not wired · [BROKEN] built, wrong.
+
+## Intent
+
+The archive's pages are hard: a wooden ruler and a colour card beside the paper, a wide dark mount, torn
+and holed edges, water and mould stains, faint ink, green ruling, revenue stamps over the text, and the
+other side's writing showing through mirrored and faint. The old command-line Fichero cleaned such pages
+with OpenCV and the result was good enough to read for years; the new app has an Enhance button that does
+less. This spec ports **the methods and parameters** of the old tools into the engine as **typed steps**
+written to the app's rules, and leaves the old app's shape behind.
+
+Two steps, kept distinct (owner 2026-10-26):
+
+1. **Image enhancement** (this spec) makes a page easier to read and **writes renditions**: crop to the
+   page, rotate and deskew, split a spread, lift contrast, even out stains, quiet ruling, suppress
+   show-through. It never decides what is ignored.
+2. **Leave Out** (`recipe-designer.md`, #6070, `recipes/leave_out.py`) decides what is **not read**: the
+   ruler, the colour card, the mount, specks, show-through lines, stamps where wanted, show-through-only
+   versos. It never changes pixels.
+
+Order of a run: **enhance → find regions and lines (one pass) → leave out → read.** Enhancement writes the
+`page_box` Leave Out reads and the rendition whose ink contrast Leave Out measures.
+
+## What exists today
+
+- **Three systems the steps must plug into.**
+  - *Workflow nodes* (`workflows/tools/*_images.py`, registered in `registry_builtins.py`): `split_pages`,
+    `split_images`, `rotate_images`, `deskew_images`, `auto_crop_border_images`,
+    `remove_background_images`, `adaptive_binarize_images`, `denoise_images`, `enhance_images`,
+    `fuzzy_clean_images`, `prepare_images`; each runs on a page, folder or project and persists its outputs
+    as renditions through `image_edit_chains.persist_workflow_renditions` (paired by source path, bytes
+    copied under library storage). Pinned by `tests/unit/workflows/test_*_images.py`.
+  - *Editor operations* (`api/routes/ingest/image_editing.py`, `preview.edit.*`): a per-page chain of
+    reversible rows; crop, rotate, straighten, enhance, remove background, segment, flip, auto levels,
+    grayscale, auto crop border, adaptive binarize, denoise, fuzzy clean; preview rendered on demand;
+    batch-apply over a folder for crop and split with whole-batch undo (#1265).
+  - *Renditions* (`models.Rendition`: `id, document_id, role, path, is_primary`; `api/routes/document/renditions.py`;
+    the app's `RenditionService` flips "from least to most processed" and a reader records the
+    `rendition_id` its geometry was measured on, `llm/kraken_runtime.py`). The import makes a thumbnail
+    (1024 px) and a display image (2200 px, `db/storage.ensure_display`) per page.
+- **The Enhance button today** (editor and engine, `_apply_operation("enhance")`): PIL only — optional
+  median denoise, optional `ImageOps.autocontrast`, then `ImageEnhance.Brightness`, `Contrast`,
+  `Sharpness` by three sliders (default 1.0 each: a no-op). `enhance_images` the node is the same two PIL
+  calls. Nothing local: a stain and the ink beside it get the same stretch.
+- **Leave Out** (`recipes/leave_out.py`, #6070): reasons `too small`, `off the page`, `likely bleed-through`;
+  `off the page` needs the document's `page_box` metadata and **nothing writes it today**; `likely
+  bleed-through` needs an ink-contrast reading of the line and is skipped where there is none.
+- **Reader prompts**: `llm/line_reader.PROMPT` already says *answer null for a ruler, graph paper, blank
+  paper, a smudge* and *leave out fragments of lines above and below*; it says nothing about mirrored
+  show-through or stamps. The wording is a constant, not versioned, not recorded on the run, not
+  editable per project. `recipes/review_profiles.review_prompt` is the only per-lens prompt builder.
+- **Leaves and blank versos**: `finding-documents.md` pairs pages into leaves before anything else; a blank
+  verso is not a document and show-through on a blank verso "can be read mirrored and matched to its
+  recto" (§ leaves). Nothing marks a page as show-through-only yet.
+
+## The legacy methods, read closely (2026-10-26)
+
+`fichero_archive/_archive/fichero_legacy/tools/` — a CLI app with an `assets/<stage>/` folder per step and
+a JSONL manifest per stage. **Only the methods come over.** The evidence run is under
+`agent-work/status/briefs/image-prep-samples/` (two typed pages of the Nicolasa Blandón file: the legacy
+crop as *before*, the legacy enhanced file on the drive as *reference*, the method restated and re-run,
+and today's Enhance at auto-levels, contrast 1.3, sharpen 1.3; `notes.json` has the timings). The
+restated method matches the reference to a mean of 1.4/255 — JPEG noise — so the parameters below are
+the ones that made the owner's "good result".
+
+| Tool | Input → output | Method and parameters | Keep |
+| --- | --- | --- | --- |
+| `crop.py` | photo → page crop + box, method, confidence | YOLOv8 page model first (best box, 30 px pad left/top/bottom); else contours: grey, optional blur, threshold by template (`dark_background` binary 120, `light_background` inverse 180, `otsu`, `adaptive` 11/2, `edge` Canny 50/150 + dilate), external contours, keep area 0.15–0.99 and aspect 0.5–2.0, largest, pad; else the original | the templates and filter; YOLO optional |
+| `remove_background.py` | photo → RGBA + crop | black coverage check; threshold 80; external contours; keep by size/centre; mask open 5, close 7, blur 21; crop to alpha | the mount mask as the dark-mount page finder |
+| `enhance.py` | page → page | LAB; CLAHE on L (clip 2.2, tile 8×8, then ×1.1 −5 for "handwritten"; clip 1.6, tile 16×16 for "typescript"; the stroke-density heuristic calls nearly every page handwritten — both typed samples scored 8 %, threshold 0.5 %); yellow cast from mean b: subtract min(8, 3·cast), a ×0.98; unsharp 1.5/−0.5 at σ 3 | all of it, as one setting |
+| `rotate.py` | page → page | Hough lines within ±2°, median, warpAffine white fill | today's `detect_deskew_angle` is the same idea (±15°, longer lines) |
+| `split.py` | spread → pages | aspect gate; darkest column in the middle 40 %; split only if darker than 180 and 15 darker than its neighbours; covers and labels by edges and filename | the aspect gate and the neighbour test |
+| `segment.py` | page → line strips | deskew by Hough + text baselines with a confidence; connected-component lines; safe cut points | nothing (Kraken finds lines) |
+| `prepare_images.py` | photo → JPEG | EXIF rotation, compression | nothing (`media/upright.py`) |
+
+**What the legacy did not do, despite the memory of it:** no stain flattening (CLAHE evens the lighting
+around a stain; the stain stays, as the reference shows), no ruled-line handling, no bleed-through
+handling, no blank or verso detection. Those are new below, model-free, and short.
+
+**What the legacy did wrong and the port does not:** files written beside the originals with no link
+back; one folder layout and manifest per stage; crop before everything (so a loose YOLO box, as on
+sample 011, was never re-done); a "handwritten/typescript" switch that never switched; no preview, no
+undo, no per-page parameters.
+
+## The design
+
+### One function, three doors
+
+Each step is **one engine function** `media/enhance/<step>.py: run(image, params) -> (image, account)`
+with a typed `params` model. The same function is reached through three doors with the same parameters:
+
+| Door | Where | Scope | Writes |
+| --- | --- | --- | --- |
+| Workflow node | `workflows/tools/<step>.py`, in the registry; a recipe's Prepare Images step and the Start plan name it | page, folder, project | a rendition per page via `persist_workflow_renditions`, with the run id |
+| Editor operation | `api/routes/ingest/image_editing.py` `operations/<step>`; the editor's tool, sliders from the params model | one page (chain row), or a multi-selection (batch) | a chain row; the batch stamps its id on each row |
+| Rendition | `models.Rendition` with `role: "enhanced"` and `metadata.steps: [{step, params, method, confidence, run_id|batch_id|person}]` | the page | several renditions coexist; the viewer switches; a reader names which it read |
+
+Rule of thumb: a parameter that exists in one door exists in all three, from one Pydantic model, so the
+OpenAPI client and the node config cannot drift.
+
+### The steps, in their usual order
+
+1. **Page crop** (`page-crop`). Finds the paper: Apple Vision's outline where the bridge answers; else the
+   contour finder (the legacy templates, auto-chosen by the border's mean brightness: dark mount → `dark_background`,
+   light table → `light_background`); else the YOLO page card when installed. Writes the outline as the
+   image's `page_region` attribute (`segments-and-geometry.md`, Shape) **and**
+   the document's `page_box` metadata that Leave Out reads. The crop itself is a rendition; the outline
+   maps every later shape back to the photograph.
+2. **Rotate and deskew** (`rotate`, `deskew`). Quarter turns lossless; small angles by Hough median,
+   the angle on the row; skipped under 0.3°.
+3. **Split** (`split-spread`). Aspect gate, then the gutter by darkest column with the neighbour test;
+   proposes when unsure (`prep.split-at-the-gutter`).
+4. **Contrast** (`contrast`). The legacy enhance as one setting: LAB CLAHE clip 2.2 tile 8, L ×1.1 −5,
+   yellow reduction, unsharp. Parameters exposed: `clip` (2.2), `tile` (8), `sharpen` (0.5), `yellow`
+   (auto). **This replaces the Enhance button**: the editor's Enhance becomes this step with these
+   sliders; the PIL brightness/contrast/sharpness operation stays only as `legacy_enhance` for chains
+   that already carry it (re-rendering an old chain must give the old pixels).
+5. **Stains** (`stain-flatten`). Background estimate by morphological closing (kernel ≈ long side / 40),
+   then divide and rescale to the paper's median; the ink (darker than the local background by more than
+   the paper noise) is untouched. Model-free; new.
+6. **Ruled lines** (`ruled-lines`). Coloured ruling (green, blue, red) by hue mask in HSV, thin and long;
+   masked pixels filled from the surrounding paper (inpaint radius 3). Grey ruling by Hough long lines
+   plus thinness. Off by default; on from the onboarding answer "ruled paper". New.
+7. **Show-through** (`bleed-through`). Method A, model-free: after stains, an ink threshold on local
+   contrast pushes faint mirrored text below the paper's noise while real ink (darker, sharper) stays.
+   Method B, when the next image in the folder is the leaf's verso: mirror it, register (ECC on the
+   downsampled pair), subtract its faint copy scaled by a fitted gain. New.
+8. **Show-through-only verso** (`verso-mark`, not pixels). A page whose ink density is low and whose
+   mirrored image matches the previous page above a threshold, with no own text, is marked
+   `page_kind: show-through-only` with its recto. Listed, dimmed, left out of reading by default through
+   Leave Out's page-level reason, one click to include, the mark removable; kept as method B's input.
+   Reuses the leaf pairing of `finding-documents.md`. New.
+
+Each step: previewed on three sample pages (first, middle, last) before a folder runs; undone per page
+(delete the row) or as a batch (`batch-apply/{id}/undo`); recorded on the rendition with its parameters.
+
+### Leave Out, after enhancement
+
+Leave Out's vocabulary gains `ruler`, `colour card`, `show-through`, `show-through-only verso` beside
+`too small`, `off the page`, `likely bleed-through`. The page box comes from page-crop; the ruler and the
+colour card are regions (the YOLO layout card's labels, or the strips of the page box the finder
+excluded) marked with their reason; the ink-contrast reading comes from the chosen enhancement
+rendition when there is one; a show-through-only verso's lines are all left out with the page-level
+reason. Prep never marks; Leave Out never paints.
+
+### Reader prompt fragments
+
+`llm/prompt_fragments.py`: named, versioned fragments, one wording per reader kind (line reader; page
+VLM read: Gemini, Qwen-VL, local MLX), appended to the reader's prompt when the recipe step names them;
+the run record stores the ids and versions so results compare.
+
+| Fragment | Line reader wording | Page reader wording |
+| --- | --- | --- |
+| `ignore-show-through@1` | "Faint, mirrored writing is the other side of the leaf showing through: do not read it." | "Ignore faint mirrored text showing through from the other side of the leaf; transcribe only the writing on this side." |
+| `ignore-furniture@1` | (already in `PROMPT`: ruler, graph paper, blank paper → null) | "Ignore the ruler, the colour card, the mount and anything outside the page." |
+| `read-over-stamps@1` | "A stamp or seal over the writing is not text: read the writing under and around it." | "Where a stamp or seal lies over the text, read the text, not the stamp; name the stamp in one bracketed note." |
+
+A project can switch a fragment off; a new wording is a new version, never an edit in place.
+
+### The working rendition
+
+The display image the import already makes (2200 px) becomes the **working rendition**: made once, keyed
+by content hash and size, reused by the canvas, Preview, the line reader's page context, VLM page reads
+and cleanup previews, never regenerated by a run. Kraken and full-resolution steps read the original. If
+the source file is lost or its drive not mounted, the project still views, reads and re-runs whatever
+needs only the working rendition, and says plainly which step needs the original.
+
+### Measured
+
+On two named sample pages (the owner's: `EAP1477_GHC_B16_Doc02_IMG_003.jpg`, the hard one — stains, holes,
+faint ink, green ruling, a revenue stamp; `…IMG_069.jpg`, blue ink, show-through, stamps; **not on the
+drive on 2026-10-26, the `Fichero GHG/GHG` folder is empty — to be supplied as fixtures**) and the typed
+pair already in the evidence folder: lines found, lines left out by reason, words read, show-through
+words, seconds per page — before and after each step, and the 2×2 of prompt fragment × cleanup.
+
+## Behaviors
+
+- `image.enhance.never-the-original` — **[OK]** every step writes a rendition or a chain row; the source file's bytes and checksum are unchanged. Pinned by `tests/unit/workflows/test_image_prep_source_immutability.py` and `preview.edit.chain-is-a-separate-row-never-the-source`.
+- `image.enhance.three-doors-one-function` — **[GAP]** (#6194) each step is one function under `media/enhance/` reached by the workflow node, the editor operation and the batch with the same typed params; the editor request schema and the node config come from that one model.
+- `image.enhance.old-conventions-left-behind` — **[GAP]** (#6194) the engine never imports from `fichero_archive`, never reads or writes an `assets/<stage>/` folder or a stage manifest; a guardrail test names the forbidden import.
+- `image.enhance.rendition-records-its-steps` — **[PARTIAL]** (#6191) an enhancement rendition carries `metadata.steps` (step, params, method, confidence, who: run id, batch id or person); the viewer switches between renditions; a reader records the rendition it read. Built: `persist_workflow_renditions` pairs outputs by source and copies bytes; the chain row holds the editor's params. Missing: the card and run id on recipe-made renditions, `role: enhanced`, the prepared image attached as a rendition (#5386).
+- `image.enhance.page-crop` — **[PARTIAL]** (#6188) the page is found with no model (Vision, else contour templates auto-chosen by border brightness), the YOLO page card optional; the crop is a rendition, the outline is the `page_region` attribute (#6187). Built: `split_pages` finds the outline with Vision and crops to its box. Missing: the contour finder, the attribute, the YOLO card.
+- `image.enhance.page-crop-writes-page-box` — **[GAP]** (#6198) page-crop writes the document's `page_box` metadata in the same fractions Leave Out reads, so the Doc11 ruler lines are left out `off the page`.
+- `image.enhance.rotate-deskew` — **[PARTIAL]** (#6190) quarter turns lossless, small angles by Hough median with the angle on the row, skipped under 0.3°. Built: `rotate_images`, `deskew_images`, the editor's rotate and straighten. Missing: the one function behind all doors, the angle recorded.
+- `image.enhance.split-spread` — **[PARTIAL]** (#5382) the legacy aspect gate and neighbour test added to `split_pages`; otherwise `prep.split-at-the-gutter` as built.
+- `image.enhance.contrast-clahe` — **[GAP]** (#6190) the `contrast` step is the legacy enhance restated (LAB CLAHE 2.2/8, L ×1.1 −5, yellow reduction, unsharp 1.5/−0.5 σ 3) with `clip`, `tile`, `sharpen`, `yellow` as params; on the two typed samples it reproduces the reference enhanced files to a mean difference under 3/255.
+- `image.enhance.editor-enhance-is-the-new-step` — **[GAP]** (#6190) the editor's Enhance button runs `contrast` with its sliders; the PIL brightness/contrast/sharpness operation survives only as `legacy_enhance` so an existing chain re-renders to the same pixels; new chains never write it.
+- `image.enhance.stain-flattening` — **[GAP]** (#6195) background by morphological closing, divide and rescale; a stain's mean within 10/255 of clean paper after, ink contrast kept.
+- `image.enhance.ruled-lines` — **[GAP]** (#6195) coloured ruling by hue mask, grey ruling by long thin Hough lines, filled from the surrounding paper; the ink's dark pixels unchanged; off by default, on from the onboarding answer.
+- `image.enhance.bleed-through-suppression` — **[GAP]** (#6196) method A (local-contrast ink threshold after stains) pushes mirrored faint text under the paper noise without thinning the ink; method B (mirrored verso registered and subtracted) offered when the verso is in the folder; previewed on three pages.
+- `image.enhance.show-through-only-verso` — **[GAP]** (#6197) a fixture pair (recto, mirrored faint verso) marks the second `show-through-only` with its recto; listed, dimmed, left out by default, one click to include, reversible, kept as method B's input.
+- `image.enhance.leave-out-reads-the-page-box` — **[GAP]** (#6198) Leave Out's reasons gain `ruler`, `colour card`, `show-through`, `show-through-only verso`; the page box and the ruler/card regions come from page-crop and the layout card; `_ink_contrast` reads the chosen enhancement rendition; prep never marks, Leave Out never paints.
+- `image.enhance.reader-prompt-fragment` — **[GAP]** (#6199) versioned fragments per reader kind in `llm/prompt_fragments.py`; a step names them; the run stores ids and versions; a project switches one off; the line reader's existing furniture sentence becomes `ignore-furniture@1`.
+- `image.enhance.prompt-and-cleanup-measured-2x2` — **[GAP]** (#6199) on three sample pages the engine reports show-through words per page for fragment on/off × cleanup on/off, and lines found, words read and seconds per page before and after each step (#6189 for the Kraken timing).
+- `image.enhance.batch-preview-undo` — **[PARTIAL]** (#6192) a batch over a folder for every step, three sample pages before and after, one confirmation, batch undo and per-page undo. Built: crop/split batch with batch undo (#1265). Missing: the other steps, the preview, the per-page record.
+- `image.enhance.onboarding-step` — **[GAP]** (#5580) the Prepare Images answers ("Straighten, crop, brighten?", "ruled paper?", "both sides photographed?") become a runnable step in the Start plan naming these functions; today the answer is stored and nothing runs.
+- `image.enhance.working-rendition-once` — **[PARTIAL]** (#6200, #6193) the 2200 px display image is made once at import, keyed by content hash and size, and read by the canvas, Preview, the line reader's page context, VLM page reads and cleanup previews; never regenerated by a run; Kraken and full-resolution steps read the original. Built: `ensure_display` makes it. Missing: the hash key, the consumers that still re-render (`line_reader._page_context_uri` resizes the full page every batch), the rule that a run never re-renders.
+- `image.enhance.reads-without-the-source` — **[GAP]** (#6200) with the source unmounted, Preview, Read-a-page and a re-run that needs only the working rendition succeed; a step that needs the original says so and waits.
+
+## Test matrix
+
+Fixtures (`fichero-server/tests/fixtures/image_enhance/`, to add): a reduced Doc11 page with ruler, colour
+card and dark mount and its hand-drawn page box; the two GHC_B16 pages when supplied (IMG_003 hard,
+IMG_069 show-through); a synthetic recto/verso pair (text, then its mirror at 25 % contrast); a page with
+green ruling drawn over text; a page with a painted stain; the two typed pages' crops and their reference
+enhanced files.
+
+| Behaviour | Unit | Click-around | Notes |
+| --- | --- | --- | --- |
+| `image.enhance.three-doors-one-function`, `image.enhance.old-conventions-left-behind` | `tests/unit/media/test_enhance_three_doors.py` | not needed | Same params model in node config and editor request; forbidden import named. |
+| `image.enhance.rendition-records-its-steps` | `tests/unit/workflows/test_prepare_images_rendition_recipe.py` | needed | The viewer switches renditions; the reader names which it read. |
+| `image.enhance.page-crop`, `image.enhance.page-crop-writes-page-box` | `tests/unit/media/test_find_page.py`, `tests/unit/recipes/test_leave_out_reads_page_box.py` | needed | Outline within 2 % of the hand-drawn box; Doc11 ruler lines left out `off the page`. |
+| `image.enhance.rotate-deskew`, `image.enhance.split-spread` | `tests/unit/media/test_image_ops_legacy_port.py`, `tests/unit/media/test_page_split.py` | not needed | Angle on the row; the aspect gate. |
+| `image.enhance.contrast-clahe`, `image.enhance.editor-enhance-is-the-new-step` | `tests/unit/media/test_image_ops_legacy_port.py` | needed | Mean diff to the reference under 3/255; an old chain re-renders unchanged. |
+| `image.enhance.stain-flattening`, `image.enhance.ruled-lines` | `tests/unit/media/test_enhance_stains_and_ruling.py` | needed | Stain within 10/255 of paper; ink pixels unchanged; ruling gone. |
+| `image.enhance.bleed-through-suppression`, `image.enhance.show-through-only-verso` | `tests/unit/media/test_enhance_bleed_through.py`, `tests/unit/media/test_show_through_only_verso.py` | needed | Synthetic pair; the verso marked, dimmed, included with one click. |
+| `image.enhance.leave-out-reads-the-page-box` | `tests/unit/recipes/test_leave_out_reads_page_box.py` | not needed | Reasons vocabulary; contrast from the rendition; page-level verso reason. |
+| `image.enhance.reader-prompt-fragment`, `image.enhance.prompt-and-cleanup-measured-2x2` | `tests/unit/llm/test_prompt_fragments.py` | not needed | Ids and versions on the run; four cells reported. |
+| `image.enhance.batch-preview-undo`, `image.enhance.onboarding-step` | `tests/unit/api/test_image_batch_prepare.py`, `tests/unit/recipes/test_start_plan_prepare_step.py`; app `ImageBatchPrepareTests.swift` | needed | Preview writes no row; the Start plan holds the step. |
+| `image.enhance.working-rendition-once`, `image.enhance.reads-without-the-source` | `tests/unit/db/test_working_rendition_once.py` | needed | Second call renders nothing; unmounted source still previews and reads. |
+
+## Build order
+
+### Stage 1 — The foundation and the page
+
+#### Step 1.1 — One function, three doors (#6194)
+- Behaviours: `image.enhance.three-doors-one-function`, `image.enhance.old-conventions-left-behind`
+- Tests: fichero-server/tests/unit/media/test_enhance_three_doors.py
+- Size: M
+
+#### Step 1.2 — Renditions record their steps (#6191)
+- Behaviours: `image.enhance.rendition-records-its-steps`
+- Tests: fichero-server/tests/unit/workflows/test_prepare_images_rendition_recipe.py
+- Depends on: 1.1
+- Size: S
+
+#### Step 1.3 — Page crop and the page box (#6188)
+- Behaviours: `image.enhance.page-crop`, `image.enhance.page-crop-writes-page-box`
+- Tests: fichero-server/tests/unit/media/test_find_page.py, fichero-server/tests/unit/recipes/test_leave_out_reads_page_box.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.4 — The working rendition, once (#6200)
+- Behaviours: `image.enhance.working-rendition-once`, `image.enhance.reads-without-the-source`
+- Tests: fichero-server/tests/unit/db/test_working_rendition_once.py
+- Depends on: 1.1
+- Size: M
+
+### Stage 2 — The ported methods
+
+#### Step 2.1 — Contrast replaces Enhance; rotate, deskew, split (#6190)
+- Behaviours: `image.enhance.contrast-clahe`, `image.enhance.editor-enhance-is-the-new-step`, `image.enhance.rotate-deskew`, `image.enhance.split-spread`
+- Tests: fichero-server/tests/unit/media/test_image_ops_legacy_port.py, fichero-server/tests/unit/media/test_page_split.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 2.2 — Stains and ruled lines (#6195)
+- Behaviours: `image.enhance.stain-flattening`, `image.enhance.ruled-lines`
+- Tests: fichero-server/tests/unit/media/test_enhance_stains_and_ruling.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 2.3 — Show-through and the show-through-only verso (#6196)
+- Behaviours: `image.enhance.bleed-through-suppression`, `image.enhance.show-through-only-verso`
+- Tests: fichero-server/tests/unit/media/test_enhance_bleed_through.py, fichero-server/tests/unit/media/test_show_through_only_verso.py
+- Depends on: 2.2
+- Size: M
+
+### Stage 3 — Around the reading
+
+#### Step 3.1 — Leave Out reads what enhancement wrote (#6198)
+- Behaviours: `image.enhance.leave-out-reads-the-page-box`
+- Tests: fichero-server/tests/unit/recipes/test_leave_out_reads_page_box.py
+- Depends on: 2.3
+- Size: S
+
+#### Step 3.2 — Prompt fragments and the 2×2 measure (#6199)
+- Behaviours: `image.enhance.reader-prompt-fragment`, `image.enhance.prompt-and-cleanup-measured-2x2`
+- Tests: fichero-server/tests/unit/llm/test_prompt_fragments.py
+- Depends on: 3.1
+- Size: M
+
+#### Step 3.3 — Batch with preview and undo; the onboarding step (#6192)
+- Behaviours: `image.enhance.batch-preview-undo`, `image.enhance.onboarding-step`
+- Tests: fichero-server/tests/unit/api/test_image_batch_prepare.py, fichero-server/tests/unit/recipes/test_start_plan_prepare_step.py
+- Depends on: 3.2
+- Size: M
+
+## Rulings
+
+- 2026-10-26 (owner): two steps, prep (pixels, renditions) and Leave Out (decisions); order prep → find
+  regions and lines → leave out → read. Port the methods and parameters, not the old app's shape. The
+  legacy "enhanced" look is the target. Both sides of a leaf photographed: a show-through-only verso is
+  marked and left out, never deleted. The working rendition is made once at import.
+
+## Open questions
+
+1. **Perspective correction** when the page is found by four corners: a warp is a new image with its own
+   frame. Recommended as a later step; not scheduled.
+2. **Method B's gain fit** (verso subtraction): one global gain, or per tile? Start global; tile only if
+   the sample shows uneven show-through.
+3. **The two GHC_B16 sample pages** are not on the drive (`Fichero GHG/GHG` is empty on 2026-10-26); the
+   measure in `image.enhance.prompt-and-cleanup-measured-2x2` waits on them as fixtures.
