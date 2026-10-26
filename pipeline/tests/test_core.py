@@ -360,15 +360,19 @@ def _spec_edit_coder(fake_coder, old, new):
     fc._tell = tell_and_edit_spec
 
 
-def test_an_ok_flip_with_prose_is_allowed_when_the_diff_adds_the_named_test(scratch, issues, fake_coder):
+def test_a_tag_only_flip_that_adds_a_named_test_is_allowed(scratch, issues, fake_coder):
     _spec_edit_coder(fake_coder, "[MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py",
-                     "[OK] — acceptance: f(1) is 1, app-side too. Test: tests/test_1001.py")
+                     "[OK] — acceptance: f(1) is 1. Test: tests/test_1.py, tests/test_1001.py")
     got = core.start([1001])["items"]["1001"]
     assert got == "checked", core.state()["items"]["1001"]["retry_text"]
 
 
-def test_an_ok_flip_that_drops_the_named_test_still_needs_maintainer(scratch, issues, fake_coder):
-    _spec_edit_coder(fake_coder, "[MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py", "[OK] — acceptance: f(1) is 1.")
+@pytest.mark.parametrize("new", [
+    "[OK] — acceptance: f(1) is 1, app-side too. Test: tests/test_1.py, tests/test_1001.py",  # reworded
+    "[OK] — acceptance: f(1) is 1. Test: tests/test_1001.py",  # swapped
+    "[OK] — acceptance: f(1) is 1."])  # dropped
+def test_an_ok_flip_that_rewords_swaps_or_drops_the_named_test_needs_maintainer(scratch, issues, fake_coder, new):
+    _spec_edit_coder(fake_coder, "[MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py", new)
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"
     assert "rewrites the item's own acceptance" in core.state()["items"]["1001"]["retry_text"]
 

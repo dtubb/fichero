@@ -159,15 +159,16 @@ TEST_PATH_RE = re.compile(r"[\w./-]+\.(?:py|swift|ts|js)\b")
 
 
 def flipped_ids(old: str, new: str, ids, changed: list[str]) -> list[str]:
-    """Ids whose own spec line went from a not-yet-OK tag to [OK] in the same diff that adds/changes a test file the
-    line names, and which names no fewer tests than before: a legitimate status flip with its prose, not a rewrite."""
+    """Ids whose own spec line went from a not-yet-OK tag to [OK] while the diff touches a test file the line names,
+    and where only the tag changed: the prose is identical and the named tests are the same or only more."""
     out = []
     for x in ids:
         o, n = acceptance_lines_raw(old, x), acceptance_lines_raw(new, x)
-        so, sn = STATUS_RE.search(o or ""), STATUS_RE.search(n or "")
-        tests = set(TEST_PATH_RE.findall(n or ""))
-        if (o and n and so and sn and so.group(1) != "OK" and sn.group(1) == "OK" and len(TEST_PATH_RE.findall(o)) <= len(tests)
-                and any(f == t or f.endswith("/" + t) for f in changed for t in tests)):
+        so, sn = STATUS_RE.search(o), STATUS_RE.search(n)
+        to, tn = set(TEST_PATH_RE.findall(o)), set(TEST_PATH_RE.findall(n))
+        prose = lambda t: re.sub(r"[\s,;]+", " ", TEST_PATH_RE.sub("", TAG_RE.sub("", t))).strip()  # noqa: E731
+        if (o and n and so and sn and so.group(1) != "OK" and sn.group(1) == "OK" and to <= tn and prose(o) == prose(n)
+                and any(f == t or f.endswith("/" + t) for f in changed for t in tn)):
             out.append(x)
     return out
 
@@ -188,7 +189,7 @@ def acceptance_lines_raw(text: str, x: str) -> str:
 
 def acceptance_changed(wt, since, spec_dir, ids, head="HEAD") -> list[str]:
     """The item's own acceptance differs between `since` and HEAD in some changed spec file: the coder may not
-    rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4), and so is an [OK] flip with its prose when the diff touches the test the line names. Returns the lines that differ."""
+    rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4), and so is an [OK] flip that only adds named tests when the diff touches one. Returns the lines that differ."""
     if not spec_dir or not ids:
         return []
     hits, changed = [], changed_files(wt, since, head=head)
