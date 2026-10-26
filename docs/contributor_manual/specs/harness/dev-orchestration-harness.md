@@ -137,7 +137,7 @@ it token-efficiently with fabel/opus?
 ## Triaged from the backlog (2026-10-04)
 - `harness.cli-mcp-live-verified` — **[GAP]** (#4465) the CLI and the MCP server are each exercised end to end against a live engine by a gate-run test, not only unit tests.
 - `harness.no-compat-facades` — **[GAP]** (#4085) a check fails if a re-export shim module returns (folders.py still is one), and contributors have a Python import map.
-- `harness.no-dead-types` — **[GAP]** (#3961) DocumentHierarchy in Models/DocumentStoreTypes.swift (used only by DocumentStoreAndSidebarTypesTests) is deleted with its tests and its check_dead_files baseline entry.
+- `harness.no-dead-types` — **[OK]** (#3961) DocumentHierarchy in Models/DocumentStoreTypes.swift (used only by DocumentStoreAndSidebarTypesTests) is deleted with its tests and its check_dead_files baseline entry.
 - `orch.gate-unit-runs-lint` — **[GAP]** (#4861) `gate unit` runs the SwiftLint ratchet and selects Swift Testing by suite name, so an error-level lint violation or a mis-selected filter cannot ride through.
 - `harness.native-controls-first` — **[GAP]** (#4259) use the platform control or standard behaviour; custom chrome only where the platform has no answer, each exception named.
 - `harness.swiftui-first-platform-layers-marked` — **[GAP]** (#4367) AppKit/UIKit only where SwiftUI cannot, isolated in a file named for the platform with a comment saying why.
