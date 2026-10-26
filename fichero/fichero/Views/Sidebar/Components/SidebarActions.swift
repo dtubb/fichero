@@ -198,6 +198,7 @@ extension SidebarView {
             deleteState.inheritedSelectionId = nil
         } catch {
             logger.error("Failed to delete: \(error.localizedDescription)")
+            rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
             deleteState.showError(message: error.localizedDescription)
         }
         await library.documentStore.refresh()
