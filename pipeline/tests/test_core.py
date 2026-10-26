@@ -591,7 +591,7 @@ def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues
     out = core.approve_checks(1001, "the maintainer approved the guard change; carry on")
     assert out["approved"] == ["scripts/check_no_bad.py"]
     it = core.state()["items"]["1001"]
-    assert it["approved_checks"] == ["scripts/check_no_bad.py"] and "approved the guard change" in it["retry_text"]
+    assert list(it["approved_checks"]) == ["scripts/check_no_bad.py"] and "approved the guard change" in it["retry_text"]
     with pytest.raises(RuntimeError, match="approve-checks is for a needs-maintainer"):
         core.approve_checks(1001, "again")
 
@@ -713,3 +713,15 @@ def test_an_issues_usage_is_its_own_share_of_the_window(scratch):
     u = {k: core.state()["items"][k]["usage"] for k in "123"}
     assert (u["1"]["turns"], u["2"]["turns"], u["3"]["turns"]) == (3, 5, 2)
     assert u["2"]["tokens"] == 3000 and u["2"]["usd"] == pytest.approx(0.3) and u["3"]["cache_read"] == 400
+
+
+def test_a_milestone_with_unfiled_build_steps_stays_open(scratch, issues, fake_coder, monkeypatch):
+    """The closer closes the issue but leaves a milestone open while its spec has a build step with no issue number."""
+    fake_coder()
+    writes = _landed(scratch, monkeypatch)
+    spec = scratch["repo"] / "specs" / "m.md"
+    spec.write_text("# M\n\n> Milestone: demo\n\n## Build order\n\n#### Step 1.1 — filed (#1001)\n#### Step 1.2 — not filed yet\n")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["closed"] == [1001] and out["milestones"] == [] and not any(a[:3] == ["api", "-X", "PATCH"] for a in writes)
+    assert core.unfiled_steps("demo") == ["#### Step 1.2 — not filed yet"]

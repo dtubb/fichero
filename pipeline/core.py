@@ -104,7 +104,7 @@ def state() -> dict:
         elif ev == "reset" and it:  # the maintainer: the attempts so far were the runner's fault, not the coder's
             it["attempts"] = 0
         elif ev == "approve_checks" and it:  # the maintainer OKs this check change and sends the findings
-            it["approved_checks"] = sorted(set(it.get("approved_checks", [])) | set(e["files"]))
+            it["approved_checks"] = {**it.get("approved_checks", {}), **e["blobs"]}  # path -> the approved blob sha
             it["attempts"], it["retry_text"] = 0, e["text"]
         elif ev == "verdict" and it:
             it["verdicts"].append({x: e[x] for x in ("sha", "verdict", "by", "findings")})
@@ -753,7 +753,7 @@ def check(issue, since: str | None = None, locked: bool = False, sha: str | None
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
         results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()),
-                                approved=tuple(it.get("approved_checks", ())), head=sha)
+                                approved=it.get("approved_checks"), head=sha)
     if not given and _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
@@ -864,10 +864,11 @@ def approve_checks(issue, findings: str) -> dict:
     if it["state"] != "needs-maintainer":
         raise RuntimeError(f"{key} is {it['state']}; approve-checks is for a needs-maintainer item whose diff changes the checks")
     wt = Path(s["tasks"][it["task"]]["worktree"])
-    _, _, hit = checks.changed_checks(wt, _since(key, it["task"]), cfg(), approved=it.get("approved_checks", ()))
+    _, _, hit = checks.changed_checks(wt, _since(key, it["task"]), cfg(), approved=it.get("approved_checks"))
     if not hit:
         raise RuntimeError(f"{key}: the diff changes no pinned check; nothing to approve (use `retry`)")
-    journal.append("approve_checks", issue=it["issue"], key=key, files=hit, text=findings)
+    journal.append("approve_checks", issue=it["issue"], key=key, files=hit, text=findings,
+                   blobs={f: checks.blob(wt, "HEAD", f) for f in hit})
     return {"approved": hit, **retry(key)}
 
 
@@ -952,6 +953,20 @@ def review(issue, worker_index: int = 0) -> dict:
                 "stopped": st.get("stopped")}
 
 
+STEP = re.compile(r"^#### Step [\d.]+ .*$", re.MULTILINE)
+
+
+def unfiled_steps(milestone: str) -> list[str]:
+    """Build-order steps (`#### Step N.M — title`, no `(#NNNN)`) in the specs whose header names this milestone."""
+    c = cfg()
+    out = []
+    for p in (Path(c["repo"]["path"]) / c["repo"]["specs"]).rglob("*.md"):
+        text = p.read_text()
+        if f"Milestone: {milestone}" in "\n".join(text.splitlines()[:20]):
+            out += [m for m in STEP.findall(text) if not re.search(r"\(#\d+\)\s*$", m)]
+    return out
+
+
 def _reopened_after(closer, n: int, date: str) -> bool:
     """A human reopened the issue after the fixing commit (the closer script's rule, read through the one gh seam)."""
     events = gh.read("api", f"repos/{{owner}}/{{repo}}/issues/{n}/events?per_page=100")
@@ -963,9 +978,8 @@ def close_landed() -> dict:
     green gets its issue closed through scripts/close_fixed_issues.py's own rules (never `residue` or `needs-your-test`,
     never one a human reopened) with a comment naming the sha and the checks; a reported residue is posted on the
     issue, which gets the residue label and stays open; a milestone closes with its last open issue. Every write is
-    dry-run unless --apply, and a dry-run line is journaled before the real one. ponytail: a spec's unfiled steps are
-    not counted, so a milestone whose spec still has steps without issues can close early; check_spec_milestones guards
-    the header only."""
+    dry-run unless --apply, and a dry-run line is journaled before the real one. A milestone whose spec still has build
+    steps without an issue stays open."""
     import importlib.util
     c, lab = cfg(), cfg()["labels"]
     spec = importlib.util.spec_from_file_location("close_fixed_issues", ROOT / "scripts" / "close_fixed_issues.py")
@@ -1004,6 +1018,8 @@ def close_landed() -> dict:
         if what == "closed" and (m := (iss.get("milestone") or {}).get("title")):
             touched[m] = touched.get(m, 0) + 1
     for m in gh.read("api", "repos/{owner}/{repo}/milestones?state=open") if touched else []:
+        if unfiled_steps(m["title"]):
+            continue  # a spec of this milestone still has build steps with no issue: not finished
         if m["title"] in touched and m["open_issues"] <= touched[m["title"]] and m["closed_issues"] + touched[m["title"]] >= 1:
             gh.write("api", "-X", "PATCH", f"repos/{{owner}}/{{repo}}/milestones/{m['number']}", "-f", "state=closed", dry_run=DRY_RUN)
             out["milestones"].append(m["title"])

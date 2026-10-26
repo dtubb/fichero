@@ -217,7 +217,7 @@ def test_an_approved_check_change_runs_the_coders_copy_not_the_pinned_one(scratc
     """approve-checks: the maintainer OKs the change; the coder's guard is what runs, and a red guard still fails."""
     wt = lane(scratch, "guarded", {**REAL_FIX, "scripts/check_no_bad.py": "import sys\nprint('stricter')\nsys.exit(1)\n"})
     assert not checks.run_all(wt, scratch["cfg"])[0]["ok"]
-    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], approved=("scripts/check_no_bad.py",))}
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], approved={"scripts/check_no_bad.py": checks.blob(wt, "HEAD", "scripts/check_no_bad.py")})}
     assert r["pinned-checks"]["ok"] and not r["fast-guards"]["ok"] and "stricter" in r["fast-guards"]["text"]
 
 
@@ -229,3 +229,16 @@ def test_a_guard_over_its_budget_is_red_with_the_way_out(scratch):
     scratch["cfg"]["ladder"][2]["budget_s"] = {"check_slow": 1}
     r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
     assert not r["fast-guards"]["ok"] and "over its 1 s budget" in r["fast-guards"]["text"]
+
+
+def test_an_approval_is_for_that_content_a_later_edit_is_red_again(scratch):
+    """approve-checks pins the blob: the approved guard runs as the coder's copy, an edited one is a pinned-checks red."""
+    f = "scripts/check_no_bad.py"
+    wt = lane(scratch, "guarded", {**REAL_FIX, f: "import sys\nprint('approved')\nsys.exit(0)\n"})
+    pin = {f: checks.blob(wt, "HEAD", f)}
+    assert checks.run_all(wt, scratch["cfg"], approved=pin)[0]["ok"]
+    (wt / f).write_text("import sys\nprint('edited after approval')\nsys.exit(0)\n")
+    git(wt, "add", ".")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "edit the guard again")
+    r = checks.run_all(wt, scratch["cfg"], approved=pin)[0]
+    assert r["name"] == "pinned-checks" and not r["ok"] and f in r["text"]

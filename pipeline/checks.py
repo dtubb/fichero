@@ -240,16 +240,22 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     return "\n".join(kept)[-chars:]
 
 
-def changed_checks(wt, since, cfg, pinned=None, approved=(), head="HEAD") -> tuple[str, list[str], list[str]]:
+def blob(wt, head: str, path: str) -> str:
+    """The git blob sha of `path` at `head` ("deleted" when it is not there): what approve-checks pins."""
+    return sh(["git", "rev-parse", "--verify", "-q", f"{head}:{path}"], cwd=wt).stdout.strip() or "deleted"
+
+
+def changed_checks(wt, since, cfg, pinned=None, approved=None, head="HEAD") -> tuple[str, list[str], list[str]]:
     """(pinned sha, the pinned check files to lay over the tree, the pinned checks the diff changes). A check change
-    the maintainer approved (`approve-checks`) is neither laid over nor a red: the coder's copy is what runs."""
+    the maintainer approved (`approve-checks`: path -> the approved blob sha) is neither laid over nor a red while the
+    file still IS that blob; a later edit to it is a red again."""
     pinned = pinned or cfg["repo"].get("pinned") or ROOT
     pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
-    overlay = [f for f in overlay if f not in approved]
+    overlay = [f for f in overlay if blob(wt, head, f) != (approved or {}).get(f)]
     return pinned_sha, overlay, [f for f in changed_files(wt, since, "MDR", head) if f in overlay]
 
 
-def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=(), head="HEAD") -> list[dict]:
+def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, head="HEAD") -> list[dict]:
     """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
     pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
     or a rewrite of the item's own acceptance in the spec. `head`: the commit to judge (a done sha, so a
