@@ -9,6 +9,8 @@
 > "Rulings". Tags: [OK] built · [PARTIAL] exists, not wired · [MISSING] not built · [BROKEN] fails today ·
 > [PROPOSED] needs a ruling.
 
+> See also: `dev-workflows.md` (proposed: expressing these steps as Fichero app workflows, the stdlib runner staying until proven).
+
 ## Intent
 
 The maintainer has an idea, decides it with Claude (Opus) as a spec, approves it, and from then on the work runs
