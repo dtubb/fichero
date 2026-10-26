@@ -88,7 +88,7 @@ through coders. One behaviour sits in exactly one build-order step. Behaviours t
 merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of this section.
 
 ### Specs and issues
-- `pipeline.spec-to-issues` [MISSING] (#6116) — one issue per build-order STEP (never per behaviour): title
+- `pipeline.spec-to-issues` [PARTIAL] (#6116) — built for a spec with NO ordered steps: `python -m pipeline plan <spec>` (facts + one big-tier call → a `## Proposed build order`, checked by the build-order guard's parser, queued as "approve this plan?") and `plan-approve <spec> [--apply]` (one issue per step with a `stage:<spec>-<n>` label, `Depends on: #N`, `(#N)` on each heading, the milestone made if missing); not built: reconciling with issues that already exist and the spec-change flow below. one issue per build-order STEP (never per behaviour): title
   `<spec short name> N.M: <title>`; body = the step's behaviour lines verbatim with their acceptance, the test paths,
   the dependencies and a link to the section; the spec's milestone; label `stage:<spec>-<n>`. Filing writes `(#N)`
   into the step heading as a commit on a branch for review, never straight to integration. Before filing it searches

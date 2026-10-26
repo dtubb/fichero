@@ -76,13 +76,48 @@ def test_plan_makes_one_call_appends_a_proposal_and_queues_the_question(scratch,
         plan.plan("specs/demo.md")
 
 
-def test_a_plan_with_problems_is_still_proposed_but_says_what_is_wrong(scratch, planned):
+def test_a_plan_with_problems_writes_nothing_queues_why_and_can_be_run_again(scratch, planned):
     planned.answer = GOOD.replace("`demo.three`", "`demo.two`").replace("`demo.one`, `demo.two`", "`demo.one`, `demo.two`, `demo.ghost`")
+    before = (scratch["repo"] / "specs" / "demo.md").read_text()
     out = plan.plan("specs/demo.md")
-    assert any("demo.three" in p and "0 steps" in p for p in out["problems"]) and any("demo.two" in p and "2 steps" in p for p in out["problems"])
-    assert any("demo.ghost" in p for p in out["problems"])
+    assert out["written"] is False and any("demo.three" in p and "0 steps" in p for p in out["problems"]) and any("demo.ghost" in p for p in out["problems"])
+    assert (scratch["repo"] / "specs" / "demo.md").read_text() == before
     (q,) = [q for q in core.queue() if q["kind"] == "plan"]
-    assert "problem(s)" in q["text"]
+    assert "NOT written" in q["text"]
+    planned.answer = GOOD
+    assert plan.plan("specs/demo.md")["written"] is True, "a retry is allowed when no section exists"
+
+
+def test_plan_only_touches_a_spec_file_and_only_what_the_model_returns_up_to_the_next_heading(scratch, planned):
+    for bad in ("../README.md", "specs/../../outside.md", "specs/nothing.md", "src/mod.py"):
+        with pytest.raises(RuntimeError, match="is not a spec"):
+            plan.plan(bad)
+    planned.answer = GOOD + "\n## Rulings\n\n- `demo.one` [OK] — the planner re-tagged this\n"
+    plan.plan("specs/demo.md")
+    text = (scratch["repo"] / "specs" / "demo.md").read_text()
+    assert "Rulings" not in text and "re-tagged" not in text
+
+
+def test_a_behaviour_looking_line_or_a_stray_heading_in_the_section_is_refused(scratch, planned):
+    before = (scratch["repo"] / "specs" / "demo.md").read_text()
+    for bad in ("- `demo.one` [OK] — now done", "### Rulings", "# Title"):
+        planned.answer = GOOD.replace("- Size: S\n", f"- Size: S\n{bad}\n", 1)
+        with pytest.raises(RuntimeError, match="not a plan"):
+            plan.plan("specs/demo.md")
+    assert (scratch["repo"] / "specs" / "demo.md").read_text() == before
+
+
+def test_a_spec_edited_while_the_planner_worked_is_not_overwritten(scratch, planned, monkeypatch):
+    path = scratch["repo"] / "specs" / "demo.md"
+    real = coder.ask_once
+
+    def edit_then_answer(*a):
+        path.write_text(path.read_text() + "\nAn edit made meanwhile.\n")
+        return real(*a)
+    monkeypatch.setattr(coder, "ask_once", edit_then_answer)
+    with pytest.raises(RuntimeError, match="changed while the planner worked"):
+        plan.plan("specs/demo.md")
+    assert path.read_text().endswith("An edit made meanwhile.\n") and "Proposed" not in path.read_text()
 
 
 def test_no_proposal_in_the_answer_writes_nothing(scratch, planned):
@@ -91,3 +126,38 @@ def test_no_proposal_in_the_answer_writes_nothing(scratch, planned):
     with pytest.raises(RuntimeError, match="returned no"):
         plan.plan("specs/demo.md")
     assert (scratch["repo"] / "specs" / "demo.md").read_text() == before and not core.queue()
+
+
+def test_plan_approve_files_one_issue_per_step_in_order_and_renames_the_section(scratch, planned, monkeypatch):
+    plan.plan("specs/demo.md")
+    calls = []
+
+    def write(*args, dry_run=True):
+        calls.append(args)
+        return f"https://github.com/o/r/issues/{900 + sum(1 for a in calls if a[:2] == ('issue', 'create'))}" if args[:2] == ("issue", "create") else ""
+    monkeypatch.setattr(plan.gh, "write", write)
+    dry = plan.plan_approve("specs/demo.md")
+    assert dry["dry_run"] and dry["would_file"] == 2 and "(#" not in (scratch["repo"] / "specs" / "demo.md").read_text().split("## Proposed")[1]
+    monkeypatch.setattr(core, "DRY_RUN", False)
+    monkeypatch.setattr(plan.gh, "read", lambda *a: [{"title": "other"}])
+    calls.clear()
+    out = plan.plan_approve("specs/demo.md")
+    assert out["filed"] == {"1.1": 901, "1.2": 902} and out["milestone"] == "demo-spec"
+    assert calls[0] == ("api", "repos/{owner}/{repo}/milestones", "-f", "title=demo-spec"), "the milestone is made when it does not exist"
+    issues = [a for a in calls if a[:2] == ("issue", "create")]
+    assert [a[a.index("--label") + 1] for a in issues] == ["type:feature,stage:demo-1", "type:feature,stage:demo-2"]
+    assert all(a[a.index("--milestone") + 1] == "demo-spec" for a in issues)
+    assert "Depends on: #901" in issues[1][issues[1].index("--body") + 1] and "`demo.three`" in issues[1][issues[1].index("--body") + 1]
+    text = (scratch["repo"] / "specs" / "demo.md").read_text()
+    assert "\n## Build order\n" in text and "## Earlier build order notes" in text and "## Proposed build order" not in text
+    assert "#### Step 1.1 — one and two (#901)" in text and "#### Step 1.2 — three (#902)" in text
+    assert plan.guard()._check_spec(text)[1] == [] or all("demo.done" not in p for p in plan.guard()._check_spec(text)[1])
+
+
+def test_plan_approve_refuses_without_a_proposal_or_with_a_bad_one(scratch, planned):
+    with pytest.raises(RuntimeError, match="run `plan` first"):
+        plan.plan_approve("specs/demo.md")
+    path = scratch["repo"] / "specs" / "demo.md"
+    path.write_text(path.read_text() + "\n" + GOOD.replace("`demo.three`", "`demo.two`").split("\n", 1)[1].join(["## Proposed build order (proposed, not approved)\n", ""]))
+    with pytest.raises(RuntimeError, match="has problems"):
+        plan.plan_approve("specs/demo.md")

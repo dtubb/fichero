@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from pipeline import ROOT, STATE, checks, coder, core, journal
+from pipeline import ROOT, STATE, checks, coder, core, gh, journal
 
 MAX_BEHAVIOURS = 120  # ponytail: one call writes the whole plan; a bigger spec needs a per-section plan first
 PROPOSED = "## Proposed build order (proposed, not approved)"
@@ -95,6 +95,28 @@ def check_plan(section: str, bs: list[dict]) -> list[str]:
     return probs
 
 
+def spec_path(spec: str) -> Path:
+    """The spec file for a repo-relative path: a .md file that exists under the repo's specs dir, nothing else."""
+    root = Path(core.cfg()["repo"]["path"])
+    path = (root / spec).resolve()
+    if path.suffix != ".md" or not path.is_file() or not path.is_relative_to((root / core.cfg()["repo"]["specs"]).resolve()):
+        raise RuntimeError(f"{spec} is not a spec: it must be an existing .md file under {core.cfg()['repo']['specs']}/")
+    return path
+
+
+def clean(answer: str) -> str:
+    """The proposed section out of the model's answer: from its heading to the next `## ` (nothing after is kept), refusing
+    a behaviour-looking line (the planner may order behaviours, never restate or re-tag one) or any heading but Stage/Step."""
+    m = re.search(r"(?ms)^## Proposed build order.*?(?=^## |\Z)", answer or "")
+    if not m:
+        raise RuntimeError(f"the planner returned no `{PROPOSED}` section; nothing was written")
+    lines = [PROPOSED, *m.group(0).strip().splitlines()[1:]]
+    for ln in lines[1:]:
+        if OWN.match(ln) or (ln.startswith("#") and not re.match(r"#{3,4} (Stage|Step) ", ln)):
+            raise RuntimeError(f"the planner's section has a line that is not a plan ({ln[:80]!r}); nothing was written")
+    return "\n".join(lines)
+
+
 def plan(spec: str) -> dict:
     """Propose (not approve) a build order for `spec` (a path from the repo root). One model call, at most; the spec file
     gains a `## Proposed build order` section and the owner's question is queued."""
@@ -102,7 +124,7 @@ def plan(spec: str) -> dict:
     core._require_budget()
     c = core.cfg()
     root = Path(c["repo"]["path"])
-    path = root / spec
+    path = spec_path(spec)
     text = path.read_text()
     if PROPOSED.split(" (")[0] in text:
         raise RuntimeError(f"{spec} already has a proposed build order; approve it (`plan-approve`) or delete the section first")
@@ -116,19 +138,61 @@ def plan(spec: str) -> dict:
     st = coder.ask_once(c, worker, prompt(path, bs, text, root), session)
     journal.append("cost", issue=0, key=f"plan:{spec}", task="plan", session=str(session), usd=round(st["cost_usd"], 4),
                    tokens=st["tokens"], model=st["model"], tools={})
-    m = re.search(r"(?ms)^## Proposed build order.*", st.get("answer") or "")
-    if not m:
-        raise RuntimeError(f"the planner returned no `{PROPOSED}` section; nothing was written (cost ${st['cost_usd']:.2f})")
-    section = "\n".join([PROPOSED, *m.group(0).strip().splitlines()[1:]])
-    problems = check_plan(section, bs)
+    section = clean(st.get("answer"))
+    if problems := check_plan(section, bs):  # nothing is written; the owner sees why and `plan` may be run again
+        core._queue("plan", f"The build order the planner proposed for {spec} has {len(problems)} problem(s) and was NOT written: {'; '.join(problems[:6])}. "
+                    f"Run `python -m pipeline plan {spec}` again, or split the spec.")
+        return {"spec": spec, "behaviours": len(bs), "problems": problems, "written": False, "cost_usd": round(st["cost_usd"], 4)}
+    if path.read_text() != text:
+        raise RuntimeError(f"{spec} changed while the planner worked; nothing was written (run `plan` again)")
     path.write_text(text.rstrip("\n") + "\n\n" + section + "\n")
-    note = f" The shape check found {len(problems)} problem(s): {'; '.join(problems[:5])}." if problems else " It passes the shape check."
-    core._queue("plan", f"Approve the build order proposed for {spec}? It is the section '{PROPOSED[3:]}' at the end of the file." + note +
+    core._queue("plan", f"Approve the build order proposed for {spec}? It is the section '{PROPOSED[3:]}' at the end of the file and passes the shape check."
                 f" To approve: `python -m pipeline plan-approve {spec}`; to change it, edit the section or answer with what to change.",
                 options=["approve", "change"])
-    return {"spec": spec, "behaviours": len(bs), "steps": len(re.findall(r"(?m)^#### Step ", section)), "problems": problems,
+    return {"spec": spec, "behaviours": len(bs), "steps": len(re.findall(r"(?m)^#### Step ", section)), "problems": [], "written": True,
             "cost_usd": round(st["cost_usd"], 4)}
 
 
-core.API.update(plan=plan)
-core.WORKER_FORBIDDEN += ("plan",)
+def plan_approve(spec: str) -> dict:
+    """After the owner says yes: one issue per step (milestone = the spec's, label type:feature plus `stage:<spec>-<n>` so the
+    feeder runs them in step order, `Depends on: #N` between them, the behaviours, tests and an acceptance line in the body so
+    brief-lint passes), `(#N)` on each step heading as it is filed (a rerun skips the filed ones), then the section becomes
+    `## Build order` (an earlier prose one is kept as `## Earlier build order notes`). Dry run unless `--apply` (core.DRY_RUN)."""
+    core._require_running()
+    path = spec_path(spec)
+    text = path.read_text()
+    m = re.search(r"(?ms)^## Proposed build order.*?(?=^## |\Z)", text)
+    if not m:
+        raise RuntimeError(f"{spec} has no proposed build order; run `plan` first")
+    bs = behaviours(text)
+    if problems := check_plan(m.group(0), bs):
+        raise RuntimeError(f"the proposed build order has problems; fix the section first: {'; '.join(problems[:5])}")
+    g, say = guard(), {b["id"]: b["text"] for b in bs}
+    steps = [s for st in g._parse_build_order(m.group(0).replace(PROPOSED, "## Build order", 1))["stages"] for s in st["steps"]]
+    ms = (re.search(r"^> Milestone: (\S+)", text, re.M) or [None, path.stem])[1]
+    todo, num = [], {s["number"]: s["issue"] for s in steps if s["issue"]}
+    if not core.DRY_RUN and ms not in [x["title"] for x in gh.read("api", "repos/{owner}/{repo}/milestones?state=all&per_page=100")]:
+        gh.write("api", "repos/{owner}/{repo}/milestones", "-f", f"title={ms}", dry_run=False)
+    for i, s in enumerate(steps, 1):
+        if s["number"] in num:
+            continue
+        deps = " ".join(f"#{num[d]}" for d in s["depends_on"] if d in num)
+        body = "\n".join([f"Spec: `{spec}`, Step {s['number']} — {s['title']}.", "", *(f"- `{b}` — {say.get(b, '')[:300]}" for b in s["behaviours"]), "",
+                          "Acceptance: each behaviour above works as its spec line says, its tests pass, and the spec line is re-tagged [OK] in the same commit.",
+                          "Tests: " + ", ".join(s["tests"]), *([f"Depends on: {deps}"] if deps else [])])
+        args = ["issue", "create", "--title", f"{ms} {s['number']}: {s['title']}"[:120], "--body", body, "--label", f"type:feature,stage:{path.stem}-{i}", "--milestone", ms]
+        if core.DRY_RUN:
+            todo.append(gh.write(*args, dry_run=True))
+            continue
+        gh.write("label", "create", f"stage:{path.stem}-{i}", "--force", "--description", f"step {i} of {path.stem}", dry_run=False)
+        num[s["number"]] = int(gh.write(*args, dry_run=False).rsplit("/", 1)[1])
+        path.write_text(re.sub(rf"(?m)^(#### Step {re.escape(s['number'])} .*?)\s*$", rf"\1 (#{num[s['number']]})", path.read_text(), count=1))
+    if core.DRY_RUN:
+        return {"spec": spec, "dry_run": True, "would_file": len(todo), "commands": todo[:3], "milestone": ms}
+    text = re.sub(r"(?m)^## Build order\b", "## Earlier build order notes", path.read_text()).replace(PROPOSED, "## Build order", 1)
+    path.write_text(text)
+    return {"spec": spec, "filed": num, "milestone": ms}
+
+
+core.API.update(plan=plan, plan_approve=plan_approve)
+core.WORKER_FORBIDDEN += ("plan", "plan_approve")
