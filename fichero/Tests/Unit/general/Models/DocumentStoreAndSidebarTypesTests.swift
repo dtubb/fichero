@@ -103,7 +103,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testLibraryItemColumnsReturnsRowsFromBackendThroughTheStore() async throws {
-        // #3917 TODO: the generated client's POST-with-body path uses
+        // #3917 note: the generated client's POST-with-body path uses
         // URLSession.upload(for:from:), which the ColumnsStubURLProtocol stub
         // does not intercept (URLProtocol upload-task limitation), so this hits
         // the real network (-1003). The stub wiring itself is correct — the
@@ -213,7 +213,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
             Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
             Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
         ].joined(separator: "\n")
 
         // `availableViewDisplayModes`'s own `[.list]`-only offer for a KG
@@ -357,7 +357,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift")
         ].joined(separator: "\n"))
 
         XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
@@ -526,7 +526,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift")
         ].joined(separator: "\n"))
         let requiredSnippets = [
             "@Environment(ArtifactService.self) var artifactService",
