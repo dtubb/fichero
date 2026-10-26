@@ -69,7 +69,11 @@ def _n(key: str) -> int:
 
 # --- state = the journal replayed -------------------------------------------------------------------------------
 
+USAGE = ("turns", "tokens", "usd", "fresh", "cache_read", "cache_write")  # what an issue_done line counts so far in its window
+
+
 def state() -> dict:
+    lastdone: dict = {}
     s = {"items": {}, "tasks": {}, "queue": {}, "point": None, "paused": False, "workers": {}, "machine": None}
     for e in journal.read():
         ev = e["event"]
@@ -113,6 +117,12 @@ def state() -> dict:
             it["closer"] = e["what"]
         elif ev == "issue_done" and it:
             it.setdefault("dones", []).append({x: e[x] for x in ("sha", "turns", "tokens", "usd")})
+            u = it.setdefault("usage", dict.fromkeys(USAGE, 0))  # this issue's own share: the step from the task's last done line
+            prev = lastdone.get(e["task"]) or {}
+            now = {x: e.get(x, 0) for x in USAGE}
+            for x in USAGE:
+                u[x] = round(u[x] + now[x] - prev.get(x, 0), 4)
+            lastdone[e["task"]] = now
         elif ev == "note" and it:
             it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
@@ -124,6 +134,8 @@ def state() -> dict:
         elif ev in ("pause", "resume"):
             s["paused"] = ev == "pause"
         elif ev == "worker":
+            if e.get("role") == "coder":
+                lastdone.pop(e["task"], None)  # a new coder window counts from zero again
             s["workers"][e["window"]] = {x: e.get(x) for x in ("window", "task", "model", "session_dir", "cwd", "role")}
         elif ev == "worker_gone":
             s["workers"].pop(e["window"], None)
@@ -614,7 +626,8 @@ def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, 
     journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
                    tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
     sha = _head(wt)
-    journal.append("issue_done", issue=n, key=key, task=task, sha=sha, turns=st["turns"], tokens=st["tokens"], usd=st["cost_usd"])
+    journal.append("issue_done", issue=n, key=key, task=task, sha=sha, turns=st["turns"], tokens=st["tokens"], usd=st["cost_usd"],
+                   fresh=st.get("fresh", 0), cache_read=st.get("cache_read", 0), cache_write=st.get("cache_write", 0))
     if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
         journal.append("brief_miss", issue=n, key=key, task=task, calls=st["proxy_calls"] - before.get("proxy_calls", 0))
     unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]

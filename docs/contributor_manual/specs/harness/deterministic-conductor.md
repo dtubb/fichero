@@ -478,7 +478,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_web.py::test_api_endpoints_return_their_shape_from_a_fixture_journal`,
   `pipeline/tests/test_web.py::test_command_endpoints_call_the_same_functions_as_the_cli`,
   `pipeline/tests/test_web.py::test_post_without_token_or_with_foreign_origin_is_refused`.
-- `pipeline.dashboard-pages` [MISSING] (#6116) — the site grows pages with plain links and filterable tables:
+- `pipeline.dashboard-pages` [PARTIAL] (#6116) — built: Specs (tag counts), Milestones, Issues (open/closed, label, from-user, claimed), Next, Items and cost (checks, reviews, turns, tokens, cache hit, dollars, budget flag, spend vs cap), each reloading itself; the rest below is not. The site grows pages with plain links and filterable tables:
   Specs (status, milestone, counts by tag; a spec opens to behaviours, linked issues, build order with step states);
   Milestones (open and closed, closed-of-total, the step being coded, which is pointed at); Issues (filters:
   open/closed, milestone, label, from-user, claimed, runner state; links to GitHub and the spec line, journal
@@ -489,7 +489,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   worker, file a bug with an optional screenshot saved locally, approve a spec draft, approve the weekly release.
   GitHub data is cached by the runner, refreshed every few minutes and on each transition. Tests:
   `pipeline/tests/test_web.py::test_page_loads_and_every_link_resolves`,
-  `pipeline/tests/test_core.py::test_item_past_stuck_minutes_is_flagged`.
+  `pipeline/tests/test_core.py::test_item_past_stuck_minutes_is_flagged`,
+  `pipeline/tests/test_core.py::test_an_issues_usage_is_its_own_share_of_the_window`.
 - `pipeline.point-at-a-milestone` [PARTIAL] (#6116) — the maintainer sets which milestone runs next, and can pause
   or resume one; the feeder follows that before its own order. Test:
   `pipeline/tests/test_core.py::test_point_is_journaled_and_read_by_the_feeder`.

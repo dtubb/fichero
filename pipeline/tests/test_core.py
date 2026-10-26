@@ -696,3 +696,20 @@ def test_a_residue_leaves_the_issue_open_with_what_is_left(scratch, issues, fake
     assert out["residue"] == [1001] and not out["closed"] and not out["milestones"]
     assert any(a[:3] == ["issue", "comment", "1001"] and "second acceptance line" in a[-1] for a in writes)
     assert any(a[:2] == ["issue", "edit"] and "residue" in a for a in writes) and not any(a[:2] == ["issue", "close"] for a in writes)
+
+
+def test_an_issues_usage_is_its_own_share_of_the_window(scratch):
+    """Done lines carry the window's running totals; an issue's usage is the step since the task's last done line, and a new coder window counts from zero."""
+    def item(n):
+        journal.append("item", issue=n, key=str(n), task="t", title="x", window="w", worktree="/wt", ids=[])
+    for n in (1, 2, 3):
+        item(n)
+    journal.append("worker", window="w", task="t", role="coder", model="m", session_dir="s", cwd="/wt")
+    journal.append("issue_done", issue=1, key="1", task="t", sha="a", turns=3, tokens=1000, usd=0.1, fresh=100, cache_read=500, cache_write=0)
+    journal.append("issue_done", issue=2, key="2", task="t", sha="b", turns=8, tokens=4000, usd=0.4, fresh=300, cache_read=2500, cache_write=0)
+    journal.append("worker", window="r", task="t", role="reviewer", model="m", session_dir="s2", cwd="/wt")  # a reviewer does not reset the coder's count
+    journal.append("worker", window="w", task="t", role="coder", model="m", session_dir="s3", cwd="/wt")
+    journal.append("issue_done", issue=3, key="3", task="t", sha="c", turns=2, tokens=900, usd=0.09, fresh=90, cache_read=400, cache_write=0)
+    u = {k: core.state()["items"][k]["usage"] for k in "123"}
+    assert (u["1"]["turns"], u["2"]["turns"], u["3"]["turns"]) == (3, 5, 2)
+    assert u["2"]["tokens"] == 3000 and u["2"]["usd"] == pytest.approx(0.3) and u["3"]["cache_read"] == 400

@@ -147,6 +147,8 @@ batch_end_pct = 80              # end the session (handoff note) once the sessio
 batch_max_issues = 10           # ponytail: a ceiling, not the sizing rule; the budget sizes the batch
 park_ttl_minutes = 30           # a parked worker is woken within this; after it, a fresh one starts from a handoff
 message_batches = false         # non-interactive model work through Anthropic's Message Batches API (half price); off
+issue_turns_max = 10             # the page flags an issue past these, never silently raises them
+issue_tokens_max = 150000
 retries = 2
 stuck_minutes = 45
 needs_mb = { pi = 300, pytest = 1500, gate-part = 4000 }
