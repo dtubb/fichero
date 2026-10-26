@@ -749,3 +749,11 @@ def test_a_part_of_commit_with_reported_residue_still_posts_the_residue(scratch,
     out = core.close_landed()
     assert out["residue"] == [1001] and not out["closed"]
     assert any(a[:2] == ["issue", "comment"] and "iPad half" in a[-1] for a in writes) and any("--add-label" in a for a in writes)
+
+
+def test_an_issue_over_its_turn_budget_asks_instead_of_retrying(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder("bad")
+    monkeypatch.setitem(core.cfg()["workers"], "issue_turns_max", 0)  # the first red attempt is already over
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
+    assert len([t for t in fc.told if "#1001" in t[1]]) == 1, "no second attempt"
+    assert any(q["kind"] == "ask" and "over its budget" in q["text"] for q in core.queue())

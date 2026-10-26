@@ -674,6 +674,12 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, fi
         if results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
             return "needs-maintainer"
         failure = state()["items"][key]["retry_text"]
+        u, w = state()["items"][key].get("usage") or {}, c["workers"]
+        if u.get("turns", 0) > w.get("issue_turns_max", 10) or u.get("tokens", 0) > w.get("issue_tokens_max", 150000):
+            why = f"{key} is over its budget ({u.get('turns', 0)} turns, {u.get('tokens', 0):,} tokens) and still red; no further attempt"
+            _move(key, "needs-maintainer", why)
+            _queue("ask", f"{why}:\n{failure[-1500:]}", task=task, window=window)
+            return "needs-maintainer"
         attempt += 1
     _move(key, "needs-maintainer", failure[-500:])
     _queue("failed-checks", f"{key} failed its checks or review {attempt} times:\n{failure[-1500:]}", task=task, window=window)
