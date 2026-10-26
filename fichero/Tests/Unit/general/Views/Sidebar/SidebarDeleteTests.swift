@@ -50,3 +50,13 @@ extension SidebarDeleteTests {
         #expect(name == "Move 3 Items to Trash")
     }
 }
+
+extension SidebarDeleteTests {
+    /// The owner's case (2026-10-26): the sidebar showed the child selected while Edit > Delete acted on the Items list's
+    /// selection (the parent). Whatever the menu will take is NAMED in its title before it is pressed.
+    @Test func theDeleteMenuAndItsConfirmationNameWhatTheyWillTake() {
+        #expect(ItemVerbs.deleteTitle(1, name: "Parent") == "Delete “Parent”")
+        #expect(ItemVerbs.deleteTitle(1) == "Delete")
+        #expect(ItemVerbs.deleteTitle(3, name: "Parent") == "Delete 3 Items")
+    }
+}

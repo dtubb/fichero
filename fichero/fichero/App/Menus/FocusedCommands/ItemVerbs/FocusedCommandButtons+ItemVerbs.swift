@@ -18,6 +18,10 @@ struct ItemVerbsTarget: Equatable {
     /// The documents among them: what Exclude, Bookmark, Add to Workspace and Export a Copy read.
     var documents: [Document]
     var rename: (@MainActor () -> Void)?
+    /// The one document's name as the person reads it, for a menu title that names its target.
+    var singleDocumentName: String? {
+        documents.count == 1 ? documents.first.map { DocumentTitle.displayName(for: $0) } : nil
+    }
     /// How many of the items Delete would remove.
     var deletableCount = 0
     var delete: (@MainActor () -> Void)?
@@ -84,8 +88,12 @@ enum ItemVerbs {
     static let addToWorkspaceTitle = "Add to Workspace…"
     static let exportTitle = "Export a Copy…"
 
-    static func deleteTitle(_ count: Int) -> String {
-        count > 1 ? "Delete \(count) Items" : "Delete"
+    /// "Delete “Name”" for one named item, so the menu shows what ⌘⌫ will take before it is pressed
+    /// (`delete.what-is-shown-selected-is-what-is-deleted`, #6175); "Delete 3 Items" for several.
+    static func deleteTitle(_ count: Int, name: String? = nil) -> String {
+        if count > 1 { return "Delete \(count) Items" }
+        if let name, !name.isEmpty { return "Delete “\(name)”" }
+        return "Delete"
     }
 
     /// Whether the documents are all already excluded in that sense: the verb then includes them again.
@@ -205,7 +213,7 @@ struct DeleteItemsMenuItem: View {
 
     var body: some View {
         Button(role: .destructive) { target?.delete?() } label: {
-            Label(ItemVerbs.deleteTitle(target?.deletableCount ?? 0), systemImage: "trash")
+            Label(ItemVerbs.deleteTitle(target?.deletableCount ?? 0, name: target?.singleDocumentName), systemImage: "trash")
         }
         .disabled(ItemVerbs.deleteReason(target) != nil)
     }
