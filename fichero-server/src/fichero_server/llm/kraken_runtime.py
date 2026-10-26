@@ -81,7 +81,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from fichero_server.core.atomic_json import write_json_atomic
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
 from fichero_server.db.paths import model_store_root
 from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.media.ocr_geometry import (
@@ -1622,12 +1622,19 @@ def download_recognition_model(
     model_path = str(found[0])
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(
-        _marker_path(model_id, home),
-        {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
-         "model_path": model_path, "bytes": found[0].stat().st_size},
-        indent=None,
-    )
+    marker = _marker_path(model_id, home)
+    with card_lock(marker):  # a re-download keeps the evaluations the old marker holds (#6138)
+        try:
+            old = json.loads(marker.read_text(encoding="utf-8")) if marker.is_file() else {}
+        except (OSError, ValueError):
+            old = {}
+        kept = {k: old[k] for k in ("evaluations", "reasons_ab") if isinstance(old, dict) and old.get(k)}
+        write_json_atomic(
+            marker,
+            {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
+             "model_path": model_path, "bytes": found[0].stat().st_size, **kept},
+            indent=None,
+        )
 
 
 def _region_boxes(
