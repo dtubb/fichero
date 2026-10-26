@@ -411,10 +411,22 @@ enum RemoteClientPairing {
     }
 
     /// The call itself, over any client (a test hands one over a stubbed transport).
+    /// Gives up after `timeout` seconds so an unreachable Mac cannot hold Forget This Mac for the transport's 60 s.
     @MainActor
-    static func revokeOwnPairing(client: FicheroClient) async -> Bool {
-        guard case .ok? = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
-        return true
+    static func revokeOwnPairing(client: FicheroClient, timeout: Double = 5) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                guard case .ok? = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(timeout))
+                return false
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
     }
 
     private static func normalizedLibraryPath(_ path: String?) -> String? {

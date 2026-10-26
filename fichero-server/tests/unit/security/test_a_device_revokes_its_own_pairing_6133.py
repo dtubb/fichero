@@ -4,9 +4,9 @@ Mac stops listing it and its token stops working; Forget This Mac on iOS calls i
 WHY: Forget This Mac only cleared the device's token, pin and host; the Mac kept listing the device as paired, and its
 token stayed valid, until the owner removed it in Sharing.
 """
+# ruff: noqa: F811  (fixtures imported from the adversarial suite are taken as parameters)
 from __future__ import annotations
 
-from fichero_server.security import accounts
 from tests.unit.security.test_pairing_auth_fork_adversarial import (  # noqa: F401  (fixtures and helpers)
     _bearer,
     _owner_session_token,
