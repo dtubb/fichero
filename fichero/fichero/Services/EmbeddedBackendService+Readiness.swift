@@ -23,6 +23,18 @@ extension EmbeddedBackendService {
     /// to be.
     static let spawnedEngineInsanityCap: TimeInterval = 300
 
+    /// The cap under a UI test (#3958). A launch gate that sits inside the 300s wait
+    /// returns no verdict, and a test that hangs teaches nothing; at this cap it fails
+    /// with `neverBoundDiagnosis()` (the engine.log tail). Deliberately NOT a startup
+    /// budget to tune until green: a cold engine binds in ~23s, so this is ~4x that,
+    /// and a launch that exceeds it is a real defect to chase (#3956, #3950, #3930).
+    static let uiTestSpawnedEngineCap: TimeInterval = 90
+
+    /// The cap the wait actually uses: short under a UI test, the insanity cap otherwise.
+    static func effectiveSpawnCap(uiTesting: Bool = isUITesting()) -> TimeInterval {
+        uiTesting ? uiTestSpawnedEngineCap : spawnedEngineInsanityCap
+    }
+
     /// One step of the spawned-engine wait, as a pure decision (#3930).
     ///
     /// A live child that has not bound yet is NOT a failure — it is startup, and
@@ -145,7 +157,8 @@ extension EmbeddedBackendService {
             switch Self.spawnWaitStep(
                 readiness: result,
                 exitDiagnosis: spawnedEngineExitDiagnosis(),
-                elapsed: Date().timeIntervalSince(startTime)
+                elapsed: Date().timeIntervalSince(startTime),
+                cap: Self.effectiveSpawnCap()
             ) {
             case .ready:
                 logger.info("Backend readiness passed (health 200 + identity + authenticated probe)")
@@ -170,7 +183,7 @@ extension EmbeddedBackendService {
                 throw BackendError.engineDidNotStart(diagnosis: Self.credentialRejectedDiagnosis())
             case .neverBecameReady:
                 logger.error("Engine alive but nothing ever answered on the socket within the insanity cap (#3930)")
-                throw BackendError.engineDidNotStart(diagnosis: Self.neverBoundDiagnosis())
+                throw BackendError.engineDidNotStart(diagnosis: Self.neverBoundDiagnosis(cap: Self.effectiveSpawnCap()))
             case .keepWaiting:
                 break
             }
@@ -193,8 +206,9 @@ extension EmbeddedBackendService {
     /// serving") asserted a start we cannot observe and named no next step.
     /// `internal` so the diagnosis wording is pinned by a test rather than by a
     /// screenshot.
-    static func neverBoundDiagnosis() -> String {
-        let minutes = Int(spawnedEngineInsanityCap / 60)
+    static func neverBoundDiagnosis(cap: TimeInterval = spawnedEngineInsanityCap) -> String {
+        let waited = cap >= 60 && cap.truncatingRemainder(dividingBy: 60) == 0
+            ? "\(Int(cap / 60)) minutes" : "\(Int(cap)) seconds"
         // NAME the log, resolved. Under the App Sandbox this is NOT
         // ~/Library/Logs/Fichero/engine.log — `.libraryDirectory` resolves into
         // the app's container, so the live log sits somewhere no one would
@@ -203,7 +217,7 @@ extension EmbeddedBackendService {
         // writing 52 KB into the container. "It's in the engine log" is only a
         // remedy if the reader can find the engine log.
         let base = "The engine Fichero launched is still running, but nothing answered on its socket "
-            + "for \(minutes) minutes. Why it never bound is in \(engineLogURL.path); its last lines follow."
+            + "for \(waited). Why it never bound is in \(engineLogURL.path); its last lines follow."
         return "\(base)\n\n\(tailEngineLog(lines: 20))"
     }
 
