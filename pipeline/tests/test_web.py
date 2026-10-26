@@ -224,3 +224,11 @@ def test_page_loads_and_every_link_resolves(server, monkeypatch):
     assert "open bug" in html and "done thing" not in html
     _, html = call(server, "/items")
     assert "over budget" in html and "75%" in html and "$0.50" in html and "daily cap" in html
+
+
+def test_write_ups_are_not_counted_as_needs_you(scratch):
+    core._queue("write-up", "#7 is not fit to dispatch, write it up: it lacks a spec behaviour id")
+    core._queue("ask", "which one?")
+    now = core.state()["now"]
+    assert "Needs you: 1." in now and "Needs write-up: 1." in now
+    assert "writeup-h" in web.PAGE and "q.kind!=='write-up'" in web.PAGE

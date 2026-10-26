@@ -35,6 +35,7 @@ th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertic
 <h2>Items</h2><table id="items"><thead><tr><th>Item</th><th>Status</th><th>Started</th><th>Last change</th><th>Cost</th><th>Details</th></tr></thead><tbody></tbody></table>
 <h2>Workers</h2><table id="workers"><thead><tr><th>Window</th><th>Task</th><th>Model</th><th>State</th><th>Cost</th><th>Last said</th><th>Tell</th></tr></thead><tbody></tbody></table>
 <h2 id="queue-h">Needs you</h2><table id="queue"><thead><tr><th>When</th><th>Kind</th><th>Question</th><th>Answer</th></tr></thead><tbody></tbody></table>
+<h2 id="writeup-h">Needs write-up</h2><table id="writeup"><thead><tr><th>When</th><th>Issue</th></tr></thead><tbody></tbody></table>
 <details id="done"><summary>Done</summary><table id="queue-done"><thead><tr><th>When</th><th>Kind</th><th>Was</th></tr></thead><tbody></tbody></table></details>
 <h2>Point at a milestone</h2><form data-cmd="point"><input name="milestone" placeholder="milestone name" size="40"> <button>Point</button> <span class="muted" id="point"></span></form>
 <form data-cmd="pause"><button>Pause all</button></form><form data-cmd="resume"><button>Resume</button></form>
@@ -50,12 +51,12 @@ const pre=t=>el('pre',{},t);const hhmm=ts=>ts?ts.slice(11,16):'—';const short=
 async function cmd(name,args){const r=await fetch('/api/'+name,{method:'POST',headers:{'content-type':'application/json','x-token':TOKEN},body:JSON.stringify(args)});
  const j=await r.json();alert(JSON.stringify(j,null,1));refresh()}
 function fill(id,rows){const b=document.querySelector('#'+id+' tbody');b.replaceChildren(...rows)}
-async function refresh(){const s=await (await fetch('/api/state')).json();const m=s.machine||{};const nq=Object.keys(s.queue).length;
+async function refresh(){const s=await (await fetch('/api/state')).json();const m=s.machine||{};const qs=Object.values(s.queue),nq=qs.filter(q=>q.kind!=='write-up').length,nw=qs.length-nq;
  document.getElementById('now').replaceChildren(s.now,' ',el('a',{href:'#queue-h'},`Needs you: ${nq}`));
  document.getElementById('meta').textContent=`API spend today $${(s.spend_today||0).toFixed(2)} of the $${(s.daily_cap||0).toFixed(2)} daily cap · ${m.free_mb} MB free, pressure ${m.pressure}, load ${m.load1} · ${new Date().toLocaleTimeString()}`;
  document.getElementById('paused').replaceChildren(...(s.paused?[el('p',{class:'paused'},'PAUSED: nothing new starts until Resume.')]:[]));
  document.getElementById('point').textContent=s.point?'pointed at: '+s.point:'';
- document.getElementById('queue-h').textContent=`Needs you (${nq})`;
+ document.getElementById('queue-h').textContent=`Needs you (${nq})`;document.getElementById('writeup-h').textContent=`Needs write-up (${nw})`;
  fill('items',Object.values(s.items).map(i=>{const first=(i.history[0]||'').slice(0,19),last=(i.history[i.history.length-1]||'').slice(0,19);
   const checks=(i.checks||[]).map(c=>`${c.ok?'✓':'✗'} ${c.name} ${c.seconds}s`).join('\\n');
   const verdicts=(i.verdicts||[]).map(v=>`${v.verdict} by ${v.by} at ${short(v.sha)}`).join('\\n');
@@ -69,7 +70,8 @@ async function refresh(){const s=await (await fetch('/api/state')).json();const 
   el('td',{},w.idle_text+(w.undelivered?' ⚠ message not delivered':'')),
   el('td',{},`$${(t.cost_usd||0).toFixed(2)} this task · ${t.issues_done||0} done · $${(t.cost_per_issue||0).toFixed(2)} per issue`),el('td',{},w.last_said||'—'),
   el('td',{},el('form',{'data-cmd':'tell','data-window':w.window},el('input',{name:'text',size:28}),el('button',{},'Tell'))))}));
- fill('queue',Object.values(s.queue).map(q=>el('tr',{},el('td',{class:'muted'},hhmm(q.ts)),el('td',{},q.kind),
+ fill('writeup',qs.filter(q=>q.kind==='write-up').map(q=>el('tr',{},el('td',{class:'muted'},hhmm(q.ts)),el('td',{},q.text))));
+ fill('queue',qs.filter(q=>q.kind!=='write-up').map(q=>el('tr',{},el('td',{class:'muted'},hhmm(q.ts)),el('td',{},q.kind),
   el('td',{},pre(q.text),...(q.options||[]).map(o=>el('button',{'data-answer':q.id,'data-text':o},o))),
   el('td',{},el('form',{'data-cmd':'answer','data-qid':q.id},el('input',{name:'text',size:24}),el('button',{},'Answer'))))));
  fill('queue-done',Object.values(s.queue_done||{}).map(q=>el('tr',{},el('td',{class:'muted'},hhmm(q.ts)),el('td',{},q.kind),el('td',{},pre(q.text)))));

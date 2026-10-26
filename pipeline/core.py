@@ -248,8 +248,10 @@ def now_line(s: dict) -> str:
         else:
             parts.append(f"{label}: {it['state']}.")
     parts.append(f"{len(busy)} worker{'s' if len(busy) != 1 else ''} busy." if busy else "No worker busy.")
-    n = len(s["queue"])
+    n = len([q for q in s["queue"].values() if q["kind"] != "write-up"])  # write-ups are work for the runner, not questions
     parts.append(f"Needs you: {n}." if n else "Nothing needs you.")
+    if len(s["queue"]) > n:
+        parts.append(f"Needs write-up: {len(s['queue']) - n}.")
     return " ".join(parts)
 
 
