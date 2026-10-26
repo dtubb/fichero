@@ -354,7 +354,7 @@ struct SidebarView: View {
             ))
             .sidebarDeleteAlerts(
                 deleteState: deleteState,
-                performDelete: performDeletes
+                performDelete: performDelete
             )
             .sidebarNewFolderDialog(
                 sidebarState: sidebarState,

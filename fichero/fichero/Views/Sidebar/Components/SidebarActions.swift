@@ -170,7 +170,7 @@ extension SidebarView {
 
     /// The confirmed delete of every item: several documents of one library are ONE undoable batch and one refresh, so one
     /// Cmd-Z restores them all (`delete.multi-is-one-undo-step`, #6175, `undo.batches`); anything else goes one by one.
-    func performDeletes(_ items: [SidebarItem]) async {
+    func performDelete(_ items: [SidebarItem]) async {
         let documents: [Document] = items.compactMap {
             if case .document(let doc) = $0.itemType { return doc }
             return nil
@@ -178,7 +178,7 @@ extension SidebarView {
         let libraryIds = Set(items.compactMap(\.libraryId))
         guard items.count > 1, documents.count == items.count, libraryIds.count == 1, let libraryId = libraryIds.first,
               let library = libraryManager.getLibrary(id: libraryId) else {
-            for item in items { await performDelete(item: item) }
+            for item in items { await performDeleteOne(item: item) }
             return
         }
         do {
@@ -204,7 +204,7 @@ extension SidebarView {
     }
 
     // Perform the actual deletion
-    func performDelete(item: SidebarItem) async {
+    func performDeleteOne(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")
         guard let libraryId = item.libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else {
