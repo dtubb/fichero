@@ -175,10 +175,10 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                         }
                     }
                 }
-                .keyboardShortcut(.defaultAction)
                 Button("Cancel", role: .cancel) {
                     deleteState.cancelDelete()
                 }
+                .keyboardShortcut(.defaultAction)  // Return never confirms a delete (#6175)
             } message: {
                 Text(sidebarDeleteConfirmationMessage(for: deleteState.itemsToDelete))
             }

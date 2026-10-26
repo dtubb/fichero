@@ -113,7 +113,7 @@ extension SidebarView {
     /// A single selection resolves to exactly the primary, unchanged. No-op if
     /// nothing in the selection is deletable (headers etc. are filtered).
     func handleDeleteSelection() {
-        let items = sidebarDeletableItems(selectedItems)
+        let items = sidebarDeleteTargets(selectedItems, inheritedSelectionId: deleteState.inheritedSelectionId)
         guard !items.isEmpty else { return }
         // Names, not a count (2026-08-10 Inbox incident): the one log line
         // that says exactly what a delete is ABOUT to act on, so a wrong
@@ -184,6 +184,7 @@ extension SidebarView {
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
             selectedItemId = selectedItemId == item.id ? next : nil
+            deleteState.inheritedSelectionId = selectedItemId  // only a place to look until the next click (#6175)
         } catch {
             // Surface it. `DeleteStateManager` has carried a complete error
             // surface — `deleteErrorMessage`, `showingDeleteError`,

@@ -208,6 +208,10 @@ class DeleteStateManager {
     var itemsToDelete: [SidebarItem] = []
     var itemToDelete: SidebarItem? { itemsToDelete.count == 1 ? itemsToDelete.first : nil }
     var deleteErrorMessage = ""
+    /// The row the APP selected after a delete (next sibling, previous, else the parent), not one the person chose:
+    /// no delete gesture acts on it until a fresh click selects something (`delete.after-delete-selection-is-never-a-delete-target`,
+    /// #6175: the parent folder was deleted by the next Backspace).
+    var inheritedSelectionId: String?
 
     func showDeleteConfirmation(for item: SidebarItem) {
         showDeleteConfirmation(for: [item])

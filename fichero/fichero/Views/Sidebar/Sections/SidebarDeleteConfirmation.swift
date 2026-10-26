@@ -63,6 +63,14 @@ func sidebarDeletableItems(_ items: [SidebarItem]) -> [SidebarItem] {
     items.filter { $0.itemType.canBeDeleted }
 }
 
+/// What a Delete gesture on the sidebar's selection acts on: the deletable items, never the row the app selected after
+/// the last delete (`inheritedSelectionId`) until the person selects again (`delete.after-delete-selection-is-never-a-delete-target`, #6175).
+func sidebarDeleteTargets(_ items: [SidebarItem], inheritedSelectionId: String?) -> [SidebarItem] {
+    let deletable = sidebarDeletableItems(items)
+    guard let inherited = inheritedSelectionId else { return deletable }
+    return deletable.filter { $0.id != inherited }
+}
+
 /// Items the context-menu Delete acts on. Right-clicking a row inside the
 /// current multi-selection targets the whole deletable selection (Finder
 /// semantics); a row outside the selection targets itself alone. Falls back
