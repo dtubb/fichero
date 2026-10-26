@@ -41,8 +41,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -81,8 +81,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -104,8 +104,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -123,8 +123,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -142,8 +142,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -195,8 +195,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -273,8 +273,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -291,8 +291,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
@@ -311,8 +311,8 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ActivityServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
