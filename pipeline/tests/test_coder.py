@@ -55,6 +55,7 @@ def test_pi_command_loads_only_the_pipeline_agent_dir(scratch, tmp_path):
     s = " ".join(cmd)
     assert "--no-extensions" in cmd and "-e /nowhere/adapter.ts" in s, "only the MCP adapter, by explicit path"
     assert "--no-skills" in cmd and "--no-prompt-templates" in cmd and "--no-themes" in cmd
+    assert "--no-context-files" in cmd, "no AGENTS.md/CLAUDE.md: the brief and the rules are the whole prompt"
     assert "--model anthropic/claude-sonnet-4-5" in s and f"--session-dir {tmp_path / 's'}" in s
     appended = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--append-system-prompt"]
     assert any(p.endswith("rules/ponytail-coder.md") for p in appended)
@@ -262,3 +263,25 @@ def test_start_fails_fast_without_the_mcp_sdk(scratch, issues, fake_coder, monke
     with pytest.raises(RuntimeError, match="MCP SDK"):
         core.start([1001])
     assert not (scratch["repo"] / ".worktrees").exists()
+
+
+def test_every_worker_gets_the_same_small_tool_list_and_docs_only_when_cited(scratch):
+    """pipeline.batch-session: a few jcodemunch calls, report/ask/done/verdict, jdocmunch only when the brief cites
+    docs; the same list in the same order for the coder and the reviewer (the first run exposed 146 tools)."""
+    cfg = dict(scratch["cfg"], workers=dict(scratch["cfg"]["workers"], agent_dir="pipeline/pi-agent"))
+    def servers(role, docs):
+        cmd = coder.pi_command(cfg, {"provider": "anthropic", "model": "m"}, scratch["tmp"], role=role, task="t", docs=docs)
+        return json.loads(Path(cmd[cmd.index("--mcp-config") + 1]).read_text())["mcpServers"]
+    coder_s, reviewer_s = servers("coder", False), servers("reviewer", False)
+    assert list(coder_s) == ["jcodemunch", "pipeline"] and coder_s == reviewer_s
+    assert coder_s["jcodemunch"]["directTools"] == coder.SMALL_TOOLS["jcodemunch"]
+    assert sum(len(s["directTools"]) for s in coder_s.values()) <= 8
+    assert list(servers("coder", True)) == ["jcodemunch", "jdocmunch", "pipeline"]
+    assert core.cites_docs({"body": "see docs/user_manual/x.md"}) and not core.cites_docs({"body": "Spec `a.b`"})
+
+
+def test_a_proxy_call_is_counted_as_a_brief_miss(tmp_path):
+    _write(tmp_path / "s.jsonl", [{"message": {"role": "assistant", "stopReason": "toolUse", "content": [
+        {"type": "toolCall", "name": "mcp", "arguments": {"tool": "jcodemunch_get_repo_outline"}}]}}])
+    st = coder.parse_session(tmp_path / "s.jsonl")
+    assert st["proxy_calls"] == 1 and st["tool_calls"]["jcodemunch_get_repo_outline"] == 1

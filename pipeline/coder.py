@@ -49,6 +49,23 @@ def mcp_bin(task: str, role: str) -> Path:
     return d
 
 
+# The one short tool list, in one order, for every worker role (pipeline.batch-session, prompt-cache). The adapter's
+# `mcp` proxy tool stays: it is the wide set, and every call to it is journaled as a brief miss.
+SMALL_TOOLS = {"jcodemunch": ["search_symbols", "get_file_outline", "get_symbol_source", "find_references"],
+               "jdocmunch": ["search_sections", "get_section"],
+               "pipeline": ["report", "ask", "done", "verdict"]}
+
+
+def mcp_config(cfg: dict, d: Path, docs: bool) -> Path:
+    """The worker's MCP config, written next to its wrapper: the agent dir's servers, each with only its small
+    tools direct; jdocmunch only when the brief cites docs (the first run exposed 146 tools)."""
+    servers = json.loads((ROOT / cfg["workers"]["agent_dir"] / "mcp.json").read_text())["mcpServers"]
+    out = {k: dict(servers[k], directTools=v) for k, v in SMALL_TOOLS.items() if k in servers and (docs or k != "jdocmunch")}
+    p = d / "mcp.json"
+    p.write_text(json.dumps({"mcpServers": out}, indent=1))
+    return p
+
+
 def require_mcp_sdk() -> None:
     """The worker's report/ask/done tools are served by the runner's python: no MCP SDK there must stop `start`,
     not leave a worker without its done tool (first live run, 2026-10-25)."""
@@ -78,13 +95,17 @@ def key_source(cfg: dict, worker: dict) -> tuple[str, str]:
     return k["env"], ""
 
 
-def pi_command(cfg: dict, worker: dict, session_dir: Path, role: str = "coder") -> list[str]:
-    """Interactive Pi with only the MCP adapter, the project's shared principles and the role's ponytail rules."""
+def pi_command(cfg: dict, worker: dict, session_dir: Path, role: str = "coder", task: str = "", docs: bool = False) -> list[str]:
+    """Interactive Pi with only the MCP adapter (the small tool set when a task is given), the project's shared
+    principles and the role's ponytail rules."""
     agent = ROOT / cfg["workers"]["agent_dir"]
     env_var, key_file = key_source(cfg, worker)
     cmd = [str(WRAPPER), env_var or "-", key_file or "-", "pi",
            "--no-extensions", "-e", str(Path(cfg["workers"]["pi_adapter"]).expanduser()),
-           "--no-skills", "--no-prompt-templates", "--no-themes",
+           *(["--mcp-config", str(mcp_config(cfg, mcp_bin(task, role), docs))] if task else []),
+           # no AGENTS.md/CLAUDE.md: 68 KB (~17k tokens) per turn and a "read STATE.md first" that sends a worker
+           # exploring; the brief and the role's rules are the whole prompt
+           "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
            "--session-dir", str(session_dir), "--model", pi_model_id(worker)]
     for f in sorted((agent / "skills" / "_shared").glob("*.md")) + [agent / "rules" / f"ponytail-{role}.md"]:
         cmd += ["--append-system-prompt", str(f)]
@@ -162,7 +183,7 @@ def brief_file(task: str, name: str, text: str) -> Path:
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
          "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False,
-         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0}
+         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0, "proxy_calls": 0}
 
 
 def cache_hit(s: dict) -> float:
@@ -223,6 +244,7 @@ def parse_session(path: Path) -> dict:
                     name, args = c.get("name", "?"), c.get("arguments") or c.get("input") or {}
                     if name == "mcp" and isinstance(args, dict):  # the adapter's generic call: the real tool is inside
                         name = args.get("tool") or f"mcp:{args.get('server', '?')}"
+                        out["proxy_calls"] += 1  # the wide set: a brief miss
                     out["tool_calls"][name] += 1
                 elif c.get("type") == "text" and c.get("text"):
                     out["last_text"] = c["text"]

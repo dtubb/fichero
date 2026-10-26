@@ -126,8 +126,8 @@ def issues(monkeypatch):
     return ISSUES
 
 
-def idle(turns=1, cost=0.01):
-    return {"cost_usd": cost, "tokens": 100, "tool_calls": Counter({"jcodemunch_plan_turn": 1}), "idle": True,
+def idle(turns=1, cost=0.01, tools=None):
+    return {"cost_usd": cost, "tokens": 100, "tool_calls": Counter(tools or {"jcodemunch_plan_turn": 1}), "idle": True,
             "last_text": "done", "rate_limited": False, "model": "qwen/x", "turns": turns, "prompts": turns, "started": True}
 
 
@@ -136,7 +136,7 @@ class FakeCoder:
 
     def __init__(self, scratch, behaviour="good"):
         self.scratch, self.behaviour, self.told, self.windows, self.stopped = scratch, behaviour, [], [], []
-        self.turns = 0
+        self.turns, self.tools = 0, None
 
     def start_window(self, cfg, name, cwd, cmd, env):
         self.windows.append((name, Path(cwd), cmd, env))
@@ -173,11 +173,11 @@ class FakeCoder:
         self.turns += 1
 
     def status(self, session_dir):
-        return idle(self.turns, 0.01 * self.turns)
+        return idle(self.turns, 0.01 * self.turns, self.tools)
 
     def wait_idle(self, session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None, token_cap=None):
         assert self.turns > after_turns, "the runner waited before the worker answered"
-        return idle(self.turns, 0.01 * self.turns)
+        return idle(self.turns, 0.01 * self.turns, self.tools)
 
 
 @pytest.fixture

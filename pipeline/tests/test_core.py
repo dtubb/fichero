@@ -345,15 +345,17 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
 
 
 def test_brief_requires_the_doc_lookup_first_and_forbids_acceptance_edits(scratch, issues):
+    """The name is kept (the spec cites it); the first step is now: do not explore, read only what you edit."""
     text = core.brief(issues[1001], "t")
-    assert "REQUIRED first step: call `jdocmunch_search_sections` for `demo.one`" in text
+    assert "Do not explore" in text and "brief miss" in text and "Never push" in text
     assert "Never change your own acceptance" in text and "`pipeline_ask`" in text
 
 
 def test_tools_unused_is_a_note_not_a_failure(scratch, issues, fake_coder):
-    fake_coder()  # its fake session shows jcodemunch but no jdocmunch
+    fc = fake_coder()
+    fc.tools = {"read": 1}  # a session with no jcodemunch call
     assert core.start([1001])["items"]["1001"] == "checked"
-    assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jdocmunch"]
+    assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jcodemunch"]
 
 
 def test_a_commit_landing_mid_check_is_red(scratch, issues, fake_coder, monkeypatch):

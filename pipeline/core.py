@@ -31,7 +31,7 @@ CFG: dict = {}
 ISSUE = gh.issue  # the one read of an issue; tests replace it
 DRY_RUN = True    # GitHub writes: the CLI flips this with --apply; tests and the proof run never do
 ANSWER_DEADLINE_S = 4 * 3600
-TOOLS_WANTED = ("jdocmunch", "jcodemunch")
+TOOLS_WANTED = ("jcodemunch",)
 ITEM_FIELDS = ("issue", "task", "sha", "to", "why", "ok", "results", "verdict", "by", "findings", "usd", "tokens", "model",
                "tools", "session", "text")
 
@@ -335,10 +335,10 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
     if failure:
         text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
     fixes = "Part of" if issue.get("part_of") else "Fixes"
-    first = (f"1. REQUIRED first step: call `jdocmunch_search_sections` for `{ids[0]}`" if ids
-             else "1. REQUIRED first step: call `jdocmunch_search_sections` for this issue's subject")
     text += ["## How to work",
-             first + " (and jcodemunch `plan_turn` for the code), then call `pipeline_report` with one line on what you found. Read before you write.",
+             "1. Do not explore: this brief names what to change. Read only the symbols you edit (jcodemunch "
+             "`get_symbol_source` / `get_file_outline`), then edit. The `mcp` tool (the wide set) is a brief miss: "
+             "use it only when the brief truly lacks something, and say what in `pipeline_report`.",
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
@@ -347,7 +347,8 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
              f"6. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
              f"7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
-             "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
+             "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets. "
+             "Never push, never `git stash`, never touch the maintainer's data or settings."]
     return "\n".join(text)
 
 
@@ -385,7 +386,12 @@ def workers(role: str = "coder") -> list[dict]:
     return [w for w in cfg()["roles"][role] if w.get("enabled", True)]
 
 
-def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
+def cites_docs(issue: dict) -> bool:
+    """jdocmunch joins the worker's tools only when the issue names a doc page beyond the spec lines in its brief."""
+    return bool(re.search(r"(?<![\w/])docs/\S+\.md", issue.get("body") or ""))
+
+
+def _start_worker(task: str, wt: Path, worker: dict, window: str, docs: bool = False) -> Path:
     """Each window start gets its OWN timestamped session dir, so delivery and idleness are read from the new
     session's file, never from an older one (review MED B)."""
     c = cfg()
@@ -393,7 +399,7 @@ def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
     journal.append("intent", task=task, what="worker", ref=window)
     session = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
     session.mkdir(parents=True, exist_ok=True)
-    cmd = coder.pi_command(c, worker, session)
+    cmd = coder.pi_command(c, worker, session, task=task, docs=docs)
     coder.start_window(c, window, wt, cmd, coder.allowed_env(c, task, "coder"))
     journal.append("worker", window=window, task=task, role="coder", model=config.pi_model_id(worker), kind=worker["kind"],
                    session_dir=str(session), cwd=str(wt))
@@ -490,7 +496,7 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
     worker = workers()[worker_index]
     _wait_room(worker["kind"], task)
-    session_dir = _start_worker(task, wt, worker, window)
+    session_dir = _start_worker(task, wt, worker, window, docs=any(cites_docs(i) for i in briefs.values()))
     summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}
     for k, iss in briefs.items():
         summary["items"][k] = _run_issue(task, k, iss, wt, window, session_dir, worker, worker_index)
@@ -529,6 +535,8 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
         spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
         journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
                        tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+        if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
+            journal.append("brief_miss", issue=n, key=key, task=task, calls=st["proxy_calls"] - before.get("proxy_calls", 0))
         unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
         if unused:  # information only, never a failure (dogfood 7)
             journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
@@ -716,7 +724,7 @@ def review(issue, worker_index: int = 0) -> dict:
         window, task = "reviewer", it["task"]
         session = STATE / "sessions" / task / f"reviewer-{worker['model'].replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
         session.mkdir(parents=True, exist_ok=True)
-        coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer"), coder.allowed_env(c, task, "reviewer"))
+        coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer", task=task), coder.allowed_env(c, task, "reviewer"))
         journal.append("worker", window=window, task=task, role="reviewer", model=config.pi_model_id(worker), kind="pi",
                        session_dir=str(session), cwd=str(wt))
         since = _since(key, task) or c["repo"]["base"]
@@ -757,7 +765,9 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "review": review, "verdict": verdict,
        "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
        "resume": resume, "file_bug": file_bug, "reset": reset}
-# Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
+# Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
+# list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
+WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).

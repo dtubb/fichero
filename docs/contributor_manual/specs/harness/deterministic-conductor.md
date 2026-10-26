@@ -271,11 +271,12 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   the jcodemunch MCP and docs and specs through the jdocmunch MCP (indexed on `docs/`). Pi loads MCP through the
   `pi-mcp-adapter` extension, so the runner gives Pi its own agent directory (`PI_CODING_AGENT_DIR=pipeline/pi-agent`)
   that loads only that adapter, those two servers plus the runner's own, the `_shared` principles and a ponytail
-  rules file: the coder gets ponytail FULL; the reviewer gets the ponytail review lens as one named check. The
-  coder's prompt makes the first step a REQUIRED `jdocmunch_search_sections` for the item's spec id (plus
-  `plan_turn` for the code) followed by a `pipeline_report` of what it found; when the session log shows no such
-  call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8 made 0
-  such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (the text of its
+  rules file: the coder gets ponytail FULL; the reviewer gets the ponytail review lens as one named check. Pi loads
+  no AGENTS.md or CLAUDE.md (`--no-context-files`: 68 KB a turn, and a "read STATE.md first" that sends a worker
+  exploring). Each worker gets a generated MCP config with the one short tool list of `pipeline.batch-session`; the
+  brief tells the coder not to explore but to read only the symbols it edits, and when the session log shows no
+  jcodemunch call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8
+  made 0 such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (the text of its
   behaviour lines and of its step's Behaviours/Tests lines, compared with the status tag and `(#N)` stripped, so
   flipping [MISSING] to [OK] is allowed): such a diff is a pinned-checks red; `ask` instead.
   Tests:
@@ -356,7 +357,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   Tests: `pipeline/tests/test_core.py::test_batch_done_per_issue_checks_while_the_worker_moves_on`,
   `pipeline/tests/test_core.py::test_batch_ends_at_the_context_budget_with_a_handoff_note`,
   `pipeline/tests/test_core.py::test_parked_worker_is_woken_for_the_same_kind_within_park_ttl`,
-  `pipeline/tests/test_core.py::test_brief_carries_spec_lines_files_and_the_test_to_write`.
+  `pipeline/tests/test_core.py::test_brief_carries_spec_lines_files_and_the_test_to_write`,
+  `pipeline/tests/test_coder.py::test_every_worker_gets_the_same_small_tool_list_and_docs_only_when_cited`,
+  `pipeline/tests/test_coder.py::test_a_proxy_call_is_counted_as_a_brief_miss`,
+  `pipeline/tests/test_faces.py::test_a_worker_tool_outside_the_role_refuses_at_call_time`.
 - `pipeline.prompt-cache` [MISSING] (#6116) — every prompt is laid out as a stable prefix then a variable tail, so
   Anthropic prompt caching (cache_control through Pi — Pi 0.75.5's Anthropic provider sets it, and its OpenAI-style
   provider passes it for Anthropic models on OpenRouter) and an oMLX/llama prefix KV cache both hit: the order is

@@ -13,19 +13,27 @@ def tools_for(role: str) -> dict:
     return {name: core.API[name] for name in core.ROLE_TOOLS[role]}
 
 
+def served(role: str) -> tuple[str, ...]:
+    """What the server lists: the one worker list for every worker role (cache), the manager's own for the manager."""
+    return core.ROLE_TOOLS[role] if role == "manager" else core.WORKER_TOOLS
+
+
 def build(role: str):
     from mcp.server.fastmcp import FastMCP  # the repo venv has the mcp SDK
 
     server = FastMCP(f"pipeline-{role}")
-    for name, fn in tools_for(role).items():
-        server.tool(name=name, description=(fn.__doc__ or name).strip().splitlines()[0])(_wrap(fn))
+    for name in served(role):
+        fn = core.API[name]
+        server.tool(name=name, description=(fn.__doc__ or name).strip().splitlines()[0])(_wrap(fn, name in core.ROLE_TOOLS[role]))
     return server
 
 
-def _wrap(fn):
+def _wrap(fn, allowed: bool = True):
     import inspect
 
     def tool(**kwargs):
+        if not allowed:  # listed for every worker (one tool list), refused for this role
+            return {"error": f"`{fn.__name__}` is not this role's tool"}
         try:
             return json.loads(json.dumps(fn(**kwargs), default=str))  # plain JSON types, whatever the function returns
         except Exception as e:  # noqa: BLE001 - the model gets the error text, the state does not move
