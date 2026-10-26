@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// The search models a project may be made with (`search.embedding.chosen-at-project-creation`, #6122). The engine

@@ -98,7 +98,7 @@ struct ActivityDetailsLogPane: View {
 
 /// Started, finished, elapsed, tokens, cost and peak memory; what the engine
 /// did not measure is left out.
-private struct ActivityDetailsResources: View {
+struct ActivityDetailsResources: View {
     let resources: [ActivityDetails.Resource]
     var titled = true
 

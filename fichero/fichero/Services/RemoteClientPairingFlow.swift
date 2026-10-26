@@ -414,20 +414,20 @@ enum RemoteClientPairing {
     /// Gives up after `timeout` seconds so an unreachable Mac cannot hold Forget This Mac for the transport's 60 s.
     @MainActor
     static func revokeOwnPairing(client: FicheroClient, timeout: Double = 5) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            // MainActor-isolated so the non-Sendable client is not sent across isolation.
-            group.addTask { @MainActor in
-                guard case .ok? = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
-                return true
-            }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(timeout))
-                return false
-            }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
+        // A timer cancels the call, which then throws and reads as false; both stay on the main actor so the
+        // non-Sendable client never crosses isolation.
+        let call = Task { @MainActor () -> Bool in
+            guard let response = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
+            if case .ok = response { return true }
+            return false
         }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(timeout))
+            call.cancel()
+        }
+        let revoked = await call.value
+        timer.cancel()
+        return revoked
     }
 
     private static func normalizedLibraryPath(_ path: String?) -> String? {

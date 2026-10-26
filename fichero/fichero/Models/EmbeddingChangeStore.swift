@@ -29,8 +29,6 @@ final class EmbeddingChangeStore {
             switch try await client.api.getEmbeddingChoiceApiSearchEmbeddingGet(.init()) {
             case .ok(let success):
                 current = try success.body.json
-            case .unprocessableContent:
-                errorMessage = "The engine did not understand which project to read."
             case .undocumented(let code, let body):
                 errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not read the search model (HTTP \(code))."
             }

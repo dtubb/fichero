@@ -45,7 +45,7 @@ struct ReviewInstructionsStoreTests {
         let store = makeStore()
         await store.load()
         #expect(store.passes.map(\.lens) == ["orthography"])
-        #expect(store.passes.first?.default == "Check spelling.")
+        #expect(store.passes.first?._default == "Check spelling.")
         #expect(store.passes.first?.edited == true)
         #expect(store.passes.first?.profile == "Built from the generic profile.")
         #expect(store.errorMessage == nil)

@@ -52,7 +52,7 @@ struct ActivityPageGrid: Equatable {
     }
 
     init(_ states: Components.Schemas.RunPageStates) {
-        pages = states.items.map { item in
+        pages = (states.items ?? []).map { item in
             let dot: Dot = switch item.state.rawValue {
             case "done": .done
             case "failed": .failed

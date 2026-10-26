@@ -44,13 +44,13 @@ struct ReviewInstructionsEditor: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         TextEditor(text: Binding(
-                            get: { answers.reviewText(for: pass.lens, default: pass.default) },
-                            set: { answers.setReview($0, for: pass.lens, default: pass.default) }
+                            get: { answers.reviewText(for: pass.lens, default: pass._default) },
+                            set: { answers.setReview($0, for: pass.lens, default: pass._default) }
                         ))
                         .font(.body)
                         .frame(minHeight: 140)
                         .accessibilityIdentifier("setup.review.instructions.\(pass.lens)")
-                        Button("Reset to default") { answers.setReview("", for: pass.lens, default: pass.default) }
+                        Button("Reset to default") { answers.setReview("", for: pass.lens, default: pass._default) }
                             .disabled(answers.reviewInstructions[pass.lens] == nil)
                     }
                 }
@@ -71,7 +71,7 @@ struct ReviewInstructionsEditor: View {
     ReviewInstructionsEditor(
         passes: ["abbreviations", "orthography", "names-and-dates"].map {
             Components.Schemas.ReviewInstruction(
-                lens: $0, default: "Check the \($0) of this page against the image.",
+                lens: $0, _default: "Check the \($0) of this page against the image.",
                 text: "Check the \($0) of this page against the image.", edited: false,
                 profile: "Built from the Spanish colonial profile.")
         },
