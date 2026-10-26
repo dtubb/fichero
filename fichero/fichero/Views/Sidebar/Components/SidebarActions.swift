@@ -106,6 +106,11 @@ extension SidebarView {
         renameState.startRename(itemId: item.id, currentName: item.name)
     }
 
+    /// How many rows a Delete gesture would act on now: the selection less the row the app selected after the last delete (#6175).
+    var deleteTargetCount: Int {
+        sidebarDeleteTargets(selectedItems, inheritedSelectionId: deleteState.inheritedSelectionId).count
+    }
+
     /// Delete the whole (deletable) multi-selection, confirming once. The ONE
     /// delete path for every entry point — Delete key, Edit ▸ Delete (⌘⌫), and
     /// the bottom-toolbar remove button — so a multi-selection is never
