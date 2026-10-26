@@ -38,6 +38,7 @@ import contextvars
 import json
 import logging
 import sys
+import threading
 import time
 import uuid
 from collections import Counter
@@ -826,6 +827,7 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
         if all(r["state"] in ("done", "failed", "cancelled") for r in rows):
             failed = [r for r in rows if r["state"] != "done"]
             if not failed:
+                search_embedded(parent, documents)
                 return None, "done", None
             return None, "failed", (f"{len(failed)} of {len(rows)} batches of pages were not embedded: "
                                     f"{failed[0]['reason'] or failed[0]['state']}")
@@ -1092,6 +1094,16 @@ def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
 
 
 def _run(db: Any, job_id: str) -> dict[str, Any]:
+    try:
+        return _run_the_plan(db, job_id)
+    finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
+        try:
+            end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
+        except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure
+            logger.exception("run %s: the embeds left to Search could not be queued", job_id)
+
+
+def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.execution.cancellation import pause_requested
 
     if pause_requested(job_id):
@@ -1113,6 +1125,9 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     _read_old_shapes(steps)
     tree = _tree(db)
     batches = _batches(tree, _units(db, detail.get("documents"), detail.get("folder_id"), tree), BATCH_PAGE_LIMIT)
+    if any(card["card"] == "embed" for card in cards):  # Search is in the plan: it embeds these pages once (#6126)
+        units = {u for batch in batches for u in batch["units"]}  # a photograph's cut pages are saved under it
+        start_search_watch(job_id, units | {doc for doc, (parent, _k, _t) in tree.items() if parent in units})
     detail["batches_total"] = len(batches)
     detail["folders_total"] = len({b["folder"] for b in batches if b["units"]})
     detail["folders_done"] = sum(1 for b in batches[:detail["batches_done"]] if b["last"] and b["units"])
@@ -1640,6 +1655,48 @@ def _read_old_shapes(steps: list[dict[str, Any]]) -> None:
     for step in steps:
         if isinstance(step.get("left_out"), dict):
             step["leave_out"], step["left_out"] = step["left_out"], []
+
+
+#: Per running recipe run with a Search stage: the pages it covers, the pages Search has embedded, the pages whose own embed
+#: was left to Search. In memory: the run executes in this process, and `end_search_watch` settles it whatever the end.
+_search_lock = threading.Lock()
+_search_watch: dict[str, dict[str, set[str]]] = {}
+
+
+def start_search_watch(run_id: str, pages: set[str]) -> None:
+    """From here until `end_search_watch`, a saved page of `pages` leaves its embed to the run's Search stage
+    (`activity.run.stages-before-search-do-not-embed`, #6126)."""
+    with _search_lock:
+        _search_watch[run_id] = {"covers": set(pages), "embedded": set(), "left": set()}
+
+
+def search_embedded(run_id: str, pages: list[str]) -> None:
+    """Search embedded these pages: a later stage that saves one embeds it again at once."""
+    with _search_lock:
+        if run_id in _search_watch:
+            _search_watch[run_id]["embedded"].update(pages)
+
+
+def leave_embed_to_search(doc_id: str) -> bool:
+    """True, and noted, when a running run covers the page and Search has not embedded it yet: its embed is Search's."""
+    with _search_lock:
+        for watch in _search_watch.values():
+            if doc_id in watch["covers"] and doc_id not in watch["embedded"]:
+                watch["left"].add(doc_id)
+                return True
+    return False
+
+
+def end_search_watch(db: Any, run_id: str, started_by: str) -> None:
+    """The run ended, however: the pages whose embed was left to Search and that Search never reached (the run stopped or
+    failed first) are queued now; the embed job leaves a page already embedded from its text alone (#5954)."""
+    from fichero_server.actions.page_text_cache import queue_reembed_batches
+
+    with _search_lock:
+        watch = _search_watch.pop(run_id, None)
+    missed = sorted(watch["left"] - watch["embedded"]) if watch else []
+    if missed:
+        queue_reembed_batches(db, missed, started_by=started_by)
 
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
