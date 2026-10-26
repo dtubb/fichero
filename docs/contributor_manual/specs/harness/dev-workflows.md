@@ -179,6 +179,87 @@ of that state, never a second copy of it (`dev-workflows.state-stays-in-github`)
   brief → code → checks → review → land (to a scratch branch, never pushed) as a workflow on a scratch base path,
   with the runner's checks as script nodes, and produces the same verdict as the runner.
 
+### One activity system (audit 2026-10-26, from the code; no code changed)
+
+Rule: workflows, recipes, the recipe designer and dev workflows all run on the SAME job/activity layer, so one list,
+one run log, one Stop and one Pause serve them. The layer is the `jobs` table and scheduler
+(`fichero_server/execution/jobs.py`, `activity.one-job-model` in `ui/activity-and-automatic-work.md`), with run rows
+and timelines in `workflows/activity_store.py` + `workflows/activity.py`.
+
+- `dev-workflows.one-activity-system.one-job-table` [PARTIAL] (#5353) — rows through the one layer today: workflow
+  runs, batches, chains and steps (`jobs.record_run`/`record_batch`/`record_chain`/`record_step`, `execution/jobs.py`
+  :485-552); a recipe start is one `run-a-recipe` job (`recipes/runner.py` `enqueue` → `jobs.enqueue_remote`), whose
+  workflow cards run as ordinary workflow runs beneath it ("the one job tree the activity spec draws", same file's
+  docstring); the six task kinds (`workflows/tasks.py`, `task_workers.TASK_JOB_KINDS`); training
+  (`training/job.py`, `local.py`, `reasons_job.py`), IIIF/derivative importers, local-model work (`llm/*`), reindex
+  (`jobs.enqueue(db, "reindex", ...)` in `api/routes/search/core.py`). Dev workflows add only job kinds, never a
+  second table. The recipe job registry (`recipes/jobs.py`) is a vocabulary of what a step asks for, not a runner: it
+  holds no run state, and its job names are the `kind` vocabulary of the jobs table.
+- `dev-workflows.one-activity-system.bypasses` [GAP] (#5359) — paths that keep their own state outside the one
+  layer: folder import keeps an in-memory `_tasks` dict with its own status and cancel routes
+  (`api/routes/ingest/core.py:38,1261,1304`; no `jobs.` call in that file), lost on restart; `workflows/executor.py`
+  is test-only dead code per `ui/workflows.md`; the legacy `/chains/{id}/execute` runs with no thread
+  (`activity.legacy-chain-retired`, BROKEN, #4949); model downloads and runtime provisioning are not rows
+  (`activity.model-work-visible` [GAP], `activity.global-work-is-the-macs` [GAP], #5359); `cli_agent.py` runs a local
+  agent with no job row of its own. Each is named so the unify step can close it.
+- `dev-workflows.one-activity-system.one-cancel` [PARTIAL] (#4317) — cancel is one primitive for single runs and
+  batches (`execution/cancellation.py`) and `jobs._cancel_run` / `_cancel_chain` reach children; a recipe run's Stop
+  reaches its step (`activity.recipe-run.stop-reaches-its-step` [OK]). Not reaching: ingest's own cancel route (above).
+- `dev-workflows.one-activity-system.one-pause` [GAP] (#5933) — Pause Background Work is one setting
+  (`execution/jobs.py` docstring) and `_pause_run` pauses a run, but a recipe run's pause does not reach its running
+  step (`activity.recipe-run.pause-reaches-its-step` [GAP]) and a run parked on a human question is not shown as
+  waiting for a person in the same list; dev workflows need both.
+- `dev-workflows.one-activity-system.one-run-log` [PARTIAL] (#5376) — every run's log is bounded and streamed
+  (`execution/run_log.py` `BoundedLog`, appended per node boundary into `workflows/activity_store.py`); script/git/gh/
+  worker nodes write through `jobs.note_call_log`/`note_usage` (`execution/jobs.py:361-388`) so tokens and cost land
+  in the same rows. Ingest's `_tasks` has its own progress and no stored log.
+- `dev-workflows.one-activity-system.dev-uses-it` [PROPOSED] — a dev workflow run is a normal `workflow` job row with
+  steps beneath it: it appears in Activity, is stopped and paused there, and is replayed from the same stored log; no
+  dev-only run list exists (`dev-workflows.visibility.canvas-and-log` reads these rows).
+
+### The project view (Fichero as the place to manage the Fichero project)
+
+The repository is a library source (`dev-workflows.source.repo-folder-and-index`, `dev-workflows.source.github-as-source`);
+a **Project** view over it shows and manages the project from inside the app. It reuses the surfaces that exist and
+adds no parallel one: the library tree/browse and Inspector for specs and milestones as nodes
+(`ui/sidebar-crud.md`, `ui/modes-to-panes.md`: a project is a sidebar node like a workflow or research project), the
+Research workspace's task views for the build order and issue lists (`fichero/fichero/Views/Chat/Research/ResearchTasksPane.swift`,
+backed by `models/research.py`), the Activity window for runs
+(`fichero/fichero/Views/Activity/ActivityJobsView.swift`, `ProjectRunStrip.swift`), and the one question queue for the
+owner's decisions (`dev-workflows.research.one-question-queue`). The pipeline page (`pipeline/web.py`, 142 lines,
+`pipeline.dashboard-pages`) stays until this view replaces it and a comparison shows nothing it shows is missing.
+
+- `dev-workflows.project-view.overview` [GAP] (#6116) — one place shows the project at a glance: milestones with
+  open/closed counts, what is next (the runner's feeder pick, `pipeline.point-at-a-milestone`), what is running, and
+  what waits for the owner. Today the only such view is `pipeline/web.py`.
+- `dev-workflows.project-view.specs-and-build-order` [GAP] (#6116) — specs under `docs/contributor_manual/specs` are
+  nodes with their status (DRAFT/APPROVED), behaviour tag counts and build order; each Step shows its issue, state
+  and dependencies, drawn with the Research task list (`ResearchTask`), so "what is next" is the first open step
+  whose dependencies are closed (`pipeline.build-order-shape`).
+- `dev-workflows.project-view.issues-and-bugs` [GAP] (#6116) — issues (open and closed), bugs and PRs are browsable
+  and filterable by milestone, label, from-user and claimed, from the GitHub source (`dev-workflows.source.github-as-source`),
+  with the spec behaviour each cites; no copy is kept (`dev-workflows.run.state-stays-in-github`).
+- `dev-workflows.project-view.runs-turns-tokens-cost` [PARTIAL] (#5359) — each item's runs show turns, tokens and
+  cost, from the jobs rows (`jobs.note_usage`) and the pipeline's cost sums (`pipeline/budget.py`,
+  `pipeline.cost-cap`); Activity already shows runs, and the project view links to them.
+- `dev-workflows.project-view.tests-and-reviews` [GAP] (#6116) — each item shows its check results (the pinned
+  checks), the review verdict and findings (`pipeline.review`), the shas, and the gate result of the night.
+- `dev-workflows.project-view.owner-queue` [GAP] (#2067) — questions waiting for the owner and proposals to approve
+  (plans, specs, spec changes) are one list with their options, the same queue as `pipeline.maintainer-queue` and
+  `dev-workflows.research.one-question-queue`.
+- `dev-workflows.project-view.issue-actions` [GAP] (#6116) — from an issue the owner can comment, label, close with
+  a commit sha, or reopen; each is a `gh` node call (`dev-workflows.node.gh`) through the audited action layer, recorded
+  with who asked, and never a direct token use by the view.
+- `dev-workflows.project-view.approve` [GAP] (#6116) — the owner approves or rejects a spec or a plan in place
+  (`dev-workflows.research.proposals-are-reviewable`): approval flips the spec's status line by a reviewed commit
+  and files the Step issues (`pipeline.spec-to-issues`); nothing flips on a model's word.
+- `dev-workflows.project-view.answer-and-control` [GAP] (#6116) — the owner answers a question (resumes the parked
+  run) and starts, pauses or stops work (the milestone to run next, Pause All, a run's Stop) from the same view,
+  through `pipeline.pause-all` and the activity layer's one pause and cancel.
+- `dev-workflows.project-view.no-parallel-surface` [PROPOSED] — the view is composed of existing panes (library,
+  Inspector, Research tasks, Activity) and adds a source kind and a project node, not a new window or a second task
+  or activity list; `pipeline/web.py` is retired only by `pipeline.retire-fs-skills`-style owner decision after parity.
+
 ## Rulings
 
 None yet. Everything above is proposed.
@@ -247,12 +328,36 @@ moves the pipeline over, the runner staying until it is proven. Each step is one
 - Depends on: 2.1
 - Size: M
 
+#### Step 2.8 — unify the activity bypasses
+- Behaviours: `dev-workflows.one-activity-system.one-job-table`, `dev-workflows.one-activity-system.bypasses`, `dev-workflows.one-activity-system.one-cancel`, `dev-workflows.one-activity-system.one-pause`, `dev-workflows.one-activity-system.one-run-log`
+- Tests: fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py
+- Depends on: 2.3
+- Size: M
+
 ### Stage 3 — move the pipeline over
 
 #### Step 3.1 — see the pipeline on the canvas
 - Behaviours: `dev-workflows.visibility.canvas-and-log`, `dev-workflows.visibility.runs-from-the-pipeline-page`, `dev-workflows.run.state-stays-in-github`
 - Tests: fichero-server/tests/unit/workflows/test_dev_run_log_events.py, pipeline/tests/test_page_links_workflow_runs.py
 - Depends on: 2.4, 2.5
+- Size: M
+
+#### Step 3.2 — dev workflows are ordinary activity rows
+- Behaviours: `dev-workflows.one-activity-system.dev-uses-it`
+- Tests: fichero-server/tests/unit/workflows/test_dev_run_is_a_job_row.py
+- Depends on: 2.8, 3.1
+- Size: S
+
+#### Step 3.3 — the project view, read-only
+- Behaviours: `dev-workflows.project-view.overview`, `dev-workflows.project-view.specs-and-build-order`, `dev-workflows.project-view.issues-and-bugs`, `dev-workflows.project-view.runs-turns-tokens-cost`, `dev-workflows.project-view.tests-and-reviews`
+- Tests: fichero-server/tests/unit/workflows/test_project_view_read.py
+- Depends on: 2.6, 2.7, 3.2
+- Size: M
+
+#### Step 3.4 — owner actions in the project view
+- Behaviours: `dev-workflows.project-view.owner-queue`, `dev-workflows.project-view.issue-actions`, `dev-workflows.project-view.approve`, `dev-workflows.project-view.answer-and-control`, `dev-workflows.project-view.no-parallel-surface`
+- Tests: fichero-server/tests/unit/workflows/test_project_view_actions.py
+- Depends on: 3.3, 2.5
 - Size: M
 
 ## Test matrix
