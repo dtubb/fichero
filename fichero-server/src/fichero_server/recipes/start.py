@@ -817,7 +817,8 @@ def set_step_place(recipe: dict[str, Any] | None, step_id: str, place: str) -> d
     return out
 
 
-def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: float) -> dict[str, str | None]:
+def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: float,
+                          spent_usd: float = 0.0) -> dict[str, str | None]:
     """`{place, target, why}` for a read-a-line step the person put on Hugging Face Jobs: there when it can go and the
     project's yes, the app's place and a monthly cap above $0 allow it, else on this Mac with the reason in words."""
     here = "you chose Hugging Face Jobs for this step, but "
@@ -827,6 +828,8 @@ def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: floa
         why = here + "pages may not leave this Mac (the project's yes and the app's Hugging Face place)"
     elif cap_usd <= 0:
         why = here + "the monthly Hugging Face spend cap is $0: set a cap in setup first"
+    elif spent_usd >= cap_usd:
+        why = here + f"this month's Hugging Face spend (at most ${spent_usd:.2f}) has reached the ${cap_usd:.2f} cap"
     else:
         return {"place": "huggingface", "target": HF_JOBS_PLACE, "why": "you chose Hugging Face Jobs for this step"}
     return {"place": "this-mac", "target": None, "why": why}
@@ -834,7 +837,7 @@ def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: floa
 
 def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, bound_cluster: str | None = None,
                pages_per_second: float | None = None, hf_allowed: bool = False,
-               hf_cap_usd: float = 0.0) -> list[dict[str, Any]]:
+               hf_cap_usd: float = 0.0, hf_spent_usd: float = 0.0) -> list[dict[str, Any]]:
     """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
     its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
     it. `bound_cluster` is the project's cluster (`answers.cluster`, `runs-on-binds-to-a-target`), its id. ponytail:
@@ -848,7 +851,7 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
             continue
         sendable = run.get("provider_override") == KRAKEN_READER_PROVIDER and not run.get("readers")
         if run.get("chosen_place") == HF_JOBS_PLACE:  # the person's own choice, not the scale rule (#6173)
-            run.update(place_on_huggingface(sendable, pages_may_leave=cloud_allowed and hf_allowed, cap_usd=hf_cap_usd))
+            run.update(place_on_huggingface(sendable, pages_may_leave=hf_allowed, cap_usd=hf_cap_usd, spent_usd=hf_spent_usd))
         else:
             run.update(place_step(pages, pages_may_leave=cloud_allowed,
                                   bound_cluster=bound_cluster if sendable else None))

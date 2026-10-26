@@ -31,13 +31,19 @@ def test_a_kraken_step_the_person_put_on_huggingface_is_placed_there_at_any_size
     assert "Hugging Face" in run["why"]
 
 
+def test_a_person_who_allows_huggingface_but_not_acenet_still_gets_the_step_placed_there():
+    """`cloud_allowed` is the ACENet check the cluster path uses; the chosen-Hugging Face branch reads `hf_allowed` alone."""
+    run = _place(HF_RUN, cloud_allowed=False)
+    assert run["place"] == "huggingface"
+
+
 def test_a_step_not_put_there_stays_here():
     assert _place(HERE_RUN)["place"] == "this-mac"
 
 
-@pytest.mark.parametrize("kw, said", [({"cloud_allowed": False}, "pages may not leave"),
-                                      ({"hf_allowed": False}, "pages may not leave"),
-                                      ({"hf_cap_usd": 0.0}, "cap")])
+@pytest.mark.parametrize("kw, said", [({"hf_allowed": False}, "pages may not leave"),
+                                      ({"hf_cap_usd": 0.0}, "cap"),
+                                      ({"hf_spent_usd": 10.0}, "reached")])
 def test_pages_stay_here_and_it_says_why_when_they_may_not_leave_or_there_is_no_cap(kw, said):
     run = _place(HF_RUN, **kw)
     assert run["place"] == "this-mac" and run["target"] is None and said in run["why"]
@@ -64,6 +70,9 @@ def test_start_sends_the_read_to_huggingface_as_one_run_under_its_step(monkeypat
 
     _setup(monkeypatch, {"cloud_allowed": True, "hf_spend_cap_usd": 10})
     monkeypatch.setattr(places, "allows", lambda place, _p=None: True)
+    from fichero_server.recipes import train_offers
+
+    monkeypatch.setattr(train_offers, "spend_this_month", lambda _db, *, cap: {"spent_at_most_usd": 1.5})
     sent = {}
 
     def start(db, request, *, started_by):
@@ -80,14 +89,18 @@ def test_start_sends_the_read_to_huggingface_as_one_run_under_its_step(monkeypat
     assert request.pages_may_leave is True
 
 
-@pytest.mark.parametrize("answers, app_allows, said", [
-    ({"cloud_allowed": False, "hf_spend_cap_usd": 10}, True, "may not leave"),
-    ({"cloud_allowed": True, "hf_spend_cap_usd": 10}, False, "may not leave"),
-    ({"cloud_allowed": True}, True, "cap")])
-def test_the_step_is_refused_when_it_runs_if_the_yes_the_place_or_the_cap_is_gone(monkeypatch, answers, app_allows, said):
+@pytest.mark.parametrize("answers, app_allows, spent, said", [
+    ({"cloud_allowed": False, "hf_spend_cap_usd": 10}, True, 0.0, "may not leave"),
+    ({"cloud_allowed": True, "hf_spend_cap_usd": 10}, False, 0.0, "may not leave"),
+    ({"cloud_allowed": True}, True, 0.0, "cap"),
+    ({"cloud_allowed": True, "hf_spend_cap_usd": 10}, True, 10.0, "reached")])
+def test_the_step_is_refused_when_it_runs_if_the_yes_the_place_or_the_cap_is_gone(monkeypatch, answers, app_allows, spent,
+                                                                                said):
+    from fichero_server.recipes import train_offers
     from fichero_server.remote_read import job as read_job
 
     _setup(monkeypatch, answers)
+    monkeypatch.setattr(train_offers, "spend_this_month", lambda _db, *, cap: {"spent_at_most_usd": spent})
     monkeypatch.setattr(places, "allows", lambda place, _p=None: app_allows)
     monkeypatch.setattr(read_job, "start", lambda *a, **k: pytest.fail("pages left this Mac"))
     child, state, why = runner._run_at_scale(None, _card(), ["p1"], "run-1", "owner")

@@ -557,6 +557,15 @@ def _lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) 
     return kraken_lines_known(db, page_ids) if has_bar else None
 
 
+def _hf_spent(db: Any, answers: dict[str, Any] | None) -> float:
+    """This month's Hugging Face spend, at most (`source.onboard.spend-cap`): what the plan checks a chosen Hugging Face
+    placement against the cap."""
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    return float(spend_this_month(db, cap=spend_cap(answers))["spent_at_most_usd"])
+
+
 def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
     """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
     None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
@@ -2569,7 +2578,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters),
                hf_allowed=places.may_leave_to(setup["answers"], "huggingface"),
-               hf_cap_usd=spend_cap(setup["answers"]))
+               hf_cap_usd=spend_cap(setup["answers"]), hf_spent_usd=_hf_spent(db, setup["answers"]))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 

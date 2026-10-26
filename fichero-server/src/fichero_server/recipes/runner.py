@@ -791,8 +791,16 @@ def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: s
     where = "Hugging Face" if on_hf else f"the cluster {card['target']}"
     if not places.may_leave_to(answers, "huggingface" if on_hf else "acenet"):
         return None, "failed", f"pages may not leave this Mac; this step was placed on {where}"
-    if on_hf and spend_cap(answers) <= 0:
-        return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
+    if on_hf:
+        from fichero_server.recipes.train_offers import spend_this_month
+
+        cap = spend_cap(answers)
+        if cap <= 0:
+            return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
+        spent = spend_this_month(db, cap=cap)["spent_at_most_usd"]
+        if spent >= cap:  # the cap is a ceiling on what is already sent, not only a switch (#6173)
+            return None, "failed", (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
+                                    f"has reached the ${cap:.2f} cap")
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
