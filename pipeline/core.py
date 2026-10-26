@@ -463,7 +463,11 @@ def _start_worker(task: str, wt: Path, worker: dict, window: str, docs: bool = F
     c = cfg()
     stamp = time.strftime("%Y%m%d-%H%M%S")
     journal.append("intent", task=task, what="worker", ref=window)
-    session = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
+    base = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
+    session, n = base, 1
+    while session.exists():  # two starts in one second must not share a session: the new worker would read the old file
+        n += 1
+        session = base.with_name(f"{base.name}-{n}")
     session.mkdir(parents=True, exist_ok=True)
     cmd = coder.pi_command(c, worker, session, task=task, docs=docs)
     coder.start_window(c, window, wt, cmd, coder.allowed_env(c, task, "coder"))
