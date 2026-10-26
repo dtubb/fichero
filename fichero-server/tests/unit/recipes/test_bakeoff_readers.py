@@ -278,10 +278,15 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     started, done = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
 
-    # per-folder is refused in words, through the route (MCP/CLI too): no run applies it, so no inert override is kept
+    # a folder that is not one is refused in words; a folder's choice is stored as that folder's override (#6135)
+    not_a_folder = client.post(url, json={"card": MEDIEVAL, "scope": "folder", "folder_id": "no-such-folder"})
+    assert not_a_folder.status_code == 422 and "is not a folder in this project" in not_a_folder.json()["detail"]
     for_folder = client.post(url, json={"card": MEDIEVAL, "scope": "folder", "folder_id": folder.id})
-    assert for_folder.status_code == 422
-    assert for_folder.json()["detail"] == "Use This applies to the whole project; per-folder choices aren't applied yet"
+    assert for_folder.status_code == 200, for_folder.text
+    stored = client.get("/api/recipes/project").json()["recipe"]["overrides"]
+    assert [(o["scope"], o["folder_id"], o["card"]) for o in stored] == [("folder", folder.id, MEDIEVAL)]
+    first = max((a for a in db.query(ActionAudit) if a.action_name == "project.save_setup"), key=lambda a: a.created_at)
+    assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
     assert client.get("/api/recipes/project").json()["recipe"]["overrides"] == []
 
     for_project = client.post(url, json={"card": PPOCR, "scope": "project"})
@@ -293,7 +298,7 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     assert [(o["scope"], o["card"]) for o in saved["overrides"]] == [("project", PPOCR)]
 
     audits = [a for a in db.query(ActionAudit) if a.action_name == "project.save_setup"]
-    assert len(audits) == 2  # setup's save, then the choice
+    assert len(audits) == 4  # setup's save, the folder's choice and its undo, then the project's choice
     newest = max(audits, key=lambda a: a.created_at)
     assert client.post(f"/api/actions/audit/{newest.id}/undo").status_code == 200
     undone = client.get("/api/recipes/project").json()["recipe"]

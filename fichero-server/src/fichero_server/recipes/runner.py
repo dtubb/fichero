@@ -1307,6 +1307,16 @@ def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str,
     return _Beside(documents, scratch, kinds, future)
 
 
+def _in_the_cards_folders(db: Any, card: dict[str, Any], documents: list[str], tree: _Tree) -> list[str]:
+    """A run for one folder's reader keeps that folder's pages, and every run of the step leaves out the pages of the
+    other folders that have a reader of their own (the innermost folder wins; `source.try.use-this-scope`, #6135)."""
+    others = {f: folder_scope(db, f, tree) for f in card.get("exclude_folders") or []}
+    inside = folder_scope(db, card["folder_id"], tree) if card.get("folder_id") else None
+    return [d for d in documents
+            if (inside is None or d in inside)
+            and not any(d in scope and (inside is None or scope < inside) for scope in others.values())]
+
+
 def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict[str, Any], tree: _Tree,
                 detail: dict[str, Any]) -> tuple[list[str], dict[str, Any], dict[str, str]]:
     """The pages a step works on in this batch, as it is about to run: (pages, its scratch notes, the pages' kinds)."""
@@ -1316,6 +1326,8 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
     scratch: dict[str, Any] = {}
     # The pages are worked out now, so pages a split made earlier in this batch are among them.
     documents = _card_pages(db, card, batch["units"], tree)
+    if card.get("folder_id") or card.get("exclude_folders"):
+        documents = _in_the_cards_folders(db, card, documents, tree)
     if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
         from fichero_server.recipes.done import pages_for
 
