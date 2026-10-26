@@ -25,9 +25,7 @@
     "fichero/Tests/Unit/general/Models/RecipeDesignerRenderingTests.swift": "planned test: served route cards and labels, written with the path page (step 5, #6058)",
     "fichero/Tests/Unit/general/Views/Onboarding/SetupStagePageTests.swift": "planned test: path page in the Set Up flow, written with the path page (step 5, #6058)",
     "fichero/Tests/UI/Onboarding/RecipeDesignerUITests.swift": "planned XCUITest click-around leg, run end to end once the flow is complete (step 14, #6067)",
-    "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)",
-    "pipeline/tests/test_land_rebase.py": "named by the land-rebase spec (#6179) before the item that builds it; remove when the test lands",
-    "pipeline/tests/test_auto_land.py": "named by the auto-land spec (#6179) before the item that builds it; remove when the test lands"
+    "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",

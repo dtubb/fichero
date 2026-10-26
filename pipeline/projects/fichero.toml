@@ -131,6 +131,7 @@ machine = "m4"
 # `python -m pipeline run` (pipeline.schedule): seconds between passes while an answer is awaited; issues per start
 [run]
 poll_s = 60
+auto_land = true   # #6179, owner 2026-10-26: reviewed READY items land on integration (never main)
 batch = 3
 
 [machines]
