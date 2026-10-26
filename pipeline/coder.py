@@ -151,7 +151,14 @@ def brief_file(task: str, name: str, text: str) -> Path:
 # --- reading the session log ---------------------------------------------------------------------------------
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
-         "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False}
+         "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False,
+         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0}
+
+
+def cache_hit(s: dict) -> float:
+    """Cached-read tokens over all prompt tokens read this session (the page's hit rate)."""
+    total = s["cache_read"] + s["cache_write"] + s["fresh"]
+    return round(s["cache_read"] / total, 3) if total else 0.0
 QUOTA = re.compile(r"\b(402|429|rate.?limit|usage limit|insufficient|quota|credit)|limit reached|hit your (\w+ )?limit|resets \d", re.I)
 TRANSIENT = re.compile(r"\b5\d\d\b|overloaded|timed? ?out|temporarily|connection", re.I)  # passing: back off, then look again
 TRANSIENT_RETRIES = 4
@@ -180,8 +187,14 @@ def parse_session(path: Path) -> dict:
             out["turns"] += 1
             u = m.get("usage") or {}
             out["cost_usd"] += ((u.get("cost") or {}).get("total") or 0.0)
-            out["tokens"] += u.get("totalTokens") or sum(u.get(k, 0) or 0 for k in (  # Claude Code: Max tokens incl. cache
+            out["tokens"] += u.get("totalTokens") or sum(u.get(k, 0) or 0 for k in (
                 "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+            # cached tokens, provider-neutral (pipeline.prompt-cache): Pi's cacheRead/cacheWrite, Anthropic's
+            # cache_read/cache_creation, OpenRouter's prompt_tokens_details.cached_tokens; a provider that reports none => 0
+            details = u.get("prompt_tokens_details") or {}
+            out["cache_read"] += u.get("cacheRead") or u.get("cache_read_input_tokens") or details.get("cached_tokens") or 0
+            out["cache_write"] += u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0
+            out["fresh"] += u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0
             out["model"] = m.get("model") or out["model"]
             stop = m.get("stopReason") or m.get("stop_reason") or ""
             out["idle"] = stop in ("stop", "end_turn", "endTurn", "stop_sequence") and not any(
@@ -209,6 +222,7 @@ def parse_session(path: Path) -> dict:
             if isinstance(m["content"], str) or any(c.get("type") == "text" for c in content) and not any(
                     c.get("type") == "tool_result" for c in content):
                 out["prompts"] += 1
+    out["cache_hit"] = cache_hit(out)
     return out
 
 

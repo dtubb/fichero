@@ -19,7 +19,7 @@ from pipeline import ROOT, STATE
 
 # Every git the runner runs itself has hooks OFF: a coder can write `objects/` and its own ref but never `hooks/` or
 # `config`; this closes the other half (round-2 review HIGH). Raw ["git", ...] calls in the runner go through GIT.
-GIT = ["git", "-c", "core.hooksPath=/dev/null"]
+GIT = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
 
 
 def sh(cmd, cwd, env=None, timeout=1800) -> subprocess.CompletedProcess:

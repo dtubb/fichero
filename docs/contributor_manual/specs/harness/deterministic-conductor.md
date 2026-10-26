@@ -271,7 +271,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   manager), one ORDERED list each: kind `pi` with provider (`openrouter`, `anthropic`, or `omlx` at its local
   OpenAI-compatible endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id. Ruled 2026-10-25
   (evening): every role runs on the Anthropic API through Pi — coder claude-sonnet-5-5, coder-small claude-haiku-5-5,
-  reviewer claude-opus-5-5, the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
+  reviewer claude-sonnet-5-5 (owner 2026-10-25: every worker is Sonnet or Haiku), the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
   Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on `pipeline/claude-code-worker`.
   Known limit, accepted for now: the Pi worker's jail is a convention — it can write the shared git common dir and
   `config.worktree`; the runner's own git runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false` so a
@@ -315,6 +315,37 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_budget.py::test_second_test_run_waits_on_the_lock`,
   `pipeline/tests/test_budget.py::test_never_spawns_past_the_cap`,
   `pipeline/tests/test_budget.py::test_owner_engine_busy_signal`.
+- `pipeline.batch-session` [MISSING] (#6116) — the runner does what the lead did by hand: the feeder groups open
+  issues of one kind (same milestone plus label or area) into a batch sized by a TOKEN budget from the profile
+  (`context_tokens` × `batch_budget_pct`, never a fixed count), and one worker session takes the whole batch in order,
+  keeping its context. The brief stays small: the issue texts, the spec lines they cite and paths — no pasted files;
+  workers read code through jcodemunch symbols. `pipeline_done(task, issue)` per issue triggers THAT issue's checks
+  while the worker moves on to the next; a red check comes back to the same session as capped retry text. The session
+  ends when the batch is drained, at about 80 % of its context, or at its cap; leftovers go to the next session with a
+  short handoff note the runner writes from the journal (issues done, files touched, failures) — never a transcript
+  replay or a re-read. The reviewer reviews per batch, one pass over the batch's commits. Idle workers PARK, they do
+  not end: the window stays with no model calls; a new issue of the same kind wakes the same worker with just the new
+  issue text (its context and warm cache reused) when it has context headroom and has idled less than `park_ttl`
+  (profile, 30 min); otherwise it ends with a handoff and a fresh one starts; never more parked workers than the
+  machine budget allows; the page shows parked workers and the kind they wait for. Tests:
+  `pipeline/tests/test_core.py::test_batch_done_per_issue_checks_while_the_worker_moves_on`,
+  `pipeline/tests/test_core.py::test_batch_ends_at_the_context_budget_with_a_handoff_note`,
+  `pipeline/tests/test_core.py::test_parked_worker_is_woken_for_the_same_kind_within_park_ttl`,
+  `pipeline/tests/test_feeder.py::test_batch_is_sized_by_the_token_budget`.
+- `pipeline.prompt-cache` [MISSING] (#6116) — every prompt is laid out as a stable prefix then a variable tail, so
+  Anthropic prompt caching (cache_control through Pi — Pi 0.75.5's Anthropic provider sets it, and its OpenAI-style
+  provider passes it for Anthropic models on OpenRouter) and an oMLX/llama prefix KV cache both hit: the order is
+  tools, system prompt, the profile's rules, the batch brief, then the per-issue and retry tail. The tool list is the
+  same, in the same order, for every role (role differences come from permissions or the profile, never a different
+  MCP tool set); the system prompt holds no timestamps, task ids or worker names — those go in the tail; when several
+  workers start together, one starts, its first reply is awaited (the cache written), then the rest. Provider-neutral:
+  cached-token counts are read from each provider's usage (Anthropic cache_read/cache_creation, Pi's cacheRead/cacheWrite,
+  OpenRouter's cached_tokens, oMLX whatever it reports, else 0) into one journal field per session, and the page shows
+  the hit rate; for OpenRouter the profile pins the provider order per model so one Qwen provider keeps the cache
+  warm; oMLX runs one long-lived server per model (a profile entry, not built). Non-interactive model work (batch
+  reviews, sweeps, triage) may go through Anthropic's Message Batches API at half price behind a profile flag, off by
+  default. Tests: `pipeline/tests/test_coder.py::test_cache_tokens_are_read_from_each_providers_usage`,
+  `pipeline/tests/test_core.py::test_brief_is_a_stable_prefix_then_the_issue_tail`.
 - `pipeline.schedule` [MISSING] (#6116) — the runner takes over everything the lead sessions did by hand, on
   schedules and triggers: a `schedule` table in the profile, each entry a name, a when (cron, or `on:push`,
   `on:gate-green`, `on:idle`), the job (an existing script, run through the runner so it gets the budget, the
@@ -368,6 +399,13 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
   main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,
   `pipeline/tests/test_nightly.py::test_nightly_build_only_after_green_gate`.
+- `pipeline.closes-issues` [MISSING] (#6116) — the runner closes issues and milestones, properly, and never a second
+  closer: when an item's commit lands on integration with its checks green, `scripts/close_fixed_issues.py` (the one
+  closer, also the close-fixed-issues Action's) closes the issue with a comment naming the sha and the checks; a
+  dry-run line goes in the journal before each close; a worker-reported residue (part of the issue not done) updates
+  the issue body with what is left and leaves it open; a milestone closes when its last open issue closes; the page
+  shows what was closed today. Tests: `pipeline/tests/test_core.py::test_landing_closes_through_the_one_closer_after_a_dry_run_line`,
+  `pipeline/tests/test_core.py::test_a_residue_leaves_the_issue_open_with_what_is_left`.
 - `pipeline.rebase-after-push` [MISSING] (#6116) — every live coder rebases on integration after a push; a conflict
   after the rebase stops that coder and goes to the queue (resolved by the Opus session with the maintainer). Test:
   `pipeline/tests/test_core.py::test_rebase_conflict_stops_the_coder_and_queues`.
@@ -582,6 +620,12 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Behaviours: `pipeline.worker-roles`
 - Tests: pipeline/tests/test_coder.py
 - Depends on: 0.5
+- Size: M
+
+#### Step 1.8 — the batch session, caching and closing
+- Behaviours: `pipeline.batch-session`, `pipeline.prompt-cache`, `pipeline.closes-issues`
+- Tests: pipeline/tests/test_core.py, pipeline/tests/test_coder.py, pipeline/tests/test_feeder.py
+- Depends on: 1.3
 - Size: M
 
 ### Stage 2 — the page and the checks, whole
