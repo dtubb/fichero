@@ -88,7 +88,8 @@ extension AppState {
         // restarts only after 3 minutes without an answer, 10 while an import or a job is running.
         let importsRunning = ImportActivityGauge.shared.inFlight > 0
         let workRunning = importsRunning || EngineRestartPolicy.runningJobs > 0
-        let effectiveThreshold = EngineRestartPolicy.failuresBeforeRestart(workRunning: workRunning)
+        let effectiveThreshold = EngineRestartPolicy.failuresBeforeRestart(
+            workRunning: workRunning, isLocal: BackendHost.appDefault.isLocal)
         if heartbeatFailureCount < effectiveThreshold, heartbeatFailureCount % 6 == 1 {
             logger.info(
                 """
@@ -97,7 +98,9 @@ extension AppState {
                 """
             )
         }
-        guard heartbeatFailureCount >= effectiveThreshold else { return }
+        guard EngineRestartPolicy.shouldRestart(
+            failures: heartbeatFailureCount, workRunning: workRunning, isLocal: BackendHost.appDefault.isLocal)
+        else { return }
         // The active endpoint has stopped answering. Before declaring the paired
         // host unreachable, walk its OTHER known endpoints (LAN → tailnet), each
         // over its own per-endpoint trust and never localhost (#3098). Only when

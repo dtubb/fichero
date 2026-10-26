@@ -15,8 +15,18 @@ enum EngineRestartPolicy {
     /// Jobs running in the engine, from the Activity poll (`ActivityStore`): the heartbeat's patience counts them (#6176).
     @MainActor static var runningJobs = 0
 
-    /// How many missed pings in a row before the app restarts the engine.
-    static func failuresBeforeRestart(workRunning: Bool) -> Int {
-        (workRunning ? hungWithWorkSeconds : hungSeconds) / pingSeconds
+    /// A paired Mac the app cannot restart anyway: after this many missed pings it only looks for another endpoint or
+    /// says it is unreachable, so the wait stays short (about 15 s).
+    static let remoteFailures = 3
+
+    /// How many missed pings in a row before the app acts on the engine: restarts a local one, or gives up on a remote one.
+    static func failuresBeforeRestart(workRunning: Bool, isLocal: Bool = true) -> Int {
+        guard isLocal else { return remoteFailures }
+        return (workRunning ? hungWithWorkSeconds : hungSeconds) / pingSeconds
+    }
+
+    /// Whether `failures` missed pings in a row call for action now.
+    static func shouldRestart(failures: Int, workRunning: Bool, isLocal: Bool = true) -> Bool {
+        failures >= failuresBeforeRestart(workRunning: workRunning, isLocal: isLocal)
     }
 }
