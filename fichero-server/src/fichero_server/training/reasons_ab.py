@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
 from fichero_server.training.reasons import READ, Line, parse_reasons, split_thinking
 
 #: 0.5 CER points (Sergio project ruling, 2026-10-03): smaller differences are noise.
@@ -189,9 +190,10 @@ def record_on_cards(result: dict[str, Any], contenders: list[Contender], *, held
         path = store.trained_dir(model) / TRAINED_CARD
         if not path.is_file():
             continue
-        card = json.loads(path.read_text(encoding="utf-8"))
-        card.setdefault("reasons_ab", []).append({**result, "held_out": held_out})
-        path.write_text(json.dumps(card, indent=1), encoding="utf-8")
+        with card_lock(path):  # the same lock record_on_card holds: an evaluation finishing now must not be lost
+            card = json.loads(path.read_text(encoding="utf-8"))
+            card.setdefault("reasons_ab", []).append({**result, "held_out": held_out})
+            write_json_atomic(path, card)
         written.append(model)
     return written
 

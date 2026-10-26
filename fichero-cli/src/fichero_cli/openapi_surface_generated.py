@@ -10576,6 +10576,7 @@ def register_generated_openapi_commands(
     @target_app.command("create-library")
     def library_create_library_post(
         ctx: typer.Context,
+        embedding_model: Optional[str] = typer.Option(None, '--embedding-model', help="the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)"),
         path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Create Library (POST /api/library)."""
@@ -10583,8 +10584,10 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/library"
             params = None
             payload = _build_json_payload({
+                "embedding_model": embedding_model,
                 "path": path,
             }, {
+                "embedding_model": {'type': 'string', 'nullable': True, 'title': 'Embedding Model', 'description': "the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)", 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12448,6 +12451,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("revoke-own-device")
+    def pair_revoke_own_device_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Revoke Own Device (POST /api/pair/devices/revoke-self)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/devices/revoke-self"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("revoke-device")
     def pair_revoke_device_post(
         ctx: typer.Context,
@@ -13885,6 +13899,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("get-review-instructions")
+    def recipes_get_review_instructions_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Review Instructions (GET /api/recipes/project/review-instructions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/review-instructions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("runs")
     def recipes_runs_get(
         ctx: typer.Context,
@@ -13996,6 +14021,26 @@ def register_generated_openapi_commands(
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id, as GET /api/recipes/candidates lists it (`id`)", 'x-cli-required': True},
                 "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("use-readers-for-step")
+    def recipes_use_readers_for_step_post(
+        ctx: typer.Context,
+        cards: list[str] = typer.Option(..., '--cards', help="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        step: str = typer.Option(..., '--step', help="the Find where the readers disagree step's id."),
+    ) -> None:
+        """Use Readers For Step (POST /api/recipes/project/steps/use-readers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/use-readers"
+            params = None
+            payload = _build_json_payload({
+                "cards": cards,
+                "step": step,
+            }, {
+                "cards": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Cards', 'description': "two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the Find where the readers disagree step's id", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -15693,6 +15738,79 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/search/embed/{doc_id}"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-embedding-choice")
+    def search_get_embedding_choice_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Embedding Choice (GET /api/search/embedding)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-embedding-choice")
+    def search_put_embedding_choice_put(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Put Embedding Choice (PUT /api/search/embedding)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding"
+            params = None
+            payload = _build_json_payload({
+                "model": model,
+            }, {
+                "model": {'type': 'string', 'title': 'Model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("start-embedding-change")
+    def search_start_embedding_change_post(
+        ctx: typer.Context,
+        confirm: Optional[bool] = typer.Option(None, '--confirm/--no-confirm', help='true once the person has seen the plan: pages, time and cost. Default: false.'),
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Start Embedding Change (POST /api/search/embedding/change)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/change"
+            params = None
+            payload = _build_json_payload({
+                "confirm": confirm,
+                "model": model,
+            }, {
+                "confirm": {'type': 'boolean', 'title': 'Confirm', 'description': 'true once the person has seen the plan: pages, time and cost', 'default': False, 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-embedding-change-plan")
+    def search_get_embedding_change_plan_get(
+        ctx: typer.Context,
+        model: str = typer.Option(..., '--model', help='Model.'),
+    ) -> None:
+        """Get Embedding Change Plan (GET /api/search/embedding/change-plan)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/change-plan"
+            params = {
+                "model": model,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-embedding-models")
+    def search_list_embedding_models_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Embedding Models (GET /api/search/embedding/models)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/embedding/models"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("explain-a-query", hidden=True)

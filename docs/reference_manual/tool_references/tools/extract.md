@@ -11,7 +11,7 @@ Extract multiple fields in one call
 | Tool id | `extract` |
 | Category | vision |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | yes |

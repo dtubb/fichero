@@ -899,3 +899,179 @@ line per step with Change…; the duplicate grey example line removed (one is ke
 11. The readiness sentence counts corrected lines in a project with nothing read.
 12. Only Find Lines has a "who does it" note; one engine sentence per sampleable stage is wanted.
 13. The grey stage example line is drawn twice.
+
+## Proposed build order (proposed, not approved)
+
+### Stage 1 — Screens-review fixes (app and engine)
+
+#### Step 1.1 — One selection, one cloud line, nothing-found from the engine, one finder
+- Behaviours: `designer.rank.one-visible-selection`, `designer.rank.cloud-permission-said-once`, `designer.rank.nothing-found-from-the-engine`, `designer.rank.finder-for-every-model-step`, `designer.rank.searches-on-open`
+- Tests: fichero/ficheroTests/RecipeFinderTests.swift, fichero-server/tests/unit/recipes/test_finder_nothing_found.py
+- Size: M
+
+#### Step 1.2 — Plain wording on Read and Ready
+- Behaviours: `designer.measure.says-what-it-cannot-measure`, `designer.ready.one-line-per-step-with-change`, `designer.read.certainty-question-stays-here`
+- Tests: fichero/ficheroTests/RecipeReadyTests.swift, fichero-server/tests/unit/recipes/test_cannot_measure_wording.py
+- Size: S
+
+### Stage 2 — Material, imported truth and one Kraken pass
+
+#### Step 2.1 — One Kraken pass
+- Behaviours: `designer.layout.one-kraken-pass`
+- Tests: fichero-server/tests/unit/recipes/test_one_kraken_pass.py
+- Size: S
+
+#### Step 2.2 — Imported transcriptions detected, asked once, measured at once
+- Behaviours: `designer.material.imported-transcriptions-detected`, `designer.material.imported-truth-asked-once`, `designer.material.imported-truth-measures-at-once`
+- Tests: fichero-server/tests/unit/recipes/test_imported_truth.py, fichero/ficheroTests/AddMaterialImportedTruthTests.swift
+- Size: M
+
+#### Step 2.3 — Glyph inventory, display check, questions name their stage
+- Behaviours: `designer.material.glyph-inventory`, `designer.material.script-displays-check`, `designer.material.question-names-its-stage`
+- Tests: fichero-server/tests/unit/recipes/test_glyph_inventory.py, fichero-server/tests/unit/recipes/test_derived_display_check.py, fichero-server/tests/unit/recipes/test_questions_stage_map.py
+- Size: M
+
+### Stage 3 — Checking lines
+
+#### Step 3.1 — Progress in words; corrections become the reference
+- Behaviours: `designer.check.progress-in-words`, `designer.check.corrections-become-the-reference`
+- Tests: fichero-server/tests/unit/recipes/test_check_progress.py, fichero-server/tests/unit/recipes/test_corrections_replace_reference.py
+- Depends on: 2.2
+- Size: S
+
+### Stage 4 — Filters
+
+#### Step 4.1 — Fit first, coverage band, refusal, ruling B
+- Behaviours: `designer.filter.fit-first`, `designer.filter.coverage-band`, `designer.filter.refuses-unwritable-characters`, `designer.filter.ruling-b-every-local-page-reader`
+- Tests: fichero-server/tests/unit/recipes/test_filters_fit_first.py, fichero-server/tests/unit/recipes/test_coverage_band.py, fichero-server/tests/unit/recipes/test_refuses_unwritable.py
+- Depends on: 2.3
+- Size: M
+
+### Stage 5 — The path page
+
+#### Step 5.1 — Route cards, cloud question, greyed cards, card text
+- Behaviours: `designer.path.cards-are-the-routes`, `designer.path.cloud-question-on-the-page`, `designer.path.card-live-only-where-allowed`, `designer.app.places-say-their-consequence`, `designer.path.card-text`
+- Tests: fichero-server/tests/unit/recipes/test_path_cards.py, fichero/ficheroTests/PathPageTests.swift
+- Size: M
+
+#### Step 5.2 — Choosing a path: defaults, proposed caps, teaching defaults, what matters most
+- Behaviours: `designer.path.choosing-is-a-default`, `designer.path.caps-proposed-not-written`, `designer.path.sets-teaching-defaults`, `designer.path.what-matters-most`
+- Tests: fichero-server/tests/unit/recipes/test_path_defaults.py, fichero/ficheroTests/PathChoiceTests.swift
+- Size: M
+
+### Stage 6 — Measures
+
+#### Step 6.1 — Insertion rate, noise band, measures on the person's pages, the measure table
+- Behaviours: `designer.rank.insertion-rate`, `designer.read.measures`, `designer.measure.on-your-pages-first`, `designer.measure.noise-band`, `designer.stage.measure-table`
+- Tests: fichero-server/tests/unit/recipes/test_insertion_rate.py, fichero-server/tests/unit/recipes/test_noise_band.py, fichero-server/tests/unit/recipes/test_stage_measure_table.py
+- Depends on: 2.2, 3.1
+- Size: M
+
+### Stage 7 — Auto-compare on open
+
+Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #5440) built first.
+
+#### Step 7.1 — The compare runs by itself, capped, local only without truth
+- Behaviours: `designer.compare.runs-by-itself`, `designer.compare.local-only-until-truth`, `designer.compare.capped`, `designer.compare.without-truth-shows-readings-only`, `designer.compare.re-runs-when-answers-change`
+- Tests: fichero-server/tests/unit/recipes/test_compare_auto_run.py, fichero-server/tests/unit/recipes/test_compare_capped.py
+- Size: M
+
+#### Step 7.2 — Labels, row sentence, predicted cost and time, Use This One
+- Behaviours: `designer.compare.person-chooses`, `designer.compare.predicts-cost-and-time`, `designer.compare.row-sentence`, `designer.compare.labels-where-measured`, `designer.rank.labels-from-the-engine`
+- Tests: fichero-server/tests/unit/recipes/test_compare_labels.py, fichero-server/tests/unit/recipes/test_compare_row_sentence.py, fichero-server/tests/unit/recipes/test_compare_predicts_cost.py
+- Size: M
+
+#### Step 7.3 — Text beside the page; which pages to check
+- Behaviours: `designer.compare.side-by-side-text`, `designer.check.which-pages`
+- Tests: fichero/ficheroTests/CompareSideBySideTests.swift, fichero-server/tests/unit/recipes/test_check_which_pages.py
+- Depends on: 7.1
+- Size: S
+
+### Stage 8 — Benchmark table and the one rank rule
+
+#### Step 8.1 — Benchmark harness and the first four rows
+- Behaviours: `designer.measure.benchmark-table`, `designer.measure.benchmark-provenance`, `designer.measure.benchmark-licence-gate`, `designer.measure.benchmark-built-by-script`, `designer.rank.run-to-run-agreement`
+- Tests: fichero-server/tests/unit/recipes/test_measured_defaults_table.py, fichero-server/tests/unit/recipes/test_benchmark_licence_gate.py, fichero-server/tests/unit/recipes/test_benchmark_script.py
+- Depends on: 6.1
+- Size: M
+
+#### Step 8.2 — Rank by the table; fallback; reasons and predictability in words
+- Behaviours: `designer.rank.one-rule-every-stage`, `designer.rank.frontier-order-is-the-fallback`, `designer.rank.reasons-in-words`, `designer.rank.predictability-in-words`
+- Tests: fichero-server/tests/unit/recipes/test_rank_one_rule.py, fichero-server/tests/unit/recipes/test_rank_reasons.py
+- Depends on: 8.1, 6.1
+- Size: M
+
+### Stage 9 — Review stage
+
+#### Step 9.1 — Review as its own stage, first slice
+- Behaviours: `designer.review.own-stage`, `designer.review.one-shipped-kind`, `designer.review.proposals-are-a-separate-pass`, `designer.review.measure-is-gain`
+- Tests: fichero-server/tests/unit/recipes/test_review_stage.py, fichero-server/tests/unit/recipes/test_review_proposals_pass.py
+- Depends on: 6.1
+- Size: M
+
+### Stage 10 — Layout stages
+
+#### Step 10.1 — Region-model row, lines per block, segmenter search, layout measures
+- Behaviours: `designer.layout.region-model-row`, `designer.layout.lines-per-block`, `designer.layout.segmenters-searched`, `designer.layout.measures`
+- Tests: fichero-server/tests/unit/recipes/test_region_model_row.py, fichero-server/tests/unit/recipes/test_lines_per_block.py, fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 10.2 — Find the layout as one page
+- Behaviours: `designer.layout.one-page`
+- Tests: fichero/ficheroTests/FindLayoutPageTests.swift
+- Size: S
+
+#### Step 10.3 — Leave out non-text segments; damaged mark
+- Behaviours: `designer.clean.leaves-out-non-text`, `designer.clean.damaged-mark`
+- Tests: test_leave_out.py, fichero-server/tests/unit/recipes/test_damaged_mark.py
+- Depends on: 6.1
+- Size: S
+
+### Stage 11 — Teach a model
+
+#### Step 11.1 — The offer: when, whether and where, explained
+- Behaviours: `designer.teach.offer-when-ready`, `designer.teach.asks-whether-and-where-at-the-offer`, `designer.teach.explained`
+- Tests: fichero-server/tests/unit/recipes/test_teach_offer.py, fichero/ficheroTests/TeachOfferTests.swift
+- Depends on: 6.1, 5.2
+- Size: M
+
+#### Step 11.2 — Measurement, the switch, costs, the recorded switch
+- Behaviours: `designer.teach.measured-against-current-and-shipped`, `designer.teach.switch-within-band`, `designer.teach.costs-before-and-after`, `designer.run.switch-recorded`
+- Tests: fichero-server/tests/unit/recipes/test_teach_measure_and_switch.py, fichero-server/tests/unit/recipes/test_switch_recorded.py
+- Size: M
+
+### Stage 12 — Ready and the run
+
+#### Step 12.1 — Totals against the route; predicted then measured; cap stops; path moves as offers
+- Behaviours: `designer.ready.totals-against-the-route`, `designer.run.predicted-then-measured`, `designer.run.cap-stops-and-says`, `designer.run.path-moves-are-offers`
+- Tests: fichero-server/tests/unit/recipes/test_ready_totals.py, fichero-server/tests/unit/recipes/test_run_predicted_measured.py, fichero-server/tests/unit/recipes/test_run_cap_stops.py
+- Depends on: 7.2, 11.2
+- Size: M
+
+### Stage 13 — Workflows
+
+#### Step 13.1 — Workflow line, Open in the editor, own workflow as a candidate, Adjust in the editor
+- Behaviours: `designer.step.names-its-workflow`, `designer.step.adjust-in-the-editor`, `designer.step.own-workflow-as-a-candidate`
+- Tests: fichero-server/tests/unit/recipes/test_step_workflow_fit.py, fichero/ficheroTests/StepWorkflowTests.swift
+- Depends on: 7.1
+- Size: M
+
+### Stage 14 — Sharing recipes
+
+#### Step 14.1 — Share Recipe… and Use a Recipe…
+- Behaviours: `designer.share.export-is-the-whole-plan`, `designer.share.export-holds-nothing-private`, `designer.share.import-checks-at-the-door`, `designer.share.imported-measures-are-the-authors`
+- Tests: fichero-server/tests/unit/recipes/test_recipe_export.py, fichero-server/tests/unit/recipes/test_recipe_export_private_fields.py, fichero-server/tests/unit/recipes/test_recipe_import.py
+- Size: M
+
+#### Step 14.2 — Built-in recipes and Start from a recipe
+- Behaviours: `designer.share.built-in-recipes`, `designer.share.start-from-a-recipe`
+- Tests: fichero-server/tests/unit/recipes/test_builtin_recipes.py, fichero/ficheroTests/StartFromRecipeTests.swift
+- Size: M
+
+### Stage 15 — Later milestone: recipe search and publishing
+
+#### Step 15.1 — Recipe search (catalogue first), results with their source, publish and follow
+- Behaviours: `designer.share.recipe-search`, `designer.share.search-results-say-their-source`, `designer.share.publish-is-an-offer`
+- Tests: fichero-server/tests/unit/recipes/test_find_recipes_job.py, fichero-server/tests/unit/recipes/test_recipe_publish.py
+- Size: M

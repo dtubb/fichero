@@ -1,0 +1,74 @@
+# A writing project (a book, articles): same state machine, a different check ladder. Loads and validates; nothing
+# else is built for it (pipeline.project-profile).
+
+[repo]
+path = "~/writing/book"
+base = "origin/main"
+main = "main"
+worktrees = ".worktrees/pipeline"
+specs = "outline"
+check_paths = ["tools/"]
+python_path = ""
+test_env = { }
+scratch_base_env = ""
+
+[labels]
+bug = "fix"
+urgent = "urgent"
+claimed = "claimed"
+from_user = "from-reader"
+no_milestone = "no-chapter"
+residue = "residue"
+
+[github]
+maintainer = "dtubb"
+allowed_authors = ["dtubb"]
+agent_email = "noreply@anthropic.com"
+commit_trailer = "Co-Authored-By: Claude <noreply@anthropic.com>"
+
+[[ladder]]
+name = "word-count"
+cmd = "tools/wordcount.sh --min 800 {files}"
+[[ladder]]
+name = "citations"
+cmd = "tools/check_citations.py {files}"
+[[ladder]]
+name = "proofread"
+cmd = "tools/proofread.sh {files}"
+
+[workers]
+tmux_session = "pipeline-writing"
+pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
+agent_dir = "pipeline/pi-agent"
+cost_cap_usd = 1.0
+context_tokens_max = 120000
+retries = 1
+stuck_minutes = 60
+needs_mb = { pi = 300 }
+caps = { coders = 1, test_runs = 1 }
+owner_process = ""
+
+[[roles.coder]]
+kind = "pi"
+provider = "anthropic"
+model = "claude-sonnet-4-5"
+
+[keys]
+anthropic = { env = "ANTHROPIC_API_KEY", files = ["~/.config/anthropic/key"] }
+
+# a shorter pipeline: no review, the maintainer lands it (see fichero.toml for the full one)
+[[steps]]
+name = "code"
+kind = "model"
+in = ["issue"]
+out = ["commit"]
+max_iter = 2
+on_ok = "checks"
+[[steps]]
+name = "checks"
+kind = "script"
+in = ["commit"]
+out = ["results"]
+timeout_s = 600
+on_ok = "end"
+on_fail = "code"

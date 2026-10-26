@@ -45,6 +45,8 @@ def test_handwriting_and_print_on_one_page_gives_each_kind_its_own_reader_routed
     assert [r["material"] for r in read["readers"]] == ["handwriting", "print"]
     assert read["settings"]["route_by"] == "region"
     assert all(r.get("model") for r in read["readers"])
+    assert all(r["sentence"].startswith(f"Also reads {r['material']} pages with ") for r in read["readers"])  # #6121
+    assert not [x for x in read.get("reasons", []) if x.startswith("also reads")]
 
 
 def test_without_the_answer_one_reader_and_no_routing():

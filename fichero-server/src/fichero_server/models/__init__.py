@@ -1987,6 +1987,11 @@ class LibraryCreateRequest(BaseModel):
     """
 
     path: str
+    embedding_model: str | None = Field(
+        default=None,
+        description="the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); "
+        "none: the engine's default (bge-m3)",
+    )
 
 
 class LibraryCreateResponse(BaseModel):

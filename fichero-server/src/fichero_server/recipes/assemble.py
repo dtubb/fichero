@@ -204,6 +204,8 @@ class Card:
     source: str = "shipped"
     #: Why discovery offers it, in words: what was found where, and what its record states.
     offered_because: str = ""
+    #: Made from the vendored price list (a frontier model a key serves), not a model the person saved (#6120).
+    from_catalogue: bool = False
     #: Why Fichero cannot run it yet, in words, when `runs_here` is False ("a TrOCR model: no TrOCR runtime in this
     #: build"); the finder shows it so a person sees what exists, the rules never choose it (#5660 item 3).
     cannot_run_because: str = ""
@@ -528,6 +530,12 @@ def _language_rank(card: Card, a: Answers | None) -> int:
     return 0 if a.languages <= card.languages else 1
 
 
+def lists_project_languages(card: Card, a: Answers | None) -> bool:
+    """Whether a card lists the project's languages, or states none (#6120): a reader that lists others (an Arabic and
+    Catalan model for a Spanish project) is never picked for the person."""
+    return _language_rank(card, a) == 0
+
+
 def in_period(card: Card, a: Answers | None) -> bool | None:
     """Whether a card's period meets the project's (#5516, #5683): True or False, None when either states none."""
     from fichero_server.recipes.hands import period_years
@@ -765,6 +773,15 @@ def _chosen(choice: Choice) -> dict[str, Any]:
     }
 
 
+def reader_sentence(reader: dict[str, Any]) -> str:
+    """One sentence for an extra reader a step carries by kind of material: who reads which pages besides the step's own. The
+    app (Ready) and the run's Activity row show this text as it stands (#6121, #6134)."""
+    card = reader.get("card") or {}
+    pin = reader.get("model") if isinstance(reader.get("model"), dict) else {}
+    who = card.get("note") or card.get("id") or (str(next(iter(pin.values()))) if pin else "another reader")
+    return f"Also reads {str(reader.get('material') or 'other').replace('_', ' ')} pages with {who}"
+
+
 def _pin_link(pin: dict) -> str | None:
     """Where a person reads about the model a pin names (#5802): its Zenodo record, its Hugging Face page, or the
     tool's own page; None when the pin has no page of its own."""
@@ -793,7 +810,11 @@ def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     from fichero_server.recipes.start import line_reader_pin
 
     readers = [s for s in steps if s["job"] in {"read-a-line", "read-a-page", "correct"} and s.get("model")]
-    names = [(s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"] for s in readers]
+    names = []
+    for s in readers:  # one model reading two steps (a page reader and Correct) is one reader to compare (#6121)
+        if any(s["model"] == r["model"] for r in readers[:readers.index(s)]):
+            continue
+        names.append((s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"])
     step: dict[str, Any] = {"id": "find-where-readers-disagree", "job": "find-where-readers-disagree",
                             **_topic("find-where-readers-disagree"), "model": {"builtin": "reader-comparison"},
                             "built_in": True, "runs_on": "this-mac", "uses_cloud": False,
@@ -1100,6 +1121,8 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             step["material"] = a.material
             step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in read]
         step.update(_chosen(choice))
+        for reader in step.get("readers") or []:  # an extra reader is never silent: each says in a sentence who it is (#6121)
+            reader["sentence"] = reader_sentence(reader)
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
             step["settings"] = {setting: a.job_answers[answer]}

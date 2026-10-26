@@ -1,0 +1,31 @@
+id: latin
+title: Latin, medieval and early-modern hands
+status: shipped
+# Guidance reused from the Transcribe preset "Latin Paleography" (#6128).
+suits:
+  languages: [la]
+  scripts: [Latn]
+  material: [handwriting]
+  period: [700, 1700]
+context: >-
+  The documents are Latin, in medieval and early-modern hands. Abbreviation by suspension and contraction is the
+  norm, not the exception; dating clauses and nomina sacra follow fixed patterns.
+lenses:
+  abbreviations:
+    title: abbreviations, contractions and formulary
+    text: |
+      - Verify every expansion; brackets only around letters supplied by expansion. A macron marks omitted nasals (dño = d[omi]no) or a wider contraction.
+      - Standard signs: the Tironian ⁊ = et · p with barred descender = per/par · p with loop = pro · q; / q̃ = que · the -rum sign at word end · -b; = -bus · 9 (superscript) = con-/com- or -us.
+      - Nomina sacra: dns = d[omi]n[u]s · ds = d[eu]s · sps = sp[iritu]s · ihs/xps = Ihesus/Christus · scs = s[an]c[tu]s · eccla = eccl[esi]a.
+      - Dating clauses use kalends, nones and ides and anno Domini formulas; expand cautiously with brackets, and propose damaged formulas as [UNCERTAIN: ...].
+  orthography:
+    title: orthography, letterforms and consistency
+    text: |
+      - Minim strokes (i, u, n, m) run together: count minims before committing; e-caudata (ę) stands for ae.
+      - Letter-shape audit: u/v, i/j, c/t, long-s/f, rn/m. Where the draft's spelling implies a stroke the image does not show, correct it. Do not normalise to classical spelling.
+  names-and-dates:
+    title: names, dates and the final check
+    text: |
+      - Collect every personal name, place name and date on the page (and in any reference material provided). The same person must read the same way throughout; a date must agree with the document's own heading or docket. Mark what cannot be resolved [UNCERTAIN: ...].
+      - Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading; every [ILLEGIBLE] is confirmed truly unreadable at this resolution.
+      - Layout check: line breaks, marginalia, insertions, [deleted: ...], [Rúbrica]/[Sello] are where the page has them.

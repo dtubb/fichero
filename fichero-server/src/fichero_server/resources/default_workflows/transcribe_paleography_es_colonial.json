@@ -1,6 +1,6 @@
 {
  "name": "Paleografía Española (s. XVI–XVII)",
- "description": "Use this when: you have early-modern Spanish script — procesal, cortesana, itálica — from Spain or colonial America (notarial records, audiencia files, cartas de poder, confesiones, probanzas). One careful whole-page pass with deep period advice; run Paleographer Review afterwards to refine.",
+ "description": "Use this when: you have early-modern Spanish script — procesal, cortesana, itálica — from Spain or colonial America (notarial records, audiencia files, cartas de poder, confesiones, probanzas). One careful whole-page pass with deep period advice; run Review the Reading afterwards to refine.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -14,7 +14,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 1,
+  "preset_version": 2,
   "variant_group": "transcribe-single-pass",
   "variant": "paleography-es-colonial"
  },

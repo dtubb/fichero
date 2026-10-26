@@ -169,7 +169,6 @@ def test_no_envelope_get_endpoint_returns_500(walk_client):
 # is converted so a regression that re-introduces a bare list is caught.
 _BARE_ARRAY_BACKLOG = {
     "/api/machines",  # #6100: pre-existing (red at be2cd2e12), not tonight's features
-    "/api/activity/jobs/kind/{kind}/items",  # #6101: pre-existing (red at be2cd2e12)
 }
 
 

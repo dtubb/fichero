@@ -11,7 +11,7 @@ Compare multiple images
 | Tool id | `compare` |
 | Category | vision |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |

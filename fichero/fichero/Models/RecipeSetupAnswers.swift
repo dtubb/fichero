@@ -124,6 +124,9 @@ struct RecipeSetupAnswers: Codable, Equatable {
         var normaliseHowFar: [String] = ["expanded"]
         /// Map places (`place-in-a-gazetteer`): which gazetteer.
         var gazetteer: String = "geonames"
+        /// The review's own instructions for a pass, by its lens (`review_instructions`, #6128): only the passes the
+        /// person edited; a lens left out is sent the engine's default built from the project, and a blank is no edit.
+        var reviewInstructions: [String: String] = [:]
         /// Every other stage question's answer, by the engine's key (section 7c, `GET /api/recipes/stages`): the
         /// stage pages ask what the engine lists, so a question the app has no field for is still kept and saved.
         var other: [String: StageAnswer] = [:]
@@ -132,6 +135,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
             case entityKinds = "entity_kinds"
             case normaliseHowFar = "normalise_how_far"
             case gazetteer
+            case reviewInstructions = "review_instructions"
         }
 
         init() {}
@@ -144,6 +148,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
                 case CodingKeys.entityKinds.rawValue: .many(entityKinds)
                 case CodingKeys.normaliseHowFar.rawValue: .many(normaliseHowFar)
                 case CodingKeys.gazetteer.rawValue: .text(gazetteer)
+                case CodingKeys.reviewInstructions.rawValue: nil
                 default: other[key]
                 }
             }
@@ -153,7 +158,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
                 case (CodingKeys.normaliseHowFar.rawValue, .many(let levels)?): normaliseHowFar = levels
                 case (CodingKeys.gazetteer.rawValue, .text(let name)?): gazetteer = name
                 case (CodingKeys.entityKinds.rawValue, _), (CodingKeys.normaliseHowFar.rawValue, _),
-                     (CodingKeys.gazetteer.rawValue, _): break
+                     (CodingKeys.gazetteer.rawValue, _), (CodingKeys.reviewInstructions.rawValue, _): break
                 default: other[key] = newValue
                 }
             }
@@ -164,6 +169,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
             try values.encode(entityKinds, forKey: .entityKinds)
             try values.encode(normaliseHowFar, forKey: .normaliseHowFar)
             try values.encode(gazetteer, forKey: .gazetteer)
+            if !reviewInstructions.isEmpty { try values.encode(reviewInstructions, forKey: .reviewInstructions) }
             var rest = encoder.container(keyedBy: StageAnswerKey.self)
             for (key, answer) in other where CodingKeys(rawValue: key) == nil {
                 try rest.encode(answer, forKey: StageAnswerKey(stringValue: key))
@@ -181,6 +187,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
                 normaliseHowFar = [Self.engineLevel(one)]
             }
             gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
+            reviewInstructions = (try? values.decodeIfPresent([String: String].self, forKey: .reviewInstructions)) ?? [:]
             let rest = try decoder.container(keyedBy: StageAnswerKey.self)
             for key in rest.allKeys where CodingKeys(rawValue: key.stringValue) == nil {
                 if let answer = try? rest.decode(StageAnswer.self, forKey: key) { other[key.stringValue] = answer }

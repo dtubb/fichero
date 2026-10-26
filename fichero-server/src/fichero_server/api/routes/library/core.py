@@ -99,6 +99,14 @@ def create_library(
             ),
         )
 
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    if body.embedding_model and body.embedding_model.lower() not in SUPPORTED_EMBEDDING_SPACES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{body.embedding_model!r} is not an embedding model Fichero supports: "
+                   + ", ".join(sorted({s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()})),
+        )
     package = Path(raw).expanduser().resolve()
     stored_path = nfc_path(str(package))
     duckdb_path = package / "fichero.duckdb"
@@ -143,6 +151,11 @@ def create_library(
             status_code=500,
             detail=f"Failed to initialize library database: {exc}",
         ) from exc
+
+    if body.embedding_model and not already_existed:  # chosen at creation; an existing project keeps its own
+        from fichero_server.db.embedding_choice import write_choice
+
+        write_choice(package, SUPPORTED_EMBEDDING_SPACES[body.embedding_model.lower()].source_model_name)
 
     # Auto-register the library in the known_libraries registry (#1131) —
     # UNLESS the package is a temp-directory staging library. The app's New

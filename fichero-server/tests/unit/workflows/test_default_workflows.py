@@ -350,13 +350,13 @@ class TestLoadPresetFiles:
     def test_transcribe_paleography_is_single_pass_and_review_is_standalone(self):
         """The 2026-08-26 redesign: Transcribe Paleography is ONE careful
         whole-page pass; the review passes live in the standalone
-        "Paleographer Review" preset, run later on the artifact."""
+        "Review the Reading" preset, run later on the artifact."""
         presets = {p["name"]: p for p in _load_preset_files()}
         paleography = presets["Transcribe Paleography"]
         node_tools = {n["tool"] for n in paleography["nodes"]}
         assert node_tools == {"files", "transcribe"}
 
-        review = presets["Paleographer Review"]
+        review = presets["Review the Reading"]
         review_tools = {n["tool"] for n in review["nodes"]}
         assert "transcribe_review" in review_tools
         assert "transcribe" not in review_tools, (
@@ -377,9 +377,9 @@ class TestLoadPresetFiles:
         presets = {p["name"]: p for p in _load_preset_files()}
         preset_specs = [
             # 2026-08-26 redesign: the single-pass presets have no welded
-            # review; corpus grounding lives in Paleographer Review and the
+            # review; corpus grounding lives in Review the Reading and the
             # Auto-Detect branches.
-            ("Paleographer Review", "r1", "r2", "reference-search"),
+            ("Review the Reading", "r1", "r2", "reference-search"),
             ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
             (
                 "Transcribe (Auto-Detect)",
@@ -447,7 +447,7 @@ class TestLoadPresetFiles:
 
         preset = {
             p["name"]: p for p in _load_preset_files()
-        }["Paleographer Review"]
+        }["Review the Reading"]
         workflow_def = to_workflow_def(
             Workflow(
                 id="review-gate-regression",
@@ -1647,6 +1647,7 @@ _KEYLESS_EXPECTED_REFUSALS = {
     "AI Convert to Markdown",
     "AI Redraw as SVG",
     "Classify Script",
+    "Describe (visual)",  # #6029: Describe answers a prompt, which Apple Vision ignores
     "English Secretary Hand (16th–17th C.)",
     "Extract Table",
     "Group Same Documents",
@@ -1654,7 +1655,7 @@ _KEYLESS_EXPECTED_REFUSALS = {
     "Modernización (Spanish)",
     "Paleografía Española (s. XVIII–XIX)",
     "Paleografía Española (s. XVI–XVII)",
-    "Paleographer Review",
+    "Review the Reading",
     "Regesto (Archival Abstract)",
     "Transcribe (Auto-Detect)",
     "Transcribe + Review (Pipeline)",

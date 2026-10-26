@@ -145,3 +145,12 @@ fichero-server/tests/history.jsonl
 # Never tracked: the 2026.10.24 site deploy published them (removed from history).
 /docs/user_manual/002 documents/
 /docs/user_manual/010 Prototypes/
+
+# dev pipeline runner (#6116): journal, sessions, briefs, locks; task worktrees
+pipeline/state/
+.worktrees/
+pipeline/pi-agent/sessions/
+pipeline/pi-agent/auth.json
+pipeline/pi-agent/*.log
+pipeline/pi-agent/mcp-cache.json
+pipeline/pi-agent/bin/

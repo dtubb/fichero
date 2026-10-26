@@ -52,13 +52,26 @@ final class UITestEngineHarness {
 
     enum HarnessError: Error, CustomStringConvertible {
         case repoRootNotFound
+        /// No venv python on this machine: the harness is ABSENT, not broken.
+        case venvNotFound
         case seedFailed(String)
         case engineDidNotBind(String)
+
+        /// A genuinely-absent venv/repo is a legitimate skip; every other case means the
+        /// harness was present and broke (#4781, spec `harness.fail-fast-loud`).
+        var isAbsent: Bool {
+            switch self {
+            case .repoRootNotFound, .venvNotFound: return true
+            case .seedFailed, .engineDidNotBind: return false
+            }
+        }
 
         var description: String {
             switch self {
             case .repoRootNotFound:
                 return "Could not locate the repo root (set FICHERO_REPO_ROOT)."
+            case .venvNotFound:
+                return "No venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)."
             case .seedFailed(let message):
                 return "Seeding the UI-test library failed: \(message)"
             case .engineDidNotBind(let message):
@@ -112,8 +125,7 @@ final class UITestEngineHarness {
     func start() throws -> SeededLibrary {
         guard let repo = Self.repoRoot() else { throw HarnessError.repoRootNotFound }
         guard let venvPython = Self.venvPython(for: repo) else {
-            throw HarnessError.engineDidNotBind(
-                "no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
+            throw HarnessError.venvNotFound
         }
 
         // The SOCKET must fit the AF_UNIX sun_path limit AND live where the

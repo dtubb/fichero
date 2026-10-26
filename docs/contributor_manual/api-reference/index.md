@@ -266,6 +266,52 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   steps on a copy of the samples (a `try-a-stage` job), its result kept beside the setup, never the
   project's work; a stage using the cloud is refused (402) with its cost until `cost_ok`.
 
+## The search model of a project (#6122, #6144)
+
+A project searches with one embedding model, chosen when it is made (`POST /api/library` takes `embedding_model`) and kept in the
+project's package. Changing it later is a re-embed run that shows its plan first and keeps the old vectors until it finishes.
+
+### `/api/search/embedding`
+
+`GET /api/search/embedding` — which model this project searches with (`model`), the models it may choose (`models`), how many
+vectors it holds (`vectors`) and whether it can still be set directly (`changeable`, true only while it holds none).
+
+`PUT /api/search/embedding` — body `{"model": "<name>"}`. Sets the model of a project that holds no vectors; 422 for a model Fichero
+does not know, 409 for a project that already holds vectors (use the change run below).
+
+### `/api/search/embedding/models`
+
+`GET /api/search/embedding/models` — library-free (it answers before any project exists). Every model a project may be made with,
+the recommended one first: `model`, `name`, `blurb` (one line) and `recommended`.
+
+### `/api/search/embedding/change-plan`
+
+`GET /api/search/embedding/change-plan?model=<name>` — what changing to `model` would do, said before anything runs: pages, names
+(`entities`), statements (`claims`), `seconds_estimate`, `cost_usd`, where it runs, and that search keeps the old vectors until the run ends.
+
+### `/api/search/embedding/change`
+
+`POST /api/search/embedding/change` — body `{"model": "<name>", "confirm": true}`. Starts the re-embed run (audited, one job in
+Activity) and returns `status`, `job_id` and a `message`. Without `confirm: true` it is refused with the instruction to show the plan first; the model the project already uses is refused too.
+
+## A device revokes its own pairing (#6133)
+
+### `/api/pair/devices/revoke-self`
+
+`POST /api/pair/devices/revoke-self` — authenticated by the paired device's own token. Revokes that device's pairing: the Mac stops
+listing it and the token stops working (200 `{"status": "ok"}`; 401 for no device token, an unknown or an already revoked one). The device
+is always the caller's own, never named in the request, so one device cannot revoke another (the owner revokes any device with
+`POST /api/pair/devices/{device_id}/revoke`). Audited as `device.revoke_self`.
+
+## Review instructions (#6128)
+
+### `/api/recipes/project/review-instructions`
+
+`GET /api/recipes/project/review-instructions` — each review pass of the project's Review the Reading step: its `lens`, the `default`
+instructions built from the project's language, script and date, the `text` the pass is sent (the project's edit, else the default),
+whether it was `edited`, and the `profile` sentence the default was built from. An edit is saved with the project's setup as
+`job_answers.review_instructions` (lens to text; blank is no edit) and applies to pages reviewed from then on.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API
@@ -495,6 +541,9 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 - Purpose: the owner's list of unused invitations to named people, with expiry; never the codes. Owner only.
 - Response: `200`, `{items, count}`, each item `{id, person, new_person, role, library, folder_id, minted_by,
   expires_at, never_expires}`; `expires_at` is null when the invitation never expires.
+- Wire change (2026-10-24): this was a bare array. An app and an engine of different builds read each other's shape wrongly
+  (the list shows an error, nothing else breaks), so the app and its engine are updated together; the engine's contract
+  identity differs between the two builds.
 
 `DELETE /api/pair/invites/{invite_id}`
 
@@ -961,6 +1010,10 @@ routes below too, applied to every job they stand for that has not started, and
 `GET /api/activity/jobs/derivatives` reads the import as a tree of its stages (#5623).
 `GET /api/activity/jobs/kind/{kind}/items` lists the queued jobs behind one kind's row (`limit`, `offset`), each a line in the order
 the lane will pick them, running first (`activity.window.expands-to-pages`, #5839).
+Response: `200`, `{items, count}`, each item `{id, subject, state, reason}`.
+Wire change (2026-10-25, #6101): this was a bare array. An app and an engine of different builds read each other's shape
+wrongly (the pages list shows an error, nothing else breaks), so the app and its engine are updated together; the engine's
+contract identity differs between the two builds.
 
 One job: `PUT /api/activity/jobs/{job_id}/paused` with `{"paused": true}` holds a waiting job
 (it stays paused across relaunch) and `false` resumes it, through the undoable action
@@ -1657,6 +1710,7 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `POST /api/recipes/project/allow-cloud`: the one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud models. Audited (`project.allow_cloud`: who, when, which project), undoable, reversible in Set Up (the same `cloud_allowed` answer); nothing else in the setup changes. Response: `{project, cloud_allowed}`.
 - `POST /api/recipes/cloud/accept-unpriced`: accept that this project runs one cloud model with no listed price, or take the yes back (`ai.where.accept-unpriced-cloud-model`, #5987). Body `{provider, model, withdraw}`. Its calls are counted against the project's monthly cap at an assumed price and listed apart. The one audited action (`cloud.accept_unpriced`, not an Undo step: `withdraw` is the way back) every refusal names and the one Start's `accept_unpriced` uses; kept in the project, keyed by provider and model, not in Set Up's answers. Response: `{accepted}`, every `provider/model` the project accepts.
 - `POST /api/recipes/project/steps/use-candidate`: use any candidate `GET /api/recipes/candidates` lists as a step's reader (#5612, `source.find.app-card-actions`). Body `{step, card}`. Kept as a project-scope override by the path use-instead takes, through `project.save_setup` (audited, undoable); a model still to download is then a download the Start plan offers. Each candidate also carries `download` (`model.download` with its runtime and id, or null), `installed` and `runs_where` (`this_mac`, `own_machine`, `provider`). `422` for a card not found here, a step the recipe lacks, or a card that does not do the step's job.
+- `POST /api/recipes/project/steps/use-readers`: choose the readers Find where the readers disagree compares (#6121, `source.disagree.person-chooses-the-readers`). Body `{step, cards}`: the step's id and two or more reader card ids from `GET /api/recipes/candidates`. The choice REPLACES the step's reader set (no reader the rules added is compared besides) and one model chosen twice counts once; kept as the step's project-scope override, so assembling again keeps it. Saved through `project.save_setup` (audited, undoable). `422` for a step that is not Find where the readers disagree, a card not found here or that does not read lines or pages, or fewer than two different readers.
 - `POST /api/recipes/project/steps/use-setup-pick`: take the person's choice for a step back (#5612, `source.onboard.step-choice-overrides-the-pick`). Body `{step}`. The recipe is assembled again from the project's answers with that step's override dropped, so Set Up's pick stands; the project's other choices stay. Saved through `project.save_setup` (audited, undoable). `422` for a step the recipe lacks or one already on Set Up's pick.
 - `GET /api/recipes/candidates` (#5660 items 3, 8): the online search also asks Hugging Face by name for HTR words (`htr`, `manuscript`, `trocr`, …) and the project's languages, so TrOCR fine-tunes and VLMs trained on manuscripts are found; one this build cannot run is listed with `availability: not_here` and `refused` in words, never chosen by the rules. Each candidate says where it stands (`availability`: `ships`, `installed`, `download`, `elsewhere`, `not_here`; `availability_words`, e.g. "Download (16 MB)"); a Kraken reader's weights are a `model.download` with runtime `kraken` until on this Mac. Each source's `detail` is one short sentence ("Searching Hugging Face…", "3 found on Zenodo"). `step=<id>` marks the open project's step's reader `chosen` and lists it first; a chosen reader holds when the recipe is proposed again, even for answers the finder would not list it for.
 - `POST /api/recipes/project/layers`: add a layer (`{"layers": ["entities"]}`) or a language (`{"languages": ["la"]}`) to the project later (#5470, `source.onboard.add-layer`), audited (`project.add_layer`) and undoable. The layer joins the answers (`answers.layers`) and its steps join the recipe beside the ones it has (a model the person chose stays); a language proposes the recipe again from the answers. The layer's steps are proposed for the material already in the project (`recipe/proposed.yaml`): the Start plan returned carries `proposed` (the layers and each step with its topic's title and explanation) and, once the project has started, its runs and estimate are those steps alone. Nothing runs until `POST /api/recipes/project/start`, which runs them over all the material and clears the proposal. `{"remove": true}` takes a layer out and withdraws its proposed steps. `422` for a project not set up, an unknown layer (it names the ones it can add), or one it already has. `POST /api/recipes/assemble` takes the same `layers`.

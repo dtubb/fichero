@@ -233,6 +233,8 @@ class StepReader(BaseModel):
     card: Optional[RecipeCard] = None
     runs_on: Optional[str] = None
     reasons: list[str] = Field(default_factory=list)
+    sentence: Optional[str] = Field(default=None, description=(
+        "who this extra reader is, in a sentence, as the app and Activity show it: 'Also reads print pages with Apple Vision'"))
     gap: Optional[str] = None
     problem: Optional[StepProblem] = None
 
@@ -1571,7 +1573,8 @@ async def model_candidates(
     counts them. Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, needs_permission, rank_key
+    from fichero_server.recipes.assemble import (
+        READ_MATERIALS, READING_JOBS, _refusal, lists_project_languages, needs_permission, rank_key)
     from fichero_server.recipes.assemble import other_period
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
@@ -1613,7 +1616,7 @@ async def model_candidates(
     saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
                 cloud_allowed=(cloud_allowed and places.allows("cloud")) or places.may_leave_to(saved, "cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
-                search_embedder=search_embedder(), period=period or "")
+                search_embedder=search_embedder(library_path or None), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
         search = await run_in_threadpool(_search_job, request, library_path, tags, job)
@@ -1645,7 +1648,8 @@ async def model_candidates(
     pick = chosen_id
     if pick is None and kept:
         top = kept[0]
-        if top.local and not needs_permission(top, a):
+        # And one whose card lists the project's languages, or none: never an Arabic reader for a Spanish project (#6120).
+        if top.local and not needs_permission(top, a) and lists_project_languages(top, a):
             pick = top.id
 
     def refused(c: Any) -> Optional[str]:
@@ -1876,6 +1880,35 @@ async def get_project_setup(db: Database = Depends(get_library_database)) -> Pro
     """The open project's saved setup answers and recipe, and whether it inherits the app's cloud setting."""
     setup = read_project_setup(_library(db))
     return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")))
+
+
+class ReviewInstruction(BaseModel):
+    lens: str = Field(description="the pass's lens: abbreviations, orthography or names-and-dates")
+    default: str = Field(description="the instructions built from the project's language, script and date")
+    text: str = Field(description="what the pass is sent: the project's edit, else the default")
+    edited: bool = Field(description="whether the project edited this pass's instructions")
+    profile: str = Field(description="the sentence saying which profile the default was built from")
+
+
+class ReviewInstructions(BaseModel):
+    passes: list[ReviewInstruction]
+
+
+@router.get("/project/review-instructions", response_model=ReviewInstructions)
+async def get_review_instructions(db: Database = Depends(get_library_database)) -> ReviewInstructions:
+    """Each review pass's instructions, the default built from the project's setup and the project's edit if it has one
+    (`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`."""
+    from fichero_server.recipes.review_profiles import lens_ids, review_prompt
+
+    answers = read_project_setup(_library(db))["answers"]
+    edits = ((answers or {}).get("job_answers") or {}).get("review_instructions") or {}
+    out = []
+    for lens in lens_ids():
+        default, said = review_prompt(lens, answers)
+        edited = bool((edits.get(lens) or "").strip())
+        out.append(ReviewInstruction(lens=lens, default=default, text=edits[lens] if edited else default,
+                                     edited=edited, profile=said))
+    return ReviewInstructions(passes=out)
 
 
 @router.put("/project", response_model=ProjectSetup)
@@ -2527,9 +2560,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
+    memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes
     plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
                                 catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
-                                todo=todo_counts(db, plan, within))
+                                todo=todo_counts(db, plan, within, memo=memo))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
@@ -2589,7 +2623,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
         # Nothing to run on: said, not run (seen 2026-10-11, a Start whose material never arrived ran every step
         # on nothing and failed each, "not run on 1 of 0 folders").
         plan["refusals"] = [*plan["refusals"], NO_MATERIAL]
-    annotate(db, plan, unfinished, within)
+    annotate(db, plan, unfinished, within, memo=memo)
     return plan
 
 
@@ -2613,10 +2647,11 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
     from fichero_server.recipes.done import material, todo_counts
 
+    memo: dict = {}
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=_catalogue_runs(plan["runs"]),
                                    folders=_folders_covering(db, material(db, within)["ids"]),
-                                   todo=todo_counts(db, plan, within, set(started["redo"]))), "counted": counted}
-    return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
+                                   todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo)), "counted": counted}
+    return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
 
 _OFFER_SECONDS = 5.0
@@ -2847,6 +2882,49 @@ async def use_candidate_for_step(
                                                     "the candidates (online, to search) and choose one of them")
     try:
         recipe = use_candidate(setup["recipe"], request.step, card, now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
+class UseReadersRequest(BaseModel):
+    """Choose the readers Find where the readers disagree compares (#6121)."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the Find where the readers disagree step's id")
+    cards: list[str] = Field(description="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)")
+
+
+@router.post("/project/steps/use-readers", response_model=ProjectSetup)
+async def use_readers_for_step(
+    request: UseReadersRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """The readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared
+    besides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`
+    (audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find
+    where the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.start import use_readers
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    try:
+        a = _answers(setup["answers"]) if setup["answers"] else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    offered = _offered_cards(a)
+    cards = []
+    for card_id in request.cards:
+        named = [c for c in offered if c.id == card_id]
+        card = next((c for c in named if "read-a-page" in c.jobs or "read-a-line" in c.jobs), named[0] if named else None)
+        if card is None:
+            raise HTTPException(status_code=422, detail=f"{card_id} is not a model Fichero has found here")
+        cards.append(card)
+    try:
+        recipe = use_readers(setup["recipe"], request.step, cards, now=utc_now_iso(timespec="seconds"))
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -3404,8 +3482,13 @@ async def use_bakeoff_choice(
     card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that reader is not one Fichero has a card for")
-    if request.scope == "folder":  # no run applies a folder override yet (source.recipe.per-folder): never store an inert one
-        raise HTTPException(status_code=422, detail="Use This applies to the whole project; per-folder choices aren't applied yet")
+    if request.scope == "folder" and request.folder_id:  # a folder override runs on that folder's pages (#6135)
+        from fichero_server.recipes.runner import folder_scope
+
+        try:
+            folder_scope(db, request.folder_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     setup = read_project_setup(library)
     try:
         recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,

@@ -200,6 +200,7 @@ def cloud_readers() -> list[Card]:
     return remote_reader_cards()
 
 
+
 #: At most this many readers of each kind take part, so a run stays affordable (ruled 2026-10-11).
 PER_KIND = 2
 
@@ -229,8 +230,10 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
     for family in FAMILIES:
         # Those that can be scored here first (downloaded, allowed to leave), so the places go to readers that will
         # be measured; then an open licence; then the rules' order, which only chooses who takes part.
+        # A model the person saved comes before a frontier one their key merely serves (#6120): a kind with no model that
+        # reads here lists one, and it is theirs.
         options = sorted((c for c in pool if _family(c) == family and fits(c)),
-                         key=lambda c: (not c.runs_here, _not_scored_because(c, *_reader_of(c), remote) is not None,
+                         key=lambda c: (not c.runs_here, c.from_catalogue, _not_scored_because(c, *_reader_of(c), remote) is not None,
                                         not c.open_licence, _rank_key(c, material, a)))
         chosen_by_name = [c for c in options if c.id in wanted]
         rest = [c for c in options if c.id not in wanted]
@@ -657,6 +660,13 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
         step, card = steps.get(override.get("step")), by_id.get(override.get("card"))
         if override.get("scope") != "project" or step is None:
             continue
+        if override.get("kind") == "readers":  # the readers Find where the readers disagree compares: the person's set replaces any other
+            pins = [r["model"] for r in override.get("readers") or [] if isinstance(r.get("model"), dict) and r["model"]]
+            step["settings"] = {**(step.get("settings") or {}), "readers": pins}
+            for stale in ("needs", "compares"):
+                step.pop(stale, None)
+            step["compares"] = [reader_name(by_id[r["card"]]) if r.get("card") in by_id else str(r.get("card")) for r in override["readers"]]
+            continue
         if card is None:
             if not isinstance(override.get("model"), dict) or not override["model"]:
                 continue
@@ -667,6 +677,10 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
                         offered_because="chosen by you")
         for stale in ("gap", "problem"):
             step.pop(stale, None)
+        if step.get("job") in ("read-a-line", "read-a-page"):
+            # The person's reader replaces the whole reader set: the readers the rules added by kind of material stay out
+            # unless the person picks them (#6121: Apple Vision read pages the person had given to Gemini).
+            step.pop("readers", None)
         measured = replace(card, cer_measured_here=override.get("cer"))
         step.update(_chosen(Choice(step["job"], measured, reasons=[override.get("because") or "chosen by you"])))
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")

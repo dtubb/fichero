@@ -49,10 +49,11 @@ def _clouds(cloud_allowed: bool, named=None) -> dict:
 def test_two_cloud_readers_take_part_unless_the_person_names_more(four_clouds):
     assert len(_clouds(True)) == bakeoff.PER_KIND
     every = _clouds(True)  # the two the cap chose
-    left_out = [c for c in {c.id for c in bakeoff.cloud_readers()} if c not in every]
-    assert len(left_out) == len(PROVIDERS) - bakeoff.PER_KIND
+    offered = {c.id for c in bakeoff.cloud_readers()}  # the saved models and, per key, the frontier ones it serves (#6120)
+    left_out = [c for c in offered if c not in every]
+    assert len(offered) >= len(PROVIDERS) and len(left_out) == len(offered) - bakeoff.PER_KIND
     named = _clouds(True, named=left_out)
-    assert set(left_out) <= set(named) and set(every) <= set(named) and len(named) == len(PROVIDERS)
+    assert set(left_out) <= set(named) and set(every) <= set(named) and len(named) == len(offered)
 
 
 def test_every_cloud_reader_is_priced_before_anything_runs_and_scored_only_where_pages_may_leave(four_clouds):
@@ -76,7 +77,7 @@ def test_the_next_run_names_the_cost_of_the_readers_the_person_named(four_clouds
     ids = [c.id for c in bakeoff.cloud_readers()]
     one = bakeoff.next_run(db, _answers(True), list(all_seed_cards()), volume=100)
     all_four = bakeoff.next_run(db, _answers(True), list(all_seed_cards()), volume=100, named=ids)
-    assert len([c for c in all_four["candidates"] if not c["local"]]) == len(PROVIDERS)
+    assert len([c for c in all_four["candidates"] if not c["local"]]) == len(ids)
     assert len([c for c in one["candidates"] if not c["local"]]) == bakeoff.PER_KIND
     assert all_four["run_cost_usd"] >= one["run_cost_usd"]
-    assert all_four["sentence"].startswith("The comparison costs") and "4 cloud readers" in all_four["sentence"]
+    assert all_four["sentence"].startswith("The comparison costs") and f"{len(ids)} cloud readers" in all_four["sentence"]

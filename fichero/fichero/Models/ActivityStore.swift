@@ -59,6 +59,8 @@ final class ActivityStore: ChangeEventConsumer {
     var runs: [ActivityRun] = []
     /// A run's tree read that failed, by thread id, in words; cleared by the next read that works.
     var treeReadFailures: [String: String] = [:]
+    /// A run's page dots, by the run's job id (`activity.window.page-grid`).
+    var pageGrids: [String: ActivityPageGrid] = [:]
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
     enum LoadSource: Int { case runs, jobs }
     private struct FailureKey: Hashable {
@@ -156,6 +158,10 @@ final class ActivityStore: ChangeEventConsumer {
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
     var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    /// Whether a row's log has a warning or an error (the filter row's default); read with the log.
+    var jobLogHasProblems: [String: Bool] = [:]
+    /// How many problems a row's log has (a Problems read counts its lines), for the closed Log disclosure.
+    var jobLogProblemCount: [String: Int] = [:]
     /// The jobs queued behind a kind's row, by kind (`activity.window.expands-to-pages`, #5839).
     var queuedItems: [String: [ActivityQueuedItem]] = [:]
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed

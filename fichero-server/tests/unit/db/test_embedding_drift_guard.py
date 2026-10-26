@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from pathlib import Path
+
 import pytest
 
 from fichero_server.db.embeddings import (
@@ -70,6 +72,7 @@ def _wire_db(db, table, table_name: str = "kg_claim_embeddings", active_model: s
     mock_lance = MagicMock()
     mock_lance.open_table.return_value = table
     db._lance_db = mock_lance
+    db._lance_path = Path("/nonexistent/vectors")  # the connection is cached, so the folder is only named, never opened
     db._lance_tables = lambda: {table_name}
     db._get_embedding_model_id = lambda: active_model
 

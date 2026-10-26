@@ -26,3 +26,40 @@ def test_the_closing_keywords_name_the_issues_they_fix():
 def test_an_issue_that_is_only_mentioned_is_not_closed():
     # A commit that cites #5409 for context (the usual "(#5409)" subject suffix) did not fix it.
     assert _mod.cited("fix(kg): a model run proposes merges (#5409, #4869)\n\nSee #4868.") == set()
+
+
+def test_a_keyword_inside_prose_does_not_close():
+    # "revert the fix #5222" talks about a fix; it is not a Fixes clause (reviewer, 2026-10-25).
+    assert _mod.cited("chore: revert the fix #5222 that broke import\n\nFixes #6000") == {6000}
+
+
+def test_the_runners_own_commit_form_closes():
+    # core.brief tells the coder to write `<what> (Fixes #N)`; the re-review found the clause rule missed it.
+    assert _mod.cited("fix (Fixes #1003)") == {1003}
+    assert _mod.cited("guard: pins the shape (Part of #6116)") == set()
+    assert _mod.cited("x [Closes #12]") == {12}
+
+
+def test_reopened_compares_instants_not_strings(monkeypatch):
+    # git's %cI carries a local offset; GitHub's created_at ends in Z. 10:00-03:00 is 13:00Z.
+    events = [{"event": "reopened", "created_at": "2026-10-24T12:30:00Z"}]
+    monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps(events))
+    assert _mod.reopened_after(1, "2026-10-24T10:00:00-03:00") is False, "13:00Z commit is after the 12:30Z reopen"
+    assert _mod.reopened_after(1, "2026-10-24T09:00:00-03:00") is True
+
+
+def test_an_issue_reopened_after_the_fixing_commit_stays_open(monkeypatch):
+    events = [{"event": "closed", "created_at": "2026-10-20T10:00:00Z"}, {"event": "reopened", "created_at": "2026-10-24T10:00:00Z"}]
+    monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps(events))
+    assert _mod.reopened_after(1, "2026-10-22T10:00:00Z") is True, "reopened after the commit: the fix did not hold"
+    assert _mod.reopened_after(1, "2026-10-25T10:00:00Z") is False, "reopened before the commit: the commit is the fix"
+
+
+def test_a_last_comment_that_says_what_is_left_keeps_the_issue_open(monkeypatch):
+    # Live 2026-10-26: #6129 #6133-#6135 were closed with residue in their last comment.
+    for text in ("Residue: the iPad half", "remaining: the docs", "this is still missing", "not yet wired", "needs your test",
+                 "what is left: the docs", "left to do", "not done", "a follow-up is filed", "TODO", "to do: iPad"):
+        assert _mod.owes_more(text), text
+    assert not _mod.owes_more("Done and verified.") and not _mod.owes_more("")
+    monkeypatch.setattr(_mod, "_run", lambda *a: __import__("json").dumps({"comments": [{"body": "old"}, {"body": "Residue: x"}]}))
+    assert _mod.owes_more(_mod.last_comment(1))

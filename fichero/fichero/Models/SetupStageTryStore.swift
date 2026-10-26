@@ -25,6 +25,16 @@ final class SetupStageTryStore {
     /// (`source.onboard.stages.compares-candidates`).
     var chosenCandidates: [String] = []
 
+    private var preselected = false
+
+    /// Tick the stage's best model once the finder's list arrives (#6119): only while nothing is ticked, and once per
+    /// visit, so a person who unticks it is not given it back by a later reload.
+    func preselect(from candidates: [Components.Schemas.ModelCandidate]) {
+        guard !preselected, !candidates.isEmpty else { return }
+        preselected = true
+        if chosenCandidates.isEmpty { chosenCandidates = StageCandidateChoice.preselected(candidates) }
+    }
+
     /// How often a waiting try is asked again.
     var pollInterval: Duration = .seconds(3)
 

@@ -54,7 +54,7 @@ _scripts_path = str(_REPO_ROOT / "scripts")
 if _scripts_path not in sys.path:
     sys.path.append(_scripts_path)
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402 -- after the test environment is set
 
 # Keep existing route-heavy tests running against the broader dev API surface.
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
@@ -77,6 +77,8 @@ os.environ.setdefault("FICHERO_SKIP_MLX_MEMORY_GUARD", "1")
 os.environ.setdefault("FICHERO_SKIP_PROJECT_CONVERSION", "1")
 # Tests that fake `TextEmbedding` patch it in this process; the embedder-process tests clear this (#5847).
 os.environ.setdefault("FICHERO_EMBED_IN_PROCESS", "1")
+# Tests that fake Apple Vision patch it in this process; the worker tests clear this (#5392).
+os.environ.setdefault("FICHERO_APPLE_VISION_IN_PROCESS", "1")
 # Nor heavy jobs held by the Mac's own state (#5358): the machine running the tests is often in
 # use or on battery, and every queued model job would wait. tests/unit/jobs turns it on and fakes
 # the signals.
@@ -114,11 +116,11 @@ os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 # and fights the running uvicorn for the exclusive duckdb lock. Override
 # `FICHERO_BASE_PATH` (consumed by pydantic-settings env_prefix="FICHERO_")
 # so app_db_path resolves under a per-process tmp dir.
-import atexit as _atexit
-import shutil as _shutil
-import tempfile as _tempfile
-import pathlib as _pathlib
-from urllib.parse import quote
+import atexit as _atexit  # noqa: E402 -- after the test environment is set
+import shutil as _shutil  # noqa: E402 -- after the test environment is set
+import tempfile as _tempfile  # noqa: E402 -- after the test environment is set
+import pathlib as _pathlib  # noqa: E402 -- after the test environment is set
+from urllib.parse import quote  # noqa: E402 -- after the test environment is set
 
 _TEST_BASE_PREFIX = "fichero-tests-"
 
@@ -589,6 +591,24 @@ _htr_united._harvest = _no_htr_united_in_tests
 import fichero_server.llm.model_types as _model_types  # noqa: E402
 
 _model_types._REFRESH_STARTED = True
+_loading_price_table = _model_types._price_table
+
+
+def _price_table_not_from_the_real_cache():
+    """Loading the price table reads the cache under the state folder: when that is the person's real one the file is whatever
+    the engine last refreshed from upstream, so the test fails there, naming the cause. Point FICHERO_BASE_PATH at a temp
+    folder (the suite's default) to test the cache itself (#6108). Computing the path alone (state-root tests) is fine."""
+    if _model_types._PRICE_TABLE is None:
+        from fichero_server.db.paths import default_server_state_dir
+
+        path, real = _model_types._cached_registry_path().resolve(), default_server_state_dir().resolve()
+        if real == path.parent or real in path.parents:
+            raise AssertionError(f"this test would read the live model-registry cache {path}; tests read the vendored "
+                                 "snapshot (set FICHERO_BASE_PATH to a temp folder) (#6108)")
+    return _loading_price_table()
+
+
+_model_types._price_table = _price_table_not_from_the_real_cache
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that
 # reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
 # NEW function objects that no route uses; the `client` fixture importing them at its own time
@@ -1421,3 +1441,24 @@ def _no_workflow_node_leaks_between_tests():
     token = node_context._current_node.set(None)
     yield
     node_context._current_node.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def _no_embedder_leaks_between_tests():
+    """An embedder a test loads stays in the process cache and shows up as a held model in every later test (#6129); put the
+    cache back as it was. Only when the module is already imported: importing it here would load it for every test."""
+    import sys
+
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    before = dict(embeddings._EMBEDDER_CACHE) if embeddings is not None else {}
+    yield
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is None:
+        return
+    cache = embeddings._EMBEDDER_CACHE
+    if not isinstance(cache, dict):
+        return  # a test replaced it and its monkeypatch has not been undone yet: not ours to touch
+    for name in [n for n in cache if n not in before and not embeddings._EMBEDDER_IN_USE.get(n)]:  # one still embedding is left, as release_idle_embedders does
+        gone = cache.pop(name)
+        if hasattr(gone, "close"):
+            gone.close()

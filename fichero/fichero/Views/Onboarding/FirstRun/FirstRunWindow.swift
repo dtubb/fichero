@@ -18,7 +18,7 @@ struct FirstRunWindow: View {
     }
 
     @Environment(AppState.self) var appState
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @Environment(\.openWindow) private var openWindow
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
@@ -42,9 +42,14 @@ struct FirstRunWindow: View {
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
+    /// Set when setup ends by Start or Done, so closing the window afterwards keeps the project (#6117).
+    @State var finishedSetUp = false
+    @State var confirmingCancel = false
+    /// Why a cancelled new project's folder could not go to the Trash; said before the window closes (#6117).
+    @State var discardError: String?
     @State var isSaving = false  // read by the Ready page in FirstRunWindow+Recipe.swift
 
-    private let mode: Mode
+    let mode: Mode
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
     private let onProjectReady: (UUID) -> Void
 
@@ -108,18 +113,35 @@ struct FirstRunWindow: View {
             await store.loadJobs()
             await store.loadStages()
         }
+        .confirmationDialog("Delete this project?", isPresented: $confirmingCancel) {
+            Button("Delete Project", role: .destructive) { discardAndClose() }
+            Button("Keep Project", role: .cancel) {}
+        } message: {
+            Text("Cancelling Set Up deletes the project it made, with the pages you added. It goes to the Trash.")
+        }
+        .alert("The project could not be deleted", isPresented: Binding(get: { discardError != nil },
+                                                                      set: { if !$0 { discardError = nil } })) {
+            Button("OK") { dismiss() }
+        } message: {
+            Text(discardError ?? "")
+        }
+        // The window's close button: a new project with no material is deleted like Cancel; one with material stays.
+        .onDisappear {
+            guard !finishedSetUp, Self.cancelDeletesTheProject(in: mode), !(store?.hasMaterial ?? false) else { return }
+            newProject.discard()
+        }
         .sheet(item: $addProvider) { request in
             AddProviderSheet(onAdd: { await appState.loadProviders() }, preselectedType: request.providerType)
                 .environment(appState.providerService)
         }
-        .sheet(isPresented: $signingInToCluster, onDismiss: { Task { await loadClusterNames() } }) {
-            AddClusterSheet(service: appState.hpcSignInService)
-        }
+        .sheet(isPresented: $signingInToCluster, onDismiss: { Task { await loadClusterNames() } },
+               content: { AddClusterSheet(service: appState.hpcSignInService) })
         .task {
             if placesStore == nil { placesStore = AppPlacesStore(client: appState.ficheroClient) }
             await appState.loadProviders()
             await loadClusterNames()
         }
+        .task { await newProject.loadEmbeddingChoices(client: appState.ficheroClient) }
     }
 
     private func loadClusterNames() async {
@@ -335,8 +357,10 @@ extension FirstRunWindow {
             setUpNewProject()
         case .skip:
             step = step.next(in: steps)
-        case .finish, .close:
+        case .finish:
             finish()
+        case .close:
+            cancel()
         }
     }
 
@@ -359,7 +383,8 @@ extension FirstRunWindow {
 
     /// Finishing marks first run done and shows a project setup made in the window. The provider sheet is no longer
     /// deferred to here: it opens in What Fichero runs.
-    private func finish() {
+    func finish() {
+        finishedSetUp = true
         if mode == .firstRun {
             featureManager.firstRunCompleted = true
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")

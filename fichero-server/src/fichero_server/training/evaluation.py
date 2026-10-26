@@ -46,6 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
 from fichero_server.execution import jobs
 from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.models.compute_requests import EvaluationCandidate, EvaluationRunRequest
@@ -125,12 +126,13 @@ def measured_here(db: Any, model: str, reader: str) -> float | None:
 
 
 def record_on_card(model: str, reader: str, entry: dict[str, Any]) -> None:
-    """Append one evaluation to the model's card; earlier ones are kept."""
+    """Append one evaluation to the model's card; earlier ones are kept. Read, append and write are one step under the card's
+    lock, and the card is replaced whole from a temp file in its folder, so a reader never sees half of it (#6136)."""
     path = card_path(model, reader)
-    card = _read_card(path)
-    card.setdefault("evaluations", []).append(entry)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(card, indent=1), encoding="utf-8")
+    with card_lock(path):
+        card = _read_card(path)
+        card.setdefault("evaluations", []).append(entry)
+        write_json_atomic(path, card)
 
 
 def trained_card(candidate: EvaluationCandidate) -> dict[str, Any] | None:

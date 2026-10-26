@@ -48,6 +48,10 @@ HANDS: tuple[Hand, ...] = (
          ("bastarda", "humanistic"), "the Spanish colonial archives' everyday hand", ("es",)),
     Hand("kurrent", "Kurrent", "Latn", 16, 20, ("kurrent",), "German cursive, steep and pointed", ("de",)),
     Hand("copperplate", "Copperplate", "Latn", 18, 19, ("copperplate",), "round, slanted, thick and thin strokes"),
+    Hand("palmer", "Palmer method", "Latn", 19, 20, ("palmer", "palmer-method"),
+         "upright, rounded and joined; the school cursive of the Americas (letra Palmer)"),
+    Hand("modern-cursive", "Modern cursive", "Latn", 20, 21, ("modern-cursive",),
+         "today's joined everyday handwriting"),
     Hand("naskh", "Naskh", "Arab", 10, 20, ("naskh",), "rounded and clear, the book hand"),
     Hand("nastaliq", "Nastaʿlīq", "Arab", 14, 20, ("nastaliq",), "hanging, sloping words"),
     Hand("hebrew-square", "Hebrew square", "Hebr", 1, 20, ("hebrew-square",), "upright, separate letters"),
@@ -57,10 +61,11 @@ HANDS: tuple[Hand, ...] = (
 _CENTURY = re.compile(r"^\s*(\d{1,2})(?:st|nd|rd|th)\s+century\s*$", re.I)
 _RANGE = re.compile(r"^\s*(\d{3,4})\s*(?:[-–—]|to)\s*(\d{3,4})\s*$")
 _YEAR = re.compile(r"^\s*(\d{3,4})\s*$")
+_DECADE = re.compile(r"^\s*(\d{3})0'?s\s*$")
 
 
 def period_years(period: str | None) -> tuple[int, int] | None:
-    """The years a period answer means: "16th century" is 1501–1600, "1650–1700" itself, "1740" that year; None for
+    """The years a period answer means: "16th century" is 1501–1600, "1650–1700" itself, "1740" that year, "1590s" its decade; None for
     anything else (kept as typed, said as not read)."""
     if not period:
         return None
@@ -72,6 +77,8 @@ def period_years(period: str | None) -> tuple[int, int] | None:
         return start, end
     if m := _YEAR.match(period):
         return int(m.group(1)), int(m.group(1))
+    if m := _DECADE.match(period):  # "1590s": the decade, 1590–1599 (#6128)
+        return int(m.group(1)) * 10, int(m.group(1)) * 10 + 9
     return None
 
 

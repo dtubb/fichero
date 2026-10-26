@@ -6,6 +6,7 @@ Behaviour: `source.onboard.auto.reader-per-material`. Through the public surface
 correction of a page's kind) and the real job scheduler. The readers are the recipe execution tests' stub Kraken
 reader at the Kraken runtime, which records which model read which page.
 """
+# ruff: noqa: F811 -- pytest fixtures imported from the sibling tests are named as test arguments
 from __future__ import annotations
 
 import math
@@ -137,7 +138,8 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     type_model = card["readers"]["typescript"]["model_override"]
     assert hand_model != type_model and card["model_override"] == hand_model
 
-    run = _finished(client, _start(client))
+    job_id = _start(client)
+    run = _finished(client, job_id)
     assert run["state"] == "done", run
     # The blank back is not read; the typed page (no print reader here: machine text is typescript) by the
     # typescript reader; the handwritten page by the handwriting reader; the person's typescript page by the
@@ -147,6 +149,15 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     assert step["blank_versos"] == 1 and step["kinds"] == {"handwriting": 1, "typescript": 2}
     assert sorted((r["material"], r["pages"], r["model"], r["state"]) for r in step["readers"]) == [
         ("handwriting", 1, hand_model, "done"), ("typescript", 2, type_model, "done")]
+    # Each reader says who it is, in the plan's own words, for the Activity row (#6134).
+    assert {r["material"]: r["sentence"] for r in step["readers"]} == {
+        "handwriting": f"Also reads handwriting pages with {HAND}", "typescript": f"Also reads typescript pages with {TYPE}"}
+    # ... and the Activity tree names them on the stage's row (#6134).
+    tree = client.get(f"/api/activity/jobs/{job_id}").json()
+    named = [node for node in tree["children"] if node["readers"]]
+    assert len(named) == 1 and {r["material"]: r["sentence"] for r in named[0]["readers"]} == {
+        "handwriting": f"Also reads handwriting pages with {HAND}", "typescript": f"Also reads typescript pages with {TYPE}"}
+    assert all(not node["readers"] for node in tree["children"] if node is not named[0])
 
     def attrs(key):
         return client.get(f"/api/documents/{ids[key]}").json()["attributes"]

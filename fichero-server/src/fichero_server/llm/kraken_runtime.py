@@ -81,6 +81,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
 from fichero_server.db.paths import model_store_root
 from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.media.ocr_geometry import (
@@ -1621,11 +1622,20 @@ def download_recognition_model(
     model_path = str(found[0])
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
-    _marker_path(model_id, home).write_text(
-        json.dumps({**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
-                    "model_path": model_path, "bytes": found[0].stat().st_size}),
-        encoding="utf-8",
-    )
+    marker = _marker_path(model_id, home)
+    with card_lock(marker):  # a re-download keeps the evaluations the old marker holds (#6138)
+        try:
+            old = json.loads(marker.read_text(encoding="utf-8")) if marker.is_file() else {}
+        except (OSError, ValueError):
+            old = {}
+        new = {**({"hf": str(spec["hf"]), "revision": pinned.get("revision", "")} if "hf" in spec else {"doi": str(spec["doi"])}),
+               "model_path": model_path, "bytes": found[0].stat().st_size}
+        # Only the same weights keep their measurements: a changed revision or DOI is a different model, and a CER
+        # measured on the old one must not read as the new one's.
+        same = isinstance(old, dict) and all(old.get(k) == new[k] for k in ("hf", "revision", "doi") if k in new) \
+            and not any(k in old and k not in new for k in ("hf", "doi"))
+        kept = {k: old[k] for k in ("evaluations", "reasons_ab") if same and old.get(k)}
+        write_json_atomic(marker, {**new, **kept}, indent=None)
 
 
 def _region_boxes(

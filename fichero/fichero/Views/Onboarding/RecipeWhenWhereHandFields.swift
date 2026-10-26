@@ -52,7 +52,7 @@ struct RecipeWhenWhereHandFields: View {
                     typedHand = ""
                 }
         }
-        .task(id: "\(store.scripts.first ?? "")|\(store.period)") {
+        .task(id: "\(store.scripts.first ?? "")|\(store.period)|\(store.languages.joined(separator: ","))") {
             try? await Task.sleep(for: .milliseconds(300))  // the period as typed: ask once the person pauses
             guard !Task.isCancelled else { return }
             await store.loadHands()

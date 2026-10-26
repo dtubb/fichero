@@ -15,12 +15,13 @@ picture per call (as it was trained), and whether it may be released.
 """
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 #: Attached kind on the local ML lane: the conversion is handed in by the training job, which waits.
 CONVERT_KIND = "convert-a-model"
@@ -128,5 +129,5 @@ def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: di
             "adapter_path": shown(adapters), "trained_at": datetime.now(timezone.utc).isoformat(),
             "builds": {"mlx": {"model_id": model_id, "path": shown(dest), "bits": Q_BITS, "runs_on": "Apple silicon"},
                        "hf": {**hf, "runs_on": "Linux GPU (transformers, vLLM)"}}}
-    (dest / TRAINED_CARD).write_text(json.dumps(full, indent=1), encoding="utf-8")
+    write_json_atomic(dest / TRAINED_CARD, full)
     return model_id

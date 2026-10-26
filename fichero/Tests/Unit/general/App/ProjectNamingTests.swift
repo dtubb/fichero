@@ -124,13 +124,14 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(alone.projects.isEmpty)
 
         let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        XCTAssertTrue(view.contains("if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {"))  // a host-gone project is listed too
+        // a host-gone project is listed too
+        XCTAssertTrue(view.contains("if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {"))
         XCTAssertTrue(view.contains("Text(SidebarProjectSections.projectsHeading)"))
     }
 
     /// No code a person reads names the always-there project "My Project" any more.
     func testNothingSaysMyProject() throws {
-        let paths = ["Views/Onboarding/FirstRunWindow.swift", "Views/Onboarding/FirstRunWindow+Models.swift",
+        let paths = ["Views/Onboarding/FirstRun/FirstRunWindow.swift", "Views/Onboarding/FirstRun/FirstRunWindow+Models.swift",
                      "Views/Sidebar/Sections/LibraryHeaderRow.swift", "Views/Sidebar/Sections/SidebarSectionHeader.swift",
                      "Models/AlwaysThereProject.swift", "Models/LibraryManager.swift",
                      "Models/KnownLibraryRegistryStore.swift", "Models/LibraryRecents.swift",
@@ -182,7 +183,8 @@ final class ProjectNamingTests: XCTestCase {
     func testFirstLaunchSetupWelcomesAndOffersBothChoices() {
         XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project…")
         XCTAssertEqual(FirstLaunchChoices.startWithoutProject, "Start Without a Project")
-        XCTAssertTrue(FirstLaunchChoices.handOffParagraphs.first?.contains("Your work lives in projects") == true)  // Your First Project's words (#5828)
+        // Your First Project's words (#5828)
+        XCTAssertTrue(FirstLaunchChoices.handOffParagraphs.first?.contains("Your work lives in projects") == true)
 
         // The welcome's two choices are its footer's (ruled 2026-10-11, the Mac setup assistant's chrome).
         let steps = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps
@@ -232,35 +234,7 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(verbs.contains(".library: \"\(ItemsPane.name)\", .preview: \"\(SourcePane.name)\""))
     }
 
-    func testTheBreadcrumbRootIsTheProjectsName() {
-        let doc = Document(id: "f", parentId: "p", name: "File.pdf")
-        let parent = Document(id: "p", docType: .folder, name: "Box 3")
-        let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
-        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: "Mosquera"),
-                       "Mosquera › Box 3 › File.pdf")
-        XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "Mosquera").first?.name,
-                       "Mosquera")
-    }
-
     // MARK: - Side effects of the unnamed always-there project (#5655)
-
-    /// `sidebar.breadcrumb.no-root-for-unnamed-project`: the always-there project has no name, so
-    /// its trail starts at the first folder, never " › Sources › …".
-    func testTheBreadcrumbOmitsAnEmptyRoot() {
-        let doc = Document(id: "f", parentId: "p", name: "File.pdf")
-        let parent = Document(id: "p", docType: .folder, name: "Sources")
-        let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
-        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: ""),
-                       "Sources › File.pdf")
-        let segments = BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "")
-        XCTAssertEqual(segments.map(\.name), ["Sources", "File.pdf"])
-        XCTAssertFalse(segments.contains(where: \.isRoot))
-        XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: nil, parentLookup: lookup, rootName: ""), [])
-        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
-            document: doc, parentLookup: lookup, rootName: ""), "Sources › File.pdf")
-        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
-            document: nil, parentLookup: lookup, rootName: ""), "")
-    }
 
     /// `library.always-there-project.window-title`: the window titles by project; the always-there
     /// project's window reads "Fichero", another project's its name, no project nothing.
@@ -352,5 +326,35 @@ final class ProjectNamingTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
         try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
+    }
+}
+
+extension ProjectNamingTests {
+    func testTheBreadcrumbRootIsTheProjectsName() {
+        let doc = Document(id: "f", parentId: "p", name: "File.pdf")
+        let parent = Document(id: "p", docType: .folder, name: "Box 3")
+        let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: "Mosquera"),
+                       "Mosquera › Box 3 › File.pdf")
+        XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "Mosquera").first?.name,
+                       "Mosquera")
+    }
+
+    /// `sidebar.breadcrumb.no-root-for-unnamed-project`: the always-there project has no name, so
+    /// its trail starts at the first folder, never " › Sources › …".
+    func testTheBreadcrumbOmitsAnEmptyRoot() {
+        let doc = Document(id: "f", parentId: "p", name: "File.pdf")
+        let parent = Document(id: "p", docType: .folder, name: "Sources")
+        let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: ""),
+                       "Sources › File.pdf")
+        let segments = BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "")
+        XCTAssertEqual(segments.map(\.name), ["Sources", "File.pdf"])
+        XCTAssertFalse(segments.contains(where: \.isRoot))
+        XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: nil, parentLookup: lookup, rootName: ""), [])
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: doc, parentLookup: lookup, rootName: ""), "Sources › File.pdf")
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: nil, parentLookup: lookup, rootName: ""), "")
     }
 }

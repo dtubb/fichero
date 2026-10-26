@@ -115,6 +115,16 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         unknown = [x for x in _list(job_answers["review_lenses"]) if x not in lens_ids()]
         if unknown:
             problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
+    if isinstance(job_answers, dict) and job_answers.get("review_instructions") is not None:
+        from fichero_server.recipes.review_profiles import lens_ids
+
+        said = job_answers["review_instructions"]
+        if not isinstance(said, dict) or any(not isinstance(v, str) for v in said.values()):
+            problems.append("A review's instructions are text for each lens, by the lens's name.")
+        else:
+            unknown = [k for k in said if k not in lens_ids()]
+            if unknown:
+                problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
     if isinstance(job_answers, dict) and job_answers.get("review_certainty_bar") not in (None, "", "whole-page"):
         bar = job_answers["review_certainty_bar"]
         try:

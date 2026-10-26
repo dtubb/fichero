@@ -5032,10 +5032,11 @@ def fichero_library_remove_entity_type(
 
 def fichero_library_create(
     *,
+    embedding_model: Annotated[Optional[str], Field(description="the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)")] = None,
     path: Annotated[str, Field(description='Path.')],
 ) -> Any:
     'Create Library\n\nCreate a new ``.fichero`` package (or report it already exists).\n\nBehaviour:\n  * Validates ``request.path`` against the allowlist (403 on miss).\n  * If the package directory already contains a ``fichero.duckdb``,\n    returns ``created=False`` without touching the filesystem.\n  * Otherwise creates the package directory plus ``files/`` and\n    ``vectors/`` subdirs, then triggers schema initialization by\n    calling ``db_manager.get_database(path)`` (which also runs all\n    migrations and seeds default workflows).\n\nRoute: POST /api/library (toolset `library`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/library", json=_rt.body({"path": path}))
+    return _rt.call("POST", "/api/library", json=_rt.body({"embedding_model": embedding_model, "path": path}))
 
 
 def fichero_library_items_columns(
@@ -5884,6 +5885,12 @@ def fichero_pairing_renew_device_token(
     return _rt.call("POST", "/api/pair/devices/renew")
 
 
+def fichero_pairing_revoke_own_device(
+) -> Any:
+    "Revoke Own Device\n\nA paired device revokes its OWN pairing, authenticated by its own token (`m2p.ios.forget-revokes-on-the-mac`, #6133):\nthe Mac stops listing it and the token stops working. The device is the caller's, never named in the request, so a\ndevice cannot revoke another. Audited like renew.\n\nRoute: POST /api/pair/devices/revoke-self (toolset `pairing`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/pair/devices/revoke-self")
+
+
 def fichero_pairing_revoke_device(
     *,
     device_id: Annotated[str, Field(description='Device Id')],
@@ -6584,6 +6591,12 @@ def fichero_recipes_change_project_layers(
     return _rt.call("POST", "/api/recipes/project/layers", json=_rt.body({"languages": languages, "layers": layers, "remove": remove}))
 
 
+def fichero_recipes_get_review_instructions(
+) -> Any:
+    "Get Review Instructions\n\nEach review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.\n\nRoute: GET /api/recipes/project/review-instructions (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/project/review-instructions")
+
+
 def fichero_recipes_runs(
 ) -> Any:
     "Recipe Runs\n\nThe project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a\nworkflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576).\n\nRoute: GET /api/recipes/project/runs (toolset `recipes`; reads)."
@@ -6641,6 +6654,15 @@ def fichero_recipes_use_candidate_for_step(
 ) -> Any:
     "Use Candidate For Step\n\nUse this candidate for the step: any model the finder lists (shipped, installed, Kraken's repository or a\nHugging Face reader an earlier search kept) becomes the step's reader, kept as a project-scope override by the\npath use-instead and Use This take, through `project.save_setup` (audited, undoable) (#5612,\n`source.find.app-card-actions`). A model still to download is then a download the Start plan offers. Refused\n(422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job.\n\nRoute: POST /api/recipes/project/steps/use-candidate (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/recipes/project/steps/use-candidate", json=_rt.body({"card": card, "step": step}))
+
+
+def fichero_recipes_use_readers_for_step(
+    *,
+    cards: Annotated[list[Any], Field(description="two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)")],
+    step: Annotated[str, Field(description="the Find where the readers disagree step's id.")],
+) -> Any:
+    "Use Readers For Step\n\nThe readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared\nbesides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`\n(audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find\nwhere the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers.\n\nRoute: POST /api/recipes/project/steps/use-readers (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/use-readers", json=_rt.body({"cards": cards, "step": step}))
 
 
 def fichero_recipes_use_setup_pick_for_step(
@@ -7426,6 +7448,43 @@ def fichero_search_embed_document(
 ) -> Any:
     'Embed Document\n\nCreate embedding for a specific document.\n\nRoute: POST /api/search/embed/{doc_id} (toolset `search`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/search/embed/{doc_id}")
+
+
+def fichero_search_get_embedding_choice(
+) -> Any:
+    'Get Embedding Choice\n\nWhich embedding model this project searches with, the models it may choose, and how many vectors it holds.\n\nRoute: GET /api/search/embedding (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding")
+
+
+def fichero_search_put_embedding_choice(
+    *,
+    model: Annotated[str, Field(description='Model.')],
+) -> Any:
+    'Put Embedding Choice\n\nChoose the embedding model of a project that holds no vectors yet (`search.set_embedding_model`). A project that\ndoes is never switched silently (`search.embedding.change-is-a-re-embed-run`): 409.\n\nRoute: PUT /api/search/embedding (toolset `search`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/search/embedding", json=_rt.body({"model": model}))
+
+
+def fichero_search_start_embedding_change(
+    *,
+    confirm: Annotated[Optional[bool], Field(description='true once the person has seen the plan: pages, time and cost. Default: false.')] = None,
+    model: Annotated[str, Field(description='Model.')],
+) -> Any:
+    "Start Embedding Change\n\nStart the re-embed run that changes the project's embedding model (`search.change_embedding_model`, an audited\naction): the one `reindex` job (its progress shows in Activity), migrating to `body.model` in a shadow and swapping it\nin whole. `confirm` must be true: the plan comes first.\n\nRoute: POST /api/search/embedding/change (toolset `search`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/search/embedding/change", json=_rt.body({"confirm": confirm, "model": model}))
+
+
+def fichero_search_get_embedding_change_plan(
+    *,
+    model: Annotated[str, Field(description='Model')],
+) -> Any:
+    'Get Embedding Change Plan\n\nPages, time and cost of re-embedding every page with `model`, before anything runs\n(`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes.\n\nRoute: GET /api/search/embedding/change-plan (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding/change-plan", params={"model": model})
+
+
+def fichero_search_list_embedding_models(
+) -> Any:
+    'List Embedding Models\n\nThe search models a project may be made with, the recommended first, each with its one line\n(`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,\nfor the menu on Your project and the change sheet alike.\n\nRoute: GET /api/search/embedding/models (toolset `search`; reads).'
+    return _rt.call("GET", "/api/search/embedding/models")
 
 
 def fichero_search_explanation_explain(
@@ -9728,6 +9787,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_create_code", "pairing", "POST", "/api/pair/code", fichero_pairing_create_code),
     GeneratedTool("fichero_pairing_list_devices", "pairing", "GET", "/api/pair/devices", fichero_pairing_list_devices),
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
+    GeneratedTool("fichero_pairing_revoke_own_device", "pairing", "POST", "/api/pair/devices/revoke-self", fichero_pairing_revoke_own_device),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
     GeneratedTool("fichero_pairing_list_invites", "pairing", "GET", "/api/pair/invites", fichero_pairing_list_invites),
@@ -9804,6 +9864,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
+    GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),
     GeneratedTool("fichero_recipes_run_summary", "recipes", "GET", "/api/recipes/project/runs/{job_id}/summary", fichero_recipes_run_summary),
@@ -9811,6 +9872,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
+    GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
@@ -9887,6 +9949,11 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_schedules_trigger", "schedules", "POST", "/api/schedules/{schedule_id}/trigger", fichero_schedules_trigger),
     GeneratedTool("fichero_search_enhanced", "search", "POST", "/api/search", fichero_search_enhanced),
     GeneratedTool("fichero_search_embed_document", "search", "POST", "/api/search/embed/{doc_id}", fichero_search_embed_document),
+    GeneratedTool("fichero_search_get_embedding_choice", "search", "GET", "/api/search/embedding", fichero_search_get_embedding_choice),
+    GeneratedTool("fichero_search_put_embedding_choice", "search", "PUT", "/api/search/embedding", fichero_search_put_embedding_choice),
+    GeneratedTool("fichero_search_start_embedding_change", "search", "POST", "/api/search/embedding/change", fichero_search_start_embedding_change),
+    GeneratedTool("fichero_search_get_embedding_change_plan", "search", "GET", "/api/search/embedding/change-plan", fichero_search_get_embedding_change_plan),
+    GeneratedTool("fichero_search_list_embedding_models", "search", "GET", "/api/search/embedding/models", fichero_search_list_embedding_models),
     GeneratedTool("fichero_search_explanation_explain", "search-explanation", "POST", "/api/search/explain", fichero_search_explanation_explain),
     GeneratedTool("fichero_search_explanation_explain_path", "search-explanation", "GET", "/api/search/explain/{query}", fichero_search_explanation_explain_path),
     GeneratedTool("fichero_search_keyword_cloud", "search", "GET", "/api/search/keywords", fichero_search_keyword_cloud),

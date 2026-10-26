@@ -32,6 +32,7 @@ struct ReaderAllHitsTests {
         private var resume: ((Result<Void, any Error>) -> Void)?
 
         func load(_ html: String, into webView: WKWebView) async throws {
+            try await WebKitProbe.requireStarted()  // names the cause when WebKit cannot start here (#6111)
             try await withCheckedThrowingContinuation { continuation in
                 resume = { continuation.resume(with: $0) }
                 webView.navigationDelegate = self

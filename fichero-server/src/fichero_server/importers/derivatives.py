@@ -190,6 +190,10 @@ def queue_embedding(
 
     register_job_kinds()
     db = db if db is not None else _library_db(library)
+    from fichero_server.recipes.runner import leave_embed_to_search
+
+    if leave_embed_to_search(doc_id):  # the run's Search stage embeds this page once, from its text then (#6126)
+        return
     jobs.enqueue_many(db, EMBED_KIND, [doc_id], started_by="automatic")  # the top-level re-embed: nobody waits (#5819)
     db.add_after_commit_hook(lambda: _progress_add(library, 1, db_path=str(db.path)))
 
@@ -897,11 +901,10 @@ def _fetch_the_search_model(db) -> None:
 
         from fichero_server.core.timeutil import utc_now
         from fichero_server.db import embed_process
-        from fichero_server.db.embeddings import search_embedder
         from fichero_server.execution import jobs
         from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
 
-        model = search_embedder()
+        model = db._get_embedding_space().source_model_name  # the project's own model (#6122)
         subject = f"embeddings:{model}"
         if embed_process._cached(model, str(MODELS_BASE / "embeddings")):
             return

@@ -49,6 +49,33 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
 - `<surface>.<behavior>` [MISSING] — what the user observes.
 - `<surface>.<behavior-2>` [PARTIAL] — …
 
+## Build order
+
+The one judgement call in a spec: how it is cut into stages and steps. Opus makes it with the maintainer when the
+spec is approved; `scripts/check_spec_build_order_shape.py` checks the shape (hard for APPROVED, a warning for
+DRAFT), and the pipeline files one issue per STEP from it (`pipeline.build-order-shape`, spec
+`harness/deterministic-conductor.md`). The shape, exactly:
+
+```
+## Build order
+### Stage 2 — <title>            (optional level; a long spec has stages, a short one only steps)
+#### Step 2.3 — <title> (#NNNN)  (the issue number is added once filed)
+- Behaviours: `id.one`, `id.two`
+- Tests: path/to/test_file.py, FicheroTests/FooTests.swift
+- Depends on: 2.1, 2.2         (optional; default = the step before, within the stage)
+- Size: S | M | L              (L = split it before approval)
+```
+
+Rules for the cut:
+- Every behaviour that is not [OK] is in exactly one step; every step has Behaviours and Tests.
+- Each step is shippable alone: it builds, its tests go red then green, and it commits on its own.
+- Engine before app: a route, its model and its tests come before the view that shows them.
+- At most about five behaviours per step, or one route plus its model plus its tests. More is Size L: split it.
+- `Depends on` points only at earlier steps; a step starts only once its dependencies are closed.
+- One stage is what one coder context does in a row; the next stage starts a fresh context.
+- A changed step after filing gets a comment on its issue, never a second issue; a removed step is a "close?" for
+  the maintainer, never an automatic close.
+
 ## Test matrix (paste from `../TEST-TEMPLATE.md`, tick the legs this surface touches)
 
 | Leg | This surface? | Pins | File |

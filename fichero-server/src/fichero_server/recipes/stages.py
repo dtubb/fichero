@@ -137,7 +137,7 @@ STAGES: tuple[Stage, ...] = (
           (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
-          "Makes the pages searchable by meaning as well as by their words.",
+          "Makes the pages searchable by meaning as well as by their words. What is embedded is each page's text as read (line by line, or given whole) and, separately, the claims and entities found in it; one search model serves the whole project.",
           "Searching “historia” finds the lines that say “Historia”.",
           (),
           needs=("read",)),
@@ -145,9 +145,11 @@ STAGES: tuple[Stage, ...] = (
     # fields of the description are the archival ones.
     Stage("catalogue", "Catalogue", ("describe-for-the-catalogue",),
           "Describes each folder from what its pages say, as an archival record: title, dates, extent, creator, scope and "
-          "content, language, access points. It describes; it does not interpret.",
+          "content, language, access points, then a 150-200 word description written to the catalogue-writing guidance: it shows, "
+          "it does not tell. It describes; it does not interpret.",
           "A folder of letters described as: Title, Dates 1782–1790, Extent 214 pages, Scope and content: letters between "
-          "the named parties, in Spanish.",
+          "the named parties, in Spanish; Description: 214 pages of letters from Cádiz to Veracruz, 31 of them naming the same "
+          "merchant, with 40 accounts bound in.",
           (),
           needs=("read",)),
 )

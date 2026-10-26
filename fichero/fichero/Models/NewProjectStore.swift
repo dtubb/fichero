@@ -17,6 +17,12 @@ final class NewProjectStore {
     }
 
     var name = "Untitled Project"
+    /// The model the project searches with, chosen here and kept (`search.embedding.chosen-at-project-creation`);
+    /// changing it later is a re-embed run (`EmbeddingChangeStore`).
+    var embeddingModel = EmbeddingModelChoice.defaultModel
+    /// The models the menu offers: the engine's list with its one lines once read (`GET /api/search/embedding/models`,
+    /// library-free, #6144), the built-in one until then or when the engine cannot be reached.
+    private(set) var embeddingChoices = EmbeddingModelChoice.all
     var place: Place = .insideFichero
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -27,13 +33,25 @@ final class NewProjectStore {
 
     private let libraryManager: LibraryManager
     /// Has the engine open the new project (`POST /api/library`). A seam so a test can stand in
-    /// for the engine; the app's is the project's own `initializeLibrary`.
-    private let openInEngine: (LibraryManager.LibraryReference) async throws -> Void
+    /// for the engine; without one it is the project's own `initializeLibrary`, with the chosen search model.
+    private let openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)?
+
+    /// Moves the package to the Trash (recoverable, never an unlink). A seam for the test.
+    private let trash: (URL) throws -> Void
 
     init(libraryManager: LibraryManager,
-         openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil) {
+         openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil,
+         trash: ((URL) throws -> Void)? = nil) {
         self.libraryManager = libraryManager
-        self.openInEngine = openInEngine ?? { try await $0.apiClient.initializeLibrary(path: $0.url.path) }
+        self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
+        self.openInEngine = openInEngine
+    }
+
+    /// Read the engine's list of search models; a choice it no longer offers falls back to the first (the recommended).
+    func loadEmbeddingChoices(client: FicheroClient) async {
+        guard let listed = await EmbeddingModelChoice.fetch(client: client) else { return }
+        embeddingChoices = listed
+        if !listed.contains(where: { $0.model == embeddingModel }), let first = listed.first { embeddingModel = first.model }
     }
 
     /// The name as a file name: what a folder cannot hold is replaced, and an empty name is
@@ -91,7 +109,11 @@ final class NewProjectStore {
         defer { isCreating = false }
         do {
             let project = try libraryManager.createProject(at: url)
-            try await openInEngine(project)
+            if let openInEngine {
+                try await openInEngine(project)
+            } else {
+                try await project.apiClient.initializeLibrary(path: project.url.path, embeddingModel: embeddingModel)
+            }
             created = project
             return project
         } catch {
@@ -99,5 +121,22 @@ final class NewProjectStore {
             errorMessage = "\(Self.cannotWrite) (\(error.localizedDescription))"
             return nil
         }
+    }
+
+    /// Cancel on a new project's Set Up: close the project this store made and move its package to the Trash
+    /// (#6117). Deletes only `created`, never a project the store did not make. Returns whether it deleted one.
+    @discardableResult
+    func discard() -> Bool {
+        guard let project = created else { return false }
+        let url = project.url
+        created = nil
+        do {
+            try LibraryManager.closeAndTrash(url, close: { libraryManager.closeAndUnregisterLibrary(project.id) },
+                                             trash: trash)
+        } catch {
+            errorMessage = "The project is closed, but its folder could not be moved to the Trash: \(error.localizedDescription)"
+            return false
+        }
+        return true
     }
 }

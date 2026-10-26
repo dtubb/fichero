@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.10.24"
+    "version": "2026.10.26"
   },
   "paths": {
     "/api/clients": {
@@ -381,11 +381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/QueuedItem"
-                  },
-                  "title": "Response List Queued Items Api Activity Jobs Kind  Kind  Items Get"
+                  "$ref": "#/components/schemas/QueuedItemListResponse"
                 }
               }
             }
@@ -3254,6 +3250,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/devices/revoke-self": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Revoke Own Device",
+        "description": "A paired device revokes its OWN pairing, authenticated by its own token (`m2p.ios.forget-revokes-on-the-mac`, #6133):\nthe Mac stops listing it and the token stops working. The device is the caller's, never named in the request, so a\ndevice cannot revoke another. Audited like renew.",
+        "operationId": "revoke_own_device_api_pair_devices_revoke_self_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
                 }
               }
             }
@@ -16301,6 +16320,28 @@
         }
       }
     },
+    "/api/recipes/project/review-instructions": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Review Instructions",
+        "description": "Each review pass's instructions, the default built from the project's setup and the project's edit if it has one\n(`source.job.review-instructions-are-editable`, #6128). Saved as `job_answers.review_instructions`.",
+        "operationId": "get_review_instructions_api_recipes_project_review_instructions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewInstructions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/allow-cloud": {
       "post": {
         "tags": [
@@ -16564,6 +16605,70 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UseCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/steps/use-readers": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Readers For Step",
+        "description": "The readers to compare: the person's choice REPLACES the step's reader set (no reader the rules added is compared\nbesides; the same model chosen twice counts once), kept as a project-scope override through `project.save_setup`\n(audited, undoable) (`source.disagree.person-chooses-the-readers`, #6121). Refused (422) for a step that is not Find\nwhere the readers disagree, a card Fichero does not know here or that does not read, or fewer than two different readers.",
+        "operationId": "use_readers_for_step_api_recipes_project_steps_use_readers_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseReadersRequest"
               }
             }
           }
@@ -29900,6 +30005,112 @@
         }
       }
     },
+    "/api/search/embedding/models": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "List Embedding Models",
+        "description": "The search models a project may be made with, the recommended first, each with its one line\n(`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,\nfor the menu on Your project and the change sheet alike.",
+        "operationId": "list_embedding_models_api_search_embedding_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/embedding": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Get Embedding Choice",
+        "description": "Which embedding model this project searches with, the models it may choose, and how many vectors it holds.",
+        "operationId": "get_embedding_choice_api_search_embedding_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChoiceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Put Embedding Choice",
+        "description": "Choose the embedding model of a project that holds no vectors yet (`search.set_embedding_model`). A project that\ndoes is never switched silently (`search.embedding.change-is-a-re-embed-run`): 409.",
+        "operationId": "put_embedding_choice_api_search_embedding_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingChoiceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChoiceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search/embed/{doc_id}": {
       "post": {
         "tags": [
@@ -30205,6 +30416,113 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReorderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/embedding/change-plan": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Get Embedding Change Plan",
+        "description": "Pages, time and cost of re-embedding every page with `model`, before anything runs\n(`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes.",
+        "operationId": "get_embedding_change_plan_api_search_embedding_change_plan_get",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChangePlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/embedding/change": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Start Embedding Change",
+        "description": "Start the re-embed run that changes the project's embedding model (`search.change_embedding_model`, an audited\naction): the one `reindex` job (its progress shows in Activity), migrating to `body.model` in a shadow and swapping it\nin whole. `confirm` must be true: the plan comes first.",
+        "operationId": "start_embedding_change_api_search_embedding_change_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingChangeStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingChangeStarted"
                 }
               }
             }
@@ -64004,6 +64322,203 @@
         ],
         "title": "EmbedEntitiesResponse"
       },
+      "EmbeddingChangePlan": {
+        "properties": {
+          "from_model": {
+            "type": "string",
+            "title": "From Model"
+          },
+          "to_model": {
+            "type": "string",
+            "title": "To Model"
+          },
+          "same": {
+            "type": "boolean",
+            "title": "Same"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "passages": {
+            "type": "integer",
+            "title": "Passages"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "seconds_estimate": {
+            "type": "integer",
+            "title": "Seconds Estimate"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          },
+          "keeps_old_vectors_until_done": {
+            "type": "boolean",
+            "title": "Keeps Old Vectors Until Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_model",
+          "to_model",
+          "same",
+          "pages",
+          "passages",
+          "entities",
+          "claims",
+          "seconds_estimate",
+          "cost_usd",
+          "runs_on",
+          "keeps_old_vectors_until_done"
+        ],
+        "title": "EmbeddingChangePlan",
+        "description": "What re-embedding the project with another model would do, said before it runs (#6122)."
+      },
+      "EmbeddingChangeStartRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "description": "true once the person has seen the plan: pages, time and cost",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "EmbeddingChangeStartRequest"
+      },
+      "EmbeddingChangeStarted": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "job_id",
+          "message"
+        ],
+        "title": "EmbeddingChangeStarted"
+      },
+      "EmbeddingChoiceRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "EmbeddingChoiceRequest"
+      },
+      "EmbeddingChoiceResponse": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "vectors": {
+            "type": "integer",
+            "title": "Vectors"
+          },
+          "changeable": {
+            "type": "boolean",
+            "title": "Changeable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "models",
+          "vectors",
+          "changeable"
+        ],
+        "title": "EmbeddingChoiceResponse",
+        "description": "The embedding model a project searches with (`search.embedding.chosen-at-project-creation`, #6122)."
+      },
+      "EmbeddingModelList": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingModelOption"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "EmbeddingModelList"
+      },
+      "EmbeddingModelOption": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "its short name"
+          },
+          "blurb": {
+            "type": "string",
+            "title": "Blurb",
+            "description": "one line: what it is good for"
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "name",
+          "blurb",
+          "recommended"
+        ],
+        "title": "EmbeddingModelOption"
+      },
       "EmbeddingStatsResponse": {
         "properties": {
           "indexed_count": {
@@ -68569,6 +69084,32 @@
         "title": "HealthResponse",
         "description": "Response from ``GET /api/health`` endpoint.\n\nIf library path is provided in the request header, returns stats for that\nlibrary. Otherwise, returns general backend health."
       },
+      "HeldModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "what holds it: the search embedder, Kraken"
+          },
+          "memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Bytes",
+            "description": "its resident size when it has a process of its own; null when it lives inside the engine's memory or is unknown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "HeldModel",
+        "description": "A model the engine holds in memory (`models_held`, #6129)."
+      },
       "HermeneuticCircleState": {
         "properties": {
           "id": {
@@ -71312,6 +71853,13 @@
             "nullable": true,
             "title": "Stages"
           },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/TreeReader"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
           "summary": {
             "$ref": "#/components/schemas/RecipeRunSummary",
             "nullable": true
@@ -73486,6 +74034,12 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "embedding_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Embedding Model",
+            "description": "the embedding model the project searches with, chosen now and kept (`search.embedding.chosen-at-project-creation`); none: the engine's default (bge-m3)"
           }
         },
         "type": "object",
@@ -75768,6 +76322,13 @@
             "type": "string",
             "nullable": true,
             "title": "Why Wait"
+          },
+          "models_held": {
+            "items": {
+              "$ref": "#/components/schemas/HeldModel"
+            },
+            "type": "array",
+            "title": "Models Held"
           }
         },
         "type": "object",
@@ -83142,6 +83703,27 @@
         ],
         "title": "QueuedItem"
       },
+      "QueuedItemListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueuedItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "QueuedItemListResponse"
+      },
       "QuotationKind": {
         "type": "string",
         "enum": [
@@ -87172,6 +87754,60 @@
           "state"
         ],
         "title": "RetryResponse"
+      },
+      "ReviewInstruction": {
+        "properties": {
+          "lens": {
+            "type": "string",
+            "title": "Lens",
+            "description": "the pass's lens: abbreviations, orthography or names-and-dates"
+          },
+          "default": {
+            "type": "string",
+            "title": "Default",
+            "description": "the instructions built from the project's language, script and date"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "what the pass is sent: the project's edit, else the default"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "whether the project edited this pass's instructions"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "description": "the sentence saying which profile the default was built from"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lens",
+          "default",
+          "text",
+          "edited",
+          "profile"
+        ],
+        "title": "ReviewInstruction"
+      },
+      "ReviewInstructions": {
+        "properties": {
+          "passes": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewInstruction"
+            },
+            "type": "array",
+            "title": "Passes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passes"
+        ],
+        "title": "ReviewInstructions"
       },
       "ReviewListResponse": {
         "properties": {
@@ -93555,6 +94191,30 @@
             "type": "string",
             "nullable": true,
             "title": "Why"
+          },
+          "card_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Card Id",
+            "description": "its model card's id, when the plan knew a card"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "its model card's name for a person"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On",
+            "description": "where it runs: this-mac or cloud:<provider>"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this reader is, as the plan said it: 'Also reads print pages with Apple Vision'; the same text as `RecipeStep.readers[].sentence`, shown as it stands (#6134); null for pages read by the stage's own reader"
           }
         },
         "type": "object",
@@ -94986,6 +95646,12 @@
             },
             "type": "array",
             "title": "Reasons"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "who this extra reader is, in a sentence, as the app and Activity show it: 'Also reads print pages with Apple Vision'"
           },
           "gap": {
             "type": "string",
@@ -98328,6 +98994,53 @@
         ],
         "title": "TraverseResponse"
       },
+      "TreeReader": {
+        "properties": {
+          "material": {
+            "type": "string",
+            "nullable": true,
+            "title": "Material"
+          },
+          "card_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Card Id"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "default": 0
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "title": "TreeReader",
+        "description": "One reader of a reading stage, as the Activity row names it (#6134): `sentence` is the text to show as it stands."
+      },
       "TriangleRow": {
         "properties": {
           "entity_id": {
@@ -99134,6 +99847,12 @@
             "type": "string",
             "title": "Why",
             "description": "what it waits for, in words"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "the recipe run (its job id) a stage line belongs to, so an app names the run without parsing `id`; null for work that is a row of its own"
           }
         },
         "type": "object",
@@ -99491,6 +100210,31 @@
         ],
         "title": "UseInsteadRequest",
         "description": "Use an installed model instead of downloading the one the plan waits for (#5583), or the same model at a free\nplace instead of on this Mac, which cannot run it (#5592). Exactly one of `card` and `provider`."
+      },
+      "UseReadersRequest": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "the Find where the readers disagree step's id"
+          },
+          "cards": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cards",
+            "description": "two or more different readers' card ids, as GET /api/recipes/candidates lists them (`id`)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step",
+          "cards"
+        ],
+        "title": "UseReadersRequest",
+        "description": "Choose the readers Find where the readers disagree compares (#6121)."
       },
       "UseSetupPickRequest": {
         "properties": {

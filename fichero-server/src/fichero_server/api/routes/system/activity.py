@@ -221,6 +221,15 @@ def _remote_row(db, row: dict) -> "RemoteRunRow | None":
         return None
 
 
+class HeldModel(BaseModel):
+    """A model the engine holds in memory (`models_held`, #6129)."""
+
+    name: str
+    kind: str = Field(description="what holds it: the search embedder, Kraken")
+    memory_bytes: Optional[int] = Field(default=None, description=(
+        "its resident size when it has a process of its own; null when it lives inside the engine's memory or is unknown"))
+
+
 class MachineState(BaseModel):
     """This Mac's state, as the throttle reads it (`activity.popover.summary`, #5415)."""
 
@@ -233,6 +242,8 @@ class MachineState(BaseModel):
     in_use: bool = False
     # Why heavy local work is held back right now, in words; None when it may go ahead.
     why_wait: Optional[str] = None
+    # The models the engine itself holds in memory now, with what each takes (#6129): what it could hand back when memory is tight.
+    models_held: list[HeldModel] = Field(default_factory=list)
 
 
 def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:
@@ -265,6 +276,11 @@ class QueuedItem(BaseModel):
     subject: str
     state: str
     reason: Optional[str] = None
+
+
+class QueuedItemListResponse(BaseModel):
+    items: list[QueuedItem]
+    count: int
 
 
 class LiveBlock(BaseModel):
@@ -308,6 +324,9 @@ class UpNextItem(BaseModel):
     stage: Optional[str] = Field(None, description="Set Up's stage it belongs to, by title; null for work that is none")
     after: Optional[str] = Field(None, description="what it follows, when it waits for an earlier stage ('Read')")
     why: str = Field(description="what it waits for, in words")
+    run_id: Optional[str] = Field(None, description=(
+        "the recipe run (its job id) a stage line belongs to, so an app names the run without parsing `id`; null for work that "
+        "is a row of its own"))
 
 
 class ActivitySummary(BaseModel):
@@ -422,6 +441,12 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     return blocks
 
 
+#: The work a recipe run causes for its own pages, which waits on the model lanes: embedding (the Search stage's), tying text
+#: to lines, the NLP draft, and the import's derivative queue. With a recipe run live they are the run's, shown in its row and
+#: Details, never top-level Up Next rows that read as if they ran before or beside Read (#6126).
+_FOLLOW_ON_KINDS = frozenset({"thumbnail", "embed", "embed-knowledge", "nlp-draft", "tie-text-to-lines", "derivatives"})
+
+
 def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | None" = None) -> list[UpNextItem]:
     """The work not yet started, in the order of the ordered list: each waiting row with what it waits for, and, under a
     recipe run that is going, each of its stages not yet started with the stage before it as `after` (a field of the run's
@@ -429,8 +454,11 @@ def up_next(jobs: "list[BackgroundJob]", statuses: "dict[str, dict[str, Any]] | 
     from fichero_server.recipes.stages import stage_of
 
     items = []
+    going = any(j.task_type == "run-a-recipe" and j.state in ("running", "paused") for j in jobs)  # a queued run has caused nothing yet
     for job in jobs:
         if job.parent_id or job.group != "live":
+            continue
+        if going and job.task_type in _FOLLOW_ON_KINDS:
             continue
         if job.state == "waiting":
             stage = stage_of(job.task_type)
@@ -454,7 +482,7 @@ def _stages_not_started(job: "BackgroundJob", status: "dict[str, Any] | None") -
         stage = stage_of(step.get("job") or (step.get("steps") or [""])[0])
         after_stage = stage_of(before.get("job") or (before.get("steps") or [""])[0])
         after = after_stage.title if after_stage else before.get("doing")
-        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name,
+        items.append(UpNextItem(id=f"{job.id}:{step.get('child_id') or index}", name=stage.title if stage else job.name, run_id=job.id,
                                 stage=stage.title if stage else None, after=after,
                                 why=step.get("why") or (f"after {after}" if after else "in the queue")))
     return items
@@ -493,6 +521,19 @@ class BackgroundJobsResponse(BaseModel):
     summary: Optional[QueueSummary] = None
     # The ONE summary the window and the popover read (`activity.popover.same-summary`, #5852).
     activity: Optional[ActivitySummary] = None
+
+
+class TreeReader(BaseModel):
+    """One reader of a reading stage, as the Activity row names it (#6134): `sentence` is the text to show as it stands."""
+
+    material: Optional[str] = None
+    card_id: Optional[str] = None
+    note: Optional[str] = None
+    runs_on: Optional[str] = None
+    sentence: Optional[str] = None
+    model: Optional[str] = None
+    pages: int = 0
+    state: Optional[str] = None
 
 
 class JobTree(BaseModel):
@@ -536,6 +577,10 @@ class JobTree(BaseModel):
     # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
     # included, each workflow stage with its run's account; null on any other job.
     stages: Optional[list[RecipeRunStep]] = None
+    # The readers of a reading stage (#6134): on a recipe run's child that is a stage's main run, each reader the stage used by
+    # kind of material (card id, name, where it runs, the sentence to show); empty on any other row.
+    # The same readers are in the run status's `stages[].readers`, which the Activity stage row draws; this copy is for the tree view.
+    readers: list[TreeReader] = Field(default_factory=list)
     # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
     summary: Optional[RecipeRunSummary] = None
     summary_unavailable: Optional[str] = Field(None, description=(
@@ -855,6 +900,14 @@ async def list_background_jobs(
             )
         )
 
+    # A workflow a recipe runs for one of its stages (Transcribe HTR for Read) is shown inside the recipe's row, not as a
+    # second top-level row (#6125): its job is under the recipe run, or its status names it as a stage's run.
+    owned: set[str] = set()
+    for run_id, run_status in recipe_statuses.items():
+        owned.update(st["child_id"] for st in run_status.get("steps", []) if st.get("child_id"))
+        owned |= _run_ids_under(await asyncio.to_thread(job_queue.tree, db, run_id))  # off the loop (#5843)
+    jobs = [j for j in jobs if not (j.task_type == "workflow" and j.id in owned)]
+
     # Off the loop (Fable review #2): the tree walk and the machine readings run subprocesses (ps, pmset).
     usage = await asyncio.to_thread(process_tree_rusage)  # once per poll, shared by memory and energy (#5358)
     jobs = order_for_activity(jobs)
@@ -880,19 +933,19 @@ def _queue_summary(db: Database, listed: list[dict[str, Any]]) -> Optional[Queue
     return QueueSummary(**said) if said else None
 
 
-@router.get("/jobs/kind/{kind}/items", response_model=list[QueuedItem])
+@router.get("/jobs/kind/{kind}/items", response_model=QueuedItemListResponse)
 async def list_queued_items(
     kind: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Database = Depends(get_library_database),
-) -> list[QueuedItem]:
+) -> QueuedItemListResponse:
     """The pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the
     order the lane will pick them, running first."""
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return [QueuedItem(**i) for i in items]
+    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
@@ -958,20 +1011,40 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         _cut(child, depth - 1)
 
 
-def _recipe_pages_done(status: dict[str, Any]) -> int:
-    """A recipe run's pages done, each page counted ONCE (`activity.run.pages-counted-once`, #5959, #5871): a page is done when
-    every workflow stage has done it, so the run reads the least of its stages, and 0 while a stage has not started (a
-    92-page run over three stages reads "36 of 92", never "184 of 276"). The stage that is working is named by the row's
-    reason ("Reading lines: 46 of 92")."""
+def _recipe_progress(status: dict[str, Any], pages: int) -> tuple[int, int]:
+    """(done, in all) a recipe run's row shows: THE numbers its Details show for the stage working now (#6125, owner
+    2026-10-25: a row read "0 of 23" while Details read the Read stage "20 of 20"). The stage working is the running
+    workflow stage with its account; the row reads its pages done and in all. With none running: the least of the stages'
+    pages and 0 while a stage has not started (`activity.run.pages-counted-once`, #5959: 92 pages over three stages
+    never read "184 of 276"), over the run's own pages or the most any stage has."""
     stages = [s for s in status["steps"] if s.get("card") == "workflow"]
+    running = next((s for s in stages if s.get("state") == "running" and s.get("account") is not None), None)
+    if running is not None:
+        return running["account"].pages_done, running["account"].pages_total
+    total = max([pages, *(s["account"].pages_total for s in status["steps"] if s.get("account") is not None)])
     if not stages or any(s.get("account") is None for s in stages):
-        return 0
-    return min(s["account"].pages_done for s in stages)
+        return 0, total
+    return min(s["account"].pages_done for s in stages), total
+
+
+def _recipe_pages_done(status: dict[str, Any]) -> int:
+    """A recipe run's pages done on its row (see `_recipe_progress`)."""
+    return _recipe_progress(status, 0)[0]
 
 
 def _recipe_pages_in_all(status: dict[str, Any], pages: int) -> int:
-    """The run's pages in all: its own pages, or the most any one stage has (never the stages' pages added together)."""
-    return max([pages, *(s["account"].pages_total for s in status["steps"] if s.get("account") is not None)])
+    """The run's pages in all on its row (see `_recipe_progress`): the running stage's, else the most any one stage has."""
+    return _recipe_progress(status, pages)[1]
+
+
+def _run_ids_under(tree: Optional[dict[str, Any]]) -> set[str]:
+    """The ids of every job under a job tree's root: the workflow runs a recipe run started, whether or not its status has
+    tied them to a stage yet."""
+    out: set[str] = set()
+    for child in (tree or {}).get("children") or []:
+        out.add(child["id"])
+        out |= _run_ids_under(child)
+    return out
 
 
 async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:
@@ -984,8 +1057,9 @@ async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], 
     # Off the loop (#5843): `runner.status` reads the library's rows and waits on the transaction gate behind a write.
     status = await run_view.with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))
     state, reason = job_queue.state_and_reason(db, job_id) or (status["state"], status["reason"])
-    if state == "running" and status["waiting_for"]:
-        reason = status["waiting_for"]
+    if state == "running":
+        # What it waits for, else the stage in words with its pages (#6125), not the stored "Running step 2 of 5".
+        reason = status["waiting_for"] or status["reason"] or reason
     return state, reason, status
 
 
@@ -998,7 +1072,10 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     found["state"], found["reason"], status = await _recipe_state(db, found["id"])
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
+    readers = {s["child_id"]: s["readers"] for s in status["steps"] if s.get("child_id") and s.get("readers")}
     for child in found["children"]:
+        if child["id"] in readers:  # the stage reads with a reader per kind: the row names each (#6134)
+            child["readers"] = [dict(r) if isinstance(r, dict) else r.model_dump() for r in readers[child["id"]]]
         account = accounts.get(child["id"])
         if account is not None:
             child["account"] = account

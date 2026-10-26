@@ -1,6 +1,6 @@
 {
  "name": "Transcribe + Review (Pipeline)",
- "description": "Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Paleographer Review workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.",
+ "description": "Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Review the Reading workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -14,7 +14,7 @@
   "chain"
  ],
  "config": {
-  "preset_version": 1
+  "preset_version": 2
  },
  "nodes": [
   {
@@ -65,12 +65,12 @@
   {
    "id": "stage-review",
    "tool": "sub_workflow",
-   "label": "Stage 2 — Paleographer Review",
+   "label": "Stage 2 — Review the Reading",
    "position_x": 640,
    "position_y": 200,
    "inputs": {},
    "config": {
-    "workflow_ref": "Paleographer Review",
+    "workflow_ref": "Review the Reading",
     "input_contract": [
      {
       "id": "files",

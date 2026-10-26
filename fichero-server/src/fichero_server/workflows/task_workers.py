@@ -69,6 +69,10 @@ class TaskWorkersMixin:
             task.status = TaskStatus.FAILED
             return result
 
+        to_model = (task.config.options or {}).get("to_model")
+        if to_model:
+            return await self._do_embedding_change(task, str(to_model))
+
         # Get documents to reindex
         docs = await asyncio.to_thread(self._db_call, "all", Document)
         total = len(docs)
@@ -106,6 +110,41 @@ class TaskWorkersMixin:
         )
         task.result = result
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
+
+    async def _do_embedding_change(self, task: BackgroundTask, to_model: str) -> TaskResult:
+        """The project's model change (`search.embedding.change-is-a-re-embed-run`, #6122): `migrate_embedding_space` with
+        `to_model`, in a worker thread, reporting the pages embedded as its progress. Search reads the old vectors until it
+        has swapped the new ones in."""
+        loop = asyncio.get_running_loop()
+        package = Path(self.database.path).parent
+        task.progress.message = f"Embedding every page again with {to_model}..."
+        await self._save_task_progress(task)
+
+        def progress(done: int, total: int) -> None:
+            task.progress.current, task.progress.total = done, total
+            task.progress.percent = (done / total * 100) if total else 0.0
+            task.progress.message = f"Embedded {done} of {total} pages with {to_model}"
+            if done == total or done % 10 == 0:
+                asyncio.run_coroutine_threadsafe(self._save_task_progress(task), loop)
+
+        def run() -> dict:
+            return db_manager.get_database(package).migrate_embedding_space(
+                confirm=True, to_model=to_model, on_progress=progress)
+
+        try:
+            details = await asyncio.to_thread(run)
+        except Exception as exc:  # noqa: BLE001 -- the run's failure, in its words, on the row; the old vectors still stand
+            logger.warning("embedding change to %s failed: %s", to_model, exc)
+            result = TaskResult(success=False, message=f"Changing the embedding model to {to_model} did not finish: {exc}",
+                                error=str(exc))
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
+        result = TaskResult(success=True, message=f"Every page is embedded with {to_model}; search uses it now",
+                            details={k: v for k, v in details.items() if k not in ("before", "after")})
+        task.result = result
+        task.status = TaskStatus.COMPLETED
         return result
 
     async def _do_metrics(self, task: BackgroundTask) -> TaskResult:

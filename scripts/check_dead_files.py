@@ -74,7 +74,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/EntrySourcePreview.swift": "#4235-class — extension-heavy view file; LadderLevel is the private containment-ladder rung enum used only by this view's own step logic (2026-08-23)",
     "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
-    "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",

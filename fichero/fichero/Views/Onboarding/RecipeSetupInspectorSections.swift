@@ -46,6 +46,7 @@ struct InspectorRecipeSection: View {
                 }
                 InspectorProjectLanguages(store: store)
                 InspectorProjectLayers(store: store)
+                InspectorProjectEmbedding(library: library)
                 Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
                     .controlSize(.small)
             }

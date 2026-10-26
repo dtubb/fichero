@@ -114,8 +114,18 @@ struct EngineStatusToolbarItem: View {
             // +Status) rather than re-implementing any of that chrome here.
             // #4380: the popover is now a title, one sentence and one action —
             // it no longer needs 340pt of illustration and cycling copy.
+            #if os(iOS) || os(visionOS)
+            if phase == .ready {
+                // A connected iPhone or iPad: sign out, add or change server, share the log (#6124).
+                NavigationStack { IOSConnectionMenu() }
+            } else {
+                BackendConnectionView(appState: appState, onRetry: engineRetry)
+                    .frame(width: 380, height: 200)
+            }
+            #else
             BackendConnectionView(appState: appState, onRetry: engineRetry)
                 .frame(width: 380, height: 200)
+            #endif
         }
         .accessibilityLabel(accessibilityLabel)
     }

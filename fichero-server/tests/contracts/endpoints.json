@@ -432,7 +432,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[QueuedItem]"
+        "response_model": "QueuedItemListResponse"
       },
       {
         "method": "PUT",
@@ -8597,6 +8597,16 @@
       },
       {
         "method": "POST",
+        "path": "/pair/devices/revoke-self",
+        "operation_id": "revoke_own_device_api_pair_devices_revoke_self_post",
+        "summary": "Revoke Own Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
         "path": "/pair/devices/{device_id}/revoke",
         "operation_id": "revoke_device_api_pair_devices__device_id__revoke_post",
         "summary": "Revoke Device",
@@ -9609,6 +9619,16 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/review-instructions",
+        "operation_id": "get_review_instructions_api_recipes_project_review_instructions_get",
+        "summary": "Get Review Instructions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReviewInstructions"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project/runs",
         "operation_id": "recipe_runs_api_recipes_project_runs_get",
         "summary": "Recipe Runs",
@@ -9685,6 +9705,16 @@
         "path_params": [],
         "query_params": [],
         "request_model": "UseCandidateRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/steps/use-readers",
+        "operation_id": "use_readers_for_step_api_recipes_project_steps_use_readers_post",
+        "summary": "Use Readers For Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UseReadersRequest",
         "response_model": "ProjectSetup"
       },
       {
@@ -10694,6 +10724,62 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EmbedDocumentResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/search/embedding",
+        "operation_id": "get_embedding_choice_api_search_embedding_get",
+        "summary": "Get Embedding Choice",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmbeddingChoiceResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/search/embedding",
+        "operation_id": "put_embedding_choice_api_search_embedding_put",
+        "summary": "Put Embedding Choice",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EmbeddingChoiceRequest",
+        "response_model": "EmbeddingChoiceResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/search/embedding/change",
+        "operation_id": "start_embedding_change_api_search_embedding_change_post",
+        "summary": "Start Embedding Change",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EmbeddingChangeStartRequest",
+        "response_model": "EmbeddingChangeStarted"
+      },
+      {
+        "method": "GET",
+        "path": "/search/embedding/change-plan",
+        "operation_id": "get_embedding_change_plan_api_search_embedding_change_plan_get",
+        "summary": "Get Embedding Change Plan",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EmbeddingChangePlan"
+      },
+      {
+        "method": "GET",
+        "path": "/search/embedding/models",
+        "operation_id": "list_embedding_models_api_search_embedding_models_get",
+        "summary": "List Embedding Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmbeddingModelList"
       },
       {
         "method": "POST",

@@ -152,9 +152,7 @@ if [ -n "$SIGN_IDENTITY" ]; then
   macho_list="$(mktemp)"
   # LC_ALL=C: same hazard as build-release-dmg.sh — `file` echoes bytes that
   # are not valid UTF-8, and awk aborts on them under a UTF-8 locale.
-  find "$ENGINE_APP" -type f -exec file {} + 2>/dev/null \
-    | LC_ALL=C awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
-    | sort -u > "$macho_list"
+  "$(dirname "$0")/list_machos.sh" "$ENGINE_APP" > "$macho_list"
   macho_count=$(wc -l < "$macho_list" | tr -d ' ')
   echo "  Embedded engine cleanup: signing $macho_count Mach-O files with $SIGN_IDENTITY"
   while IFS= read -r macho; do

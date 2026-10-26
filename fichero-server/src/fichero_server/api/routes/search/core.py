@@ -1732,6 +1732,82 @@ async def reindex_all(db: Database = Depends(get_library_database_for_write)) ->
     )
 
 
+class EmbeddingChoiceRequest(BaseModel):
+    model: str
+
+
+class EmbeddingChoiceResponse(BaseModel):
+    """The embedding model a project searches with (`search.embedding.chosen-at-project-creation`, #6122)."""
+
+    model: str
+    models: list[str]
+    vectors: int
+    changeable: bool
+
+
+def _embedding_choice(db: Database) -> EmbeddingChoiceResponse:
+    from fichero_server.db.embeddings import (
+        EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+        SUPPORTED_EMBEDDING_SPACES,
+    )
+
+    # All three tables are stamped with the model: entities and claims are searched by their vectors too.
+    vectors = sum(int(db._vector_table_stats(t)["indexed_count"])
+                  for t in (EMBEDDINGS_TABLE, KG_ENTITY_EMBEDDINGS_TABLE, KG_CLAIM_EMBEDDINGS_TABLE))
+    return EmbeddingChoiceResponse(
+        model=db._get_embedding_space().source_model_name,
+        models=sorted({s.source_model_name for s in SUPPORTED_EMBEDDING_SPACES.values()}),
+        vectors=vectors, changeable=vectors == 0)
+
+
+class EmbeddingModelOption(BaseModel):
+    model: str
+    name: str = Field(description="its short name")
+    blurb: str = Field(description="one line: what it is good for")
+    recommended: bool
+
+
+class EmbeddingModelList(BaseModel):
+    models: list[EmbeddingModelOption]
+
+
+@router.get("/embedding/models", response_model=EmbeddingModelList)
+def list_embedding_models() -> EmbeddingModelList:
+    """The search models a project may be made with, the recommended first, each with its one line
+    (`search.embedding.choices-come-from-the-engine`, #6144). Library-free: it answers before any project exists,
+    for the menu on Your project and the change sheet alike."""
+    from fichero_server.db.embeddings import embedding_model_choices
+
+    return EmbeddingModelList(models=[EmbeddingModelOption(**c) for c in embedding_model_choices()])
+
+
+@router.get("/embedding", response_model=EmbeddingChoiceResponse)
+def get_embedding_choice(db: Database = Depends(get_library_database)) -> EmbeddingChoiceResponse:
+    """Which embedding model this project searches with, the models it may choose, and how many vectors it holds."""
+    return _embedding_choice(db)
+
+
+@router.put("/embedding", response_model=EmbeddingChoiceResponse)
+def put_embedding_choice(body: EmbeddingChoiceRequest,
+                         db: Database = Depends(get_library_database_for_write),
+                         ctx: "ActionContext" = Depends(action_context)) -> EmbeddingChoiceResponse:
+    """Choose the embedding model of a project that holds no vectors yet (`search.set_embedding_model`). A project that
+    does is never switched silently (`search.embedding.change-is-a-re-embed-run`): 409."""
+    from fichero_server.actions.registry import ActionRefused
+
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
+    try:
+        registry.invoke(db, "search.set_embedding_model", {"model": body.model}, ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _embedding_choice(db)
+
+
 @router.post("/embed/{doc_id}")
 @off_loop
 def embed_document(doc_id: str, db: Database = Depends(get_library_database_for_write)) -> EmbedDocumentResponse:
@@ -2530,6 +2606,133 @@ def _action_search_reindex(
         claim_ids=list(params.claim_ids or []),
     )
     return result, spec
+
+
+class EmbeddingChangeStartRequest(BaseModel):
+    model: str
+    confirm: bool = Field(default=False, description="true once the person has seen the plan: pages, time and cost")
+
+
+class EmbeddingChangePlan(BaseModel):
+    """What re-embedding the project with another model would do, said before it runs (#6122)."""
+
+    from_model: str
+    to_model: str
+    same: bool
+    pages: int
+    passages: int
+    entities: int
+    claims: int
+    seconds_estimate: int
+    cost_usd: float
+    runs_on: str
+    keeps_old_vectors_until_done: bool
+
+
+class EmbeddingChangeStarted(BaseModel):
+    status: str
+    job_id: str
+    message: str
+
+
+@router.get("/embedding/change-plan", response_model=EmbeddingChangePlan)
+def get_embedding_change_plan(model: str, db: Database = Depends(get_library_database)) -> EmbeddingChangePlan:
+    """Pages, time and cost of re-embedding every page with `model`, before anything runs
+    (`search.embedding.change-is-a-re-embed-run`). Search keeps the old vectors until the run finishes."""
+    try:
+        return EmbeddingChangePlan(**db.embedding_change_plan(model))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/embedding/change", response_model=EmbeddingChangeStarted)
+def start_embedding_change(body: EmbeddingChangeStartRequest,
+                           db: Database = Depends(get_library_database_for_write),
+                           ctx: "ActionContext" = Depends(action_context)) -> EmbeddingChangeStarted:
+    """Start the re-embed run that changes the project's embedding model (`search.change_embedding_model`, an audited
+    action): the one `reindex` job (its progress shows in Activity), migrating to `body.model` in a shadow and swapping it
+    in whole. `confirm` must be true: the plan comes first."""
+    from fichero_server.actions.registry import ActionRefused
+
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
+    try:
+        result = registry.invoke(db, "search.change_embedding_model", body.model_dump(), ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return EmbeddingChangeStarted(**result.result)
+
+
+class SetEmbeddingModelParams(BaseModel):
+    """``search.set_embedding_model`` — the project's embedding model, while it holds no vectors."""
+
+    model: str = Field(description="a supported embedding model, e.g. BAAI/bge-m3")
+
+
+@action("search.set_embedding_model", SetEmbeddingModelParams, domains=["search"], undoable=False)
+def _action_search_set_embedding_model(
+    db: Database, params: SetEmbeddingModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Keep the project's embedding model in its package; refuse to mix vectors (a held project needs a re-embed run)."""
+    from pathlib import Path
+
+    from fichero_server.actions.registry import ActionRefused
+    from fichero_server.db.embedding_choice import write_choice
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(params.model.lower())
+    if space is None:
+        raise ValueError(f"{params.model!r} is not an embedding model Fichero supports")
+    current = _embedding_choice(db)
+    if space.source_model_name != current.model and not current.changeable:
+        raise ActionRefused(
+            f"This project's {current.vectors} vectors were made with {current.model}; vectors from two models are "
+            "never mixed, and changing the model is a re-embed run of every page (POST /api/search/embedding/change, after "
+            "GET /api/search/embedding/change-plan has shown its cost).")
+    write_choice(Path(db.path).parent, space.source_model_name)
+    db._embedder = None  # the next embed resolves the new space
+    db._embedding_space_cache = None
+    result = {"model": space.source_model_name}
+    return result, ChangeSpec(domains=["search"], target_ids=[], before={"model": current.model}, after=result,
+                              emit_type="search.embedding_model_set")
+
+
+class ChangeEmbeddingModelParams(BaseModel):
+    """``search.change_embedding_model`` — queue the re-embed run that moves the project to another model."""
+
+    model: str = Field(description="a supported embedding model, e.g. BAAI/bge-m3")
+    confirm: bool = Field(default=False, description="true once the person has seen the plan: pages, time and cost")
+
+
+@action("search.change_embedding_model", ChangeEmbeddingModelParams, domains=["search"], undoable=False)
+def _action_search_change_embedding_model(
+    db: Database, params: ChangeEmbeddingModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Queue the one `reindex` job with `to_model`: the plan must have been seen (`confirm`), and the same model is refused."""
+    import json
+
+    from fichero_server.actions.registry import ActionRefused, started_by_for
+    from fichero_server.execution import jobs
+
+    if not params.confirm:
+        raise ValueError("Show the plan first (GET /api/search/embedding/change-plan) and send confirm=true once the person "
+                         "has seen its pages, time and cost.")
+    plan = db.embedding_change_plan(params.model)  # ValueError for an unsupported model
+    if plan["same"]:
+        raise ActionRefused(f"This project already searches with {plan['to_model']}.")
+    options = {"to_model": plan["to_model"]}
+    name = f"Embed every page again with {plan['to_model']}"
+    job_id = jobs.enqueue(db, "reindex", json.dumps(options, sort_keys=True), started_by=started_by_for(ctx),
+                          detail=json.dumps({"name": name, "options": options}))
+    result = {
+        "status": "started", "job_id": job_id,
+        "message": f"Embedding {plan['pages']} pages with {plan['to_model']}. Search keeps the old vectors until it finishes; "
+                   "its progress shows in Activity.",
+    }
+    return result, ChangeSpec(domains=["search"], target_ids=[], before={"model": plan["from_model"]}, after=result,
+                              emit_type="search.embedding_change_started")
 
 
 # =============================================================================

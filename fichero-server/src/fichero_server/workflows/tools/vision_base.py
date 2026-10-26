@@ -2072,7 +2072,11 @@ def apple_vision_reads_at_once() -> int:
         short = _apple_vision_memory_short()
     except Exception:  # noqa: BLE001 -- a reading must never stop a page
         short = None
-    return 1 if short else APPLE_VISION_CONCURRENCY
+    if short:
+        return 1
+    from fichero_server.workflows.tools.apple_vision_worker import in_process
+
+    return APPLE_VISION_CONCURRENCY if in_process() else 1  # the worker child takes one call at a time
 
 
 class _AppleVisionCall:
@@ -2145,12 +2149,38 @@ class _AppleVisionGate:
 _APPLE_VISION_GATE = _AppleVisionGate()
 
 
-def _apple_vision_timeout(deadline: float) -> AppleVisionTimeout:
+def _apple_vision_timeout(deadline: float, recycled: bool = False) -> AppleVisionTimeout:
+    if recycled:  # the child that held the call was killed: nothing is left stuck, and nobody has to restart anything (#5392)
+        return AppleVisionTimeout(
+            f"Apple Vision did not finish this page within {deadline:.0f} s, so its worker was stopped; "
+            "a new one starts for the next page and this page can be read again"
+        )
     return AppleVisionTimeout(
         f"Apple Vision did not finish this page within {deadline:.0f} s "
         f"(at most {APPLE_VISION_CONCURRENCY} pages read at once, one when memory is tight); "
         "the page was skipped"
     )
+
+
+def _run_apple_vision_call(fn, args, deadline: float):
+    """One call, in the Vision worker process (`apple_vision_worker`, #5392): a call that does not return kills the worker
+    and fails its page in words. On a thread in the engine when FICHERO_APPLE_VISION_IN_PROCESS=1 (tests, bare tools) or for a
+    function a child cannot look up by name."""
+    from fichero_server.workflows.tools import apple_vision_worker as worker
+
+    ref = None if worker.in_process() else worker.reference(fn)
+    if ref is None:
+        return fn(*args)
+    try:
+        return worker.WORKER.call(ref, args, deadline * 0.9)  # a little under the caller's deadline, so this one fires first
+    except worker.WorkerTimeout as exc:
+        raise _apple_vision_timeout(deadline, recycled=True) from exc
+    except worker.WorkerBusy as exc:  # nothing was killed: this page only waited too long behind another
+        raise AppleVisionTimeout(
+            f"Apple Vision was still busy with an earlier page after {deadline:.0f} s, so this page was skipped; it can be read again"
+        ) from exc
+    except worker.WorkerFailure as exc:
+        raise AppleVisionTimeout(str(exc)) from exc
 
 
 def _start_apple_vision_page(fn, args, deadline: float):
@@ -2170,7 +2200,7 @@ def _start_apple_vision_page(fn, args, deadline: float):
                 future.set_exception(_apple_vision_timeout(deadline))
                 return
             try:
-                result = None if call.abandoned.is_set() else fn(*args)
+                result = None if call.abandoned.is_set() else _run_apple_vision_call(fn, args, deadline)
             finally:
                 _APPLE_VISION_GATE.release(call)
             future.set_result(result)

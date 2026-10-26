@@ -15,6 +15,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
+from fichero_server.core.atomic_json import write_json_atomic
+
 _READER = re.compile(r"^trocr-hf-([A-Za-z0-9_.-]+?)--([A-Za-z0-9_.-]+)$")
 #: A strip is cut a little wider than the outline, as the economy tool does, so a stroke at the edge is not lost.
 PAD = 6
@@ -129,7 +131,7 @@ def download(repo: str, *, should_stop: Callable[[], bool] = lambda: False, on_b
         raise NoSafetensors(f"{repo}: the Hub did not name a commit to pin")
     _snapshot(repo, revision)
     size = sum(int(s.get("size") or 0) for s in info.get("siblings") or [] if str(s.get("rfilename", "")).endswith(".safetensors"))
-    _record_path(repo).write_text(json.dumps({"repo": repo, "revision": revision, "bytes": size}), encoding="utf-8")
+    write_json_atomic(_record_path(repo), {"repo": repo, "revision": revision, "bytes": size}, indent=None)
     return revision
 
 

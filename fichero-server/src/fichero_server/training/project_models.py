@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fichero_server.core.atomic_json import card_lock, write_json_atomic
+
 MODELS_DIRNAME = "models"
 CARD = "fichero-card.json"
 MLX_BUILD = "mlx"
@@ -133,7 +135,11 @@ def make_global(package: str | Path, model_id: str) -> dict[str, Any]:
 
 
 def _kraken_global(package: str | Path, model_id: str, stamp: dict[str, Any]) -> dict[str, Any]:
-    from fichero_server.llm.kraken_runtime import _global_marker_path, recognition_data_home, recognition_model_dir
+    from fichero_server.llm.kraken_runtime import (
+        _global_marker_path,
+        recognition_data_home,
+        recognition_model_dir,
+    )
 
     record_path = kraken_record(package, model_id)
     if not record_path.is_file():
@@ -141,16 +147,17 @@ def _kraken_global(package: str | Path, model_id: str, stamp: dict[str, Any]) ->
     marker = _global_marker_path(model_id)
     if marker.exists():
         raise FileExistsError(f"{model_id} is already in the global store")
-    record = json.loads(record_path.read_text(encoding="utf-8"))
-    source = record_path.parent / str(record["model_path"])
+    source = record_path.parent / str(json.loads(record_path.read_text(encoding="utf-8"))["model_path"])
     folder = recognition_data_home() / model_id
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / source.name
     shutil.copy2(source, target)
-    record = {**record, "model_path": str(target),
-              "trained": {**record.get("trained", {}), "made_global_from": stamp}}
     recognition_model_dir().mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps(record, indent=1), encoding="utf-8")
+    with card_lock(record_path):  # the card is read AFTER the copy, so an evaluation recorded meanwhile comes along (#6138)
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        record = {**record, "model_path": str(target),
+                  "trained": {**record.get("trained", {}), "made_global_from": stamp}}
+        write_json_atomic(marker, record)
     return {"model_id": model_id, "global_path": str(target), "may_publish": _may_publish(record["trained"])}
 
 
@@ -181,7 +188,7 @@ def _mlx_global(package: str | Path, model_id: str, stamp: dict[str, Any]) -> di
     if isinstance(builds.get("hf"), dict):  # the merged weights stay in the project (or the bucket), never copied
         builds["hf"].pop("merged_here", None)
         builds["hf"]["adapter_here"] = card.get("adapter_path")
-    (dest / TRAINED_CARD).write_text(json.dumps(card, indent=1), encoding="utf-8")
+    write_json_atomic(dest / TRAINED_CARD, card)
     return {"model_id": model_id, "global_path": str(dest), "may_publish": _may_publish(card)}
 
 

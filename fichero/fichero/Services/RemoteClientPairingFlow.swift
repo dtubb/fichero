@@ -399,6 +399,37 @@ enum RemoteClientPairing {
         EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 
+    /// Asks the Mac to revoke THIS device's pairing, with the device's own token, so the Mac stops listing it and the
+    /// token stops working (`m2p.ios.forget-revokes-on-the-mac`, #6133). Best effort: false when the Mac cannot be reached
+    /// or says no, and the caller forgets the pairing locally either way.
+    @MainActor
+    static func revokeOwnPairing() async -> Bool {
+        let host = EngineConfig.host
+        let pin = RemoteCertificatePinning.persistedSPKIPin(hostString: host.absoluteString)
+        guard let client = try? FicheroClient(baseURL: host, expectedSPKIPin: pin) else { return false }
+        return await revokeOwnPairing(client: client)
+    }
+
+    /// The call itself, over any client (a test hands one over a stubbed transport).
+    /// Gives up after `timeout` seconds so an unreachable Mac cannot hold Forget This Mac for the transport's 60 s.
+    @MainActor
+    static func revokeOwnPairing(client: FicheroClient, timeout: Double = 5) async -> Bool {
+        // A timer cancels the call, which then throws and reads as false; both stay on the main actor so the
+        // non-Sendable client never crosses isolation.
+        let call = Task { @MainActor () -> Bool in
+            guard let response = try? await client.api.revokeOwnDeviceApiPairDevicesRevokeSelfPost(.init()) else { return false }
+            if case .ok = response { return true }
+            return false
+        }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(timeout))
+            call.cancel()
+        }
+        let revoked = await call.value
+        timer.cancel()
+        return revoked
+    }
+
     private static func normalizedLibraryPath(_ path: String?) -> String? {
         let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }

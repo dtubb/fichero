@@ -27,6 +27,9 @@ def mac(monkeypatch):
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
     monkeypatch.setattr(throttle, "_build", (float("inf"), False))  # no build running: the reading is trusted
+    # An embedder an earlier test left in the process cache is not this test's: the models held are pinned in
+    # test_models_held_6129.py; here the list is only checked for its shape.
+    monkeypatch.setattr(throttle, "_models_held", lambda: [])
     return state
 
 
@@ -47,6 +50,7 @@ def test_activity_popover_summary__the_jobs_route_carries_the_macs_state_with_it
         "on_battery": False,
         "in_use": False,
         "why_wait": None,
+        "models_held": [],  # nothing loaded in this engine (#6129)
     }
 
 

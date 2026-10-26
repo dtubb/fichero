@@ -46,15 +46,13 @@ case "$TIER" in
     IOS_SCHEME="Fichero (App Store)"; IOS_CONFIG="App Store"
     ;;
 esac
-# TestFlight uses the sandboxed App Store target. Its configuration must retain
-# the requested tier so an internal Dev archive exposes the Dev surface.
+# TestFlight archives the sandboxed App Store target in its App Store configuration:
+# only that config embeds the engine in Contents/Helpers (the tier configs put it in
+# Contents/Resources for the DMG, and the MAS resign/validate scripts reject that, #6112).
+# The tier reaches the archive as FICHERO_FEATURE_TIER (MAC_ARCHIVE_FEATURE_TIER), like iOS.
 MAC_APP_STORE_SCHEME="Fichero (App Store)"
-case "$TIER" in
-  dev) MAC_APP_STORE_CONFIG="Dev Embedded" ;;
-  alpha) MAC_APP_STORE_CONFIG="Alpha Embedded" ;;
-  beta) MAC_APP_STORE_CONFIG="Beta Embedded" ;;
-  *) MAC_APP_STORE_CONFIG="Release" ;;
-esac
+MAC_APP_STORE_CONFIG="App Store"
+MAC_ARCHIVE_FEATURE_TIER="$TIER"
 IOS_ARCHIVE_FEATURE_TIER="$TIER"
 export FICHERO_RELEASE_TIER="$TIER" IOS_ARCHIVE_FEATURE_TIER MAC_SCHEME MAC_CONFIG IOS_SCHEME IOS_CONFIG \
-  MAC_APP_STORE_SCHEME MAC_APP_STORE_CONFIG
+  MAC_APP_STORE_SCHEME MAC_APP_STORE_CONFIG MAC_ARCHIVE_FEATURE_TIER

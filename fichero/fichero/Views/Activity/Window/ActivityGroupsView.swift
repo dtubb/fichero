@@ -16,6 +16,9 @@ struct ActivityGroupsView: View {
     /// A recipe run's stage bar; empty for any other row.
     var stageSegments: (ActivityMonitorRow) -> [ActivityStageBar.Segment] = { _ in [] }
     let stopTarget: (ActivityMonitorRow) -> ActivityRunMenuTarget
+    /// The engine's UP NEXT items that are not rows (a running run's stages not yet started), in lane order, each with what
+    /// it waits for in grey (`activity.summary.up-next`).
+    var upNextLines: [ActivityPopoverSummary.UpNextLine] = []
     /// Clear Failed and Clear Finished, from the DONE TODAY heading (`activity.window.done-today`).
     let clearFailed: () -> Void
     let clearFinished: () -> Void
@@ -40,8 +43,19 @@ struct ActivityGroupsView: View {
             if !groups.now.isEmpty {
                 Section("Now") { ForEach(groups.now) { rowView($0) } }
             }
-            if !groups.upNext.isEmpty {
-                Section("Up Next") { ForEach(groups.upNext) { rowView($0) } }
+            if !groups.upNext.isEmpty || !upNextLines.isEmpty {
+                Section("Up Next") {
+                    ForEach(groups.upNext) { rowView($0) }
+                    ForEach(upNextLines) { line in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(line.title).lineLimit(1)
+                            Text(line.waiting).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .selectionDisabled()
+                        .accessibilityIdentifier("activity.upNext.\(line.id)")
+                    }
+                }
             }
             if !groups.doneToday.isEmpty {
                 Section {
@@ -124,7 +138,8 @@ struct ActivityGroupsView: View {
 
     /// The state's words, then the counts and the time left; a waiting row says what it waits for and never ticks.
     private func subtitle(_ row: ActivityMonitorRow) -> String {
-        [row.stateText, row.progressText].filter { !$0.isEmpty }.joined(separator: " · ")
+        if !row.phase.isLive { return row.endedLine }
+        return [row.stateText, row.progressText].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func label(_ button: ActivityMonitorRow.OneButton) -> String {

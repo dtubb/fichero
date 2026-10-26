@@ -12,12 +12,13 @@ released by landing; release is a person's act (`compute.publish.*`).
 """
 from __future__ import annotations
 
-import json
 import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from fichero_server.core.atomic_json import write_json_atomic
 
 _MODEL_SUFFIXES = (".safetensors", ".mlmodel")
 _EPOCH = re.compile(r"_(\d+)$")
@@ -57,7 +58,11 @@ def land_trained_reader(out_dir: str | Path, *, job_id: str, model_name: str, ca
     With `project` (the package it was trained for) the reader lands inside it (#5539,
     `training.project_models`): `models/<reader id>/` holds the model file and its record, the file
     named relative to the record. Without, it lands in the engine's global store as before."""
-    from fichero_server.llm.kraken_runtime import _marker_path, recognition_data_home, recognition_model_dir
+    from fichero_server.llm.kraken_runtime import (
+        _marker_path,
+        recognition_data_home,
+        recognition_model_dir,
+    )
 
     source = best_model_file(out_dir, model_name)
     reader_id = reader_id_for_job(job_id)
@@ -70,7 +75,7 @@ def land_trained_reader(out_dir: str | Path, *, job_id: str, model_name: str, ca
         shutil.copy2(source, target)
         full_card = {**card, "job_id": job_id, "model_file": target.name, "size_bytes": target.stat().st_size,
                      "trained_at": datetime.now(timezone.utc).isoformat()}
-        record.write_text(json.dumps({"model_path": target.name, "trained": full_card}, indent=1), encoding="utf-8")
+        write_json_atomic(record, {"model_path": target.name, "trained": full_card})
         return reader_id
     folder = recognition_data_home(home) / reader_id
     folder.mkdir(parents=True, exist_ok=True)
@@ -79,6 +84,5 @@ def land_trained_reader(out_dir: str | Path, *, job_id: str, model_name: str, ca
     full_card = {**card, "job_id": job_id, "model_file": target.name, "size_bytes": target.stat().st_size,
                  "trained_at": datetime.now(timezone.utc).isoformat()}
     recognition_model_dir(home).mkdir(parents=True, exist_ok=True)
-    _marker_path(reader_id, home).write_text(
-        json.dumps({"model_path": str(target), "trained": full_card}, indent=1), encoding="utf-8")
+    write_json_atomic(_marker_path(reader_id, home), {"model_path": str(target), "trained": full_card})
     return reader_id

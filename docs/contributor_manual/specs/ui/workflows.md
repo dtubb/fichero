@@ -38,6 +38,8 @@
 > "spec:" convention) — add `workflows: … (spec: workflows)` there when the
 > first backend pinning test for this spec lands.
 
+> See also: `harness/dev-workflows.md` (proposed: the dev pipeline and Research workflows expressed as app workflows).
+
 ## Intent (the design)
 
 A **workflow** is a saved, named, ordered graph of **tool nodes** — each node one

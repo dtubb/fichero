@@ -4,7 +4,7 @@ import Foundation
 import XCTest
 
 // swiftlint:disable file_length
-// Tests for DocumentStoreTypes (request DTOs + error model) and
+// Tests for DocumentStore's sidebar loading and
 // SidebarViewTypes (AppViewMode category routing + the Activity details'
 // selection, #5561).
 // swiftlint:disable:next type_body_length
@@ -22,27 +22,12 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     // encoding is now the generated client's contract, exercised via the
     // generated-op request tests in DocumentListMigrationTests.
 
-    // MARK: - DocumentHierarchy
+    // MARK: - DocumentHierarchy (removed, #3961)
 
-    func testHierarchyParentIsLastAncestor() {
-        let root = makeDoc(id: "root", name: "Root")
-        let mid = makeDoc(id: "mid", name: "Mid")
-        let leaf = makeDoc(id: "leaf", name: "Leaf")
-        let hierarchy = DocumentHierarchy(ancestors: [root, mid], document: leaf, children: [])
-        XCTAssertEqual(hierarchy.parent?.id, "mid")
-    }
-
-    func testHierarchyParentNilForRoot() {
-        let root = makeDoc(id: "root", name: "Root")
-        let hierarchy = DocumentHierarchy(ancestors: [], document: root, children: [])
-        XCTAssertNil(hierarchy.parent)
-    }
-
-    func testHierarchyBreadcrumbAppendsDocument() {
-        let root = makeDoc(id: "root", name: "Root")
-        let leaf = makeDoc(id: "leaf", name: "Leaf")
-        let hierarchy = DocumentHierarchy(ancestors: [root], document: leaf, children: [])
-        XCTAssertEqual(hierarchy.breadcrumb.map(\.id), ["root", "leaf"])
+    /// DocumentHierarchy was never used in production, only by its own tests; the file is deleted.
+    func testDeadDocumentHierarchyStaysDeleted() throws {
+        let url = try AppSource.root().appendingPathComponent("Models/DocumentStoreTypes.swift")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
     func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
@@ -118,7 +103,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testLibraryItemColumnsReturnsRowsFromBackendThroughTheStore() async throws {
-        // #3917 TODO: the generated client's POST-with-body path uses
+        // #3917 note: the generated client's POST-with-body path uses
         // URLSession.upload(for:from:), which the ColumnsStubURLProtocol stub
         // does not intercept (URLProtocol upload-task limitation), so this hits
         // the real network (-1003). The stub wiring itself is correct — the
@@ -228,7 +213,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
             Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
             Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
         ].joined(separator: "\n")
 
         // `availableViewDisplayModes`'s own `[.list]`-only offer for a KG
@@ -372,7 +357,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift")
         ].joined(separator: "\n"))
 
         XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
@@ -541,7 +526,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift")
         ].joined(separator: "\n"))
         let requiredSnippets = [
             "@Environment(ArtifactService.self) var artifactService",

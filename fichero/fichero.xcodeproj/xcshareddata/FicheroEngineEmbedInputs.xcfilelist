@@ -224,6 +224,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/checking/verdicts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/atomic_json.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/cores.py
@@ -248,6 +249,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/document_tree.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embed_process.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/embedding_choice.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embeddings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/library_paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/manager.py
@@ -260,6 +262,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/run_reviews.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage_snapshots.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/vector_swap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/leiden.py
 $(SRCROOT)/../fichero-server/src/fichero_server/errors.py
@@ -269,6 +272,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/cancellation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/chaining.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/ghg.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
+$(SRCROOT)/../fichero-server/src/fichero_server/execution/models_held.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/run_log.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
@@ -516,8 +520,11 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-scripts.tx
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/_frame.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/aramaic.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/de-kurrent.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/en-secretary.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/es-colonial.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/es-moderna.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/generic.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/latin.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/zh.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/scripts-without-word-spaces.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/README.md
@@ -624,6 +631,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyri
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v1.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v2.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v3.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
@@ -755,6 +764,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/aggregate.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/align_transcript.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/analyze.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/annotations_source.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/apple_vision_worker.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/artifacts_source.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/audio_base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/audio_transcribe.py

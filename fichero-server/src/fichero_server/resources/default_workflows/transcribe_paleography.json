@@ -1,6 +1,6 @@
 {
  "name": "Transcribe Paleography",
- "description": "Use this when: you have archaic or specialist pre-18th C. script in any language and want ONE careful, whole-page pass with extended thinking. Language-specific presets (Español s. XVI–XVII / s. XVIII–XIX, Latin, English secretary) carry deeper period advice; run Paleographer Review afterwards to refine the result. Model: whatever you pick at run time.",
+ "description": "Use this when: you have archaic or specialist pre-18th C. script in any language and want ONE careful, whole-page pass with extended thinking. Language-specific presets (Español s. XVI–XVII / s. XVIII–XIX, Latin, English secretary) carry deeper period advice; run Review the Reading afterwards to refine the result. Model: whatever you pick at run time.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -14,7 +14,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 8,
+  "preset_version": 9,
   "variant_group": "transcribe-single-pass",
   "variant": "paleography"
  },
