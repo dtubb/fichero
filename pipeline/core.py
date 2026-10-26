@@ -79,7 +79,7 @@ def state() -> dict:
         k = e.get("key") or (str(e["issue"]) if "issue" in e else None)
         it = s["items"].get(k) if k else None
         if ev == "item":
-            args = {x: e.get(x) for x in ("task", "milestone", "base", "from_file", "ids")}
+            args = {x: e.get(x) for x in ("task", "milestone", "base", "from_file", "ids", "provider", "model")}
             if it:  # the item moves to a new task (a retry on another base): keep its record, re-bind it
                 it.update(task=e["task"], start_args=args)
             else:
@@ -488,15 +488,26 @@ def _live_coders(s: dict, task: str) -> list[str]:
     return out
 
 
+def _live_open_coders(s: dict, task: str) -> list[str]:
+    """Live, busy coder windows of other tasks that run a non-Anthropic model (the open-model roster)."""
+    live = coder.live_windows(cfg())
+    return [w["window"] for w in s["workers"].values()
+            if w.get("role") == "coder" and w["window"] in live and w.get("task") != task and not w.get("idle")
+            and not (w.get("model") or "").startswith("anthropic/")]
+
+
 def start(issues: list[int], milestone: str | None = None, task: str | None = None, worker_index: int = 0,
-          from_file: str | None = None, base: str | None = None, writeup: bool = False) -> dict:
+          from_file: str | None = None, base: str | None = None, writeup: bool = False,
+          provider: str | None = None, model: str | None = None) -> dict:
     """queued → coding → (checks) for a batch of issues in one coder context; blocks until the batch is done.
     `from_file`: a local JSON issue (number, title, body, author, part_of) for a step not yet filed on GitHub; such
     an item is keyed `<number>@<task>`, so several steps may share "Part of #N".
     `base`: the branch the worktree comes off (default the profile's), e.g. the runner branch for a bootstrap step.
-    `writeup`: an issue brief-lint refuses gets ONE write-up turn from the small worker first (pipeline.brief-lint)."""
+    `writeup`: an issue brief-lint refuses gets ONE write-up turn from the small worker first (pipeline.brief-lint).
+    `provider`/`model`: the coder for these items only (pipeline.per-item-coder), whatever roles.coder lists; the
+    record keeps them, so a retry runs on the same coder. Non-Anthropic coders count against caps.open_coders."""
     with journal.Lock("dispatch", wait=False):
-        return _start(issues, milestone, task, worker_index, from_file, base, writeup)
+        return _start(issues, milestone, task, worker_index, from_file, base, writeup, provider, model)
 
 
 def retry(issue, worker: int | None = None) -> dict:
@@ -513,7 +524,7 @@ def retry(issue, worker: int | None = None) -> dict:
         stops = sum(1 for h in it["history"] if " rate-limited:" in h)
         worker = min(stops, len(workers()) - 1)
     return start([it["issue"]], milestone=a.get("milestone"), task=a.get("task"), from_file=a.get("from_file"), base=a.get("base"),
-                 worker_index=worker)
+                 worker_index=worker, provider=a.get("provider"), model=a.get("model"))
 
 
 def repair(issue, base: str | None = None, from_file: str | None = None, since: str | None = None, why: str = "") -> dict:
@@ -536,7 +547,7 @@ def repair(issue, base: str | None = None, from_file: str | None = None, since: 
     return {"key": key, "repaired": done}
 
 
-def _start(issues, milestone, task, worker_index, from_file, base, writeup=False) -> dict:
+def _start(issues, milestone, task, worker_index, from_file, base, writeup=False, provider=None, model=None) -> dict:
     _require_running()
     _require_budget()
     coder.require_mcp_sdk()
@@ -547,6 +558,10 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
     live = _live_coders(s, task)
     if len(live) >= c["workers"]["caps"]["coders"]:
         raise RuntimeError(f"coder cap {c['workers']['caps']['coders']}: {', '.join(live)} running")
+    if provider and provider != "anthropic":
+        opn = _live_open_coders(s, task)
+        if len(opn) >= c["workers"]["caps"].get("open_coders", 3):
+            raise RuntimeError(f"open-model cap {c['workers']['caps'].get('open_coders', 3)}: {', '.join(opn)} running")
     read_issue = ISSUE if not from_file else (lambda n: json.loads(Path(from_file).read_text()))
     briefs = {}
     for n in issues:  # every issue is read and allow-listed before anything starts
@@ -565,7 +580,7 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
     for k, iss in briefs.items():
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
-                           milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
+                           milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss), provider=provider, model=model)
     approved = _approved() if writeup else set()
     unfit = [k for k, iss in briefs.items() if writeup and feeder.lint(iss, c["labels"], approved)]
     if not unfit:
@@ -573,7 +588,13 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
             iss["localised"] = localised(iss, task, k)
     # the batch's size routes it: every issue small => the small tier; anything bigger or unplaced => the big one
     tier = "small" if unfit or all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
-    worker = config.at_tier(c, workers()[worker_index], tier)
+    if provider:
+        pair = c.get("tiers", {}).get(provider, {})
+        worker = {"kind": "pi", "provider": provider, "tier": tier, "model": model or pair.get(tier) or pair.get("big")}
+        if not worker["model"]:
+            raise ValueError(f"--provider {provider}: no --model given and the profile has no tiers.{provider}")
+    else:
+        worker = config.at_tier(c, workers()[worker_index], tier)
     docs = any(cites_docs(i) for i in briefs.values())
     if woken:  # the parked worker keeps its window and context: only the new briefs go in
         journal.append("wake", window=window, task=task, milestone=milestone)
