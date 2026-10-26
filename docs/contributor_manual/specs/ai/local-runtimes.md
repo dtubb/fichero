@@ -412,6 +412,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   quantized cache (`kv_bits`) and a cap (`max_kv_size`) when they let a model fit, adopted only after the
   fixture pages show no rise in character error rate; prompt (prefix) caching for a step's fixed
   instruction. *Test:* `fichero-server/tests/unit/llm/test_mlx_ships_inside_the_engine.py::test_the_server_reads_as_many_pages_at_once_as_it_is_sent`.
+- `runtime.duckdb-cap-survives-a-refused-spill-switch` — **[OK]** (#6177; Ann's log 2026-10-26) the DuckDB memory cap applies to every instance, including one that has already spilled: DuckDB refuses to switch an instance's temp directory after it has been used, and that refusal no longer aborts the cap (it did, so the cap never ran and "Could not cap DuckDB memory" repeated every poll). *Test:* `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.

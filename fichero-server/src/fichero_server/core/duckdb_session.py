@@ -303,7 +303,12 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
     try:
         spill = spill_directory()
         spill.mkdir(parents=True, exist_ok=True)
-        conn.execute("SET temp_directory=?", [str(spill)])
+        try:
+            conn.execute("SET temp_directory=?", [str(spill)])
+        except duckdb.Error as exc:
+            # An instance that has already spilled keeps the directory it spilled to: DuckDB refuses a switch. That must
+            # not stop the memory cap below from applying (it did: the cap never ran, and the warning repeated every poll).
+            logger.debug("DuckDB kept its spill directory: %s", exc)
         try:
             ref: Any = weakref.ref(conn)
         except TypeError:  # ponytail: a connection that cannot be weakly held is held strongly until closed
