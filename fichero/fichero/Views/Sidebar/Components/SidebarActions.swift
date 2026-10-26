@@ -236,12 +236,12 @@ extension SidebarView {
         guard case .document(let doc) = item.itemType else { return [] }
         let store = library.documentStore
         let siblings = doc.parentId.map { store.childrenCache[$0] ?? [] } ?? store.collections
-        return siblings.map(\.id)
+        return siblings.map { SidebarDestination.document($0.id).serializedID }  // the rows' ids ("doc:<id>"), as `item.id`
     }
 
     private func parentId(of item: SidebarItem) -> String? {
         guard case .document(let doc) = item.itemType else { return nil }
-        return doc.parentId
+        return doc.parentId.map { SidebarDestination.document($0).serializedID }
     }
 
     // Dispatches by item-type group — grouping keeps this switch's branch

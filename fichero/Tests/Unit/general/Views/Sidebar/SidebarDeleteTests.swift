@@ -17,22 +17,28 @@ struct SidebarDeleteTests {
 
     @Test func deletingAnOnlyChildNeverMakesTheParentTheNextDeleteTarget() {
         let parent = item("p", "Parent")
-        // The delete of the only child (c) leaves the PARENT selected (Finder rule: no sibling, so the parent) ...
-        let inherited = selectionAfterDelete(deleted: "c", siblings: ["c"], parent: "p")
-        #expect(inherited == "p")
+        let child = item("c", "Child")
+        // The delete of the only child leaves the PARENT selected (Finder rule: no sibling, so the parent), in the row ids
+        // the sidebar uses ("doc:<id>", as `item.id` and `selectedItemId` have them) ...
+        let inherited = selectionAfterDelete(deleted: child.id, siblings: [child.id], parent: parent.id)
+        #expect(inherited == parent.id)
         // ... and the next Backspace, "-" or Edit > Delete finds nothing to delete.
         #expect(sidebarDeleteTargets([parent], inheritedSelectionId: inherited).isEmpty)
     }
 
     @Test func aRowThePersonSelectsIsTheirsToDelete() {
         let parent = item("p", "Parent")
-        #expect(sidebarDeleteTargets([parent], inheritedSelectionId: nil).map(\.id) == ["p"])
-        #expect(sidebarDeleteTargets([parent], inheritedSelectionId: "other").map(\.id) == ["p"])
+        #expect(sidebarDeleteTargets([parent], inheritedSelectionId: nil).map(\.id) == [parent.id])
+        #expect(sidebarDeleteTargets([parent], inheritedSelectionId: "doc:other").map(\.id) == [parent.id])
     }
 
     @Test func aMultiSelectionKeepsEveryRowButTheInheritedOne() {
         let rows = [item("a", "A"), item("b", "B")]
-        #expect(sidebarDeleteTargets(rows, inheritedSelectionId: "a").map(\.id) == ["b"])
+        #expect(sidebarDeleteTargets(rows, inheritedSelectionId: rows[0].id).map(\.id) == [rows[1].id])
+    }
+
+    @Test func theRowIdsTheSelectionRuleGetsAreTheSidebarsOwn() {
+        #expect(item("c", "Child").id == SidebarDestination.document("c").serializedID)
     }
 
     @Test func theInheritedRowSurvivesOnlyTheListEchoingItAndClearsOnAnyOtherSelection() {
