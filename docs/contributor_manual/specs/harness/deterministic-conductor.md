@@ -758,3 +758,5 @@ runner (ponytail: the times below are from one Pro run on 2026-10-25 with the ve
    a smaller Qwen); measure it on landed issues against the Sonnet baseline before switching the profile.
 2. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
    diff and the conflicting commit in front of it.
+- `pipeline.land-rebases-and-reuses-the-review` — **[GAP]** (#6179) `land` rebases the item's branch onto the current base itself; when the rebased diff has the same `git patch-id --stable` as the reviewed one the review is reused (never rerun, `never-rerun-a-model-pass`) and only the checks run again; a changed patch goes back to review, a conflict is sent back. Items land one at a time, each rebased onto the previous landing, so a queue of reviewed items drains. `land` works while the loop runs (the request queue of `pipeline.requests-not-locks`) and says so when paused. *Test:* `pipeline/tests/test_land_rebase.py`.
+
