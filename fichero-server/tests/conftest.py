@@ -591,6 +591,24 @@ _htr_united._harvest = _no_htr_united_in_tests
 import fichero_server.llm.model_types as _model_types  # noqa: E402
 
 _model_types._REFRESH_STARTED = True
+_loading_price_table = _model_types._price_table
+
+
+def _price_table_not_from_the_real_cache():
+    """Loading the price table reads the cache under the state folder: when that is the person's real one the file is whatever
+    the engine last refreshed from upstream, so the test fails there, naming the cause. Point FICHERO_BASE_PATH at a temp
+    folder (the suite's default) to test the cache itself (#6108). Computing the path alone (state-root tests) is fine."""
+    if _model_types._PRICE_TABLE is None:
+        from fichero_server.db.paths import default_server_state_dir
+
+        path, real = _model_types._cached_registry_path().resolve(), default_server_state_dir().resolve()
+        if real == path.parent or real in path.parents:
+            raise AssertionError(f"this test would read the live model-registry cache {path}; tests read the vendored "
+                                 "snapshot (set FICHERO_BASE_PATH to a temp folder) (#6108)")
+    return _loading_price_table()
+
+
+_model_types._price_table = _price_table_not_from_the_real_cache
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that
 # reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
 # NEW function objects that no route uses; the `client` fixture importing them at its own time
