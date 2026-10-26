@@ -9,6 +9,11 @@
 > Nothing here is built or ruled until the maintainer approves it. Tags: [OK] built · [PARTIAL] exists, not wired ·
 > [GAP] not built · [PROPOSED] decided here, not yet ruled.
 >
+> Revised 2026-10-26 from the owner's correction of the same day: Fichero already has tasks and task lists in the
+> Research workspace, but no spec layer, no plan layer and no GitHub tie-in. This spec now COMBINES them into one model
+> of project work (§ One model of project work), synced two ways with GitHub, which the dev pipeline uses first and
+> the Research workspace uses for every other project.
+>
 > Related, not edited here: `harness/deterministic-conductor.md` (the stdlib runner, `pipeline/`),
 > `ui/workflows.md` (the canvas and run log), `ui/workflow-node-config.md` (node popover), `ui/research.md` (the
 > Research workspace).
@@ -38,11 +43,14 @@ watched.
   reuse it; we do not write a second one.
 - **Our own runner** (`pipeline/`): the behaviour to reproduce, and the oracle for stage 3 (same inputs, same
   verdicts).
-- **GitHub** (`gh`, REST): issues, milestones and PRs are the system of record for work; Fichero reads them as a
-  source and does not copy them into a private store.
+- **GitHub** (`gh`, REST): issues, milestones and PRs are the system of record for a project's work *state*
+  (open/closed, labels, milestone, assignee); Fichero keeps a synced mirror keyed by issue URL so it works offline and
+  links each issue to its spec behaviour and plan step, which GitHub has no field for
+  (`dev-workflows.combined.sync-two-way`).
 
-Deliberately different: the runner keeps its journal and GitHub as truth; a workflow run is a *view and a driver*
-of that state, never a second copy of it (`dev-workflows.state-stays-in-github`).
+Deliberately different: the runner keeps its journal and GitHub as truth for state; a workflow run is a *view and a
+driver* of that state, and Fichero's mirror never wins a disagreement about state
+(`dev-workflows.run.state-stays-in-github`).
 
 ## What exists today (grounded; paths under `fichero-server/src/fichero_server/` unless stated)
 
@@ -60,17 +68,146 @@ of that state, never a second copy of it (`dev-workflows.state-stays-in-github`)
   `builder.py` honours `pause_requested(run_id)` and `cancellation_requested(run_id)` at the per-item progress
   boundary (#4402 partial; `ui/workflows.md` `workflows.run.controls-are-fire-and-forget` stays [GAP]).
 - Schedules and triggers: `workflows/scheduler.py` (cron, interval, one-time) and `workflows/file_watcher.py`.
-- Research data: `models/research.py` (`ResearchProject`, `ResearchPlan`, `ResearchTask` with `TaskStatus`,
-  `ResearchNote`, `ResearchChecklist`, `ResearchStep` with `StepTool`) and `api/routes/research/*`; the client
-  mirror is `fichero/fichero/Models/ResearchModels.swift`; `ResearchTasksPane` is the surviving task UI.
+- Research data (the in-app issues and milestones): `models/research.py` holds `ResearchProject`
+  (`ProjectStatus` active/paused/completed/archived, `library_destination_folder_id`), `ResearchPlan` (`project_id`,
+  `PlanStatus` draft/active/completed/cancelled, `order_index`: a named, ordered, closable group of tasks, which is
+  what a milestone is), `ResearchTask` (`plan_id`, `TaskStatus` pending/in_progress/completed/blocked/cancelled,
+  `priority`, `assigned_to`, `completed_at`, free `metadata`: what an issue is), `ResearchStep` (`task_id`, a
+  `StepTool` call: web_search, browser_navigate, document_fetch, local_search, with result and error: a run step,
+  not a plan step), `ResearchChecklist`/`ChecklistItem`, `ResearchNote` and `SearchSource`. Routes:
+  `api/routes/research/crud.py` (projects :135-189, plans :393-440, tasks :534-587, steps :681-706),
+  `notes.py` (sources, notes, checklists), `tools.py` (web search, browse, fetch, save). Client mirror
+  `fichero/fichero/Models/ResearchModels.swift`; UI `fichero/fichero/Views/Chat/Research/ResearchTasksPane.swift`
+  (tabs Tasks, Checklists, Sources, Notes; a plan picker and a plan composer sheet) with `+Actions`, `+Tabs`,
+  `+Views`, inside `ResearchWorkspaceView.swift`. No record is called a milestone: the word appears in the server
+  only for TEI/KG/bookmark fields and in the client only for `LaunchProfile.milestone` timing.
+- Questions to a person: `workflows/human_review.py` `HumanReviewRequest` / `ask_human()`, used by
+  `workflows/tools/catalogue.py` and `execution/runner.py`; no Research task or plan carries a question or an
+  approval state today.
 - Adding a folder: `POST /api/ingest/folder` (`api/routes/ingest/core.py:962`), cancel at `:1304`, status at
-  `:1261`. Watching a folder: `workflows/file_watcher.py`. No code reads GitHub: `grep -il github` over the
-  engine source finds nothing.
+  `:1261`. Tying a project to a folder on the engine's disk: `api/routes/sync_folders.py` (`POST ""`, the audited
+  `sync.tie`; modes `index` or `keep-arranged`; `specs/source/synced-folder.md`, #4952). Watching a folder:
+  `workflows/file_watcher.py`.
+- GitHub today: no code reads issues, milestones or PRs. The only GitHub touchpoints are downloads
+  (`recipes/htr_united.py` `CATALOG_URL` on raw.githubusercontent.com, `llm/local_models.py` spaCy release URLs) and
+  About/onboarding links in the client. The dev pipeline reads and writes GitHub itself, outside the app:
+  `pipeline/gh.py` (`read`, and `write(..., dry_run=True)`, every write journaled), `pipeline/feeder.py`
+  (`approved_ids` reads spec status lines, `pick`, `order`, `blocked`, `milestone_order`), `pipeline/core.py`
+  (`next_issues` queues `write-up` and `triage` items, `ask`/`answer` the maintainer queue, `approve_checks`,
+  `close_landed` the closer: landed sha + checks green, residue leaves the issue open, a milestone closes with its
+  last issue), and `scripts/close_fixed_issues.py`. There is no `plan` or `plan-approve` command in `pipeline/` at
+  this spec's base (`pipeline/__main__.py` `COMMANDS`); spec approval is the status line `feeder.approved_ids` reads.
+
+What is missing, stated plainly: (1) a **spec layer**: no record holds a spec, its behaviour ids or their tags; specs
+are Markdown files only the pipeline's regexes read. (2) a **plan layer**: no record holds a build order of steps
+sized for one worker session with dependencies; `ResearchPlan` is a task list, not an ordered, approved build order.
+(3) a **GitHub tie-in**: no Research record links to an issue, milestone or PR, and nothing syncs. (4) an **approval
+state** on a spec or plan and a question attached to a task.
 - Scratch isolation: `db/paths.py` and `db/storage.py` read `FICHERO_BASE_PATH`; `security/real_data_guard.py`
   guards against touching real data. Memory rule `bare-engine-calls-open-real-app-db`: a bare engine call opens the
   real app DB; a scratch path is mandatory for any headless run.
 
 ## Behaviours
+
+### One model of project work (combined; spec → plan → milestones → tasks → runs → checks → landing)
+
+One model serves the Fichero dev project, any user's code project and any Research project. It extends the records
+that exist (`ResearchProject`, `ResearchPlan`, `ResearchTask`, `HumanReviewRequest`, the jobs table) and adds two
+layers above them (spec, plan); GitHub is synced two ways where a project has a repo. The dev pipeline is its first
+user, not a parallel system.
+
+| Fichero record | Today | GitHub side | Wins on conflict |
+|----------------|-------|-------------|------------------|
+| **Spec**: path, title, milestone, status (DRAFT/APPROVED), behaviours `{id, tag, issue}` | [GAP] Markdown only | the spec file in the repo; a behaviour id appears in the issue body's `Behaviours:` line and the label `stage:<spec>-<n>` (`pipeline.spec-to-issues`); no label per behaviour | Fichero (the repo file as Fichero reads it) |
+| **Plan**: the spec's build order; each **plan step** `{N.M, title, behaviours, tests, depends_on, size, issue}` | [GAP] | step heading `#### Step N.M — title (#N)` ↔ issue `#N` | Fichero (order, dependencies, links) |
+| **Milestone** = `ResearchPlan` + a GitHub milestone link | [PARTIAL] `ResearchPlan` | milestone (title, open/closed, due, counts) | GitHub on state; Fichero on `order_index` |
+| **Task** = `ResearchTask` + issue link, plan step, behaviour ids | [PARTIAL] `ResearchTask` | issue (state, state_reason, labels, assignee, milestone, title, body) | GitHub on state; Fichero on links |
+| **Run** = a job row (`execution/jobs.py`); a Research tool call stays a `ResearchStep` | [PARTIAL] | a marker comment `<!-- pipeline:<event>:<task> -->` | Fichero |
+| **Check / review** = the run's verdict and findings | [PARTIAL] pipeline journal | PR checks, review comment | GitHub on PR checks |
+| **Landing** = sha on the base branch, or PR merged | pipeline journal | PR, `Fixes #N` | GitHub |
+| **Question / approval** = `HumanReviewRequest` attached to a spec, plan or task | [PARTIAL] `workflows/human_review.py` | optional comment once answered | Fichero |
+
+`TaskStatus` ↔ issue: open and unclaimed → `pending`; open with `claimed` → `in_progress`; open with an open
+dependency or a `blocked` label → `blocked`; closed `completed` → `completed`; closed `not_planned` → `cancelled`.
+`ResearchStep` is not a plan step: it is one tool call inside a task's run.
+
+- `dev-workflows.combined.entities` [GAP] (#2072) — the records and links in the table above exist, typed (not in
+  the free `metadata` dict) so a task can be found by issue URL and a step by spec and number; `ResearchPlan` gains a
+  milestone link, `ResearchTask` gains `github_issue {repo, number, url, updated_at}`, `plan_step` and
+  `behaviour_ids`; a project with no repo leaves them empty and loses nothing. One record per thing: no dev-only
+  task, milestone or question table (`dev-workflows.research.one-task-model`).
+- `dev-workflows.combined.spec-layer` [GAP] (#6116) — a project's specs are records read from its spec folder (the
+  profile's `repo.specs`; for Fichero `docs/contributor_manual/specs`): status line, milestone, behaviour ids and
+  their tags, parsed by the same rules the pipeline and guards use (`pipeline/feeder.py` `approved_ids`,
+  `scripts/check_spec_behaviors_are_tagged.py`), so the app and the pipeline never disagree about what is approved.
+  The file stays the source; Fichero changes a spec only as a commit on a branch for review.
+- `dev-workflows.combined.plan-layer` [GAP] (#6116) — a plan is a spec's build order as records: ordered steps, each
+  sized for one worker session (`Size S|M`, at most five behaviours, Tests named; `pipeline.build-order-shape`,
+  `scripts/check_spec_build_order_shape.py`), with dependencies. "What is next" is the first open step whose
+  dependencies are closed. A plan has its own approval (`dev-workflows.combined.approvals`); changing an approved
+  plan asks again. With no repo, the plan lives in Fichero's records only.
+- `dev-workflows.combined.github-mapping` [GAP] (#6116) — a project linked to a GitHub repo maps issue ↔ task,
+  milestone ↔ `ResearchPlan`, behaviour id ↔ the issue body's `Behaviours:` line and `stage:` label, step heading
+  `(#N)` ↔ plan step, PR ↔ landing, as in the table; an issue with no step is a task in its milestone with no plan
+  step (a bug, a write-up), never dropped.
+- `dev-workflows.combined.read-only-first` [GAP] (#6116) — Stage 1: the mapping is proven **read-only** against the
+  real GitHub repo on a scratch `FICHERO_BASE_PATH` (`dev-workflows.run.headless-on-scratch`): every open issue,
+  milestone and PR of this repo lands as a task, milestone or landing with the right status and links, the
+  pipeline's `next_issues` pick equals the model's "what is next", and no write reaches GitHub (the `gh` node in
+  dry-run; a write attempt fails the test).
+- `dev-workflows.combined.sync-two-way` [GAP] (#6116) — sync pulls on a timer per project (default 5 min) and on
+  demand, using conditional reads (`If-None-Match` / `since`) so an unchanged repo costs no quota; it pushes only
+  through the `gh` node (`pipeline/gh.py` `write` is the model: one function, journaled, dry-run in tests). Conflict
+  rules: **GitHub wins for state** (open/closed, state_reason, labels, assignee, milestone membership, title, body);
+  **Fichero wins for plan and spec links** (step, behaviour ids, order, approvals). A Fichero edit to a state field
+  is a pending write stamped with the `updated_at` it was made against; if GitHub changed since, the write becomes a
+  question, it does not overwrite. If a human strips the behaviour ids from an issue body, Fichero keeps its link and
+  raises the drift in the queue rather than rewriting the body. Each sync is one job row
+  (`dev-workflows.one-activity-system.dev-uses-it`), one per repo at a time.
+- `dev-workflows.combined.close-only-by-closer` [PROPOSED] — Fichero never closes an issue or milestone except by the
+  closer's rule (`pipeline.closes-issues`, `scripts/close_fixed_issues.py`): the commit **landed** on the base
+  branch, its checks **green**, and **no residue** reported; a residue updates the body with what is left and keeps
+  it open; a milestone closes when its last issue closes; a dry-run line is journaled before each close. An issue
+  closed on GitHub by anyone else is mirrored closed (GitHub wins); a reopened one reopens its task.
+- `dev-workflows.combined.offline` [GAP] (#6116) — with no network or no `gh` login the model works from the mirror:
+  every view reads, the age of the last sync is shown, edits queue as pending writes that survive a restart (they are
+  rows), and nothing claims to be synced. On reconnect it pulls first, then pushes pending writes in order, each
+  re-checked under `dev-workflows.combined.sync-two-way`. A project with no repo is always "offline" and needs none
+  of this.
+- `dev-workflows.combined.rate-limits` [GAP] (#6116) — sync stays inside GitHub's REST limits for the user's token:
+  conditional reads first, back off on 403/429 until `Retry-After` / `X-RateLimit-Reset`, space content-creating
+  writes (comments, issues) to respect secondary limits, and show "rate limited until HH:MM" instead of failing a
+  run. The remaining quota is recorded on the sync job row.
+- `dev-workflows.combined.writes-need-approval` [PROPOSED] — which GitHub writes need the owner: **none** for reads
+  and for the runner's bookkeeping it already makes (`claimed` label, `<!-- pipeline:… -->` marker comments,
+  `pipeline.issues-and-milestones-kept-current`); **the approved plan** is the approval for filing its step issues
+  (`pipeline.spec-to-issues`); **the closer's rule** is the approval for a close
+  (`dev-workflows.combined.close-only-by-closer`); **an owner answer** is required for every other write a model
+  proposes: a new issue outside a plan, a new or closed milestone, a label or body edit, a reopen, a PR merge. A push
+  to `main` or a `v*` tag is never a sync write (`dev-workflows.node.git`).
+- `dev-workflows.combined.approvals` [GAP] (#2067) — three human-in-the-middle approvals, each a
+  `HumanReviewRequest` attached to its record and shown in the one queue (`dev-workflows.research.one-question-queue`):
+  **approve spec** (DRAFT → APPROVED, the status line flipped by a reviewed commit), **approve plan** (the build
+  order is accepted and its steps may be filed), **answer question** (a parked run or a write-up resumes). Each
+  records who and when; a model never approves or answers (`pipeline/core.py` `WORKER_FORBIDDEN`,
+  `pipeline.three-faces`: approve and answer are never over MCP).
+- `dev-workflows.combined.repo-as-project-source` [GAP] (#6116) — a repo becomes a project by tying its folder to a
+  Research project (`api/routes/sync_folders.py` `POST ""`, the audited `sync.tie`, mode `index`) with the ignore
+  rules of `dev-workflows.source.repo-folder-and-index`; Fichero reads `.git/config` for the GitHub remote and
+  proposes the link, which the owner confirms; then the spec folder is read into the spec and plan layers and the
+  first pull runs. Untying keeps the records and stops sync.
+- `dev-workflows.combined.research-projects` [GAP] (#2070) — the same records serve a non-dev Research project: a
+  brief in place of a spec (optional), a plan of ordered steps, milestones, tasks, runs (the agent's tool calls as
+  `ResearchStep`s under a job row), checks (a checklist or a reviewer verdict) and closing, with the same three
+  approvals; linking a GitHub repo is optional and uses any repo the user's `gh` login can see. `ResearchTasksPane`
+  shows them; no second task UI is built.
+- `dev-workflows.combined.pipeline-is-first-user` [GAP] (#6116) — Stage 3: the pipeline reads and writes through this
+  model, not beside it: the feeder's pick (`pipeline/core.py` `next_issues`, `feeder.pick`) reads the pointed
+  milestone's tasks; spec approval is the spec layer's (`feeder.approved_ids` today); `pipeline.spec-to-issues` is
+  the approved plan's filing; `write-up`, `triage` and `ask` items and `approve-checks` are questions and approvals
+  in the one queue; `answer` resolves one; `close-landed` is `dev-workflows.combined.close-only-by-closer`. The
+  runner's own `gh` reads are retired only after a run of the same items gives the same picks and closes
+  (`dev-workflows.rollout.stdlib-runner-stays`).
 
 ### Node types for dev work
 
@@ -118,8 +255,9 @@ of that state, never a second copy of it (`dev-workflows.state-stays-in-github`)
   `harness/release-channels-and-feature-tiers.md`) that a coder's half-edited `fichero_server/**` cannot break. The
   pipeline records the pinned engine id in each run; a run on an engine other than the pinned one is refused.
 - `dev-workflows.run.state-stays-in-github` [PROPOSED] — a workflow run holds item state only as GitHub issue/label/
-  milestone state plus the runner's journal; the run log is a view of it. A workflow that disagrees with the journal
-  stops with a question, it does not win.
+  milestone state plus the runner's journal; the run log is a view of it, and the Fichero task mirror
+  (`dev-workflows.combined.sync-two-way`) is a cache of it, never a second truth. A workflow that disagrees with the
+  journal or with GitHub stops with a question, it does not win.
 - `dev-workflows.run.small-models-only` [GAP] (#6116) — every dev workflow runs with a model alias at Sonnet or Haiku
   tier, then Qwen big and small through the local runtime (oMLX) on the Mac Studio; no node names a frontier model.
   Cost per run is recorded (`workflows.run.cost-tracking-per-node`, #4343 is the shared GAP). The reviewer node's
@@ -143,15 +281,17 @@ of that state, never a second copy of it (`dev-workflows.state-stays-in-github`)
 
 - `dev-workflows.research.one-task-model` [GAP] (#2067) — a dev **task** (an issue, a build-order step) and a Research
   **task** are one record shape: the existing `ResearchTask` + `TaskStatus` in `models/research.py` is extended
-  (a `source` ref such as a GitHub issue URL, a `step` id) rather than a second table. A workflow node can read and
-  update tasks through the audited action layer (`actions/registry.py`), as the in-app agent does.
+  (the GitHub link and the plan-step and behaviour links of `dev-workflows.combined.entities`) rather than a second
+  table. A workflow node can read and update tasks through the audited action layer (`actions/registry.py`), as the
+  in-app agent does.
 - `dev-workflows.research.one-question-queue` [GAP] (#2067) — a human-question from a workflow and a question from the
   Research agent are one typed `HumanReviewRequest` (`workflows/human_review.py`) shown in one queue, with options
   and the artifact it concerns; the pipeline's `pipeline.maintainer-queue` reads the same queue. Answering from any
   surface resumes the parked run.
 - `dev-workflows.research.proposals-are-reviewable` [GAP] (#2067) — a proposed plan (milestone, task list, spec-to-plan) is
-  a typed proposal the human accepts, edits or rejects before any `gh` write happens; it reuses `ResearchPlan` and
-  its status, and the accept step is a human-question node. This is the "human in the middle" the Research spec's
+  a typed proposal the human accepts, edits or rejects before any `gh` write happens; it carries the approval state of
+  `dev-workflows.combined.approvals` (the three approvals are defined there, once), and the accept step is a
+  human-question node. This is the "human in the middle" the Research spec's
   `research.manager-with-workers-orchestration` [GAP] and `research.future.agent-operates-projects` [GAP] name.
 - `dev-workflows.research.same-node-types` [PROPOSED] — the Research agent's tool list and the dev workflow palette
   draw from one registry (`workflows/registry.py`); a node added for the pipeline (gh, git read-only, script with an
@@ -160,15 +300,16 @@ of that state, never a second copy of it (`dev-workflows.state-stays-in-github`)
 ### A repo and GitHub as sources
 
 - `dev-workflows.source.repo-folder-and-index` [PARTIAL] (#6116) — adding the repository to Fichero as a folder works and
-  is indexed: `POST /api/ingest/folder` imports it, `file_watcher.py` keeps it current, and code navigation for
+  is indexed (the project side of this is `dev-workflows.combined.repo-as-project-source`): `POST /api/ingest/folder` imports it, `file_watcher.py` keeps it current, and code navigation for
   a researcher uses the same search. Today the import path is built for documents and images; a repo (thousands of
   `.py`/`.swift`/`.md` files, `.venv`, build output) needs ignore rules (`.gitignore` + an explicit deny list), a
   text-only file kind, and a cancel that works (`/folder/{task_id}/cancel` exists). Pass: the Fichero repo itself
   adds in under a stated time on the M4, ignores `.venv*`/`build/`, and search finds a symbol name.
 - `dev-workflows.source.github-as-source` [GAP] (#6116) — a GitHub repo is a **source** (`source/source-model.md` kinds):
   its issues, milestones and PRs appear as nodes in the library with number, state, labels, milestone and body,
-  refreshed by a poll or `gh api` read, read-only by default. The write path is only the `gh` node
-  (`dev-workflows.node.gh`). Auth is the user's `gh` login; Fichero stores no token. Evidence of the gap: no
+  refreshed by a poll or `gh api` read, read-only in Stage 1. Writes come in Stage 2 under
+  `dev-workflows.combined.sync-two-way` and `dev-workflows.combined.writes-need-approval`, and only through the `gh`
+  node (`dev-workflows.node.gh`). Auth is the user's `gh` login; Fichero stores no token. Evidence of the gap: no
   GitHub reader exists in the engine.
 
 ### Rollout
@@ -238,7 +379,8 @@ owner's decisions (`dev-workflows.research.one-question-queue`). The pipeline pa
   whose dependencies are closed (`pipeline.build-order-shape`).
 - `dev-workflows.project-view.issues-and-bugs` [GAP] (#6116) — issues (open and closed), bugs and PRs are browsable
   and filterable by milestone, label, from-user and claimed, from the GitHub source (`dev-workflows.source.github-as-source`),
-  with the spec behaviour each cites; no copy is kept (`dev-workflows.run.state-stays-in-github`).
+  with the spec behaviour each cites; they are the synced mirror, and GitHub wins on state
+  (`dev-workflows.run.state-stays-in-github`, `dev-workflows.combined.sync-two-way`).
 - `dev-workflows.project-view.runs-turns-tokens-cost` [PARTIAL] (#5359) — each item's runs show turns, tokens and
   cost, from the jobs rows (`jobs.note_usage`) and the pipeline's cost sums (`pipeline/budget.py`,
   `pipeline.cost-cap`); Activity already shows runs, and the project view links to them.
@@ -251,8 +393,9 @@ owner's decisions (`dev-workflows.research.one-question-queue`). The pipeline pa
   a commit sha, or reopen; each is a `gh` node call (`dev-workflows.node.gh`) through the audited action layer, recorded
   with who asked, and never a direct token use by the view.
 - `dev-workflows.project-view.approve` [GAP] (#6116) — the owner approves or rejects a spec or a plan in place
-  (`dev-workflows.research.proposals-are-reviewable`): approval flips the spec's status line by a reviewed commit
-  and files the Step issues (`pipeline.spec-to-issues`); nothing flips on a model's word.
+  (`dev-workflows.research.proposals-are-reviewable`, `dev-workflows.combined.approvals`): approval flips the spec's
+  status line by a reviewed commit and files the Step issues (`pipeline.spec-to-issues`); nothing flips on a model's
+  word. This behaviour is the project view's button for it; the rule lives in `combined.approvals`.
 - `dev-workflows.project-view.answer-and-control` [GAP] (#6116) — the owner answers a question (resumes the parked
   run) and starts, pauses or stops work (the milestone to run next, Pause All, a run's Stop) from the same view,
   through `pipeline.pause-all` and the activity layer's one pause and cancel.
@@ -266,40 +409,61 @@ None yet. Everything above is proposed.
 
 ## Build order
 
-Stage 1 proves one item with nodes built by hand. Stage 2 builds the node types and the pause/resume work. Stage 3
-moves the pipeline over, the runner staying until it is proven. Each step is one coder context's worth.
+Stage 1 proves the combined model **read-only** against GitHub on a scratch base path, with one item through by
+hand. Stage 2 adds two-way sync, the spec and plan layers in the app, and the node types and pause/resume work they
+need. Stage 3 moves the pipeline onto the model, the runner staying until it is proven. Each step is one coder
+context's worth.
 
-### Stage 1 — prove one item on a scratch path
+### Stage 1 — prove it read-only against GitHub on a scratch base path
 
 #### Step 1.1 — headless run on a scratch base path
 - Behaviours: `dev-workflows.run.headless-on-scratch`, `dev-workflows.run.pinned-engine`
 - Tests: fichero-server/tests/unit/workflows/test_headless_scratch_run.py
 - Size: M
 
-#### Step 1.2 — script node and the exit-code router
+#### Step 1.2 — the combined records and the GitHub mapping, read-only
+- Behaviours: `dev-workflows.combined.entities`, `dev-workflows.combined.github-mapping`, `dev-workflows.source.github-as-source`
+- Tests: fichero-server/tests/unit/research/test_combined_model_records.py
+- Depends on: 1.1
+- Size: M
+
+#### Step 1.3 — read this repo into the model on scratch, no writes
+- Behaviours: `dev-workflows.combined.read-only-first`
+- Tests: fichero-server/tests/unit/research/test_github_read_only_mirror.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.4 — a repo as a project source
+- Behaviours: `dev-workflows.combined.repo-as-project-source`, `dev-workflows.source.repo-folder-and-index`
+- Tests: fichero-server/tests/unit/ingest/test_repo_folder_ingest.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.5 — script node and the exit-code router
 - Behaviours: `dev-workflows.node.script`, `dev-workflows.node.validate-before-run`
 - Tests: fichero-server/tests/unit/workflows/test_script_node.py
+- Depends on: 1.1
 - Size: M
 
-#### Step 1.3 — one item through, scratch only
+#### Step 1.6 — one item through, scratch only
 - Behaviours: `dev-workflows.rollout.prove-one-item`, `dev-workflows.rollout.stdlib-runner-stays`
 - Tests: fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py
-- Depends on: 1.1, 1.2
+- Depends on: 1.3, 1.5
 - Size: M
 
-### Stage 2 — node types and the pause/resume gap
+### Stage 2 — two-way sync and the spec and plan layers in the app
 
 #### Step 2.1 — git and gh nodes with their allow-lists
 - Behaviours: `dev-workflows.node.git`, `dev-workflows.node.gh`
 - Tests: fichero-server/tests/unit/workflows/test_git_gh_nodes.py
 - Size: M
 
-#### Step 2.2 — worker node with role, model alias and cap
-- Behaviours: `dev-workflows.node.worker`, `dev-workflows.run.small-models-only`, `dev-workflows.run.no-model-rerun`
-- Tests: fichero-server/tests/unit/workflows/test_worker_node.py
+#### Step 2.2 — the spec and plan layers
+- Behaviours: `dev-workflows.combined.spec-layer`, `dev-workflows.combined.plan-layer`
+- Tests: fichero-server/tests/unit/research/test_spec_and_plan_layers.py
 - Size: M
 
-#### Step 2.3 — durable pause and resume (#4402)
+#### Step 2.3 — durable pause and resume
 - Behaviours: `dev-workflows.run.pause-resume-durable`
 - Tests: fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py
 - Size: M
@@ -310,54 +474,70 @@ moves the pipeline over, the runner staying until it is proven. Each step is one
 - Depends on: 2.3
 - Size: M
 
-#### Step 2.5 — one task model and one question queue with Research
-- Behaviours: `dev-workflows.research.one-task-model`, `dev-workflows.research.one-question-queue`, `dev-workflows.research.proposals-are-reviewable`, `dev-workflows.research.same-node-types`
+#### Step 2.5 — one task model, one question queue, the three approvals
+- Behaviours: `dev-workflows.research.one-task-model`, `dev-workflows.research.one-question-queue`, `dev-workflows.research.proposals-are-reviewable`, `dev-workflows.research.same-node-types`, `dev-workflows.combined.approvals`
 - Tests: fichero-server/tests/unit/research/test_dev_task_and_question_model.py
-- Depends on: 2.4
+- Depends on: 2.2, 2.4
 - Size: M
 
-#### Step 2.6 — a repo as a folder
-- Behaviours: `dev-workflows.source.repo-folder-and-index`
-- Tests: fichero-server/tests/unit/ingest/test_repo_folder_ingest.py
-- Depends on: 2.1
+#### Step 2.6 — two-way sync with its conflict, close and approval rules
+- Behaviours: `dev-workflows.combined.sync-two-way`, `dev-workflows.combined.close-only-by-closer`, `dev-workflows.combined.writes-need-approval`
+- Tests: fichero-server/tests/unit/research/test_github_two_way_sync.py
+- Depends on: 2.1, 2.5
 - Size: M
 
-#### Step 2.7 — GitHub as a source
-- Behaviours: `dev-workflows.source.github-as-source`
-- Tests: fichero-server/tests/unit/sources/test_github_source.py
-- Depends on: 2.1
+#### Step 2.7 — offline and rate limits
+- Behaviours: `dev-workflows.combined.offline`, `dev-workflows.combined.rate-limits`
+- Tests: fichero-server/tests/unit/research/test_sync_offline_and_rate_limited.py
+- Depends on: 2.6
 - Size: M
 
-#### Step 2.8 — unify the activity bypasses
+#### Step 2.8 — Research projects on the same model
+- Behaviours: `dev-workflows.combined.research-projects`
+- Tests: fichero-server/tests/unit/research/test_research_project_uses_combined_model.py
+- Depends on: 2.5
+- Size: M
+
+#### Step 2.9 — worker node with role, model alias and cap
+- Behaviours: `dev-workflows.node.worker`, `dev-workflows.run.small-models-only`, `dev-workflows.run.no-model-rerun`
+- Tests: fichero-server/tests/unit/workflows/test_worker_node.py
+- Size: M
+
+#### Step 2.10 — unify the activity bypasses
 - Behaviours: `dev-workflows.one-activity-system.one-job-table`, `dev-workflows.one-activity-system.bypasses`, `dev-workflows.one-activity-system.one-cancel`, `dev-workflows.one-activity-system.one-pause`, `dev-workflows.one-activity-system.one-run-log`
 - Tests: fichero-server/tests/unit/execution/test_every_path_is_a_job_row.py
 - Depends on: 2.3
 - Size: M
 
-### Stage 3 — move the pipeline over
+### Stage 3 — move the pipeline onto the model
 
 #### Step 3.1 — see the pipeline on the canvas
 - Behaviours: `dev-workflows.visibility.canvas-and-log`, `dev-workflows.visibility.runs-from-the-pipeline-page`, `dev-workflows.run.state-stays-in-github`
 - Tests: fichero-server/tests/unit/workflows/test_dev_run_log_events.py, pipeline/tests/test_page_links_workflow_runs.py
-- Depends on: 2.4, 2.5
 - Size: M
 
 #### Step 3.2 — dev workflows are ordinary activity rows
 - Behaviours: `dev-workflows.one-activity-system.dev-uses-it`
 - Tests: fichero-server/tests/unit/workflows/test_dev_run_is_a_job_row.py
-- Depends on: 2.8, 3.1
+- Depends on: 3.1
 - Size: S
 
-#### Step 3.3 — the project view, read-only
-- Behaviours: `dev-workflows.project-view.overview`, `dev-workflows.project-view.specs-and-build-order`, `dev-workflows.project-view.issues-and-bugs`, `dev-workflows.project-view.runs-turns-tokens-cost`, `dev-workflows.project-view.tests-and-reviews`
-- Tests: fichero-server/tests/unit/workflows/test_project_view_read.py
-- Depends on: 2.6, 2.7, 3.2
+#### Step 3.3 — the pipeline reads and writes through the model
+- Behaviours: `dev-workflows.combined.pipeline-is-first-user`
+- Tests: pipeline/tests/test_pipeline_uses_combined_model.py
+- Depends on: 3.2
 - Size: M
 
-#### Step 3.4 — owner actions in the project view
+#### Step 3.4 — the project view, read-only
+- Behaviours: `dev-workflows.project-view.overview`, `dev-workflows.project-view.specs-and-build-order`, `dev-workflows.project-view.issues-and-bugs`, `dev-workflows.project-view.runs-turns-tokens-cost`, `dev-workflows.project-view.tests-and-reviews`
+- Tests: fichero-server/tests/unit/workflows/test_project_view_read.py
+- Depends on: 3.3
+- Size: M
+
+#### Step 3.5 — owner actions in the project view
 - Behaviours: `dev-workflows.project-view.owner-queue`, `dev-workflows.project-view.issue-actions`, `dev-workflows.project-view.approve`, `dev-workflows.project-view.answer-and-control`, `dev-workflows.project-view.no-parallel-surface`
 - Tests: fichero-server/tests/unit/workflows/test_project_view_actions.py
-- Depends on: 3.3, 2.5
+- Depends on: 3.4
 - Size: M
 
 ## Test matrix
@@ -388,8 +568,19 @@ moves the pipeline over, the runner staying until it is proven. Each step is one
 1. Is a **pinned engine** the Mac's installed release, or a separate build kept next to the checkout? (Affects
    `dev-workflows.run.pinned-engine` and where scratch runs get Kraken/MLX.)
 2. Should the pipeline's journal move into the engine's DuckDB (one store) or stay JSONL with the workflow as a
-   view? This spec assumes the second (`state-stays-in-github`).
+   view? This spec assumes the second (`dev-workflows.run.state-stays-in-github`); the combined model adds a task
+   mirror in the engine either way, so this is now only about the journal.
 3. Is a repo imported as a **library source** (visible in the sidebar next to archives) or in a separate dev
-   library, so the real archive library never shows 6,000 code files?
+   library, so the real archive library never shows 6,000 code files? (`dev-workflows.combined.repo-as-project-source`
+   ties the folder to a Research project; the library it lands in is still this question.)
 4. Which of the `gh` writes may a Haiku-tier node ever make without a human-question first (comment, label, close)?
+   `dev-workflows.combined.writes-need-approval` now proposes an answer: bookkeeping labels and marker comments yes,
+   closes only by the closer's rule, everything else after an owner answer. Confirm or change.
 5. Do dev workflows ship in the app for every user, or behind a contributor tier (`release-channels-and-feature-tiers.md`)?
+   The combined model (spec, plan, GitHub sync) serves any user's project, so it may ship apart from the dev nodes.
+6. In the UI, is `ResearchPlan` renamed **Milestone** (it is one: an ordered, closable group of tasks), and the plan
+   layer called **Plan**? The names collide today (`ResearchTasksPane`'s plan picker and composer).
+7. Is the sync interval (5 min default) and pull-on-open right, or should the app also take GitHub webhooks when the
+   engine is reachable from the internet (it usually is not)?
+8. The pipeline has no `plan` / `plan-approve` command at this spec's base (`pipeline/__main__.py` `COMMANDS`); is
+   plan approval a new runner command first, or only the app's (`dev-workflows.combined.approvals`)?
