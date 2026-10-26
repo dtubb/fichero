@@ -130,9 +130,27 @@ def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
 
+def _let_go_of_the_engines_files(keep: int) -> None:
+    """The forked child inherits every file the engine had open, its LISTENING SOCKET among them: a child that outlives a
+    SIGKILLed engine would keep that socket live, and the next engine could not start (`engine.orphan-child-lets-go`,
+    #6176). Close everything but the standard streams and the child's own pipe end."""
+    try:
+        fds = [int(name) for name in os.listdir("/dev/fd")]
+    except OSError:  # no /dev/fd: close the likely range
+        fds = list(range(3, 1024))
+    for fd in fds:
+        if fd > 2 and fd != keep:
+            try:
+                os.close(fd)
+            except OSError:  # the directory listing's own descriptor, or one already gone
+                pass
+
+
 def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[str, str]) -> None:
-    """The child: load the model, say so, then answer batches until the pipe closes."""
+    """The child: load the model, say so, then answer batches until the pipe closes or its engine is gone."""
     os.environ.update(env)
+    engine_pid = os.getppid()
+    _let_go_of_the_engines_files(conn.fileno())
     try:
         try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
             import onnxruntime
@@ -151,6 +169,9 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
         conn.send(("ready", None))
         while True:
             try:
+                while not conn.poll(2.0):  # an idle child still notices that its engine was killed (it is re-parented)
+                    if os.getppid() != engine_pid:
+                        os._exit(0)
                 texts = conn.recv()
             except EOFError:
                 break
