@@ -124,8 +124,27 @@ struct ReaderTranscriptWrapTests {
         }
     }
 
+    /// Run `operation`, and once more if WebKit did not start in time (#4793). A page that never
+    /// loads under machine pressure (load average ~25, swap full) says nothing about the wrap
+    /// contract, so one fresh attempt is made before "NOT measured" fails the run. A second
+    /// timeout still fails: a WebKit that never starts must not read as green.
+    /// ponytail: one retry; a skip the gate counts would be the next step if this still flakes.
+    private static func retryingOnceIfWebKitDidNotStart<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await operation()
+        } catch is LoadTimedOut {
+            return try await operation()
+        }
+    }
+
     /// Render `html` at `width` points and report the widths.
     private static func measure(_ html: String, width: CGFloat) async throws -> Overflow {
+        try await retryingOnceIfWebKitDidNotStart { try await measureOnce(html, width: width) }
+    }
+
+    private static func measureOnce(_ html: String, width: CGFloat) async throws -> Overflow {
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: width, height: 480))
         // `WKWebView` holds its navigation delegate weakly, so the watcher has
         // to outlive the load explicitly.
@@ -204,6 +223,42 @@ struct ReaderTranscriptWrapTests {
 
     /// One OCR line with no break opportunity anywhere in it.
     private static let unbreakableOCRLine = String(repeating: "8", count: 4000)
+
+    // MARK: - Could not measure vs measured wrong (#4793)
+
+    @Test("a page load that times out once is retried, and succeeds on the second attempt")
+    func aSlowFirstLoadIsRetried() async throws {
+        var attempts = 0
+        let value = try await Self.retryingOnceIfWebKitDidNotStart { () async throws -> Int in
+            attempts += 1
+            if attempts == 1 { throw LoadTimedOut() }
+            return 7
+        }
+        #expect(value == 7)
+        #expect(attempts == 2)
+    }
+
+    @Test("a WebKit that never starts still fails after the one retry, and other errors are not retried")
+    func aDeadWebKitStillFails() async {
+        var attempts = 0
+        await #expect(throws: LoadTimedOut.self) {
+            try await Self.retryingOnceIfWebKitDidNotStart { () async throws -> Int in
+                attempts += 1
+                throw LoadTimedOut()
+            }
+        }
+        #expect(attempts == 2)
+
+        struct Other: Error {}
+        attempts = 0
+        await #expect(throws: Other.self) {
+            try await Self.retryingOnceIfWebKitDidNotStart { () async throws -> Int in
+                attempts += 1
+                throw Other()
+            }
+        }
+        #expect(attempts == 1)
+    }
 
     // MARK: - The contract
 
