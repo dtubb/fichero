@@ -1,13 +1,10 @@
 # Source Model — The segment editor — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — an "Editing the layout of a page" section: selecting, drawing, reshaping,
-> merging and splitting segments on the image; setting their order, direction and type;
-> drawing links; working with the Apple Pencil.
-> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 3.
+> Manual: docs/contributor_manual/manual-facts/2026-10-05.md (the researcher-facing section authored in the user manual, tracked by this file: an "Editing the layout of a page" section: selecting, drawing, reshaping, merging and splitting segments on the image; setting their order, direction and type; drawing links; working with the Apple Pencil.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
+> code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless stated under "What exists today".
 
@@ -294,6 +291,8 @@ getting the Preview good, not adding a pane beside it.
    can come down to the ruled *two switches* (`source.editor.two-switches`) is decided here.
 3. The inventory and proposed layouts go to the manager, who turns them into wireframes the
    maintainer clicks through. **The maintainer rules before anything is built.**
+
+The first things built there are the three easy-editing behaviours (`source.editor.preview-crud`, `source.editor.join-is-easy`, `source.editor.make-new-in-the-preview`, #6181-#6183): the owner's own complaints about the Preview.
 
 Steps 1 and 2 are written in `build-notes-preview-inventory.md`: today's controls, each
 `source.editor.*` and `source.textedit.*` behaviour placed in the existing Preview, and six
@@ -1859,6 +1858,12 @@ from the region instead of the role.
   block of lines with its hue, and a highlighted word, line or region is drawn in that hue. Built
   2026-10-05: the Reader's text rules each block (`ReaderRegionRules`, `test_reader_region_rules.py`).
   Still owed: the highlight in the region's hue, and the Lines mode; not yet seen in the app.
+
+Easy editing in the Preview (owner, 2026-10-26: the Preview has no create, delete or edit of a segment, joining is hard, and so is making a new one)
+- `source.editor.preview-crud` — **[MISSING]** (#6181) in the Preview's Edit Segments mode (#5114) a person creates a segment, deletes the selected one and edits its shape and its text; each is one audited, undoable action through the engine's segment actions, and the page does not reload as a whole. Test (planned): fichero/Tests/Unit/general/Views/Source/PreviewSegmentCrudTests.swift.
+- `source.editor.join-is-easy` — **[MISSING]** (#6182) with two or more neighbouring segments selected, one press (a button and a keyboard shortcut) joins them in reading order, with no need to group them first; across different regions it refuses in words and changes nothing; one undo takes it back (builds on `source.editor.join-group`). Test (planned): fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift.
+- `source.editor.make-new-in-the-preview` — **[MISSING]** (#6183) in the Preview one gesture (drag a box, or click along a baseline) makes a new segment of the kind last used, selects it and leaves it ready for text; no mode or dialog first; Escape cancels; one undo removes it (builds on `source.editor.draw-shapes`). Test (planned): fichero/Tests/Unit/general/Views/Source/PreviewMakeNewSegmentTests.swift.
+
 
 ## Test matrix
 

@@ -1,11 +1,10 @@
 # Source Model — Segments and geometry — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — part of the "How Fichero represents a source" section: what a segment is, how
-> segments nest, how they are ordered and linked, and how a page can have several images.
+> Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: what a segment is, how segments nest, how they are ordered and linked, and how a page can have several images.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
+> code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first (the rulings and the words are there). The evidence is in `source-survey.md`.
 > Every behaviour below is tagged **[GAP]** with its issue. Unless "What exists today" in the foundation says
 > otherwise, everything here is design, not built. Tags and issues are added when the spec is
