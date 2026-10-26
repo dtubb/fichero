@@ -816,3 +816,20 @@ def test_an_unfit_issue_gets_one_write_up_and_waits_for_the_maintainer(scratch, 
     assert not [t for t in fc.told if "issue #1002" in t[1]], "nothing was coded"
     core.start([1002], writeup=True)  # one write-up per issue: the second start reuses the answer, no new turn
     assert len([t for t in fc.told if "write-up" in t[1]]) == 1
+
+
+def test_a_written_up_issue_in_an_approved_spec_is_coded_in_the_same_session(scratch, issues, fake_coder):
+    repo = Path(scratch["cfg"]["repo"]["path"])
+    spec = repo / "specs" / "s.md"
+    spec.write_text("**Status: APPROVED**\n\n" + spec.read_text())
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "approve the spec")
+    git(repo, "push", "-q", "origin", "integration")
+    fc = fake_coder()
+    fc.reply = "ID: `demo.two`\nACCEPTANCE: f(2) is 2.\nTEST: tests/test_1002.py::test_f1002_v2"
+    out = core.start([1002], writeup=True)
+    assert out["items"] == {"1002": "checked"}
+    assert len(fc.windows) == 1, "the write-up and the fix share one worker session"
+    assert [t[1] for t in fc.told].index(next(t[1] for t in fc.told if "write-up" in t[1])) == 0
+    brief = sorted((scratch["state"] / "briefs").rglob("issue-1002-attempt-1.md"))[0].read_text()
+    assert "Spec `demo.two`." in brief, "the write-up output is the brief"

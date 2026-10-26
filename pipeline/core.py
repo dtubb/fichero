@@ -569,13 +569,16 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
         _wait_room(worker["kind"], task)
         session_dir = _start_worker(task, wt, worker, window, docs=docs)
     out = {}
-    for k in unfit:  # written up first; the item then waits for the maintainer with the proposed lines
+    for k in unfit:  # written up first, in the worker's own session; a fit result goes straight on to be coded (no re-exploration)
         _move(k, "coding", "write-up turn")
-        parts = _writeup(task, k, briefs.pop(k), wt, window, session_dir, worker)
-        out[k] = "needs-maintainer"
-        why = f"written up, not dispatched: ID {parts.get('id', '?')}; ACCEPTANCE {parts.get('acceptance', '?')}; TEST {parts.get('test', '?')}"
-        _move(k, "needs-maintainer", why)
-        _queue("proposal", f"{k}: {why}\nA new [GAP] line is on the task branch; approve the spec, then `start` again.", task=task)
+        parts = _writeup(task, k, briefs[k], wt, window, session_dir, worker)
+        briefs[k] = feeder.apply_writeup(briefs[k], parts)
+        if miss := feeder.lint(briefs[k], c["labels"], _approved(wt)):  # the worktree's specs: the new [GAP] line is there
+            briefs.pop(k)
+            out[k] = "needs-maintainer"
+            why = f"written up, not fit to dispatch (lacks {'; '.join(miss)}): ID {parts.get('id', '?')}; ACCEPTANCE {parts.get('acceptance', '?')}; TEST {parts.get('test', '?')}"
+            _move(k, "needs-maintainer", why)
+            _queue("proposal", f"{k}: {why}\nA new [GAP] line is on the task branch; approve the spec, then `start` again.", task=task)
     if not briefs:
         coder.stop_window(c, window)
         journal.append("worker_gone", window=window, task=task, why="write-up done")
@@ -899,8 +902,8 @@ def approve_checks(issue, findings: str) -> dict:
     return {"approved": hit, **retry(key)}
 
 
-def _approved() -> set[str]:
-    specs = Path(cfg()["repo"]["path"]) / cfg()["repo"]["specs"]
+def _approved(root=None) -> set[str]:
+    specs = Path(root or cfg()["repo"]["path"]) / cfg()["repo"]["specs"]
     return feeder.approved_ids(p.read_text() for p in specs.rglob("*.md"))
 
 
