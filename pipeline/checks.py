@@ -19,7 +19,7 @@ from pipeline import ROOT, STATE
 
 # Every git the runner runs itself has hooks OFF: a coder can write `objects/` and its own ref but never `hooks/` or
 # `config`; this closes the other half (round-2 review HIGH). Raw ["git", ...] calls in the runner go through GIT.
-GIT = ["git", "-c", "core.hooksPath=/dev/null"]
+GIT = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
 
 
 def sh(cmd, cwd, env=None, timeout=1800) -> subprocess.CompletedProcess:
@@ -44,8 +44,8 @@ def scratch_dir(prefix: str) -> str:
     return tempfile.mkdtemp(prefix=prefix, dir=d)
 
 
-def changed_files(wt, since, filter="AMR") -> list[str]:
-    return [f for f in git(wt, "diff", "--name-only", f"--diff-filter={filter}", f"{since}...HEAD").splitlines() if f]
+def changed_files(wt, since, filter="AMR", head="HEAD") -> list[str]:
+    return [f for f in git(wt, "diff", "--name-only", f"--diff-filter={filter}", f"{since}...{head}").splitlines() if f]
 
 
 def touches(files, prefixes) -> list[str]:
@@ -100,13 +100,13 @@ def scratch_tree(wt, at, pinned_sha=None, files=()) -> str:
 BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
 
 
-def bypass_files(wt, since, cfg) -> list[str]:
+def bypass_files(wt, since, cfg, head="HEAD") -> list[str]:
     """Added files that would run before or instead of the checks: a sitecustomize/usercustomize or a .pth anywhere,
     a conftest.py outside a test dir, or a module named like a stdlib one at a root on the guards' path (scripts/
     or any `python_path` folder), which would shadow the import (round-3 review R1)."""
     roots = ["scripts", *[p.strip("/") for p in (cfg["repo"].get("python_path") or "").split(":") if p]]
     bad = []
-    for f in changed_files(wt, since, "A"):
+    for f in changed_files(wt, since, "A", head):
         p = Path(f)
         if p.name in BYPASS_NAMES or p.suffix == ".pth":
             bad.append(f)
@@ -121,10 +121,10 @@ def bypass_files(wt, since, cfg) -> list[str]:
     return bad
 
 
-def claude_dir_changed(wt, since) -> list[str]:
+def claude_dir_changed(wt, since, head="HEAD") -> list[str]:
     """Anything added, changed or left untracked under the worktree's .claude/: a hook put there would run outside the
     sandbox at the next session start, so it is a pinned red before every check and relaunch (round-2 review MED)."""
-    committed = [f for f in changed_files(wt, since, "AMR") if f.startswith(".claude/")]
+    committed = [f for f in changed_files(wt, since, "AMR", head) if f.startswith(".claude/")]
     # --ignored too: a global gitignore often hides `.claude/settings.local.json`, and an ignored hook still runs
     status = sh(["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "--", ".claude"], cwd=wt).stdout.splitlines()
     return sorted(set(committed + [line[3:] for line in status if line.strip()]))
@@ -154,17 +154,17 @@ def acceptance_lines(text: str, ids) -> list[str]:
     return [re.sub(r"\s+", " ", TAG_RE.sub("", s)).strip() for s in out]
 
 
-def acceptance_changed(wt, since, spec_dir, ids) -> list[str]:
+def acceptance_changed(wt, since, spec_dir, ids, head="HEAD") -> list[str]:
     """The item's own acceptance differs between `since` and HEAD in some changed spec file: the coder may not
     rewrite it (dogfood 6); a tag flip or an added `(#N)` is fine (R4). Returns the lines that differ."""
     if not spec_dir or not ids:
         return []
     hits = []
-    for f in changed_files(wt, since):
+    for f in changed_files(wt, since, head=head):
         if not f.startswith(spec_dir.rstrip("/") + "/") or not f.endswith(".md"):
             continue
         old = sh(["git", "show", f"{since}:{f}"], cwd=wt).stdout
-        new = (Path(wt) / f).read_text() if (Path(wt) / f).exists() else ""
+        new = sh(["git", "show", f"{head}:{f}"], cwd=wt).stdout
         before, after = acceptance_lines(old, ids), acceptance_lines(new, ids)
         if before != after:
             hits += [f"{f}: - {s[:160]}" for s in before if s not in after] + [f"{f}: + {s[:160]}" for s in after if s not in before]
@@ -175,12 +175,12 @@ def drop_tree(wt, tree) -> None:
     sh(["git", "worktree", "remove", "--force", tree], cwd=wt)
 
 
-def red_on_base(wt, tree, since, files, rung, cfg) -> tuple[bool, str]:
+def red_on_base(wt, tree, since, files, rung, cfg, head="HEAD") -> tuple[bool, str]:
     """Each changed or new test file, copied onto a scratch tree at `since` (the item's start), must FAIL there
     on its own, and all must PASS on the branch."""
     if not files:
         return False, "no test file changed: a source change needs a test (red on base, green on the branch)"
-    head = git(wt, "rev-parse", "HEAD")
+    head = git(wt, "rev-parse", head)
     base = scratch_tree(wt, since)
     try:
         sh(["git", "checkout", head, "--", *files], cwd=base)  # a new file: not on base, checkout still copies it
@@ -197,14 +197,17 @@ def red_on_base(wt, tree, since, files, rung, cfg) -> tuple[bool, str]:
         drop_tree(wt, base)
 
 
-def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
+def run_rung(rung, wt, tree, cfg, files, since, head="HEAD") -> tuple[bool, str]:
     if rung.get("enabled") is False:
         return True, "skipped (disabled in the profile)"
     if rung.get("paths") and not touches(files, rung["paths"]):
         return True, "skipped (diff does not touch its paths)"
     if rung.get("kind") == "red-on-base":
-        tests = [f for f in changed_files(wt, since, "AM") if any(fnmatch.fnmatch(f, g) for g in rung["test_glob"])]
-        return red_on_base(wt, tree, since, tests, rung, cfg)
+        tests = [f for f in changed_files(wt, since, "AM", head) if f.endswith(".py") and any(fnmatch.fnmatch(f, g) for g in rung["test_glob"])]
+        source = [f for f in files if f.endswith(".py") and not touches([f], cfg["repo"]["check_paths"])]  # a guard is not source
+        if not tests and not source:  # pytest cannot run a .swift path: the gate lane covers Swift
+            return True, "no python tests changed (no python source in the diff; guards and Swift are covered elsewhere)"
+        return red_on_base(wt, tree, since, tests, rung, cfg, head)
     env = test_env(tree, cfg)
     if "glob" in rung:  # the fast guards
         bad = []
@@ -212,11 +215,12 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
             if any(k in s for k in rung.get("skip", [])):
                 continue
             try:
-                r = sh(isolated(s, env), cwd=tree, env=env, timeout=rung.get("timeout_s", 60))
+                budget = rung.get("budget_s", {}).get(Path(s).stem, rung.get("timeout_s", 60))
+                r = sh(isolated(s, env), cwd=tree, env=env, timeout=budget)
                 if r.returncode:
                     bad.append(f"{Path(s).name}:\n{tail(r.stdout + r.stderr)}")
             except subprocess.TimeoutExpired:
-                bad.append(f"{Path(s).name}: timeout")
+                bad.append(f"{Path(s).name}: over its {budget} s budget (move it to the profile's [ladder.skip] with a reason, or raise [ladder.budget_s])")
         if not bad:
             return True, "all guards green"
         # the HEAD of the list of failing guards is never lost; each guard's output is its own tail
@@ -239,31 +243,45 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     return "\n".join(kept)[-chars:]
 
 
-def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
+def blob(wt, head: str, path: str) -> str:
+    """The git blob sha of `path` at `head` ("deleted" when it is not there): what approve-checks pins."""
+    return sh(["git", "rev-parse", "--verify", "-q", f"{head}:{path}"], cwd=wt).stdout.strip() or "deleted"
+
+
+def changed_checks(wt, since, cfg, pinned=None, approved=None, head="HEAD") -> tuple[str, list[str], list[str]]:
+    """(pinned sha, the pinned check files to lay over the tree, the pinned checks the diff changes). A check change
+    the maintainer approved (`approve-checks`: path -> the approved blob sha) is neither laid over nor a red while the
+    file still IS that blob; a later edit to it is a red again."""
+    pinned = pinned or cfg["repo"].get("pinned") or ROOT
+    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
+    overlay = [f for f in overlay if blob(wt, head, f) != (approved or {}).get(f)]
+    return pinned_sha, overlay, [f for f in changed_files(wt, since, "MDR", head) if f in overlay]
+
+
+def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, head="HEAD") -> list[dict]:
     """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
     pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
-    or a rewrite of the item's own acceptance in the spec."""
-    pinned = pinned or cfg["repo"].get("pinned") or ROOT
+    or a rewrite of the item's own acceptance in the spec. `head`: the commit to judge (a done sha, so a
+    worker that moved on to the next issue does not change what this one is judged on; the live HEAD by default)."""
     since = since or cfg["repo"]["base"]
-    files = changed_files(wt, since)
-    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
+    files = changed_files(wt, since, head=head)
     # a coder may add a guard, and keep editing a guard of its own that the pinned runner does not have yet (a
     # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
-    hit = [f for f in changed_files(wt, since, "MDR") if f in overlay]
+    pinned_sha, overlay, hit = changed_checks(wt, since, cfg, pinned, approved, head)
     why = f"the diff changes the checks themselves ({', '.join(hit[:5])})" if hit else ""
-    bypass = bypass_files(wt, since, cfg)
+    bypass = bypass_files(wt, since, cfg, head)
     if bypass and not why:
         why = f"the diff adds a file that would run before or instead of the checks ({', '.join(bypass[:5])})"
-    claude = claude_dir_changed(wt, since)
+    claude = claude_dir_changed(wt, since, head)
     if claude and not why:
         why = f"the worktree's .claude/ changed ({', '.join(claude[:5])}): a hook there would run outside the sandbox"
-    changed = acceptance_changed(wt, since, cfg["repo"].get("specs"), protected_ids)
+    changed = acceptance_changed(wt, since, cfg["repo"].get("specs"), protected_ids, head)
     if changed and not why:
         why = "the diff rewrites the item's own acceptance in the spec; use `ask` instead:\n" + "\n".join(changed[:8])
     if why:
         return [{"name": "pinned-checks", "ok": False, "seconds": 0, "text": f"{why}: needs-maintainer"}]
     try:
-        tree = scratch_tree(wt, git(wt, "rev-parse", "HEAD"), pinned_sha, overlay)
+        tree = scratch_tree(wt, git(wt, "rev-parse", head), pinned_sha, overlay)
     except RuntimeError as e:  # the overlay failed: never judge the coder's copies
         return [{"name": "pinned-checks", "ok": False, "seconds": 0, "text": str(e)}]
     results = [{"name": "pinned-checks", "ok": True, "seconds": 0,
@@ -272,7 +290,7 @@ def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
         for rung in cfg["ladder"]:
             t = time.time()
             try:
-                ok, text = run_rung(rung, wt, tree, cfg, files, since)
+                ok, text = run_rung(rung, wt, tree, cfg, files, since, head)
             except Exception as e:  # noqa: BLE001 - a broken rung is a red rung, with its text
                 ok, text = False, f"{type(e).__name__}: {e}"
             results.append({"name": rung["name"], "ok": ok, "text": text, "seconds": round(time.time() - t, 1)})

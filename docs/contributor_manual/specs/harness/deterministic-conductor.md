@@ -32,6 +32,21 @@ milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
   server (so Pi + a model, or Claude, can run it with tools that cannot skip a step), and a local web page the
   maintainer watches and works in. State lives in GitHub (issues, milestones, labels) and a local append-only
   journal; nothing a model says changes state except through a tool whose checks the code runs.
+- **Agentless** (deterministic localisation, then one focused repair): the runner finds the files and symbols and
+  builds the brief itself, so the model makes one focused edit, which is why an issue costs a few turns, not twenty.
+  **Aider's repo map** (a compact symbol map instead of whole files) and **SWE-agent's narrow tool interface** (few
+  tools, each shaped for the job) are the models for the brief and for the one tool list every role shares.
+  **mini-SWE-agent** (a bash-only loop of about a hundred lines that scores close to the big agents) is the proof
+  that a short tool list loses little; **AutoCodeRover** and **Moatless Tools** (localise by code search over the
+  AST, then edit) are the models for the brief builder's symbol lookup; **Scrouting** (arXiv 2608.04804: scout the
+  repo cheaply first, then route the task by its expected cost) for sizing an issue and picking its tier.
+- **Deterministic orchestration** cuts tokens: a COBOL-to-Python migration study measured up to 3.5x fewer tokens
+  when a fixed script, not a model, sequenced the steps. **Microsoft Conductor** (github.com/microsoft/conductor,
+  MIT; ideas borrowed, no code): one YAML workflow, routing by templates with no model call, script steps routed on
+  their exit code, explicit inputs and outputs per step, iteration and timeout guards, a validate-before-run, and the
+  cost per node on a dashboard; the profile's per-item steps follow that shape. **Trajectory reduction** and the
+  **OpenHands condenser** (drop or summarise old tool output each turn) are the model for pruning a long-lived
+  worker's history.
 - **Bernstein** (sipyourdrink-ltd/bernstein 3.23.0) was trialled on 2026-10-25 and dropped (ruling below): of the
   31 behaviours here it supplied one (worktree per task); its gate ran outside the task's worktree, its self-upgrade
   spawned stray tasks, it priced nothing for Pi, its intent check passed an unreadable reply, and its dashboard
@@ -45,7 +60,7 @@ milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
   Issue-Orchestrator (re-check state independently; the agent's "done" is a claim); Aider / Ralph loops (test,
   feed the failure back, retry); fichero-skills' `fs_autoloop` (May–Sept 2026) as the counter-example: a markdown
   queue edited by the model, "done" taken from the model's report, a loop driven by prompts, no jail.
-- Surveyed and not adopted: vibe-kanban (shut down 2026-04), Conductor, Superset, Claude Squad, Crystal (worktree
+- Surveyed and not adopted: vibe-kanban (shut down 2026-04), Conductor (the worktree GUI, not Microsoft's), Superset, Claude Squad, Crystal (worktree
   GUIs, chat-driven, no machine check); OpenHands resolver, OpenCode's GitHub action (cloud runners, own agent).
 
 ## The pipeline
@@ -91,7 +106,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_specs.py::test_build_order_parses`,
   `pipeline/tests/test_specs.py::test_build_order_guard_fails_on_orphan_behaviour`,
   `fichero-server/tests/unit/scripts/test_check_spec_build_order_shape.py`.
-- `pipeline.brief-lint` [MISSING] (#6116) — work starts only from an APPROVED spec's step or a bug issue; an issue
+- `pipeline.brief-lint` [PARTIAL] (#6116) — work starts only from an APPROVED spec's step or a bug issue; an issue
   without a spec id (or the bug label), an acceptance line or a test path is not dispatched; it goes to the queue
   as "write it up" (Opus with the maintainer, later the Qwen manager). Tests:
   `pipeline/tests/test_feeder.py::test_brief_lint_names_each_missing_field`,
@@ -256,11 +271,12 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   the jcodemunch MCP and docs and specs through the jdocmunch MCP (indexed on `docs/`). Pi loads MCP through the
   `pi-mcp-adapter` extension, so the runner gives Pi its own agent directory (`PI_CODING_AGENT_DIR=pipeline/pi-agent`)
   that loads only that adapter, those two servers plus the runner's own, the `_shared` principles and a ponytail
-  rules file: the coder gets ponytail FULL; the reviewer gets the ponytail review lens as one named check. The
-  coder's prompt makes the first step a REQUIRED `jdocmunch_search_sections` for the item's spec id (plus
-  `plan_turn` for the code) followed by a `pipeline_report` of what it found; when the session log shows no such
-  call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8 made 0
-  such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (the text of its
+  rules file: the coder gets ponytail FULL; the reviewer gets the ponytail review lens as one named check. Pi loads
+  no AGENTS.md or CLAUDE.md (`--no-context-files`: 68 KB a turn, and a "read STATE.md first" that sends a worker
+  exploring). Each worker gets a generated MCP config with the one short tool list of `pipeline.batch-session`; the
+  brief tells the coder not to explore but to read only the symbols it edits, and when the session log shows no
+  jcodemunch call by the first `done`, the item gets a note "tools unused" — information, never a failure (Qwen 3.8
+  made 0 such calls in the first two proof runs). The brief also forbids the coder to change its own acceptance (the text of its
   behaviour lines and of its step's Behaviours/Tests lines, compared with the status tag and `(#N)` stripped, so
   flipping [MISSING] to [OK] is allowed): such a diff is a pinned-checks red; `ask` instead.
   Tests:
@@ -271,8 +287,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   manager), one ORDERED list each: kind `pi` with provider (`openrouter`, `anthropic`, or `omlx` at its local
   OpenAI-compatible endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id. Ruled 2026-10-25
   (evening): every role runs on the Anthropic API through Pi — coder claude-sonnet-5-5, coder-small claude-haiku-5-5,
-  reviewer claude-opus-5-5, the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
-  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on its own branch (the pipeline lane's claude-code-worker branch).
+  reviewer claude-sonnet-5-5 (owner 2026-10-25: every worker is Sonnet or Haiku), the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
+  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on the claude-code-worker branch.
   Known limit, accepted for now: the Pi worker's jail is a convention — it can write the shared git common dir and
   `config.worktree`; the runner's own git runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false` so a
   planted hook or monitor never runs in the runner, and the checks' scratch trees live under the state dir. One list serves
@@ -291,7 +307,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 - `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
   task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
   shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
-  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$10, summed from
+  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$25, summed from
   the journal's cost lines) refuses `start`
   and `review`, stops a running item as `rate-limited` ("daily cap"), and lifts only with the next day or the
   maintainer's `resume --raise-cap <usd>` (journaled); the page shows today's spend against the cap. Items drain
@@ -315,6 +331,52 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_budget.py::test_second_test_run_waits_on_the_lock`,
   `pipeline/tests/test_budget.py::test_never_spawns_past_the_cap`,
   `pipeline/tests/test_budget.py::test_owner_engine_busy_signal`.
+- `pipeline.batch-session` [PARTIAL] (#6116) — the runner does what the lead and two Sonnet workers did by hand, as a
+  FIXED ROSTER of long-lived tmux workers: the lead is scripts (no model), plus two coders, one reviewer and one
+  bug-intake worker. Each coder is pinned to one milestone; the feeder keeps its queue topped up with that
+  milestone's open issues in build order, two or three briefs ahead, and hands the next brief the moment the worker
+  says done or goes idle; issues touching the same files go into one brief. The runner PRE-COMPUTES every brief so the
+  worker edits and does not explore: the issue text, the spec lines it cites, the files and symbols to touch (from
+  jcodemunch, or a stdlib grep fallback when it is absent) and the failing or new test to write first. Localisation
+  is model-free first (the spec citations, then jcodemunch or the grep); only when that finds nothing does the runner
+  make one small-tier model call to name the files. The brief's files, symbols and tests size the issue small or big,
+  and the size routes it to the small or the big tier. Every role gets the same short tool list in the same order: a
+  few jcodemunch calls (symbol source, file outline, references, search symbols), jdocmunch only when the brief cites
+  docs, and report, ask and done; a worker may ask for the wide set, which the runner grants and journals as a brief
+  miss (the page counts them). Old tool output is pruned from a long-lived worker's history every turn. Checks run by
+  scripts; only a failure goes back to the worker, as capped retry text. `pipeline_done(task, issue, residue)` per
+  issue journals the sha and the usage so far and triggers THAT issue's checks while the worker moves on; the
+  per-issue turns, tokens and dollars are the difference between two done lines. A profile budget per issue (turns
+  and tokens, e.g. 10 turns / 150k tokens) is flagged on the page when exceeded, never silently raised. Context
+  carries across issues in one worker; near full (`batch_end_pct`) the runner writes a short handoff note from the
+  journal (issues done, files touched, failures; never a transcript replay) and a fresh worker takes the milestone
+  on. A worker that has nothing ready PARKS: the window stays with no model calls, and a new issue of the same kind
+  wakes it with only the new brief while its context has room and it has idled less than `park_ttl` (profile, 30 min);
+  never more parked than the machine budget; the page shows parked workers. One Sonnet reviewer reviews per
+  milestone batch. Cost target: per issue, cheaper than today's lead plus two Sonnet workers, never a bigger fleet.
+  Tests: `pipeline/tests/test_core.py::test_batch_done_per_issue_checks_while_the_worker_moves_on`,
+  `pipeline/tests/test_core.py::test_batch_ends_at_the_context_budget_with_a_handoff_note`,
+  `pipeline/tests/test_core.py::test_parked_worker_is_woken_for_the_same_kind_within_park_ttl`,
+  `pipeline/tests/test_core.py::test_brief_carries_spec_lines_files_and_the_test_to_write`,
+  `pipeline/tests/test_core.py::test_a_model_names_the_files_only_when_localisation_finds_nothing`,
+  `pipeline/tests/test_core.py::test_a_small_batch_goes_to_the_small_tier_and_a_big_one_to_the_big`,
+  `pipeline/tests/test_coder.py::test_every_worker_gets_the_same_small_tool_list_and_docs_only_when_cited`,
+  `pipeline/tests/test_coder.py::test_a_proxy_call_is_counted_as_a_brief_miss`,
+  `pipeline/tests/test_faces.py::test_a_worker_tool_outside_the_role_refuses_at_call_time`.
+- `pipeline.prompt-cache` [MISSING] (#6116) — every prompt is laid out as a stable prefix then a variable tail, so
+  Anthropic prompt caching (cache_control through Pi — Pi 0.75.5's Anthropic provider sets it, and its OpenAI-style
+  provider passes it for Anthropic models on OpenRouter) and an oMLX/llama prefix KV cache both hit: the order is
+  tools, system prompt, the profile's rules, the milestone brief, then the per-issue and retry tail. The tool list is the
+  same, in the same order, for every role (role differences come from permissions or the profile, never a different
+  MCP tool set); the system prompt holds no timestamps, task ids or worker names — those go in the tail; when several
+  workers start together, one starts, its first reply is awaited (the cache written), then the rest (staggered starts). Provider-neutral:
+  cached-token counts are read from each provider's usage (Anthropic cache_read/cache_creation, Pi's cacheRead/cacheWrite,
+  OpenRouter's cached_tokens, oMLX whatever it reports, else 0) into one journal field per session, as cache_read, cache_write and fresh, and the page shows
+  the hit rate; for OpenRouter the profile pins the provider order per model so one Qwen provider keeps the cache
+  warm; oMLX runs one long-lived server per model (a profile entry, not built). Models are named by tier (the profile's `[tiers]` table; a role entry names `tier`, not a model): each provider has a big and a small model (Anthropic sonnet and haiku; OpenRouter a big and a cheaper small Qwen, enabled = false; oMLX the same later), roles name big or small, so switching provider is one profile line. Non-interactive model work (batch
+  reviews, sweeps, triage) may go through Anthropic's Message Batches API at half price behind a profile flag, off by
+  default. Tests: `pipeline/tests/test_coder.py::test_cache_tokens_are_read_from_each_providers_usage`,
+  `pipeline/tests/test_core.py::test_brief_is_a_stable_prefix_then_the_issue_tail`.
 - `pipeline.schedule` [MISSING] (#6116) — the runner takes over everything the lead sessions did by hand, on
   schedules and triggers: a `schedule` table in the profile, each entry a name, a when (cron, or `on:push`,
   `on:gate-green`, `on:idle`), the job (an existing script, run through the runner so it gets the budget, the
@@ -368,6 +430,22 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
   main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,
   `pipeline/tests/test_nightly.py::test_nightly_build_only_after_green_gate`.
+- `pipeline.closes-issues` [PARTIAL] (#6116) — the runner closes issues and milestones, properly, and never a second
+  closer: when an item's commit lands on integration with its checks green, `scripts/close_fixed_issues.py` (the one
+  closer, also the close-fixed-issues Action's) closes the issue with a comment naming the sha and the checks; a
+  dry-run line goes in the journal before each close; a worker-reported residue (part of the issue not done) updates
+  the issue body with what is left and leaves it open; a milestone closes when its last open issue closes; the page
+  shows what was closed today. Tests: `pipeline/tests/test_core.py::test_landing_closes_through_the_one_closer_after_a_dry_run_line`,
+  `pipeline/tests/test_core.py::test_a_residue_leaves_the_issue_open_with_what_is_left`.
+- `pipeline.pipeline-as-data` [PARTIAL] (#6116) — the profile's `[[steps]]` declare what each item goes through (brief,
+  code, checks, review, land, close): each step's kind (script, model or manual), what it reads and writes, where its
+  exit code sends it (`on_ok`, `on_fail`), and its caps (`timeout_s` for a script, `max_iter` for a step a route loops
+  back to). `config.load` validates the list before anything runs (a name that is not a step, an input nobody writes, a
+  loop without a cap, a script without a timeout, an unreachable step all refuse the profile); `steps.route` is the
+  whole of the routing, no model call. Today the checks → code/review route reads it; the rest of the loop still
+  follows the same order in code. Tests: `pipeline/tests/test_steps.py::test_the_profiles_pipeline_is_valid_and_routes_on_exit_code`,
+  `pipeline/tests/test_steps.py::test_validate_refuses_a_broken_pipeline`,
+  `pipeline/tests/test_steps.py::test_a_profile_with_a_broken_pipeline_refuses_to_load`.
 - `pipeline.rebase-after-push` [MISSING] (#6116) — every live coder rebases on integration after a push; a conflict
   after the rebase stops that coder and goes to the queue (resolved by the Opus session with the maintainer). Test:
   `pipeline/tests/test_core.py::test_rebase_conflict_stops_the_coder_and_queues`.
@@ -400,7 +478,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_web.py::test_api_endpoints_return_their_shape_from_a_fixture_journal`,
   `pipeline/tests/test_web.py::test_command_endpoints_call_the_same_functions_as_the_cli`,
   `pipeline/tests/test_web.py::test_post_without_token_or_with_foreign_origin_is_refused`.
-- `pipeline.dashboard-pages` [MISSING] (#6116) — the site grows pages with plain links and filterable tables:
+- `pipeline.dashboard-pages` [PARTIAL] (#6116) — built: Specs (tag counts), Milestones, Issues (open/closed, label, from-user, claimed), Next, Items and cost (checks, reviews, turns, tokens, cache hit, dollars, budget flag, spend vs cap), each reloading itself; the rest below is not. The site grows pages with plain links and filterable tables:
   Specs (status, milestone, counts by tag; a spec opens to behaviours, linked issues, build order with step states);
   Milestones (open and closed, closed-of-total, the step being coded, which is pointed at); Issues (filters:
   open/closed, milestone, label, from-user, claimed, runner state; links to GitHub and the spec line, journal
@@ -411,7 +489,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   worker, file a bug with an optional screenshot saved locally, approve a spec draft, approve the weekly release.
   GitHub data is cached by the runner, refreshed every few minutes and on each transition. Tests:
   `pipeline/tests/test_web.py::test_page_loads_and_every_link_resolves`,
-  `pipeline/tests/test_core.py::test_item_past_stuck_minutes_is_flagged`.
+  `pipeline/tests/test_core.py::test_item_past_stuck_minutes_is_flagged`,
+  `pipeline/tests/test_core.py::test_an_issues_usage_is_its_own_share_of_the_window`.
 - `pipeline.point-at-a-milestone` [PARTIAL] (#6116) — the maintainer sets which milestone runs next, and can pause
   or resume one; the feeder follows that before its own order. Test:
   `pipeline/tests/test_core.py::test_point_is_journaled_and_read_by_the_feeder`.
@@ -584,6 +663,12 @@ nothing pushed. Every behaviour below is in exactly one step; the runner's own g
 - Depends on: 0.5
 - Size: M
 
+#### Step 1.8 — the batch session, caching and closing
+- Behaviours: `pipeline.batch-session`, `pipeline.prompt-cache`, `pipeline.closes-issues`, `pipeline.pipeline-as-data`
+- Tests: pipeline/tests/test_core.py, pipeline/tests/test_coder.py, pipeline/tests/test_feeder.py, pipeline/tests/test_steps.py
+- Depends on: 1.3
+- Size: M
+
 ### Stage 2 — the page and the checks, whole
 
 #### Step 2.1 — the pages
@@ -665,5 +750,7 @@ runner (ponytail: the times below are from one Pro run on 2026-10-25 with the ve
 
 ## Open questions
 
-1. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
+1. Which big model on the Mac Studio: Qwen3-Coder-Next is the candidate for the big tier under oMLX (the small tier
+   a smaller Qwen); measure it on landed issues against the Sonnet baseline before switching the profile.
+2. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
    diff and the conflicting commit in front of it.

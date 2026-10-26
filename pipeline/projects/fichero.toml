@@ -36,7 +36,7 @@ cmd = "{pinned}/scripts/lane_ready_check.sh HEAD"
 [[ladder]]
 name = "red-on-base"
 kind = "red-on-base"            # built in: the changed test files must fail on the base and pass on the branch
-test_glob = ["*test*.py", "*Tests*.swift"]
+test_glob = ["*test*.py"]            # pytest runs only Python; Swift tests are the gate lane's
 pytest = "{python} -m pytest -q -p no:cacheprovider -x {files}"
 [[ladder]]
 name = "gate-part"
@@ -50,17 +50,76 @@ needs_mb = 4000
 [[ladder]]
 name = "fast-guards"
 glob = "{pinned}/scripts/check_*.py"
-skip = ["check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
-        "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
-        "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
-        "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths"]
-timeout_s = 60
+timeout_s = 60                       # the default budget of one guard; [ladder.budget_s] overrides it per guard
+# ONE list of what the nightly gate runs instead, each with its reason. A guard not named here runs on every check.
+[ladder.skip]
+check_closed_issues_landed = "asks GitHub: network, and about issues outside this item"
+check_unmerged_work = "reads every sibling worktree, not this tree"
+check_merged_worktrees = "reads every sibling worktree, not this tree"
+check_no_orphan_stashes = "reads the shared stash stack, not this tree"
+check_coverage_ratchet = "needs a coverage run (minutes)"
+check_embedded_engine_signing = "needs a built, signed app"
+check_hang_ratchet = "needs a test-host run's hang report"
+check_mac_app_store_target = "reads the Xcode project at release time (nightly)"
+check_release_staples_app = "needs a built DMG"
+check_sparkle_update_ready = "release-time readiness (nightly)"
+check_swiftlint_warning_ratchet = "runs swiftlint over the whole app (minutes)"
+check_test_plans_runnable = "runs xcodebuild -showTestPlans (slow)"
+check_engine_imports_bundled = "needs the staged engine bundle"
+check_release_size_ratchet = "needs a built release artifact"
+check_docs_paths = "went red unseen on 2026-10-25 and runs over every doc (slow); drop this line once cand20 (the reword) lands"
 [[ladder]]
 name = "contract-current"
 paths = ["fichero-server/src/"]
 cmd = ["{python} {pinned}/scripts/check_openapi_route_set_current.py",
        "{python} {pinned}/scripts/check_contract_identity_current.py",
        "{python} {pinned}/scripts/check_mcp_generated_current.py"]
+
+# The pipeline as data (pipeline.pipeline-as-data): each item runs these steps; a script step is routed on its exit
+# code (0 -> on_ok, else on_fail); `max_iter` caps a step a route loops back to. config.load validates this.
+[[steps]]
+name = "brief"
+kind = "script"
+in = ["issue"]
+out = ["brief"]
+timeout_s = 120
+on_ok = "code"
+[[steps]]
+name = "code"
+kind = "model"
+in = ["brief"]
+out = ["commit"]
+max_iter = 3                      # the first try and two retries ([workers] retries)
+on_ok = "checks"
+[[steps]]
+name = "checks"
+kind = "script"
+in = ["commit"]
+out = ["results"]
+timeout_s = 1800
+on_ok = "review"
+on_fail = "code"
+[[steps]]
+name = "review"
+kind = "model"
+in = ["commit", "results"]
+out = ["verdict"]
+max_iter = 2
+on_ok = "land"
+on_fail = "code"
+[[steps]]
+name = "land"
+kind = "manual"
+in = ["verdict"]
+out = ["landed"]
+on_ok = "close"
+[[steps]]
+name = "close"
+kind = "script"
+in = ["landed"]
+out = ["closed"]
+timeout_s = 120
+on_ok = "end"
 
 [nightly]
 gate = "scripts/gate verify-all"
@@ -78,39 +137,51 @@ tmux_session = "pipeline"
 pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
 agent_dir = "pipeline/pi-agent"
 cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
-daily_cap_usd = 10.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+daily_cap_usd = 25.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
 context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
+# pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
+# or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
+context_tokens = 200000         # the coder model's context window (Pi reports usage against it)
+batch_budget_pct = 40           # the share of context a batch's brief + issues may take at the start
+batch_end_pct = 80              # end the session (handoff note) once the session has used this share of context
+batch_max_issues = 10           # ponytail: a ceiling, not the sizing rule; the budget sizes the batch
+park_ttl_minutes = 30           # a parked worker is woken within this; after it, a fresh one starts from a handoff
+message_batches = false         # non-interactive model work through Anthropic's Message Batches API (half price); off
+issue_turns_max = 10             # the page flags an issue past these, never silently raises them
+issue_tokens_max = 150000
 retries = 2
 stuck_minutes = 45
 needs_mb = { pi = 300, pytest = 1500, gate-part = 4000 }
-caps = { coders = 1, test_runs = 1 }
+caps = { coders = 2, reviewers = 1, intake = 1, test_runs = 1 }   # the fixed roster: the lead is scripts
 owner_process = "Fichero Server"   # the maintainer's own engine; busy under pressure => the runner yields
 
 # One ordered fallback list per role (pipeline.worker-roles): kind pi, provider + model (as Pi spells it). Ruled
 # 2026-10-25: every role runs on the Anthropic API through Pi, the key from ~/.config/anthropic/key passed only through
 # env by the worker wrapper; Qwen stays configured but off (`enabled = false` entries are skipped).
+# Roles name a TIER, not a model: each provider has a big and a small model, so switching provider is one line per
+# role. The brief's size routes an issue to the small tier (pipeline.batch-session); the reviewer stays big.
+[tiers]
+anthropic = { big = "claude-sonnet-5-5", small = "claude-haiku-5-5" }
+openrouter = { big = "qwen/qwen3.8-27b", small = "qwen/qwen3.5-9b" }   # ponytail: the small Qwen is unmeasured
+omlx = { big = "qwen3-coder-next", small = "qwen3.5-9b" }              # the Studio end state (open question 1)
 [[roles.coder]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+tier = "big"
 [[roles.coder]]
 kind = "pi"
 provider = "openrouter"
-model = "qwen/qwen3.8-27b"
+tier = "big"
 enabled = false
-# items labelled small
-[[roles.coder-small]]
-kind = "pi"
-provider = "anthropic"
-model = "claude-haiku-5-5"
+# owner 2026-10-25: every runner worker is Sonnet or Haiku; the reviewer is Sonnet, not Opus
 [[roles.reviewer]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-opus-5-5"
+tier = "big"
 [[roles.manager]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+tier = "big"
 # The end state, not run now: every role local through oMLX (OpenAI-compatible; declared to Pi in
 # pipeline/pi-agent/models.json). The self-test loads nothing.
 # [[roles.coder]]

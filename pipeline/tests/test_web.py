@@ -176,3 +176,51 @@ def test_page_has_the_plain_labels_and_the_stage_1_note(server):
     for word in ("Status", "Started", "Last change", "Cost", "Last said", "Needs you", "Done",
                  "GitHub specs, milestones and issues come in Stage 1", "<details"):
         assert word in html, word
+
+
+def _fake_github(monkeypatch):
+    from pipeline import gh
+    issues = [{"number": 11, "title": "<script>alert(1)</script> open bug", "labels": [{"name": "type:bug"}], "milestone": {"title": "demo"},
+               "author": {"login": "dtubb"}, "state": "OPEN", "url": "https://example/11"},
+              {"number": 12, "title": "done thing", "labels": [], "milestone": {"title": "demo"}, "author": {"login": "dtubb"},
+               "state": "CLOSED", "url": "https://example/12"}]
+
+    def read(*a):
+        if a[0] == "api":
+            return [{"title": "demo", "number": 1, "state": "open", "open_issues": 1, "closed_issues": 3, "due_on": None}]
+        if a[0] == "issue":
+            want = a[a.index("--state") + 1]
+            return [i for i in issues if want == "all" or i["state"].lower() == want]
+        return []
+    monkeypatch.setattr(gh, "read", read)
+
+
+def test_page_loads_and_every_link_resolves(server, monkeypatch):
+    """Every page links to every other; each answers 200 and shows its data, escaped; the specs page counts tags."""
+    _fake_github(monkeypatch)
+    journal.append("item", issue=7, key="7", task="t", title="seven", window="coder-t", worktree="/wt", ids=[])
+    journal.append("worker", window="coder-t", task="t", role="coder", model="m", session_dir="s", cwd="/wt")
+    journal.append("issue_done", issue=7, key="7", task="t", sha="a" * 40, turns=12, tokens=9000, usd=0.5, fresh=1000, cache_read=3000, cache_write=0)
+    journal.append("cost", issue=7, key="7", task="t", session="s", usd=0.5, tokens=9000, model="m", tools={})
+    seen, todo = set(), ["/"]
+    while todo:
+        path = todo.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        status, html = call(server, path)
+        assert status == 200, path
+        todo += [h for h in re.findall(r'href="(/[^"]*)"', html) if h not in seen]
+    assert {"/", "/specs", "/milestones", "/issues", "/next", "/items"} <= seen
+    _, html = call(server, "/specs")
+    assert "demo.one" not in html and "MISSING 1" in html and "s.md" in html
+    _, html = call(server, "/milestones")
+    assert "3 of 4" in html and "75%" in html
+    _, html = call(server, "/issues?state=open")
+    assert "&lt;script&gt;" in html and "<script>alert" not in html and "done thing" not in html
+    _, html = call(server, "/issues?state=closed")
+    assert "done thing" in html and "open bug" not in html
+    _, html = call(server, "/issues?state=all&label=type:bug")
+    assert "open bug" in html and "done thing" not in html
+    _, html = call(server, "/items")
+    assert "over budget" in html and "75%" in html and "$0.50" in html and "daily cap" in html

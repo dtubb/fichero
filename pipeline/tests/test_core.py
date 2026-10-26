@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
+from pathlib import Path
 
 import pytest
 
@@ -345,15 +347,17 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
 
 
 def test_brief_requires_the_doc_lookup_first_and_forbids_acceptance_edits(scratch, issues):
+    """The name is kept (the spec cites it); the first step is now: do not explore, read only what you edit."""
     text = core.brief(issues[1001], "t")
-    assert "REQUIRED first step: call `jdocmunch_search_sections` for `demo.one`" in text
+    assert "Do not explore" in text and "brief miss" in text and "Never push" in text
     assert "Never change your own acceptance" in text and "`pipeline_ask`" in text
 
 
 def test_tools_unused_is_a_note_not_a_failure(scratch, issues, fake_coder):
-    fake_coder()  # its fake session shows jcodemunch but no jdocmunch
+    fc = fake_coder()
+    fc.tools = {"read": 1}  # a session with no jcodemunch call
     assert core.start([1001])["items"]["1001"] == "checked"
-    assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jdocmunch"]
+    assert core.state()["items"]["1001"]["notes"] == ["tools unused by the first done: jcodemunch"]
 
 
 def test_a_commit_landing_mid_check_is_red(scratch, issues, fake_coder, monkeypatch):
@@ -477,6 +481,24 @@ def test_an_item_that_hits_the_daily_cap_mid_run_stops_as_rate_limited(scratch, 
         core.start([1002])  # and nothing new starts today
 
 
+def test_wait_idle_gets_the_smaller_of_session_cap_and_what_is_left_today(scratch, issues, fake_coder, monkeypatch):
+    """#6145: the daily cap is enforced inside the turn (as wait_idle's cap), and its stop queues 'budget'."""
+    fc = fake_coder()
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 0.5
+    caps = []
+    real = fc.wait_idle
+    monkeypatch.setattr(core.coder, "wait_idle", lambda sd, cap, **kw: (caps.append(cap), real(sd, cap, **kw))[1])
+    scratch["cfg"]["workers"]["daily_cap_usd"] = 0.005
+    assert core.start([1001])["items"]["1001"] == "rate-limited"
+    assert caps and caps[0] == pytest.approx(0.005) and caps[0] < scratch["cfg"]["workers"]["cost_cap_usd"]
+    assert [q["kind"] for q in core.state()["queue"].values()] == ["budget"], "every worker is under the same cap: ask for budget"
+
+
+def test_each_role_has_its_own_mcp_wrapper(scratch):
+    a, b = core.coder.mcp_bin("t1", "coder"), core.coder.mcp_bin("t1", "reviewer")
+    assert a != b and "role coder" in (a / "pipeline-mcp").read_text().replace("--role", "role") and (b / "pipeline-mcp").exists()
+
+
 def test_review_runs_a_pi_reviewer_and_binds_its_verdict(scratch, issues, fake_coder, monkeypatch):
     """The smallest Pi reviewer path: a reviewer window, a brief, a wait for `pipeline_verdict`, its cost on the item."""
     fc = fake_coder()
@@ -511,3 +533,195 @@ def test_cost_cap_stops_the_worker_and_moves_to_the_fallback(scratch, issues, fa
     assert fc.stopped == ["coder-issues-1001"]
     assert [q["kind"] for q in core.queue()] == ["fallback"]
     assert any(e["event"] == "worker_gone" for e in journal.read())
+
+
+def test_brief_carries_spec_lines_files_and_the_test_to_write(scratch, issues):
+    """pipeline.batch-session: localisation is model-free; the brief names the files, symbols and the test to write."""
+    iss = dict(issues[1001], body="Change `base` in src/mod.py. Test: tests/test_new.py::test_new")
+    iss["localised"] = core.localised(iss, "t", "1001")
+    text = core.brief(iss, "t")
+    assert "- src/mod.py" in text and "`base`: src/mod.py:1:def base" in text
+    assert "tests/test_new.py::test_new" in text and "must fail before your change" in text
+    assert iss["localised"]["size"] == "small"
+    assert any(e["event"] == "localised" and e["files"] == ["src/mod.py"] for e in journal.read())
+
+
+def test_brief_is_a_stable_prefix_then_the_issue_tail(scratch, issues):
+    a, b = core.brief(issues[1001], "t1"), core.brief(issues[1002], "t2")
+    head = lambda t: t.split("# Issue #")[0]  # noqa: E731
+    assert head(a) == head(b) and "1001" not in head(a) and "t1" not in head(a), "no ids or tasks before the tail"
+
+
+def test_a_model_names_the_files_only_when_localisation_finds_nothing(scratch, issues, monkeypatch):
+    calls = []
+
+    def ask_once(cfg, worker, prompt, session_dir):
+        calls.append(worker["model"])
+        return {"answer": "src/mod.py\ntests/test_9.py", "cost_usd": 0.001, "tokens": 50, "model": worker["model"]}
+
+    monkeypatch.setattr(core.coder, "ask_once", ask_once)
+    core.localised(dict(issues[1001], body="Change `base` in src/mod.py."), "t", "1001")
+    assert calls == [], "the body names a file: no model call"
+    loc = core.localised(dict(issues[1002], body="Make f(2) return 2."), "t", "1002")
+    assert len(calls) == 1 and loc["files"] == ["src/mod.py"] and loc.get("by_model")
+
+
+def test_a_small_batch_goes_to_the_small_tier_and_a_big_one_to_the_big(scratch, issues, fake_coder):
+    scratch["cfg"]["tiers"] = {"openrouter": {"big": "qwen/big", "small": "qwen/small"}, "anthropic": {"big": "b", "small": "s"}}
+    fc = fake_coder()
+    ISS = __import__("pipeline.tests.conftest", fromlist=["ISSUES"]).ISSUES
+    ISS[1001]["body"] += " Change `base` in src/mod.py."
+    core.start([1001])
+    assert "openrouter/qwen/small" in " ".join(fc.windows[0][2])
+
+
+def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues, fake_coder):
+    fc = fake_coder()
+    real = fc._tell
+
+    def tell_and_touch_a_guard(window, text):
+        real(window, text)
+        (fc.cwd / "scripts" / "check_no_bad.py").write_text("print('ok, but changed')\n")
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)")
+
+    fc._tell = tell_and_touch_a_guard
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
+    fc._tell = real
+    out = core.approve_checks(1001, "the maintainer approved the guard change; carry on")
+    assert out["approved"] == ["scripts/check_no_bad.py"]
+    it = core.state()["items"]["1001"]
+    assert list(it["approved_checks"]) == ["scripts/check_no_bad.py"] and "approved the guard change" in it["retry_text"]
+    with pytest.raises(RuntimeError, match="approve-checks is for a needs-maintainer"):
+        core.approve_checks(1001, "again")
+
+
+def test_batch_done_per_issue_checks_while_the_worker_moves_on(scratch, issues, fake_coder, monkeypatch):
+    """Issue 1's checks run on ITS done sha while issue 2's brief is already with the worker; each issue has a done line."""
+    import time
+
+    from pipeline import checks
+    fc = fake_coder()
+    real, seen = checks.run_all, {}
+
+    def run_all(wt, cfg, *a, head="HEAD", **kw):
+        n = int(git(wt, "log", "-1", "--format=%s", head).split("#")[1].rstrip(")"))
+        if n == 1001:  # the sequential runner never gets past this wait: it tells 1002 only after the check returns
+            t0 = time.time()
+            while git(wt, "rev-parse", "HEAD") == git(wt, "rev-parse", head) and time.time() - t0 < 30:
+                time.sleep(0.05)  # waits for the worker's next commit
+            seen["moved_on"] = any("#1002" in t for _, t in fc.told) and git(wt, "rev-parse", "HEAD") != git(wt, "rev-parse", head)
+        return real(wt, cfg, *a, head=head, **kw)
+
+    monkeypatch.setattr(checks, "run_all", run_all)
+    out = core.start([1001, 1002], milestone="demo")
+    assert seen["moved_on"] and [out["items"][n] for n in ("1001", "1002")] == ["checked", "checked"]
+    dones = [e for e in journal.read() if e["event"] == "issue_done"]
+    assert [e["issue"] for e in dones] == [1001, 1002] and dones[0]["sha"] != dones[1]["sha"]
+    s = core.state()["items"]
+    assert [i["dones"][0]["sha"] for i in (s["1001"], s["1002"])] == [d["sha"] for d in dones]
+    assert s["1001"]["sha"] == dones[0]["sha"], "the check judged the done sha, not the moved head"
+    core.done("demo-1001", 1002, "the second acceptance line is left")
+    assert core.state()["items"]["1002"]["residue"] == "the second acceptance line is left"
+
+
+def test_batch_ends_at_the_context_budget_with_a_handoff_note(scratch, issues, fake_coder):
+    """Past batch_end_pct of the context a fresh window takes the rest, and its brief points at a note built from the journal."""
+    fc = fake_coder()
+    fc.context = 900  # 90 % of the 1000-token window once the first issue is in
+    out = core.start([1001, 1002], milestone="demo")
+    assert list(out["items"].values()) == ["checked", "checked"]
+    h = [e for e in journal.read() if e["event"] == "handoff"]
+    assert len(h) == 1 and "coder-demo-1001" in fc.stopped
+    note = Path(h[0]["note"]).read_text()
+    assert "#1001" in note and "src/mod.py" in note
+    assert h[0]["note"] in core.brief({**core.ISSUE(1002), "handoff": h[0]["note"]}, "demo")
+    assert len([e for e in journal.read() if e["event"] == "worker"]) == 2, "a second window started"
+
+
+def test_parked_worker_is_woken_for_the_same_kind_within_park_ttl(scratch, issues, fake_coder):
+    """A finished milestone batch parks its window; the next issue of that milestone reuses it, a later or other one starts fresh."""
+    fc = fake_coder()
+    core.start([1001], milestone="demo")
+    assert core.state()["workers"]["coder-demo-1001"]["parked"]
+    out = core.start([1002], milestone="demo")
+    assert out["window"] == "coder-demo-1001" and len([e for e in journal.read() if e["event"] == "worker"]) == 1
+    assert [e["event"] for e in journal.read() if e["event"] in ("park", "wake")] == ["park", "wake", "park"]
+    scratch["cfg"]["workers"]["park_ttl_minutes"] = 0  # idled past the ttl: stopped, not woken
+    time.sleep(1.1)
+    core.start([1003], milestone="demo")
+    assert "coder-demo-1001" in fc.stopped
+
+
+def _landed(scratch, monkeypatch, labels=(), residue="", milestone_open=1):
+    """Issue 1001 coded and checked, its commit pushed to the base branch; a fake GitHub that records the writes."""
+    from pipeline import gh
+    core.start([1001], milestone="demo")
+    if residue:
+        core.done("demo-1001", 1001, residue)
+    git(Path(core.state()["tasks"]["demo-1001"]["worktree"]), "push", "-q", "origin", "HEAD:integration")
+    writes = []
+    monkeypatch.setattr(gh, "sh", lambda args, **kw: writes.append(args[1:]) or type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+
+    def read(*a):
+        if a[0] == "issue":
+            return {"state": "OPEN", "labels": [{"name": n} for n in labels], "milestone": {"title": "demo"}}
+        return [{"title": "demo", "number": 7, "open_issues": milestone_open, "closed_issues": 0}] if "milestones" in a[1] else []
+    monkeypatch.setattr(gh, "read", read)
+    return writes
+
+
+def test_landing_closes_through_the_one_closer_after_a_dry_run_line(scratch, issues, fake_coder, monkeypatch):
+    """Dry run writes nothing; --apply journals the dry-run line, then closes with the sha and checks, and the milestone with its last issue."""
+    fake_coder()
+    writes = _landed(scratch, monkeypatch)
+    assert core.close_landed()["closed"] == [1001] and not writes, "the default is a dry run"
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out == {"closed": [1001], "residue": [], "milestones": ["demo"]}
+    close = next(a for a in writes if a[:2] == ["issue", "close"])
+    sha = core.state()["items"]["1001"]["sha"][:9]
+    assert sha in close[-1] and "Checks green" in close[-1]
+    gw = [e["dry_run"] for e in journal.read() if e["event"] == "gh_write" and e["args"][:2] == ["issue", "close"]]
+    assert gw == [True, True, False], "a dry-run line before the real close"
+    assert any(a[:3] == ["api", "-X", "PATCH"] for a in writes)
+    assert core.close_landed()["closed"] == [], "closed once"
+
+
+def test_a_residue_leaves_the_issue_open_with_what_is_left(scratch, issues, fake_coder, monkeypatch):
+    fake_coder()
+    writes = _landed(scratch, monkeypatch, residue="the second acceptance line")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["residue"] == [1001] and not out["closed"] and not out["milestones"]
+    assert any(a[:3] == ["issue", "comment", "1001"] and "second acceptance line" in a[-1] for a in writes)
+    assert any(a[:2] == ["issue", "edit"] and "residue" in a for a in writes) and not any(a[:2] == ["issue", "close"] for a in writes)
+
+
+def test_an_issues_usage_is_its_own_share_of_the_window(scratch):
+    """Done lines carry the window's running totals; an issue's usage is the step since the task's last done line, and a new coder window counts from zero."""
+    def item(n):
+        journal.append("item", issue=n, key=str(n), task="t", title="x", window="w", worktree="/wt", ids=[])
+    for n in (1, 2, 3):
+        item(n)
+    journal.append("worker", window="w", task="t", role="coder", model="m", session_dir="s", cwd="/wt")
+    journal.append("issue_done", issue=1, key="1", task="t", sha="a", turns=3, tokens=1000, usd=0.1, fresh=100, cache_read=500, cache_write=0)
+    journal.append("issue_done", issue=2, key="2", task="t", sha="b", turns=8, tokens=4000, usd=0.4, fresh=300, cache_read=2500, cache_write=0)
+    journal.append("worker", window="r", task="t", role="reviewer", model="m", session_dir="s2", cwd="/wt")  # a reviewer does not reset the coder's count
+    journal.append("worker", window="w", task="t", role="coder", model="m", session_dir="s3", cwd="/wt")
+    journal.append("issue_done", issue=3, key="3", task="t", sha="c", turns=2, tokens=900, usd=0.09, fresh=90, cache_read=400, cache_write=0)
+    u = {k: core.state()["items"][k]["usage"] for k in "123"}
+    assert (u["1"]["turns"], u["2"]["turns"], u["3"]["turns"]) == (3, 5, 2)
+    assert u["2"]["tokens"] == 3000 and u["2"]["usd"] == pytest.approx(0.3) and u["3"]["cache_read"] == 400
+
+
+def test_a_milestone_with_unfiled_build_steps_stays_open(scratch, issues, fake_coder, monkeypatch):
+    """The closer closes the issue but leaves a milestone open while its spec has a build step with no issue number."""
+    fake_coder()
+    writes = _landed(scratch, monkeypatch)
+    spec = scratch["repo"] / "specs" / "m.md"
+    spec.write_text("# M\n\n> Milestone: demo\n\n## Build order\n\n#### Step 1.1 — filed (#1001)\n#### Step 1.2 — not filed yet\n")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["closed"] == [1001] and out["milestones"] == [] and not any(a[:3] == ["api", "-X", "PATCH"] for a in writes)
+    assert core.unfiled_steps("demo") == ["#### Step 1.2 — not filed yet"]

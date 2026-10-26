@@ -14,7 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pipeline import STATE, budget, checks, coder, config, gh, journal
+from pipeline import ROOT, STATE, budget, checks, coder, config, feeder, gh, journal, localise, steps
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
@@ -31,7 +31,7 @@ CFG: dict = {}
 ISSUE = gh.issue  # the one read of an issue; tests replace it
 DRY_RUN = True    # GitHub writes: the CLI flips this with --apply; tests and the proof run never do
 ANSWER_DEADLINE_S = 4 * 3600
-TOOLS_WANTED = ("jdocmunch", "jcodemunch")
+TOOLS_WANTED = ("jcodemunch",)
 ITEM_FIELDS = ("issue", "task", "sha", "to", "why", "ok", "results", "verdict", "by", "findings", "usd", "tokens", "model",
                "tools", "session", "text")
 
@@ -69,7 +69,11 @@ def _n(key: str) -> int:
 
 # --- state = the journal replayed -------------------------------------------------------------------------------
 
+USAGE = ("turns", "tokens", "usd", "fresh", "cache_read", "cache_write")  # what an issue_done line counts so far in its window
+
+
 def state() -> dict:
+    lastdone: dict = {}
     s = {"items": {}, "tasks": {}, "queue": {}, "point": None, "paused": False, "workers": {}, "machine": None}
     for e in journal.read():
         ev = e["event"]
@@ -99,11 +103,26 @@ def state() -> dict:
             it["retry_text"] = e["text"]
         elif ev == "reset" and it:  # the maintainer: the attempts so far were the runner's fault, not the coder's
             it["attempts"] = 0
+        elif ev == "approve_checks" and it:  # the maintainer OKs this check change and sends the findings
+            it["approved_checks"] = {**it.get("approved_checks", {}), **e["blobs"]}  # path -> the approved blob sha
+            it["attempts"], it["retry_text"] = 0, e["text"]
         elif ev == "verdict" and it:
             it["verdicts"].append({x: e[x] for x in ("sha", "verdict", "by", "findings")})
         elif ev == "cost" and it:
             it["cost_usd"] = round(it["cost_usd"] + e["usd"], 4)
             it["tokens"], it["model"] = e["tokens"], e["model"]
+        elif ev == "done_requested" and it and e.get("text"):
+            it["residue"] = e["text"]
+        elif ev == "closer" and it:
+            it["closer"] = e["what"]
+        elif ev == "issue_done" and it:
+            it.setdefault("dones", []).append({x: e[x] for x in ("sha", "turns", "tokens", "usd")})
+            u = it.setdefault("usage", dict.fromkeys(USAGE, 0))  # this issue's own share: the step from the task's last done line
+            prev = lastdone.get(e["task"]) or {}
+            now = {x: e.get(x, 0) for x in USAGE}
+            for x in USAGE:
+                u[x] = round(u[x] + now[x] - prev.get(x, 0), 4)
+            lastdone[e["task"]] = now
         elif ev == "note" and it:
             it.setdefault("notes", []).append(e["text"])
         elif ev == "queue":
@@ -115,9 +134,13 @@ def state() -> dict:
         elif ev in ("pause", "resume"):
             s["paused"] = ev == "pause"
         elif ev == "worker":
+            if e.get("role") == "coder":
+                lastdone.pop(e["task"], None)  # a new coder window counts from zero again
             s["workers"][e["window"]] = {x: e.get(x) for x in ("window", "task", "model", "session_dir", "cwd", "role")}
         elif ev == "worker_gone":
             s["workers"].pop(e["window"], None)
+        elif ev in ("park", "wake") and e["window"] in s["workers"]:
+            s["workers"][e["window"]].update(parked=e["ts"] if ev == "park" else None, park_milestone=e.get("milestone"))
         elif ev == "undelivered" and e.get("window") in s["workers"]:
             s["workers"][e["window"]]["undelivered"] = e["text"][:120]
         elif ev == "tell" and e.get("delivered") and e.get("window") in s["workers"]:
@@ -281,7 +304,14 @@ def spend_today() -> float:
 def daily_cap() -> float:
     """The profile's daily cap, or what `resume --raise-cap N` set for today."""
     raised = [e["usd"] for e in journal.read() if e["event"] == "raise_cap" and e["ts"][:10] == today()]
-    return max([cfg()["workers"].get("daily_cap_usd", 20.0), *raised])
+    return max([cfg()["workers"].get("daily_cap_usd", 25.0), *raised])
+
+
+def cap_for(session_dir) -> float:
+    """What wait_idle may let this session spend: the session cap, or what is left of today's cap if that is less
+    (#6145: the daily cap used to be checked only after a turn, so one session could overshoot it)."""
+    mine = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+    return min(cfg()["workers"]["cost_cap_usd"], mine + max(0.0, daily_cap() - spend_today()))
 
 
 def _require_budget() -> None:
@@ -313,34 +343,67 @@ def issue_ids(issue: dict) -> list[str]:
     return sorted(set(BEHAVIOUR_ID.findall(issue.get("body") or "")))
 
 
-def brief(issue: dict, task: str, failure: str = "") -> str:
-    """The coder's prompt: the issue (only text by allow-listed authors), its spec lines, the rules. Outside text
-    never enters a prompt (pipeline.outside-bugs)."""
+def localised(issue: dict, task: str, key: str) -> dict:
+    """Where the issue's change goes, found without a model (the spec citations, then git grep); only when that finds
+    nothing, ONE small-tier call names the paths, which are then checked like any other. Journaled `localised`."""
+    c = cfg()
+    text = (issue.get("body") or "") + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
+    loc = localise.localise(c["repo"]["path"], text)
+    if loc["size"] == "unknown":
+        w = config.at_tier(c, workers()[0], "small")
+        dirs = sorted({str(Path(f).parent) for f in checks.git(c["repo"]["path"], "ls-files").splitlines()
+                       if f.count("/") <= 3})[:400]  # ponytail: directories, not files; a repo map when this misses
+        prompt = "\n".join([f"Issue: {issue['title']}", text[:4000], "", "Directories:", *dirs, "",
+                             "Name up to 5 existing repo file paths this issue changes and its test file, one per line, nothing else."])
+        session = STATE / "sessions" / task / f"localise-{key}-{time.strftime('%Y%m%d-%H%M%S')}"
+        st = coder.ask_once(c, w, prompt, session)
+        journal.append("cost", issue=_n(key), key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
+                       tokens=st["tokens"], model=st["model"] or w["model"], tools={})
+        loc = dict(localise.localise(c["repo"]["path"], text + "\n" + st["answer"]), by_model=True)
+    journal.append("localised", issue=_n(key), key=key, task=task, files=loc["files"], symbols=sorted(loc["symbols"]),
+                   tests=[t["path"] + (f"::{t['name']}" if t["name"] else "") for t in loc["tests"]], size=loc["size"],
+                   by_model=loc.get("by_model", False))
+    return loc
+
+
+# The brief's stable prefix: no issue number, task or timestamp, so every brief starts with the same bytes and a
+# prefix cache hits (pipeline.prompt-cache); the issue, its spec lines, where and the test come after.
+def brief_rules() -> list[str]:
     g = cfg()["github"]
-    if issue.get("author") not in g["allowed_authors"]:
-        raise PermissionError(f"#{issue['number']} is by {issue.get('author')}: not allow-listed, triage it first")
-    body = issue.get("body") or ""
-    ids = issue_ids(issue)
-    lines = spec_lines(set(ids))
-    text = [f"# Issue #{issue['number']}: {issue['title']}", "", body, ""]
-    if lines:
-        text += ["## Spec lines", *lines, ""]
-    if failure:
-        text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
-    fixes = "Part of" if issue.get("part_of") else "Fixes"
-    first = (f"1. REQUIRED first step: call `jdocmunch_search_sections` for `{ids[0]}`" if ids
-             else "1. REQUIRED first step: call `jdocmunch_search_sections` for this issue's subject")
-    text += ["## How to work",
-             first + " (and jcodemunch `plan_turn` for the code), then call `pipeline_report` with one line on what you found. Read before you write.",
+    return ["# How to work (the same for every issue)",
+             "1. Do not explore: the issue section below names what to change. Read only the symbols you edit (jcodemunch "
+             "`get_symbol_source` / `get_file_outline`), then edit. The `mcp` tool (the wide set) is a brief miss: "
+             "use it only when the brief truly lacks something, and say what in `pipeline_report`.",
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
              "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
              "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
-             f"6. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
-             f"7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
+             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m '{g['commit_trailer']}'`, "
+             "the issue line below says which. Uncommitted work counts as nothing.",
+             "7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with the task named below. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
-             "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets."]
+             "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets. "
+             "Never push, never `git stash`, never touch the maintainer's data or settings.", ""]
+
+
+def brief(issue: dict, task: str, failure: str = "") -> str:
+    """The coder's prompt: the stable rules, then the issue (only text by allow-listed authors), its spec lines,
+    where the change goes and the test to write. Outside text never enters a prompt (pipeline.outside-bugs)."""
+    g = cfg()["github"]
+    if issue.get("author") not in g["allowed_authors"]:
+        raise PermissionError(f"#{issue['number']} is by {issue.get('author')}: not allow-listed, triage it first")
+    lines = spec_lines(set(issue_ids(issue)))
+    fixes = "Part of" if issue.get("part_of") else "Fixes"
+    text = [*brief_rules(), f"# Issue #{issue['number']}: {issue['title']}",
+            f"Task `{task}`; commit with `({fixes} #{issue['number']})`.", "", issue.get("body") or "", ""]
+    if issue.get("handoff"):
+        text += [f"## Handoff: the previous session ended near its context limit; read {issue['handoff']} first (what is done, what failed).", ""]
+    if lines:
+        text += ["## Spec lines", *lines, ""]
+    text += localise.section(issue.get("localised") or {"files": [], "symbols": {}, "tests": []})
+    if failure:
+        text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
     return "\n".join(text)
 
 
@@ -378,7 +441,12 @@ def workers(role: str = "coder") -> list[dict]:
     return [w for w in cfg()["roles"][role] if w.get("enabled", True)]
 
 
-def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
+def cites_docs(issue: dict) -> bool:
+    """jdocmunch joins the worker's tools only when the issue names a doc page beyond the spec lines in its brief."""
+    return bool(re.search(r"(?<![\w/])docs/\S+\.md", issue.get("body") or ""))
+
+
+def _start_worker(task: str, wt: Path, worker: dict, window: str, docs: bool = False) -> Path:
     """Each window start gets its OWN timestamped session dir, so delivery and idleness are read from the new
     session's file, never from an older one (review MED B)."""
     c = cfg()
@@ -386,7 +454,7 @@ def _start_worker(task: str, wt: Path, worker: dict, window: str) -> Path:
     journal.append("intent", task=task, what="worker", ref=window)
     session = STATE / "sessions" / task / f"{worker['provider']}-{worker['model'].replace('/', '_')}-{stamp}"
     session.mkdir(parents=True, exist_ok=True)
-    cmd = coder.pi_command(c, worker, session)
+    cmd = coder.pi_command(c, worker, session, task=task, docs=docs)
     coder.start_window(c, window, wt, cmd, coder.allowed_env(c, task, "coder"))
     journal.append("worker", window=window, task=task, role="coder", model=config.pi_model_id(worker), kind=worker["kind"],
                    session_dir=str(session), cwd=str(wt))
@@ -455,9 +523,11 @@ def repair(issue, base: str | None = None, from_file: str | None = None, since: 
 def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     _require_running()
     _require_budget()
+    coder.require_mcp_sdk()
     c = cfg()
-    task = task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     s = state()
+    woken = _parked(s, milestone, c) if milestone and not from_file else None
+    task = woken["task"] if woken else task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     live = _live_coders(s, task)
     if len(live) >= c["workers"]["caps"]["coders"]:
         raise RuntimeError(f"coder cap {c['workers']['caps']['coders']}: {', '.join(live)} running")
@@ -475,20 +545,57 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     if not briefs:
         return {"task": task, "done": "nothing left to do"}
     wt = _worktree(task, base)
-    window = f"coder-{task}"
+    window = woken["window"] if woken else f"coder-{task}"
     for k, iss in briefs.items():
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
-    worker = workers()[worker_index]
-    _wait_room(worker["kind"], task)
-    session_dir = _start_worker(task, wt, worker, window)
-    summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}
     for k, iss in briefs.items():
-        summary["items"][k] = _run_issue(task, k, iss, wt, window, session_dir, worker, worker_index)
-        if summary["items"][k] in ("rate-limited", "failed"):
-            break  # the fallback list: the next worker takes the rest of the batch in a fresh context
-    return summary
+        iss["localised"] = localised(iss, task, k)
+    # the batch's size routes it: every issue small => the small tier; anything bigger or unplaced => the big one
+    tier = "small" if all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
+    worker = config.at_tier(c, workers()[worker_index], tier)
+    docs = any(cites_docs(i) for i in briefs.values())
+    if woken:  # the parked worker keeps its window and context: only the new briefs go in
+        journal.append("wake", window=window, task=task, milestone=milestone)
+        session_dir = Path(woken["session_dir"])
+    else:
+        _wait_room(worker["kind"], task)
+        session_dir = _start_worker(task, wt, worker, window, docs=docs)
+    out = _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs)
+    if milestone and all(v == "checked" for v in out.values()):  # nothing ready now: the window stays, no model calls
+        journal.append("park", window=window, task=task, milestone=milestone)
+    return {"task": task, "window": window, "worktree": str(wt), "items": out}
+
+
+def _parked(s: dict, milestone: str, c: dict) -> dict | None:
+    """A parked coder of this milestone that is live, idled less than park_ttl and has context room (pipeline.batch-
+    session). Parked windows past the ttl are stopped here, when the next start looks (ponytail: no timer until the
+    runner has a daemon)."""
+    w, live, found = c["workers"], coder.live_windows(c), None
+    for win, p in list(s["workers"].items()):
+        if not p.get("parked") or p["window"] not in live:
+            continue
+        age = time.time() - time.mktime(time.strptime(p["parked"], "%Y-%m-%dT%H:%M:%S"))
+        room = coder.status(Path(p["session_dir"]))["context"] < w["context_tokens"] * w["batch_end_pct"] / 100
+        if age > w["park_ttl_minutes"] * 60 or not room:
+            coder.stop_window(c, win)
+            journal.append("worker_gone", window=win, task=p["task"], why="parked past park_ttl or context full")
+        elif p.get("park_milestone") == milestone:
+            found = p
+    return found
+
+
+def _handoff(task: str, wt: Path, since: str, n: int) -> Path:
+    """The short note a fresh window starts from: issues done with their commits, files touched, failures. From the
+    journal and git, never a transcript replay (pipeline.batch-session)."""
+    its = [(e["issue"], e["sha"][:9]) for e in journal.read() if e["event"] == "issue_done" and e.get("task") == task]
+    state_ = state()["items"]
+    lines = [f"# Handoff for task {task}", "", "Done (issue, commit, state):"]
+    lines += [f"- #{i} {sha} {state_[k]['state']}" for i, sha in its for k in [item_key(i, task)] if k in state_]
+    lines += ["", "Files touched so far:", *(f"- {f}" for f in checks.git(wt, "diff", "--name-only", f"{since}..HEAD").split()[:40])]
+    failed = [f"- {k}: {it['retry_text'][-300:]}" for k, it in state_.items() if it["task"] == task and it["retry_text"]]
+    return coder.brief_file(task, f"handoff-{n}", "\n".join(lines + (["", "Failures seen:", *failed] if failed else [])))
 
 
 def _since(key: str, task: str) -> str | None:
@@ -503,43 +610,66 @@ def _since(key: str, task: str) -> str | None:
     return lines[0]["sha"] if lines and tasks == {None} else None  # untagged lines, one task so far: the first one
 
 
-def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) -> str:
+def _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt) -> tuple[str | None, str]:
+    """One coding turn: tell the brief, wait for the worker's idle turn, journal its cost and the `done` line (sha and
+    usage so far; an issue's turns, tokens and dollars are the difference between two done lines). → (terminal
+    state or None, the commit the worker finished on). A stopped worker ends the item here."""
+    c, n = cfg(), _n(key)
+    _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
+    path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
+    before = coder.status(session_dir)
+    tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} and issue {n} when your commit is in.", task=task)
+    st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
+    st = _wait_answers(task, session_dir, st)
+    # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
+    spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+    journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
+                   tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+    sha = _head(wt)
+    journal.append("issue_done", issue=n, key=key, task=task, sha=sha, turns=st["turns"], tokens=st["tokens"], usd=st["cost_usd"],
+                   fresh=st.get("fresh", 0), cache_read=st.get("cache_read", 0), cache_write=st.get("cache_write", 0))
+    if st.get("proxy_calls", 0) > before.get("proxy_calls", 0):  # the worker reached for the wide set
+        journal.append("brief_miss", issue=n, key=key, task=task, calls=st["proxy_calls"] - before.get("proxy_calls", 0))
+    unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
+    if unused:  # information only, never a failure (dogfood 7)
+        journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
+    daily = spend_today() >= daily_cap()
+    if daily:  # every worker is under the same cap: the queue asks for budget, not for the next worker
+        st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
+        st["rate_limited"] = True
+    if st.get("stopped") or st.get("rate_limited"):
+        coder.stop_window(c, window)
+        journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
+        if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
+            _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
+            nxt = worker_index + 1 < len(workers()) and not daily
+            _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
+                   + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
+            return "rate-limited", sha
+        _move(key, "failed", st["stopped"])
+        return "failed", sha
+    return None, sha
+
+
+def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, first=None) -> str:
+    """The item's turn/check/retry loop. `first` = (turn result, check results, the attempt count before them) when the batch already ran the first
+    turn and is checking it while the worker codes the next issue."""
     c = cfg()
-    n = _n(key)
     since = _since(key, task) or _head(wt)
-    journal.append("since", issue=n, key=key, task=task, sha=since)
+    if not first:
+        journal.append("since", issue=_n(key), key=key, task=task, sha=since)
     it = state()["items"][key]
-    failure, attempt = it["retry_text"], it["attempts"]
+    failure, attempt = it["retry_text"], first[2] if first else it["attempts"]
     while attempt <= c["workers"]["retries"]:
-        _move(key, "coding", f"{worker['provider']}/{worker['model']}, attempt {attempt + 1}")
-        path = coder.brief_file(task, f"issue-{n}-attempt-{attempt + 1}", brief(iss, task, failure))
-        before = coder.status(session_dir)
-        tell(window, f"Read and do {path} — issue #{n}. Call the `done` tool with task {task} when your commit is in.", task=task)
-        st = coder.wait_idle(session_dir, c["workers"]["cost_cap_usd"], after_turns=before["turns"], token_cap=worker.get("token_cap"))
-        st = _wait_answers(task, session_dir, st)
-        # per-issue cost is the delta of THIS session file's running total (a new window = a new session = from 0)
-        spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
-        journal.append("cost", issue=n, key=key, task=task, session=str(session_dir), usd=round(st["cost_usd"] - spent, 4),
-                       tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
-        unused = [t for t, used in coder.uses_tools(st, *TOOLS_WANTED).items() if not used]
-        if unused:  # information only, never a failure (dogfood 7)
-            journal.append("note", issue=n, key=key, text=f"tools unused by the first done: {', '.join(unused)}")
-        if spend_today() >= daily_cap() and not st.get("stopped"):
-            st["stopped"] = f"daily cap: ${spend_today():.2f} of ${daily_cap():.2f}"
-            st["rate_limited"] = True
-        if st.get("stopped") or st.get("rate_limited"):
-            coder.stop_window(c, window)
-            journal.append("worker_gone", window=window, task=task, why=st.get("stopped") or "rate limited")
-            if st.get("rate_limited") or "cost cap" in st.get("stopped", ""):
-                _move(key, "rate-limited", st.get("stopped") or "quota or credit failure")
-                nxt = worker_index + 1 < len(workers())
-                _queue("fallback" if nxt else "budget", f"{key}: {worker['model']} stopped ({st.get('stopped') or 'rate limited'}); "
-                       + ("the next worker takes over" if nxt else "every worker in the list stopped; more budget?"), task=task)
-                return "rate-limited"
-            _move(key, "failed", st["stopped"])
-            return "failed"
-        results = check(key, since=since, locked=True)
-        if all(r["ok"] for r in results):
+        if first:
+            end, results, _ = first
+            first = None
+        else:
+            end, sha = _turn(task, key, iss, wt, window, session_dir, worker, worker_index, since, failure, attempt)
+            results = check(key, since=since, locked=True, sha=sha) if not end else None
+        if end:
+            return end
+        if steps.route(c["steps"], "checks", 0 if all(r["ok"] for r in results) else 1) != "code":  # the profile's route
             return "checked"
         if results[0]["name"] == "pinned-checks" and not results[0]["ok"]:
             return "needs-maintainer"
@@ -550,6 +680,51 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index) ->
     return "needs-maintainer"
 
 
+def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs=False) -> dict:
+    """The issues in order in one worker context. Each issue's first turn is checked on its done sha in a thread while
+    the worker already codes the next one (pipeline.batch-session); a red check is handled (retry turns) before the
+    batch goes on, so a failed item blocks the later ones."""
+    from concurrent.futures import ThreadPoolExecutor
+    out, pending, sess, c = {}, None, [session_dir], cfg()  # pending: (key, future of its first check results, attempts before them)
+    first_since = _since(next(iter(briefs)), task) or _head(wt)
+
+    def settle(p):
+        k, fut, attempts = p
+        out[k] = _run_issue(task, k, briefs[k], wt, window, sess[0], worker, worker_index, first=(None, fut.result(), attempts))
+        return out[k]
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        for k, iss in briefs.items():
+            w = c["workers"]
+            if coder.status(sess[0])["context"] >= w["context_tokens"] * w["batch_end_pct"] / 100:
+                # near the end of the context: a fresh window takes the rest from a short note (a pending check finishes first)
+                if pending and settle(pending) != "checked":
+                    out[k] = "queued"
+                    break
+                pending = None
+                note = _handoff(task, wt, first_since, len([e for e in journal.read() if e["event"] == "handoff" and e.get("task") == task]) + 1)
+                coder.stop_window(c, window)
+                journal.append("handoff", task=task, window=window, note=str(note), session=str(sess[0]))
+                sess[0] = _start_worker(task, wt, worker, window, docs=docs)
+                for rest in list(briefs)[list(briefs).index(k):]:
+                    briefs[rest]["handoff"] = str(note)
+            since = _since(k, task) or _head(wt)
+            journal.append("since", issue=_n(k), key=k, task=task, sha=since)
+            it = state()["items"][k]
+            end, sha = _turn(task, k, iss, wt, window, sess[0], worker, worker_index, since, it["retry_text"], it["attempts"])
+            if pending and settle(pending) != "checked":
+                out[k] = "queued"  # blocked behind the failed item; its commit stays on the branch
+                break
+            pending = None
+            if end:
+                out[k] = end
+                break  # the fallback list: the next worker takes the rest of the batch in a fresh context
+            pending = (k, pool.submit(check, k, since, True, sha), it["attempts"])
+        if pending:
+            settle(pending)
+    return out
+
+
 def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
     """An idle worker that asked a question waits for the maintainer's answer, then for its next idle turn."""
     t0 = time.time()
@@ -558,25 +733,28 @@ def _wait_answers(task: str, session_dir: Path, st: dict) -> dict:
             st["stopped"] = f"question unanswered for {ANSWER_DEADLINE_S // 3600} h"
             return st
         time.sleep(15)
-        st = coder.wait_idle(session_dir, cfg()["workers"]["cost_cap_usd"], after_turns=st["turns"])
+        st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=st["turns"])
     return st
 
 
-def check(issue, since: str | None = None, locked: bool = False) -> list[dict]:
+def check(issue, since: str | None = None, locked: bool = False, sha: str | None = None) -> list[dict]:
     """→ checked only when every rung is green, for the head read BEFORE the checks ran; a commit that lands
     mid-check is a red (the sha moved). Red: a checked or reviewed item goes back to coding (review HIGH N1), a
-    pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry."""
+    pinned-checks red goes to needs-maintainer, a coding item stays for the caller's retry. `sha`: judge this commit
+    (an issue's done sha while the worker codes the next one), not the live head."""
     if not locked:
         with journal.Lock("dispatch", wait=False):
-            return check(issue, since, locked=True)
+            return check(issue, since, locked=True, sha=sha)
     key, it, s = _item(issue)
     wt = Path(s["tasks"][it["task"]]["worktree"])
     since = since or _since(key, it["task"])
-    sha = _head(wt)
+    given = sha  # a given sha is judged as it is; the live head must also hold still while its checks run
+    sha = sha or _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
-        results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()))
-    if _head(wt) != sha:
+        results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()),
+                                approved=it.get("approved_checks"), head=sha)
+    if not given and _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
     journal.append("check", issue=it["issue"], key=key, ok=ok, sha=sha, results=results)
@@ -646,9 +824,10 @@ def ask(task: str, question: str, options: list[str] | None = None) -> dict:
     return {"queued": qid, "note": "the maintainer's answer will be told to your window; carry on with what you can"}
 
 
-def done(task: str) -> dict:
-    """Only REQUESTS the check transition: the runner runs the checks when the worker's turn ends."""
-    journal.append("done_requested", task=task, text="")
+def done(task: str, issue: int | None = None, residue: str = "") -> dict:
+    """Only REQUESTS the check transition: the runner runs the checks when the worker's turn ends. `issue`: the one
+    just committed; `residue`: anything the issue's acceptance left undone (the closer updates the issue with it)."""
+    journal.append("done_requested", task=task, issue=issue, text=residue)
     return {"ok": True, "note": "the runner runs the checks; nothing moves on your word"}
 
 
@@ -676,6 +855,47 @@ def reset(issue, why: str = "") -> dict:
     key, it, _ = _item(issue)
     journal.append("reset", issue=it["issue"], key=key, text=why)
     return {"issue": key, "attempts": 0}
+
+
+def approve_checks(issue, findings: str) -> dict:
+    """The maintainer approves the check change that sent an item to needs-maintainer (pinned-checks), records which
+    files, and re-dispatches it with the findings as the coder's retry text."""
+    key, it, s = _item(issue)
+    if it["state"] != "needs-maintainer":
+        raise RuntimeError(f"{key} is {it['state']}; approve-checks is for a needs-maintainer item whose diff changes the checks")
+    wt = Path(s["tasks"][it["task"]]["worktree"])
+    _, _, hit = checks.changed_checks(wt, _since(key, it["task"]), cfg(), approved=it.get("approved_checks"))
+    if not hit:
+        raise RuntimeError(f"{key}: the diff changes no pinned check; nothing to approve (use `retry`)")
+    journal.append("approve_checks", issue=it["issue"], key=key, files=hit, text=findings,
+                   blobs={f: checks.blob(wt, "HEAD", f) for f in hit})
+    return {"approved": hit, **retry(key)}
+
+
+def next_issues(count: int = 3) -> dict:
+    """What to hand a coder next: the pointed milestone, else the first open one with a ready issue (pipeline.feeder-
+    picks-the-milestone). Issues already in a task are skipped; the unfit go to the queue once as "write it up" /
+    "triage", never to a coder."""
+    c, s = cfg(), state()
+    specs = Path(c["repo"]["path"]) / c["repo"]["specs"]
+    approved = feeder.approved_ids(p.read_text() for p in specs.rglob("*.md"))
+    ms = [s["point"]] if s["point"] else feeder.milestone_order(gh.read("api", "repos/{owner}/{repo}/milestones?state=open"))
+    for m in ms:
+        found = gh.read("issue", "list", "--milestone", m, "--state", "open", "--limit", "200", "--json", gh.ISSUE_FIELDS)
+        issues = [gh._slim(d) for d in found]
+        got = feeder.pick(issues, c["labels"], c["github"]["allowed_authors"], approved, {_n(k) for k in s["items"]})
+        queued = {q["text"] for q in s["queue"].values()}
+        for n, miss in got["write_up"].items():
+            text = f"#{n} is not fit to dispatch, write it up: it lacks {'; '.join(miss)}"
+            if text not in queued:
+                _queue("write-up", text)
+        for n in got["triage"]:
+            text = f"#{n} is by someone outside the allow-list (or from-user): triage it"
+            if text not in queued:
+                _queue("triage", text)
+        if got["ready"]:
+            return {"milestone": m, "ready": [{"number": i["number"], "title": i["title"]} for i in got["ready"][:count]]}
+    return {"milestone": s["point"], "ready": []}
 
 
 def pause() -> dict:
@@ -707,7 +927,7 @@ def review(issue, worker_index: int = 0) -> dict:
         window, task = "reviewer", it["task"]
         session = STATE / "sessions" / task / f"reviewer-{worker['model'].replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
         session.mkdir(parents=True, exist_ok=True)
-        coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer"), coder.allowed_env(c, task, "reviewer"))
+        coder.start_window(c, window, wt, coder.pi_command(c, worker, session, role="reviewer", task=task), coder.allowed_env(c, task, "reviewer"))
         journal.append("worker", window=window, task=task, role="reviewer", model=config.pi_model_id(worker), kind="pi",
                        session_dir=str(session), cwd=str(wt))
         since = _since(key, task) or c["repo"]["base"]
@@ -723,7 +943,7 @@ def review(issue, worker_index: int = 0) -> dict:
         path = coder.brief_file(task, f"review-{it['sha'][:9]}", text)
         before = coder.status(session)
         tell(window, f"Read and do {path} — review {key} at {it['sha'][:9]}; record your verdict with pipeline_verdict.", task=task)
-        st = coder.wait_idle(session, c["workers"]["cost_cap_usd"], after_turns=before["turns"])
+        st = coder.wait_idle(session, cap_for(session), after_turns=before["turns"])
         journal.append("cost", issue=it["issue"], key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
                        tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
         coder.stop_window(c, window)
@@ -731,6 +951,79 @@ def review(issue, worker_index: int = 0) -> dict:
         it = state()["items"][key]
         return {"issue": key, "state": it["state"], "verdict": it.get("verdict_now"), "reviewer_cost_usd": round(st["cost_usd"], 4),
                 "stopped": st.get("stopped")}
+
+
+STEP = re.compile(r"^#### Step [\d.]+ .*$", re.MULTILINE)
+
+
+def unfiled_steps(milestone: str) -> list[str]:
+    """Build-order steps (`#### Step N.M — title`, no `(#NNNN)`) in the specs whose header names this milestone."""
+    c = cfg()
+    out = []
+    for p in (Path(c["repo"]["path"]) / c["repo"]["specs"]).rglob("*.md"):
+        text = p.read_text()
+        if f"Milestone: {milestone}" in "\n".join(text.splitlines()[:20]):
+            out += [m for m in STEP.findall(text) if not re.search(r"\(#\d+\)\s*$", m)]
+    return out
+
+
+def _reopened_after(closer, n: int, date: str) -> bool:
+    """A human reopened the issue after the fixing commit (the closer script's rule, read through the one gh seam)."""
+    events = gh.read("api", f"repos/{{owner}}/{{repo}}/issues/{n}/events?per_page=100")
+    return any(e.get("event") == "reopened" and closer._when(e["created_at"]) > closer._when(date) for e in events if e.get("created_at"))
+
+
+def close_landed() -> dict:
+    """The closer (pipeline.closes-issues): an item whose checked commit is on the base branch and whose last check was
+    green gets its issue closed through scripts/close_fixed_issues.py's own rules (never `residue` or `needs-your-test`,
+    never one a human reopened) with a comment naming the sha and the checks; a reported residue is posted on the
+    issue, which gets the residue label and stays open; a milestone closes with its last open issue. Every write is
+    dry-run unless --apply, and a dry-run line is journaled before the real one. A milestone whose spec still has build
+    steps without an issue stays open."""
+    import importlib.util
+    c, lab = cfg(), cfg()["labels"]
+    spec = importlib.util.spec_from_file_location("close_fixed_issues", ROOT / "scripts" / "close_fixed_issues.py")
+    closer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(closer)
+    out, touched = {"closed": [], "residue": [], "milestones": []}, {}
+    for key, it in state()["items"].items():
+        if it.get("closer") or it["start_args"].get("from_file") or not it["check_ok"] or not it["sha"]:
+            continue
+        if checks.sh(["git", "merge-base", "--is-ancestor", it["sha"], c["repo"]["base"]], cwd=c["repo"]["path"]).returncode:
+            continue  # not on the base branch yet
+        n = _n(key)
+        gh.cache_clear()
+        iss = gh.read("issue", "view", str(n), "--json", "state,labels,milestone")
+        names = {x["name"] for x in iss["labels"]}
+        if iss["state"] != "OPEN" or names & {lab["residue"], "needs-your-test"}:
+            continue
+        subject = checks.git(c["repo"]["path"], "log", "-1", "--format=%s", it["sha"])
+        if it.get("residue"):
+            write = [["issue", "comment", str(n), "--body", f"Landed in {it['sha'][:9]}, but this is still owed:\n\n{it['residue']}"],
+                     ["issue", "edit", str(n), "--add-label", lab["residue"]]]
+            what = "residue"
+        elif not _reopened_after(closer, n, checks.git(c["repo"]["path"], "log", "-1", "--format=%cI", it["sha"])):
+            rungs = ", ".join(r["name"] for r in it["checks"])
+            write = [["issue", "close", str(n), "--comment", f"Fixed in {it['sha'][:9]} on integration: {subject}. Checks green: {rungs}."]]
+            what = "closed"
+        else:
+            continue  # a human reopened it after the fix: it did not hold
+        for args in write:
+            gh.write(*args, dry_run=True)  # the dry-run line first, then the real one
+            if not DRY_RUN:
+                gh.write(*args, dry_run=False)
+        if not DRY_RUN:
+            journal.append("closer", issue=n, key=key, what=what, sha=it["sha"])
+        out["closed" if what == "closed" else "residue"].append(n)
+        if what == "closed" and (m := (iss.get("milestone") or {}).get("title")):
+            touched[m] = touched.get(m, 0) + 1
+    for m in gh.read("api", "repos/{owner}/{repo}/milestones?state=open") if touched else []:
+        if unfiled_steps(m["title"]):
+            continue  # a spec of this milestone still has build steps with no issue: not finished
+        if m["title"] in touched and m["open_issues"] <= touched[m["title"]] and m["closed_issues"] + touched[m["title"]] >= 1:
+            gh.write("api", "-X", "PATCH", f"repos/{{owner}}/{{repo}}/milestones/{m['number']}", "-f", "state=closed", dry_run=DRY_RUN)
+            out["milestones"].append(m["title"])
+    return out
 
 
 def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
@@ -745,11 +1038,13 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
-API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "review": review, "verdict": verdict,
-       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
-       "resume": resume, "file_bug": file_bug, "reset": reset}
-# Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP.
+API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
+       "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
+       "resume": resume, "file_bug": file_bug, "close_landed": close_landed, "reset": reset}
+# Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
+# list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
+WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
-              "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "queue", "report")}
+              "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "next", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset", "close_landed")

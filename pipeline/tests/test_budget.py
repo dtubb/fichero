@@ -71,7 +71,7 @@ def test_coder_cap_refuses_a_second_live_coder(scratch, issues, fake_coder, monk
     from pipeline import core
     fake_coder()
     journal.append("worker", window="coder-other", task="other", role="coder", model="m", session_dir="s", cwd="")
-    monkeypatch.setattr(core.coder, "status", lambda d: {"idle": False, "cost_usd": 0.0, "last_text": "", "turns": 0})
+    monkeypatch.setattr(core.coder, "status", lambda d: {"idle": False, "cost_usd": 0.0, "last_text": "", "turns": 0, "context": 0})
     monkeypatch.setattr(core.coder, "live_windows", lambda cfg: {"coder-other"})
     with pytest.raises(RuntimeError, match="coder cap"):
         core.start([1001])

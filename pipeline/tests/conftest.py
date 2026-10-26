@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline import ROOT, coder, core, journal
+from pipeline import ROOT, coder, config, core, journal
 
 # The stub `ruff` the scratch repo's ready check runs: `ruff check [--output-format concise] [-q] <files>`, one rule
 # (F401: a bare `import x` whose name never appears again), the same concise line shape as the real tool.
@@ -28,6 +28,23 @@ for f in files:
         if m and not any(m.group(1) in other for i, other in enumerate(lines, 1) if i != n):
             print(f"{{f}}:{{n}}:8: F401 `{{m.group(1)}}` imported but unused")
             bad += 1
+sys.exit(1 if bad else 0)
+'''
+
+# The stub `pytest` for the red-on-base rung (a real pytest start costs ~0.8 s, three or four times per test): it
+# imports each file and calls its `test_*` functions, which is all the fake coder's tests need; the real runner is
+# exercised by test_red_on_the_branch_is_red and `python -m pipeline --self-test`.
+STUB_PYTEST = '''import runpy, sys, traceback
+sys.path.insert(0, ".")
+bad = []
+for f in sys.argv[1:]:
+    try:
+        for name, fn in runpy.run_path(f).items():
+            if name.startswith("test_") and callable(fn):
+                fn()
+    except BaseException:
+        bad.append(f"{f}:\\n{traceback.format_exc()}")
+print("\\n".join(bad) or "passed")
 sys.exit(1 if bad else 0)
 '''
 
@@ -81,23 +98,25 @@ def scratch(tmp_path, monkeypatch):
     (bin_dir / "ruff").write_text(STUB_RUFF)
     (bin_dir / "ruff").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}")
+    (bin_dir / "stub_pytest.py").write_text(STUB_PYTEST)
     cfg = {
         "name": "scratch",
         "repo": {"path": str(repo), "base": "origin/integration", "main": "main", "worktrees": ".worktrees/pipeline",
                  "specs": "specs", "check_paths": ["scripts/", "pipeline/"], "python_path": ".", "test_env": {},
                  "scratch_base_env": "", "pinned": str(repo)},
-        "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user"},
+        "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user", "residue": "residue"},
         "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com",
                    "commit_trailer": "Co-Authored-By: Claude <noreply@anthropic.com>"},
         "ladder": [
             {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh HEAD"},
             {"name": "red-on-base", "kind": "red-on-base", "test_glob": ["*test*.py"],
-             "pytest": "{python} -m pytest -q -p no:cacheprovider {files}"},
+             "pytest": f"{{python}} {bin_dir}/stub_pytest.py {{files}}"},
             {"name": "fast-guards", "glob": "{pinned}/scripts/check_*.py", "skip": [], "timeout_s": 30},
         ],
         "workers": {"tmux_session": "pipeline-test", "pi_adapter": "/nowhere/adapter.ts", "agent_dir": "pipeline/pi-agent",
-                    "cost_cap_usd": 1.0, "context_tokens_max": 1000, "retries": 2, "stuck_minutes": 45,
+                    "cost_cap_usd": 1.0, "context_tokens_max": 1000, "context_tokens": 1000, "batch_end_pct": 80, "park_ttl_minutes": 30, "retries": 2, "stuck_minutes": 45,
                     "needs_mb": {"pi": 0, "pytest": 0}, "caps": {"coders": 1, "test_runs": 1}, "owner_process": ""},
+        "steps": config.load("fichero")["steps"],
         "roles": {"coder": [{"kind": "pi", "provider": "openrouter", "model": "qwen/x"},
                             {"kind": "pi", "provider": "anthropic", "model": "claude-sonnet-4-5"}]},
         "keys": {"openrouter": {"env": "OPENROUTER_API_KEY", "files": [str(tmp_path / "no-such-key")]},
@@ -126,8 +145,8 @@ def issues(monkeypatch):
     return ISSUES
 
 
-def idle(turns=1, cost=0.01):
-    return {"cost_usd": cost, "tokens": 100, "tool_calls": Counter({"jcodemunch_plan_turn": 1}), "idle": True,
+def idle(turns=1, cost=0.01, tools=None, context=0):
+    return {"context": context, "cost_usd": cost, "tokens": 100, "tool_calls": Counter(tools or {"jcodemunch_plan_turn": 1}), "idle": True,
             "last_text": "done", "rate_limited": False, "model": "qwen/x", "turns": turns, "prompts": turns, "started": True}
 
 
@@ -136,7 +155,7 @@ class FakeCoder:
 
     def __init__(self, scratch, behaviour="good"):
         self.scratch, self.behaviour, self.told, self.windows, self.stopped = scratch, behaviour, [], [], []
-        self.turns = 0
+        self.turns, self.tools, self.context = 0, None, 0
 
     def start_window(self, cfg, name, cwd, cmd, env):
         self.windows.append((name, Path(cwd), cmd, env))
@@ -173,11 +192,11 @@ class FakeCoder:
         self.turns += 1
 
     def status(self, session_dir):
-        return idle(self.turns, 0.01 * self.turns)
+        return idle(self.turns, 0.01 * self.turns, self.tools, self.context if self.turns else 0)
 
     def wait_idle(self, session_dir, cap_usd, after_turns=0, poll=10.0, timeout_s=3600, note=None, token_cap=None):
         assert self.turns > after_turns, "the runner waited before the worker answered"
-        return idle(self.turns, 0.01 * self.turns)
+        return idle(self.turns, 0.01 * self.turns, self.tools, self.context if self.turns else 0)
 
 
 @pytest.fixture

@@ -12,7 +12,9 @@ import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from pipeline import core
+from urllib.parse import parse_qsl, urlsplit
+
+from pipeline import core, site
 
 COMMANDS = ("tell", "answer", "point", "pause", "resume", "file_bug", "verdict")  # the page's commands = API entries
 TOKEN = secrets.token_urlsafe(24)
@@ -29,7 +31,7 @@ th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertic
 </style></head><body>
 <h1>%NAME% pipeline</h1>
 <div class="muted">This page shows the runner's own items. GitHub specs, milestones and issues come in Stage 1.</div>
-<p id="now">loading…</p><div class="muted" id="meta"></div><div id="paused"></div>
+<nav>%NAV%</nav><p id="now">loading…</p><div class="muted" id="meta"></div><div id="paused"></div>
 <h2>Items</h2><table id="items"><thead><tr><th>Item</th><th>Status</th><th>Started</th><th>Last change</th><th>Cost</th><th>Details</th></tr></thead><tbody></tbody></table>
 <h2>Workers</h2><table id="workers"><thead><tr><th>Window</th><th>Task</th><th>Model</th><th>State</th><th>Cost</th><th>Last said</th><th>Tell</th></tr></thead><tbody></tbody></table>
 <h2 id="queue-h">Needs you</h2><table id="queue"><thead><tr><th>When</th><th>Kind</th><th>Question</th><th>Answer</th></tr></thead><tbody></tbody></table>
@@ -101,8 +103,15 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, b'{"error":"host refused"}')
         if self.path == "/":
-            html = PAGE.replace("%TOKEN%", json.dumps(TOKEN)).replace("%NAME%", core.cfg()["name"])
+            html = PAGE.replace("%TOKEN%", json.dumps(TOKEN)).replace("%NAME%", core.cfg()["name"]).replace(
+                "%NAV%", " · ".join(f'<a href="{h}">{t}</a>' for h, t in site.NAV[1:]))
             self._send(200, html.encode(), "text/html; charset=utf-8")
+        elif urlsplit(self.path).path in site.PAGES:
+            u = urlsplit(self.path)
+            try:
+                self._send(200, site.PAGES[u.path](dict(parse_qsl(u.query))).encode(), "text/html; charset=utf-8")
+            except Exception as err:  # noqa: BLE001 - a page that fails says so; the runner page still works
+                self._send(500, site.page("Error", f"<p class=bad>{site.e(type(err).__name__)}: {site.e(str(err)[:300])}</p>").encode(), "text/html; charset=utf-8")
         elif self.path == "/api/state":
             self._send(200, json.dumps(core.API["status"](), default=str).encode())
         else:

@@ -3,10 +3,12 @@
   python -m pipeline status | queue
   python -m pipeline start <issue> [<issue>...] [--milestone M] [--task T] [--base REF] [--from-file F]
   python -m pipeline check <issue>
+  python -m pipeline approve-checks <issue> --findings TEXT
   python -m pipeline verdict <issue> <sha> READY|NOT_READY|PENDING --by reviewer|manager [--findings TEXT]
   python -m pipeline tell <window> "<text>"      answer <id> "<text>"      point <milestone>
   python -m pipeline pause | resume
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
+  python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
   python -m pipeline serve [--port N]
   python -m pipeline --self-test
 
@@ -31,6 +33,8 @@ COMMANDS = {
               ("--base", {"help": "the ref the worktree comes off (default: the profile's base)"}),
               ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"})],
     "retry": [("issue", {}), ("--worker", {"type": int, "help": "index into the role's fallback list (default: one past the rate-limited stops)"})],
+    "approve-checks": [("issue", {}), ("--findings", {"required": True, "help": "what the coder is told when the item goes back"})],
+    "next": [("--count", {"type": int, "default": 3})],
     "check": [("issue", {})],
     "repair": [("issue", {}), ("--base", {}), ("--from-file", {}), ("--since", {}), ("--why", {"default": ""})],
     "verdict": [("issue", {}), ("sha", {}), ("verdict", {}), ("--by", {"required": True}), ("--findings", {"default": ""})],
@@ -39,6 +43,7 @@ COMMANDS = {
     "point": [("milestone", {})],
     "reset": [("issue", {}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
+    "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
     "serve": [("--port", {"type": int, "default": 8765})],
 }
 
@@ -62,7 +67,7 @@ def main(argv=None) -> int:
         from pipeline import web
         web.serve(a.port)
         return 0
-    if a.cmd == "file-bug":
+    if a.cmd in ("file-bug", "close-landed"):
         core.DRY_RUN = not a.apply
     kwargs = {k: v for k, v in vars(a).items() if k not in ("cmd", "self_test", "apply") and v is not None}
     print(json.dumps(core.API[name](**kwargs), indent=1, default=str))
@@ -76,7 +81,7 @@ def self_test() -> int:
     import tempfile
     from pathlib import Path
 
-    from pipeline import ROOT, budget, checks, coder, config
+    from pipeline import ROOT, budget, checks, coder, config, steps
 
     fails = []
 
@@ -101,6 +106,7 @@ def self_test() -> int:
     must(project not in code.lower(), f"runner code names no project (grep '{project}' outside comments)")
     env = coder.allowed_env(config.load(profiles[0]))
     must(set(env) <= set(coder.ALLOWED_ENV) | {"PI_CODING_AGENT_DIR", "PIPELINE_WORKER"}, "env allow-list drops everything else")
+    must(steps.validate([{"name": "a", "kind": "script", "on_ok": "b"}]) != [], "a pipeline with a missing step or timeout refuses")
     must(not budget.room_for("pytest", {"pytest": 10**9}, {"free_mb": 100, "pressure": "normal"})[0], "memory check can refuse")
     must(not budget.room_for("pi", {"pi": 0}, {"free_mb": 10**6, "pressure": "critical"})[0], "critical pressure refuses")
     delays = [budget.backoff(i, rng=lambda: 1.0) for i in range(4)]

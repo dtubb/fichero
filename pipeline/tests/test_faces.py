@@ -33,8 +33,8 @@ def test_mcp_has_no_approve_or_answer_tool():
 def test_mcp_server_builds_with_the_sdk():
     pytest.importorskip("mcp", reason="the MCP SDK is in the repo venv; a bare interpreter skips this one")
     server = mcp_server.build("coder")
-    names = {t.name for t in server._tool_manager.list_tools()}
-    assert names == {"report", "ask", "done"}
+    names = [t.name for t in server._tool_manager.list_tools()]
+    assert names == list(core.WORKER_TOOLS) == [t.name for t in mcp_server.build("reviewer")._tool_manager.list_tools()]
 
 
 def test_mcp_start_and_check_take_the_dispatch_lock(scratch, issues, fake_coder):
@@ -70,3 +70,10 @@ def test_a_worker_shell_cannot_run_the_runners_controls(scratch, monkeypatch, ca
         assert cli.main(argv) == 2, argv
         assert "a worker may not run" in capsys.readouterr().out
     assert cli.main(["queue"]) == 0
+
+
+def test_a_worker_tool_outside_the_role_refuses_at_call_time(scratch):
+    pytest.importorskip("mcp", reason="the MCP SDK is in the repo venv")
+    tools = {t.name: t for t in mcp_server.build("coder")._tool_manager.list_tools()}
+    out = tools["verdict"].fn(issue="1", sha="x", verdict="READY", by="reviewer")
+    assert "not this role's tool" in out["error"]
