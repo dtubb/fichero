@@ -127,6 +127,11 @@ verify_all = "scripts/verify_all.sh"
 to_issues = "scripts/verify_to_issues.sh"
 machine = "m4"
 
+# `python -m pipeline run` (pipeline.schedule): seconds between passes while an answer is awaited; issues per start
+[run]
+poll_s = 60
+batch = 3
+
 [machines]
 pro = ""          # this machine
 air = "air"       # ssh host

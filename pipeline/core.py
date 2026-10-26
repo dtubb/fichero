@@ -1001,6 +1001,7 @@ def next_issues(count: int = 3) -> dict:
     specs = Path(c["repo"]["path"]) / c["repo"]["specs"]
     approved = feeder.approved_ids(p.read_text() for p in specs.rglob("*.md"))
     ms = [s["point"]] if s["point"] else feeder.milestone_order(gh.read("api", "repos/{owner}/{repo}/milestones?state=open"))
+    wu_ms, wu = None, []
     for m in ms:
         found = gh.read("issue", "list", "--milestone", m, "--state", "open", "--limit", "200", "--json", gh.ISSUE_FIELDS)
         issues = [gh._slim(d) for d in found]
@@ -1015,8 +1016,10 @@ def next_issues(count: int = 3) -> dict:
             if text not in queued:
                 _queue("triage", text)
         if got["ready"]:
-            return {"milestone": m, "ready": [{"number": i["number"], "title": i["title"]} for i in got["ready"][:count]]}
-    return {"milestone": s["point"], "ready": []}
+            return {"milestone": m, "ready": [{"number": i["number"], "title": i["title"]} for i in got["ready"][:count]], "write_up": []}
+        if got["write_up"] and not wu:
+            wu_ms, wu = m, list(got["write_up"])
+    return {"milestone": wu_ms or s["point"], "ready": [], "write_up": wu}
 
 
 def pause() -> dict:

@@ -377,7 +377,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   reviews, sweeps, triage) may go through Anthropic's Message Batches API at half price behind a profile flag, off by
   default. Tests: `pipeline/tests/test_coder.py::test_cache_tokens_are_read_from_each_providers_usage`,
   `pipeline/tests/test_core.py::test_brief_is_a_stable_prefix_then_the_issue_tail`.
-- `pipeline.schedule` [MISSING] (#6116) — the runner takes over everything the lead sessions did by hand, on
+- `pipeline.schedule` [PARTIAL] (#6116) — built: `python -m pipeline run`, the loop (answered questions resume, checks, review, a reviewed READY item queued as "ready to land", NOT_READY sent back, new issues from the feeder, write-ups for the unfit; no model call of its own; stops at the daily cap, a pause or when nothing is ready; `[run] poll_s` in the profile). Not built: the cron table, events, launchd and the watchers below. The runner takes over everything the lead sessions did by hand, on
   schedules and triggers: a `schedule` table in the profile, each entry a name, a when (cron, or `on:push`,
   `on:gate-green`, `on:idle`), the job (an existing script, run through the runner so it gets the budget, the
   journal and the page) and a machine (pro, air, m4 over ssh). A launchd agent starts the runner at login and keeps

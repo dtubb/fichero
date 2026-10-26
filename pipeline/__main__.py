@@ -9,6 +9,7 @@
   python -m pipeline pause | resume
   python -m pipeline file-bug "<title>" "<text>" [--milestone M] [--apply]
   python -m pipeline close-landed [--apply]       close the issues of items whose checked commit is on the base
+  python -m pipeline run [--once] [--poll-s N]   the scheduler: no model call of its own; stops at the cap, a pause or when nothing is ready
   python -m pipeline serve [--port N] [--host ADDR]
   python -m pipeline --self-test
 
@@ -22,7 +23,7 @@ import json
 import os
 import sys
 
-from pipeline import core
+from pipeline import core, runner  # noqa: F401 - runner adds `run` (and later `land`, `send-back`) to core.API
 
 # command -> positional arguments, then options (name, kwargs)
 COMMANDS = {
@@ -46,6 +47,7 @@ COMMANDS = {
     "reset": [("issue", {}), ("--why", {"default": ""})],
     "file-bug": [("title", {}), ("text", {}), ("--milestone", {}), ("--apply", {"action": "store_true", "help": "really write to GitHub (default: dry run)"})],
     "close-landed": [("--apply", {"action": "store_true", "help": "really close on GitHub (default: dry run)"})],
+    "run": [("--once", {"action": "store_true", "help": "one pass, then stop"}), ("--poll-s", {"type": float, "dest": "poll_s", "help": "seconds between passes while an answer is awaited (profile [run] poll_s, default 60)"})],
     "serve": [("--port", {"type": int, "default": 8765}), ("--host", {"default": "127.0.0.1", "help": "the address to bind (never 0.0.0.0 unless you mean to expose it; a Tailscale address works)"})],
 }
 
