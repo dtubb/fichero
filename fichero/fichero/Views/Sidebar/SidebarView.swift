@@ -350,7 +350,7 @@ struct SidebarView: View {
                 createTrigger: createNewTrigger,
                 openSelectionInNewTab: handleOpenSelectionInNewTab,
                 openSelectionInNewWindow: handleOpenSelectionInNewWindow,
-                deletableSelectionCount: deleteTargetCount
+                deletableSelectionCount: sidebarDeletableItems(selectedItems).count
             ))
             .sidebarDeleteAlerts(
                 deleteState: deleteState,
