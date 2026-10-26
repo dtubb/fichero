@@ -1,4 +1,8 @@
-"""spec: the approved source-model slice files
+"""spec: segments-and-geometry
+spec: readings-and-apparatus
+spec: segment-editor
+
+The approved source-model slice files
 
 Pins the shape of the source-model slice files approved on 2026-10-26 so they cannot rot while their behaviours are worked:
 each header says APPROVED in the bold form within its first 20 lines, each declares a real `Manual:` pointer, every behaviour

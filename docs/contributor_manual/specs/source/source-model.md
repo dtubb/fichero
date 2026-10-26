@@ -1078,6 +1078,16 @@ slice files; their steps are in those files.
 | `source.builds-on-the-anchor` | fichero-server/tests/unit/api/test_readings_across_split_and_merge.py |
 | `source.model.one-line-pass` | fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py |
 
+## Test matrix
+
+The foundation's own three behaviours; the legs of every other behaviour are in its slice file's matrix.
+
+| Behaviour | Unit | Click-around | Notes |
+| --- | --- | --- | --- |
+| `source.one-store` | `test_segments_route.py` (engine), `SegmentMappingTests.swift` (app) | not needed | A second store is a source-level fact, not a screen one. |
+| `source.builds-on-the-anchor` | `test_readings_across_split_and_merge.py` | not needed | The anchor is an engine fact; screens only draw from it. |
+| `source.model.one-line-pass` | `test_one_line_pass_read_many.py` | needed | Only a page shows that a second reader adds readings to the same lines and never a second line pass. |
+
 ## Plain-word glossary
 
 - **Allograph** — a recognised way of writing a letter (two-storey *a*, single-storey *a*).
