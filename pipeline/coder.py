@@ -112,6 +112,22 @@ def pi_command(cfg: dict, worker: dict, session_dir: Path, role: str = "coder", 
     return cmd
 
 
+def ask_once(cfg: dict, worker: dict, prompt: str, session_dir: Path) -> dict:
+    """One non-interactive call (pi -p, no tools, no context files) through the key wrapper: the session's status
+    (cost, tokens) plus `answer`, the model's text."""
+    env_var, key_file = key_source(cfg, worker)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [str(WRAPPER), env_var or "-", key_file or "-", "pi", "-p", "--no-tools", "--no-extensions", "--no-skills",
+           "--no-prompt-templates", "--no-themes", "--no-context-files", "--session-dir", str(session_dir),
+           "--model", pi_model_id(worker), prompt]
+    try:
+        r = sh(["env", "-i", *[f"{k}={v}" for k, v in allowed_env(cfg).items()], *cmd], timeout=300)
+        answer = r.stdout
+    except subprocess.TimeoutExpired:
+        answer = ""
+    return dict(status(session_dir), answer=answer)
+
+
 def window_env_args(env: dict) -> list[str]:
     return [a for k, v in env.items() for a in ("-e", f"{k}={v}")]
 

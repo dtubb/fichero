@@ -33,7 +33,8 @@ def test_current_profile_loads_with_every_required_section():
     assert config.pi_model_id(coders[0]) == "anthropic/claude-sonnet-5-5", "the Anthropic API through Pi first (ruled 2026-10-25)"
     assert coders[1]["provider"] == "openrouter" and coders[1]["enabled"] is False, "Qwen stays configured but off"
     assert config.pi_model_id(cfg["roles"]["reviewer"][0]) == "anthropic/claude-sonnet-5-5", "owner: every worker is Sonnet or Haiku"
-    assert config.pi_model_id(cfg["roles"]["coder-small"][0]) == "anthropic/claude-haiku-5-5"
+    assert config.pi_model_id(config.at_tier(cfg, coders[0], "small")) == "anthropic/claude-haiku-5-5", "the small tier"
+    assert all(w.get("tier") for role in cfg["roles"].values() for w in role), "roles name a tier, not a model"
     assert all(w["kind"] == "pi" for role in cfg["roles"].values() for w in role), "no other worker kind on this branch"
     assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 25.0, "US$5 per session, US$25 per day"
     import json

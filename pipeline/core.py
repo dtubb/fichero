@@ -14,7 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pipeline import STATE, budget, checks, coder, config, gh, journal
+from pipeline import STATE, budget, checks, coder, config, gh, journal, localise
 
 STATES = ("queued", "coding", "checked", "reviewed", "candidate", "gated", "pushed", "closed",
           "failed", "needs-maintainer", "rate-limited", "waiting")
@@ -320,23 +320,35 @@ def issue_ids(issue: dict) -> list[str]:
     return sorted(set(BEHAVIOUR_ID.findall(issue.get("body") or "")))
 
 
-def brief(issue: dict, task: str, failure: str = "") -> str:
-    """The coder's prompt: the issue (only text by allow-listed authors), its spec lines, the rules. Outside text
-    never enters a prompt (pipeline.outside-bugs)."""
+def localised(issue: dict, task: str, key: str) -> dict:
+    """Where the issue's change goes, found without a model (the spec citations, then git grep); only when that finds
+    nothing, ONE small-tier call names the paths, which are then checked like any other. Journaled `localised`."""
+    c = cfg()
+    text = (issue.get("body") or "") + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
+    loc = localise.localise(c["repo"]["path"], text)
+    if loc["size"] == "unknown":
+        w = config.at_tier(c, workers()[0], "small")
+        dirs = sorted({str(Path(f).parent) for f in checks.git(c["repo"]["path"], "ls-files").splitlines()
+                       if f.count("/") <= 3})[:400]  # ponytail: directories, not files; a repo map when this misses
+        prompt = "\n".join([f"Issue: {issue['title']}", text[:4000], "", "Directories:", *dirs, "",
+                             "Name up to 5 existing repo file paths this issue changes and its test file, one per line, nothing else."])
+        session = STATE / "sessions" / task / f"localise-{key}-{time.strftime('%Y%m%d-%H%M%S')}"
+        st = coder.ask_once(c, w, prompt, session)
+        journal.append("cost", issue=_n(key), key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
+                       tokens=st["tokens"], model=st["model"] or w["model"], tools={})
+        loc = dict(localise.localise(c["repo"]["path"], text + "\n" + st["answer"]), by_model=True)
+    journal.append("localised", issue=_n(key), key=key, task=task, files=loc["files"], symbols=sorted(loc["symbols"]),
+                   tests=[t["path"] + (f"::{t['name']}" if t["name"] else "") for t in loc["tests"]], size=loc["size"],
+                   by_model=loc.get("by_model", False))
+    return loc
+
+
+# The brief's stable prefix: no issue number, task or timestamp, so every brief starts with the same bytes and a
+# prefix cache hits (pipeline.prompt-cache); the issue, its spec lines, where and the test come after.
+def brief_rules() -> list[str]:
     g = cfg()["github"]
-    if issue.get("author") not in g["allowed_authors"]:
-        raise PermissionError(f"#{issue['number']} is by {issue.get('author')}: not allow-listed, triage it first")
-    body = issue.get("body") or ""
-    ids = issue_ids(issue)
-    lines = spec_lines(set(ids))
-    text = [f"# Issue #{issue['number']}: {issue['title']}", "", body, ""]
-    if lines:
-        text += ["## Spec lines", *lines, ""]
-    if failure:
-        text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
-    fixes = "Part of" if issue.get("part_of") else "Fixes"
-    text += ["## How to work",
-             "1. Do not explore: this brief names what to change. Read only the symbols you edit (jcodemunch "
+    return ["# How to work (the same for every issue)",
+             "1. Do not explore: the issue section below names what to change. Read only the symbols you edit (jcodemunch "
              "`get_symbol_source` / `get_file_outline`), then edit. The `mcp` tool (the wide set) is a brief miss: "
              "use it only when the brief truly lacks something, and say what in `pipeline_report`.",
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
@@ -344,11 +356,29 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
              "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
-             f"6. Commit your own work, once for this issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> ({fixes} #{issue['number']})' -m '{g['commit_trailer']}'`. Uncommitted work counts as nothing.",
-             f"7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with task `{task}`. "
+             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m '{g['commit_trailer']}'`, "
+             "the issue line below says which. Uncommitted work counts as nothing.",
+             "7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with the task named below. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
              "8. Work only in this directory. Do not run the app or the engine; tests use the scratch paths the runner sets. "
-             "Never push, never `git stash`, never touch the maintainer's data or settings."]
+             "Never push, never `git stash`, never touch the maintainer's data or settings.", ""]
+
+
+def brief(issue: dict, task: str, failure: str = "") -> str:
+    """The coder's prompt: the stable rules, then the issue (only text by allow-listed authors), its spec lines,
+    where the change goes and the test to write. Outside text never enters a prompt (pipeline.outside-bugs)."""
+    g = cfg()["github"]
+    if issue.get("author") not in g["allowed_authors"]:
+        raise PermissionError(f"#{issue['number']} is by {issue.get('author')}: not allow-listed, triage it first")
+    lines = spec_lines(set(issue_ids(issue)))
+    fixes = "Part of" if issue.get("part_of") else "Fixes"
+    text = [*brief_rules(), f"# Issue #{issue['number']}: {issue['title']}",
+            f"Task `{task}`; commit with `({fixes} #{issue['number']})`.", "", issue.get("body") or "", ""]
+    if lines:
+        text += ["## Spec lines", *lines, ""]
+    text += localise.section(issue.get("localised") or {"files": [], "symbols": {}, "tests": []})
+    if failure:
+        text += ["## The checks or the review FAILED on your last commit. Fix this, then commit again:", "```", failure[-6000:], "```", ""]
     return "\n".join(text)
 
 
@@ -494,7 +524,11 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
                            milestone=milestone, base=base, from_file=from_file, ids=issue_ids(iss))
-    worker = workers()[worker_index]
+    for k, iss in briefs.items():
+        iss["localised"] = localised(iss, task, k)
+    # the batch's size routes it: every issue small => the small tier; anything bigger or unplaced => the big one
+    tier = "small" if all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
+    worker = config.at_tier(c, workers()[worker_index], tier)
     _wait_room(worker["kind"], task)
     session_dir = _start_worker(task, wt, worker, window, docs=any(cites_docs(i) for i in briefs.values()))
     summary = {"task": task, "window": window, "worktree": str(wt), "items": {}}

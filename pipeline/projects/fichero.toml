@@ -97,29 +97,30 @@ owner_process = "Fichero Server"   # the maintainer's own engine; busy under pre
 # One ordered fallback list per role (pipeline.worker-roles): kind pi, provider + model (as Pi spells it). Ruled
 # 2026-10-25: every role runs on the Anthropic API through Pi, the key from ~/.config/anthropic/key passed only through
 # env by the worker wrapper; Qwen stays configured but off (`enabled = false` entries are skipped).
+# Roles name a TIER, not a model: each provider has a big and a small model, so switching provider is one line per
+# role. The brief's size routes an issue to the small tier (pipeline.batch-session); the reviewer stays big.
+[tiers]
+anthropic = { big = "claude-sonnet-5-5", small = "claude-haiku-5-5" }
+openrouter = { big = "qwen/qwen3.8-27b", small = "qwen/qwen3.5-9b" }   # ponytail: the small Qwen is unmeasured
+omlx = { big = "qwen3-coder-next", small = "qwen3.5-9b" }              # the Studio end state (open question 1)
 [[roles.coder]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+tier = "big"
 [[roles.coder]]
 kind = "pi"
 provider = "openrouter"
-model = "qwen/qwen3.8-27b"
+tier = "big"
 enabled = false
-# items labelled small
-[[roles.coder-small]]
-kind = "pi"
-provider = "anthropic"
-model = "claude-haiku-5-5"
 # owner 2026-10-25: every runner worker is Sonnet or Haiku; the reviewer is Sonnet, not Opus
 [[roles.reviewer]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+tier = "big"
 [[roles.manager]]
 kind = "pi"
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+tier = "big"
 # The end state, not run now: every role local through oMLX (OpenAI-compatible; declared to Pi in
 # pipeline/pi-agent/models.json). The self-test loads nothing.
 # [[roles.coder]]

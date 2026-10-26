@@ -358,6 +358,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_core.py::test_batch_ends_at_the_context_budget_with_a_handoff_note`,
   `pipeline/tests/test_core.py::test_parked_worker_is_woken_for_the_same_kind_within_park_ttl`,
   `pipeline/tests/test_core.py::test_brief_carries_spec_lines_files_and_the_test_to_write`,
+  `pipeline/tests/test_core.py::test_a_model_names_the_files_only_when_localisation_finds_nothing`,
+  `pipeline/tests/test_core.py::test_a_small_batch_goes_to_the_small_tier_and_a_big_one_to_the_big`,
   `pipeline/tests/test_coder.py::test_every_worker_gets_the_same_small_tool_list_and_docs_only_when_cited`,
   `pipeline/tests/test_coder.py::test_a_proxy_call_is_counted_as_a_brief_miss`,
   `pipeline/tests/test_faces.py::test_a_worker_tool_outside_the_role_refuses_at_call_time`.
@@ -371,7 +373,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   cached-token counts are read from each provider's usage (Anthropic cache_read/cache_creation, Pi's cacheRead/cacheWrite,
   OpenRouter's cached_tokens, oMLX whatever it reports, else 0) into one journal field per session, as cache_read, cache_write and fresh, and the page shows
   the hit rate; for OpenRouter the profile pins the provider order per model so one Qwen provider keeps the cache
-  warm; oMLX runs one long-lived server per model (a profile entry, not built). Models are named by tier: each provider has a big and a small model (Anthropic sonnet and haiku; OpenRouter a big and a cheaper small Qwen, enabled = false; oMLX the same later), roles name big or small, so switching provider is one profile line. Non-interactive model work (batch
+  warm; oMLX runs one long-lived server per model (a profile entry, not built). Models are named by tier (the profile's `[tiers]` table; a role entry names `tier`, not a model): each provider has a big and a small model (Anthropic sonnet and haiku; OpenRouter a big and a cheaper small Qwen, enabled = false; oMLX the same later), roles name big or small, so switching provider is one profile line. Non-interactive model work (batch
   reviews, sweeps, triage) may go through Anthropic's Message Batches API at half price behind a profile flag, off by
   default. Tests: `pipeline/tests/test_coder.py::test_cache_tokens_are_read_from_each_providers_usage`,
   `pipeline/tests/test_core.py::test_brief_is_a_stable_prefix_then_the_issue_tail`.

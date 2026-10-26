@@ -531,3 +531,43 @@ def test_cost_cap_stops_the_worker_and_moves_to_the_fallback(scratch, issues, fa
     assert fc.stopped == ["coder-issues-1001"]
     assert [q["kind"] for q in core.queue()] == ["fallback"]
     assert any(e["event"] == "worker_gone" for e in journal.read())
+
+
+def test_brief_carries_spec_lines_files_and_the_test_to_write(scratch, issues):
+    """pipeline.batch-session: localisation is model-free; the brief names the files, symbols and the test to write."""
+    iss = dict(issues[1001], body="Change `base` in src/mod.py. Test: tests/test_new.py::test_new")
+    iss["localised"] = core.localised(iss, "t", "1001")
+    text = core.brief(iss, "t")
+    assert "- src/mod.py" in text and "`base`: src/mod.py:1:def base" in text
+    assert "tests/test_new.py::test_new" in text and "must fail before your change" in text
+    assert iss["localised"]["size"] == "small"
+    assert any(e["event"] == "localised" and e["files"] == ["src/mod.py"] for e in journal.read())
+
+
+def test_brief_is_a_stable_prefix_then_the_issue_tail(scratch, issues):
+    a, b = core.brief(issues[1001], "t1"), core.brief(issues[1002], "t2")
+    head = lambda t: t.split("# Issue #")[0]  # noqa: E731
+    assert head(a) == head(b) and "1001" not in head(a) and "t1" not in head(a), "no ids or tasks before the tail"
+
+
+def test_a_model_names_the_files_only_when_localisation_finds_nothing(scratch, issues, monkeypatch):
+    calls = []
+
+    def ask_once(cfg, worker, prompt, session_dir):
+        calls.append(worker["model"])
+        return {"answer": "src/mod.py\ntests/test_9.py", "cost_usd": 0.001, "tokens": 50, "model": worker["model"]}
+
+    monkeypatch.setattr(core.coder, "ask_once", ask_once)
+    core.localised(dict(issues[1001], body="Change `base` in src/mod.py."), "t", "1001")
+    assert calls == [], "the body names a file: no model call"
+    loc = core.localised(dict(issues[1002], body="Make f(2) return 2."), "t", "1002")
+    assert len(calls) == 1 and loc["files"] == ["src/mod.py"] and loc.get("by_model")
+
+
+def test_a_small_batch_goes_to_the_small_tier_and_a_big_one_to_the_big(scratch, issues, fake_coder):
+    scratch["cfg"]["tiers"] = {"openrouter": {"big": "qwen/big", "small": "qwen/small"}, "anthropic": {"big": "b", "small": "s"}}
+    fc = fake_coder()
+    ISS = __import__("pipeline.tests.conftest", fromlist=["ISSUES"]).ISSUES
+    ISS[1001]["body"] += " Change `base` in src/mod.py."
+    core.start([1001])
+    assert "openrouter/qwen/small" in " ".join(fc.windows[0][2])
