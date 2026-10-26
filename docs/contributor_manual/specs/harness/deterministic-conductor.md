@@ -272,7 +272,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   OpenAI-compatible endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id. Ruled 2026-10-25
   (evening): every role runs on the Anthropic API through Pi — coder claude-sonnet-5-5, coder-small claude-haiku-5-5,
   reviewer claude-opus-5-5, the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
-  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on `pipeline/claude-code-worker`.
+  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on its own branch (the pipeline lane's claude-code-worker branch).
   Known limit, accepted for now: the Pi worker's jail is a convention — it can write the shared git common dir and
   `config.worktree`; the runner's own git runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false` so a
   planted hook or monitor never runs in the runner, and the checks' scratch trees live under the state dir. One list serves
