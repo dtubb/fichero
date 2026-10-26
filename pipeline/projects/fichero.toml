@@ -36,7 +36,7 @@ cmd = "{pinned}/scripts/lane_ready_check.sh HEAD"
 [[ladder]]
 name = "red-on-base"
 kind = "red-on-base"            # built in: the changed test files must fail on the base and pass on the branch
-test_glob = ["*test*.py", "*Tests*.swift"]
+test_glob = ["*test*.py"]            # pytest runs only Python; Swift tests are the gate lane's
 pytest = "{python} -m pytest -q -p no:cacheprovider -x {files}"
 [[ladder]]
 name = "gate-part"

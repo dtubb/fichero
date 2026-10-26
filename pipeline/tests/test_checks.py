@@ -242,3 +242,12 @@ def test_an_approval_is_for_that_content_a_later_edit_is_red_again(scratch):
     git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "edit the guard again")
     r = checks.run_all(wt, scratch["cfg"], approved=pin)[0]
     assert r["name"] == "pinned-checks" and not r["ok"] and f in r["text"]
+
+
+def test_a_swift_only_change_skips_red_on_base_instead_of_handing_pytest_a_swift_path(scratch):
+    """Live, #3961: a .swift test path went to pytest ("not found") and the coder was re-dispatched for nothing."""
+    wt = lane(scratch, "swiftonly", {"App/DocumentStoreTests.swift": "// test\n", "App/Store.swift": "// code\n"})
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
+    assert r["red-on-base"]["ok"] and "no python tests changed" in r["red-on-base"]["text"]
+    py = lane(scratch, "pyonly", {"src/mod.py": "def base():\n    return 0\n\n\ndef g():\n    return 2\n"})
+    assert not {x["name"]: x for x in checks.run_all(py, scratch["cfg"])}["red-on-base"]["ok"], "a python change with no test is still red"
