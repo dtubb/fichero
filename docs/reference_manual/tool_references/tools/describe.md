@@ -11,7 +11,7 @@ Generate image descriptions
 | Tool id | `describe` |
 | Category | vision |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | yes |

@@ -11,7 +11,7 @@ Detect whether a document is typescript, manuscript, HTR, or paleography
 | Tool id | `classify_script` |
 | Category | vision |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | yes |
