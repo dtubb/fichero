@@ -147,10 +147,20 @@ something goes badly wrong.
   same rule, never silently. *Existing data:* set-aside copies already lying in library
   folders are found and listed on first open. *Test:* restore, then return to the set-aside
   copy: the library is as it was.
-- `safety.net.restore-is-written-down` — **[GAP]** (#5246) the record inside a restored library ends at the
-  snapshot, so the restore is written as the first new row after it, naming who, when, and
-  which snapshot, and the chain's outside anchor is updated so the shortened record is not
-  mistaken for tampering. *Test:* the chain verifies after a restore.
+- `safety.net.restore-is-written-down` — **[GAP]** (#5246; owner 2026-10-26, which CHANGES the earlier "record ends at the
+  snapshot") a restore never rolls back the history or the snapshots: the record (history of actions, runs and
+  restores), the list of snapshots, the Trash's snapshots and the Undo history are NOT part of what is returned, they
+  stay whole and the restore is written as a NEW row after everything, naming who, when and which snapshot. Only the
+  library's data (rows, readings, claims, layout) returns to the snapshot's. The chain's outside anchor only ever grows,
+  so nothing looks like tampering. *Test:* take snapshots A and B, act, restore A: B and every record row still exist, the
+  restore row is last, the chain verifies, and returning to B works.
+- `safety.net.restore-stops-the-workers-first` — **[GAP]** (#5246; owner 2026-10-26) before a restore (or an Undo of a bulk
+  action, or returning to a set-aside copy) Fichero stops everything that writes: running recipe steps and jobs, the
+  background scheduler, the dev runner and its agents/workers, imports and syncs. It says so first ("3 runs and the
+  runner will stop"), waits until each has stopped cleanly (a stop is journalled, not a kill), takes the pre-restore
+  set-aside copy, restores, and does NOT restart them by itself: the person starts them again. This replaces refusing
+  a restore while a run is writing (`safety.net.not-while-others-are-working` still refuses while ANOTHER PERSON is
+  writing). *Test:* a running fake job and a held writer are stopped, the restore completes, nothing restarts.
 - `safety.net.owner-only` — **[GAP]** (#5246) only the library's owner may restore a snapshot or delete one.
   Anyone who may write may take one. *Test:* an editor's restore and delete are refused.
 - `safety.net.not-while-others-are-working` — **[GAP]** (#5246) a restore is refused while another person or a

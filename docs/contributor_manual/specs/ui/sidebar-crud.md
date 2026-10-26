@@ -165,6 +165,8 @@ Both issues are already on this milestone (#291); no new issues were needed.
   stands: `SidebarActions.swift:224` (and `:85`) call `documentStore.refresh()`
   unconditionally per item in a batch-delete loop — a wholesale `loadCollections` per
   deleted item, not the one-splice-then-one-rebuild the behavior promises.
+- `delete.never-deletes-the-parent` — **[BROKEN]** (#6175; owner bug 2026-10-26, data loss) deleting an item in the sidebar removes exactly the selected items and their descendants and NEVER an ancestor or a sibling: today the parent folder is deleted too. Pinned by a test that deletes a child through the same call the sidebar makes and asserts the parent and siblings stay.
+- `delete.snapshot-so-undo-restores` — **[GAP]** (#6175; owner ask 2026-10-26) every delete first records a snapshot (the items, their place, order and descendants) in the same action, so Undo (`ui/undo-everywhere.md`) and the Trash (`delete.trash-browsable`) restore them exactly where they were; the snapshot is kept until the person purges it.
 - `delete.trash-browsable` — **[GAP]** (#2077) a deleted item is reachable in a browsable Trash
   surface (restore, or purge permanently) and soft-delete extends beyond Document to claim/
   entity/annotation/note/workflow. Verified: the backend routes exist for Document only
@@ -193,6 +195,65 @@ sidebar's own code health, not a Library view-mode question:
   milestone folds.
 - `sidebar.accessibility-pass` — **[GAP]** (#4164, #584) the sidebar has zero VoiceOver/accessibility
   coverage today (issue's own claim, not independently re-verified this pass).
+
+## Delete, undo and backups (owner ruling 2026-10-26, #6175)
+
+A delete is the one action in the sidebar that can lose a person's work, so it is specified end to end. Owner: sidebar CRUD
+must also back up and undo. The first worked example below is the earlier fix of the same defect class (a just-deleted row
+resolving to its parent); #6175 shows it came back or was never closed on every path, so the rules below are pinned on
+EVERY path that deletes (sidebar row, context menu, Delete key, multi-select, drag to Trash, the toolbar, Services, the
+engine route and the MCP/CLI tool), not on one.
+
+- `delete.delete-means-move-to-trash` — **[GAP]** (#6175, #2077; owner 2026-10-26) Delete in the sidebar (and the menu, key,
+  drag and MCP/CLI) never removes anything for good: it MOVES the items to Fichero's own Trash (a soft delete, the
+  `deleted` state the engine already has), names itself "Move to Trash" and says so in the confirm. Items in the Trash are
+  hidden from the library, search and every run, and their originals are untouched. Only the Trash removes for good: Delete
+  Permanently and Empty Trash, each after a library snapshot and a second confirm (`safety.net.the-steps`). There is no
+  path from a sidebar delete to a permanent one.
+- `delete.target-is-the-selection-exactly` — **[BROKEN]** (#6175) what a delete acts on is the set of rows the person
+  selected, resolved ONCE at the moment of the action to document ids, never re-derived later from the visible list, a
+  focus row, a "momentarily missing" row or the parent. A selection that includes a folder and some of its children
+  deletes the folder's subtree once. An empty selection deletes nothing. The ids sent are shown by the confirm step
+  below, so a wrong target is visible before it happens.
+- `delete.confirm-says-what-goes` — **[GAP]** (#6175) before anything is removed the app names it: "Delete 'Letters 1740'
+  and the 12 items inside it?" (one line per top-level item, the count of descendants, the size of the originals NOT
+  touched). A single item with no children may skip the sentence but never the undo. The default button is Cancel.
+- `delete.snapshot-before-the-first-write` — **[GAP]** (#6175, `safety.net.the-steps`, `safety.net.no-snapshot-no-step`)
+  the delete action first records a snapshot of exactly what it will remove: each item's row, readings, annotations,
+  place (parent, order), descendants and their order, and the references to originals (never the originals). If the
+  snapshot cannot be written, nothing is deleted and the app says why (disk, permission). The snapshot is part of the
+  same audited action (`one-audited-action-layer`), so Undo, the Trash and the record all name the same step.
+- `delete.undo-restores-in-place` — **[GAP]** (#6175, `undo-everywhere.md`) Edit > Undo after a delete puts every item
+  back where it was (same parent, same order, same ids, children included) and selects them; Redo deletes them again. It
+  works after the window is closed and the app restarted, for as long as the snapshot is kept (Trash retention),
+  not only for the session. Undo never recreates an item that was since purged: it says so.
+- `delete.trash-keeps-the-snapshot` — **[GAP]** (#2077) a deleted item sits in the browsable Trash (`delete.trash-browsable`)
+  with its snapshot until the person purges it or the retention ends; Restore puts it back in place; Purge asks again
+  and takes a library snapshot first (`safety.net.the-steps`).
+- `delete.after-delete-selection-is-never-a-delete-target` — **[BROKEN]** (#6175; Opus review `delete-parent-root-cause-2026-10-26.md`) after a delete the selection moves to the next sibling, else the previous, else the parent (the Finder rule, from the ROWS AS DRAWN, not from a cache that may be empty), and that selection is only a place to look: Delete, Backspace, the "-" button and Edit > Delete do nothing to it until the person selects it again by a fresh click; Return never confirms a delete by default (Cancel is the default). *Test:* `SidebarDeleteTests.testDeletingAnOnlyChildNeverMakesTheParentTheNextDeleteTarget`.
+- `delete.multi-is-one-undo-step` — **[BROKEN]** (#6175, #4696) a delete of several items is ONE undoable batch and one refresh: one Cmd-Z restores all of them. *Test:* `SidebarDeleteTests.testBatchDeleteIsOneUndoStep`.
+- `delete.which-pane-is-shown` — **[GAP]** (#6175) Edit > Delete and Cmd-Delete act on the pane that has focus, and the focused pane's selection is drawn distinctly (the sidebar's highlight is not always grey), so the person can see what a delete will take; the menu item names it ("Move 'Letters' to Trash"). *Test:* a focus test per pane.
+- `delete.never-deletes-the-parent` — **[BROKEN]** (#6175) below.
+- `delete.automatic-backup-around-bulk-deletes` — **[GAP]** (#6175, `safety.net.what-a-snapshot-holds`) a delete of more
+  than 25 items or more than one folder, and any Empty Trash, takes a whole-library snapshot first (cheap where the
+  disk allows, `safety.net.cheap-where-the-disk-allows`), named "before deleting 40 items"; and the library keeps a
+  daily snapshot while it is in use (`safety.net.the-steps`), so a bad day is recoverable to yesterday.
+- `delete.every-path-same-action` — **[GAP]** (#6175, `four-architecture-rules`: logic in the engine) every route that
+  deletes (sidebar, menu, key, MCP, CLI, workflow) calls the ONE engine delete action; the app sends the ids and
+  nothing more; the cascade rule (descendants down, never up) lives in the engine and is tested there.
+
+Test matrix (each row one test; engine tests run on a scratch library):
+| Case | Expected |
+|---|---|
+| delete one leaf | its parent and siblings remain |
+| delete a folder | its subtree goes, its parent and siblings remain |
+| delete several siblings, one a folder | only those subtrees go |
+| delete the last child of a folder | the (now empty) folder REMAINS |
+| delete from each path (menu, key, drag, MCP, CLI) | same result and same snapshot |
+| snapshot unwritable | nothing deleted, reason shown |
+| Undo (same session, and after restart) | same parent, order, ids, children |
+| purge then Undo | refused in words |
+| 40 items | a named library snapshot exists first |
 
 ## First worked example (this PR — the delete behaviors)
 
