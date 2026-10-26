@@ -3,6 +3,7 @@
   python -m pipeline status | queue
   python -m pipeline start <issue> [<issue>...] [--milestone M] [--task T] [--base REF] [--from-file F]
   python -m pipeline check <issue>
+  python -m pipeline approve-checks <issue> --findings TEXT
   python -m pipeline verdict <issue> <sha> READY|NOT_READY|PENDING --by reviewer|manager [--findings TEXT]
   python -m pipeline tell <window> "<text>"      answer <id> "<text>"      point <milestone>
   python -m pipeline pause | resume
@@ -31,6 +32,7 @@ COMMANDS = {
               ("--base", {"help": "the ref the worktree comes off (default: the profile's base)"}),
               ("--from-file", {"help": "a local JSON issue (number, title, body, author, part_of) for a step not yet filed"})],
     "retry": [("issue", {}), ("--worker", {"type": int, "help": "index into the role's fallback list (default: one past the rate-limited stops)"})],
+    "approve-checks": [("issue", {}), ("--findings", {"required": True, "help": "what the coder is told when the item goes back"})],
     "check": [("issue", {})],
     "repair": [("issue", {}), ("--base", {}), ("--from-file", {}), ("--since", {}), ("--why", {"default": ""})],
     "verdict": [("issue", {}), ("sha", {}), ("verdict", {}), ("--by", {"required": True}), ("--findings", {"default": ""})],

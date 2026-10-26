@@ -158,6 +158,8 @@ def test_red_on_base_is_measured_at_the_items_start_not_the_branch_base(scratch)
 
 
 def test_red_on_the_branch_is_red(scratch):
+    """The one check that needs a real pytest (the stub only resolves imports)."""
+    scratch["cfg"]["ladder"][1]["pytest"] = "{python} -m pytest -q -p no:cacheprovider {files}"
     wt = lane(scratch, "broken", {"src/mod.py": "def base():\n    return 0\n\n\ndef f1():\n    return 2\n",
                                   "tests/test_1.py": "from src.mod import f1\n\ndef test_f1():\n    assert f1() == 1\n"})
     r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
@@ -209,3 +211,21 @@ def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):
     wt = lane(scratch, "author", REAL_FIX, author="someone@example.com", msg="no issue")
     r = checks.run_all(wt, scratch["cfg"])[1]
     assert r["name"] == "ready" and not r["ok"] and "not the agent" in r["text"] and "cites no issue" in r["text"]
+
+
+def test_an_approved_check_change_runs_the_coders_copy_not_the_pinned_one(scratch):
+    """approve-checks: the maintainer OKs the change; the coder's guard is what runs, and a red guard still fails."""
+    wt = lane(scratch, "guarded", {**REAL_FIX, "scripts/check_no_bad.py": "import sys\nprint('stricter')\nsys.exit(1)\n"})
+    assert not checks.run_all(wt, scratch["cfg"])[0]["ok"]
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], approved=("scripts/check_no_bad.py",))}
+    assert r["pinned-checks"]["ok"] and not r["fast-guards"]["ok"] and "stricter" in r["fast-guards"]["text"]
+
+
+def test_a_guard_over_its_budget_is_red_with_the_way_out(scratch):
+    (scratch["repo"] / "scripts" / "check_slow.py").write_text("import time\ntime.sleep(5)\n")
+    git(scratch["repo"], "add", ".")
+    git(scratch["repo"], "-c", "user.name=M", "-c", "user.email=m@example.com", "commit", "-qm", "slow guard")
+    wt = lane(scratch, "slow", REAL_FIX)
+    scratch["cfg"]["ladder"][2]["budget_s"] = {"check_slow": 1}
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
+    assert not r["fast-guards"]["ok"] and "over its 1 s budget" in r["fast-guards"]["text"]

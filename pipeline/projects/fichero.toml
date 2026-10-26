@@ -50,11 +50,24 @@ needs_mb = 4000
 [[ladder]]
 name = "fast-guards"
 glob = "{pinned}/scripts/check_*.py"
-skip = ["check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
-        "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
-        "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
-        "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths"]
-timeout_s = 60
+timeout_s = 60                       # the default budget of one guard; [ladder.budget_s] overrides it per guard
+# ONE list of what the nightly gate runs instead, each with its reason. A guard not named here runs on every check.
+[ladder.skip]
+check_closed_issues_landed = "asks GitHub: network, and about issues outside this item"
+check_unmerged_work = "reads every sibling worktree, not this tree"
+check_merged_worktrees = "reads every sibling worktree, not this tree"
+check_no_orphan_stashes = "reads the shared stash stack, not this tree"
+check_coverage_ratchet = "needs a coverage run (minutes)"
+check_embedded_engine_signing = "needs a built, signed app"
+check_hang_ratchet = "needs a test-host run's hang report"
+check_mac_app_store_target = "reads the Xcode project at release time (nightly)"
+check_release_staples_app = "needs a built DMG"
+check_sparkle_update_ready = "release-time readiness (nightly)"
+check_swiftlint_warning_ratchet = "runs swiftlint over the whole app (minutes)"
+check_test_plans_runnable = "runs xcodebuild -showTestPlans (slow)"
+check_engine_imports_bundled = "needs the staged engine bundle"
+check_release_size_ratchet = "needs a built release artifact"
+check_docs_paths = "went red unseen on 2026-10-25 and runs over every doc (slow); drop this line once cand20 (the reword) lands"
 [[ladder]]
 name = "contract-current"
 paths = ["fichero-server/src/"]

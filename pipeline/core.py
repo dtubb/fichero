@@ -99,6 +99,9 @@ def state() -> dict:
             it["retry_text"] = e["text"]
         elif ev == "reset" and it:  # the maintainer: the attempts so far were the runner's fault, not the coder's
             it["attempts"] = 0
+        elif ev == "approve_checks" and it:  # the maintainer OKs this check change and sends the findings
+            it["approved_checks"] = sorted(set(it.get("approved_checks", [])) | set(e["files"]))
+            it["attempts"], it["retry_text"] = 0, e["text"]
         elif ev == "verdict" and it:
             it["verdicts"].append({x: e[x] for x in ("sha", "verdict", "by", "findings")})
         elif ev == "cost" and it:
@@ -626,7 +629,8 @@ def check(issue, since: str | None = None, locked: bool = False) -> list[dict]:
     sha = _head(wt)
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
-        results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()))
+        results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()),
+                                approved=tuple(it.get("approved_checks", ())))
     if _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)
@@ -729,6 +733,20 @@ def reset(issue, why: str = "") -> dict:
     return {"issue": key, "attempts": 0}
 
 
+def approve_checks(issue, findings: str) -> dict:
+    """The maintainer approves the check change that sent an item to needs-maintainer (pinned-checks), records which
+    files, and re-dispatches it with the findings as the coder's retry text."""
+    key, it, s = _item(issue)
+    if it["state"] != "needs-maintainer":
+        raise RuntimeError(f"{key} is {it['state']}; approve-checks is for a needs-maintainer item whose diff changes the checks")
+    wt = Path(s["tasks"][it["task"]]["worktree"])
+    _, _, hit = checks.changed_checks(wt, _since(key, it["task"]), cfg(), approved=it.get("approved_checks", ()))
+    if not hit:
+        raise RuntimeError(f"{key}: the diff changes no pinned check; nothing to approve (use `retry`)")
+    journal.append("approve_checks", issue=it["issue"], key=key, files=hit, text=findings)
+    return {"approved": hit, **retry(key)}
+
+
 def pause() -> dict:
     journal.append("pause")
     return {"paused": True}
@@ -796,7 +814,7 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 
 
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
-API = {"status": status, "start": start, "retry": retry, "repair": repair, "check": check, "review": review, "verdict": verdict,
+API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
        "tell": tell, "report": report, "ask": ask, "done": done, "queue": queue, "answer": answer, "point": point, "pause": pause,
        "resume": resume, "file_bug": file_bug, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
@@ -805,4 +823,4 @@ WORKER_TOOLS = ("report", "ask", "done", "verdict")
 ROLE_TOOLS = {"coder": ("report", "ask", "done"), "reviewer": ("verdict", "report"),
               "manager": ("status", "start", "retry", "check", "review", "tell", "file_bug", "point", "queue", "report")}
 # What a worker's shell may never run through the CLI (pipeline.jailed-agent, until the write jail exists).
-WORKER_FORBIDDEN = ("verdict", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")
+WORKER_FORBIDDEN = ("verdict", "approve_checks", "answer", "start", "retry", "repair", "check", "review", "pause", "resume", "point", "tell", "reset")

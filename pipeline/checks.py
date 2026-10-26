@@ -212,11 +212,12 @@ def run_rung(rung, wt, tree, cfg, files, since) -> tuple[bool, str]:
             if any(k in s for k in rung.get("skip", [])):
                 continue
             try:
-                r = sh(isolated(s, env), cwd=tree, env=env, timeout=rung.get("timeout_s", 60))
+                budget = rung.get("budget_s", {}).get(Path(s).stem, rung.get("timeout_s", 60))
+                r = sh(isolated(s, env), cwd=tree, env=env, timeout=budget)
                 if r.returncode:
                     bad.append(f"{Path(s).name}:\n{tail(r.stdout + r.stderr)}")
             except subprocess.TimeoutExpired:
-                bad.append(f"{Path(s).name}: timeout")
+                bad.append(f"{Path(s).name}: over its {budget} s budget (move it to the profile's [ladder.skip] with a reason, or raise [ladder.budget_s])")
         if not bad:
             return True, "all guards green"
         # the HEAD of the list of failing guards is never lost; each guard's output is its own tail
@@ -239,17 +240,24 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     return "\n".join(kept)[-chars:]
 
 
-def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), ) -> list[dict]:
+def changed_checks(wt, since, cfg, pinned=None, approved=()) -> tuple[str, list[str], list[str]]:
+    """(pinned sha, the pinned check files to lay over the tree, the pinned checks the diff changes). A check change
+    the maintainer approved (`approve-checks`) is neither laid over nor a red: the coder's copy is what runs."""
+    pinned = pinned or cfg["repo"].get("pinned") or ROOT
+    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
+    overlay = [f for f in overlay if f not in approved]
+    return pinned_sha, overlay, [f for f in changed_files(wt, since, "MDR") if f in overlay]
+
+
+def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=()) -> list[dict]:
     """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
     pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
     or a rewrite of the item's own acceptance in the spec."""
-    pinned = pinned or cfg["repo"].get("pinned") or ROOT
     since = since or cfg["repo"]["base"]
     files = changed_files(wt, since)
-    pinned_sha, overlay = pinned_files(pinned, cfg["repo"]["check_paths"])
     # a coder may add a guard, and keep editing a guard of its own that the pinned runner does not have yet (a
     # Stage 1 step over several commits); it may never change or remove a check the PINNED checkout runs
-    hit = [f for f in changed_files(wt, since, "MDR") if f in overlay]
+    pinned_sha, overlay, hit = changed_checks(wt, since, cfg, pinned, approved)
     why = f"the diff changes the checks themselves ({', '.join(hit[:5])})" if hit else ""
     bypass = bypass_files(wt, since, cfg)
     if bypass and not why:

@@ -571,3 +571,24 @@ def test_a_small_batch_goes_to_the_small_tier_and_a_big_one_to_the_big(scratch, 
     ISS[1001]["body"] += " Change `base` in src/mod.py."
     core.start([1001])
     assert "openrouter/qwen/small" in " ".join(fc.windows[0][2])
+
+
+def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues, fake_coder):
+    fc = fake_coder()
+    real = fc._tell
+
+    def tell_and_touch_a_guard(window, text):
+        real(window, text)
+        (fc.cwd / "scripts" / "check_no_bad.py").write_text("print('ok, but changed')\n")
+        git(fc.cwd, "add", ".")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)")
+
+    fc._tell = tell_and_touch_a_guard
+    assert core.start([1001])["items"]["1001"] == "needs-maintainer"
+    fc._tell = real
+    out = core.approve_checks(1001, "the maintainer approved the guard change; carry on")
+    assert out["approved"] == ["scripts/check_no_bad.py"]
+    it = core.state()["items"]["1001"]
+    assert it["approved_checks"] == ["scripts/check_no_bad.py"] and "approved the guard change" in it["retry_text"]
+    with pytest.raises(RuntimeError, match="approve-checks is for a needs-maintainer"):
+        core.approve_checks(1001, "again")

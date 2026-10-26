@@ -31,6 +31,23 @@ for f in files:
 sys.exit(1 if bad else 0)
 '''
 
+# The stub `pytest` for the red-on-base rung (a real pytest start costs ~0.8 s, three or four times per test): it
+# imports each file and calls its `test_*` functions, which is all the fake coder's tests need; the real runner is
+# exercised by test_red_on_the_branch_is_red and `python -m pipeline --self-test`.
+STUB_PYTEST = '''import runpy, sys, traceback
+sys.path.insert(0, ".")
+bad = []
+for f in sys.argv[1:]:
+    try:
+        for name, fn in runpy.run_path(f).items():
+            if name.startswith("test_") and callable(fn):
+                fn()
+    except BaseException:
+        bad.append(f"{f}:\\n{traceback.format_exc()}")
+print("\\n".join(bad) or "passed")
+sys.exit(1 if bad else 0)
+'''
+
 
 def git(cwd, *args) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
@@ -81,6 +98,7 @@ def scratch(tmp_path, monkeypatch):
     (bin_dir / "ruff").write_text(STUB_RUFF)
     (bin_dir / "ruff").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}")
+    (bin_dir / "stub_pytest.py").write_text(STUB_PYTEST)
     cfg = {
         "name": "scratch",
         "repo": {"path": str(repo), "base": "origin/integration", "main": "main", "worktrees": ".worktrees/pipeline",
@@ -92,7 +110,7 @@ def scratch(tmp_path, monkeypatch):
         "ladder": [
             {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh HEAD"},
             {"name": "red-on-base", "kind": "red-on-base", "test_glob": ["*test*.py"],
-             "pytest": "{python} -m pytest -q -p no:cacheprovider {files}"},
+             "pytest": f"{{python}} {bin_dir}/stub_pytest.py {{files}}"},
             {"name": "fast-guards", "glob": "{pinned}/scripts/check_*.py", "skip": [], "timeout_s": 30},
         ],
         "workers": {"tmux_session": "pipeline-test", "pi_adapter": "/nowhere/adapter.ts", "agent_dir": "pipeline/pi-agent",
