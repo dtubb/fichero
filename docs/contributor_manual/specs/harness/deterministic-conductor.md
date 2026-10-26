@@ -32,6 +32,10 @@ milestone, a stale check-in prompt kept firing, and lanes stood idle unnoticed.
   server (so Pi + a model, or Claude, can run it with tools that cannot skip a step), and a local web page the
   maintainer watches and works in. State lives in GitHub (issues, milestones, labels) and a local append-only
   journal; nothing a model says changes state except through a tool whose checks the code runs.
+- **Agentless** (deterministic localisation, then one focused repair): the runner finds the files and symbols and
+  builds the brief itself, so the model makes one focused edit, which is why an issue costs a few turns, not twenty.
+  **Aider's repo map** (a compact symbol map instead of whole files) and **SWE-agent's narrow tool interface** (few
+  tools, each shaped for the job) are the models for the brief and for the one tool list every role shares.
 - **Bernstein** (sipyourdrink-ltd/bernstein 3.23.0) was trialled on 2026-10-25 and dropped (ruling below): of the
   31 behaviours here it supplied one (worktree per task); its gate ran outside the task's worktree, its self-upgrade
   spawned stray tasks, it priced nothing for Pi, its intent check passed an unreadable reply, and its dashboard
@@ -272,7 +276,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   OpenAI-compatible endpoint, declared to Pi in `pipeline/pi-agent/models.json`) plus model id. Ruled 2026-10-25
   (evening): every role runs on the Anthropic API through Pi — coder claude-sonnet-5-5, coder-small claude-haiku-5-5,
   reviewer claude-sonnet-5-5 (owner 2026-10-25: every worker is Sonnet or Haiku), the key from `~/.config/anthropic/key` passed only through env by the worker wrapper;
-  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on `pipeline/claude-code-worker`.
+  Qwen stays configured but off; a `claude-code` kind (Claude Max) was built and parked on the claude-code-worker branch.
   Known limit, accepted for now: the Pi worker's jail is a convention — it can write the shared git common dir and
   `config.worktree`; the runner's own git runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false` so a
   planted hook or monitor never runs in the runner, and the checks' scratch trees live under the state dir. One list serves
@@ -291,7 +295,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 - `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
   task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
   shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
-  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$10, summed from
+  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$25, summed from
   the journal's cost lines) refuses `start`
   and `review`, stops a running item as `rate-limited` ("daily cap"), and lifts only with the next day or the
   maintainer's `resume --raise-cap <usd>` (journaled); the page shows today's spend against the cap. Items drain
@@ -315,34 +319,38 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_budget.py::test_second_test_run_waits_on_the_lock`,
   `pipeline/tests/test_budget.py::test_never_spawns_past_the_cap`,
   `pipeline/tests/test_budget.py::test_owner_engine_busy_signal`.
-- `pipeline.batch-session` [MISSING] (#6116) — the runner does what the lead did by hand: the feeder groups open
-  issues of one kind (same milestone plus label or area) into a batch sized by a TOKEN budget from the profile
-  (`context_tokens` × `batch_budget_pct`, never a fixed count), and one worker session takes the whole batch in order,
-  keeping its context. The brief stays small: the issue texts, the spec lines they cite and paths — no pasted files;
-  workers read code through jcodemunch symbols. `pipeline_done(task, issue)` per issue triggers THAT issue's checks
-  while the worker moves on to the next; a red check comes back to the same session as capped retry text. The session
-  ends when the batch is drained, at about 80 % of its context, or at its cap; leftovers go to the next session with a
-  short handoff note the runner writes from the journal (issues done, files touched, failures) — never a transcript
-  replay or a re-read. The reviewer reviews per batch, one pass over the batch's commits. Idle workers PARK, they do
-  not end: the window stays with no model calls; a new issue of the same kind wakes the same worker with just the new
-  issue text (its context and warm cache reused) when it has context headroom and has idled less than `park_ttl`
-  (profile, 30 min); otherwise it ends with a handoff and a fresh one starts; never more parked workers than the
-  machine budget allows; the page shows parked workers and the kind they wait for. Tests:
-  `pipeline/tests/test_core.py::test_batch_done_per_issue_checks_while_the_worker_moves_on`,
+- `pipeline.batch-session` [MISSING] (#6116) — the runner does what the lead and two Sonnet workers did by hand, as a
+  FIXED ROSTER of long-lived tmux workers: the lead is scripts (no model), plus two coders, one reviewer and one
+  bug-intake worker. Each coder is pinned to one milestone; the feeder keeps its queue topped up with that
+  milestone's open issues in build order, two or three briefs ahead, and hands the next brief the moment the worker
+  says done or goes idle; issues touching the same files go into one brief. The runner PRE-COMPUTES every brief so the
+  worker edits and does not explore: the issue text, the spec lines it cites, the files and symbols to touch (from
+  jcodemunch, or a stdlib grep fallback when it is absent) and the failing or new test to write first. Checks run by
+  scripts; only a failure goes back to the worker, as capped retry text. `pipeline_done(task, issue, residue)` per
+  issue journals the sha and the usage so far and triggers THAT issue's checks while the worker moves on; the
+  per-issue turns, tokens and dollars are the difference between two done lines. A profile budget per issue (turns
+  and tokens, e.g. 10 turns / 150k tokens) is flagged on the page when exceeded, never silently raised. Context
+  carries across issues in one worker; near full (`batch_end_pct`) the runner writes a short handoff note from the
+  journal (issues done, files touched, failures; never a transcript replay) and a fresh worker takes the milestone
+  on. A worker that has nothing ready PARKS: the window stays with no model calls, and a new issue of the same kind
+  wakes it with only the new brief while its context has room and it has idled less than `park_ttl` (profile, 30 min);
+  never more parked than the machine budget; the page shows parked workers. One Sonnet reviewer reviews per
+  milestone batch. Cost target: per issue, cheaper than today's lead plus two Sonnet workers, never a bigger fleet.
+  Tests: `pipeline/tests/test_core.py::test_batch_done_per_issue_checks_while_the_worker_moves_on`,
   `pipeline/tests/test_core.py::test_batch_ends_at_the_context_budget_with_a_handoff_note`,
   `pipeline/tests/test_core.py::test_parked_worker_is_woken_for_the_same_kind_within_park_ttl`,
-  `pipeline/tests/test_feeder.py::test_batch_is_sized_by_the_token_budget`.
+  `pipeline/tests/test_core.py::test_brief_carries_spec_lines_files_and_the_test_to_write`.
 - `pipeline.prompt-cache` [MISSING] (#6116) — every prompt is laid out as a stable prefix then a variable tail, so
   Anthropic prompt caching (cache_control through Pi — Pi 0.75.5's Anthropic provider sets it, and its OpenAI-style
   provider passes it for Anthropic models on OpenRouter) and an oMLX/llama prefix KV cache both hit: the order is
-  tools, system prompt, the profile's rules, the batch brief, then the per-issue and retry tail. The tool list is the
+  tools, system prompt, the profile's rules, the milestone brief, then the per-issue and retry tail. The tool list is the
   same, in the same order, for every role (role differences come from permissions or the profile, never a different
   MCP tool set); the system prompt holds no timestamps, task ids or worker names — those go in the tail; when several
-  workers start together, one starts, its first reply is awaited (the cache written), then the rest. Provider-neutral:
+  workers start together, one starts, its first reply is awaited (the cache written), then the rest (staggered starts). Provider-neutral:
   cached-token counts are read from each provider's usage (Anthropic cache_read/cache_creation, Pi's cacheRead/cacheWrite,
-  OpenRouter's cached_tokens, oMLX whatever it reports, else 0) into one journal field per session, and the page shows
+  OpenRouter's cached_tokens, oMLX whatever it reports, else 0) into one journal field per session, as cache_read, cache_write and fresh, and the page shows
   the hit rate; for OpenRouter the profile pins the provider order per model so one Qwen provider keeps the cache
-  warm; oMLX runs one long-lived server per model (a profile entry, not built). Non-interactive model work (batch
+  warm; oMLX runs one long-lived server per model (a profile entry, not built). Models are named by tier: each provider has a big and a small model (Anthropic sonnet and haiku; OpenRouter a big and a cheaper small Qwen, enabled = false; oMLX the same later), roles name big or small, so switching provider is one profile line. Non-interactive model work (batch
   reviews, sweeps, triage) may go through Anthropic's Message Batches API at half price behind a profile flag, off by
   default. Tests: `pipeline/tests/test_coder.py::test_cache_tokens_are_read_from_each_providers_usage`,
   `pipeline/tests/test_core.py::test_brief_is_a_stable_prefix_then_the_issue_tail`.

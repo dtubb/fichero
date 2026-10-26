@@ -281,7 +281,7 @@ def spend_today() -> float:
 def daily_cap() -> float:
     """The profile's daily cap, or what `resume --raise-cap N` set for today."""
     raised = [e["usd"] for e in journal.read() if e["event"] == "raise_cap" and e["ts"][:10] == today()]
-    return max([cfg()["workers"].get("daily_cap_usd", 20.0), *raised])
+    return max([cfg()["workers"].get("daily_cap_usd", 25.0), *raised])
 
 
 def _require_budget() -> None:

@@ -78,7 +78,7 @@ tmux_session = "pipeline"
 pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
 agent_dir = "pipeline/pi-agent"
 cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
-daily_cap_usd = 10.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+daily_cap_usd = 25.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
 context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
 # pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
 # or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
