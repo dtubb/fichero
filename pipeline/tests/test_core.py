@@ -653,7 +653,7 @@ def test_parked_worker_is_woken_for_the_same_kind_within_park_ttl(scratch, issue
     assert "coder-demo-1001" in fc.stopped
 
 
-def _landed(scratch, monkeypatch, labels=(), residue="", milestone_open=1):
+def _landed(scratch, monkeypatch, labels=(), residue="", milestone_open=1, comments=()):
     """Issue 1001 coded and checked, its commit pushed to the base branch; a fake GitHub that records the writes."""
     from pipeline import gh
     core.start([1001], milestone="demo")
@@ -665,7 +665,8 @@ def _landed(scratch, monkeypatch, labels=(), residue="", milestone_open=1):
 
     def read(*a):
         if a[0] == "issue":
-            return {"state": "OPEN", "labels": [{"name": n} for n in labels], "milestone": {"title": "demo"}}
+            return {"state": "OPEN", "labels": [{"name": n} for n in labels], "milestone": {"title": "demo"},
+                    "comments": [{"body": b} for b in comments]}
         return [{"title": "demo", "number": 7, "open_issues": milestone_open, "closed_issues": 0}] if "milestones" in a[1] else []
     monkeypatch.setattr(gh, "read", read)
     return writes
@@ -725,3 +726,26 @@ def test_a_milestone_with_unfiled_build_steps_stays_open(scratch, issues, fake_c
     out = core.close_landed()
     assert out["closed"] == [1001] and out["milestones"] == [] and not any(a[:3] == ["api", "-X", "PATCH"] for a in writes)
     assert core.unfiled_steps("demo") == ["#### Step 1.2 — not filed yet"]
+
+
+@pytest.mark.parametrize("how", ["comment", "label", "part-of", "clean"])
+def test_the_closer_leaves_an_issue_with_residue_or_a_part_of_commit_open(scratch, issues, fake_coder, monkeypatch, how):
+    """Live 2026-10-26: four issues with residue in their last comment were closed. Only an explicit Fixes with nothing owed closes."""
+    fc = fake_coder()
+    fc.keyword = "Part of" if how == "part-of" else "Fixes"
+    writes = _landed(scratch, monkeypatch, labels=["needs-your-test"] if how == "label" else (),
+                     comments=["Landed; still owed: the second line"] if how == "comment" else ["Landed, all done"])
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert (out["closed"] == [1001]) == (how == "clean")
+    assert any(a[:2] == ["issue", "close"] for a in writes) == (how == "clean")
+
+
+def test_a_part_of_commit_with_reported_residue_still_posts_the_residue(scratch, issues, fake_coder, monkeypatch):
+    fc = fake_coder()
+    fc.keyword = "Part of"
+    writes = _landed(scratch, monkeypatch, residue="the iPad half")
+    core.DRY_RUN = False
+    out = core.close_landed()
+    assert out["residue"] == [1001] and not out["closed"]
+    assert any(a[:2] == ["issue", "comment"] and "iPad half" in a[-1] for a in writes) and any("--add-label" in a for a in writes)
