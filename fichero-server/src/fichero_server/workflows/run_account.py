@@ -20,6 +20,8 @@ failed it (a page a step skipped because the step before failed it is that one f
 """
 from __future__ import annotations
 
+import asyncio
+
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -297,12 +299,14 @@ async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[s
     # A record from before a column existed lacks it: the account says less, it never fails (#5555).
     scope = getattr(run, "resolved_scope", None)
     scope = scope if isinstance(scope, dict) else {}
+    # Off the loop (#6176): both read the project's rows, which wait on the transaction gate behind a writer; on the loop
+    # that stalled the whole engine, health included, for seconds.
+    waiting = await asyncio.to_thread(waiting_reason, db, thread_id)
     account = build_account(status=run.status, reason=run.error, state=state, pending_writes=pending_writes or (),
                             started_at=getattr(run, "started_at", None), run_usage=getattr(run, "run_usage", None),
-                            live_peaks=_live_peaks(thread_id),
-                            waiting_reason=waiting_reason(db, thread_id),
+                            live_peaks=_live_peaks(thread_id), waiting_reason=waiting,
                             scope_ids=scope.get("resolved_ids") or scope.get("requested_ids"))
-    _title_failed_pages(db, account.failures)
+    await asyncio.to_thread(_title_failed_pages, db, account.failures)
     if account.state in ("done", "failed", "cancelled", "interrupted"):
         if len(_FINISHED) >= _FINISHED_LIMIT:
             _FINISHED.pop(next(iter(_FINISHED)))
