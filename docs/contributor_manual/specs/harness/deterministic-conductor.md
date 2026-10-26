@@ -347,7 +347,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   scripts; only a failure goes back to the worker, as capped retry text. `pipeline_done(task, issue, residue)` per
   issue journals the sha and the usage so far and triggers THAT issue's checks while the worker moves on; the
   per-issue turns, tokens and dollars are the difference between two done lines. A profile budget per issue (turns
-  and tokens, e.g. 10 turns / 150k tokens) is flagged on the page when exceeded, never silently raised. Context
+  and dollars, e.g. 20 turns / US$1.50; never tokens, most of which are cheap cache reads) is flagged on the page when exceeded, never silently raised. Context
   carries across issues in one worker; near full (`batch_end_pct`) the runner writes a short handoff note from the
   journal (issues done, files touched, failures; never a transcript replay) and a fresh worker takes the milestone
   on. A worker that has nothing ready PARKS: the window stays with no model calls, and a new issue of the same kind

@@ -200,7 +200,7 @@ def test_page_loads_and_every_link_resolves(server, monkeypatch):
     _fake_github(monkeypatch)
     journal.append("item", issue=7, key="7", task="t", title="seven", window="coder-t", worktree="/wt", ids=[])
     journal.append("worker", window="coder-t", task="t", role="coder", model="m", session_dir="s", cwd="/wt")
-    journal.append("issue_done", issue=7, key="7", task="t", sha="a" * 40, turns=12, tokens=9000, usd=0.5, fresh=1000, cache_read=3000, cache_write=0)
+    journal.append("issue_done", issue=7, key="7", task="t", sha="a" * 40, turns=22, tokens=9000, usd=0.5, fresh=1000, cache_read=3000, cache_write=0)
     journal.append("cost", issue=7, key="7", task="t", session="s", usd=0.5, tokens=9000, model="m", tools={})
     seen, todo = set(), ["/"]
     while todo:

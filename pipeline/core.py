@@ -258,6 +258,12 @@ def now_line(s: dict) -> str:
     return " ".join(parts)
 
 
+def over_budget(u: dict, w: dict) -> bool:
+    """An issue's own turns and dollars against the profile's caps. Tokens are not the measure: ~90 % of a long run's
+    tokens are cache reads, which cost a tenth (452,868 tokens were US$0.38 on #5760)."""
+    return u.get("turns", 0) > w.get("issue_turns_max", 20) or u.get("usd", 0) > w.get("issue_usd_max", 1.5)
+
+
 def _stuck(it: dict) -> bool:
     if it["state"] not in ("coding", "checked") or not it["history"]:
         return False
@@ -709,8 +715,8 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, fi
             return "needs-maintainer"
         failure = state()["items"][key]["retry_text"]
         u, w = state()["items"][key].get("usage") or {}, c["workers"]
-        if u.get("turns", 0) > w.get("issue_turns_max", 10) or u.get("tokens", 0) > w.get("issue_tokens_max", 150000):
-            why = f"{key} is over its budget ({u.get('turns', 0)} turns, {u.get('tokens', 0):,} tokens) and still red; no further attempt"
+        if over_budget(u, w):
+            why = f"{key} is over its budget ({u.get('turns', 0)} turns, ${u.get('usd', 0):.2f}) and still red; no further attempt"
             _move(key, "needs-maintainer", why)
             _queue("ask", f"{why}:\n{failure[-1500:]}", task=task, window=window)
             return "needs-maintainer"

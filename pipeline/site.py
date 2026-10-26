@@ -112,20 +112,19 @@ def next_page(q: dict) -> str:
 def items_page(q: dict) -> str:
     c, s = core.cfg(), core.state()
     w = c["workers"]
-    turns_max, tokens_max = w.get("issue_turns_max", 10), w.get("issue_tokens_max", 150000)
     spent, cap = core.spend_today(), core.daily_cap()
     rows = []
     for k, it in sorted(s["items"].items(), key=lambda kv: kv[1]["history"][0] if kv[1]["history"] else ""):
         u = it.get("usage") or {}
         prompt = u.get("fresh", 0) + u.get("cache_read", 0) + u.get("cache_write", 0)
-        over = u.get("turns", 0) > turns_max or u.get("tokens", 0) > tokens_max
+        over = core.over_budget(u, w)
         checks = " ".join(f'<span class="{"ok" if r["ok"] else "bad"}">{"✓" if r["ok"] else "✗"} {e(r["name"])}</span>' for r in it["checks"])
         verdicts = e(", ".join(f"{v['verdict']} by {v['by']}" for v in it["verdicts"]) or "—")
         rows.append([f"<b>{e(k)}</b> {e(it['title'])}", e(it["state"]), checks or "—", verdicts, str(u.get("turns", "—")), f"{u.get('tokens', 0):,}",
                      f"{round(100 * u.get('cache_read', 0) / prompt)}%" if prompt else "—", f"${u.get('usd', it['cost_usd']):.2f}",
                      '<span class="bad">over budget</span>' if over else ""])
     head = (f"<p>Today ${spent:.2f} of the ${cap:.2f} daily cap {bar(spent, cap)}</p>"
-            f"<p class=muted>Per issue from its done lines; flagged past {turns_max} turns or {tokens_max:,} tokens.</p>")
+            f"<p class=muted>Per issue from its done lines; flagged past {w.get('issue_turns_max', 20)} turns or ${w.get('issue_usd_max', 1.5):.2f}.</p>")
     return page("Items and cost", head + table(["Item", "State", "Checks", "Reviews", "Turns", "Tokens", "Cache hit", "Dollars", ""], rows))
 
 

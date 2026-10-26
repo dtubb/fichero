@@ -782,6 +782,12 @@ def test_a_part_of_commit_with_reported_residue_still_posts_the_residue(scratch,
     assert any(a[:2] == ["issue", "comment"] and "iPad half" in a[-1] for a in writes) and any("--add-label" in a for a in writes)
 
 
+def test_the_issue_budget_counts_turns_and_dollars_not_cache_read_tokens():
+    w = {"issue_turns_max": 20, "issue_usd_max": 1.5}
+    assert not core.over_budget({"turns": 16, "tokens": 452868, "usd": 0.38, "cache_read": 410000}, w), "450k tokens at US$0.38"
+    assert core.over_budget({"turns": 5, "tokens": 90000, "usd": 2.0}, w) and core.over_budget({"turns": 21, "usd": 0.2}, w)
+
+
 def test_an_issue_over_its_turn_budget_asks_instead_of_retrying(scratch, issues, fake_coder, monkeypatch):
     fc = fake_coder("bad")
     monkeypatch.setitem(core.cfg()["workers"], "issue_turns_max", 0)  # the first red attempt is already over
