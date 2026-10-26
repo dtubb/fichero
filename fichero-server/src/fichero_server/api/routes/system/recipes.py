@@ -3439,8 +3439,13 @@ async def use_bakeoff_choice(
     card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that reader is not one Fichero has a card for")
-    if request.scope == "folder":  # no run applies a folder override yet (source.recipe.per-folder): never store an inert one
-        raise HTTPException(status_code=422, detail="Use This applies to the whole project; per-folder choices aren't applied yet")
+    if request.scope == "folder" and request.folder_id:  # a folder override runs on that folder's pages (#6135)
+        from fichero_server.recipes.runner import folder_scope
+
+        try:
+            folder_scope(db, request.folder_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     setup = read_project_setup(library)
     try:
         recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,
