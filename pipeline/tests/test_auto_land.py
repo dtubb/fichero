@@ -30,7 +30,7 @@ def test_a_needs_maintainer_item_never_auto_lands(scratch, issues, fake_coder, m
 def test_an_item_with_an_open_question_never_auto_lands(scratch, issues, fake_coder, monkeypatch):
     reviewed_item(scratch, fake_coder, monkeypatch)
     scratch["cfg"].setdefault("run", {})["auto_land"] = True
-    journal.append("queue", kind="question", text="q", key="1001", issue=1001)
+    core._queue("question", "which way?", key="1001")
     before = origin_head(scratch)
     runner.auto_land(scratch["cfg"], [])
     assert origin_head(scratch) == before

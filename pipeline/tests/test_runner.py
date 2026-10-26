@@ -175,8 +175,9 @@ def test_land_refuses_a_red_guard_a_moved_base_an_unreviewed_item_and_a_main_bas
     git(other, "add", ".")
     git(other, "-c", "user.name=M", "-c", "user.email=m@example.com", "commit", "-qm", "moved")
     git(other, "push", "-q", "origin", "HEAD:integration")
+    moved_head = origin_head(scratch)
     out = runner.land("1001")  # the base moved: land rebases itself (test_land_rebase.py), it no longer refuses
-    assert out["landed"] is False and "red" in out["text"]
+    assert out["landed"] is False and origin_head(scratch) == moved_head  # the red guard also stops the rebased item
     journal.append("transition", issue=1001, key="1001", to="coding", why="test")
     with pytest.raises(RuntimeError, match="only a reviewed READY item lands"):
         runner.land("1001")
