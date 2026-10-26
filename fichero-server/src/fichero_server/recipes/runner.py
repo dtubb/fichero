@@ -1096,8 +1096,11 @@ def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     try:
         return _run_the_plan(db, job_id)
-    finally:  # stopped, failed or done: a page saved before Search got to it is embedded after all (#6126)
-        end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
+    finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
+        try:
+            end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
+        except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure
+            logger.exception("run %s: the embeds left to Search could not be queued", job_id)
 
 
 def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
