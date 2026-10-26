@@ -31,7 +31,7 @@ def _spec():
     order = _section(text, "Build order")
     steps = re.findall(r"^- Behaviours: (.*)$", order, re.M)
     placed = [i for line in steps for i in re.findall(rf"`({ID})`", line)]
-    stage16 = re.search(r"^### Stage 16\b.*", order, re.S | re.M)
+    stage16 = re.search(r"^### Stage 16\b.*?(?=^### Stage |\Z)", order, re.S | re.M)
     return defined, owed, placed, stage16.group(0) if stage16 else ""
 
 
