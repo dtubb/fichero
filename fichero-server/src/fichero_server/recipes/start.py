@@ -748,6 +748,21 @@ def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args
     if not overrides:
         return runs, [], []
     out, skipped, refusals = list(runs), [], []
+    names = step_names(recipe)
+    db = plan_args.get("db")
+    if db is not None:  # an override outlives its folder when the folder is trashed: it is skipped, with the why
+        from fichero_server.recipes.runner import folder_scope
+
+        live = []
+        for o in overrides:
+            try:
+                folder_scope(db, o["folder_id"])
+                live.append(o)
+            except LookupError:
+                skipped.append({"step": o.get("step"), "fix": None, "why": (
+                    f"For the folder {o['folder_id']}: it is no longer in this project, so its own reader is not used "
+                    "and its pages keep the project's")})
+        overrides = live
     for sid in dict.fromkeys(o.get("step") for o in overrides):
         base = [r for r in out if sid in r["steps"]]
         mine = [o for o in overrides if o.get("step") == sid]
@@ -762,7 +777,9 @@ def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args
             own = [r for r in plan["runs"] if sid in r["steps"]]
             skipped += [{**s, "why": f"For the folder {o['folder_id']}: {s['why']}"} for s in plan["skipped"]
                         if s.get("step") == sid]
-            refusals += [f"For the folder {o['folder_id']}: {r}" for r in plan["refusals"]]
+            # only this step's own refusals: the whole recipe is planned again, and another step's repeats nothing new
+            refusals += [f"For the folder {o['folder_id']}: {r}" for r in plan["refusals"]
+                         if sid in r or names.get(sid, sid) in r]
             if not own:  # nothing runs for the folder's reader: its pages stay with the project's
                 for run in base:
                     run["exclude_folders"] = [f for f in run["exclude_folders"] if f != o["folder_id"]]

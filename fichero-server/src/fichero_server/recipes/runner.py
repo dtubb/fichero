@@ -1310,8 +1310,14 @@ def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str,
 def _in_the_cards_folders(db: Any, card: dict[str, Any], documents: list[str], tree: _Tree) -> list[str]:
     """A run for one folder's reader keeps that folder's pages, and every run of the step leaves out the pages of the
     other folders that have a reader of their own (the innermost folder wins; `source.try.use-this-scope`, #6135)."""
-    others = {f: folder_scope(db, f, tree) for f in card.get("exclude_folders") or []}
-    inside = folder_scope(db, card["folder_id"], tree) if card.get("folder_id") else None
+    def scope_of(folder: str) -> set[str]:
+        try:
+            return folder_scope(db, folder, tree)
+        except LookupError:  # the folder was trashed after Start planned: it holds no pages, and nothing else breaks
+            return set()
+
+    others = {f: scope_of(f) for f in card.get("exclude_folders") or []}
+    inside = scope_of(card["folder_id"]) if card.get("folder_id") else None
     return [d for d in documents
             if (inside is None or d in inside)
             and not any(d in scope and (inside is None or scope < inside) for scope in others.values())]
