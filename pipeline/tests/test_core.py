@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
+from pathlib import Path
 
 import pytest
 
@@ -621,3 +623,31 @@ def test_batch_done_per_issue_checks_while_the_worker_moves_on(scratch, issues, 
     assert s["1001"]["sha"] == dones[0]["sha"], "the check judged the done sha, not the moved head"
     core.done("demo-1001", 1002, "the second acceptance line is left")
     assert core.state()["items"]["1002"]["residue"] == "the second acceptance line is left"
+
+
+def test_batch_ends_at_the_context_budget_with_a_handoff_note(scratch, issues, fake_coder):
+    """Past batch_end_pct of the context a fresh window takes the rest, and its brief points at a note built from the journal."""
+    fc = fake_coder()
+    fc.context = 900  # 90 % of the 1000-token window once the first issue is in
+    out = core.start([1001, 1002], milestone="demo")
+    assert list(out["items"].values()) == ["checked", "checked"]
+    h = [e for e in journal.read() if e["event"] == "handoff"]
+    assert len(h) == 1 and "coder-demo-1001" in fc.stopped
+    note = Path(h[0]["note"]).read_text()
+    assert "#1001" in note and "src/mod.py" in note
+    assert h[0]["note"] in core.brief({**core.ISSUE(1002), "handoff": h[0]["note"]}, "demo")
+    assert len([e for e in journal.read() if e["event"] == "worker"]) == 2, "a second window started"
+
+
+def test_parked_worker_is_woken_for_the_same_kind_within_park_ttl(scratch, issues, fake_coder):
+    """A finished milestone batch parks its window; the next issue of that milestone reuses it, a later or other one starts fresh."""
+    fc = fake_coder()
+    core.start([1001], milestone="demo")
+    assert core.state()["workers"]["coder-demo-1001"]["parked"]
+    out = core.start([1002], milestone="demo")
+    assert out["window"] == "coder-demo-1001" and len([e for e in journal.read() if e["event"] == "worker"]) == 1
+    assert [e["event"] for e in journal.read() if e["event"] in ("park", "wake")] == ["park", "wake", "park"]
+    scratch["cfg"]["workers"]["park_ttl_minutes"] = 0  # idled past the ttl: stopped, not woken
+    time.sleep(1.1)
+    core.start([1003], milestone="demo")
+    assert "coder-demo-1001" in fc.stopped

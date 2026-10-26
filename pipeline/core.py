@@ -125,6 +125,8 @@ def state() -> dict:
             s["workers"][e["window"]] = {x: e.get(x) for x in ("window", "task", "model", "session_dir", "cwd", "role")}
         elif ev == "worker_gone":
             s["workers"].pop(e["window"], None)
+        elif ev in ("park", "wake") and e["window"] in s["workers"]:
+            s["workers"][e["window"]].update(parked=e["ts"] if ev == "park" else None, park_milestone=e.get("milestone"))
         elif ev == "undelivered" and e.get("window") in s["workers"]:
             s["workers"][e["window"]]["undelivered"] = e["text"][:120]
         elif ev == "tell" and e.get("delivered") and e.get("window") in s["workers"]:
@@ -381,6 +383,8 @@ def brief(issue: dict, task: str, failure: str = "") -> str:
     fixes = "Part of" if issue.get("part_of") else "Fixes"
     text = [*brief_rules(), f"# Issue #{issue['number']}: {issue['title']}",
             f"Task `{task}`; commit with `({fixes} #{issue['number']})`.", "", issue.get("body") or "", ""]
+    if issue.get("handoff"):
+        text += [f"## Handoff: the previous session ended near its context limit; read {issue['handoff']} first (what is done, what failed).", ""]
     if lines:
         text += ["## Spec lines", *lines, ""]
     text += localise.section(issue.get("localised") or {"files": [], "symbols": {}, "tests": []})
@@ -507,8 +511,9 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     _require_budget()
     coder.require_mcp_sdk()
     c = cfg()
-    task = task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     s = state()
+    woken = _parked(s, milestone, c) if milestone and not from_file else None
+    task = woken["task"] if woken else task or f"{(milestone or 'issues').replace(' ', '-').lower()}-{issues[0]}"
     live = _live_coders(s, task)
     if len(live) >= c["workers"]["caps"]["coders"]:
         raise RuntimeError(f"coder cap {c['workers']['caps']['coders']}: {', '.join(live)} running")
@@ -526,7 +531,7 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     if not briefs:
         return {"task": task, "done": "nothing left to do"}
     wt = _worktree(task, base)
-    window = f"coder-{task}"
+    window = woken["window"] if woken else f"coder-{task}"
     for k, iss in briefs.items():
         if k not in s["items"] or s["items"][k]["task"] != task:
             journal.append("item", issue=_n(k), key=k, task=task, title=iss["title"], window=window, worktree=str(wt),
@@ -536,9 +541,47 @@ def _start(issues, milestone, task, worker_index, from_file, base) -> dict:
     # the batch's size routes it: every issue small => the small tier; anything bigger or unplaced => the big one
     tier = "small" if all(b["localised"]["size"] == "small" for b in briefs.values()) else "big"
     worker = config.at_tier(c, workers()[worker_index], tier)
-    _wait_room(worker["kind"], task)
-    session_dir = _start_worker(task, wt, worker, window, docs=any(cites_docs(i) for i in briefs.values()))
-    return {"task": task, "window": window, "worktree": str(wt), "items": _run_batch(task, briefs, wt, window, session_dir, worker, worker_index)}
+    docs = any(cites_docs(i) for i in briefs.values())
+    if woken:  # the parked worker keeps its window and context: only the new briefs go in
+        journal.append("wake", window=window, task=task, milestone=milestone)
+        session_dir = Path(woken["session_dir"])
+    else:
+        _wait_room(worker["kind"], task)
+        session_dir = _start_worker(task, wt, worker, window, docs=docs)
+    out = _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs)
+    if milestone and all(v == "checked" for v in out.values()):  # nothing ready now: the window stays, no model calls
+        journal.append("park", window=window, task=task, milestone=milestone)
+    return {"task": task, "window": window, "worktree": str(wt), "items": out}
+
+
+def _parked(s: dict, milestone: str, c: dict) -> dict | None:
+    """A parked coder of this milestone that is live, idled less than park_ttl and has context room (pipeline.batch-
+    session). Parked windows past the ttl are stopped here, when the next start looks (ponytail: no timer until the
+    runner has a daemon)."""
+    w, live, found = c["workers"], coder.live_windows(c), None
+    for win, p in list(s["workers"].items()):
+        if not p.get("parked") or p["window"] not in live:
+            continue
+        age = time.time() - time.mktime(time.strptime(p["parked"], "%Y-%m-%dT%H:%M:%S"))
+        room = coder.status(Path(p["session_dir"]))["context"] < w["context_tokens"] * w["batch_end_pct"] / 100
+        if age > w["park_ttl_minutes"] * 60 or not room:
+            coder.stop_window(c, win)
+            journal.append("worker_gone", window=win, task=p["task"], why="parked past park_ttl or context full")
+        elif p.get("park_milestone") == milestone:
+            found = p
+    return found
+
+
+def _handoff(task: str, wt: Path, since: str, n: int) -> Path:
+    """The short note a fresh window starts from: issues done with their commits, files touched, failures. From the
+    journal and git, never a transcript replay (pipeline.batch-session)."""
+    its = [(e["issue"], e["sha"][:9]) for e in journal.read() if e["event"] == "issue_done" and e.get("task") == task]
+    state_ = state()["items"]
+    lines = [f"# Handoff for task {task}", "", "Done (issue, commit, state):"]
+    lines += [f"- #{i} {sha} {state_[k]['state']}" for i, sha in its for k in [item_key(i, task)] if k in state_]
+    lines += ["", "Files touched so far:", *(f"- {f}" for f in checks.git(wt, "diff", "--name-only", f"{since}..HEAD").split()[:40])]
+    failed = [f"- {k}: {it['retry_text'][-300:]}" for k, it in state_.items() if it["task"] == task and it["retry_text"]]
+    return coder.brief_file(task, f"handoff-{n}", "\n".join(lines + (["", "Failures seen:", *failed] if failed else [])))
 
 
 def _since(key: str, task: str) -> str | None:
@@ -622,24 +665,38 @@ def _run_issue(task, key, iss, wt, window, session_dir, worker, worker_index, fi
     return "needs-maintainer"
 
 
-def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index) -> dict:
+def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs=False) -> dict:
     """The issues in order in one worker context. Each issue's first turn is checked on its done sha in a thread while
     the worker already codes the next one (pipeline.batch-session); a red check is handled (retry turns) before the
     batch goes on, so a failed item blocks the later ones."""
     from concurrent.futures import ThreadPoolExecutor
-    out, pending = {}, None  # pending: (key, future of its first check results, attempts before them)
+    out, pending, sess, c = {}, None, [session_dir], cfg()  # pending: (key, future of its first check results, attempts before them)
+    first_since = _since(next(iter(briefs)), task) or _head(wt)
 
     def settle(p):
         k, fut, attempts = p
-        out[k] = _run_issue(task, k, briefs[k], wt, window, session_dir, worker, worker_index, first=(None, fut.result(), attempts))
+        out[k] = _run_issue(task, k, briefs[k], wt, window, sess[0], worker, worker_index, first=(None, fut.result(), attempts))
         return out[k]
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         for k, iss in briefs.items():
+            w = c["workers"]
+            if coder.status(sess[0])["context"] >= w["context_tokens"] * w["batch_end_pct"] / 100:
+                # near the end of the context: a fresh window takes the rest from a short note (a pending check finishes first)
+                if pending and settle(pending) != "checked":
+                    out[k] = "queued"
+                    break
+                pending = None
+                note = _handoff(task, wt, first_since, len([e for e in journal.read() if e["event"] == "handoff" and e.get("task") == task]) + 1)
+                coder.stop_window(c, window)
+                journal.append("handoff", task=task, window=window, note=str(note), session=str(sess[0]))
+                sess[0] = _start_worker(task, wt, worker, window, docs=docs)
+                for rest in list(briefs)[list(briefs).index(k):]:
+                    briefs[rest]["handoff"] = str(note)
             since = _since(k, task) or _head(wt)
             journal.append("since", issue=_n(k), key=k, task=task, sha=since)
             it = state()["items"][k]
-            end, sha = _turn(task, k, iss, wt, window, session_dir, worker, worker_index, since, it["retry_text"], it["attempts"])
+            end, sha = _turn(task, k, iss, wt, window, sess[0], worker, worker_index, since, it["retry_text"], it["attempts"])
             if pending and settle(pending) != "checked":
                 out[k] = "queued"  # blocked behind the failed item; its commit stays on the branch
                 break

@@ -104,7 +104,7 @@ message_batches = false         # non-interactive model work through Anthropic's
 retries = 2
 stuck_minutes = 45
 needs_mb = { pi = 300, pytest = 1500, gate-part = 4000 }
-caps = { coders = 1, test_runs = 1 }
+caps = { coders = 2, reviewers = 1, intake = 1, test_runs = 1 }   # the fixed roster: the lead is scripts
 owner_process = "Fichero Server"   # the maintainer's own engine; busy under pressure => the runner yields
 
 # One ordered fallback list per role (pipeline.worker-roles): kind pi, provider + model (as Pi spells it). Ruled

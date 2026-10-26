@@ -331,7 +331,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_budget.py::test_second_test_run_waits_on_the_lock`,
   `pipeline/tests/test_budget.py::test_never_spawns_past_the_cap`,
   `pipeline/tests/test_budget.py::test_owner_engine_busy_signal`.
-- `pipeline.batch-session` [MISSING] (#6116) — the runner does what the lead and two Sonnet workers did by hand, as a
+- `pipeline.batch-session` [PARTIAL] (#6116) — the runner does what the lead and two Sonnet workers did by hand, as a
   FIXED ROSTER of long-lived tmux workers: the lead is scripts (no model), plus two coders, one reviewer and one
   bug-intake worker. Each coder is pinned to one milestone; the feeder keeps its queue topped up with that
   milestone's open issues in build order, two or three briefs ahead, and hands the next brief the moment the worker

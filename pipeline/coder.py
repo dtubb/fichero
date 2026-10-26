@@ -199,7 +199,7 @@ def brief_file(task: str, name: str, text: str) -> Path:
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
          "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False,
-         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0, "proxy_calls": 0}
+         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0, "proxy_calls": 0, "context": 0}
 
 
 def cache_hit(s: dict) -> float:
@@ -242,6 +242,8 @@ def parse_session(path: Path) -> dict:
             out["cache_read"] += u.get("cacheRead") or u.get("cache_read_input_tokens") or details.get("cached_tokens") or 0
             out["cache_write"] += u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0
             out["fresh"] += u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0
+            out["context"] = (u.get("input") or u.get("input_tokens") or 0) + (u.get("cacheRead") or u.get("cache_read_input_tokens") or 0) + (
+                u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0)  # the latest turn's prompt: what the window holds now
             out["model"] = m.get("model") or out["model"]
             stop = m.get("stopReason") or m.get("stop_reason") or ""
             out["idle"] = stop in ("stop", "end_turn", "endTurn", "stop_sequence") and not any(
