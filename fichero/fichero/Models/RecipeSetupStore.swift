@@ -392,7 +392,12 @@ final class RecipeSetupStore {
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
-                if redoSteps.isEmpty { Task { await loadRedoSteps() } }  // the first yes: its steps can now run again
+                // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
+                if redoSteps.isEmpty {
+                    redoSteps.append(contentsOf: started.workflows.map {
+                        .init(steps: $0.steps, name: $0.workflow.isEmpty ? $0.steps.joined(separator: ", ") : $0.workflow)
+                    })
+                }
                 return true
             case .unprocessableContent(let error):
                 // The engine's declared sentence ("This project has no material yet: add your pages in Set Up ›

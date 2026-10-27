@@ -593,6 +593,23 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage != nil)
     }
 
+    /// WHY (#6170, the Lead's review): after the first yes the folder menu needs the steps to run again. They come
+    /// from Start's own answer, named as the setup's `redo_steps` names them; a reload of the setup from inside
+    /// start() would replace the store's list wholesale (`check_store_wholesale_reload`).
+    @Test("Start's answer gives the steps to run again, with no second read")
+    func startGivesTheRedoSteps() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            return Self.reply(request, 200, Self.planJSON(refusals: ""))
+        }
+        #expect(store.redoSteps.isEmpty)
+        #expect(await store.start())
+        #expect(!store.redoSteps.isEmpty)
+        #expect(store.redoSteps.allSatisfy { !$0.steps.isEmpty && !$0.name.isEmpty })
+        #expect(RecipesMockURLProtocol.calls == 1, "the POST alone: no setup read")
+    }
+
     /// WHY (`source.recipe.folder-scoped-start`, #5540): Run the Recipe on This Folder… must plan and start
     /// the run on that folder alone, or it would run the whole archive; and Start, with no folder, must send
     /// exactly what it sent before (no query, no body), or the whole-project run would change under it.
