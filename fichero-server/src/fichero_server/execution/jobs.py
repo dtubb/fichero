@@ -240,6 +240,8 @@ def failed_reason(kind: str, exc: BaseException) -> str:
     """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
     from fichero_server.core.failure_text import failure_text
 
+    if isinstance(exc, KeyError) and len(exc.args) == 1 and " " in str(exc.args[0]):
+        return str(exc.args[0])  # raised with words ("No local runtime installs model: X"), not a missing key (b23)
     if isinstance(exc, _SLIPS):
         return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"
     return failure_text(exc)

@@ -17,3 +17,9 @@ def test_a_worded_failure_keeps_its_words():
 
 def test_an_empty_failure_is_never_blank():
     assert jobs.failed_reason("embed-page", TimeoutError()) == "TimeoutError (no message)"
+
+
+def test_a_worded_key_error_keeps_its_words_and_no_slip_label():
+    # reviewer b23: local_model_catalog raises KeyError("No local runtime installs model: X"), a refusal in words
+    said = jobs.failed_reason("embed-page", KeyError("No local runtime installs model: x"))
+    assert said == "No local runtime installs model: x"

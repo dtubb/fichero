@@ -98,13 +98,20 @@ def _check_spill(alarmed: set[str]) -> None:
             except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
                 continue
         temp_dir = _temp_dirs[key]
-        spilled = sum(f.stat().st_size for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
+        spilled = sum(_size(f) for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
         if spilled <= SPILL_ALARM_BYTES:
             alarmed.discard(f"spill:{key}")
         elif f"spill:{key}" not in alarmed:
             alarmed.add(f"spill:{key}")
             logger.warning("DuckDB spilled %d MiB to disk for %s: its work no longer fits its memory limit, and every "
                            "read of it now goes to disk", spilled // 1024**2, key)
+
+
+def _size(f: Path) -> int:
+    try:
+        return f.stat().st_size
+    except FileNotFoundError:  # DuckDB deleted it between the listing and here (reviewer b23)
+        return 0
 
 
 def _check_held_versions(alarmed: set[str]) -> None:
@@ -172,13 +179,17 @@ def _watch() -> None:
         time.sleep(min(1.0, SLOW_STATEMENT_SECONDS / 4))
         now = time.monotonic()
         reported &= _running.keys()
+        new_slow = False
         for token, (started, sql, thread) in list(_running.items()):
             if token in reported or now - started < SLOW_STATEMENT_SECONDS:
                 continue
             reported.add(token)
+            new_slow = True
             logger.warning("slow DuckDB statement: %.1fs on %s: %s\n%s", now - started, thread, sql[:500], _all_stacks())
         try:
-            _tick(alarmed, rss_said, slow=bool(reported))
+            # Once per slow statement, on the tick it is first said: every read of duckdb_memory() can fail a CHECKPOINT
+            # beside it (reviewer b23: 1 in 900 rounds when it ran every tick a statement stayed slow).
+            _tick(alarmed, rss_said, slow=new_slow)
         except Exception as exc:  # noqa: BLE001 -- a watchdog that dies says nothing ever again
             if str(exc) not in failed:  # said once per kind of failure, not every second
                 failed.add(str(exc))
