@@ -23,7 +23,7 @@ struct ProjectRunStrip: Equatable {
     /// An ended run's stages whose pages failed, each with its Read Again.
     let failed: [ActivityDetails.Summary.Failed]
     /// What an ended run missed and its Run Again (#6170), as the engine sends it.
-    var missed: ActivityDetails.Summary.MissedOffer?
+    var missed: ActivityDetails.MissedOffer?
 
     /// The strip for the store's project run, or nil when there is none.
     @MainActor

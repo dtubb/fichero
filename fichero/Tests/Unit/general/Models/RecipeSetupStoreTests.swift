@@ -374,7 +374,8 @@ struct RecipeSetupStoreTests {
     func redoStepsComeWithTheSetup() async throws {
         defer { RecipesMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
-            Self.reply(request, 200, #"{"answers":null,"recipe":null,"redo_steps":[{"steps":["lines","read"],"name":"Transcribe (Kraken)"}]}"#)
+            Self.reply(request, 200, #"{"answers":null,"recipe":null,"#
+                + #""redo_steps":[{"steps":["lines","read"],"name":"Transcribe (Kraken)"}]}"#)
         }
         #expect(store.redoSteps.isEmpty)
 
