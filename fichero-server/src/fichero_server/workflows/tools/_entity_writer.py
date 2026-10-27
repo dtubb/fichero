@@ -1953,13 +1953,15 @@ def _upsert_entity_matched(
     # entity and proposes the pair for a person; a model never decides two names are one.
     from fichero_server.knowledge.dedupe import normalize_name
 
-    # ponytail: every same-type row is read and hydrated per new name (~0.05 s per 1000 rows, #6236); a
-    # name-key column with an index ends that when libraries pass tens of thousands of entities.
-    same_type = db.query(KnowledgeEntity, entity_type=entity_type)
+    # Only the names of every same-type row: reading each whole (its mentions and all) cost a page most of its
+    # time (#6236). ponytail: still one scan per new name; a name-key column when a type passes ~100k entities.
+    same_type = db.query_fields(KnowledgeEntity, ["id", "canonical_name", "aliases", "merged_into_id"],
+                                entity_type=entity_type)
     key = normalize_name(canonical_name)
     if key:
-        for ent in same_type:
-            if ent.merged_into_id is None and key in {normalize_name(n) for n in [ent.canonical_name, *ent.aliases]}:
+        for row in same_type:
+            if row.merged_into_id is None and key in {normalize_name(n) for n in [row.canonical_name, *row.aliases]}:
+                ent = db.get(KnowledgeEntity, row.id)
                 if canonical_name not in [ent.canonical_name, *ent.aliases]:
                     ent.aliases = sorted({*ent.aliases, canonical_name})
                     db.save(ent)

@@ -427,7 +427,7 @@ async def extract_entities_only(
     progress_callback = inputs.get("__progress_callback")
     max_in_flight = extract_width(llm_config)  # the step's cloud width for a hosted model, 3 for one served here
     extraction_sem = asyncio.Semaphore(max_in_flight)
-    known_entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
+    known_entity_ids = {row.id for row in db.query_fields(KnowledgeEntity, ["id"])}
 
     # spaCy (and any local NER provider) skips the LLM entirely — this is the
     # fix for "Unknown LLM provider: 'spacy'".

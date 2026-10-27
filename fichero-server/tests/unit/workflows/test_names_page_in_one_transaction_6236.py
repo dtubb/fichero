@@ -14,7 +14,7 @@ import pytest
 import fichero_server.workflows.tools.extract_all as extract_all_module
 from fichero_server.db import Database, db_manager
 from fichero_server.models import DocType, Document, FileType, KnowledgeEntity, Status
-from fichero_server.models.knowledge import EntityMatchCandidate
+from fichero_server.models.knowledge import EntityMatchCandidate, EntityType, SourceSupport
 from tests.integration._seedlib import seed
 from tests.unit.workflows.test_entities_read_the_working_pass import _run, library, module  # noqa: F401
 
@@ -108,3 +108,25 @@ def test_the_names_and_proposals_are_the_same_as_written_name_by_name(names, mon
     assert [(e[0], e[1], e[2]) for e in ours] == [
         ("Anna Maria", (), 1), ("Juan de Mena", (), 1), ("Juan de Mesa", (), 1), ("Pedro Ruiz", ("Pedro Ruíz",), 3)]
     assert ("Juan de Mena", "Juan de Mesa") in pairs
+
+
+def test_a_name_reads_the_stored_names_not_every_stored_entity_whole(names, monkeypatch):
+    """WHY: each new name read and validated every stored entity of its type, its mentions and all, to compare
+    names: most of a page's time on a grown library (#6236)."""
+    path, db, folder = names
+    stored = [KnowledgeEntity(canonical_name=f"Testigo {i} Quintero", entity_type=EntityType.person,
+                              source_supports=[SourceSupport(source_document_id=folder.id, source_excerpt="x" * 200)])
+              for i in range(300)]
+    db.save_many(stored, new=True)
+    whole: list[str] = []
+    real_hydrate = Database._hydrate_row
+
+    def counting(self, model, columns, row):
+        if model is KnowledgeEntity:
+            whole.append(row[list(columns).index("canonical_name")])
+        return real_hydrate(self, model, columns, row)
+
+    monkeypatch.setattr(Database, "_hydrate_row", counting)
+    _run(path, folder.id)
+
+    assert len(whole) < 30, f"{len(whole)} entities read whole for {len(PAGES)} pages' names"

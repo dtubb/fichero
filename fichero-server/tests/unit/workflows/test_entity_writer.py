@@ -1548,14 +1548,15 @@ class TestStage4RaceRecovery:
                 and kwargs.get("entity_type") == EntityType.event):
                 skip_first["done"] = True
                 return []
-            # And the exact-name stage's same-type read (#5409), which would otherwise find `older` too.
-            if (skip_first["done"] and not skip_first.get("same_type")
-                    and set(kwargs) == {"entity_type"} and kwargs["entity_type"] == EntityType.event):
-                skip_first["same_type"] = True
-                return []
             return original_query(model, **kwargs)
 
         monkeypatch.setattr(db, "query", selective_query)
+        # And the exact-name stage's same-type names (#5409, read as names only since #6236), which would otherwise
+        # find `older` too.
+        original_fields = db.query_fields
+        monkeypatch.setattr(db, "query_fields", lambda model, fields, **kw: (
+            [] if model is KnowledgeEntity and kw == {"entity_type": EntityType.event}
+            else original_fields(model, fields, **kw)))
 
         # Also make sure fuzzy matching doesn't grab `older` at stage 3.
         monkeypatch.setattr(

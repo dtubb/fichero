@@ -255,8 +255,10 @@ replaces the Kraken figure before #6212 is coded.
   are written in one short transaction, and each name's vector is embedded once after it commits; it was two or three
   autocommitted saves and embeds per name (40 names against 400 stored: 744 ms a page before, 429 ms now), and a step is
   never one transaction (55k new rows in one ran an 8 GB Mac out of memory). A statement that runs over 10 s logs its
-  SQL, its thread and every thread's stack. Left: each new name
-  still reads every stored entity of its type (about 0.05 s per 1000), a spaCy call past the limit can't be stopped
+  SQL, its thread and every thread's stack. A new name compares against the stored names of its type, read as names
+  only, and reads whole just the one it matches: it read every stored entity whole, mentions and all (40 names against
+  3000 stored: 5.0 s a page before, 0.59 s now, the same names and proposals). Left: that comparison is still one scan
+  per new name, a spaCy call past the limit can't be stopped
   (one page's pipeline, under 0.1 s), and the other per-page steps have no such limit yet. Tests:
   fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py,
   fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py,

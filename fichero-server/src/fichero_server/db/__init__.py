@@ -3578,6 +3578,27 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
+    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], **filters) -> list[SimpleNamespace]:
+        """Only `fields` of the rows `query(model, **filters)` returns, JSON read but not hydrated: for a scan that
+        compares a few fields of every row. A names page read and validated every stored entity whole, its
+        mentions and all, to compare their names (#6236). Read-only records: `get` the one row to change."""
+        for name in (*fields, *filters):
+            if not _VALID_IDENTIFIER.match(name):
+                raise ValueError(f"Invalid column name: {name}")
+        self._ensure_table(model)
+        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()) or "TRUE"
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
+            {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
+        )
+        out = []
+        for row in rows:
+            parsed = self._parse_json_fields(model, dict(zip(columns, row)))
+            if "id" in parsed and parsed["id"] is None:
+                continue  # a null-PK ghost, skipped as `_hydrate_row` skips it
+            out.append(SimpleNamespace(**{name: parsed[name] for name in fields}))
+        return out
+
     def query_in_committed(self, model: Type[T], column: str, values) -> list[T]:
         """``query_in`` through the READ connection (#4523's rule for listing
         hot paths). Added 2026-08-24 for the children-tier batch: resolving a
