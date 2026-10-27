@@ -263,8 +263,11 @@ struct ActivityDetailsView: View {
         case .openSetUp(let stage):
             failure = openSetUp(stage)
         case .runAgainOnMissed(let folderId, _):
-            failure = await selection.libraryId.map { await LibraryManager.shared.runAgainOnMissed(for: $0, folderId: folderId) }
-                ?? "Couldn't run it again: open the project and use Project › Start"
+            if let libraryId = selection.libraryId {
+                failure = await LibraryManager.shared.runAgainOnMissed(for: libraryId, folderId: folderId)
+            } else {
+                failure = "Couldn't run it again: open the project and use Project › Start"
+            }
         }
         actionFailure = failure
     }
