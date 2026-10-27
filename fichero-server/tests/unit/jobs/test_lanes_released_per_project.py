@@ -115,7 +115,9 @@ def model_lane(monkeypatch):
     monkeypatch.setattr(lane, "started", {})
     monkeypatch.setattr(lane, "heard", {})
     monkeypatch.setattr(lane, "live_calls", set())
+    monkeypatch.setattr(lane, "kinds", {})
     monkeypatch.setattr(lane, "slots", 1)
+    monkeypatch.setitem(jobs.KINDS, "says-every-page", jobs.Kind(run=None, model=None, says_per_item=True))
     return lane
 
 
@@ -140,6 +142,7 @@ def test_a_model_job_with_no_progress_past_the_deadline_lets_the_lane_go(model_l
     stuck: it holds no slot, so another project's job starts (#6213)."""
     lane = model_lane
     lane.running["wedged"] = "kraken:segment"
+    lane.kinds["wedged"] = "says-every-page"
     lane.started["wedged"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS - 1
 
     assert lane.stuck() == {"wedged"}
@@ -154,6 +157,7 @@ def test_a_slow_model_job_that_still_makes_progress_keeps_the_lane(db, model_lan
     jobs._ensure(db)
     job_id = jobs._insert(db, "compare-line-finders", "samples", None, "automatic")
     lane.running[job_id] = None
+    lane.kinds[job_id] = "says-every-page"
     lane.started[job_id] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 5
 
     jobs.say(db, job_id, "Page 7 of 20")
@@ -186,3 +190,33 @@ def test_a_kraken_page_silent_past_the_deadline_keeps_its_slot(db, model_lane, m
         assert jobs.run_on_lane_blocking(None, "find-regions", "page", model="kraken:blla", fn=segment_lines) == "lines"
     assert seen == [set()]
     assert "kraken-page" not in lane.live_calls  # the call over, its silence counts again
+
+
+def test_a_training_job_silent_past_the_deadline_keeps_the_heavy_hold(model_lane):
+    """Local Kraken training says how it goes only at an epoch's end, and an epoch takes longer than the deadline: a kind
+    that declares no per-item words is never let go by silence alone (only a dead claim frees it), so no reader or Kraken
+    page starts beside ketos (#6000, b20)."""
+    from fichero_server.training import local
+
+    lane = model_lane
+    lane.running["ketos"] = local.MODEL
+    lane.kinds["ketos"] = local.KIND
+    lane.started["ketos"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 10
+
+    assert lane.stuck() == set()
+    assert "ketos" in lane.holding()
+    assert not lane.may_start("read-a-line", "mlx:a-reader")
+
+
+def test_the_trainer_beats_at_its_batches(db, model_lane, monkeypatch):
+    """The trainer's batches are its heartbeat: the lane hears from it between epochs (b20)."""
+    from fichero_server.training import local
+
+    lane = model_lane
+    lane.running["ketos"] = local.MODEL
+    lane.heard["ketos"] = 0.0
+    monkeypatch.setattr(local.Gentle, "verdict", lambda self: None)
+    gentle = local.Gentle(db, "ketos", {})
+    gentle.on_batch()
+
+    assert lane.heard["ketos"] > time.monotonic() - 5

@@ -410,7 +410,12 @@ replaces the Kraken figure before #6212 is coded.
   waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. The one-slot
   model lane tells stuck from slow: a job that has shown no progress (no words on its row) for `STUCK_MODEL_JOB_SECONDS`
   (60 s) lets the slot go, while one that still says how it goes, or a model call still waiting on its answer (#5938),
-  keeps it. Left: the M4 run with a wedged project beside a fresh one.
+  keeps it. Silence counts only for a kind that says how it goes at every page or item (`says_per_item`: Check lines,
+  Evaluate models, Compare the line finders); any other kind (Train a reader on this Mac, whose words come at an epoch's
+  end) keeps the slot and the one-heavy hold however long it is silent, and is let go only by a dead claim, so no reader
+  or Kraken page starts beside training (#6000); the trainer also tells the lane it is alive at every batch. Left: the
+  M4 run with a wedged project beside a fresh one. ponytail: a handed-in model call that hangs keeps its slot for good,
+  as before (no deadline on a live call); a deadline per call when one is seen to hang.
   Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 - `recipes-run.isolation.release-never-refused-by-a-phantom` — **[OK]** (#6213) releasing a library
   refuses only for a run with a live thread of this engine, naming the run and its state; with every thread

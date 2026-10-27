@@ -133,6 +133,7 @@ class Gentle:
         return ("hold", reason) if reason else None
 
     def on_batch(self) -> None:
+        jobs._heard_from(self.job_id)  # the model lane's heartbeat between epochs: a dict write (b20, #6000)
         now = resident_bytes()
         if now:
             self.peak = max(self.peak, now)

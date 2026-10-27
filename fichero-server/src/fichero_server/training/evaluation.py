@@ -890,4 +890,4 @@ def request_cancel(db: Any, job_id: str) -> str:
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None,
-                           name="Evaluate models on held-out pages", cancel=request_cancel)
+                           name="Evaluate models on held-out pages", cancel=request_cancel, says_per_item=True)

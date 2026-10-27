@@ -261,4 +261,4 @@ def _request_cancel(db: Any, job_id: str) -> str:
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, name="Check lines against the page",
-                           cancel=_request_cancel)  # Stop on its row reaches a running one (#5356)
+                           cancel=_request_cancel, says_per_item=True)  # Stop on its row reaches a running one (#5356)

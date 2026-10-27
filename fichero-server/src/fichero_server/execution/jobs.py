@@ -223,6 +223,10 @@ class Kind:
     #: Why a finished one of these cannot be retried in place, in words, or None when it can
     #: (`activity.pause.per-job`, #5356): retry runs the kind's own `run` again on its row.
     no_retry: str | None = None
+    #: Says how it goes on its row at every page or item (`say`, `save_detail`), so on the model lane silence past
+    #: `STUCK_MODEL_JOB_SECONDS` means stuck. A kind without it (training: words at an epoch's end) is never let go by
+    #: silence alone, only by a dead claim (#6213, #6000).
+    says_per_item: bool = False
 
 
 KINDS: dict[str, Kind] = {}
@@ -232,11 +236,11 @@ def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, mo
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
                   name: str | None = None, cancel: Callable[["Database", str], str] | None = None,
                   pause: Callable[["Database", str, bool], str] | None = None, first: bool = False,
-                  no_retry: str | None = None) -> None:
+                  no_retry: str | None = None, says_per_item: bool = False) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
     KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel, pause=pause,
-                       first=first, no_retry=no_retry)
+                       first=first, no_retry=no_retry, says_per_item=says_per_item)
 
 
 def kind_name(kind: str) -> str:
@@ -2844,6 +2848,8 @@ class _Lane:
         #: waiting on their answer (`lane_slot`), which are slow, never stuck (#6213, #5938).
         self.heard: dict[str, float] = {}
         self.live_calls: set[str] = set()
+        #: Each running job's kind, by job id: only a kind that `says_per_item` is stuck by silence.
+        self.kinds: dict[str, str] = {}
 
     def stuck(self) -> set[str]:
         """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds), and the
@@ -2859,6 +2865,7 @@ class _Lane:
             return set()
         cutoff = time.monotonic() - STUCK_MODEL_JOB_SECONDS
         return {job_id for job_id in list(self.running) if job_id not in self.live_calls
+                and getattr(KINDS.get(self.kinds.get(job_id, "")), "says_per_item", False)
                 and self.heard.get(job_id, self.started.get(job_id, cutoff + 1)) < cutoff}
 
     def holding(self) -> dict[str, str | None]:
@@ -3015,6 +3022,7 @@ class _Scheduler:
                         lane.running.pop(picked[2][0], None)
                         lane.started.pop(picked[2][0], None)
                         lane.heard.pop(picked[2][0], None)
+                        lane.kinds.pop(picked[2][0], None)
                         lane.live_calls.discard(picked[2][0])
                         lane.calls.discard(picked[2][0])
                         if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
@@ -3233,6 +3241,7 @@ class _Scheduler:
                 )
                 lane.running[row[0]] = row[3]
                 lane.started[row[0]] = time.monotonic()
+                lane.kinds[row[0]] = row[1]
                 if row[1] == CO_RUN_KIND:
                     lane.calls.add(row[0])
                 return key, db, row, handed_in
