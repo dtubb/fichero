@@ -194,9 +194,12 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   checkpoint; the next open lists it paused and Resume carries on without a page done twice.
 - `recipes-run.journey.resume-after-crash` — **[PARTIAL]** (#5357, #6203) a crash or kill mid-run: the
   recipe run itself carries on from its checkpoint on the next open (built, `activity.durable.dies-with-the-engine`);
-  its workflow step is still flipped to failed, "Interrupted: the engine stopped at HH:MM", and offered as a
-  new run instead of resumed in place (`activity.durable.lease-not-fail` (P), `compute.run.interrupted-on-start`);
-  and the import's thumbnail claims the dead process held are not taken up at all (#6203, section 7 below).
+  its step's run the stop cut off now says "Interrupted: the engine stopped at HH:MM, before this run finished; its
+  recipe run carries on from its checkpoint" and offers no Read Again of its own, the recipe run reading the pages
+  not done itself (`fichero-server/tests/unit/jobs/test_run_account_5555.py`, the resume-after-crash test). Left:
+  that step run is still ended and a new one reads the rest, not the same run resumed from its LangGraph checkpoint
+  (`activity.durable.lease-not-fail` (P), `compute.run.interrupted-on-start`); the dead process's thumbnail claims
+  are requeued (#6203, section 8 below).
   *Seen in the dogfood (23:26Z):* the interrupted run resumed itself at once and fanned its 58 pages out
   again (ruling 2: resume at once, gently; `recipes-run.restart.resumes-at-once-gently`).
 - `recipes-run.journey.run-again-on-what-was-missed` — **[GAP]** (#6170; `source.recipe.run-again-on-what-was-missed` (G)
@@ -379,8 +382,9 @@ replaces the Kraken figure before #6212 is coded.
   who stopped it (`test_a_stopped_run_says_who_stopped_it.py`).
 - `recipes-run.control.pause-and-resume` — **[PARTIAL]** (#5933; `activity.recipe-run.pause-reaches-its-step` (G)
   owns it) Pause on the run's row pauses the recipe at its next step and its step's run in flight, saying
-  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Written, unrun:
-  `fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`.
+  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Built, its 13 tests green on
+  build/recipes-run (`fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`); left: Pause and Resume on a real
+  run on the M4.
 - `recipes-run.control.start-again-redoes-nothing` — **[OK]** (#5390; `source.recipe.done-is-not-redone` owns
   it; pinned by `fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py` and
   `test_every_stage_resumes_after_a_stop_1134.py`) Start after a Stop or a crash skips every step and page

@@ -32,6 +32,9 @@ from fichero_server.workflows.run_progress import MAX_FAILURES_LISTED, item_erro
 
 #: How an interrupted run's reason starts; `account_state` reads a run whose reason starts so as interrupted.
 INTERRUPTED_PREFIX = "Interrupted: the engine stopped"
+#: A recipe's step run cut off by the engine's stop: the recipe run, taken up again, reads its pages not done itself, so the
+#: step run offers no second run (`recipes-run.journey.resume-after-crash`, #5357).
+RECIPE_CARRIES_ON = "its recipe run carries on from its checkpoint"
 #: How a run's reason starts when its project was closed while it ran (#5608).
 CLOSED_PREFIX = "Interrupted: the project was closed"
 #: The words the older open-time sweep wrote (`workflows/activity_store._STALE_RUN_ERROR`).
@@ -229,7 +232,8 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
         ids = [str(pages[k]["document_id"]) for k in failed if pages[k]["document_id"]]
     else:
         ids = [str(i) for i in (scope_ids or []) if i]
-    if run_state in ("done", "failed", "cancelled", "interrupted") and ids and (len(failed) or left):
+    if run_state in ("done", "failed", "cancelled", "interrupted") and ids and (len(failed) or left) \
+            and not (run_state == "interrupted" and reason and RECIPE_CARRIES_ON in reason):
         account._not_done_ids = ids
         noun = "page" if len(ids) == 1 else "pages"
         label = (f"Read the {len(ids)} {noun} that failed" if not left else f"Read the {len(ids)} {noun} not done")
@@ -397,6 +401,8 @@ def mark_interrupted_runs(db: Any) -> list[str]:
             heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
             words = stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)
         reason = f"{words}, before this run finished"
+        if jobs.parent_kind(db, thread_id) == "run-a-recipe":
+            reason += f"; {RECIPE_CARRIES_ON}"
         activity_store.mark_run_failed(db, thread_id, reason)
         jobs.fail_run_rows(db, thread_id, reason)
         forget(thread_id)
@@ -404,6 +410,6 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     return marked
 
 
-__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "PageFailure", "RunAccount", "RunOffer", "build_account",
+__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
            "closed_mid_run", "closing_runs", "forget", "mark_interrupted_runs", "run_account", "run_started",
            "stopped_at_words"]

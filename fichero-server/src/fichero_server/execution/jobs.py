@@ -793,6 +793,13 @@ def last_heard(db: "Database", run_id: str) -> Any:
     return row[0] if row else None
 
 
+def parent_kind(db: "Database", job_id: str) -> str | None:
+    """The kind of the job a job's row is under (a recipe's step run is under its run-a-recipe row); None for none."""
+    _ensure(db)
+    row = db.execute_fetchone("SELECT p.kind FROM jobs c JOIN jobs p ON p.id = c.parent_id WHERE c.id = ?", [job_id])
+    return row[0] if row else None
+
+
 def fail_run_rows(db: "Database", run_id: str, reason: str) -> None:
     """A run the engine did not finish (#5555): its row and its unfinished steps' rows fail with `reason`."""
     _ensure(db)
