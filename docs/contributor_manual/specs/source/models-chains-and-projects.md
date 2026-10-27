@@ -3434,6 +3434,7 @@ Setup
   Spanish humanistic cursive in Spanish; Secretary in English) is offered only to a project in one of them, the
   others to any. A hand typed is kept as typed, so a curated id cannot be told from a typed word and is not
   refused. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
+- `source.onboard.material.hand-follows-the-material` — **[PARTIAL]** (#6012; built, Swift needs compile) Which hand is asked only when the material includes handwriting: for print or typescript alone the section says "Print and typescript have no hand" and offers no hands (a hand is a way of writing by hand). A mix that includes handwriting asks as before. *Test:* `HandLanguagesTests.testOnlyHandwritingHasAHand` (`RecipeSetupStore.asksWhichHand(materials:)`, pure). *Not built:* typeface or print choices in its place.
 - `source.onboard.material.feeds-the-reader-search` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): the hand's tags join the Hugging Face tag search (`discovery.search_hugging_face(hand_tags)`, from the open project's answers in the search job); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the period in the search.* the period and the hand feed the
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand

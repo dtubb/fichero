@@ -57,4 +57,13 @@ struct HandLanguagesTests {
         #expect(HandsRequestURLProtocol.seen.count == 2)
         #expect(languagesAsked(HandsRequestURLProtocol.seen.last) == nil)
     }
+
+    /// #6012 (`source.onboard.material.hand-follows-the-material`): print and typescript have no hand.
+    @Test func onlyHandwritingHasAHand() {
+        #expect(RecipeSetupStore.asksWhichHand(materials: ["handwriting"]))
+        #expect(RecipeSetupStore.asksWhichHand(materials: ["print", "handwriting"]))
+        #expect(!RecipeSetupStore.asksWhichHand(materials: ["print", "typescript"]))
+        #expect(!RecipeSetupStore.asksWhichHand(materials: ["print"]))
+        #expect(RecipeSetupStore.asksWhichHand(materials: []))  // nothing answered yet: the question stays
+    }
 }
