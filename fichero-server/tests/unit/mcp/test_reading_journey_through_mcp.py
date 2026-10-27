@@ -53,6 +53,10 @@ def engine(monkeypatch, app_db):
         monkeypatch.setitem(jobs.KINDS, kind, jobs.Kind(run=lambda db, subject: None, model=None))
     cards = UnsureCards()
     monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", cards.recognize)
+    # Find Lines calls the segmenter here; unstubbed, real Kraken segmented every page (#6222). No lines on these
+    # small pages, so Read reads the page (`recognize` above), as the recipe tests' engine does.
+    monkeypatch.setattr(kraken_runtime, "segment_lines",
+                        lambda image_path, **kw: {"width": 32, "height": 32, "regions": [], "lines": []})
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model",
                         lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
     # The reader is on this Mac, whatever this machine holds: Start never queues its download (no network).
@@ -70,14 +74,6 @@ def engine(monkeypatch, app_db):
     yield cards
     jobs.set_paused(False)
     jobs.stop(None)  # this test's scheduler threads end with it, never at interpreter exit
-
-
-def assert_no_download(db) -> None:
-    """A unit test never fetches a model: no download job was queued."""
-    from fichero_server.llm.local_models import DOWNLOAD_KIND
-
-    queued = db.execute_fetchall("SELECT id, reason FROM jobs WHERE kind = ?", [DOWNLOAD_KIND])
-    assert not queued, f"a model download was queued: {queued}"
 
 
 def assert_no_download(db) -> None:
