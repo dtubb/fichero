@@ -85,6 +85,23 @@ def test_the_project_setup_plans_its_redo_steps_off_the_loop(monkeypatch, tmp_pa
     assert _loop_turn_during(lambda: recipes.get_project_setup(db=None)) < 1.0
 
 
+def _a_run(db, state):
+    """A recipe run, queued, or running a workflow step whose run has a page waiting (the poll reads the step's child,
+    its account and what its page waits for: b20)."""
+    import json
+
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    if state == "running":
+        card = {"steps": [], "card": "workflow"}
+        db.execute("UPDATE jobs SET state = 'running', detail = ? WHERE id = ?",
+                   [json.dumps({"runs": [card], "steps": [{**card, "state": "running", "child_id": None}]}), run_id])
+        step = jobs._insert(db, "workflow", "project", None, "owner")
+        page = jobs._insert(db, "read-a-page", "page-1", None, "owner")
+        db.execute("UPDATE jobs SET state = 'running', parent_id = ? WHERE id = ?", [run_id, step])
+        db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [step, page])
+    return run_id
+
+
 def _under_a_held_writer(db, run_id, read):
     """`read()` while another thread's transaction holds a write to the run's row for 3 s: (its answer, seconds)."""
     import threading
@@ -109,19 +126,21 @@ def _under_a_held_writer(db, run_id, read):
         writer.join()
 
 
-def test_the_run_status_answers_under_a_held_writer(db):
+@pytest.mark.parametrize("state", ["waiting", "running"])
+def test_the_run_status_answers_under_a_held_writer(db, state):
     """A poll under a held writer answers with what was committed rather than waiting for the writer (#6178): a run's
     write holds the transaction for 3 s, and the run's status beside it answers within 1 s."""
-    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    run_id = _a_run(db, state)
     status, took = _under_a_held_writer(db, run_id, lambda: runner.status(db, run_id))
     assert took < 1.0, took
     assert status["reason"] != "writing", status  # what was committed, not the held write
 
 
-def test_activitys_job_tree_answers_under_a_held_writer(db):
+@pytest.mark.parametrize("state", ["waiting", "running"])
+def test_activitys_job_tree_answers_under_a_held_writer(db, state):
     from fichero_server.api.routes.system import activity
 
-    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    run_id = _a_run(db, state)
     tree, took = _under_a_held_writer(db, run_id, lambda: asyncio.run(activity.get_job_tree(run_id, depth=1, db=db)))
     assert took < 1.0, took
     assert tree.reason != "writing", tree
@@ -149,9 +168,10 @@ def test_a_write_that_returns_rows_still_waits_for_the_writer(db, sql):
     assert took > 2.0, took
 
 
-def test_activitys_list_answers_under_a_held_writer(db):
+@pytest.mark.parametrize("state", ["waiting", "running"])
+def test_activitys_list_answers_under_a_held_writer(db, state):
     from fichero_server.api.routes.system import activity
 
-    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    run_id = _a_run(db, state)
     _listed, took = _under_a_held_writer(db, run_id, lambda: asyncio.run(activity.list_background_jobs(db=db)))
     assert took < 1.0, took

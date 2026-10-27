@@ -1050,6 +1050,12 @@ def read_committed(db: Any, fn: Callable[..., Any], *args: Any, **kwargs: Any) -
         return fn(*args, **kwargs)
 
 
+def get_read(db: Any, model: Any, id: str) -> Any:
+    """`db.get(model, id)`, a read: under a caller's `committed(db)`, of what was committed (#6178)."""
+    reads = getattr(db, "_reads_committed_now", None)
+    return db.get_committed(model, id) if reads is not None and reads() else db.get(model, id)
+
+
 def query_read(db: Any, model: Any, **filters: Any) -> list[Any]:
     """`db.query(model, **filters)`, a read: under a caller's `committed(db)`, of what was committed (#6178)."""
     reads = getattr(db, "_reads_committed_now", None)

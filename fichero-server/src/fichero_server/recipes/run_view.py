@@ -152,7 +152,7 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
 
         wf = list(dict.fromkeys(b["child_id"] for c, bs in jobs_of.items() if cards[c] == "workflow" for b in bs))
         rows = (db.execute_fetchall(f"SELECT id, progress_timeline FROM {records.RUNS} "  # the timeline only, never the log
-                                    f"WHERE id IN ({', '.join('?' * len(wf))})", wf) if wf else [])
+                                    f"WHERE id IN ({', '.join('?' * len(wf))})", wf, committed=True) if wf else [])
         timelines = {r[0]: r[1] for r in rows}  # one read for every batch of every step
 
         def pages_of(child: str, card: Any) -> list[float]:

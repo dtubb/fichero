@@ -264,7 +264,9 @@ replaces the Kraken figure before #6212 is coded.
   runs, Activity's list and Activity's job tree read what was committed (`Database.reading_committed`, the READ cursor
   of #4523, carried to the poll's worker threads; SQL reads and `query`/`get` reads alike, never a write), so under a
   held writer they answer at once with what they have (`test_the_run_status_answers_under_a_held_writer`,
-  `test_activitys_job_tree_answers_under_a_held_writer`, `test_activitys_list_answers_under_a_held_writer`). Left: the
+  `test_activitys_job_tree_answers_under_a_held_writer`, `test_activitys_list_answers_under_a_held_writer`), for a
+  queued run and for a RUNNING one (its step's child, the step run's record and log, its failed pages' names, what its
+  page waits for, the queue rows, the timings and the list's parents read committed too; review b20). Left: the
   M4 run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
 - `recipes-run.engine.embedder-child-never-downloads` — **[PARTIAL]** (#6218) the search model's forked child never
   fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),

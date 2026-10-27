@@ -762,7 +762,7 @@ def waiting_reason_under(db: "Database", run_id: str) -> str | None:
     row = db.execute_fetchone(
         "SELECT id, kind, state, reason, created_at, run_after FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) "
         "AND (state = 'waiting' OR (state = 'running' AND reason LIKE 'Waiting%')) ORDER BY created_at LIMIT 1",
-        [run_id, f"{run_id}:%"])
+        [run_id, f"{run_id}:%"], committed=True)
     if row is None:
         return None
     job_id, kind, state, reason, created_at, run_after = row
@@ -784,7 +784,7 @@ def _lane_held_by(db: "Database", lane_name: str, run_id: str) -> bool:
         current: str | None = job_id
         while current and current not in seen and current != run_id:
             seen.add(current)
-            row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [current])
+            row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [current], committed=True)
             current = row[0] if row else None
         if current != run_id:
             return False
@@ -1338,7 +1338,7 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     marks = ", ".join("?" for _ in first_kinds)
     failed = db.execute_fetchall(
         f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
-        f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since])
+        f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since], committed=True)
     if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
         return "Waiting for thumbnails (set aside)"
     return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
@@ -1806,7 +1806,7 @@ def running_child(db: "Database", parent_id: str) -> str | None:
     """The newest job under `parent_id` not yet ended (a recipe run's step it is running now), or None."""
     _ensure(db)
     row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND state IN ('waiting', 'running', 'paused') "
-                              "ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_id])
+                              "ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_id], committed=True)
     return row[0] if row else None
 
 
@@ -1962,17 +1962,17 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     marks = ", ".join("?" for _ in kinds)
     live_since = db.execute_fetchone(
         f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
-        list(kinds))[0]
+        list(kinds), committed=True)[0]
     if live_since is None:
         return None
     # The work in hand: what is not finished, and what finished since then (an import's thumbnails, made
     # before its embeds were picked up), back to the oldest of those.
     since = db.execute_fetchone(
         f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND (state IN ('waiting', 'running', 'paused') "
-        f"OR finished_at >= ?)", [*kinds, live_since])[0]
+        f"OR finished_at >= ?)", [*kinds, live_since], committed=True)[0]
     counts = db.execute_fetchall(
         f"SELECT kind, state, count(*) FROM jobs WHERE kind IN ({marks}) AND created_at >= ? GROUP BY kind, state",
-        [*kinds, since])
+        [*kinds, since], committed=True)
     by_kind: dict[str, dict[str, int]] = {k: {} for k in kinds}
     for kind, state, n in counts:
         by_kind[kind][state] = int(n)
@@ -1981,11 +1981,11 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         rows = db.execute_fetchall(
             "SELECT id FROM jobs WHERE kind = ? AND created_at >= ? AND state IN ('running', 'done', 'failed', "
             "'cancelled') ORDER BY state = 'running' DESC, COALESCE(finished_at, started_at, created_at) DESC "
-            "LIMIT ?", [kind, since, QUEUE_PAGES_SHOWN])
+            "LIMIT ?", [kind, since, QUEUE_PAGES_SHOWN], committed=True)
         shown[kind] = [r[0] for r in rows]
     waiting_first = {kind: db.execute_fetchone(
         "SELECT id, reason, created_at, run_after FROM jobs WHERE kind = ? AND state = 'waiting' "
-        "ORDER BY created_at, rowid LIMIT 1", [kind]) for kind in kinds}
+        "ORDER BY created_at, rowid LIMIT 1", [kind], committed=True) for kind in kinds}
     now = utc_now()
     children = []
     for kind in kinds:
@@ -2304,16 +2304,16 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         if group_kind == "queue":
             since = db.execute_fetchone(
                 "SELECT MIN(created_at) FROM jobs WHERE kind = ? AND parent_id IS NULL "
-                "AND state IN ('waiting', 'running', 'paused')", [name])[0]
+                "AND state IN ('waiting', 'running', 'paused')", [name], committed=True)[0]
             rep["done"] = 0 if since is None else db.execute_fetchone(
                 "SELECT count(*) FROM jobs WHERE kind = ? AND parent_id IS NULL AND state = 'done' AND finished_at >= ?",
-                [name, since])[0]
+                [name, since], committed=True)[0]
     # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
     # whose own parent is the run.
     parents = sorted({r["parent_id"] for r in out if r["parent_id"]})
     if parents:
         known = {pid: (pkind, grand) for pid, pkind, grand in db.execute_fetchall(
-            f"SELECT id, kind, parent_id FROM jobs WHERE id IN ({', '.join('?' for _ in parents)})", parents)}
+            f"SELECT id, kind, parent_id FROM jobs WHERE id IN ({', '.join('?' for _ in parents)})", parents, committed=True)}
         for r in out:
             pkind, grand = known.get(r["parent_id"], (None, None))
             r["run_id"] = grand if pkind == "workflow-step" else r["parent_id"] if pkind in _RUN_KINDS else None
@@ -2416,14 +2416,14 @@ def _lane_of(job_id: str, kind: str) -> str:
 def _holder_words(db: "Database", job_id: str) -> str:
     """What a running job is, in words: the run it reads for ("Review the Reading is reading"),
     else its kind ("Embed for search is running")."""
-    row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id])
+    row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id], committed=True)
     if row is None:
         return "work in another project is running"
     kind, parent = row
     seen: set[str] = set()
     while parent and parent not in seen:  # the nearest named run above it (a sub-workflow's own name)
         seen.add(parent)
-        up = db.execute_fetchone("SELECT kind, parent_id, detail FROM jobs WHERE id = ?", [parent])
+        up = db.execute_fetchone("SELECT kind, parent_id, detail FROM jobs WHERE id = ?", [parent], committed=True)
         if up is None:
             break
         if up[0] == "workflow":
@@ -2460,13 +2460,13 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     if running:  # only a job that is running holds a lane: never name one whose row says otherwise
         marks = ", ".join("?" for _ in running)
         not_running = {row[0] for row in db.execute_fetchall(
-            f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running)}
+            f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running, committed=True)}
         running = [r for r in running if r not in not_running]
     if lane is not None and running and lane_name in _GENTLE_LANES and resuming_gently():
         return f"Waiting: {RESUMING_WORDS}"
     if lane is not None and len(running) >= lane.slots:
         if lane_name == "local-ml" and len(running) >= 2:  # the cap of pages at once, not a lane held by something else
-            found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+            found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id], committed=True)
             same = {lane.running.get(r) for r in running}
             if found and (found[0] or "").startswith(KRAKEN_MODEL_PREFIX) and same == {found[0]}:
                 return pages_at_cap_reason(len(running))
@@ -2480,7 +2480,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     if lane_name in THROTTLED_LANES:
         from fichero_server.execution.throttle import why_wait
 
-        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id], committed=True)
         model = found[0] if found else None
         held = why_wait(person_waiting=attached or _watched(db, job_id), model=model,
                         loaded=lane is not None and model is not None and model == lane.loaded_model)
@@ -2490,7 +2490,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
         if first_kinds and not paused and created_at is not None and db.execute_fetchone(
                 f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in first_kinds)}) "
                 f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
-                [*first_kinds, created_at]) is not None:
+                [*first_kinds, created_at], committed=True) is not None:
             return first_reason(db, first_kinds, created_at)
     if stored and not _decided_here(stored):
         return stored
@@ -2528,7 +2528,7 @@ def person_waits_on(db: "Database", job_id: str) -> bool:
     current, last = job_id, None
     for _ in range(8):
         row = db.execute_fetchone(
-            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [current])
+            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [current], committed=True)
         if row is None:
             break
         parent, started_by, watched = row
@@ -2543,7 +2543,7 @@ def person_waits_on(db: "Database", job_id: str) -> bool:
 
 def _watched(db: "Database", job_id: str) -> bool:
     """A person waits on this stored job (`activity.throttle.watched-first`)."""
-    row = db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id])
+    row = db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id], committed=True)
     return bool(row and row[0])
 
 

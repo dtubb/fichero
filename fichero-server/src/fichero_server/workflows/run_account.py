@@ -281,13 +281,14 @@ def _title_failed_pages(db: Any, failures: list[PageFailure]) -> None:
     """Each failed page named as the Reader names it (`views.page_title`), never its file's basename: a PDF's
     page child is stored under a storage name (`fichero_upload_…`) that Activity would otherwise show."""
     from fichero_server.api.routes.system.views import page_title
+    from fichero_server.db import get_read
     from fichero_server.models import Document
 
     for failure in failures:
-        doc = db.get(Document, failure.document_id) if failure.document_id else None
+        doc = get_read(db, Document, failure.document_id) if failure.document_id else None
         if doc is None:
             continue  # gone since the run: the file name the run recorded is all there is
-        parent = db.get(Document, doc.parent_id) if doc.parent_id else None
+        parent = get_read(db, Document, doc.parent_id) if doc.parent_id else None
         failure.page = page_title(parent, doc, doc.sequence or 1) if parent else page_title(doc, None, doc.sequence or 1)
 
 
