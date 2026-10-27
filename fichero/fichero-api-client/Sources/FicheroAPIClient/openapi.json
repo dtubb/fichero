@@ -77144,6 +77144,34 @@
         "title": "MigrationValidationResponse",
         "description": "Validation result for a migration."
       },
+      "Missed": {
+        "properties": {
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "what was not finished, in words, shown as given"
+          },
+          "offer": {
+            "type": "string",
+            "title": "Offer",
+            "description": "the action's label",
+            "default": "Run again on what was missed"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the run's scope, as POST /api/recipes/project/start takes it; null: the project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "words",
+          "folder_id"
+        ],
+        "title": "Missed",
+        "description": "What a finished run did not finish, and the one action that runs it (`source.recipe.run-again-on-what-was-missed`,\n#6170): plain Start on `folder_id`, which runs only what is not done (`source.recipe.done-is-not-redone`)."
+      },
       "MissingOriginals": {
         "properties": {
           "pages": {
@@ -85427,6 +85455,11 @@
             "type": "array",
             "title": "Not Run",
             "description": "the stages that did not run, failed or were stopped, with why"
+          },
+          "missed": {
+            "$ref": "#/components/schemas/Missed",
+            "nullable": true,
+            "description": "a finished run's stages left unfinished, with Run again on what was missed; null while it runs or when it finished everything (#6170)"
           }
         },
         "type": "object",

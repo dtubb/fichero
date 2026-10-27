@@ -354,6 +354,32 @@ class DownloadFailed(BaseModel):
     next_candidate: Optional[NextCandidate] = Field(default=None, description="null: the chain has nothing else")
 
 
+class Missed(BaseModel):
+    """What a finished run did not finish, and the one action that runs it (`source.recipe.run-again-on-what-was-missed`,
+    #6170): plain Start on `folder_id`, which runs only what is not done (`source.recipe.done-is-not-redone`)."""
+
+    words: str = Field(description="what was not finished, in words, shown as given")
+    offer: str = Field(default="Run again on what was missed", description="the action's label")
+    folder_id: Optional[str] = Field(description="the run's scope, as POST /api/recipes/project/start takes it; null: the project")
+
+
+_UNFINISHED = ("failed", "not run", "cancelled", "partial")
+
+
+def missed(steps: list[RecipeRunStep], pages: int, folder_id: Optional[str]) -> Optional[Missed]:
+    """Each stage that left pages not done (its account's pages not done, a failed page included, as a stage "done" with
+    failures has; all the run's pages when a stage that did not finish has no account); None when none did."""
+    said = []
+    for s in steps:
+        if s.account and s.account.pages_total:
+            left = s.account.pages_total - s.account.pages_done
+        else:
+            left = pages if s.state in _UNFINISHED else 0
+        if left:
+            said.append(f"{_plural(left, 'page')} not done by {s.title or ', '.join(s.steps)}")
+    return Missed(words="; ".join(said), folder_id=folder_id) if said else None
+
+
 class RecipeRunSummary(BaseModel):
     """What a recipe run made (`source.onboard.auto.results-summary`, #5577)."""
 
@@ -406,6 +432,9 @@ class RecipeRunSummary(BaseModel):
     pages_failed: int = Field(description="the failed pages over every stage")
     skipped: list[SkippedStep] = Field(description="the steps the plan skipped, each with why and its fix")
     not_run: list[RecipeRunStep] = Field(description="the stages that did not run, failed or were stopped, with why")
+    missed: Optional[Missed] = Field(default=None, description=(
+        "a finished run's stages left unfinished, with Run again on what was missed; null while it runs or when it "
+        "finished everything (#6170)"))
 
 
 def _pages(db: Any, documents: Optional[list[str]], folder_id: Optional[str] = None) -> list[str]:
@@ -824,7 +853,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
-        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled", "partial")],
+        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in _UNFINISHED],
     )
     seen: set[str] = set()
     for step in status["steps"]:  # each page once, though both a lining and a reading stage left it out
@@ -834,6 +863,8 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                 made.left_out.append(LeftOutPage(**entry))
     ran = await asyncio.to_thread(_tail, db, made, status, pages, counts)
     made.lines = _lines(made, pages_split, ran)
+    if made.finished:
+        made.missed = missed([RecipeRunStep(**s) for s in status["steps"]], len(pages), status.get("folder_id"))
     slowest = slowest_words([RecipeRunStep(**s) for s in status["steps"]])
     if slowest:
         made.lines.append(slowest)

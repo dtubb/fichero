@@ -204,9 +204,13 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   are requeued (#6203, section 8 below).
   *Seen in the dogfood (23:26Z):* the interrupted run resumed itself at once and fanned its 58 pages out
   again (ruling 2: resume at once, gently; `recipes-run.restart.resumes-at-once-gently`).
-- `recipes-run.journey.run-again-on-what-was-missed` — **[GAP]** (#6170; `source.recipe.run-again-on-what-was-missed` (G)
+- `recipes-run.journey.run-again-on-what-was-missed` — **[PARTIAL]** (#6170; `source.recipe.run-again-on-what-was-missed` (P)
   owns it) after a restart, a crash or a Stop the recipe says what it did not finish and offers one action,
-  Run again on what was missed, which runs only what is not done.
+  Run again on what was missed, which runs only what is not done. *Built (engine):* a finished run's summary carries
+  `missed` (each stage's pages not done, in words, a failed page included; the offer; the run's `folder_id`), and the
+  action is plain Start on that `folder_id`, which reads only the missed pages
+  (`fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py`). Left: the button on the recipe's page, in
+  Activity and on the folder's menu (Swift); a run started on an import's pages offers Start on the whole project.
 
 ## Reliability: the behaviours that make a run finish
 
