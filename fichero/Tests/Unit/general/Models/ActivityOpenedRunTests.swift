@@ -27,7 +27,7 @@ struct ActivityOpenedRunTests {
 
     @Test("the log is not a list inside another scroll")
     func logIsNotAScrollOfItsOwn() throws {
-        let view = try source("Views/Activity/Detail/ActivityDetailsView.swift")
+        let view = try source("Views/Activity/Detail/ActivityDetailsLog.swift")
         let log = try #require(view.range(of: "struct ActivityDetailsLog: View"))
         let end = try #require(view.range(of: "struct ActivityDetailsLogPane"))
         let body = String(view[log.lowerBound..<end.lowerBound])
