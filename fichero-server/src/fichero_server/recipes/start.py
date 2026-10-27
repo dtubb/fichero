@@ -981,9 +981,9 @@ def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
 def _without_what_waits(runs: list[dict[str, Any]], needs_a_model: list[dict[str, Any]], recipe: dict[str, Any],
                         skip: Any, names: dict[str, str]) -> list[dict[str, Any]]:
     """The runs that do not need what a step with no model would have made; each that does is skipped, saying it
-    waits for that step (`source.onboard.no-model-step-kept`). A take is met when the material starts with it or
-    another run gives it. ponytail: one pass, so a run that waits on a run skipped here is not caught; add a loop
-    if a recipe ever chains two such waits."""
+    waits for that step (`source.onboard.no-model-step-kept`). A take is met when the material starts with it or a
+    run that does not wait gives it, to a fixpoint: a run never meets its own take (Leave Out takes and gives lines,
+    so with Find Lines model-less it ran on none and Read met its lines off it, `recipes-run.steps.leave-out`)."""
     from fichero_server.recipes.jobs import get_job, starts_with
 
     missing: dict[str, str] = {}
@@ -994,12 +994,23 @@ def _without_what_waits(runs: list[dict[str, Any]], needs_a_model: list[dict[str
         return runs
     material = (recipe.get("suits") or {}).get("material")
     have = set(starts_with([material] if isinstance(material, str) else material))
-    for run in runs:
-        have |= set(run.get("gives") or ())
+
+    def waits_on(run: dict[str, Any]) -> list[str]:
+        return sorted({missing[k] for take in run.get("takes") or [] if not have & set(take.split("|"))
+                       for k in take.split("|") if k in missing})
+
+    admitted: list[int] = []
+    more = True
+    while more:
+        more = False
+        for i, run in enumerate(runs):
+            if i not in admitted and not waits_on(run):
+                admitted.append(i)
+                have |= set(run.get("gives") or ())
+                more = True
     kept = []
-    for run in runs:
-        waits = sorted({missing[k] for take in run.get("takes") or [] if not have & set(take.split("|"))
-                        for k in take.split("|") if k in missing})
+    for i, run in enumerate(runs):
+        waits = [] if i in admitted else waits_on(run)
         if waits:
             # The fix is the waited step's model, so no button: this step's would choose a model for itself (#5801).
             needed = _and([names.get(w, w) for w in waits])

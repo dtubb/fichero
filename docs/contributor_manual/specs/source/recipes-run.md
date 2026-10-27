@@ -123,6 +123,38 @@ its pages (`source.recipe.step-counts-its-pages`); the run's status is Activity'
   and `start_project` saying 95 pages while the run took 58 with no reason shown (the blank-verso and
   already-done counts belong on the row; `source.recipe.done-is-not-redone` has the numbers).
 
+**Each step: ran, or why not.** Every recipe step either runs and finishes with its result recorded on the run
+(the step's state and the pages it ran on, `source.recipe.step-counts-its-pages`), or does not run and says why on
+the plan and the summary's skipped list: a step with no model says "<step> has no model" with Choose a model; a
+step that takes what a model-less step would have made says "<step> waits for <that step>, which has no model yet"
+and does not run (`source.onboard.no-model-step-kept`). A step that takes and gives the same kind (Leave Out's
+lines, Translate's readings) never meets its own take (#6212; was: with Find Lines model-less, Leave Out ran on no
+lines and Read met its lines off it). Not-run side for every step: `fichero-server/tests/unit/recipes/test_every_step_says_why_it_did_not_run.py`.
+
+- `recipes-run.steps.find-lines` — **[OK]** (#6212) runs to done and resumes after a Stop (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model
+  it is skipped saying so, and Leave Out and Read wait for it.
+- `recipes-run.steps.leave-out` — **[OK]** (#6212) runs to done, each page noted with the pass it judged (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`);
+  with Find Lines model-less it waits for Find Lines and does not run.
+- `recipes-run.steps.read-a-line` — **[OK]** (#6212) runs to done line by line (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped
+  saying so and Names, Statements, Documents, Translate, Catalogue and Search wait for it.
+- `recipes-run.steps.translate-transliterate-normalise` — **[OK]** (#6212) runs to done, a page done when it holds
+  the step's reading by its model (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`); with no model it is skipped saying so; with the reader model-less it waits.
+- `recipes-run.steps.find-names-tag-words` — **[OK]** (#6212) runs and its names are counted by kind on the summary
+  (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`); with no model it is skipped saying so, and Work out dates waits for it.
+- `recipes-run.steps.work-out-dates` — **[OK]** (#6212) runs and the summary says the pages it dated, "0 pages
+  dated" when it ran and dated none, no line when the run had no dates stage (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`, `fichero-server/tests/unit/recipes/test_every_step_says_why_it_did_not_run.py`); with Names
+  model-less it waits for Names.
+- `recipes-run.steps.find-documents-in-a-folder` — **[OK]** (#6212) runs and the summary says the documents and
+  groups proposed (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`); with the reader model-less it waits for Read.
+- `recipes-run.steps.find-statements` — **[OK]** (#6212) runs and the summary counts its statements (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`); with
+  no model it is skipped saying so; with the reader model-less it waits.
+- `recipes-run.steps.make-a-vector` — **[OK]** (#6212) runs once at the end and clears each page's pending embed
+  (`fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py`); with no model it is skipped saying so; with the reader
+  model-less it waits.
+- `recipes-run.steps.describe-for-the-catalogue` — **[OK]** (#6212) runs to done, each folder described deepest
+  first (`fichero-server/tests/unit/recipes/test_every_stage_resumes_after_a_stop_1134.py`, `fichero-server/tests/unit/recipes/test_catalogue_stage_6087.py`); with no model it is skipped saying so; with the reader
+  model-less it waits.
+
 ### 4. Finish: the summary
 
 **Exists.** The run's summary counts what it made and lists failed pages with Read Again
