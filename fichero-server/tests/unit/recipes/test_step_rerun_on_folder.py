@@ -10,10 +10,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import time
+
 from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (fixtures)
     _finished,
+    _import,
     _recipe,
+    _runs,
     _save,
+    _wait,
     engine,
     pages,
 )
@@ -92,3 +97,24 @@ def test_one_step_runs_again_on_one_folder_as_a_new_pass(client, db, pages, tmp_
     assert sorted(engine.read) == ["p0.png", "p0.png", "p1.png"], "folder A read again, folder B left as it was"
     after = {r.id for r in db.query(ContentRepresentation, document_id=pages[0].id)}
     assert before < after, "a rerun adds a reading; nothing the first run wrote is replaced"
+
+
+def test_new_material_runs_the_steps_by_itself_only_when_the_project_runs_automatically(client, db, pages, tmp_path,
+                                                                                         engine):
+    """`source.recipe.steps-follow-new-material`: after Start, a page added runs the recipe's steps over it alone
+    (`source.onboard.just-do-it` pins the run); with "Nothing runs automatically" chosen, an added page runs nothing."""
+    _save(client, _recipe(tmp_path, *STEPS))
+    _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])
+    engine.read = []
+    _import(client, tmp_path, "arrived.png")
+    assert _wait(lambda: len(_runs(client)) == 2), "the added page is one more run"
+    assert all(_finished(client, j["job_id"])["state"] == "done" for j in _runs(client))
+    assert engine.read == ["arrived.png"], "only the new page: the pages already read are not read again"
+
+    setup = client.get("/api/recipes/project").json()
+    answers = {**setup["answers"], "automatic": {"runs": False}}
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": setup["recipe"]}).status_code == 200
+    engine.read = []
+    _import(client, tmp_path, "by-hand.png")
+    time.sleep(1.5)
+    assert len(_runs(client)) == 2 and engine.read == [], "runs by hand: the added page waits for Start"
