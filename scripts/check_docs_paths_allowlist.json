@@ -28,7 +28,12 @@
     "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)",
     "fichero-server/tests/fixtures/image_enhance": "Fixtures the DRAFT spec image-enhancement.md plans (#6185); they land with Step 1.3.",
     "fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py": "to write: pins activity.lane.kraken-threads-exit-clean (#5929), approved 2026-10-27; the builder of Step 1.7 writes it first",
-    "fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py": "to write: pins activity.lane.pages-at-once-sized-from-the-machine (#5931), approved 2026-10-27; the builder of Step 1.8 writes it first"
+    "fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py": "to write: pins activity.lane.pages-at-once-sized-from-the-machine (#5931), approved 2026-10-27; the builder of Step 1.8 writes it first",
+    "fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py": "to write: pins activity.lane.fit-learned-from-runs (#5931), proposed 2026-10-27; the builder of Step 1.10 writes it first",
+    "fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py": "to write: pins activity.lane.torch-threads-set-once-per-plan (#6229), proposed 2026-10-27; the builder of Step 1.9 writes it first",
+    "fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py": "to write: pins activity.lane.embedder-forks-before-threads (#6237), proposed 2026-10-27; the builder of Step 1.9 writes it first",
+    "fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py": "to write: pins activity.lane.spacy-one-call-at-a-time (#5956), proposed 2026-10-27; the builder of Step 1.10 writes it first",
+    "fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py": "to write: pins activity.lane.mlx-one-model-batched-on-the-gpu (#5641), proposed 2026-10-27; the builder of Step 1.10 writes it first"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",

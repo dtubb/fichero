@@ -158,7 +158,7 @@ The one job model is real for everything that touches a model, with four forks. 
 |---|---|---|---|---|---|
 | Recipe run | yes, `run-a-recipe` | `recipes` (1) | its steps' pages take the lanes below; Pause parks between steps | `source.recipe.done-is-not-redone` | `recipes/runner.py:1818`, `_run_batch_steps` `:1444` |
 | Workflow run (by hand, the bar, a batch, a chain, a schedule, a trigger) | yes, `workflow`, mirrored from the run record | **none of its own**: it runs on the engine's loop | only the slots its pages take (#4740) | the node cache: text steps keyed on the text, image readers on the file (`workflows/cache.py:78`) | `execution/jobs.py:456-475`, `execution/runner.py:129` |
-| Kraken page (`find-regions`, `find-lines`, `read-a-line`) | yes | `local-ml` (1 heavy model) | pages at once (gated at 2 until #5929 is fixed, then sized from the machine, #5931, `activity.lane.pages-at-once-sized-from-the-machine`), 1.5 GB a page, `throttle.decide`; torch threads = performance cores ÷ pages inside | the step skips done pages | `llm/kraken_runtime.py:875-906, 1020-1035` |
+| Kraken page (`find-regions`, `find-lines`, `read-a-line`) | yes | `local-ml` (1 heavy model) | pages at once (gated at 2 until #5929 is fixed, then sized from the machine, #5931, `activity.lane.pages-at-once-sized-from-the-machine`), 1.5 GB a page, `throttle.decide`; pages at once and threads a page from the fit record (`activity.lane.fit-learned-from-runs`, proposed 2026-10-27) | the step skips done pages | `llm/kraken_runtime.py:875-906, 1020-1035` |
 | Served model page or text call (MLX, Ollama, a cloud model) | yes, `read-a-page` / `ask-a-model` | `local-ml` on this Mac, else `network` (4) | one served model; reads follow memory; idle stop 600 s | the node cache | `llm/__init__.py:1636-1646` |
 | spaCy at import and after a correction | yes, `nlp-draft`, `read-names-again` | `embed` (1) | spaCy's turn lock, people first | `nlp_text_sha` | `importers/derivatives.py:1207`, `actions/page_text_cache.py:516` |
 | spaCy inside a workflow step (the Names step) | **no row** | none: the run's own thread | `_spacy_lock` only | the node cache | `workflows/tools/entities.py:35`, `knowledge/spacy_ner.py:231` |
@@ -1665,7 +1665,7 @@ and node, not by job); a retry action for failed pages.
   step can run at the same time when memory allows; two steps on the same processor do not. A GPU step (MLX)
   has its own pages-at-once budget from GPU memory and a CPU step (Kraken) its own from the performance cores
   and free memory (`activity.lane.pages-at-once-sized-from-the-machine`), so the two run side by side; neither
-  budget borrows from the other.
+  budget borrows from the other. The sum is bounded by one memory rule (#6000): free memory less Kraken's need, the served weights, the CPU pages at their measured peak and the GPU reads at their margin stays above the reserve; on a 16 GB Mac or less one heavy model at a time, so side by side is only above 16 GB, and only once measured: the M4's line-finder knee at two is a shared-hardware limit, and a GPU model beside it draws on the same unified memory, so each may slow the other (unmeasured; `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M4; proposed 2026-10-27, awaiting the maintainer).
 - `activity.lane.cores-are-used` — **[BROKEN]** (#6229; run-system review 2026-10-27, read from the code) a
   Kraken page uses the Mac's performance cores: the threads a page gets are the performance cores divided by the
   pages at once, whatever its priority, and the run's grey line says it ("2 pages at once, 2 threads each").
@@ -1679,26 +1679,45 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py` (a case: the threads of an
   automatic page on a 4-core Mac are two, not one).
 - `activity.lane.pages-at-once-sized-from-the-machine` — **[GAP]** (#5931, after #5929; ruled 2026-10-27, replacing the
-  report's decision 2) how many pages a step reads at once is sized from the machine it runs on, never a fixed
-  number. A CPU step (Kraken) reads min(performance cores ÷ the threads one page uses, free memory ÷ one page's
-  measured peak) pages at once; a GPU step (MLX) has its own budget from GPU memory, so a CPU step and a GPU
-  step run side by side (`activity.lane.overlap-different-processors`). Both figures are measured on this Mac
-  (the core count from the OS, a page's peak from its own first pages), never hard-coded: a Mac may have 36 to 48
-  cores. The in-use rule applies on top (`activity.throttle.in-use-slows-to-half`: half the performance cores
-  while the Mac is used), as do the memory, battery and heat holds; the run's grey line says the number and why
-  (`activity.lane.cores-are-used`). A cluster job or a container sizes its gate by the same rule from the
-  cores and memory it was given. Order: the exit-time crash is fixed first (`activity.lane.kraken-threads-exit-clean`,
-  #5929), and only then is the fixed 2 (`kraken_runtime.PAGES_AT_ONCE_GATE_5929`) lifted; the gate's code line is
-  `source.read.pages-at-once-scales` in `source/recipes-run.md`, which this ruling sizes. *Test (to write):*
+  report's decision 2; reworded 2026-10-27 by the compute-per-engine review, `agent-work/status/briefs/compute-per-engine-2026-10-27.md`,
+  awaiting the maintainer) how many pages a step reads at once (N), and how many threads each gets (T), is the measured
+  best for this machine, this step kind and this model, never a formula from the core count alone: the fit record
+  (`activity.lane.fit-learned-from-runs`) holds the N and T that gave the most pages a minute and, among those within 5%
+  of the fastest, the fewest cores (N × T). The core count is a ceiling, not the answer: on the M4 Air the line finder
+  plateaus at two pages at once in processes and in threads alike (`briefs/gil-proof-result-2026-10-20.md`), a shared
+  hardware limit, so more pages only burn CPU. Until a fit is measured the prior is per engine: Kraken's line finder
+  N = 2, T = 1; Kraken's reader N = 1 and T = the performance cores (recognise scales with torch threads, segmenting
+  does not); an MLX reader one model with `reads_at_once_for` sequences on the GPU; spaCy and the embedder one call at
+  a time. The machine still bounds it: N × T never exceeds the performance cores (`cores_available`), N never exceeds
+  what free memory holds at a page's measured peak (`page_fan_out`), and a GPU step's budget is its own
+  (`activity.lane.overlap-different-processors`). The in-use rule applies on top (half the performance cores while the
+  Mac is used, `activity.throttle.in-use-slows-to-half`), as do the memory, battery and heat holds; the run's grey line
+  says the numbers and where they came from (`activity.lane.cores-are-used`: "4 pages at once, 1 thread each; fastest
+  measured on this Mac"). A cluster job or a container has no fit record: one page pipeline a task with the cores it
+  was given, its parallelism array tasks (`source.read.threads-fit-the-machine`). Order: the exit-time crash is fixed
+  first (`activity.lane.kraken-threads-exit-clean`, #5929), and only then is the fixed 2
+  (`kraken_runtime.PAGES_AT_ONCE_GATE_5929`) lifted; the gate's code line is `source.read.pages-at-once-scales` in
+  `source/recipes-run.md`, which this ruling sizes. *Test (to write):*
   `fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py` (a faked 12-core, 32 GB Mac with a
-  4-thread, 1.5 GB page reads three at once; a faked 4-core, 8 GB Mac reads one; in use halves the cores first;
-  a GPU step's budget is untouched by the CPU step's).
-- `activity.lane.kraken-threads-exit-clean` — **[BROKEN]** (#5929; run-system review 2026-10-27) the engine runs Kraken
-  pages on threads and the process exits clean after them (rc 0): twice on the M4 a threads run ended rc=139 at
-  teardown, after GEOS TopologyException lines; a crash at exit is a crash, so the gate stays at 2 until this is
-  found (faulthandler on, the thread stacks read) and fixed (worker threads joined and models freed before exit,
-  or the non-thread-safe call serialised). *Test (to write):* `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py`
-  (a subprocess that reads two faked pages on threads and exits returns 0).
+  stored fit of 4 × 2 reads four at once; with no fit it reads the engine's prior; a faked 4-core, 8 GB Mac reads one;
+  in use halves the cores first; a GPU step's budget is untouched by the CPU step's).
+- `activity.lane.kraken-threads-exit-clean` — **[BROKEN]** (#5929; run-system review 2026-10-27; the cause read
+  2026-10-27 from `ai/local-runtimes.md` `runtime.torch.exits-cleanly` and the M4 crash reports; wording awaiting the
+  maintainer) the engine, and every process it starts that loads Kraken, exits clean (rc 0) after reading pages on
+  threads. The rc=139 and rc=134 exits are NOT a thread fault: all 25 M4 crash reports fault on the main thread in
+  torch's static destructor (`MetalShaderLibrary::~MetalShaderLibrary` from `exit()`), after every row had printed,
+  and the isolated trigger is Kraken's model load through vgsl and coremltools, on the CPU as on MPS. The GEOS
+  TopologyException lines before it are warnings about degenerate line polygons during the run, not the crash; shapely
+  calls GEOS through its reentrant API with a context per thread. `gil_proof.py procs` "never crashed" because its
+  parent never imports torch and it joins its children without reading their exit codes, so their exits were not seen.
+  Built: the engine leaves by `fichero-server/src/fichero_server/core/fast_exit.py` `leave` (every DuckDB checkpointed
+  and closed, then `os._exit`), green on the M4 at `bf3d1a721`. Owed: the same way out in the Kraken line-extraction
+  children, the subprocess workers and the scripts (`fichero-server/scripts/gil_proof.py`, `fichero-server/scripts/bench_reading.py`),
+  and one engine run at N=4 on the M4 that is clean mid-run, which is what lifts the gate. *Tests:*
+  `fichero-server/tests/unit/llm/test_torch_exit_5929.py` (M4; `mps-kraken-blla-left-by-the-engines-exit` is the fix)
+  and `fichero-server/tests/unit/core/test_fast_exit_5929.py` exist; to write:
+  `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that reads two faked pages on
+  threads and leaves by `fast_exit` returns 0).
 - `activity.throttle.in-use-slows-to-half` — **[GAP]** (#6230; ruled 2026-10-27: half the performance cores, not a
   quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
   in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
@@ -2291,6 +2310,81 @@ tests or beside the module.
 engine subprocess, kill it with `SIGKILL` mid-run, relaunch, and assert the run resumes, every page
 is done exactly once, and no artifact is written twice.
 
+## Proposed for the maintainer (compute per engine, 2026-10-27)
+
+Written read-only by the compute-per-engine review (`agent-work/status/briefs/compute-per-engine-2026-10-27.md`: the
+per-engine answers, what is measured and what inferred, the M4 commands, four decisions). Nothing here is approved yet.
+The reworded lines above (`activity.lane.pages-at-once-sized-from-the-machine`, `activity.lane.kraken-threads-exit-clean`,
+the sentence on `activity.lane.overlap-different-processors`) and the lines and build steps below take effect on the
+maintainer's word; until then the ruled text of 2026-10-27 stands.
+
+The rule in one paragraph: maxing a machine is not using every core. Each engine has its own knee, found by measuring
+pages a minute on the machine it runs on and kept in a fit record per machine, step kind and model. Kraken's line
+finder is Python and GEOS under the GIL around a small torch forward, and plateaus at two pages at once on the M4 Air in
+processes as in threads (a shared hardware limit, not the GIL); Kraken's reader is torch that releases the GIL and
+scales with its threads; spaCy is one pipeline that is neither thread-safe nor forkable here; an MLX reader is one model
+on the GPU with its pages batched as sequences, bounded by memory not cores; the embedder is a forked child with ONNX
+threads; a cloud call costs no cores and only needs the loop free. The core count and free memory are ceilings; the fit
+is the answer; the grey line says both.
+
+- `activity.lane.fit-learned-from-runs` — **[GAP]** (#5931; proposed 2026-10-27, decision 1 and 2 of the review) a fit
+  record per machine, step kind and model (`compute.fit.<kind>.<model-id>` in the app settings: pages at once N, threads
+  a page T, pages a minute, cpu-seconds a page, a page's peak bytes, when, and whether a run or a measurement made it)
+  is learned from real runs, not from an idle calibration job: the first run of a model on a machine starts at the
+  engine's prior, reads a window of about eight pages, then tries one step up (N + 1 at the same T, then T + 1 at the
+  same N; never past N × T ≤ the performance cores, never past what free memory holds at the page's measured peak) for
+  the next window, keeps a step only when pages a minute gain at least 10%, and stops at the first step that does not.
+  Best is the most pages a minute; among configurations within 5% of that, the fewest cores, cpu-seconds a page the
+  tie-break. Every window a step down (N or T one down, the fit untouched: a slow window under pressure is not a
+  measurement) when the Mac is paging, thermal state is serious, it is on battery, or pages a minute fall more than
+  10% under the fit; a step up only on a clean window and only at ≥10%; the fit is measured again when the core count
+  or memory differs from the record's. While the Mac is in use the fit under the halved cores is a second record, so an
+  in-use run does not re-learn. A cluster task or container keeps no fit. The run's grey line says the numbers and the
+  source ("4 pages at once, 1 thread each; fastest measured on this Mac" / "2 pages at once; not yet measured on this
+  Mac"). *Test (to write):* `fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py` (a faked run
+  whose windows gain 30%, 12% then 4% stops at the third; a window under paging steps down and leaves the fit; a 5%
+  slower configuration with fewer cores is the one kept; the grey words).
+- `activity.lane.torch-threads-set-once-per-plan` — **[BROKEN]** (#6229; proposed 2026-10-27) the torch thread count is
+  set once for a plan (N pages at once, T threads each, from the fit) when the gate's plan changes, never per page:
+  `torch.set_num_threads` is process-wide, and today `kraken_runtime.py` ~1020-1035 sets it on every page from the
+  pages inside the gate, so a page that entered alone at four threads drops to two when a second page enters and stays
+  there after it leaves; `set_num_interop_threads` may only be set once, and the OpenMP and BLAS variables are
+  `setdefault`, so only the first value ever holds. The per-page log line keeps saying the threads the page ran with.
+  *Test (to write):* `fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py` (a fake torch
+  records every `set_num_threads` call: two pages through the gate under one plan make one call; a plan change makes
+  one more).
+- `activity.lane.embedder-forks-before-threads` — **[BROKEN]** (#6237; proposed 2026-10-27, decision 3 of the review)
+  a worker process the engine needs (the search embedder first; Apple Vision's worker the same way) is forked from a
+  seed process that the engine forks once at start, before uvicorn's loop, LanceDB's background loop or any other
+  thread exists, and that does nothing but fork on request over a pipe; never from the running engine. Today
+  `RemoteEmbedder._start` forks the engine itself at first use, after those threads exist, so the child inherits a dead
+  kqueue and LanceDB's loop in it dies with EBADF (the M4 106-page run). The shipped engine cannot spawn: its
+  `sys.executable` is the sandboxed stub (`loaders/kreuzberg_cache._fork_worker`). Inside the child the embedder keeps
+  `embed_threads` ONNX intra-op threads, one batch at a time. *Test (to write):*
+  `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the seed is made before the server
+  starts and has one thread; a worker asked of the seed sees no inherited thread or selector; the engine never forks
+  itself after start).
+- `activity.lane.spacy-one-call-at-a-time` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27) spaCy runs one pipeline
+  per language, one `nlp(text)` at a time under the fair turn lock (`knowledge/spacy_ner.py` `_turn`, people first) on
+  the embed lane, with thinc's BLAS at one thread; never on two threads (the `Language` object is not thread-safe,
+  measured) and never `nlp.pipe(n_process=…)` (spawn runs `sys.executable`, the sandboxed stub). `nlp.pipe` batching
+  is built only if `fichero-server/scripts/bench_spacy_pipe.py` clears 1.5x on the M4 (`runtime.spacy.batched-and-off-the-loop`).
+  The names step's time is not the parse: pages 1 to 86 took 1 to 4 s each and page 87 spun 20 minutes on a native
+  thread after `upsert_entity` lines while the page alone parses in seconds (#6236), so the step's fit is one call at a
+  time and the fix is the entity write path. Built: the lock, the turn, one pipeline. Not built: the one-thread BLAS
+  bound, the batch bench's result. *Test (to write):* `fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py`
+  (two pages at once queue, never fail; no `n_process`; the thread count asked of thinc is one).
+- `activity.lane.mlx-one-model-batched-on-the-gpu` — **[PARTIAL]** (#5641, #5370; proposed 2026-10-27) a local MLX
+  reader is one model served once in the engine (`llm/mlx_in_process.py`), its pages batched as sequences
+  (`MLX_VLM_MAX_NUM_SEQS` = `reads_at_once_for`: half the Mac's memory less the weights, at the read margin, at most
+  four), never a second copy of the weights: on unified memory the weights are the scarce thing and one decode step
+  reads them once for every page in the batch. Its budget is GPU memory, not cores, separate from the CPU step's
+  (`activity.lane.overlap-different-processors`). Built: one server, the sequence count from memory. Not measured:
+  s/page at one, two and four sequences, and the cost of a Kraken page beside it (`fichero-server/scripts/mlx_order_proof.py`
+  was written and never run; no MLX number exists in the tree). *Test (to write):*
+  `fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py` (a second load of the same model is refused in
+  favour of the served one; the sequence count follows memory; the fit record is not consulted for a GPU step).
+
 ## Build order
 
 Written 2026-10-27, approved the same day; the migration order above is the history it grew from. BROKEN
@@ -2334,13 +2428,25 @@ nothing here depends on them except where said.
 
 #### Step 1.7 — Kraken's threads exit clean (#5929)
 - Behaviours: `activity.lane.kraken-threads-exit-clean`
-- Tests: fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py
+- Tests: fichero-server/tests/unit/llm/test_torch_exit_5929.py, fichero-server/tests/unit/core/test_fast_exit_5929.py, fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py
 - Size: M
 
 #### Step 1.8 — The pages-at-once gate sized from the machine; CPU and GPU steps side by side (#5931, #5358, #5370)
 - Behaviours: `activity.lane.pages-at-once-sized-from-the-machine`, `activity.lane.overlap-different-processors`
 - Tests: fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py
 - Depends on: 1.7, 1.5
+- Size: M
+
+#### Step 1.9 — Threads set once per plan; the embedder forks before threads (proposed 2026-10-27) (#6229, #6237)
+- Behaviours: `activity.lane.torch-threads-set-once-per-plan`, `activity.lane.embedder-forks-before-threads`
+- Tests: fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py, fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.10 — The fit learned from runs, per engine (proposed 2026-10-27) (#5931, #5956, #5641)
+- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-one-call-at-a-time`, `activity.lane.mlx-one-model-batched-on-the-gpu`
+- Tests: fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py, fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py, fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py
+- Depends on: 1.8, 1.9
 - Size: M
 
 ### Stage 2 — The summary the window reads (engine)
