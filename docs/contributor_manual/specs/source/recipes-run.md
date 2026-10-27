@@ -251,12 +251,18 @@ replaces the Kraken figure before #6212 is coded.
   spin was the names' writing against the grown entity table, which ran after the timed call. A new name's vector is
   written once, by its save, off the page's thread; it was also written a second time on the page's thread (a read,
   an embed and a LanceDB write per name), where the M4 rerun stalled on page 77 past the limit. A vector table's
-  compaction also drops versions older than 5 minutes (it kept 7 days: 1906 versions for 940 entities). Left: each new name
+  compaction also drops versions older than 5 minutes (it kept 7 days: 1906 versions for 940 entities). A page's names
+  are written in one short transaction, and each name's vector is embedded once after it commits; it was two or three
+  autocommitted saves and embeds per name (40 names against 400 stored: 744 ms a page before, 429 ms now), and a step is
+  never one transaction (55k new rows in one ran an 8 GB Mac out of memory). A statement that runs over 10 s logs its
+  SQL, its thread and every thread's stack. Left: each new name
   still reads every stored entity of its type (about 0.05 s per 1000), a spaCy call past the limit can't be stopped
   (one page's pipeline, under 0.1 s), and the other per-page steps have no such limit yet. Tests:
   fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py,
   fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py,
   fichero-server/tests/unit/workflows/test_names_vectors_off_the_page_6236.py,
+  fichero-server/tests/unit/workflows/test_names_page_in_one_transaction_6236.py,
+  fichero-server/tests/unit/db/test_slow_statement_watchdog_6236.py,
   fichero-server/tests/unit/db/test_db_batch_and_compaction.py.
 - `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:

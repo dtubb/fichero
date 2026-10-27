@@ -1869,10 +1869,11 @@ class DatabaseEmbeddingMixin:
         def _flush() -> None:
             try:
                 worker = self._embed_worker()
+                # A record saved three times while deferred is embedded once, as last saved.
                 if pending["entity"]:
-                    worker.embed_entities(pending["entity"])
+                    worker.embed_entities(list({e.id: e for e in pending["entity"]}.values()))
                 if pending["claim"]:
-                    worker.embed_claims(pending["claim"])
+                    worker.embed_claims(list({c.id: c for c in pending["claim"]}.values()))
             except Exception as exc:  # embeds are best-effort; reindex recovers
                 logger.warning("Deferred embed flush failed: %s", exc)
 

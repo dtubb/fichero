@@ -18,6 +18,7 @@ import sys
 import time
 import traceback
 from collections import defaultdict
+from contextlib import contextmanager
 from typing import Any, Iterator
 
 from fichero_server.db import db_manager
@@ -33,7 +34,7 @@ from fichero_server.llm.language_policy import (
 )
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.registry import register_tool
-from fichero_server.workflows.tools._entity_writer import run_attribution, upsert_entity
+from fichero_server.workflows.tools._entity_writer import _ENTITY_UPSERT_LOCK, run_attribution, upsert_entity
 from fichero_server.workflows.tools.extract_all import (
     _EntitiesOnly,
     _build_entity_only_instructions,
@@ -105,6 +106,17 @@ _NER_TYPE_TO_SECTION = {
     "organization": "organizations",
     "event": "events",
 }
+
+
+@contextmanager
+def _one_page_of_writes(db):
+    """A page's names are written in one short transaction, and each name's vector once, after it commits (#6236,
+    #6212). Never one transaction for the step: 55k new rows in one ran an 8 GB Mac out of memory. A new row is
+    still a plain INSERT (`Database.save`), so the next name on the page matches it as before. The upsert lane is
+    taken before the transaction's gate, the order a single upsert takes them in, so the two never cross."""
+    with _ENTITY_UPSERT_LOCK, db.defer_embeddings(), db.transaction():
+        yield
+    db.flush_deferred_embeddings()
 
 
 def _is_local_ner_provider(provider: object) -> bool:
@@ -562,36 +574,37 @@ async def extract_entities_only(
         # the step's own thread, and holds the DB writer while it does (#6236's spin was here, not in the model).
         writing_until = time.monotonic() + NAMES_PAGE_SECONDS
         stalled_writing = False
-        for canonical_name, entity_type, aliases, written in mentions:
-            if not canonical_name:
-                continue
-            if time.monotonic() > writing_until:
-                stalled_writing = True
-                break
-            mentions_processed += 1
-            entity_id = upsert_entity(
-                db,
-                canonical_name=canonical_name,
-                entity_type=entity_type,
-                aliases=aliases,
-                source_document_id=record["doc_id"],
-                asserted_by=asserted_by,
-            )
-            if entity_id is None:
-                suppressed += 1
-                continue
-            written_entity_ids.append(entity_id)
-            # Each place the name is written is a mention, on its line when the page is tied (#5488).
-            mentions_on_lines += write_mentions(
-                db, entity_id, record["doc_id"], text,
-                written if written is not None else name_spans(text, [canonical_name, *aliases]),
-                lines, name=canonical_name, page_label=None,
-            )
-            if entity_id in known_entity_ids:
-                reused += 1
-            else:
-                known_entity_ids.add(entity_id)
-                created += 1
+        with _one_page_of_writes(db):
+            for canonical_name, entity_type, aliases, written in mentions:
+                if not canonical_name:
+                    continue
+                if time.monotonic() > writing_until:
+                    stalled_writing = True
+                    break
+                mentions_processed += 1
+                entity_id = upsert_entity(
+                    db,
+                    canonical_name=canonical_name,
+                    entity_type=entity_type,
+                    aliases=aliases,
+                    source_document_id=record["doc_id"],
+                    asserted_by=asserted_by,
+                )
+                if entity_id is None:
+                    suppressed += 1
+                    continue
+                written_entity_ids.append(entity_id)
+                # Each place the name is written is a mention, on its line when the page is tied (#5488).
+                mentions_on_lines += write_mentions(
+                    db, entity_id, record["doc_id"], text,
+                    written if written is not None else name_spans(text, [canonical_name, *aliases]),
+                    lines, name=canonical_name, page_label=None,
+                )
+                if entity_id in known_entity_ids:
+                    reused += 1
+                else:
+                    known_entity_ids.add(entity_id)
+                    created += 1
 
         if written_entity_ids:
             emit_workflow_kg_changes(
