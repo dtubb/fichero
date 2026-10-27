@@ -106,3 +106,19 @@ def test_a_release_refused_by_a_live_run_names_it_and_its_state(db, monkeypatch)
     runs, _running, _waiting = jobs.live_work(db)
 
     assert runs == [f"Detect Segments (Kraken), {run_id}, running"]
+
+
+def test_a_slow_live_model_job_keeps_its_slot_past_the_deadline(monkeypatch):
+    """Only the images lane gives back a stuck slot: a model job reading one page for ten minutes is alive, and a second
+    heavy model never starts beside it (#6000), nor does the lane want a thread beside it."""
+    lane = jobs._scheduler.lanes["local-ml"]
+    monkeypatch.setattr(lane, "running", {"slow-read": "mlx:a-big-reader"})
+    monkeypatch.setattr(lane, "started", {"slow-read": time.monotonic() - jobs.STUCK_IMAGE_JOB_SECONDS * 10})
+    monkeypatch.setattr(lane, "slots", 1)
+
+    assert lane.stuck() == set()
+    assert "slow-read" in lane.holding()
+    assert not lane.may_start("read-a-line", "mlx:another-big-reader")
+    from fichero_server.llm.local_inference import LOCAL_READS_CEILING
+
+    assert lane.threads_wanted == max(1, LOCAL_READS_CEILING)
