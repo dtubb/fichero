@@ -498,6 +498,14 @@ replaces the Kraken figure before #6212 is coded.
   tree's stage rows (`GET /api/activity/jobs/{id}`, one row a batch's job) carry the same `timing`. Tests:
   fichero-server/tests/unit/recipes/test_step_timings_recorded.py,
   fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py. Swift compile owed (new optional fields).
+- `recipes-run.timing.slow-path-logged` — **[PARTIAL]** (#6236) what goes slow or grows over a long run says so in
+  the engine log, one line once it passes its threshold, so a 100k-page grind is read from its log, not guessed at:
+  a slow statement and transaction memory (section 6), a step's per-page time that climbs, a model loaded again, the
+  engine's RSS that grows, and the spill size. Built: a step's per-page time climbing logs "per-page time climbing:
+  <workflow> (<node>) now takes N s a page (median of its last 10), M s at its start" once the last ten pages' median
+  passes three times the first ten's and is a second or more slower; one slow page is not a climb; the node then takes
+  a new baseline; kept per node for the process, so a run in folder batches is one series. Left: model loads, RSS and
+  the spill size. Test: fichero-server/tests/unit/activity/test_page_time_climbing_is_logged.py.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

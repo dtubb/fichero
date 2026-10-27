@@ -13,6 +13,7 @@ import logging
 import queue
 import re
 import threading
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -53,6 +54,32 @@ def file_duration_ms(entry: dict, now: datetime) -> float:
     run's cumulative time as each file's (6,541,168 ms for one file, #6178)."""
     since = datetime.fromisoformat(entry.get("running_at") or entry["started_at"])
     return (now - since).total_seconds() * 1000
+
+
+#: A step's pages climbing over a run is a bug even with every test green (owner's north star, #6236; the M4 run went
+#: 1 s -> 300 s a page). The median of a node's last CLIMB_PAGES pages past CLIMB_FACTOR times its first ones, and a
+#: second or more slower, says so once; the node then takes a new baseline, so a further climb says so again. Kept per
+#: node for the process, so a run split into folder batches is one series. Bounded: 2 x CLIMB_PAGES times a node.
+CLIMB_PAGES = 10
+CLIMB_FACTOR = 3.0
+_PAGE_TIMES: dict[str, tuple[list[float], deque[float]]] = {}
+
+
+def note_page_time(node_id: str, ms: float, node_name: str) -> None:
+    from statistics import median
+
+    first, recent = _PAGE_TIMES.setdefault(node_id, ([], deque(maxlen=CLIMB_PAGES)))
+    if len(first) < CLIMB_PAGES:
+        first.append(ms)
+        return
+    recent.append(ms)
+    if len(recent) < CLIMB_PAGES:
+        return
+    base, now = median(first), median(recent)
+    if now > CLIMB_FACTOR * base and now - base > 1000:
+        logger.warning("per-page time climbing: %s now takes %.1f s a page (median of its last %d), %.1f s at its "
+                       "start: something grows with the run", node_name, now / 1000, CLIMB_PAGES, base / 1000)
+        _PAGE_TIMES.pop(node_id, None)
 
 
 def build_graph(*args, **kwargs):
@@ -1820,6 +1847,8 @@ async def _run_workflow_body(
                         entry["status"] = "success"
                         duration_ms = file_duration_ms(entry, datetime.now(timezone.utc))
                         entry["duration_ms"] = duration_ms
+                        note_page_time(f"{workflow.id}/{entry['node_id']}", duration_ms,
+                                       f"{workflow.name} ({entry['node_id']})")
                         break
 
                 await log_execution(
