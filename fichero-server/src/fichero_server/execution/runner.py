@@ -47,6 +47,14 @@ if TYPE_CHECKING:  # pragma: no cover - import-time typing only
     from fichero_server.workflows.builder import SystemicErrorDetected
 
 
+def file_duration_ms(entry: dict, now: datetime) -> float:
+    """How long a file really took, in ms: from when it got its slot (`running_at`), else from `started_at`.
+    Every file of a fan-out starts at once and most wait for a slot, so counting from `started_at` showed the
+    run's cumulative time as each file's (6,541,168 ms for one file, #6178)."""
+    since = datetime.fromisoformat(entry.get("running_at") or entry["started_at"])
+    return (now - since).total_seconds() * 1000
+
+
 def build_graph(*args, **kwargs):
     """Build a workflow graph, importing the builder on first call.
 
@@ -1786,6 +1794,12 @@ async def _run_workflow_body(
                         "status": "running",
                     }
                 )
+            elif event_type == "file_running":
+                for entry in reversed(progress_timeline["steps"]):
+                    if (entry.get("type") == "file" and entry.get("node_id") == data.get("node_id", "")
+                            and entry.get("file_path") == data.get("file_path", "") and entry.get("status") == "running"):
+                        entry["running_at"] = datetime.now(timezone.utc).isoformat()  # got its slot: the time counted from here
+                        break
             elif event_type == "file_complete":
                 file_index = data.get("file_index", 0)
                 file_total = data.get("file_total", 0)
@@ -1804,11 +1818,7 @@ async def _run_workflow_body(
                     ):
                         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "success"
-                        # Calculate duration
-                        start = datetime.fromisoformat(entry["started_at"])
-                        duration_ms = (
-                            datetime.now(timezone.utc) - start
-                        ).total_seconds() * 1000
+                        duration_ms = file_duration_ms(entry, datetime.now(timezone.utc))
                         entry["duration_ms"] = duration_ms
                         break
 
