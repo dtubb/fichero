@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
 import sys
 import tempfile
@@ -89,6 +90,7 @@ def main() -> int:
     ap.add_argument("--models", default="google:gemini-2.5-flash,anthropic:claude-haiku-4-5", help="provider:model rows to add (--cloud)")
     ap.add_argument("--only", default="", help="keep only these step ids in the stored recipe (comma list)")
     ap.add_argument("--keys", default="anthropic,google", help="providers whose key is read here and given to the temp engine (--cloud)")
+    ap.add_argument("--keep", action="store_true", help="keep the temp library and base folder (~620 MB) after the run")
     ap.add_argument("--language", default="la")
     ap.add_argument("--script", default="Latn")
     ap.add_argument("--purposes", default="transcribe,translate-normalise,entities,statements,search,catalogue")
@@ -104,6 +106,7 @@ def main() -> int:
         _provider_rows(base, args.models)
     for sig in (signal.SIGTERM, signal.SIGHUP):  # a killed script still runs `finally`, which stops its temp engine
         signal.signal(sig, lambda signum, _frame: sys.exit(128 + signum))
+    library = None
     ep = start_engine(transport="uds", log_dir=str(out), base_path=base)
     try:
         headers = {"Authorization": f"Bearer {ep.token}"}
@@ -191,6 +194,10 @@ def main() -> int:
                 report["new_material_stages"] = _stages(new or {})
     finally:
         ep.stop()
+        if not args.keep:  # the temp library and base folder are the run's own; a --library given is never touched
+            made = [base] + ([str(Path(library).parent)] if library and not args.library else [])
+            for folder in made:
+                shutil.rmtree(folder, ignore_errors=True)
     (out / "report.json").write_text(json.dumps(report, indent=1, default=str))
     print(json.dumps({k: report[k] for k in report if k in ("started", "imports", "assembled_steps", "start_refused", "run_id")}, indent=1, default=str))
     return 0

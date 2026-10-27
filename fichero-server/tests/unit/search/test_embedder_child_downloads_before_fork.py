@@ -92,3 +92,8 @@ def test_a_fake_model_load_does_not_skip_the_refusal(tmp_path, monkeypatch):
     monkeypatch.setattr(multiprocessing, "get_context", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("forked")))
     with pytest.raises(embed_process.EmbedderUnavailable, match="not downloaded"):
         embed_process.RemoteEmbedder("BAAI/bge-m3", str(tmp_path), 1)
+
+
+def test_a_snapshot_without_its_config_is_not_cached(tmp_path):
+    _snapshot(tmp_path, ["tokenizer.json", "onnx/model.onnx", "onnx/model.onnx_data", "onnx/sentencepiece.bpe.model"])
+    assert not embed_process._cached("BAAI/bge-m3", str(tmp_path))

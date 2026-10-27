@@ -16,6 +16,9 @@ import sys, time
 sys.path.insert(0, sys.argv[1])
 import e2e_recipe_run
 MARKER = sys.argv[2]
+made = []
+_mkdtemp = e2e_recipe_run.tempfile.mkdtemp
+e2e_recipe_run.tempfile.mkdtemp = lambda *a, **k: made.append(_mkdtemp(*a, **k)) or made[-1]
 
 class Engine:
     @property
@@ -23,7 +26,7 @@ class Engine:
         print("started", flush=True)
         time.sleep(60)
     def stop(self):
-        open(MARKER, "w").write("stopped")
+        open(MARKER, "w").write("\n".join(made))
 
 e2e_recipe_run.start_engine = lambda **_k: Engine()
 sys.argv = ["e2e_recipe_run.py", "--out", sys.argv[3]]
@@ -44,4 +47,6 @@ def test_sigterm_stops_the_temp_engine(tmp_path):
     deadline = time.monotonic() + 5
     while not marker.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert marker.read_text() == "stopped"
+    made = marker.read_text().split()
+    assert made, "the engine was not stopped"
+    assert not any(Path(folder).exists() for folder in made), "the temp base folder was left behind (pass --keep to keep it)"

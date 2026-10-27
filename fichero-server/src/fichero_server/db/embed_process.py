@@ -52,13 +52,13 @@ def in_process() -> bool:
 
 def _model_files(fastembed_name: str) -> list[str]:
     """The files fastembed loads the model from, relative to its snapshot: its ONNX file, the ONNX file's extra parts
-    (a 2 GB model's weights live beside it) and the tokenizer."""
+    (a 2 GB model's weights live beside it), its config and the tokenizer."""
     from fastembed import TextEmbedding
 
     for entry in TextEmbedding._list_supported_models():
         if entry.model.lower() == fastembed_name.lower():
-            return ["tokenizer.json", entry.model_file, *entry.additional_files]
-    return ["tokenizer.json", "model.onnx"]
+            return ["config.json", "tokenizer.json", entry.model_file, *entry.additional_files]
+    return ["config.json", "tokenizer.json", "model.onnx"]
 
 
 def _cached(model_name: str, cache_dir: str) -> bool:
