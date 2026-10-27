@@ -173,7 +173,7 @@ struct ActivityDetailsActions: View {
         case .openSetUp: "Open Set Up…"
         case .retryDownload: "Retry"
         case .useNextCandidate: "Use the Next Reader"
-        case .runAgainOnMissed(_, let label): label
+        case .runAgainOnMissed(_, _, let label): label
         }
     }
 
@@ -295,7 +295,9 @@ struct ActivityDetailsSummary: View {
                 HStack(alignment: .firstTextBaseline) {
                     Label(missed.words, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     if let offer = missed.offer {
-                        Button(offer) { perform(.runAgainOnMissed(folderId: missed.folderId, label: offer)) }
+                        Button(offer) {
+                            perform(.runAgainOnMissed(folderId: missed.folderId, documents: missed.documents, label: offer))
+                        }
                             .controlSize(.small)
                             .accessibilityIdentifier("activity.details.summary.runAgainOnMissed")
                     }
