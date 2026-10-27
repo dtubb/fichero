@@ -18,6 +18,7 @@ Quality gates, structural not checked:
 
 from __future__ import annotations
 
+import functools
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -41,6 +42,7 @@ BASIS_SIMILARITY = "similarity"
 BASIS_SPELLING = "spelling-variant"
 
 
+@functools.lru_cache(maxsize=65536)  # #6236: upsert_entity keys every stored name per call
 def normalize_name(name: str) -> str:
     """Accent-, case-, punctuation- and whitespace-insensitive name key.
 
