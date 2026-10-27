@@ -119,7 +119,7 @@ def page_seconds(progress_timeline: Optional[dict]) -> list[float]:
     by_page: dict[str, float] = {}
     for e in (progress_timeline or {}).get("steps") or []:
         if e.get("type") == "file" and e.get("status") == "success" and isinstance(e.get("duration_ms"), (int, float)):
-            key = str(e.get("document_id") or e.get("page_id") or e.get("file_path"))
+            key = str(e.get("page_id") or e.get("document_id") or e.get("file_path"))  # a page in a document: its own id
             by_page[key] = by_page.get(key, 0.0) + e["duration_ms"] / 1000
     return list(by_page.values())
 

@@ -149,3 +149,13 @@ def test_a_run_of_many_batches_reads_every_timeline_at_once(db, monkeypatch):
     assert [len(s["timing"].batches) for s in out["steps"]] == [12, 12]
     assert all(s["timing"].pages_done == 12 for s in out["steps"])
     assert sum("progress_timeline" in q for q in reads) == 1
+
+
+def test_pages_of_one_document_are_each_their_own_page():
+    """A page inside a document carries its parent as `document_id` and itself as `page_id`: keyed by the parent, a
+    real 86-page run read "Read each line: 6832.3 s a page on 1 page" (every page summed into one)."""
+    from fichero_server.recipes.run_view import page_seconds
+
+    timeline = {"steps": [{"type": "file", "status": "success", "duration_ms": 80_000, "document_id": "doc", "page_id": p,
+                           "file_path": f"{p}.jpg"} for p in ("p1", "p2", "p3")]}
+    assert page_seconds(timeline) == [80.0, 80.0, 80.0]

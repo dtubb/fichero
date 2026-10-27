@@ -513,7 +513,8 @@ replaces the Kraken figure before #6212 is coded.
   pages_done, seconds_per_page: the median of its pages' own times, each page's nodes added) and the run its
   `seconds`, all read from the rows (the jobs table, the workflow run's stored timeline), so a restart reads the
   same; the summary's last line is "Slowest step: <stage>: N s a page on M pages"; a file's time counts from its
-  slot (c5bfcf65d). Per batch: the run's checkpoint keeps each batch's job on its step (`batch_jobs`, by folder),
+  slot (c5bfcf65d); a page inside a document is timed as itself (its `page_id`), never under its parent's id (the
+  86-page run on this Mac read "Read each line: 6832.3 s a page on 1 page", every page summed into one). Per batch: the run's checkpoint keeps each batch's job on its step (`batch_jobs`, by folder),
   so a step is timed from its first batch's start to its last's end, its pages' median over all of them, and lists
   each batch's own figures (`timing.batches`, each with its folder and job; was: the last batch only); the Activity
   tree's stage rows (`GET /api/activity/jobs/{id}`, one row a batch's job) carry the same `timing`. Tests:
