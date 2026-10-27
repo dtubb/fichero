@@ -1,15 +1,16 @@
 # Recipes run — a recipe started on 20 to 100+ pages finishes, every time — Design Spec (#6212)
 
-> Milestone: recipe-designer
-> Manual: TBD — a "Running your recipe" section in the Projects part, after "Designing your recipe":
-> what Start does, where to watch it (Activity), what the waiting lines mean (thumbnails first, memory,
-> one model at a time), what happens when you quit, sleep or the engine crashes (nothing lost, nothing
-> done twice), Stop, Pause and Run again on what was missed, and what the summary at the end says.
-> **Status: DRAFT 2026-10-26 — awaiting the owner.** Written from the owner's ruling of 2026-10-26
-> (paraphrased): what matters most is that recipes RUN, reliably: the engine does not crash, memory does
-> not leak, a run on 20 to 100+ pages finishes, and the recipe runner was never properly finished as a
-> spec. Facts read from the code of origin/integration at 2e6e62c8a and from the dogfood run of
-> 2026-10-26 (`agent-work/status/briefs/dogfood-b12-2026-10-26.md`: one 20-page run wedged three times).
+> Milestone: recipes-run
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the contributor page; the
+> researcher-facing "Running your recipe" section is the maintainer's, in the user manual: what Start
+> does, where to watch it, what the waiting lines mean, what happens on a quit, a sleep or a crash, Stop,
+> Pause, Run again on what was missed, the summary; the facts are the behaviour lines below).
+> **Status: APPROVED 2026-10-26 by the maintainer (rulings below).** Written from the owner's direction
+> of 2026-10-26 (paraphrased): what matters most is that recipes RUN, reliably: the engine does not
+> crash, memory does not leak, a run on 20 to 100+ pages finishes, and the recipe runner was never
+> properly finished as a spec. Facts read from the code of origin/integration at 2e6e62c8a and from the
+> dogfood run of 2026-10-26 (`agent-work/status/briefs/dogfood-b12-2026-10-26.md`: one 20-page run
+> wedged three times). Milestone `recipes-run` created on approval; its description points here.
 
 Tags: [OK] built and pinned · [PARTIAL] exists, partly wired or unpinned · [GAP] not built · [BROKEN] the
 code contradicts the intent. This spec does **not** replace `source/recipe-designer.md` (how a recipe is
@@ -156,7 +157,7 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   new run instead of resumed in place (`activity.durable.lease-not-fail` (P), `compute.run.interrupted-on-start`);
   and the import's thumbnail claims the dead process held are not taken up at all (#6203, section 7 below).
   *Seen in the dogfood (23:26Z):* the interrupted run resumed itself at once and fanned its 58 pages out
-  again before the person could say anything (open question 2).
+  again (ruling 2: resume at once, gently; `recipes-run.restart.resumes-at-once-gently`).
 - `recipes-run.journey.run-again-on-what-was-missed` — **[GAP]** (#6170; `source.recipe.run-again-on-what-was-missed` (G)
   owns it) after a restart, a crash or a Stop the recipe says what it did not finish and offers one action,
   Run again on what was missed, which runs only what is not done.
@@ -164,7 +165,8 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
 ## Reliability: the behaviours that make a run finish
 
 Each line is one testable statement. The test named is the one that pins it, or the one to write (red
-first). "Ceiling" and "band" figures are proposals until the owner rules (open question 1).
+first). The "ceiling" and "band" figures are approved as proposals (ruling 1): #6076's measured table
+replaces the Kraken figure before #6212 is coded.
 
 ### 6. The engine does not crash, and a 100-page run finishes
 
@@ -229,7 +231,12 @@ first). "Ceiling" and "band" figures are proposals until the owner rules (open q
   (`kraken_runtime.pages_at_once`, `PAGES_AT_ONCE_GATE_5929`, `source.read.pages-at-once-scales` (P),
   `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`). *Seen in the dogfood:* a try of 5
   pages launched all 5 in the same millisecond and the engine peaked at 2.9 GB; whether the gate held them
-  to 2 is not shown anywhere a person reads (open question 3).
+  to 2 is not shown anywhere a person reads (ruling 3, the next line).
+- `recipes-run.memory.gate-shown` — **[GAP]** (#6217; ruling 3) the run's row says how many pages it
+  reads at once in its grey line ("reading 2 pages at once"; "one page at a time: the Mac is paging";
+  "one page at a time: resuming after a restart"), the figure and its reason served as fields of the run
+  status from `kraken_runtime.pages_at_once` and the throttle's reason, never parsed from a sentence;
+  the app renders them as sent; no setting. Test (to write): fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
 - `recipes-run.memory.fan-out-does-not-decode-ahead` — **[PARTIAL]** (#5846; `activity.lane.same-model-pages-together` (P))
   a fan-out node hands the lane at most `pages_at_once` pages, and a page waiting for the lane holds no
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).
@@ -250,6 +257,12 @@ first). "Ceiling" and "band" figures are proposals until the owner rules (open q
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
   starts within one claim cycle. Test (to write): fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
+- `recipes-run.restart.resumes-at-once-gently` — **[GAP]** (#6216; ruling 2) an interrupted run resumes
+  by itself on the next open (nothing waits for a person), and for the first minute after an engine
+  start every lane admits ONE page at a time whatever the gate would allow, so a Mac that has just
+  recovered from paging or a kill is not thrown back into it; the grey line says "resuming after a
+  restart: one page at a time for a minute"; a person who wants it stopped presses Stop. Test (to
+  write): fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py.
 - `recipes-run.restart.retry-reaches-a-kind-row` — **[GAP]** (#6203) Retry on a kind row (`waiting:thumbnail`)
   requeues that kind's set-aside and dead claims for the project; today it answers 404 (the kind row is not
   a job id), so there is no way from Activity to restart the thumbnail work. Test (to write):
@@ -296,7 +309,10 @@ first). "Ceiling" and "band" figures are proposals until the owner rules (open q
 - `recipes-run.order.search-entities-once-at-the-end` — **[PARTIAL]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are the built halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says
-  "Search and names run once at the end"; they never compete with the readers for the model lane. Built:
+  "Search and names run once at the end"; they never compete with the readers for the model lane.
+  **Ruling 5:** a project with a started recipe queues NO per-page embed and NO names draft at import;
+  the recipe does both once at the end of each batch; a project with no started recipe keeps today's
+  import-time behaviour. Built:
   inside a run no stage before Search queues a page's embed, Search embeds it once
   (`fichero-server/tests/unit/recipes/test_stages_before_search_do_not_queue_embeds_6126.py`); background
   embeds wait for the reading and run off the heavy lane (`test_embed_after_reading.py`,
@@ -347,7 +363,13 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Tests: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py, fichero-server/tests/unit/jobs/test_lanes_released_per_project.py
 - Size: M
 
-#### Step 1.2 — The engine answers while a run goes (#6178)
+#### Step 1.2 — Resume at once, gently; the gate shown (#6216, #6217)
+- Behaviours: `recipes-run.restart.resumes-at-once-gently`, `recipes-run.memory.gate-shown`
+- Tests: fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py, fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py
+- Depends on: 1.1
+- Size: S
+
+#### Step 1.3 — The engine answers while a run goes (#6178)
 - Behaviours: `recipes-run.engine.answers-while-a-run-goes`
 - Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py
 - Size: S
@@ -360,8 +382,8 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: S
 
 #### Step 2.2 — One heavy model on a small Mac; the fan-out decodes only admitted pages (#6000, #6167, #5846)
-- Behaviours: `recipes-run.memory.one-heavy-model`, `recipes-run.memory.fan-out-does-not-decode-ahead`
-- Tests: fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py, fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py
+- Behaviours: `recipes-run.memory.one-heavy-model`, `recipes-run.memory.fan-out-does-not-decode-ahead`, `recipes-run.memory.hold-when-paging`, `recipes-run.memory.pages-at-once-bounded`
+- Tests: fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py, fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py, fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py, fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py
 - Size: M
 
 #### Step 2.3 — Measure, then the ceiling and the load leg (#6076, #6212)
@@ -438,21 +460,26 @@ No new control: every behaviour is engine-side or shown through Activity's exist
 lines this spec names ("Search and names run once at the end", a swapped model's reason, the paging
 line) are String Catalog keys of the engine's `why` text, passed through as sent.
 
-## Open questions for the owner (with a recommendation each)
+## Rulings (the maintainer, 2026-10-26 night)
 
-1. **The ceilings and the band.** Proposed: Kraken's ceiling is the card's `memory_gb` plus 1.5 GB a page
-   in flight; the no-growth band is 10% between pages 20–40 and 80–100; the poll bound is 1 s. *Recommend:*
-   approve as proposals, and let #6076's measured table replace the Kraken figure before #6212 is coded.
-2. **Resume after a crash: at once, or offered?** Today an interrupted recipe run resumes itself on the
-   next open and fans its pages out again (dogfood 23:26Z). *Recommend:* resume at once (the Spotlight
-   rule: nothing waits for a person), but one page at a time for the first minute after a restart so a
-   Mac that just recovered is not thrown back into paging; a person who wants it stopped presses Stop.
-3. **Show the gate.** A person cannot see how many pages read at once or why. *Recommend:* the run's row
-   says "reading 2 pages at once" in its grey line, from the engine's `pages_at_once`; no setting.
-4. **Milestone name on approval.** This spec is DRAFT on `recipe-designer` beside `recipe-designer.md`;
-   the guards want spec name == milestone name when APPROVED. *Recommend:* approve under a new milestone
-   `recipes-run` (issues #6212, #6213, #6215, #6186, #6203, #5846, #6193 move to it), so the reliability
-   work burns down on its own, visibly, apart from the designer's screens.
-5. **Search and names at import.** Today an import queues an embed and a names draft per page at once.
-   *Recommend:* a project with a started recipe queues neither at import (the recipe does them once at
-   the end of each batch); a project with no recipe keeps today's behaviour.
+The spec is approved to build in the build order. The five questions put to the owner are ruled as
+follows (paraphrased; each is a rule, not a proposal):
+
+1. **The ceilings and the band** stand as proposals: Kraken's ceiling is the card's `memory_gb` plus
+   1.5 GB a page in flight, the no-growth band is 10% between pages 20–40 and 80–100, the poll bound is
+   1 s; #6076's measured table replaces the Kraken figure before #6212 is coded
+   (`recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`).
+2. **Resume at once after a crash, gently:** an interrupted run resumes by itself, one page at a time for
+   the first minute after an engine start (`recipes-run.restart.resumes-at-once-gently`, #6216).
+3. **Show the gate:** the run's grey line says how many pages read at once and why, from the engine, no
+   setting (`recipes-run.memory.gate-shown`, #6217).
+4. **Its own milestone:** the spec is APPROVED under `recipes-run`, created on approval; #6212, #6213,
+   #6215, #6186, #6203, #5846 and #6193 moved to it, so the reliability work burns down apart from the
+   designer's screens.
+5. **Nothing per page at import for a started recipe:** a project with a started recipe queues no
+   per-page embed and no names draft at import; the recipe does them once at the end of each batch
+   (`recipes-run.order.search-entities-once-at-the-end`, #6186).
+
+## Open questions for the owner
+
+None open.
