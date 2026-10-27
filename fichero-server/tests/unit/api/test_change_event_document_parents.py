@@ -109,7 +109,8 @@ def _plain_text_params(tmp_path):
 
     path = tmp_path / "plain.txt"
     path.write_text("not a paged format")
-    return SimpleNamespace(path=str(path))
+    # A named parent keeps the unchanged-import check (#6225) off the Sources folder lookup.
+    return SimpleNamespace(path=str(path), parent_id="folder-1")
 
 
 class TestImportPopulatesIt:
@@ -124,13 +125,16 @@ class TestImportPopulatesIt:
         from fichero_server.models import Document
 
         doc = Document(name="scan.jpg", parent_id="folder-1")
-        monkeypatch.setattr(core, "import_file_impl", lambda db, params, path: doc)
+        monkeypatch.setattr(core, "import_file_impl", lambda db, params, path, **kw: doc)
 
         class _Ctx:
             library_path = str(tmp_path)
 
         class _DB:
             path = str(tmp_path / "lib.duckdb")
+
+            def unchanged_import(self, *a, **k):  # nothing imported before: a new file
+                return None
 
         _payload, spec = core._action_import_file(_DB(), _plain_text_params(tmp_path), _Ctx())
 
@@ -186,13 +190,16 @@ class TestImportPopulatesIt:
         from fichero_server.models import Document
 
         doc = Document(name="top-level.jpg", parent_id=None)
-        monkeypatch.setattr(core, "import_file_impl", lambda db, params, path: doc)
+        monkeypatch.setattr(core, "import_file_impl", lambda db, params, path, **kw: doc)
 
         class _Ctx:
             library_path = str(tmp_path)
 
         class _DB:
             path = str(tmp_path / "lib.duckdb")
+
+            def unchanged_import(self, *a, **k):  # nothing imported before: a new file
+                return None
 
         _payload, spec = core._action_import_file(_DB(), _plain_text_params(tmp_path), _Ctx())
 
