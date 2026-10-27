@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -242,12 +243,31 @@ class SpacyNERProvider(BaseNERProvider):
         return records
 
 
+#: Loaded Transformers token-classification pipelines, one per model id (#5956 audit, ## 988): the provider is built per call, so the
+#: pipeline lives here, as the spaCy pipelines do (`llm.local_models._SPACY_PIPELINES`), and is kept for the life of the engine.
+_TRANSFORMERS_PIPELINES: dict[str | None, Any] = {}
+_TRANSFORMERS_LOAD = threading.Lock()
+
+
+def clear_transformers_pipelines() -> None:
+    """Forget the loaded pipelines (a model replaced, or a test): the next extract loads again."""
+    with _TRANSFORMERS_LOAD:
+        _TRANSFORMERS_PIPELINES.clear()
+
+
 @dataclass
 class TransformersNERProvider(BaseNERProvider):
     name: str = "transformers"
     model_name: str | None = "dslim/bert-base-NER"
 
     def _load_pipeline(self):
+        """The pipeline for this model id: loaded once, under a lock (two pages asking at once load it once), then reused."""
+        with _TRANSFORMERS_LOAD:
+            if self.model_name not in _TRANSFORMERS_PIPELINES:
+                _TRANSFORMERS_PIPELINES[self.model_name] = self._build_pipeline()
+            return _TRANSFORMERS_PIPELINES[self.model_name]
+
+    def _build_pipeline(self):
         # `transformers` is NOT in the embedded bundle. Say so by name rather
         # than let a bare ModuleNotFoundError reach the run log (2026-09-20).
         try:
