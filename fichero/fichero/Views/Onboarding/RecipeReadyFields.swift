@@ -126,7 +126,7 @@ struct RecipeReadyFields: View {
     }
 
     /// What the project's last ended run missed, with its offer, as its run strip has it (`source.recipe.run-again-on-what-was-missed`).
-    static func missed(in activity: ActivityStore?) -> ActivityDetails.Summary.Missed? {
+    static func missed(in activity: ActivityStore?) -> ActivityDetails.Summary.MissedOffer? {
         activity.flatMap { ProjectRunStrip(store: $0) }?.missed.flatMap { $0.offer == nil ? nil : $0 }
     }
 
