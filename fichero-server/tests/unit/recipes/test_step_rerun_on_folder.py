@@ -113,6 +113,34 @@ def test_new_material_runs_the_steps_by_itself_only_when_the_project_runs_automa
     assert len(_runs(client)) == 2 and engine.read == [], "runs by hand: the added page waits for Start"
 
 
+def test_changed_material_runs_the_steps_again_by_itself(client, db, pages, tmp_path, engine):
+    """`source.recipe.steps-follow-new-material`, changed material: after Start, a file imported again with its content
+    changed arrives as material of its own and the recipe's steps run over it alone, by themselves; the earlier page and
+    its reading are kept (a rerun is a new pass, never an overwrite)."""
+    from PIL import Image
+
+    from fichero_server.models import ContentRepresentation, Document
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])
+    path = _import(client, tmp_path, "changed.png")
+    assert _wait(lambda: len(_runs(client)) == 2)
+    assert all(_finished(client, j["job_id"])["state"] == "done" for j in _runs(client))
+    first = next(d for d in db.query(Document) if d.name == "changed.png")
+    kept = {r.id for r in db.query(ContentRepresentation, document_id=first.id)}
+    assert kept, "the first page was read"
+
+    engine.read = []
+    image = Image.open(path).convert("RGB")
+    image.putpixel((1, 1), (0, 0, 0))  # the original is replaced by a changed one
+    image.save(str(path), format="PNG")
+    assert client.post("/api/ingest/files", json={"paths": [str(path)]}).status_code == 200
+    assert _wait(lambda: len(_runs(client)) == 3), "the changed file is one more run, by itself"
+    assert all(_finished(client, j["job_id"])["state"] == "done" for j in _runs(client))
+    assert engine.read == ["changed.png"], "only the changed page"
+    assert {r.id for r in db.query(ContentRepresentation, document_id=first.id)} == kept, "the earlier reading is kept"
+
+
 def test_the_engine_fixture_stubs_read_again(engine):
     """#6222: Read Again calls `kraken_runtime.read_given_lines`; the shared fixture answers it, never real Kraken."""
     from fichero_server.llm import kraken_runtime
