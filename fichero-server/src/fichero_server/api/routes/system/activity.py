@@ -1235,7 +1235,8 @@ async def _run_page_list(db: Database, job_id: str, stage: Optional[str]) -> lis
     if held is not None and now - held[0] < _PAGE_LIST_SECONDS:
         return held[1]
     tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
-    pages = page_states(tree, stage)
+    # The grid reads in sidebar order, as done-in-order counts (#6186); the project's order is read off the loop.
+    pages = page_states(tree, stage, order=await asyncio.to_thread(db.unit_of_work_ids))
     for old_key in [k for k, (built, _) in _PAGE_LISTS.items() if now - built >= _PAGE_LIST_SECONDS]:
         del _PAGE_LISTS[old_key]
     _PAGE_LISTS[key] = (now, pages)

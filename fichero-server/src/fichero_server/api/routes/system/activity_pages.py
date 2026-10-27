@@ -51,9 +51,10 @@ def _stage_groups(tree: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     return groups
 
 
-def page_states(tree: dict[str, Any], stage: Optional[str]) -> list[dict[str, Any]]:
+def page_states(tree: dict[str, Any], stage: Optional[str], order: Optional[list[str]] = None) -> list[dict[str, Any]]:
     """The run's pages once each, in the order the lanes first handled them (reading order): `state` and `reason` in the
-    asked `stage`, else the worst across stages; `stages` is the state in each.
+    asked `stage`, else the worst across stages; `stages` is the state in each. With `order` (the project's pages in
+    sidebar order, `Database.unit_of_work_ids`), in that order, a page not in it after them (#6186).
 
     ponytail: reading order is the order of first appearance in the tree, which is the lane's order; a run whose first stage
     skipped a page lists it where a later stage first met it."""
@@ -90,6 +91,9 @@ def page_states(tree: dict[str, Any], stage: Optional[str]) -> list[dict[str, An
             shown = next(cell for cell in cells.values() if cell["state"] == worst)
         out.append({"document_id": page["document_id"], "name": page["name"], "state": shown["state"],
                     "reason": shown["reason"], "stages": {sid: cell["state"] for sid, cell in cells.items()}})
+    if order is not None:
+        place = {doc: i for i, doc in enumerate(order)}
+        out.sort(key=lambda page: place.get(page["document_id"], len(place)))  # stable: the rest keep the lane's order
     return out
 
 

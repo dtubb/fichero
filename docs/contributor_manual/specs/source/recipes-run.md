@@ -417,8 +417,9 @@ replaces the Kraken figure before #6212 is coded.
   order, so the page grid and the pages list read alphanumerically, a page finished ahead counted when
   the gap before it closes (a failed page closes its gap: it is settled and listed). Built: each stage's run
   account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract); a stage's counts say
-  "first N in order" while a page finished ahead of a gap (`ActivityDetails.countsWords`, Swift compile owed). Left: the
-  page grid reading in that order (Step 4.1, `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
+  "first N in order" while a page finished ahead of a gap (`ActivityDetails.countsWords`, Swift compile owed); the page
+  grid's read (`GET /api/activity/jobs/{id}/pages`) serves the pages in sidebar order (`Database.unit_of_work_ids`), so
+  the dots read in that order (fichero-server/tests/unit/api/test_run_page_states_5960.py). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
 - `recipes-run.order.search-entities-once-at-the-end` — **[OK]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are its halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says
