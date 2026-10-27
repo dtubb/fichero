@@ -58,3 +58,37 @@ def test_a_run_says_what_it_missed_and_running_again_reads_only_that(client, db,
     assert _finished(client, second)["state"] == "done"
     assert engine.read == ["p0.png", "p1.png"]  # the missed page only: p0 is never read twice
     assert client.get(f"/api/recipes/project/runs/{second}/summary").json()["missed"] is None
+
+
+def test_one_step_runs_again_on_one_folder_as_a_new_pass(client, db, pages, tmp_path, engine, monkeypatch):
+    """`source.recipe.step-rerun-on-folder`: a step of a started recipe runs again on one folder alone, Start with that
+    folder and the step to redo; the other folder is not read, and the folder's earlier readings are kept."""
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.models import ContentRepresentation, DocType, Document
+
+    def read_again(image_path, model_path, lines, **kw):  # Read asked again reads the lines it found (#5707)
+        engine.read.append(Path(image_path).name)
+        return [kraken_runtime.ReadLine("Yten dixo otra vez", confidence=0.9) for _ in lines]
+
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", read_again)
+
+    folders = []
+    for name, page in zip(("A", "B"), pages):
+        folder = Document(name=name, doc_type=DocType.folder)
+        db.save(folder)
+        page.parent_id = folder.id
+        db.save(page)
+        folders.append(folder)
+    _save(client, _recipe(tmp_path, *STEPS))
+    assert _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])[
+        "state"] == "done"
+    assert sorted(engine.read) == ["p0.png", "p1.png"]
+    before = {r.id for r in db.query(ContentRepresentation, document_id=pages[0].id)}
+
+    r = client.post("/api/recipes/project/start", json={"folder_id": folders[0].id, "redo": ["read"]})
+    assert r.status_code == 200, r.text
+    again = _finished(client, r.json()["started"]["job_id"])
+    assert again["state"] == "done", again
+    assert sorted(engine.read) == ["p0.png", "p0.png", "p1.png"], "folder A read again, folder B left as it was"
+    after = {r.id for r in db.query(ContentRepresentation, document_id=pages[0].id)}
+    assert before < after, "a rerun adds a reading; nothing the first run wrote is replaced"

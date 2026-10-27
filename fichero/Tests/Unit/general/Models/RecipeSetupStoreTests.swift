@@ -607,7 +607,12 @@ struct RecipeSetupStoreTests {
         #expect(store.startPlanFolderId == nil)
         #expect(await store.start())
         #expect(seen("4 POST")["bytes"] as? Int == 0, "the whole project's Start sends no body, as before")
-        #expect(RecipesMockURLProtocol.calls == 4)
+        // One step run again on the folder (#6170, `source.recipe.step-rerun-on-folder`): the folder and the step to redo.
+        #expect(await store.start(folderId: "folder-7", redo: ["lines", "read"]))
+        let again = seen("5 POST")["json"] as? [String: Any]
+        #expect(again?["folder_id"] as? String == "folder-7")
+        #expect(again?["redo"] as? [String] == ["lines", "read"])
+        #expect(RecipesMockURLProtocol.calls == 5)
     }
 
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download
