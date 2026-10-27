@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 from dataclasses import dataclass
 import logging
 import math
@@ -182,6 +183,12 @@ class EmbeddableUnit:
 _EMBEDDER_CACHE: dict[str, Any] = {}
 _EMBEDDER_CACHE_LOCK = threading.Lock()
 _EMBED_WORKER_LOCK = threading.Lock()
+#: Embeds deferred by `defer_embeddings`, and the batch waiting for `flush_deferred_embeddings`, per Database: the
+#: deferring thread's (or task's) own, so another thread's save meanwhile is embedded as usual, not swallowed into a
+#: batch a rollback drops (#6236 review).
+_DEFERRED_EMBEDS: contextvars.ContextVar[dict[int, dict] | None] = contextvars.ContextVar("deferred_embeds", default=None)
+_PENDING_EMBED_FLUSH: contextvars.ContextVar[dict[int, dict] | None] = contextvars.ContextVar(
+    "pending_embed_flush", default=None)
 
 # Tables for which the legacy-embedding warning has already been emitted this
 # process. Keyed by table name; shared across all Database instances and threads
@@ -1846,14 +1853,13 @@ class DatabaseEmbeddingMixin:
 
         @contextlib.contextmanager
         def _ctx():
-            prev = getattr(self, "_deferred_embeds", None)
-            self._deferred_embeds = {"entity": [], "claim": []}
+            pending = {"entity": [], "claim": []}
+            token = _DEFERRED_EMBEDS.set({**(_DEFERRED_EMBEDS.get() or {}), id(self): pending})
             try:
                 yield self
             finally:
-                pending = self._deferred_embeds
-                self._deferred_embeds = prev
-                self._pending_embed_flush = pending
+                _DEFERRED_EMBEDS.reset(token)
+                _PENDING_EMBED_FLUSH.set({**(_PENDING_EMBED_FLUSH.get() or {}), id(self): pending})
 
         return _ctx()
 
@@ -1861,8 +1867,9 @@ class DatabaseEmbeddingMixin:
         """Embed everything collected under ``defer_embeddings`` off-thread."""
         import threading
 
-        pending = getattr(self, "_pending_embed_flush", None)
-        self._pending_embed_flush = None
+        waiting = dict(_PENDING_EMBED_FLUSH.get() or {})
+        pending = waiting.pop(id(self), None)
+        _PENDING_EMBED_FLUSH.set(waiting)
         if not pending:
             return
 
@@ -1881,7 +1888,7 @@ class DatabaseEmbeddingMixin:
 
     def _schedule_embedding_task(self, records, *, label: str) -> None:
         """Run embedding work off-loop when possible; degrade to sync otherwise."""
-        deferred = getattr(self, "_deferred_embeds", None)
+        deferred = (_DEFERRED_EMBEDS.get() or {}).get(id(self))
         if deferred is not None:
             deferred[label if label in deferred else "claim"].extend(records)
             return
