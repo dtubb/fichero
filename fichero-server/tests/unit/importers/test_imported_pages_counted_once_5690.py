@@ -31,12 +31,12 @@ def _page(doc_id, file_type=FileType.image):
 
 
 def _count():
-    state = derivatives._progress.get(LIB)
+    state = derivatives._progress.get(derivatives._key(LIB))
     return (state["done"], state["total"]) if state else None
 
 
 def test_a_page_with_its_own_text_is_one_page():
-    derivatives._progress.pop(LIB, None)
+    derivatives._progress.pop(derivatives._key(LIB), None)
     derivatives._progress_add(LIB, 1)
     derivatives._embed_document_tree(_page("p1"), _Db(), LIB)
     assert _count() == (0, 1), "its embed is the same page, not another"
@@ -45,9 +45,9 @@ def test_a_page_with_its_own_text_is_one_page():
 
 
 def test_a_pdfs_pages_are_added_one_each():
-    derivatives._progress.pop(LIB, None)
+    derivatives._progress.pop(derivatives._key(LIB), None)
     derivatives._progress_add(LIB, 1)
     pdf = _page("book", FileType.pdf)
     derivatives._embed_document_tree(pdf, _Db([_page("b1"), _page("b2")]), LIB)
     assert _count() == (2, 3), "the book and its two pages, two of them done"
-    derivatives._progress.pop(LIB, None)
+    derivatives._progress.pop(derivatives._key(LIB), None)

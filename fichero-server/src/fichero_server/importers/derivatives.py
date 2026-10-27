@@ -217,6 +217,15 @@ _progress: dict[str, dict[str, int]] = {}
 _queue_db_paths: dict[str, str] = {}
 
 
+def _key(library: str) -> str:
+    """One queue per library, however it is spelled: the import queued under the path it was given (`/tmp/…`), the
+    stages touched and ticked under their database's (`/private/tmp/…`), and the queue read "stalled at 0 of 86" while
+    its thumbnails landed (real run 2026-10-27)."""
+    from fichero_server.db.manager import DatabaseManager
+
+    return DatabaseManager._cache_key(library)
+
+
 def _emit_queue_activity(
     db_path: str | None, *, warning: bool, message: str, done: int, total: int
 ) -> None:
@@ -274,6 +283,7 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
     ``library`` filters to one library's queue when given (the Activity view is
     per-library); None returns every active queue.
     """
+    library = _key(library) if library is not None else None
     with _progress_lock:
         active = {
             lib: dict(state)
@@ -380,6 +390,7 @@ def _arm_stall_watchdog(library: str) -> None:
     kernel, a pool wedged on something nobody predicted — and turns silence
     into a sentence.
     """
+    library = _key(library)
     global _stall_timer
     if _stall_timer is not None:
         _stall_timer.cancel()
@@ -454,6 +465,7 @@ def _disarm_stall_watchdog() -> None:
 
 
 def _progress_add(library: str, count: int, db_path: str | None = None) -> None:
+    library = _key(library)
     with _progress_lock:
         newly_created = library not in _progress
         state = _progress.setdefault(library, {"done": 0, "total": 0, "since": utc_now()})
@@ -489,6 +501,7 @@ def _progress_expand(library: str, extra: int) -> None:
     """
     if extra <= 0:
         return
+    library = _key(library)
     with _progress_lock:
         state = _progress.get(library)
         if state is None:
@@ -505,6 +518,7 @@ def _embedding(library: str | None):
     if library is None:
         yield
         return
+    library = _key(library)
     from fichero_server.db.embeddings import embedder_loaded
 
     label = "Embedding a page" if embedder_loaded() else "Loading the search model"
@@ -532,6 +546,7 @@ def _progress_touch(library: str) -> None:
     The deadline measures silence, not completions: a slow first embed or a model load completes nothing for
     minutes while the queue is busy, and "stalled at 0 of 23" nine seconds before "completed" is a false alarm.
     """
+    library = _key(library)
     with _progress_lock:
         if library not in _progress:
             return
@@ -539,6 +554,7 @@ def _progress_touch(library: str) -> None:
 
 
 def _progress_tick(library: str) -> None:
+    library = _key(library)
     with _progress_lock:
         state = _progress.get(library)
         if state is None:
