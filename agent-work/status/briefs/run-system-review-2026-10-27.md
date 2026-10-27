@@ -128,7 +128,7 @@ load.
 - A **Build order** in the guard's shape: BROKEN first (Stage 1), then the engine summary (2), the window
   (3), the Mac's work and efficiency (4), parked (5). Guards: `check_spec_broken_has_issue` OK,
   `check_spec_behaviors_are_tagged` OK, `check_spec_build_order_shape` warns only on PARTIAL lines (DRAFT).
-- Counts now: 13 BROKEN, 35 GAP.
+- Counts now: 13 BROKEN, 38 GAP (three added by section 7).
 
 Issues: every BROKEN and GAP line already cited an issue; 32 of those issues did not name the line id,
 so each got one comment binding the ids (#6005, #5359, #4949, #5960, #5839, #5354, #5245, #6001,
@@ -218,3 +218,104 @@ the row says while it waits, and what the summary counts.
 - Whether utility-QoS threads land on the efficiency cores on this Mac is INFERRED, not measured;
   `powermetrics` during a run settles it in a minute.
 - The Swift one-bar window is read from source, not seen in a build.
+
+## 7. The owner's added questions (2026-10-27, afternoon)
+
+**11. Cloud runs and batching.** Same run model: a cloud page or text call is a row on the network lane
+(`llm/__init__.py:1636-1646`, VERIFIED), four at once for the whole Mac with a share per provider
+(`execution/jobs.py:105`; `activity.run.lane-cap-per-mac`), its cost on the row from the price list and
+rolled up the tree. No Batch API path: a batch-only model is refused at validation
+(`workflows/validation.py:337`). Inside a recipe batch a hosted reading step may run beside the local
+one (`runner.py:1297` `_beside`), the one overlap. *Where to draw the line:* finish lines locally (the
+segmenter has no cloud twin, and the images are the heavy part); let Read, Translate, Names, Statements
+and Catalogue go to the cloud when the local step's measured seconds a page
+(`recipes-run.timing.per-step-recorded`) pass a threshold the plan states; raise the network lane to the
+provider's limit; add the Batch API for runs nobody waits for. Filed #6233; decision 5.
+
+**12. Logical progression.** Yes, forward only. `_blocked` (`runner.py:1640`) holds a step only on what
+it takes from an earlier step of this run, by declared `takes`/`gives`, and says which; a kind no earlier
+step gives is the material's own and never waited for. Stalls that remain, all said in words: a download
+under way at Start (`_await_downloads`, `:931`), Pause between steps (`_wait_out_a_pause`), a step parked
+on its paused run (`ParkedOnStepRun`, #5933), and the thumbnails-first hold (bounded by #6203/#6213).
+Nothing goes back: a batch's finished steps are saved as they end and a resume skips them.
+
+**13. Sidebar order.** One key, three places that use it. `core/naturalsort.py` `natural_key` (digits
+numeric, `2` before `10`) and `in_folder_order` (a person's `sort_order`, then `sequence` in the file, then
+the natural name, then id); `Database.unit_of_work_ids` (`db/__init__.py:5470`) walks the path from the
+root with that key, so two `Folder 1`s in different boxes stay apart; a Start queues pages in that order
+(`recipes-run.order.folders-then-pages-queued`); the page grid asks for it
+(`activity.py:1239` passes `unit_of_work_ids` to `page_states`, VERIFIED), with the lanes' first-seen order
+only as the fallback for a page outside the list. Not checked here: that the Swift sidebar's sort is the
+same key (the spec's #5693 says every surface shares it). No gap found.
+
+**14. Redo.** Engine yes, app no. `runner.enqueue(redo=[...])` redoes named steps on done pages
+(`runner.py:128-136`, `_asked_again` `:1325`); its only caller is `scripts/realrun_check.py --redo`. A
+person has Retry on a page, Read Again on a run's failed pages, and Run again on what was missed; none
+redoes a done step. By itself on a change: the re-embed and the names re-read after a correction
+(`activity.auto.reembed-on-change`, `.reextract-on-change`); a model's claims are not withdrawn on a
+re-run (left in #5361). Filed #6231 (`activity.redo.one-way-per-step`).
+
+**15. Spending.** Per run and per page yes; per step half. The job tree carries `cost_usd` on every
+node, null unless every call is priced (`activity.jobs-are-a-tree`); the run status carries each step's
+seconds and seconds a page and names the slowest step (`run_view.py:107-192`); the Activity row shows
+the run's cost at its right edge. Missing: each step's money on the status beside its seconds (filed
+#6234 on recipes-run, a proposed line), the run's cost so far on the live block
+(`activity.summary.cost-so-far`, #5960), and the estimate before Start (`activity.run.where-and-estimate`).
+
+**16. No skipped steps, no duplicate work.** Steps: a step is never silently skipped; it runs, or is
+"not run" with why (`_blocked`), pinned for all ten (`test_every_step_says_why_it_did_not_run.py`).
+Duplicates, as built: embedding once per text version (`runtime.embed.once-per-text-version`,
+`db/embeddings.py:610, 832`) and once at the end of a recipe batch (ruling 5); a thumbnail job whose file
+exists ends done (`jobs.settle_made_thumbnails`, `:1563`); one live read per page (#5848); a page already
+read is a cache hit on Retry; the NLP draft keeps `nlp_text_sha` (`derivatives.py:1042`). Segment (line
+and region) pictures are cached: `media/segment_pictures.py:95` keys a picture on the segment's geometry
+and the options, `existing_picture` (`:114`) finds it as a rendition row with that key, and an edited
+segment is a new key, so nothing is rebuilt that has not changed (VERIFIED). The one gap the spec already
+carries: the inputs fingerprint as a general rule (`activity.durable.nothing-twice`, #5357).
+
+**17. Per-step deep reviews: done or owed.** "Done" means spec lines, run-side and not-run tests, and a
+real run that exercised the step and left its findings in an issue. All ten steps have the two tests
+(`test_a_run_through_every_step.py`, `test_every_step_says_why_it_did_not_run.py`).
+
+| Step | Real runs with findings | Status | Order |
+|---|---|---|---|
+| Image prep (thumbnails, split) | dogfood B12, M4 (#6193, #6203, #5690) | done | — |
+| Lines (regions, lines) | M4 and the Pro (#6075, #6076, #5846, #5929, #6219) | done; the cores line (#6229) is new | — |
+| Leave out | tests only | owed | 4 |
+| Read | M4 (#6219, #5848, #5932, #6125) | done | — |
+| Translate / normalise | tests only (#5921 text-reflow found by the M4 pause tests) | owed | 5 |
+| Names | #5690 (drafts starved the step) | partly; the spaCy-in-a-step row is open | 1 |
+| Dates | tests only | owed | 6 |
+| Documents | #5609 (Stop keeps finished folders) | partly | 3 |
+| Statements | tests only | owed | 7 |
+| Vector | M4 (#6218, #6186, #6221) | done | — |
+| Catalogue | #6087 (deepest first) | partly | 2 |
+
+Order for the owed ones: Names, Catalogue, Documents, Leave out, Translate/normalise, Dates, Statements:
+the first three run on every project and touch the cloud and the graph; the last four are cheap and
+local or rarely on.
+
+**18. Deleting a folder, and undoing it.** Read from `api/routes/document/documents.py` and the trash spec
+(`safety/trash.md`; cross-references, not repeated: `safety.trash.dependants-go-with-their-source`
+[PARTIAL] hidden-not-deleted, `safety.trash.every-read-leaves-it-out` [GAP], `safety.trash.put-back`
+[PARTIAL], `undo.offered-after-a-removal` [GAP]).
+- *Runs and queued jobs on the folder's pages.* Delete is soft (`delete_document_impl`, `:3223`, sets
+  `deleted_at` on the subtree and nothing else, VERIFIED). A Start after it plans live pages only
+  (`unit_of_work_ids`); a folder trashed after Start planned is an empty scope (`runner.py:1365`); the
+  import's stages skip a trashed page (`derivatives.py:771, 858, 984, 1048`). A Kraken, served-model or
+  fan-out page already queued or running is NOT checked (INFERRED from the absence of any `deleted_at`
+  read in `execution/jobs.py`, `workflows/builder.py`, `vision_base.py`): it reads the hidden page, saves
+  its result on it, and Activity says nothing of the Trash. Nothing stops, so nothing fails and nothing
+  says why.
+- *Readings, names, embeddings, thumbnails, cost record.* Kept, hidden: every row stays, the job rows
+  (the cost record, `jobs_on_subjects`) stay; search leaves a trashed page out (`search/core.py:404,
+  1816`); only a purge deletes the vectors (`:3300`).
+- *Undo or Put Back.* `restore_documents_impl` (`:3321`) clears `deleted_at` and queues nothing: no model
+  pass, no re-embed, no thumbnail remade (VERIFIED). Everything is as it was. A run was not stopped by the
+  delete, so nothing offers Run again on what was missed; after Put Back the pages read mid-trash are done.
+Filed #6232 (`activity.run.trashed-pages-leave-the-run`): a queued page in the Trash ends skipped with
+that reason, a page mid-read keeps its result hidden, the summary offers Run again on what was missed.
+
+**Decision 5. Where the local/cloud line is drawn** (#6233). *Recommend:* lines always local; the text
+steps to the cloud when the local pace measured on the run passes a stated threshold; the network lane at
+the provider's limit; the Batch API for runs nobody waits for.

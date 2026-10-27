@@ -1908,6 +1908,29 @@ and node, not by job); a retry action for failed pages.
   to add later.
 - `activity.derived.recompute-is-one-step` — **[GAP]** (→ #5245) a recompute's swap is one recorded
   step with its run id and can be taken back.
+- `activity.redo.one-way-per-step` — **[GAP]** (#6231; run-system review 2026-10-27) one control redoes a recipe
+  step on pages already done: Redo this step on Set Up's stage page and on the run's stage row, which is
+  `runner.enqueue(redo=[step])` on the project or the folder (built in the engine, `recipes/runner.py:128-136`,
+  `_asked_again` `:1325`; its only caller is `scripts/realrun_check.py --redo`; no route, no app control); the row
+  says it runs on done pages and why. What redoes by itself on a change stays as built: the re-embed and the
+  names re-read after a correction (`activity.auto.reembed-on-change`, `activity.auto.reextract-on-change`).
+- `activity.run.trashed-pages-leave-the-run` — **[GAP]** (#6232; run-system review 2026-10-27; see
+  `safety.trash.dependants-go-with-their-source`, `safety.trash.put-back`,
+  `recipes-run.journey.run-again-on-what-was-missed`) a queued page whose document is in the Trash ends
+  `skipped`, "Skipped: the page was moved to the Trash", and the run goes on; a page mid-read finishes and its
+  result stays hidden with the page, so Put Back costs no model pass, embed or thumbnail; the summary counts the
+  skipped pages under that reason and offers Run again on what was missed, which after Put Back reads only what
+  was not done. Built: delete is soft and keeps every derived row and job row (`documents.py:3223`), Put Back
+  queues nothing (`:3321`), a Start after the delete plans live pages only (`Database.unit_of_work_ids`), the
+  derivative stages skip a trashed page (`derivatives.py:771, 858, 984, 1048`). Not built (INFERRED, no
+  `deleted_at` check in `execution/jobs.py`, `workflows/builder.py`, `vision_base.py`): a Kraken, served-model or
+  fan-out page already queued keeps reading a trashed page, and Activity says nothing of the Trash.
+- `activity.run.cloud-batch` — **[GAP]** (#6233; a decision for the maintainer) a step a person is not waiting
+  for may go to a provider's Batch API (half price, answered within a day), said on the row, and the network
+  lane's width is the provider's stated limit, not four. Built: a cloud step is the same run model (a row on the
+  network lane per page or call, `llm/__init__.py:1636-1646`, four at once per Mac with a provider share, its
+  cost on the row); a batch-only model is refused (`workflows/validation.py:337`). Where the line is drawn
+  (lines local, the text steps to the cloud when the local pace is slow) is decision 5 of the report.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
@@ -2340,6 +2363,17 @@ nothing here depends on them except where said.
 - Behaviours: `activity.run.where-and-estimate`, `activity.recipe.declares-automatic`, `activity.derived.recompute-is-one-step`
 - Tests: fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py
 - Size: M
+
+#### Step 4.6 — Trashed pages leave the run; Redo a step (#6232, #6231)
+- Behaviours: `activity.run.trashed-pages-leave-the-run`, `activity.redo.one-way-per-step`
+- Tests: fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py, fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py
+- Depends on: 1.4
+- Size: M
+
+#### Step 5.3 — Cloud batch and the network lane's width (#6233)
+- Behaviours: `activity.run.cloud-batch`
+- Tests: fichero-server/tests/unit/jobs/test_provider_share.py
+- Size: S
 
 #### Step 5.2 — The folded asks (#2277, #5116, #5117)
 - Behaviours: `activity.columns-move-into-activity-view`, `activity.step-click-jumps-to-comparison`, `activity.run-control-is-global`, `activity.simple-for-its-reader`
