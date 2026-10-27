@@ -240,14 +240,19 @@ replaces the Kraken figure before #6212 is coded.
   `FICHERO_LOAD_LEG_PAGES` names a folder of 100+ pages) and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.reliability.a-page-never-spins-silently` — **[PARTIAL]** (#6236) no page holds a step without a
   word: the names step (Extract Entities) gives each page a time limit (300 s; a page takes 1-4 s) for its model or
-  spaCy call. Past it the page is left out of the step's summary with "names on page X took over 300 s; skipped, as
-  spaCy (or the names model) did not finish in that time, so Run again on what was missed offers it", the log carries
-  every thread's stack, the page is not noted done, and the step goes on; a step whose every page stalled fails in
-  those words. Was: on the M4 106-page run (864293bd3) Extract Entities read pages 1-86 in 1-4 s each, then held one
-  core at 100% for 20+ minutes on page 87, logging nothing. Left: the spin itself is not named (spaCy reads unspaced,
-  combining-mark Kraken text in under 0.03 s; the step's regexes are linear), a spaCy thread past the limit cannot be
-  stopped and keeps the spaCy turn so the pages after it may stall too, and the other per-page steps have no such
-  limit yet. Test: fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py.
+  spaCy call, and again for writing its names, checked between names so the writing really stops and holds no core or
+  DB writer past it. Past it the page is left out of the step's summary with "names on page X took over 300 s;
+  skipped, as spaCy (or the names model, or writing its names) did not finish in that time, so Run again on what was
+  missed offers it", the log carries every thread's stack, the page is not noted done, and the step goes on to the
+  next page; a step whose every page stalled fails in those words. And a new name costs about the same on page 87 as on
+  page 1: the fuzzy match keeps each stored name's keys and skips a stored name its cheap bounds rule out (one name
+  against 5000 stored entities: 0.31 s before, under 0.04 s now). Was: on the M4 106-page run (864293bd3) Extract
+  Entities read pages 1-86 in 1-4 s each, then held one core at 100% for 20+ minutes on page 87, logging nothing; the
+  spin was the names' writing against the grown entity table, which ran after the timed call. Left: each new name
+  still reads every stored entity of its type (about 0.05 s per 1000), a spaCy call past the limit can't be stopped
+  (one page's pipeline, under 0.1 s), and the other per-page steps have no such limit yet. Tests:
+  fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py,
+  fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py.
 - `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:
   every database read of a poll runs on a worker thread, and a poll under a held writer answers with what
@@ -534,7 +539,7 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 
 #### Step 2.3 — Measure, then the ceiling and the load leg (#6076, #6212)
 - Behaviours: `recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`, `recipes-run.reliability.hundred-pages-finish`, `recipes-run.reliability.a-page-never-spins-silently`
-- Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py, fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py
+- Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py, fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py, fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py
 - Depends on: 1.1, 2.1, 2.2
 - Size: M
 
