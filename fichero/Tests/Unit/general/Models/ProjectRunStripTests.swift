@@ -205,6 +205,26 @@ final class ProjectRunStripTests: XCTestCase {
 
     // MARK: - source.onboard.auto.lands-on-the-run (#5576)
 
+    func testStrip_aRunOnFewerPagesThanTheProject_saysStartsCountOfWhatWasDone() async throws {
+        // WHY: Start said 95 pages and the run went on 58, with no reason on the strip (#6091, dogfood B12).
+        let store = Self.store()
+        var tree = try Self.runningTree()
+        var stages = try XCTUnwrap(tree["stages"] as? [[String: Any]])
+        stages[0]["note"] = "already done on 37 of 95 pages; runs on the other 58"
+        tree["stages"] = stages
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store))
+        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · already done on 37 of 95 pages; runs on the other 58 · "
+                       + "\(ActivityMonitorRow.duration(120)) left · Waiting: memory is tight")
+    }
+
     func testStrip_whileTheRunGoes_saysItsStagePagesTimeLeftAndWhatItWaitsFor() async throws {
         // WHY: after Start the project window said nothing; the run was only in the Activity window.
         let store = Self.store()

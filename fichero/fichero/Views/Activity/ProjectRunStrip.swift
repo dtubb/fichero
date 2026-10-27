@@ -103,6 +103,8 @@ struct ProjectRunStrip: Equatable {
             let stage = stages[running]
             var parts: [String] = []
             if let counts = stage.counts { parts.append(counts) }
+            // Start's own count of what was already done, so a run on 58 of 95 pages says why (#6091).
+            if let note = stage.note { parts.append(note) }
             if let timeLeft = stage.timeLeft { parts.append("\(timeLeft) left") }
             // Only the stage's own wait: while a stage runs, the run's reason is its progress ("Running the
             // recipe: 3 of 800 folders done"), shown as the folders count, never as a wait.
