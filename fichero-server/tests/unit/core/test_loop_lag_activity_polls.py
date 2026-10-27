@@ -124,3 +124,18 @@ def test_activitys_job_tree_answers_under_a_held_writer(db):
     assert took < 1.0, took
     assert tree.reason != "writing", tree
 
+
+
+def test_a_write_that_returns_rows_still_waits_for_the_writer(db):
+    """Committed reads are SELECTs only: an UPDATE ... RETURNING through `execute_fetchall` (stale-run recovery) keeps
+    the transaction gate, never the READ cursor beside a held writer."""
+    from fichero_server.db import committed
+
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+
+    def write():
+        with committed(db):
+            return db.execute_fetchall("UPDATE jobs SET reason = 'recovered' WHERE id = ? RETURNING id", [run_id])
+
+    _rows, took = _under_a_held_writer(db, run_id, write)
+    assert took > 2.0, took

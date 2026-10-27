@@ -1888,7 +1888,8 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
-        if fetch is not None and _COMMITTED_READS.get() and not self.in_transaction:
+        if (fetch is not None and _COMMITTED_READS.get() and not self.in_transaction
+                and sql.split(None, 1)[0].upper() in ("SELECT", "WITH")):  # an UPDATE ... RETURNING keeps the gate
             rows, _columns = self._read_fetch_with_columns(sql, params)
             return rows if fetch == "all" else (rows[0] if rows else None)
         self._ensure_transaction_started()
