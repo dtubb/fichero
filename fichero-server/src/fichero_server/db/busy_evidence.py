@@ -75,28 +75,52 @@ def _all_stacks() -> str:
                      for ident, frame in sys._current_frames().items())
 
 
-def _check_held_versions(alarmed: set[str]) -> None:
-    """Say once, per open instance, when its undo passes the share; again only after it fell back under it."""
+def _live_instances() -> list[tuple[str, object]]:
     from fichero_server.core import duckdb_session
 
     with duckdb_session._instances_lock:
         instances = [(key, list(refs)) for key, refs in duckdb_session._instances.items()]
-    for key, refs in instances:
-        conn = duckdb_session._live(refs)
-        if conn is None:
-            continue
-        # The spill is read off the disk: duckdb_temporary_files() waits behind a running statement, which would
-        # blind this watchdog to the very statement it is there to name.
-        held, limit, temp_dir = conn.cursor().execute(
-            "SELECT (SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() WHERE tag = 'TRANSACTION'), "
-            "current_setting('memory_limit'), current_setting('temp_directory')").fetchall()[0]
+    return [(key, conn) for key, refs in instances if (conn := duckdb_session._live(refs)) is not None]
+
+
+#: Each instance's temp folder, read once: a scalar setting touches no storage, so the read never stands in a
+#: CHECKPOINT's way (a table or duckdb_memory() read does, reviewer b22).
+_temp_dirs: dict[str, str] = {}
+
+
+def _check_spill(alarmed: set[str]) -> None:
+    """Say once per instance when its spill passes SPILL_ALARM_BYTES; again only after it fell back under. Read off the
+    disk, never through DuckDB, so it may run every tick beside any writer."""
+    for key, conn in _live_instances():
+        if key not in _temp_dirs:
+            try:
+                _temp_dirs[key] = conn.cursor().execute("SELECT current_setting('temp_directory')").fetchall()[0][0]
+            except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+                continue
+        temp_dir = _temp_dirs[key]
         spilled = sum(f.stat().st_size for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
         if spilled <= SPILL_ALARM_BYTES:
             alarmed.discard(f"spill:{key}")
         elif f"spill:{key}" not in alarmed:
             alarmed.add(f"spill:{key}")
-            logger.warning("DuckDB spilled %d MiB to disk for %s (memory limit %s): every read of it now goes to disk",
-                           spilled // 1024**2, key, limit)
+            logger.warning("DuckDB spilled %d MiB to disk for %s: its work no longer fits its memory limit, and every "
+                           "read of it now goes to disk", spilled // 1024**2, key)
+
+
+def _check_held_versions(alarmed: set[str]) -> None:
+    """Say once, per open instance, when its undo passes the share; again only after it fell back under it. Reads
+    duckdb_memory(), which makes a CHECKPOINT beside it fail ("other write transactions active", reviewer b22): so it runs
+    only while a statement is already past the slow threshold, never on every tick."""
+    from fichero_server.core import duckdb_session
+
+    instances = _live_instances()
+    for key, conn in instances:
+        try:
+            held, limit = conn.cursor().execute(
+                "SELECT (SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() WHERE tag = 'TRANSACTION'), "
+                "current_setting('memory_limit')").fetchall()[0]
+        except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+            continue
         limit_bytes = duckdb_session.parse_size(limit.replace(" ", ""))
         if held < limit_bytes * HELD_VERSIONS_SHARE:
             alarmed.discard(key)
@@ -132,6 +156,13 @@ def _check_rss(said: set[float]) -> None:
                        "kept grows with the run", peak / 1024**3, max(passed) * 100, total / 1024**3)
 
 
+def _tick(alarmed: set[str], rss_said: set[float], *, slow: bool) -> None:
+    _check_rss(rss_said)  # getrusage: no DuckDB
+    _check_spill(alarmed)  # the disk, and one scalar setting once per instance
+    if slow:  # a statement is past the threshold: the held versions are the likeliest why, worth the one read
+        _check_held_versions(alarmed)
+
+
 def _watch() -> None:
     reported: set[int] = set()
     alarmed: set[str] = set()
@@ -147,8 +178,7 @@ def _watch() -> None:
             reported.add(token)
             logger.warning("slow DuckDB statement: %.1fs on %s: %s\n%s", now - started, thread, sql[:500], _all_stacks())
         try:
-            _check_rss(rss_said)
-            _check_held_versions(alarmed)
+            _tick(alarmed, rss_said, slow=bool(reported))
         except Exception as exc:  # noqa: BLE001 -- a watchdog that dies says nothing ever again
             if str(exc) not in failed:  # said once per kind of failure, not every second
                 failed.add(str(exc))

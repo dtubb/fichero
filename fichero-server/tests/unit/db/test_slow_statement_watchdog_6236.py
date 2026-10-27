@@ -53,9 +53,12 @@ def _limit_bytes(db) -> int:
     return parse_size(db.execute_fetchone("SELECT current_setting('memory_limit')")[0].replace(" ", ""))
 
 
-def test_undo_held_by_an_open_transaction_is_said_once_though_no_statement_is_slow(db, caplog, monkeypatch):
-    """WHY: on the M4 the names pages went from 1 s to 300 s while no single statement ran 10 s: an open snapshot kept
-    every update's undo, which spilled. The watchdog says so, with every thread's stack, once."""
+def test_undo_held_by_an_open_transaction_is_said_once_beside_a_slow_statement(db, caplog, monkeypatch):
+    """WHY: on the M4 the names pages went from 1 s to 300 s: an open snapshot kept every update's undo, which spilled.
+    The watchdog says so, with every thread's stack, once -- read only while a statement is past the threshold, since a
+    duckdb_memory() read beside a writer makes a CHECKPOINT fail (reviewer b22). With no slow statement the same case
+    says itself as the spill (`test_rss_and_spill_logged_6236.py`) and the climbing page time
+    (`test_page_time_climbing_is_logged.py`)."""
     caplog.set_level(logging.WARNING, logger=busy_evidence.__name__)
     monkeypatch.setattr(busy_evidence, "HELD_VERSIONS_SHARE", 4 * 1024**2 / _limit_bytes(db))  # 4 MiB
     db.execute("CREATE TABLE held (id INTEGER PRIMARY KEY, body VARCHAR)")
@@ -66,7 +69,7 @@ def test_undo_held_by_an_open_transaction_is_said_once_though_no_statement_is_sl
     try:
         for i in range(400):
             db.execute("UPDATE held SET body = ? WHERE id = 1", ["x" * 20_000 + str(i)])
-        time.sleep(1.0)
+        db.execute_fetchone("SELECT slow_sleep(1.5)")  # past the threshold, and past a 1 s tick
         [record] = _held_records(caplog)
         assert "a transaction or a result left open" in record.getMessage()
         assert "MainThread" in record.getMessage()

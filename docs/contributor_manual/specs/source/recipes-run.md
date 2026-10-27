@@ -529,11 +529,16 @@ replaces the Kraken figure before #6212 is coded.
   something let it go mid-run" at WARNING (past that it is an idle release and a fresh load). The engine's peak RSS
   logs "engine RSS reached N GiB, past P% of this Mac's M GiB" once for each of a quarter, a half and three quarters
   of its memory; a library's DuckDB spill past 1 GiB logs "DuckDB spilled N MiB to disk for <library>" once, again
-  only after it fell back under (read off its temp folder: DuckDB's own table waits behind a running statement).
+  only after it fell back under (read off its temp folder: DuckDB's own table waits behind a running statement). The
+  held old row versions (transaction memory) are read only while a statement is past the slow threshold: a
+  duckdb_memory() read beside a writer made a CHECKPOINT fail ("other write transactions active", 184 of 300); with
+  no slow statement, held versions that grow show as the spill and the climbing page time. Nothing the watchdog reads
+  on its every-second tick touches a table (test_watchdog_never_fails_a_checkpoint_6236.py).
   Left: the real 100-page run read from these lines. Tests:
   fichero-server/tests/unit/activity/test_page_time_climbing_is_logged.py,
   fichero-server/tests/unit/core/test_model_load_logged.py,
-  fichero-server/tests/unit/db/test_rss_and_spill_logged_6236.py.
+  fichero-server/tests/unit/db/test_rss_and_spill_logged_6236.py,
+  fichero-server/tests/unit/db/test_watchdog_never_fails_a_checkpoint_6236.py.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

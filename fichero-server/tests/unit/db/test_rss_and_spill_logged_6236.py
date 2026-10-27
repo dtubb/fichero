@@ -36,8 +36,8 @@ def test_spill_says_once_per_instance(caplog, monkeypatch, tmp_path):
     try:
         alarmed: set[str] = set()
         with caplog.at_level(logging.WARNING, logger=busy_evidence.__name__):
-            busy_evidence._check_held_versions(alarmed)
-            busy_evidence._check_held_versions(alarmed)
+            busy_evidence._check_spill(alarmed)
+            busy_evidence._check_spill(alarmed)
         lines = [r.getMessage() for r in caplog.records  # this thread's: a running watchdog says it too, once
                  if r.threadName == threading.current_thread().name and "DuckDB spilled" in r.getMessage()]
         assert len([x for x in lines if "spill.duckdb" in x]) == 1, lines
