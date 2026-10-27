@@ -507,9 +507,14 @@ replaces the Kraken figure before #6212 is coded.
   a new baseline; kept per node for the process, so a run in folder batches is one series. A model load (Kraken's
   segmenter and reader, the search embedder, a spaCy pipeline) logs "model-lane: loaded <model> in N s (load K in this
   engine)", and the first time a model is loaded again within 10 minutes of its last load, "model loaded again: ...:
-  something let it go mid-run" at WARNING (past that it is an idle release and a fresh load). Left: RSS and the spill
-  size. Tests: fichero-server/tests/unit/activity/test_page_time_climbing_is_logged.py,
-  fichero-server/tests/unit/core/test_model_load_logged.py.
+  something let it go mid-run" at WARNING (past that it is an idle release and a fresh load). The engine's peak RSS
+  logs "engine RSS reached N GiB, past P% of this Mac's M GiB" once for each of a quarter, a half and three quarters
+  of its memory; a library's DuckDB spill past 1 GiB logs "DuckDB spilled N MiB to disk for <library>" once, again
+  only after it fell back under (read off its temp folder: DuckDB's own table waits behind a running statement).
+  Left: the real 100-page run read from these lines. Tests:
+  fichero-server/tests/unit/activity/test_page_time_climbing_is_logged.py,
+  fichero-server/tests/unit/core/test_model_load_logged.py,
+  fichero-server/tests/unit/db/test_rss_and_spill_logged_6236.py.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

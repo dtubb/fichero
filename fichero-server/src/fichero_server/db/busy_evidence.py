@@ -15,6 +15,7 @@ import threading
 import time
 import traceback
 from contextlib import contextmanager
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +85,18 @@ def _check_held_versions(alarmed: set[str]) -> None:
         conn = duckdb_session._live(refs)
         if conn is None:
             continue
-        held, limit = conn.cursor().execute(
+        # The spill is read off the disk: duckdb_temporary_files() waits behind a running statement, which would
+        # blind this watchdog to the very statement it is there to name.
+        held, limit, temp_dir = conn.cursor().execute(
             "SELECT (SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() WHERE tag = 'TRANSACTION'), "
-            "current_setting('memory_limit')").fetchall()[0]
+            "current_setting('memory_limit'), current_setting('temp_directory')").fetchall()[0]
+        spilled = sum(f.stat().st_size for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
+        if spilled <= SPILL_ALARM_BYTES:
+            alarmed.discard(f"spill:{key}")
+        elif f"spill:{key}" not in alarmed:
+            alarmed.add(f"spill:{key}")
+            logger.warning("DuckDB spilled %d MiB to disk for %s (memory limit %s): every read of it now goes to disk",
+                           spilled // 1024**2, key, limit)
         limit_bytes = duckdb_session.parse_size(limit.replace(" ", ""))
         if held < limit_bytes * HELD_VERSIONS_SHARE:
             alarmed.discard(key)
@@ -97,10 +107,36 @@ def _check_held_versions(alarmed: set[str]) -> None:
                            held // 1024**2, key, limit, len(instances), _all_stacks())
 
 
+#: DuckDB's temporary files past this: the work no longer fits its memory limit and reads come back from disk.
+SPILL_ALARM_BYTES = 1024**3
+#: The engine's peak RSS past each of these shares of this Mac's memory says so once.
+RSS_SHARES = (0.25, 0.5, 0.75)
+
+
+def _peak_rss_bytes() -> int:
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024  # bytes on macOS, KiB on Linux
+
+
+def _check_rss(said: set[float]) -> None:
+    """Say the highest share of this Mac's memory the engine's peak RSS newly passed (a model load, a growing cache)."""
+    from fichero_server.core.duckdb_session import physical_memory_bytes
+
+    total, peak = physical_memory_bytes(), _peak_rss_bytes()
+    passed = [s for s in RSS_SHARES if total and peak > s * total and s not in said]
+    if passed:
+        said.update(passed)
+        logger.warning("engine RSS reached %.1f GiB, past %d%% of this Mac's %.0f GiB: a model, a cache or a result "
+                       "kept grows with the run", peak / 1024**3, max(passed) * 100, total / 1024**3)
+
+
 def _watch() -> None:
     reported: set[int] = set()
     alarmed: set[str] = set()
     failed: set[str] = set()
+    rss_said: set[float] = set()
     while True:
         time.sleep(min(1.0, SLOW_STATEMENT_SECONDS / 4))
         now = time.monotonic()
@@ -111,6 +147,7 @@ def _watch() -> None:
             reported.add(token)
             logger.warning("slow DuckDB statement: %.1fs on %s: %s\n%s", now - started, thread, sql[:500], _all_stacks())
         try:
+            _check_rss(rss_said)
             _check_held_versions(alarmed)
         except Exception as exc:  # noqa: BLE001 -- a watchdog that dies says nothing ever again
             if str(exc) not in failed:  # said once per kind of failure, not every second

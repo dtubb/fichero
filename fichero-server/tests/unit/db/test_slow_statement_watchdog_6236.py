@@ -28,7 +28,7 @@ def _slow_records(caplog):
 
 def test_a_statement_past_the_threshold_logs_its_sql_thread_and_every_stack(db, caplog):
     caplog.set_level(logging.WARNING, logger=busy_evidence.__name__)
-    db.execute_fetchone("SELECT slow_sleep(0.8) AS waited_6236")
+    db.execute_fetchone("SELECT slow_sleep(1.5) AS waited_6236")  # past one 1 s tick of a watchdog already running
     [record] = _slow_records(caplog)
     message = record.getMessage()
     assert "waited_6236" in message
