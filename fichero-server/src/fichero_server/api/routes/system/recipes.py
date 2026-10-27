@@ -2742,6 +2742,8 @@ class StartParams(BaseModel):
                             "their output (`source.recipe.done-is-not-redone`)")
     folder_id: Optional[str] = Field(default=None, description="run on this folder alone "
                                      "(`source.recipe.folder-scoped-start`); null: the whole project")
+    documents: Optional[list[str]] = Field(default=None, description="run on these pages alone, as a run's `missed` "
+                                           "names them (#6170); never with `folder_id`")
     clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
                                 "Start may use, by name (the route's own, owner-only): the project's cluster binds "
                                 "only to one of them")
@@ -2756,6 +2758,9 @@ class StartRequest(BaseModel):
     folder_id: Optional[str] = Field(default=None, description=(
         "run the whole recipe on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); null: the whole project"))
+    documents: Optional[list[str]] = Field(default=None, description=(
+        "run the recipe on these pages alone, as a finished run's `missed.documents` names them "
+        "(source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`"))
     accept_unpriced: list[str] = Field(default_factory=list, description=(
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
@@ -2808,6 +2813,7 @@ async def start_project(
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         _accept_asked(db, request.accept_unpriced if request else [], folder_id, _cluster_names(http), ctx)
         registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+                                              "documents": request.documents if request else None,
                                               "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -3085,6 +3091,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
     if params.withdraw:
         record = None
     else:
+        if params.documents is not None and params.folder_id:
+            raise ValueError("Start takes a folder or some pages, not both")
         try:
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
@@ -3106,7 +3114,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=started_by_for(ctx), redo=params.redo,
+            "job_id": runner.enqueue(db, plan, documents=params.documents, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id),
             "folder_id": params.folder_id,
         }

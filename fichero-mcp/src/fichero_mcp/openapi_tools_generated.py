@@ -6630,11 +6630,12 @@ def fichero_recipes_get_start_plan(
 def fichero_recipes_start_project(
     *,
     accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
+    documents: Annotated[Optional[list[Any]], Field(description="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`.")] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "folder_id": folder_id, "redo": redo}))
 
 
 def fichero_recipes_use_installed_instead(

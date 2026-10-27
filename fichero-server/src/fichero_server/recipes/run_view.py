@@ -361,12 +361,16 @@ class Missed(BaseModel):
     words: str = Field(description="what was not finished, in words, shown as given")
     offer: str = Field(default="Run again on what was missed", description="the action's label")
     folder_id: Optional[str] = Field(description="the run's scope, as POST /api/recipes/project/start takes it; null: the project")
+    documents: Optional[list[str]] = Field(default=None, description=(
+        "the run's pages when it covered some alone (a run an import started), as Start takes them back in `documents`; "
+        "null: the scope is `folder_id`"))
 
 
 _UNFINISHED = ("failed", "not run", "cancelled", "partial")
 
 
-def missed(steps: list[RecipeRunStep], pages: int, folder_id: Optional[str]) -> Optional[Missed]:
+def missed(steps: list[RecipeRunStep], pages: int, folder_id: Optional[str],
+           documents: Optional[list[str]] = None) -> Optional[Missed]:
     """Each stage that left pages not done (its account's pages not done, a failed page included, as a stage "done" with
     failures has; all the run's pages when a stage that did not finish has no account); None when none did."""
     said = []
@@ -377,7 +381,7 @@ def missed(steps: list[RecipeRunStep], pages: int, folder_id: Optional[str]) -> 
             left = pages if s.state in _UNFINISHED else 0
         if left:
             said.append(f"{_plural(left, 'page')} not done by {s.title or ', '.join(s.steps)}")
-    return Missed(words="; ".join(said), folder_id=folder_id) if said else None
+    return Missed(words="; ".join(said), folder_id=folder_id, documents=documents) if said else None
 
 
 class RecipeRunSummary(BaseModel):
@@ -864,7 +868,8 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     ran = await asyncio.to_thread(_tail, db, made, status, pages, counts)
     made.lines = _lines(made, pages_split, ran)
     if made.finished:
-        made.missed = missed([RecipeRunStep(**s) for s in status["steps"]], len(pages), status.get("folder_id"))
+        made.missed = missed([RecipeRunStep(**s) for s in status["steps"]], len(pages), status.get("folder_id"),
+                             status.get("documents"))
     slowest = slowest_words([RecipeRunStep(**s) for s in status["steps"]])
     if slowest:
         made.lines.append(slowest)

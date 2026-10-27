@@ -77162,6 +77162,15 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "the run's scope, as POST /api/recipes/project/start takes it; null: the project"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Documents",
+            "description": "the run's pages when it covered some alone (a run an import started), as Start takes them back in `documents`; null: the scope is `folder_id`"
           }
         },
         "type": "object",
@@ -95191,6 +95200,15 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Documents",
+            "description": "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`"
           },
           "accept_unpriced": {
             "items": {

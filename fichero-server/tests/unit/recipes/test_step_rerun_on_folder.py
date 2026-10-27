@@ -141,6 +141,42 @@ def test_changed_material_runs_the_steps_again_by_itself(client, db, pages, tmp_
     assert {r.id for r in db.query(ContentRepresentation, document_id=first.id)} == kept, "the earlier reading is kept"
 
 
+def test_a_run_on_imported_pages_offers_running_again_on_those_pages_alone(client, db, pages, tmp_path, engine,
+                                                                           monkeypatch):
+    """#6170: a run the import started covers its new pages alone, so what it missed is those pages, offered back as
+    Start on them (`documents`), never as Start on the whole project (which would also read a page nobody started)."""
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.models import DocType, Document, FileType
+    from tests.unit.recipes.test_recipe_execution_to_spec import _png
+
+    recognize = engine.recognize
+
+    def fail_late(image_path, model_path, **kw):
+        if Path(image_path).name == "late.png":
+            raise RuntimeError("the page could not be opened")
+        return recognize(image_path, model_path, **kw)
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])
+    db.save(Document(name="waiting.png", doc_type=DocType.file, file_type=FileType.image,
+                     path=str(_png(tmp_path / "waiting.png"))))  # a page no run was started on
+    monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", fail_late)
+    engine.read = []
+    _import(client, tmp_path, "late.png")
+    assert _wait(lambda: len(_runs(client)) == 2)
+    imported = next(r["job_id"] for r in _runs(client) if r["started_by"] == "import")
+    _finished(client, imported)
+    late = next(d for d in db.query(Document) if d.name == "late.png")
+    missed = client.get(f"/api/recipes/project/runs/{imported}/summary").json()["missed"]
+    assert missed and missed["folder_id"] is None and missed["documents"] == [late.id], missed
+
+    monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", recognize)  # the cause is fixed
+    r = client.post("/api/recipes/project/start", json={"documents": missed["documents"]})
+    assert r.status_code == 200, r.text
+    assert _finished(client, r.json()["started"]["job_id"])["state"] == "done"
+    assert engine.read == ["late.png"], "the missed page alone: the page nobody started waits"
+
+
 def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, tmp_path, engine):
     """#6225, never rerun a model pass (#6127): after Start, the same file imported again unchanged is the page it already
     is: no second page, no run queued, the reader not called again."""

@@ -13963,6 +13963,7 @@ def register_generated_openapi_commands(
     def recipes_start_project_post(
         ctx: typer.Context,
         accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        documents: Optional[list[str]] = typer.Option(None, '--documents', help="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13972,10 +13973,12 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "accept_unpriced": accept_unpriced,
+                "documents": documents,
                 "folder_id": folder_id,
                 "redo": redo,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
+                "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)
