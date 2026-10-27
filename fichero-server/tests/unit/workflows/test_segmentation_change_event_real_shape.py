@@ -124,6 +124,14 @@ def _stub_kraken_segmenter(monkeypatch):
 
     monkeypatch.setattr(kraken_runtime, "segment_to_geometry", _fake_segment)
 
+    def _fake_segment_lines(image_path, **_):
+        """The find-regions step segments through `segment_lines` (#5689), not `segment_to_geometry`: left real it loads
+        blla and runs it on every page (8 GB across the workflow leg, #6228). The raw shape is the segmenter's own."""
+        line = {"polygon": [[100, 250], [900, 250], [900, 300], [100, 300]], "baseline": [[100, 300], [900, 300]]}
+        return {"width": 1000, "height": 2000, "lines": [line], "regions": []}
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _fake_segment_lines)
+
 
 @pytest.mark.asyncio
 async def test_builder_path_real_final_state_carries_the_artifact_id(tmp_path):
