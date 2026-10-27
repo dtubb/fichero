@@ -57,6 +57,16 @@ class Cards:
                                   char_start=0, char_end=len(text),
                                   metadata={"baseline_px": [[3.0, 9.0], [28.0, 9.0]]})])
 
+    def read_given(self, image_path, model_path, lines, **kw):
+        """Read asked again reads the lines it found (`kraken_runtime.read_given_lines`, #5707): a ReadLine a line."""
+        from fichero_server.llm.kraken_runtime import ReadLine
+
+        if self.fail_reading:
+            raise RuntimeError("the reader could not be loaded")
+        self.read.append(Path(image_path).name)
+        self.times["read"].append(time.monotonic())
+        return [ReadLine("Yten dixo otra vez", confidence=0.9) for _ in lines]
+
     async def chat(self, prompt, config, **kw):
         self.checked.append(prompt if isinstance(prompt, str) else json.dumps(prompt))
         self.times["check"].append(time.monotonic())
@@ -82,6 +92,8 @@ def engine(monkeypatch, app_db):
     # ~14 s and 6 GB a test). Its answer on these small pages: no lines, so Read reads the page (`recognize` above).
     monkeypatch.setattr(kraken_runtime, "segment_lines",
                         lambda image_path, **kw: {"width": 32, "height": 32, "regions": [], "lines": []})
+    # Read Again reads the lines already found; unstubbed it ran real Kraken (#6222).
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", cards.read_given)
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model",
                         lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
     monkeypatch.setattr(llm, "chat", cards.chat)

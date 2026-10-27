@@ -68,14 +68,7 @@ def test_a_run_says_what_it_missed_and_running_again_reads_only_that(client, db,
 def test_one_step_runs_again_on_one_folder_as_a_new_pass(client, db, pages, tmp_path, engine, monkeypatch):
     """`source.recipe.step-rerun-on-folder`: a step of a started recipe runs again on one folder alone, Start with that
     folder and the step to redo; the other folder is not read, and the folder's earlier readings are kept."""
-    from fichero_server.llm import kraken_runtime
     from fichero_server.models import ContentRepresentation, DocType, Document
-
-    def read_again(image_path, model_path, lines, **kw):  # Read asked again reads the lines it found (#5707)
-        engine.read.append(Path(image_path).name)
-        return [kraken_runtime.ReadLine("Yten dixo otra vez", confidence=0.9) for _ in lines]
-
-    monkeypatch.setattr(kraken_runtime, "read_given_lines", read_again)
 
     folders = []
     for name, page in zip(("A", "B"), pages):
@@ -118,3 +111,10 @@ def test_new_material_runs_the_steps_by_itself_only_when_the_project_runs_automa
     _import(client, tmp_path, "by-hand.png")
     time.sleep(1.5)
     assert len(_runs(client)) == 2 and engine.read == [], "runs by hand: the added page waits for Start"
+
+
+def test_the_engine_fixture_stubs_read_again(engine):
+    """#6222: Read Again calls `kraken_runtime.read_given_lines`; the shared fixture answers it, never real Kraken."""
+    from fichero_server.llm import kraken_runtime
+
+    assert kraken_runtime.read_given_lines == engine.read_given
