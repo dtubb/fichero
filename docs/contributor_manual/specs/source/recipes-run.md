@@ -102,6 +102,10 @@ the engine done, the app not seen in a build); a started recipe does not redo wh
   Start: Set Up's (`FirstRunWindow.showStartedRun`), the Project menu's and Run the Recipe on This Folder…
   (`FocusedCommandButtons+Recipe.swift`), each through `FirstRunWindow.startedRunSelection`. Test:
   fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift (`testStart_landsOnTheRecipeRunItQueued`).
+- `recipes-run.journey.cloud-by-default-per-step` — **[GAP]** (#6234, #6233) per the owner's ruling (2026-10-27), a
+  recipe step's model is a cloud one by default where the person has a provider, and the person can choose local or
+  cloud for any step; Start's plan shows each step's cost, and a provider with a Batch API is sent its pages as a
+  batch. A Mac with no provider key (the M4 test machine) runs every step locally.
 
 ### 3. The run: batches, order, progress
 
@@ -129,7 +133,8 @@ its pages (`source.recipe.step-counts-its-pages`); the run's status is Activity'
   of the run carries Start's own count as `note` ("already done on 37 of 95 pages; runs on the other 58"), so the row can
   say why it runs on fewer pages than the project has (`test_step_rerun_on_folder.py`,
   `test_a_run_on_fewer_pages_than_the_project_says_why`); Activity's stage row shows it as sent
-  (`ActivityStageReadersTests.aStageCarriesStartsCountOfWhatWasDone`, Swift compile owed).
+  (`ActivityStageReadersTests.aStageCarriesStartsCountOfWhatWasDone`, Swift compile owed). Left: the Names step's
+  spaCy call is not a row of its own, so a page waiting on it says nothing in words (#5359).
 
 **Each step: ran, or why not.** Every recipe step either runs and finishes with its result recorded on the run
 (the step's state and the pages it ran on, `source.recipe.step-counts-its-pages`), or does not run and says why on
@@ -323,6 +328,11 @@ replaces the Kraken figure before #6212 is coded.
   local model stopped answering is read once more before it fails, with the model's output in the log;
   the run carries on past it.
 
+- `recipes-run.engine.failure-in-words` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
+  exception's text: a step whose body raises KeyError('x') reads "<kind> could not finish: ...". Built: the
+  names step's time limit and the stalled-page lines (above). Left: `execution/jobs.py` still stores `str(exc)` as a
+  failed job's reason.
+
 ### 7. Memory is bounded
 
 - `recipes-run.memory.peak-ceiling-per-model-kind` — **[GAP]** (#6212, #6076, #4987) the engine tree's
@@ -385,6 +395,10 @@ replaces the Kraken figure before #6212 is coded.
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).
   The lane admits pages by the gate and a page's work reads its image only once admitted (the node hands a path,
   never a bitmap). Test: fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py.
+- `recipes-run.memory.threads-fill-the-cores` — **[GAP]** (#6229) a page's torch threads are the performance cores
+  given to the run divided by the pages read at once, served on the run status beside `pages_at_once` ("2 pages at
+  once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
+  is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`).
 
 ### 8. A restart requeues unfinished work and releases every lane
 
@@ -458,7 +472,9 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.order.folders-then-pages-queued` — **[OK]** (#5849; `source.recipe.pages-in-finder-order` owns
   it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`) a run queues and
   starts its pages folder by folder in sidebar order, pages in no folder first, each page in its natural
-  name order.
+  name order. One exception, by design: a hosted reading step runs beside a local one when neither takes what the
+  other gives (`_beside`, `recipes/runner.py`), so the two overlap, and the summary's timings count them as
+  overlapping, not one after the other.
 - `recipes-run.order.done-in-order-shown` — **[PARTIAL]** (#6186) with pages read side by side they finish out
   of order; the run's progress is shown as done-in-order: the first N consecutive pages done in sidebar
   order, so the page grid and the pages list read alphanumerically, a page finished ahead counted when
