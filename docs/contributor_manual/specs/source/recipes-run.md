@@ -198,6 +198,12 @@ replaces the Kraken figure before #6212 is coded.
   library records no migration failure; two embedding threads share one worker connection. Was: on the M4 run two
   embedding threads each opened the worker connection at once and `migrate_document_table` rolled back on a catalog
   write-write conflict on idx_documents_parent_id. Test: fichero-server/tests/unit/db/test_open_migrations_serialised.py.
+- `recipes-run.engine.empty-kraken-lines-are-named` — **[OK]** (#6219) a Kraken read of a page's working lines that
+  came back empty on most or every line leaves each of those lines unread with the reason in words ("most lines came
+  back empty: the reader may not suit this hand"), so the read step ends partial naming the page, the summary gives that
+  reason and the next reader in the chain is offered. A few blank lines on a page that read stay 'no writing'. Was: on
+  the M4 run 26 of 49 lines on one page came back empty, the step said done and the summary said no reader had answered
+  for them. Test: fichero-server/tests/unit/recipes/test_empty_kraken_lines_are_named.py.
 - `recipes-run.engine.local-call-judged-by-progress` — **[OK]** (#5537; `compute.memory.local-call-judged-by-progress`
   owns it; pinned by `fichero-server/tests/unit/jobs/test_local_no_progress_retry_5537.py`) a page whose
   local model stopped answering is read once more before it fails, with the model's output in the log;

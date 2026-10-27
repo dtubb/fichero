@@ -4996,20 +4996,22 @@ async def process_vision(
                             "confidence": getattr(_text, "confidence", None)}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
-                    from fichero_server.llm.working_lines import reads_mostly_nothing as _mostly_nothing
-
-                    if _blank and _mostly_nothing(len(_blank), len(geometry.boxes)):
-                        # Every line came back empty: a failed read, not 'no writing' (review 64). Unmarked, so
-                        # the lines stay unread and a second Start reads the page again.
+                    # Most or every line came back empty: a failed read, not 'no writing' (review 64). The lines stay
+                    # unread, each saying the reader came back empty (#6219), so a second Start or the next reader
+                    # takes the page and the step is partial, not done.
+                    _blank_seen = len(_blank)
+                    _blank, _failed = _wl.empty_lines_why(_blank, len(geometry.boxes))
+                    if _failed:
                         logger.warning("kraken reader: %d of %d lines on %s came back empty: a failed read, they stay unread",
-                                       len(_blank), len(geometry.boxes), image_path)
-                        _blank = []
-                    elif _blank:
+                                       len(_failed), len(geometry.boxes), image_path)
+                    elif _blank_seen:
                         logger.info("kraken reader: %d of %d lines on %s left without a reading",
-                                    len(_blank), len(geometry.boxes), image_path)
+                                    _blank_seen, len(geometry.boxes), image_path)
                     return _wl.whole_page(_dbm.get_database(library_path), whole, geometry.model_copy(update={
                         "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr",
-                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}}), _stamp)
+                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank,
+                                     "lines_unanswered": {**(geometry.metadata.get("lines_unanswered") or {}),
+                                                          **_failed}}}), _stamp)
 
                 def _working_lines_of(doc_id: str) -> Any:
                     from fichero_server.db import db_manager as _dbm
