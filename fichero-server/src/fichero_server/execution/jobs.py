@@ -626,7 +626,7 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         "WITH RECURSIVE t AS (SELECT * FROM jobs WHERE id = ? UNION ALL "
         "SELECT j.* FROM jobs j JOIN t ON j.parent_id = t.id) "
         "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at, started_at, detail, "
-        "started_by FROM t", [job_id])
+        "started_by FROM t", [job_id], committed=True)
     if not rows:
         return None
     names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "finished_at",
@@ -644,7 +644,7 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     leaf_subjects = [n["subject"] for n in nodes.values() if n["kind"] not in RUN_KINDS and n["subject"]]
     names: dict[str, str] = dict(db.execute_fetchall(
         f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
-        leaf_subjects)) if leaf_subjects else {}
+        leaf_subjects, committed=True)) if leaf_subjects else {}
     for node in nodes.values():
         subject = node["subject"] or ""
         is_page = node["kind"] not in RUN_KINDS
@@ -972,7 +972,8 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     """One job's row (its `detail` as stored, JSON text), or None."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?", [job_id])
+        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?", [job_id],
+        committed=True)
     if row is None:
         return None
     return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
@@ -985,7 +986,7 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
     if not ids:
         return {}
     rows = db.execute_fetchall(
-        f"SELECT id, started_at, finished_at FROM jobs WHERE id IN ({', '.join('?' * len(ids))})", ids)
+        f"SELECT id, started_at, finished_at FROM jobs WHERE id IN ({', '.join('?' * len(ids))})", ids, committed=True)
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
@@ -1742,7 +1743,8 @@ def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = No
     if job_id is not None:
         sql += " AND id = ?"
         params.append(job_id)
-    rows = db.execute_fetchall(sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?", [*params, limit, offset])
+    rows = db.execute_fetchall(sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?", [*params, limit, offset],
+                             committed=True)
     names = ("id", "kind", "state", "reason", "detail", "created_at", "started_at", "finished_at")
     return [dict(zip(names, row)) for row in rows]
 
@@ -2212,7 +2214,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
     counts = {(g, kind): n for g, kind, n in db.execute_fetchall(
         f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
-        f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind")}
+        f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind", committed=True)}
     parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}"]
     params: list[Any] = []
     for (g, kind) in counts:
@@ -2243,6 +2245,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END, id",  # finished: newest first
         params,
+        committed=True,
     )
     out: list[dict[str, Any]] = []
     reps: dict[tuple[str, str], dict[str, Any]] = {}  # a row fetched twice (first and really going) folds into its group
@@ -2530,7 +2533,7 @@ def state_and_reason(db: "Database", job_id: str) -> tuple[str, str | None] | No
     `waiting_reason` decides it, any other row's as stored. None when there is no such row."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT kind, state, reason, created_at, run_after FROM jobs WHERE id = ?", [job_id])
+        "SELECT kind, state, reason, created_at, run_after FROM jobs WHERE id = ?", [job_id], committed=True)
     if row is None:
         return None
     kind, state, reason, created_at, run_after = row
@@ -2543,7 +2546,7 @@ def read_again_runs(db: "Database") -> set[str]:
     """The workflow runs a newer run read again (Retry, or Read Again): their thread ids (`activity.retry.one-row`)."""
     prefix = "read-again:"
     return {row[0][len(prefix):] for row in db.execute_fetchall(
-        "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'")}
+        "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'", committed=True)}
 
 
 def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:

@@ -1050,6 +1050,12 @@ def read_committed(db: Any, fn: Callable[..., Any], *args: Any, **kwargs: Any) -
         return fn(*args, **kwargs)
 
 
+def query_read(db: Any, model: Any, **filters: Any) -> list[Any]:
+    """`db.query(model, **filters)`, a read: under a caller's `committed(db)`, of what was committed (#6178)."""
+    reads = getattr(db, "_reads_committed_now", None)
+    return db.query_committed(model, **filters) if reads is not None and reads() else db.query(model, **filters)
+
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -1880,7 +1886,7 @@ class Database(DatabaseEmbeddingMixin):
             self._tables_created.discard(self._table_name(model))
             self._ensure_table(model, preexisting=preexisting)
 
-    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
+    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None, *, committed: bool = False):
         """Execute SQL, retrying bounded DuckDB transient write conflicts.
 
         When ``fetch`` is ``"all"`` or ``"one"`` the fetch happens INSIDE the
@@ -1888,7 +1894,7 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
-        if fetch is not None and self._reads_committed_now(sql):
+        if fetch is not None and committed and self._reads_committed_now():
             rows, _columns = self._read_fetch_with_columns(sql, params)
             return rows if fetch == "all" else (rows[0] if rows else None)
         self._ensure_transaction_started()
@@ -1953,13 +1959,14 @@ class Database(DatabaseEmbeddingMixin):
         ``execute_fetchall`` / ``execute_fetchone`` when you need rows."""
         return self._execute(sql, params)
 
-    def execute_fetchall(self, sql: str, params: Any | None = None) -> list:
-        """Execute + ``fetchall`` atomically under the lock (#2508)."""
-        return self._execute(sql, params, fetch="all")
+    def execute_fetchall(self, sql: str, params: Any | None = None, *, committed: bool = False) -> list:
+        """Execute + ``fetchall`` atomically under the lock (#2508). ``committed``: this is a read, and under a
+        caller's `reading_committed` it reads what was committed (#6178)."""
+        return self._execute(sql, params, fetch="all", committed=committed)
 
-    def execute_fetchone(self, sql: str, params: Any | None = None):
-        """Execute + ``fetchone`` atomically under the lock (#2508)."""
-        return self._execute(sql, params, fetch="one")
+    def execute_fetchone(self, sql: str, params: Any | None = None, *, committed: bool = False):
+        """Execute + ``fetchone`` atomically under the lock (#2508); ``committed`` as `execute_fetchall`."""
+        return self._execute(sql, params, fetch="one", committed=committed)
 
     # Restricts a dedup query to the destination subtree (2026-08-11): the
     # skip-set used to be library-GLOBAL, so importing a folder that already
@@ -2079,9 +2086,6 @@ class Database(DatabaseEmbeddingMixin):
         fetch: Literal["one", "all"] = "all",
     ) -> tuple[Any, list[str]]:
         """Fetch rows and column names atomically under the shared connection lock."""
-        if self._reads_committed_now(sql):  # a poll's ORM read (`query`), under `reading_committed` (#6178)
-            rows, columns = self._read_fetch_with_columns(sql, params)
-            return (rows if fetch == "all" else (rows[0] if rows else None)), columns
         self._ensure_transaction_started()
         with self._transaction_gate:
             with self._lock:
@@ -2189,15 +2193,15 @@ class Database(DatabaseEmbeddingMixin):
             self._transaction_gate.release()
             raise
 
-    def _reads_committed_now(self, sql: str) -> bool:
-        """Under `reading_committed`, outside a transaction of this thread, and a read: an UPDATE ... RETURNING keeps
-        the gate."""
-        return (_COMMITTED_READS.get() and not self.in_transaction
-                and sql.split(None, 1)[0].upper() in ("SELECT", "WITH"))
+    def _reads_committed_now(self) -> bool:
+        """Under `reading_committed` and outside a transaction of this thread. Only a query that says it is a read
+        (`committed=True`) asks: a statement's text is never guessed at, so a write that returns rows keeps the gate."""
+        return _COMMITTED_READS.get() and not self.in_transaction
 
     @contextmanager
     def reading_committed(self):
-        """Within this (this thread, and the worker threads it hands work to), a SELECT through `execute_fetchall`/`execute_fetchone` reads last-COMMITTED
+        """Within this (this thread, and the worker threads it hands work to), a read that says so (`execute_fetchall`/
+        `execute_fetchone` with ``committed=True``) reads last-COMMITTED
         state on the READ cursor (#4523) instead of queuing on the transaction gate: a poll under a held writer answers
         with what was committed rather than waiting for the writer (`recipes-run.engine.answers-while-a-run-goes`,
         #6178). Inside a transaction of this thread the gated path stands, so its own writes are read."""
@@ -5518,9 +5522,10 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.core.naturalsort import in_folder_order
 
         rows = {r[0]: r[1:] for r in self.execute_fetchall(
-            "SELECT id, name, sort_order, sequence, parent_id FROM documents WHERE deleted_at IS NULL")}
+            "SELECT id, name, sort_order, sequence, parent_id FROM documents WHERE deleted_at IS NULL",
+            committed=True)}
         wanted = [r[0] for r in self.execute_fetchall(
-            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")]
+            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)]
 
         def node(doc_id: str) -> tuple:
             name, sort_order, sequence, _parent = rows[doc_id]

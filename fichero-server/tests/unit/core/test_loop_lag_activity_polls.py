@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import time
 
+import pytest
+
 from fichero_server.execution import jobs
 from fichero_server.llm import kraken_runtime
 from fichero_server.recipes import run_view, runner
@@ -126,16 +128,22 @@ def test_activitys_job_tree_answers_under_a_held_writer(db):
 
 
 
-def test_a_write_that_returns_rows_still_waits_for_the_writer(db):
-    """Committed reads are SELECTs only: an UPDATE ... RETURNING through `execute_fetchall` (stale-run recovery) keeps
-    the transaction gate, never the READ cursor beside a held writer."""
+@pytest.mark.parametrize("sql", [
+    "UPDATE jobs SET reason = 'recovered' WHERE id = ? RETURNING id",
+    "WITH stale AS (SELECT id FROM jobs WHERE id = ?) UPDATE jobs SET reason = 'recovered' "
+    "WHERE id IN (SELECT id FROM stale) RETURNING id",
+])
+def test_a_write_that_returns_rows_still_waits_for_the_writer(db, sql):
+    """Committed reads are opted into by a known read, never guessed from a statement's first word: a write that
+    returns rows (stale-run recovery's UPDATE ... RETURNING, a WITH ... UPDATE) inside a poll's committed reads keeps
+    the transaction gate, never the READ cursor beside a held writer (#6178, review b19)."""
     from fichero_server.db import committed
 
     run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
 
     def write():
         with committed(db):
-            return db.execute_fetchall("UPDATE jobs SET reason = 'recovered' WHERE id = ? RETURNING id", [run_id])
+            return db.execute_fetchall(sql, [run_id])
 
     _rows, took = _under_a_held_writer(db, run_id, write)
     assert took > 2.0, took

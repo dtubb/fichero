@@ -251,7 +251,7 @@ def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[st
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     return db.execute_fetchall(
         f"SELECT {', '.join(LIST_COLUMNS)} FROM {RUNS} {where_sql} ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?",
-        [*params, limit, offset])
+        [*params, limit, offset], committed=True)
 
 
 def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> list[str]:
