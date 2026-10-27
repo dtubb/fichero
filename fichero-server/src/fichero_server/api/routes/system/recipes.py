@@ -1895,6 +1895,10 @@ def _whole_setup(setup: dict) -> ProjectSetup:
 @router.get("/project", response_model=ProjectSetupView)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetupView:
     """The open project's saved setup answers and recipe, and whether it inherits the app's cloud setting."""
+    return await asyncio.to_thread(_project_setup_view, db)  # off the loop (#6178): the redo steps are a Start plan
+
+
+def _project_setup_view(db: Database) -> ProjectSetupView:
     from fichero_server.recipes.project import read_start
     from fichero_server.recipes.start import plan_start
 

@@ -67,3 +67,17 @@ def test_activitys_recipe_run_node_reads_its_row_off_the_loop(monkeypatch):
     monkeypatch.setattr(jobs, "state_and_reason", _slow(("running", None)))
 
     assert _loop_turn_during(lambda: activity._recipe_state(None, "r1")) < 1.0
+
+
+def test_the_project_setup_plans_its_redo_steps_off_the_loop(monkeypatch, tmp_path):
+    """GET /api/recipes/project plans the started recipe's runs for the folder menu (#6170): off the loop too."""
+    from fichero_server.api.routes.system import recipes
+    from fichero_server.recipes import project, start
+
+    recipe = {"id": "t/run", "steps": [], "gaps": [], "problems": []}
+    monkeypatch.setattr(recipes, "_library", lambda db: tmp_path)
+    monkeypatch.setattr(recipes, "read_project_setup", lambda library: {"answers": {}, "recipe": recipe})
+    monkeypatch.setattr(project, "read_start", lambda library: {"started_at": "now"})
+    monkeypatch.setattr(start, "plan_start", _slow({"workflows": []}))
+
+    assert _loop_turn_during(lambda: recipes.get_project_setup(db=None)) < 1.0
