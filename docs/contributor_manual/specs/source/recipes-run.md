@@ -175,7 +175,8 @@ replaces the Kraken figure before #6212 is coded.
   failed outright, the engine process alive throughout and `/api/health` answering within 1 s at every
   sample; it is the M4 gate's load leg (#4634), marked slow and skipped on the Pro. Nothing today runs a
   whole recipe at that size: the owner's 20-page runs wedged three times (dogfood B12) and a Dev Local
-  engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). Test (to write): fichero-server/tests/perf/test_recipe_run_100_pages.py.
+  engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). The load leg is written (skipped unless
+  `FICHERO_LOAD_LEG_PAGES` names a folder of 100+ pages) and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:
   every database read of a poll runs on a worker thread, and a poll under a held writer answers with what
@@ -201,12 +202,13 @@ replaces the Kraken figure before #6212 is coded.
   never loads another model. Built: the run's account records `engine_peak_memory_bytes`
   (`workflows/run_account.py`, `throttle.peak_rss_bytes`) and the throttle's one decision
   (`throttle.decide`); not built: a ceiling the run is held to, and the measured figures (#6076 is the
-  20-page measurement). Test (to write): fichero-server/tests/perf/test_recipe_run_100_pages.py.
+  20-page measurement). The load leg records the engine tree's peak footprint (`load_leg_report.json`) and
+  asserts no ceiling until the table exists. Test (to write, the ceiling): fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.memory.flat-over-pages` — **[GAP]** (#6212, #5529) resident memory does not grow page over
   page: over a 100-page run the engine tree's RSS sampled on pages 80 to 100 is within 10% of pages 20 to
   40 (sampled every 2 s, `throttle.footprint_bytes`). The 2026-10-06 leak (8,418 compiled MPS graphs,
   18 GB in 25 minutes) is pinned at its seam by `fichero-server/tests/unit/jobs/test_engine_memory.py`;
-  the whole-run assertion is not written. Test (to write): fichero-server/tests/perf/test_recipe_run_100_pages.py.
+  the whole-run assertion is written in the load leg and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.memory.duckdb-cap-applies` — **[OK]** (#6177) every open DuckDB instance runs under its
   share of the budget (about 10% of physical memory split across the open instances, a 256 MiB floor,
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
@@ -443,7 +445,7 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 | Click-around (XCUITest, Mac) | n | Activity's own spec owns the window's UI test | — |
 | iPhone (iOS) | n | — | — |
 | iPad | n | — | — |
-| Load (#4634) | y | a 100-page run on a temp engine finishes; peak RSS under the ceiling; flat over pages; the engine answers throughout | fichero-server/tests/perf/test_recipe_run_100_pages.py (to write; the M4 gate's load leg, skipped on the Pro) |
+| Load (#4634) | y | a 100-page run on a temp engine finishes; peak RSS under the ceiling; flat over pages; the engine answers throughout | fichero-server/tests/perf/test_recipe_run_100_pages.py (the M4 gate's load leg, skipped on the Pro; the ceiling assertion waits on #6076) |
 
 Hard-gate: the cross-surface invariant (the run's status, Activity's rows and the MCP tools are one
 account of the same job rows) + the load leg green on the M4 before the spec is marked finished.
