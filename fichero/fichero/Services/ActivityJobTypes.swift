@@ -193,6 +193,9 @@ struct ActivityRunAccount: Equatable {
     let pagesDone: Int
     let pagesFailed: Int
     let pagesLeft: Int
+    /// The first N pages in sidebar order that are settled (read or failed): a page finished ahead counts when the gap
+    /// before it closes (`recipes-run.order.done-in-order-shown`, #6186). The engine counts; the row only words it.
+    let pagesDoneInOrder: Int
     let failures: [Failure]
     let waitingReason: String?
     let reason: String?
@@ -209,6 +212,8 @@ struct ActivityRunAccount: Equatable {
         pagesDone = account.pagesDone ?? 0
         pagesFailed = account.pagesFailed ?? 0
         pagesLeft = account.pagesLeft ?? 0
+        // An engine from before the field: every settled page counts as in order (nothing said about order).
+        pagesDoneInOrder = account.pagesDoneInOrder ?? (pagesDone + pagesFailed)
         failures = (account.failures ?? []).map {
             Failure(title: $0.page, reason: $0.reason, retried: $0.retried ?? false)
         }
@@ -228,6 +233,7 @@ struct ActivityRunAccount: Equatable {
         pagesDone: Int = 0,
         pagesFailed: Int = 0,
         pagesLeft: Int = 0,
+        pagesDoneInOrder: Int? = nil,
         failures: [Failure] = [],
         waitingReason: String? = nil,
         reason: String? = nil,
@@ -242,6 +248,7 @@ struct ActivityRunAccount: Equatable {
         self.pagesDone = pagesDone
         self.pagesFailed = pagesFailed
         self.pagesLeft = pagesLeft
+        self.pagesDoneInOrder = pagesDoneInOrder ?? (pagesDone + pagesFailed)
         self.failures = failures
         self.waitingReason = waitingReason
         self.reason = reason

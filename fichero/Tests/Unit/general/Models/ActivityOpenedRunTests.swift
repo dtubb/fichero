@@ -55,4 +55,24 @@ struct ActivityOpenedRunTests {
         #expect(view.contains("ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))"))
         #expect(view.contains("hidesReadAgain: !details.failedPages.isEmpty && runTarget(details).readAgainLabel != nil"))
     }
+
+    @Test("the run's line says how many pages it reads at once and why, as the engine sends them (#6217)")
+    func pagesAtOnce() {
+        #expect(RecipeRunPagesAtOnce(count: 2, reason: nil).words == "reading 2 pages at once")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging").words == "one page at a time: the Mac is paging")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: nil).words == "one page at a time")
+        let strip = ProjectRunStrip(jobId: "r", node: nil, job: nil, folders: nil,
+                                    pagesAtOnce: RecipeRunPagesAtOnce(count: 1, reason: "resuming after a restart"))
+        #expect(strip.detail.hasSuffix("one page at a time: resuming after a restart"))
+    }
+
+    @Test("a stage's counts say the first pages in order while a page finished ahead of a gap (#6186)")
+    func doneInOrder() {
+        let ahead = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8, pagesDoneInOrder: 9)
+        #expect(ActivityDetails.countsWords(ahead) == "12 done · 0 failed · 8 left · first 9 in order")
+        let inOrder = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8, pagesDoneInOrder: 12)
+        #expect(ActivityDetails.countsWords(inOrder) == "12 done · 0 failed · 8 left")
+        let older = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8)
+        #expect(ActivityDetails.countsWords(older) == "12 done · 0 failed · 8 left", "an engine without the field says nothing of order")
+    }
 }

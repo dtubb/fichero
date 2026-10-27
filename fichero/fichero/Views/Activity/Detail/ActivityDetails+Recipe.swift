@@ -89,7 +89,7 @@ extension ActivityDetails {
         return node.stages.map { stage in
             let child = stage.childId.flatMap { id in node.children.first { $0.id == id } }
             let account = stage.account
-            let counts = account.map { "\($0.pagesDone) done · \($0.pagesFailed) failed · \($0.pagesLeft) left" }
+            let counts = account.map(countsWords)
             let running = stage.state == "running"
             return Stage(
                 id: stage.id,
@@ -102,6 +102,14 @@ extension ActivityDetails {
                 waitingFor: running ? account?.waitingReason : nil
             )
         }
+    }
+
+    /// "12 done · 0 failed · 8 left", and "· first 9 in order" while a page finished ahead of a gap
+    /// (`recipes-run.order.done-in-order-shown`, #6186): progress reads in sidebar order.
+    static func countsWords(_ account: ActivityRunAccount) -> String {
+        let counts = "\(account.pagesDone) done · \(account.pagesFailed) failed · \(account.pagesLeft) left"
+        let settled = account.pagesDone + account.pagesFailed
+        return account.pagesDoneInOrder < settled ? "\(counts) · first \(account.pagesDoneInOrder) in order" : counts
     }
 
     private static func cardTitle(_ stage: ActivityRecipeStage) -> String {

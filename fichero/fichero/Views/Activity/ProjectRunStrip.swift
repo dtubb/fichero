@@ -29,7 +29,7 @@ struct ProjectRunStrip: Equatable {
         guard let jobId = store.projectRunId else { return nil }
         self.init(jobId: jobId, node: store.runTrees[jobId],
                   job: store.backgroundJobs.first { $0.id == jobId },
-                  folders: store.recipeRunFolders[jobId])
+                  folders: store.recipeRunFolders[jobId], pagesAtOnce: store.recipeRunPagesAtOnce[jobId])
     }
 
     /// Preview seam: the words given.
@@ -43,7 +43,8 @@ struct ProjectRunStrip: Equatable {
 
     /// The strip from the run's node, its row on the jobs poll and its folders done of its folders
     /// (`activity.run.progress-per-folder`): pure, so a test can build it.
-    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil) {
+    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil,
+         pagesAtOnce: RecipeRunPagesAtOnce? = nil) {
         self.jobId = jobId
         let state = Self.effectiveState(nodeState: node?.state, jobState: job?.state)
         let ended = ["done", "failed", "cancelled"].contains(state)
@@ -73,7 +74,8 @@ struct ProjectRunStrip: Equatable {
         let words = Self.liveWords(state: state, node: node, job: job)
         // How far the run is in folders, after its stage, for a run over more than one (#5540).
         title = [words.title, folders?.words].compactMap { $0 }.joined(separator: " · ")
-        detail = words.detail
+        // Then how many pages it reads at once and why, as the engine sends them (#6217).
+        detail = [words.detail, pagesAtOnce?.words].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
@@ -135,6 +137,30 @@ struct RecipeRunFolders: Equatable {
     /// where it would say nothing the stage does not.
     var words: String? {
         total > 1 ? "\(done) of \(total) folders" : nil
+    }
+}
+
+/// How many pages a recipe run reads at once now, and which hold makes it one (`recipes-run.memory.gate-shown`, #6217),
+/// as the run's status carries them (`pages_at_once`, `pages_at_once_reason`). The engine decides; the app only words it.
+struct RecipeRunPagesAtOnce: Equatable {
+    let count: Int
+    let reason: String?
+
+    /// nil when the status says nothing: the run is not going.
+    init?(_ status: Components.Schemas.RecipeRunStatus) {
+        guard let count = status.pagesAtOnce else { return nil }
+        self.init(count: count, reason: status.pagesAtOnceReason)
+    }
+
+    init(count: Int, reason: String?) {
+        self.count = count
+        self.reason = reason
+    }
+
+    /// "reading 2 pages at once"; "one page at a time: the Mac is paging".
+    var words: String {
+        count > 1 ? "reading \(count) pages at once"
+            : ["one page at a time", reason].compactMap { $0 }.joined(separator: ": ")
     }
 }
 

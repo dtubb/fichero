@@ -262,8 +262,9 @@ replaces the Kraken figure before #6212 is coded.
   "one page at a time: resuming after a restart"), the figure and its reason served as fields of the run
   status from `kraken_runtime.pages_at_once` and the throttle's reason, never parsed from a sentence;
   the app renders them as sent; no setting. Built: the run status's `pages_at_once` and `pages_at_once_reason`
-  (`kraken_runtime.pages_at_once_and_why`), in the contract. Left: the app's grey line rendering them (Step 4.1's
-  `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
+  (`kraken_runtime.pages_at_once_and_why`), in the contract; the project window's run strip words them on its line as
+  sent ("reading 2 pages at once", "one page at a time: the Mac is paging"; `RecipeRunPagesAtOnce`, Swift compile owed).
+  Left: the Activity window's run row (Step 4.1's `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
 - `recipes-run.memory.fan-out-does-not-decode-ahead` — **[OK]** (#5846; `activity.lane.same-model-pages-together` (P))
   a fan-out node hands the lane at most `pages_at_once` pages, and a page waiting for the lane holds no
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).
@@ -339,8 +340,9 @@ replaces the Kraken figure before #6212 is coded.
   of order; the run's progress is shown as done-in-order: the first N consecutive pages done in sidebar
   order, so the page grid and the pages list read alphanumerically, a page finished ahead counted when
   the gap before it closes (a failed page closes its gap: it is settled and listed). Built: each stage's run
-  account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract). Left: Activity's opened
-  run showing it (Step 4.1, `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
+  account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract); a stage's counts say
+  "first N in order" while a page finished ahead of a gap (`ActivityDetails.countsWords`, Swift compile owed). Left: the
+  page grid reading in that order (Step 4.1, `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
 - `recipes-run.order.search-entities-once-at-the-end` — **[OK]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are its halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says

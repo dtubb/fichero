@@ -167,6 +167,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
     var recipeRunFolders: [String: RecipeRunFolders] = [:]
+    /// How many pages a running recipe run reads at once and why (`recipes-run.memory.gate-shown`, #6217), keyed by the
+    /// run's id: read from the same status as its folders; removed when the status no longer says.
+    var recipeRunPagesAtOnce: [String: RecipeRunPagesAtOnce] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's
