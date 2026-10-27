@@ -150,10 +150,13 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
         times = jobs.times(db, [status["job_id"], *batch_ids])
         now = utc_now()
 
+        wf = list(dict.fromkeys(b["child_id"] for c, bs in jobs_of.items() if cards[c] == "workflow" for b in bs))
+        rows = (db.execute_fetchall(f"SELECT id, progress_timeline FROM {records.RUNS} "  # the timeline only, never the log
+                                    f"WHERE id IN ({', '.join('?' * len(wf))})", wf) if wf else [])
+        timelines = {r[0]: r[1] for r in rows}  # one read for every batch of every step
+
         def pages_of(child: str, card: Any) -> list[float]:
-            row = (db.execute_fetchone(f"SELECT progress_timeline FROM {records.RUNS} WHERE id = ?", [child])
-                   if card == "workflow" else None)  # the timeline only: never the run's log
-            timeline = row[0] if row else None
+            timeline = timelines.get(child) if card == "workflow" else None
             timeline = json.loads(timeline) if isinstance(timeline, str) and timeline else timeline
             return page_seconds(timeline if isinstance(timeline, dict) else None)
 

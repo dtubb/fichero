@@ -113,3 +113,39 @@ def test_a_step_over_two_batches_spans_both_and_each_batch_has_its_own_figures(d
     assert (t.seconds, t.pages_done, t.seconds_per_page) == (150.0, 3, 20.0)
     assert [(b.folder, b.seconds, b.pages_done, b.seconds_per_page) for b in t.batches] == [
         ("f1", 30.0, 2, 15.0), ("f2", 60.0, 1, 50.0)]
+
+
+def test_a_run_of_many_batches_reads_every_timeline_at_once(db, monkeypatch):
+    """Review of 1a6dd1c06: a step's timeline is read once for the whole run, never once a batch (a 40-folder run was 40
+    SELECTs a step on every status poll)."""
+    import json
+
+    from fichero_server.db import activity_records as records
+    import fichero_server.workflows.run_account as accounts
+
+    _row(db, "run", 0, 1000)
+    steps = []
+    for step in ("lines", "read"):
+        batch_jobs = []
+        for i in range(12):
+            job = f"{step}-{i}"
+            _row(db, job, i * 10, i * 10 + 5)
+            db.execute(f"INSERT INTO {records.RUNS} (id, workflow_id, workflow_name, status, progress_timeline) "
+                       "VALUES (?, 'w', 'w', 'completed', ?)", [job, json.dumps({"steps": [_file(f"p{i}", 1000)]})])
+            batch_jobs.append({"folder": f"f{i}", "child_id": job})
+        steps.append({"steps": [step], "card": "workflow", "state": "done", "child_id": f"{step}-11",
+                      "batch_jobs": batch_jobs})
+
+    async def _no_account(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(accounts, "run_account", _no_account)
+    reads = []
+    real_one, real_all = db.execute_fetchone, db.execute_fetchall
+    monkeypatch.setattr(db, "execute_fetchone", lambda q, *a, **k: (reads.append(q), real_one(q, *a, **k))[1])
+    monkeypatch.setattr(db, "execute_fetchall", lambda q, *a, **k: (reads.append(q), real_all(q, *a, **k))[1])
+    out = asyncio.run(run_view.with_accounts(db, {"job_id": "run", "state": "done", "reason": None,
+                                                  "started_by": "person", "steps": steps}))
+    assert [len(s["timing"].batches) for s in out["steps"]] == [12, 12]
+    assert all(s["timing"].pages_done == 12 for s in out["steps"])
+    assert sum("progress_timeline" in q for q in reads) == 1
