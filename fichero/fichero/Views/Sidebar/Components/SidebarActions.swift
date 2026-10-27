@@ -168,17 +168,29 @@ extension SidebarView {
         #endif
     }
 
-    /// The confirmed delete of every item: several documents of one library are ONE undoable batch and one refresh, so one
-    /// Cmd-Z restores them all (`delete.multi-is-one-undo-step`, #6175, `undo.batches`); anything else goes one by one.
+    /// The confirmed delete of every item. One item keeps the Finder selection rule (`performDeleteOne`); several are
+    /// grouped by `sidebarDeleteBatches`: each library's documents are ONE undoable step and one refresh, so one Cmd-Z
+    /// restores them all (`delete.multi-is-one-undo-step`, #6175, `undo.batches`), and nothing is selected after.
     func performDelete(_ items: [SidebarItem]) async {
-        let documents: [Document] = items.compactMap {
-            if case .document(let doc) = $0.itemType { return doc }
-            return nil
-        }
-        let libraryIds = Set(items.compactMap(\.libraryId))
-        guard items.count > 1, documents.count == items.count, libraryIds.count == 1, let libraryId = libraryIds.first,
-              let library = libraryManager.getLibrary(id: libraryId) else {
+        guard items.count > 1 else {
             for item in items { await performDeleteOne(item: item) }
+            return
+        }
+        let stores = Set(items.compactMap(\.libraryId)).compactMap { libraryManager.getLibrary(id: $0)?.documentStore }
+        let parents = Dictionary(
+            stores.flatMap { $0.collections + $0.childrenCache.values.joined() }.map { ($0.id, $0.parentId) },
+            uniquingKeysWith: { first, _ in first })
+        let batches = sidebarDeleteBatches(items, parentOf: { parents[$0] ?? nil })
+        for batch in batches.documents { await performDeleteBatch(batch.documents, libraryId: batch.libraryId) }
+        for item in batches.others { await performDeleteOne(item: item) }
+        selectedItemId = nil  // nothing is selected after a batch: no row is left for the next Delete to act on
+        deleteState.inheritedSelectionId = nil
+    }
+
+    /// One library's documents as one step named by how many went ("Move 3 Items to Trash").
+    private func performDeleteBatch(_ documents: [Document], libraryId: UUID) async {
+        guard let library = libraryManager.getLibrary(id: libraryId) else {
+            logger.error("Could not find library for deletion")
             return
         }
         do {
@@ -193,14 +205,11 @@ extension SidebarView {
                 }
             )
             logger.info("Delete successful: \(documents.count) items in one step")
-            rebuildCaches(for: libraryId)
-            selectedItemId = nil  // nothing is selected after a batch: no row is left for the next Delete to act on
-            deleteState.inheritedSelectionId = nil
         } catch {
             logger.error("Failed to delete: \(error.localizedDescription)")
-            rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
             deleteState.showError(message: error.localizedDescription)
         }
+        rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
         await library.documentStore.refresh()
     }
 

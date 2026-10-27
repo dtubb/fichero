@@ -66,3 +66,38 @@ extension SidebarDeleteTests {
         #expect(ItemVerbs.deleteTitle(3, name: "Parent") == "Delete 3 Items")
     }
 }
+
+extension SidebarDeleteTests {
+    private func doc(_ id: String, parent: String? = nil, in library: UUID) -> SidebarItem {
+        SidebarItem.fromDocument(Document(id: id, parentId: parent, docType: .folder, name: id), libraryId: library)
+    }
+
+    /// `delete.multi-is-one-undo-step` (#6175): each library's documents are one step, in selection order; a saved
+    /// search (no audit row to undo) goes on its own.
+    @Test func aMixedSelectionAcrossTwoLibrariesIsOneStepPerLibraryAndTheRestOneByOne() {
+        let first = UUID(), second = UUID()
+        let search = SidebarItem.fromSearch(SavedSearch(id: "s", name: "S", query: ""), libraryId: first)
+        let items = [doc("a", in: first), search, doc("x", in: second), doc("b", in: first)]
+        let batches = sidebarDeleteBatches(items, parentOf: { _ in nil })
+        #expect(batches.documents.map(\.libraryId) == [first, second])
+        #expect(batches.documents.map { $0.documents.map(\.id) } == [["a", "b"], ["x"]])
+        #expect(batches.others.map(\.id) == [search.id])
+    }
+
+    /// A folder and something inside it: the folder takes it, so it is not deleted again (a second delete of a row
+    /// already in the Trash failed part-way through the step).
+    @Test func aRowInsideAFolderThatIsAlsoGoingIsLeftToTheFolder() {
+        let library = UUID()
+        let items = [doc("child", parent: "p", in: library), doc("grandparent", in: library), doc("other", in: library)]
+        let parents = ["p": "grandparent"]
+        let batches = sidebarDeleteBatches(items, parentOf: { parents[$0] })
+        #expect(batches.documents.flatMap { $0.documents.map(\.id) } == ["grandparent", "other"])
+    }
+
+    @Test func aParentCycleInTheCacheEndsTheWalk() {
+        let library = UUID()
+        let parents = ["p": "q", "q": "p"]
+        let batches = sidebarDeleteBatches([doc("c", parent: "p", in: library)], parentOf: { parents[$0] })
+        #expect(batches.documents.flatMap { $0.documents.map(\.id) } == ["c"])
+    }
+}
