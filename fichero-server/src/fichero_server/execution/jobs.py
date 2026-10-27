@@ -113,6 +113,9 @@ CO_RUN_KIND = "ask-a-model"
 HEAVY_LANES = ("local-ml", "images")
 #: An images-lane job running longer than this is stuck (a thumbnail takes seconds): it gives back its slot (#6213).
 STUCK_IMAGE_JOB_SECONDS = 60.0  # the spec's "first thumbnail within a minute"
+#: A model-lane job that has shown no progress for this long, and is no live model call, is stuck: it lets the one slot go
+#: (#6213). Progress is the job's words on its row (`say`, `save_detail`); a call waiting on its answer is slow (#5938).
+STUCK_MODEL_JOB_SECONDS = 60.0
 #: After an open that found work a dead engine left (#6216, ruling 2): for this long every memory lane takes one page at a
 #: time whatever its gate allows, so a Mac just back from paging or a kill is not thrown straight back into it.
 GENTLE_START_SECONDS = 60.0
@@ -989,11 +992,20 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])
+    _heard_from(job_id)
 
 
 def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
     """Store a job's `detail` (JSON text) and, when given, its reason in words."""
     db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])
+    _heard_from(job_id)
+
+
+def _heard_from(job_id: str) -> None:
+    """A running job showed progress: the model lane's stuck-lane deadline counts from now (#6213)."""
+    lane = _scheduler.lanes["local-ml"]
+    if job_id in lane.running:
+        lane.heard[job_id] = time.monotonic()
 
 
 def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
@@ -1365,6 +1377,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
         except Exception as exc:  # noqa: BLE001 -- the caller's loop is gone: so is the caller
             raise JobCancelled("Its run had ended before this page started") from exc
         waited = 0.0
+        live_calls = _scheduler.lanes[lane].live_calls
+        live_calls.add(current_job_id())  # slow, never stuck while it waits on its answer (#6213)
         # A live call keeps its slot past the limit: freeing the lane under it would let another heavy job start beside the model
         # (or unload it). Only the words change; the call's own timeout or a Stop ends it (#5938).
         while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited) if waited < HOLD_LIMIT_SECONDS else SLOW_CALL_SECONDS):
@@ -2807,16 +2821,26 @@ class _Lane:
         self.calls: set[str] = set()
         #: When each running job was claimed (monotonic), by job id: the images lane's stuck ones give back their slot.
         self.started: dict[str, float] = {}
+        #: The model lane: when each running job last showed progress (`_heard_from`), and the jobs that are model calls
+        #: waiting on their answer (`lane_slot`), which are slow, never stuck (#6213, #5938).
+        self.heard: dict[str, float] = {}
+        self.live_calls: set[str] = set()
 
     def stuck(self) -> set[str]:
-        """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds): their
-        threads are blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
+        """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds), and the
+        model lane's that have shown no progress for `STUCK_MODEL_JOB_SECONDS` and are no live model call: their threads are
+        blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
         ponytail: a blocked Python thread cannot be killed; the lane runs beside it on a thread of its own, at most `slots`
-        extra, and the stuck row stays running (its thread may still finish it)."""
-        if self.name != "images":
+        extra, and the stuck row stays running (its thread may still finish it). A Kraken page is one call with no words of
+        its own: one silent for a minute counts as stuck; give it a progress hook if the M4 shows slow pages taken for stuck."""
+        if self.name == "images":
+            cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
+            return {job_id for job_id, at in list(self.started.items()) if at < cutoff and job_id in self.running}
+        if self.name != "local-ml":
             return set()
-        cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
-        return {job_id for job_id, at in list(self.started.items()) if at < cutoff and job_id in self.running}
+        cutoff = time.monotonic() - STUCK_MODEL_JOB_SECONDS
+        return {job_id for job_id in list(self.running) if job_id not in self.live_calls
+                and self.heard.get(job_id, self.started.get(job_id, cutoff + 1)) < cutoff}
 
     def holding(self) -> dict[str, str | None]:
         """The running jobs that hold a slot of this lane: every one but the stuck."""
@@ -2971,6 +2995,8 @@ class _Scheduler:
                     finally:
                         lane.running.pop(picked[2][0], None)
                         lane.started.pop(picked[2][0], None)
+                        lane.heard.pop(picked[2][0], None)
+                        lane.live_calls.discard(picked[2][0])
                         lane.calls.discard(picked[2][0])
                         if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
                             for name in HEAVY_LANES:

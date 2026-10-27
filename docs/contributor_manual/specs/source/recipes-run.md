@@ -387,8 +387,10 @@ replaces the Kraken figure before #6212 is coded.
   a minute whatever another project's rows say. Dogfood B12 23:50Z: a fresh project sat at 0 of 20,
   "Waiting for the thumbnail lane: work in another project is running", on the wedged project's phantom
   rows. Built: an images-lane job running past `STUCK_IMAGE_JOB_SECONDS` (60 s) holds no slot, no one-heavy hold and no
-  waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. Left: a stuck
-  job on a one-slot lane (the model lane) still holds it; the M4 run with a wedged project beside a fresh one.
+  waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. The one-slot
+  model lane tells stuck from slow: a job that has shown no progress (no words on its row) for `STUCK_MODEL_JOB_SECONDS`
+  (60 s) lets the slot go, while one that still says how it goes, or a model call still waiting on its answer (#5938),
+  keeps it. Left: the M4 run with a wedged project beside a fresh one.
   Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 - `recipes-run.isolation.release-never-refused-by-a-phantom` — **[OK]** (#6213) releasing a library
   refuses only for a run with a live thread of this engine, naming the run and its state; with every thread

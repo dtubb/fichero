@@ -108,13 +108,24 @@ def test_a_release_refused_by_a_live_run_names_it_and_its_state(db, monkeypatch)
     assert runs == [f"Detect Segments (Kraken), {run_id}, running"]
 
 
-def test_a_slow_live_model_job_keeps_its_slot_past_the_deadline(monkeypatch):
-    """Only the images lane gives back a stuck slot: a model job reading one page for ten minutes is alive, and a second
-    heavy model never starts beside it (#6000), nor does the lane want a thread beside it."""
+@pytest.fixture
+def model_lane(monkeypatch):
     lane = jobs._scheduler.lanes["local-ml"]
-    monkeypatch.setattr(lane, "running", {"slow-read": "mlx:a-big-reader"})
-    monkeypatch.setattr(lane, "started", {"slow-read": time.monotonic() - jobs.STUCK_IMAGE_JOB_SECONDS * 10})
+    monkeypatch.setattr(lane, "running", {})
+    monkeypatch.setattr(lane, "started", {})
+    monkeypatch.setattr(lane, "heard", {})
+    monkeypatch.setattr(lane, "live_calls", set())
     monkeypatch.setattr(lane, "slots", 1)
+    return lane
+
+
+def test_a_slow_live_model_job_keeps_its_slot_past_the_deadline(model_lane):
+    """A model call still waiting on its answer is slow, not stuck: a page read for ten minutes keeps the one-slot lane,
+    and a second heavy model never starts beside it (#6000, #5938), nor does the lane want a thread beside it."""
+    lane = model_lane
+    lane.running["slow-read"] = "mlx:a-big-reader"
+    lane.started["slow-read"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 10
+    lane.live_calls.add("slow-read")
 
     assert lane.stuck() == set()
     assert "slow-read" in lane.holding()
@@ -122,3 +133,32 @@ def test_a_slow_live_model_job_keeps_its_slot_past_the_deadline(monkeypatch):
     from fichero_server.llm.local_inference import LOCAL_READS_CEILING
 
     assert lane.threads_wanted == max(1, LOCAL_READS_CEILING)
+
+
+def test_a_model_job_with_no_progress_past_the_deadline_lets_the_lane_go(model_lane):
+    """A job on the one-slot model lane that has said nothing for the stuck-lane deadline, and is no live model call, is
+    stuck: it holds no slot, so another project's job starts (#6213)."""
+    lane = model_lane
+    lane.running["wedged"] = "kraken:segment"
+    lane.started["wedged"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS - 1
+
+    assert lane.stuck() == {"wedged"}
+    assert lane.holding() == {}
+    assert lane.may_start("read-a-line", "mlx:another-reader")
+
+
+def test_a_slow_model_job_that_still_makes_progress_keeps_the_lane(db, model_lane):
+    """Running past the deadline is not stuck while the job still says how it goes on its row (`jobs.say`,
+    `jobs.save_detail`): each word is a sign of progress, and the deadline counts from the last one (#6213)."""
+    lane = model_lane
+    jobs._ensure(db)
+    job_id = jobs._insert(db, "compare-line-finders", "samples", None, "automatic")
+    lane.running[job_id] = None
+    lane.started[job_id] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 5
+
+    jobs.say(db, job_id, "Page 7 of 20")
+    assert lane.stuck() == set() and not lane.may_start("read-a-line", "mlx:another-reader")
+
+    lane.heard[job_id] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS - 1
+    jobs.save_detail(db, job_id, "{}", reason="Page 8 of 20")
+    assert lane.stuck() == set()
