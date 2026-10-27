@@ -7,6 +7,8 @@ step goes on to the next page, and the page is not noted done, so Run again on w
 # ruff: noqa: F811  (the imported `library` fixture is used by name)
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import asyncio
 import time
 
@@ -86,17 +88,19 @@ def test_writing_a_pages_names_past_the_limit_stops_and_the_next_page_goes_on_62
 
     written: list[str] = []  # the page each name was written for
     real_upsert = module.upsert_entity
+    clock = [0.0]  # the step's clock: only the first page's writing moves it, so a slow machine can't stall page two
 
     def slow_upsert(db, *, canonical_name, **kwargs):
         written.append(kwargs["source_document_id"])
         if written[0] == written[-1]:
-            time.sleep(0.05)  # the first page's names, each slow to write
+            clock[0] += 1.0  # the first page's names, each a second to write
         return real_upsert(db, canonical_name=canonical_name, **kwargs)
 
     monkeypatch.setattr(module, "chat_structured_with_fallback", model)
     monkeypatch.setattr(module, "upsert_entity", slow_upsert)
     monkeypatch.setattr("fichero_server.db.Database.schedule_entity_embedding", lambda self, entity: None)  # fast writes
-    monkeypatch.setattr(module, "NAMES_PAGE_SECONDS", 0.5)
+    monkeypatch.setattr(module, "NAMES_PAGE_SECONDS", 30)
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
     noted = _noted(monkeypatch)
 
     result = _run(path, folder.id)
