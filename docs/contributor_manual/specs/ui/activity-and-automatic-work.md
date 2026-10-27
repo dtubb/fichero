@@ -1,14 +1,18 @@
 # Activity and Automatic Work — one job model, one window — Design Spec (#5352)
 
 > Milestone: activity
-> Manual: TBD — "What Fichero is doing": the Activity window; why work runs by itself when you add
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the contributor page; the
+> user-manual section is still to write — "What Fichero is doing": the Activity window; why work runs by itself when you add
 > or correct something; pausing everything, or one job; what happens when you quit, sleep or crash
 > (nothing is lost, nothing is done twice); what a job cost; taking a job's work back.
 > Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 2.
 
-> Design-led (Testing Constitution). **Status: DRAFT for maintainer approval, 2026-10-27** (first
+> Design-led (Testing Constitution). **Status: APPROVED 2026-10-27 by the maintainer** (first
 > drafted 2026-10-01; revised by the run-system review of 2026-10-27, read-only against
-> origin/integration 864293bd3, report `agent-work/status/briefs/run-system-review-2026-10-27.md`).
+> origin/integration 864293bd3, report `agent-work/status/briefs/run-system-review-2026-10-27.md`;
+> the rulings of 2026-10-27 are written into the lines they touch: in use slows to half the cores, the
+> pages-at-once gate is sized from the machine after #5929, cloud by default per step, the embedder stays
+> on its own lane, milestones stay, redo, trashed pages and cost per step approved).
 > Claims about the code are **VERIFIED** (file and line read), or **INFERRED** (follows from what was
 > read, not run). Nothing was run.
 >
@@ -154,7 +158,7 @@ The one job model is real for everything that touches a model, with four forks. 
 |---|---|---|---|---|---|
 | Recipe run | yes, `run-a-recipe` | `recipes` (1) | its steps' pages take the lanes below; Pause parks between steps | `source.recipe.done-is-not-redone` | `recipes/runner.py:1818`, `_run_batch_steps` `:1444` |
 | Workflow run (by hand, the bar, a batch, a chain, a schedule, a trigger) | yes, `workflow`, mirrored from the run record | **none of its own**: it runs on the engine's loop | only the slots its pages take (#4740) | the node cache: text steps keyed on the text, image readers on the file (`workflows/cache.py:78`) | `execution/jobs.py:456-475`, `execution/runner.py:129` |
-| Kraken page (`find-regions`, `find-lines`, `read-a-line`) | yes | `local-ml` (1 heavy model) | pages at once (gated at 2, #5929), 1.5 GB a page, `throttle.decide`; torch threads = performance cores ÷ pages inside | the step skips done pages | `llm/kraken_runtime.py:875-906, 1020-1035` |
+| Kraken page (`find-regions`, `find-lines`, `read-a-line`) | yes | `local-ml` (1 heavy model) | pages at once (gated at 2 until #5929 is fixed, then sized from the machine, #5931, `activity.lane.pages-at-once-sized-from-the-machine`), 1.5 GB a page, `throttle.decide`; torch threads = performance cores ÷ pages inside | the step skips done pages | `llm/kraken_runtime.py:875-906, 1020-1035` |
 | Served model page or text call (MLX, Ollama, a cloud model) | yes, `read-a-page` / `ask-a-model` | `local-ml` on this Mac, else `network` (4) | one served model; reads follow memory; idle stop 600 s | the node cache | `llm/__init__.py:1636-1646` |
 | spaCy at import and after a correction | yes, `nlp-draft`, `read-names-again` | `embed` (1) | spaCy's turn lock, people first | `nlp_text_sha` | `importers/derivatives.py:1207`, `actions/page_text_cache.py:516` |
 | spaCy inside a workflow step (the Names step) | **no row** | none: the run's own thread | `_spacy_lock` only | the node cache | `workflows/tools/entities.py:35`, `knowledge/spacy_ner.py:231` |
@@ -1474,7 +1478,9 @@ and node, not by job); a retry action for failed pages.
   finder and the reader. Only battery, memory and heat hold the lane, as they hold the model lane; a build or the person
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
-  an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
+  an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background). Ruled
+  2026-10-27 (decision 3 of the run-system review): the embedder stays here, on its own lane; the ask to put it
+  through the model lane (#6176) is closed as superseded by this line.
 - `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (#5863) (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
   own lane and they run at once: Kraken on the CPU, Apple Vision on the Neural Engine, MLX on the GPU, hosted readers on the
   network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
@@ -1655,8 +1661,11 @@ and node, not by job); a retry action for failed pages.
   process-wide, the last two summed over its child processes (`process_tree_rusage`), the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
   ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
-- `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
-  step can run at the same time when memory allows; two steps on the same processor do not.
+- `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370; ruled 2026-10-27) a CPU-bound step and a GPU-bound
+  step can run at the same time when memory allows; two steps on the same processor do not. A GPU step (MLX)
+  has its own pages-at-once budget from GPU memory and a CPU step (Kraken) its own from the performance cores
+  and free memory (`activity.lane.pages-at-once-sized-from-the-machine`), so the two run side by side; neither
+  budget borrows from the other.
 - `activity.lane.cores-are-used` — **[BROKEN]** (#6229; run-system review 2026-10-27, read from the code) a
   Kraken page uses the Mac's performance cores: the threads a page gets are the performance cores divided by the
   pages at once, whatever its priority, and the run's grey line says it ("2 pages at once, 2 threads each").
@@ -1669,7 +1678,29 @@ and node, not by job); a retry action for failed pages.
   the per-page log line (`kraken page …: total … | priority= qos= threads=`). *Test (to write):*
   `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py` (a case: the threads of an
   automatic page on a 4-core Mac are two, not one).
-- `activity.throttle.in-use-slows-to-half` — **[GAP]** (#6230; a decision for the maintainer) while the Mac is
+- `activity.lane.pages-at-once-sized-from-the-machine` — **[GAP]** (#5931, after #5929; ruled 2026-10-27, replacing the
+  report's decision 2) how many pages a step reads at once is sized from the machine it runs on, never a fixed
+  number. A CPU step (Kraken) reads min(performance cores ÷ the threads one page uses, free memory ÷ one page's
+  measured peak) pages at once; a GPU step (MLX) has its own budget from GPU memory, so a CPU step and a GPU
+  step run side by side (`activity.lane.overlap-different-processors`). Both figures are measured on this Mac
+  (the core count from the OS, a page's peak from its own first pages), never hard-coded: a Mac may have 36 to 48
+  cores. The in-use rule applies on top (`activity.throttle.in-use-slows-to-half`: half the performance cores
+  while the Mac is used), as do the memory, battery and heat holds; the run's grey line says the number and why
+  (`activity.lane.cores-are-used`). A cluster job or a container sizes its gate by the same rule from the
+  cores and memory it was given. Order: the exit-time crash is fixed first (`activity.lane.kraken-threads-exit-clean`,
+  #5929), and only then is the fixed 2 (`kraken_runtime.PAGES_AT_ONCE_GATE_5929`) lifted; the gate's code line is
+  `source.read.pages-at-once-scales` in `source/recipes-run.md`, which this ruling sizes. *Test (to write):*
+  `fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py` (a faked 12-core, 32 GB Mac with a
+  4-thread, 1.5 GB page reads three at once; a faked 4-core, 8 GB Mac reads one; in use halves the cores first;
+  a GPU step's budget is untouched by the CPU step's).
+- `activity.lane.kraken-threads-exit-clean` — **[BROKEN]** (#5929; run-system review 2026-10-27) the engine runs Kraken
+  pages on threads and the process exits clean after them (rc 0): twice on the M4 a threads run ended rc=139 at
+  teardown, after GEOS TopologyException lines; a crash at exit is a crash, so the gate stays at 2 until this is
+  found (faulthandler on, the thread stacks read) and fixed (worker threads joined and models freed before exit,
+  or the non-thread-safe call serialised). *Test (to write):* `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py`
+  (a subprocess that reads two faked pages on threads and exits returns 0).
+- `activity.throttle.in-use-slows-to-half` — **[GAP]** (#6230; ruled 2026-10-27: half the performance cores, not a
+  quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
   in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
   slows to HALF the performance cores at utility QoS, never to one thread and never to the background class;
   the holds (battery, memory, heat) stay as they are, and Pause All stays the way to have the Mac to oneself.
@@ -1908,13 +1939,13 @@ and node, not by job); a retry action for failed pages.
   to add later.
 - `activity.derived.recompute-is-one-step` — **[GAP]** (→ #5245) a recompute's swap is one recorded
   step with its run id and can be taken back.
-- `activity.redo.one-way-per-step` — **[GAP]** (#6231; run-system review 2026-10-27) one control redoes a recipe
+- `activity.redo.one-way-per-step` — **[GAP]** (#6231; run-system review 2026-10-27, approved 2026-10-27) one control redoes a recipe
   step on pages already done: Redo this step on Set Up's stage page and on the run's stage row, which is
   `runner.enqueue(redo=[step])` on the project or the folder (built in the engine, `recipes/runner.py:128-136`,
   `_asked_again` `:1325`; its only caller is `scripts/realrun_check.py --redo`; no route, no app control); the row
   says it runs on done pages and why. What redoes by itself on a change stays as built: the re-embed and the
   names re-read after a correction (`activity.auto.reembed-on-change`, `activity.auto.reextract-on-change`).
-- `activity.run.trashed-pages-leave-the-run` — **[GAP]** (#6232; run-system review 2026-10-27; see
+- `activity.run.trashed-pages-leave-the-run` — **[GAP]** (#6232; run-system review 2026-10-27, approved 2026-10-27; see
   `safety.trash.dependants-go-with-their-source`, `safety.trash.put-back`,
   `recipes-run.journey.run-again-on-what-was-missed`) a queued page whose document is in the Trash ends
   `skipped`, "Skipped: the page was moved to the Trash", and the run goes on; a page mid-read finishes and its
@@ -1925,12 +1956,16 @@ and node, not by job); a retry action for failed pages.
   derivative stages skip a trashed page (`derivatives.py:771, 858, 984, 1048`). Not built (INFERRED, no
   `deleted_at` check in `execution/jobs.py`, `workflows/builder.py`, `vision_base.py`): a Kraken, served-model or
   fan-out page already queued keeps reading a trashed page, and Activity says nothing of the Trash.
-- `activity.run.cloud-batch` — **[GAP]** (#6233; a decision for the maintainer) a step a person is not waiting
-  for may go to a provider's Batch API (half price, answered within a day), said on the row, and the network
-  lane's width is the provider's stated limit, not four. Built: a cloud step is the same run model (a row on the
+- `activity.run.cloud-batch` — **[GAP]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
+  step runs in the cloud BY DEFAULT, with a per-step choice of local or cloud on Set Up's stage page, and the cost
+  of each step is shown beside its time (`recipes-run.timing.cost-per-step`, #6234). A step a person is not waiting
+  for goes to the provider's Batch API where the provider has one (half price, answered within a day), said on the
+  row; a provider without one is called page by page, and the network lane's width is the provider's stated limit,
+  not four. Built: a cloud step is the same run model (a row on the
   network lane per page or call, `llm/__init__.py:1636-1646`, four at once per Mac with a provider share, its
   cost on the row); a batch-only model is refused (`workflows/validation.py:337`). Where the line is drawn
-  (lines local, the text steps to the cloud when the local pace is slow) is decision 5 of the report.
+  (lines local, the text steps to the cloud when the local pace is slow) is answered by the ruling above: cloud by
+  default, local by choice per step; the recipe's step kinds that have no cloud form (lines, regions) stay local.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
@@ -2258,10 +2293,10 @@ is done exactly once, and no artifact is written twice.
 
 ## Build order
 
-Written 2026-10-27 for approval; the migration order above is the history it grew from. BROKEN lines
-first, then the GAP lines, each in one step with the test that pins it. The PARTIAL lines ride with the
-step that carries their issue and are not listed again (the shape guard warns on a DRAFT; the list is
-cut to five a step on approval). Recipes-run's own steps (`source/recipes-run.md`) run first, in its order;
+Written 2026-10-27, approved the same day; the migration order above is the history it grew from. BROKEN
+lines first, then the GAP lines, each in one step with the test that pins it; the gate work (1.8) comes
+after the exit-time crash (1.7). The PARTIAL lines are placed in Stage 6, five a step, grouped by their
+issue: each is the rest of something partly built, and burns down with its issue. Recipes-run's own steps (`source/recipes-run.md`) run first, in its order;
 nothing here depends on them except where said.
 
 ### Stage 1 — Broken first: the engine answers, one heavy model, Stop reaches the call
@@ -2271,8 +2306,8 @@ nothing here depends on them except where said.
 - Tests: fichero-server/tests/unit/recipes/test_run_summary_counts_6001.py
 - Size: S
 
-#### Step 1.2 — Health answers under load; the embedder's lane decided (#6178, #6176)
-- Behaviours: `engine.health-answers-under-load`, `engine.embedder-in-the-model-lane`
+#### Step 1.2 — Health answers under load (#6178, #6176)
+- Behaviours: `engine.health-answers-under-load`
 - Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, fichero-server/tests/unit/db/test_embedder_child_does_not_outlive_the_engine_6176.py
 - Depends on: 1.1
 - Size: S
@@ -2296,6 +2331,17 @@ nothing here depends on them except where said.
 - Behaviours: `activity.legacy-chain-retired`
 - Tests: fichero-server/tests/unit/api/test_routes_chains.py
 - Size: S
+
+#### Step 1.7 — Kraken's threads exit clean (#5929)
+- Behaviours: `activity.lane.kraken-threads-exit-clean`
+- Tests: fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py
+- Size: M
+
+#### Step 1.8 — The pages-at-once gate sized from the machine; CPU and GPU steps side by side (#5931, #5358, #5370)
+- Behaviours: `activity.lane.pages-at-once-sized-from-the-machine`, `activity.lane.overlap-different-processors`
+- Tests: fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py
+- Depends on: 1.7, 1.5
+- Size: M
 
 ### Stage 2 — The summary the window reads (engine)
 
@@ -2334,8 +2380,8 @@ nothing here depends on them except where said.
 - Tests: fichero-server/tests/unit/api/test_routes_local_models.py
 - Size: M
 
-#### Step 4.2 — Stage by stage, no juggling; different processors overlap (#5939, #5358)
-- Behaviours: `activity.run.stage-by-stage-no-model-juggling`, `activity.lane.overlap-different-processors`
+#### Step 4.2 — Stage by stage, no juggling (#5939)
+- Behaviours: `activity.run.stage-by-stage-no-model-juggling`
 - Tests: fichero-server/tests/unit/jobs/test_model_order_5939.py, fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py
 - Depends on: 1.3
 - Size: M
@@ -2357,7 +2403,13 @@ nothing here depends on them except where said.
 - Tests: fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py
 - Size: S
 
-### Stage 5 — Parked: owned elsewhere or awaiting a decision
+#### Step 4.7 — Cloud by default per step; batch where the provider has it (#6233, #6234)
+- Behaviours: `activity.run.cloud-batch`
+- Tests: fichero-server/tests/unit/jobs/test_provider_share.py
+- Depends on: 1.4
+- Size: S
+
+### Stage 5 — Parked: owned elsewhere
 
 #### Step 5.1 — Where and estimate; the recipe declares what runs by itself (#5240, #4950, #5245)
 - Behaviours: `activity.run.where-and-estimate`, `activity.recipe.declares-automatic`, `activity.derived.recompute-is-one-step`
@@ -2370,14 +2422,144 @@ nothing here depends on them except where said.
 - Depends on: 1.4
 - Size: M
 
-#### Step 5.3 — Cloud batch and the network lane's width (#6233)
-- Behaviours: `activity.run.cloud-batch`
-- Tests: fichero-server/tests/unit/jobs/test_provider_share.py
-- Size: S
-
 #### Step 5.2 — The folded asks (#2277, #5116, #5117)
 - Behaviours: `activity.columns-move-into-activity-view`, `activity.step-click-jumps-to-comparison`, `activity.run-control-is-global`, `activity.simple-for-its-reader`
 - Tests: fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Size: S
+
+### Stage 6 — The PARTIAL lines: finishing what is partly built (placed on approval, 2026-10-27)
+
+Each step is the unbuilt rest of five lines, in issue order; a step's tests are the tests its lines
+already name. Nothing here blocks Stages 1 to 5; a step burns down with its issues.
+
+#### Step 6.1 — The rest of #4343, #4346, #4402, #4420, #4925
+- Behaviours: `activity.window.cost`, `activity.window.honest-state`, `activity.pause.cancel-long-call`, `activity.engine.warm-up-failures-are-said`, `activity.derived.names-its-inputs`
+- Tests: fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py, fichero-server/tests/unit/security/test_auth_refusals_say_why.py, fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift, fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift
+- Size: S
+
+#### Step 6.2 — The rest of #5016, #5240, #5353
+- Behaviours: `activity.window.clear-finished`, `activity.remote-under-its-step`, `activity.one-job-model`, `activity.jobs-are-a-tree`, `activity.jobs-follow-the-graph`
+- Tests: fichero-server/tests/unit/api/test_remote_runs_in_activity.py, fichero-server/tests/unit/jobs/test_batches_are_jobs.py, fichero-server/tests/unit/jobs/test_chat_on_the_lane.py, fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py
+- Size: S
+
+#### Step 6.3 — The rest of #5354, #5355, #5356
+- Behaviours: `activity.window.all-projects`, `activity.pause.global`, `activity.pause.global-survives-relaunch`, `activity.pause.per-job`, `activity.pause.controls-are-actions`
+- Tests: fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_runs_are_jobs.py
+- Size: S
+
+#### Step 6.4 — The rest of #5356, #5357
+- Behaviours: `activity.pause.one-start-stop`, `activity.durable.queue-is-rows`, `activity.durable.enqueue-with-the-change`, `activity.durable.lease-not-fail`, `activity.durable.paused-stays-paused`
+- Tests: fichero-server/tests/unit/jobs/test_a_paused_waiter_is_paused_not_failed.py, fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_durable_5357.py, fichero-server/tests/unit/jobs/test_job_queue.py
+- Size: S
+
+#### Step 6.5 — The rest of #5357, #5358
+- Behaviours: `activity.durable.poison-item`, `activity.durable.nothing-twice`, `activity.throttle.background-qos`, `activity.throttle.lanes`, `activity.lane.load-once`
+- Tests: fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_durable_5357.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py
+- Size: S
+
+#### Step 6.6 — The rest of #5358
+- Behaviours: `activity.lane.group-by-model`, `activity.lane.co-run-only-if-it-fits`, `activity.lane.measures-processors`, `activity.throttle.watched-first`, `activity.throttle.hand-started-waits-for-memory-and-heat`
+- Tests: fichero-server/tests/unit/jobs/test_chat_on_the_lane.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py, fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py
+- Size: S
+
+#### Step 6.7 — The rest of #5358, #5359
+- Behaviours: `activity.throttle.power-heat-memory`, `activity.every-worker-is-a-row`, `activity.every-kind-reports`, `activity.kraken-mlx-inference-visible`, `activity.nlp-visible`
+- Tests: fichero-server/tests/unit/api/test_routes_local_models.py, fichero-server/tests/unit/jobs/test_deliberate_wait_is_not_a_stall.py, fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py
+- Size: S
+
+#### Step 6.8 — The rest of #5360, #5361, #5362
+- Behaviours: `activity.derived.stale-is-marked`, `activity.derived.coalesced`, `activity.auto.reextract-on-change`, `activity.derived.person-work-kept`, `activity.auto.on-add`
+- Tests: fichero-server/tests/unit/api/test_names_follow_a_correction.py, fichero-server/tests/unit/api/test_routes_entity_inspector.py, fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py, fichero-server/tests/unit/jobs/test_job_queue.py
+- Size: S
+
+#### Step 6.9 — The rest of #5362, #5415
+- Behaviours: `activity.auto.what-runs-by-itself`, `activity.window.table`, `activity.window.expand`, `activity.window.working-on`, `activity.window.measures`
+- Tests: fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py, fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Size: S
+
+#### Step 6.10 — The rest of #5415, #5420
+- Behaviours: `activity.window.absolute-times`, `activity.window.grouped-by-project`, `activity.window.row-shows-lane-state-reason`, `activity.popover.summary`, `activity.ghg.estimate-with-its-basis`
+- Tests: fichero-server/tests/unit/api/test_activity_window_absolute_times.py, fichero-server/tests/unit/jobs/test_ghg_estimate_with_its_basis_5420.py, fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift
+- Size: S
+
+#### Step 6.11 — The rest of #5434, #5540, #5561
+- Behaviours: `activity.document.what-has-been-run`, `activity.run.strip-tells-the-truth`, `activity.details.heading-names-not-ids`, `activity.details.progress-counts`, `activity.details.open-in-the-app`
+- Tests: fichero-server/tests/unit/api/test_document_run_history.py, fichero-server/tests/unit/jobs/test_a_try_row_counts_its_pages_2026_10_20.py, fichero-server/tests/unit/jobs/test_activity_details_5561.py, fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py
+- Size: S
+
+#### Step 6.12 — The rest of #5585, #5606, #5621
+- Behaviours: `activity.lane.thumbnails-first`, `activity.waiting-says-why`, `activity.list-and-tree-agree`, `activity.mode.start-stop`, `activity.throttle.recheck-when-it-clears`
+- Tests: fichero-server/tests/unit/importers/test_imported_pages_counted_once_5690.py, fichero-server/tests/unit/importers/test_names_step_not_starved_by_drafts_5690.py, fichero-server/tests/unit/jobs/test_activity_one_truth_5606.py, fichero-server/tests/unit/jobs/test_start_stop_mode.py
+- Size: S
+
+#### Step 6.13 — The rest of #5621, #5622, #5623, #5634, #5635
+- Behaviours: `activity.pause.per-queue`, `activity.throttle.one-heavy-when-memory-tight`, `activity.details.what-it-works-on-now`, `activity.window.clear-failed`, `activity.popover.mac-state-row`
+- Tests: fichero-server/tests/unit/jobs/test_clear_failed_5634.py, fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py
+- Size: S
+
+#### Step 6.14 — The rest of #5655, #5685, #5740, #5758, #5839
+- Behaviours: `activity.no-project-label-for-the-always-there-project`, `activity.run.says-what-it-reads`, `activity.remote.actions`, `activity.run.step-honest-about-lost-pages`, `activity.window.expands-to-pages`
+- Tests: fichero-server/tests/unit/jobs/test_queue_summary_and_items_5839.py, fichero-server/tests/unit/mcp/test_run_says_what_it_reads_5685.py, fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py
+- Size: S
+
+#### Step 6.15 — The rest of #5839, #5843
+- Behaviours: `activity.window.next-in-run-order`, `activity.window.waiting-looks-waiting`, `activity.window.queue-summary`, `activity.read.get-runs-no-model`, `activity.engine.restart-says-why`
+- Tests: fichero-server/tests/unit/api/test_activity_order_live_run_first.py, fichero-server/tests/unit/api/test_no_model_work_in_gets.py, fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py, fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py
+- Size: S
+
+#### Step 6.16 — The rest of #5845, #5846, #5850
+- Behaviours: `activity.lane.no-wait-on-a-job-that-will-not-run`, `activity.lane.same-model-pages-together`, `activity.read.page-read-once`, `activity.log.persons-log`, `activity.log.developer-level`
+- Tests: fichero-server/tests/unit/api/test_document_text_never_reads.py, fichero-server/tests/unit/jobs/test_person_log_levels.py, fichero-server/tests/unit/jobs/test_same_model_pages_together.py, fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift
+- Size: S
+
+#### Step 6.17 — The rest of #5851, #5852, #5860
+- Behaviours: `activity.window.live-block`, `activity.window.background-group`, `activity.window.history-group`, `activity.popover.same-summary`, `activity.jobs-poll-off-the-loop`
+- Tests: fichero-server/tests/unit/api/test_activity_jobs_off_the_loop_5860.py, fichero-server/tests/unit/api/test_activity_order_live_run_first.py, fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py, fichero-server/tests/unit/jobs/test_activity_summary_one_source.py
+- Size: S
+
+#### Step 6.18 — The rest of #5863, #5865, #5868, #5873, #5876
+- Behaviours: `activity.lane.each-unit-its-own-lane`, `activity.engine.embedder-model-missing-says-so`, `activity.reconnects-after-engine-restart`, `activity.runner.stale-run-sweep-on-background-loop`, `activity.runner.waiting-page-poll-backoff`
+- Tests: fichero-server/tests/unit/db/test_embedder_model_missing_says_so.py, fichero-server/tests/unit/db/test_search_model_downloads_in_the_app.py, fichero-server/tests/unit/jobs/test_fable_runner_p2.py, fichero-server/tests/unit/jobs/test_hosted_page_beside_local_5863.py
+- Size: S
+
+#### Step 6.19 — The rest of #5878, #5879, #5889, #5890, #5899
+- Behaviours: `activity.runner.snapshot-lists-batch-once`, `activity.runner.dead-lane-thread-wakes-lane`, `activity.engine.auth-never-hangs`, `activity.engine.app-db-lock-names-its-holder`, `activity.read.get-embeds-its-own-query`
+- Tests: fichero-server/tests/unit/api/test_get_embeds_its_own_query.py, fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py, fichero-server/tests/unit/jobs/test_fable_runner_p2.py, fichero-server/tests/unit/llm/test_providers.py
+- Size: S
+
+#### Step 6.20 — The rest of #5899, #5912, #5920, #5937, #5938
+- Behaviours: `activity.read.claims-backfill-is-a-lane-job`, `activity.stream-reconnects-after-a-sharing-switch`, `activity.lane.one-model-at-a-time`, `activity.run.partial-said-on-a-done-row`, `activity.lane.hold-limit-keeps-the-slot`
+- Tests: fichero-server/tests/unit/jobs/test_hold_limit_says_what_happened_5938.py, fichero-server/tests/unit/jobs/test_lane_rescans_when_the_state_moved_5920.py, fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
+- Size: S
+
+#### Step 6.21 — The rest of #5939, #5957, #5958, #5959, #5960
+- Behaviours: `activity.lane.model-order`, `activity.window.every-state-has-its-words`, `activity.window.waiting-run-reads-waiting`, `activity.run.pages-counted-once`, `activity.window.three-groups`
+- Tests: fichero-server/tests/unit/jobs/test_model_order_5939.py, fichero-server/tests/unit/jobs/test_pages_are_counted_once_5959.py, fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py, fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py
+- Size: S
+
+#### Step 6.22 — The rest of #5960
+- Behaviours: `activity.window.one-row-per-run`, `activity.window.stage-bar`, `activity.window.one-button`, `activity.window.project-prefix`, `activity.window.up-next`
+- Tests: fichero/Tests/Unit/general/Models/ActivityStageBarTests.swift, fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Size: S
+
+#### Step 6.23 — The rest of #5960
+- Behaviours: `activity.window.done-today`, `activity.window.open-a-run`, `activity.window.page-grid`, `activity.window.no-empty-prose`, `activity.popover.now-plus-next`
+- Tests: fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py, fichero/Tests/Unit/general/Models/ActivityNoEmptyProseTests.swift, fichero/Tests/Unit/general/Models/ActivityOpenedRunTests.swift, fichero/Tests/Unit/general/Models/ActivityPageGridTests.swift
+- Size: S
+
+#### Step 6.24 — The rest of #5960, #6109
+- Behaviours: `activity.summary.where-and-model`, `activity.summary.up-next`, `activity.run.page-states`, `activity.log.problems-first`, `activity.service.refusals-in-the-engines-words`
+- Tests: fichero-server/tests/unit/api/test_live_block_where_and_model_5960.py, fichero-server/tests/unit/api/test_log_problems_first_5960.py, fichero-server/tests/unit/api/test_run_page_states_5960.py, fichero-server/tests/unit/api/test_summary_up_next_5960.py
+- Size: S
+
+#### Step 6.25 — The rest of #6125, #6126, #6129, #6134
+- Behaviours: `activity.run.row-matches-details`, `activity.up-next.follow-on-work-is-folded-into-a-live-run`, `activity.run.stages-before-search-do-not-embed`, `activity.machine.models-held`, `activity.run.stage-names-each-reader`
+- Tests: fichero-server/tests/unit/execution/test_models_held_6129.py, fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py, fichero/Tests/Unit/general/Models/ActivityModelsHeldTests.swift, fichero/Tests/Unit/general/Models/ActivityStageReadersTests.swift
+- Size: S
+
+#### Step 6.26 — The rest of #6176
+- Behaviours: `engine.run-account-reads-off-the-loop`
+- Tests: fichero-server/tests/unit/workflows/test_run_account_reads_off_the_event_loop_6176.py
 - Size: S
 
 ## Test matrix
@@ -2554,5 +2736,4 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 - `engine.kraken-page-time-is-seconds` — **[GAP]** (#6178) on an M-series Mac a Kraken page (segment and read) takes seconds, not minutes: the job reports pages per minute, and a page over 30 s raises an Activity note naming the cause (contention, a reload, swap). *Test:* measured on a scratch library with the real model on the M4 (e2e, overnight).
 - `engine.no-orphan-keeps-the-socket` — **[PARTIAL]** (#6176; the embedder child lets go and exits with its engine, `fichero-server/tests/unit/db/test_embedder_child_does_not_outlive_the_engine_6176.py`; owed: `loaders/kreuzberg_cache._fork_worker`, the skipped-spawn marker, a Dev Embedded smoke) (#6176, #6178; Opus review `agent-work/status/briefs/engine-respawn-root-cause-2026-10-26.md`) a child the engine forks (the embedder, the kreuzberg worker) never inherits the engine's listening socket or the parent's pipe ends, and exits when its parent dies (also on SIGKILL); after the engine stops, no process of this app still listens on its socket, so a new engine starts and exactly ONE engine runs. *Test:* fork a RemoteEmbedder with the fake model, SIGKILL the parent, the child exits within 5 s and holds no socket.
 - `engine.restart-waits-for-the-work` — **[PARTIAL]** (built, Swift uncompiled: `EngineRestartPolicy` (`shouldRestart`; a paired remote Mac keeps a short 3-ping threshold, the app cannot restart it; the running-jobs count is jobs in state running, not queued) — a missed ping is only logged as busy, the app restarts only after 36 missed pings in a row (3 minutes) and 120 (10 minutes) while an import or an Activity job is running, `EngineRestartPolicy.runningJobs`; `AppState.offlineFlipThreshold` (2) is gone. Not built: the no-CPU/disk/log-activity half of "hung", the 30 s graceful wait before a kill, the 10 s to 5 min backoff with 5 tries, the 2 s health GET timeout, no spawn marker for a skipped spawn, a "busy" status in Activity) (#6176; owner 2026-10-26: "far too aggressive") the app never kills a live engine for being slow. The heartbeat still pings every 5 s, but a miss only turns the status to "busy" (shown in Activity, no action). The app restarts the engine only when it is DEAD (the process is gone) or HUNG: no health answer for 3 minutes while the process shows no CPU, no disk and no log activity, and with a running job 10 minutes. Before any restart it asks the engine to stop gracefully and waits 30 s (no SIGKILL of a process still writing), says why in Activity, and never starts a second engine (`engine.no-orphan-keeps-the-socket`). Backoff between restarts doubles from 10 s to 5 minutes and stops after 5 tries with the Retry/Quit modal. The health GET has a 2 s timeout, a skipped spawn writes no "engine spawn" marker. *Test:* Swift heartbeat tests (30 missed pings with CPU busy: no restart; process gone: restart; hung 3 minutes: graceful stop first) and a Python health-under-load test.
-- `engine.embedder-in-the-model-lane` — **[GAP]** (#6176; retagged 2026-10-27, awaiting a decision: it contradicts `activity.lane.embed-off-the-heavy-lane` [OK], #5847, where the embedder is a child process on its own `embed` lane so an embed beside a Kraken page never unloads Kraken, and recipes-run's ruling 5, search once at the end; decision 3 of the 2026-10-27 report) the embedder loads and unloads through the same model lane as Kraken and every other local model, so with Kraken resident an embed releases it first or waits (`designer.model.one-resident-local-model`). *Test (if ruled so):* `tests/unit/llm/test_embedder_in_model_lane.py`.
 

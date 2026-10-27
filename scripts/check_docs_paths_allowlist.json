@@ -26,7 +26,9 @@
     "fichero/Tests/Unit/general/Views/Onboarding/SetupStagePageTests.swift": "planned test: path page in the Set Up flow, written with the path page (step 5, #6058)",
     "fichero/Tests/UI/Onboarding/RecipeDesignerUITests.swift": "planned XCUITest click-around leg, run end to end once the flow is complete (step 14, #6067)",
     "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)",
-    "fichero-server/tests/fixtures/image_enhance": "Fixtures the DRAFT spec image-enhancement.md plans (#6185); they land with Step 1.3."
+    "fichero-server/tests/fixtures/image_enhance": "Fixtures the DRAFT spec image-enhancement.md plans (#6185); they land with Step 1.3.",
+    "fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py": "to write: pins activity.lane.kraken-threads-exit-clean (#5929), approved 2026-10-27; the builder of Step 1.7 writes it first",
+    "fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py": "to write: pins activity.lane.pages-at-once-sized-from-the-machine (#5931), approved 2026-10-27; the builder of Step 1.8 writes it first"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",
