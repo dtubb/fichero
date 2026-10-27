@@ -30,6 +30,7 @@ from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (f
     _recipe,
     _save,
     _start,
+    _wait,
     engine,
     pages,
 )
@@ -136,3 +137,27 @@ def test_one_start_runs_every_step_and_each_leaves_its_own_result(client, db, pa
     assert "Read 3 of 3 pages" in lines, lines
     assert any(line.startswith("0 pages dated") for line in lines), lines  # Dates ran and found none in the reading
     assert any("Names: 1 People" in line for line in lines), lines
+
+
+def test_a_run_reads_each_page_s_names_once_with_the_names_model(client, db, pages, tmp_path, engine, embedded,
+                                                                 monkeypatch, with_material):
+    """Never rerun a model pass (#6223): a run's step that changes a page's text queues the library's names re-read
+    (`read-names-again`, the spaCy draft, only where the library reads names by itself) beside the run's own Names
+    step. That re-read is not the run's names model, and it never reads one text twice (`nlp_text_sha`)."""
+    import hashlib
+
+    from fichero_server.importers import nlp_draft
+
+    calls = _models(monkeypatch)
+    drafts: list = []
+    monkeypatch.setattr(nlp_draft, "auto_nlp_enabled", lambda: True)
+    monkeypatch.setattr(nlp_draft, "run_nlp_draft", lambda d, doc: drafts.append(
+        (doc.id, hashlib.sha256((doc.page_content or "").encode()).hexdigest())) or nlp_draft.NlpDraftResult())
+    _folders(db, pages)
+    _save(client, _recipe(tmp_path, *STEPS, _search()))
+    assert _finished(client, _start(client))["state"] == "done"
+    assert _wait(lambda: not db.execute_fetchall(
+        "SELECT 1 FROM jobs WHERE kind = 'read-names-again' AND state IN ('waiting', 'running')"))
+
+    assert calls.count("_EntitiesOnly") == len(_all_pages(db)) == 3  # the run's names model: once a page
+    assert drafts and len(drafts) == len(set(drafts)), drafts  # the draft: never the same text twice
