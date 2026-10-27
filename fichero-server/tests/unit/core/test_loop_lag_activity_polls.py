@@ -81,3 +81,31 @@ def test_the_project_setup_plans_its_redo_steps_off_the_loop(monkeypatch, tmp_pa
     monkeypatch.setattr(start, "plan_start", _slow({"workflows": []}))
 
     assert _loop_turn_during(lambda: recipes.get_project_setup(db=None)) < 1.0
+
+
+def test_the_run_status_answers_under_a_held_writer(db):
+    """A poll under a held writer answers with what was committed rather than waiting for the writer (#6178): a run's
+    write holds the transaction for 3 s, and the run's status beside it answers within 1 s."""
+    import threading
+
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    writing, done = threading.Event(), threading.Event()
+
+    def hold_the_writer():
+        with db.transaction():
+            db.execute("UPDATE jobs SET reason = 'writing' WHERE id = ?", [run_id])
+            writing.set()
+            done.wait(3)
+
+    writer = threading.Thread(target=hold_the_writer)
+    writer.start()
+    try:
+        assert writing.wait(5)
+        started = time.monotonic()
+        status = runner.status(db, run_id)
+        took = time.monotonic() - started
+    finally:
+        done.set()
+        writer.join()
+    assert took < 1.0, took
+    assert status["reason"] != "writing", status  # what was committed, not the held write
