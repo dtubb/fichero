@@ -13949,12 +13949,14 @@ def register_generated_openapi_commands(
     def recipes_get_start_plan_get(
         ctx: typer.Context,
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"),
     ) -> None:
         """Get Start Plan (GET /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
             params = {
                 "folder_id": folder_id,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

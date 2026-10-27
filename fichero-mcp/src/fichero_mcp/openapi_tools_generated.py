@@ -6622,9 +6622,10 @@ def fichero_recipes_run_summary(
 def fichero_recipes_get_start_plan(
     *,
     folder_id: Annotated[Optional[str], Field(description='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project')] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'Get Start Plan\n\nWhat Start would run on this project, or on one folder of it, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`). 422 for a folder not in the project.\n\nRoute: GET /api/recipes/project/start (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id})
+    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id, "summary": summary})
 
 
 def fichero_recipes_start_project(

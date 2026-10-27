@@ -2722,21 +2722,31 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
             "ready": ready["ready"], "readiness_sentence": ready.get("sentence")}
 
 
-@router.get("/project/start", response_model=StartPlan)
+@router.get("/project/start", response_model=StartPlan,
+            openapi_extra={"x-fichero-agent-defaults": {"summary": True}})
 async def get_start_plan(
     http: Request,
     folder_id: Optional[str] = Query(default=None, description=(
         "plan Start on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); omit for the whole project")),
+    summary: bool = Query(False, description=(
+        "a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), "
+        "not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it "
+        "(openapi.mcp.answers-fit-an-agent)")),
     db: Database = Depends(get_library_database),
 ) -> StartPlan:
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
         # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
-        return StartPlan(**await asyncio.to_thread(_start_plan, db, folder_id, clusters=_cluster_names(http)))
+        plan = await asyncio.to_thread(_start_plan, db, folder_id, clusters=_cluster_names(http))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if summary:
+        for step in plan.get("step_choices") or []:
+            cands = step.get("candidates") or []
+            step["candidates"] = [c for c in cands if c.get("picked") or c.get("recommended")] or cands[:1]
+    return StartPlan(**plan)
 
 
 class StartParams(BaseModel):

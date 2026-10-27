@@ -16416,6 +16416,18 @@
               "title": "Folder Id"
             },
             "description": "plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project"
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"
           }
         ],
         "responses": {
@@ -16439,6 +16451,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       },
       "post": {

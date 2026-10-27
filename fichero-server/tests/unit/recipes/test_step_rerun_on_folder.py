@@ -293,3 +293,15 @@ def test_a_run_on_fewer_pages_than_the_project_says_why(client, db, pages, tmp_p
     _finished(client, job_id)
     notes = [s.get("note") for s in _run_status(client, job_id)["steps"]]
     assert "already done on 2 of 3 pages; runs on the other 1" in notes, notes
+
+
+def test_the_start_plan_for_an_agent_names_each_steps_pick_not_its_whole_menu(client, pages, tmp_path):
+    """openapi.mcp.answers-fit-an-agent: the plan's step menus grow with the models a Mac has (a reviewer's machine
+    answered 75 KB); the lean plan keeps each step's picked and recommended candidates, the rest one GET away."""
+    _save(client, _recipe(tmp_path, *STEPS))
+    full = client.get("/api/recipes/project/start").json()
+    lean = client.get("/api/recipes/project/start", params={"summary": True}).json()
+    assert sum(len(s["candidates"]) for s in full["step_choices"]) > sum(len(s["candidates"]) for s in lean["step_choices"])
+    for whole, step in zip(full["step_choices"], lean["step_choices"], strict=True):
+        kept = [c for c in whole["candidates"] if c["picked"] or c["recommended"]] or whole["candidates"][:1]
+        assert step["candidates"] == kept, step["step"]
