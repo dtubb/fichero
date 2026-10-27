@@ -1736,20 +1736,13 @@ def end_search_watch(db: Any, run_id: str, started_by: str) -> None:
         queue_reembed_batches(db, missed, started_by=started_by)
 
 
-def _committed(db: Any) -> Any:
-    """The library's committed reads (`Database.reading_committed`); a stand-in library without them reads as it does."""
-    from contextlib import nullcontext
-
-    reading = getattr(db, "reading_committed", None)
-    return reading() if reading else nullcontext()
-
-
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
     has one, so this and Activity are one account (#5498). A run still waiting says what it waits for. Read as
     committed: a poll under a run's held write answers with what it has (#6178)."""
-    with _committed(db):
-        return _status(db, job_id)
+    from fichero_server.db import read_committed
+
+    return read_committed(db, _status, db, job_id)
 
 
 def _status(db: Any, job_id: str) -> dict[str, Any]:
@@ -1822,8 +1815,9 @@ def unfinished_steps(db: Any) -> dict[str, dict[str, str]]:
 
 def runs(db: Any) -> list[dict[str, Any]]:
     """Every recipe run of the project, newest first, read as committed (#6178)."""
-    with _committed(db):
-        return [status(db, row["id"]) for row in jobs.find_jobs(db, kinds=[KIND])]
+    from fichero_server.db import read_committed
+
+    return read_committed(db, lambda: [status(db, row["id"]) for row in jobs.find_jobs(db, kinds=[KIND])])
 
 
 def register_job_kinds() -> None:

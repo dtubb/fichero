@@ -39,7 +39,8 @@ Usage:
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 from pathlib import Path
 from types import UnionType
 from typing import TYPE_CHECKING, ClassVar, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
@@ -1031,6 +1032,24 @@ def _repair_lock(path: str) -> threading.Lock:
     with _REPAIR_LOCKS_GUARD:
         return _REPAIR_LOCKS.setdefault(path, threading.Lock())
 
+#: Set by `Database.reading_committed`: a ContextVar, so the worker threads a poll hands its reads to
+#: (`asyncio.to_thread` copies the context) read committed too.
+_COMMITTED_READS: ContextVar[bool] = ContextVar("committed_reads", default=False)
+
+
+def committed(db: Any) -> Any:
+    """The library's committed reads (`Database.reading_committed`): a poll that answers under a held writer with what
+    was committed (#6178). A stand-in library without them reads as it does."""
+    reading = getattr(db, "reading_committed", None)
+    return reading() if reading else nullcontext()
+
+
+def read_committed(db: Any, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """`fn(*args)` under `committed(db)`."""
+    with committed(db):
+        return fn(*args, **kwargs)
+
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -1869,7 +1888,7 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
-        if fetch is not None and getattr(self._tx_state, "committed_reads", False) and not self.in_transaction:
+        if fetch is not None and _COMMITTED_READS.get() and not self.in_transaction:
             rows, _columns = self._read_fetch_with_columns(sql, params)
             return rows if fetch == "all" else (rows[0] if rows else None)
         self._ensure_transaction_started()
@@ -2169,16 +2188,15 @@ class Database(DatabaseEmbeddingMixin):
 
     @contextmanager
     def reading_committed(self):
-        """Within this, on this thread, a SELECT through `execute_fetchall`/`execute_fetchone` reads last-COMMITTED
+        """Within this (this thread, and the worker threads it hands work to), a SELECT through `execute_fetchall`/`execute_fetchone` reads last-COMMITTED
         state on the READ cursor (#4523) instead of queuing on the transaction gate: a poll under a held writer answers
         with what was committed rather than waiting for the writer (`recipes-run.engine.answers-while-a-run-goes`,
         #6178). Inside a transaction of this thread the gated path stands, so its own writes are read."""
-        before = getattr(self._tx_state, "committed_reads", False)
-        self._tx_state.committed_reads = True
+        token = _COMMITTED_READS.set(True)
         try:
             yield
         finally:
-            self._tx_state.committed_reads = before
+            _COMMITTED_READS.reset(token)
 
     @contextmanager
     def transaction(self):

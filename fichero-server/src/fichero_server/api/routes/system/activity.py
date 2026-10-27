@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import functools
 import re
 import json
 import logging
@@ -37,7 +38,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.db import Database
+from fichero_server.db import Database, committed
 from fichero_server.workflows.activity import (
     Activity,
     ActivityFilter,
@@ -753,6 +754,17 @@ async def get_recent_activities(
     return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
 
 
+def _reads_committed(route):
+    """The poll's every read, on its worker threads too, is of what was committed: under a held writer it answers
+    at once with what it has (#6178)."""
+    @functools.wraps(route)
+    async def answer(*args, **kwargs):
+        with committed(kwargs.get("db")):
+            return await route(*args, **kwargs)
+
+    return answer
+
+
 @router.get("/jobs", response_model=BackgroundJobsResponse)
 @single_flight
 async def list_background_jobs(
@@ -953,6 +965,7 @@ async def list_queued_items(
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
 @single_flight
+@_reads_committed
 async def get_job_tree(
     job_id: str,
     depth: Optional[int] = Query(None, ge=0, description=(
@@ -968,7 +981,7 @@ async def get_job_tree(
 
     # A row that stands for many jobs (the import's "Processing imported pages", one kind's counted
     # waiting jobs) reads as a tree of its stages (`activity.details.what-it-works-on-now`, #5623).
-    # Off the loop (#5843): the tree's reads wait on the transaction gate behind a write.
+    # Off the loop (#5843), and under a held writer what was committed (#6178).
     found = await asyncio.to_thread(
         lambda: job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id))
     if found is None:

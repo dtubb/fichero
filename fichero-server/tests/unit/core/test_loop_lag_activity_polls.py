@@ -83,12 +83,10 @@ def test_the_project_setup_plans_its_redo_steps_off_the_loop(monkeypatch, tmp_pa
     assert _loop_turn_during(lambda: recipes.get_project_setup(db=None)) < 1.0
 
 
-def test_the_run_status_answers_under_a_held_writer(db):
-    """A poll under a held writer answers with what was committed rather than waiting for the writer (#6178): a run's
-    write holds the transaction for 3 s, and the run's status beside it answers within 1 s."""
+def _under_a_held_writer(db, run_id, read):
+    """`read()` while another thread's transaction holds a write to the run's row for 3 s: (its answer, seconds)."""
     import threading
 
-    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
     writing, done = threading.Event(), threading.Event()
 
     def hold_the_writer():
@@ -102,10 +100,27 @@ def test_the_run_status_answers_under_a_held_writer(db):
     try:
         assert writing.wait(5)
         started = time.monotonic()
-        status = runner.status(db, run_id)
-        took = time.monotonic() - started
+        answer = read()
+        return answer, time.monotonic() - started
     finally:
         done.set()
         writer.join()
+
+
+def test_the_run_status_answers_under_a_held_writer(db):
+    """A poll under a held writer answers with what was committed rather than waiting for the writer (#6178): a run's
+    write holds the transaction for 3 s, and the run's status beside it answers within 1 s."""
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    status, took = _under_a_held_writer(db, run_id, lambda: runner.status(db, run_id))
     assert took < 1.0, took
     assert status["reason"] != "writing", status  # what was committed, not the held write
+
+
+def test_activitys_job_tree_answers_under_a_held_writer(db):
+    from fichero_server.api.routes.system import activity
+
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    tree, took = _under_a_held_writer(db, run_id, lambda: asyncio.run(activity.get_job_tree(run_id, depth=1, db=db)))
+    assert took < 1.0, took
+    assert tree.reason != "writing", tree
+
