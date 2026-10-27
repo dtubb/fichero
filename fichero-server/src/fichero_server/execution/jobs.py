@@ -1550,6 +1550,30 @@ def settle_made_thumbnails(db: "Database") -> int:
     return len(made)
 
 
+#: A `first` job row marked running with no lane thread behind it, this long, was left by a worker that is gone.
+ORPHAN_FIRST_GRACE_SECONDS = 60.0
+
+
+def requeue_orphaned_first(db: "Database") -> int:
+    """Back to waiting: every `first` (thumbnail) job row running that no lane thread of this engine runs, started
+    more than `ORPHAN_FIRST_GRACE_SECONDS` ago (the grace covers the moment between a claim's row update and its
+    lane entry). Such a row holds the thumbnails-first gate for good: only a reopen reset it (#6203). Returns how many."""
+    first_kinds = [name for name, kind in KINDS.items() if kind.first]
+    if not first_kinds:
+        return 0
+    live = _scheduler.running_ids()
+    marks = ", ".join("?" for _ in first_kinds)
+    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
+    cutoff = utc_now() - timedelta(seconds=ORPHAN_FIRST_GRACE_SECONDS)
+    found = db.execute_fetchall(
+        f"SELECT id FROM jobs WHERE state = 'running' AND kind IN ({marks}) AND parent_id IS NULL "
+        f"AND started_at < ?{not_live}", [*first_kinds, cutoff, *live])
+    for (job_id,) in found:
+        db.execute(f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+                   "WHERE id = ? AND state = 'running'", [job_id])
+    return len(found)
+
+
 def resume(db: "Database") -> None:
     """On library open: jobs left running were interrupted. Back to waiting, or failed after
     `MAX_ATTEMPTS`; then, if anything is waiting, wake the scheduler for this library. A library
@@ -3240,6 +3264,8 @@ class _Scheduler:
             # otherwise leave the work it held neither picked (still held at the pick) nor held (done
             # at this look), and the library forgotten as idle with that work waiting until the next
             # wake. Asked first, a thumbnail done since lets the pick below take the work.
+            if first_clause:
+                requeue_orphaned_first(db)  # a running row no thread runs would hold the gate for good (#6203)
             held_by_first = bool(first_clause) and db.execute_fetchone(
                 f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
                 waiting_on_first[1]) is not None
