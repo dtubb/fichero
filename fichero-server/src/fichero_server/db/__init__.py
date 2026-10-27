@@ -81,6 +81,7 @@ from fichero_server.db.embeddings import (
     _quantize_int8,
 )
 from fichero_server.db.manager import DatabaseManager, db_manager  # noqa: F401
+from fichero_server.db.busy_evidence import watch_statement
 from fichero_server.errors import ErrorCategory, handle_error
 from fichero_server.security.path_security import resolve_under_allowed_roots
 
@@ -1912,15 +1913,16 @@ class Database(DatabaseEmbeddingMixin):
             with self._lock:
                 for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                     try:
-                        cur = (
-                            self.conn.execute(sql)
-                            if params is None
-                            else self.conn.execute(sql, params)
-                        )
-                        if fetch == "all":
-                            return cur.fetchall()
-                        if fetch == "one":
-                            return cur.fetchone()
+                        with watch_statement(sql):
+                            cur = (
+                                self.conn.execute(sql)
+                                if params is None
+                                else self.conn.execute(sql, params)
+                            )
+                            if fetch == "all":
+                                return cur.fetchall()
+                            if fetch == "one":
+                                return cur.fetchone()
                         return cur
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -2101,13 +2103,14 @@ class Database(DatabaseEmbeddingMixin):
             with self._lock:
                 for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                     try:
-                        cur = (
-                            self.conn.execute(sql)
-                            if params is None
-                            else self.conn.execute(sql, params)
-                        )
-                        columns = [desc[0] for desc in cur.description]
-                        rows = cur.fetchone() if fetch == "one" else cur.fetchall()
+                        with watch_statement(sql):
+                            cur = (
+                                self.conn.execute(sql)
+                                if params is None
+                                else self.conn.execute(sql, params)
+                            )
+                            columns = [desc[0] for desc in cur.description]
+                            rows = cur.fetchone() if fetch == "one" else cur.fetchall()
                         return rows, columns
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -2558,7 +2561,8 @@ class Database(DatabaseEmbeddingMixin):
                                     if new
                                     else self._upsert_sql(sql_table, cols, placeholders)
                                 )
-                                self.conn.execute(sql, [value for row in batch for value in row])
+                                with watch_statement(sql):
+                                    self.conn.execute(sql, [value for row in batch for value in row])
                 return len(param_rows)
             except duckdb.Error as exc:
                 if self._is_invalidated_error(exc):
@@ -3326,10 +3330,10 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     if self._read_conn is None:
                         self._read_conn = self.conn.cursor()
-                    cur = self._read_conn.execute(
-                        f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
-                    )
-                    row = cur.fetchone()
+                    sql = f"SELECT * FROM {sql_table} WHERE id = $id"
+                    with watch_statement(sql):
+                        cur = self._read_conn.execute(sql, {"id": id})
+                        row = cur.fetchone()
                     columns = [d[0] for d in cur.description]
                     break
                 except duckdb.Error as exc:
@@ -3357,8 +3361,9 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     if self._read_conn is None:
                         self._read_conn = self.conn.cursor()
-                    cur = self._read_conn.execute(sql, params or {})
-                    rows = cur.fetchall()
+                    with watch_statement(sql):
+                        cur = self._read_conn.execute(sql, params or {})
+                        rows = cur.fetchall()
                     columns = [d[0] for d in cur.description]
                     return rows, columns
                 except duckdb.Error as exc:
