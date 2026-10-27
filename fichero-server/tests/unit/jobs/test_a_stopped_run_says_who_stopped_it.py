@@ -46,3 +46,17 @@ def test_the_persons_own_stop_and_another_accounts(client, test_package, workflo
     registry.invoke(db, "job.cancel", {"job_id": theirs}, ActionContext(actor="javier", is_bootstrap=True))
     assert jobs.read_job(db, theirs)["reason"] == "Stopped by javier"
     client.post(f"/api/activity/jobs/{first}/cancel")
+
+
+def test_a_system_stop_with_no_known_stopper_says_stopped_6005(db):
+    """`activity.recipe-run.stopped-by-unknown-says-stopped` (#6005): the engine's own stop (the action's default actor,
+    "system", and no client) names nobody: "Stopped", never "Stopped by you". The person's own stop still says "you"."""
+    jobs._ensure(db)
+    theirs = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+    mine = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+
+    registry.invoke(db, "job.cancel", {"job_id": theirs}, ActionContext(is_bootstrap=True))
+    registry.invoke(db, "job.cancel", {"job_id": mine}, ActionContext(actor="owner", is_bootstrap=True))
+
+    assert jobs.read_job(db, theirs)["reason"] == "Stopped"
+    assert jobs.read_job(db, mine)["reason"] == "Stopped by you"

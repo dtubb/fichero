@@ -1116,14 +1116,17 @@ def note_stopper(job_id: str, actor: str | None, client: str | None = None) -> N
         _STOPPED_BY[job_id] = actor
     elif client:  # the app sends no client name
         _STOPPED_BY[job_id] = "you, through " + _CLIENT_WORDS.get(client, client)
+    elif actor != "owner":  # the engine's own stop, or nobody known: names nobody (#6005)
+        _STOPPED_BY[job_id] = ""
 
 
 _CLIENT_WORDS = {"fichero-mcp": "an agent (MCP)", "fichero-cli": "the command line"}
 
 
 def stopped_by(job_id: str | None) -> str:
-    """The words a stopped job's row ends with: "Stopped by you", or by whom else asked."""
-    return f"Stopped by {_STOPPED_BY.get(job_id or '', 'you')}"
+    """The words a stopped job's row ends with: "Stopped by you", by whom else asked, or "Stopped" when no one known."""
+    who = _STOPPED_BY.get(job_id or "", "you")
+    return f"Stopped by {who}" if who else "Stopped"
 
 
 def cancel_waiting(db: "Database", job_id: str) -> None:
