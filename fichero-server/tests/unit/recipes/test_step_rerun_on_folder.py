@@ -204,6 +204,35 @@ def test_start_on_an_imported_photograph_cut_into_pages_is_the_projects_own(clie
     assert r.status_code == 200, r.text
 
 
+def test_start_on_an_imported_pdf_is_the_projects_own_through_its_pages(client, db, pages, tmp_path):
+    """#6170: an imported PDF is held, not counted; its pages are the project's, so Start on the PDF is not refused."""
+    from fichero_server.models import DocType, Document, FileType
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    pdf = Document(name="letters.pdf", doc_type=DocType.file, file_type=FileType.pdf)
+    db.save(pdf)
+    for i in range(2):
+        db.save(Document(name=f"page {i + 1}", doc_type=DocType.page, parent_id=pdf.id, sequence=i))
+    r = client.post("/api/recipes/project/start", json={"documents": [pdf.id]})
+    assert r.status_code == 200, r.text
+
+
+def test_start_on_documents_refuses_a_folder_even_of_pages(client, db, pages, tmp_path):
+    """#6170: Start's documents are pages or imported files; a folder goes in `folder_id`, even when all it holds is
+    the project's pages."""
+    from fichero_server.models import DocType, Document
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    box = Document(name="Box", doc_type=DocType.folder)
+    db.save(box)
+    for page in pages:
+        page.parent_id = box.id
+        db.save(page)
+    r = client.post("/api/recipes/project/start", json={"documents": [box.id]})
+    assert r.status_code == 422 and "folder" in r.text, r.text
+    assert not _runs(client), "a refused Start queues no run"
+
+
 def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, tmp_path, engine):
     """#6225, never rerun a model pass (#6127): after Start, the same file imported again unchanged is the page it already
     is: no second page, no run queued, the reader not called again."""

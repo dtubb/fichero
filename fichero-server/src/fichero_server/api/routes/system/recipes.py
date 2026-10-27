@@ -3113,6 +3113,11 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             # An import run's documents are the imported top-level ones: a PDF or a cut photograph is the
             # project's through its pages (importers/derivatives.py).
             project = set(pages_for(db, {}, None))
+            from fichero_server.models import Document
+
+            if any(getattr(d.doc_type, "value", d.doc_type) == "folder"
+                   for d in (db.get(Document, i) for i in params.documents) if d):
+                raise ValueError("a folder goes in folder_id, not in documents")
             if stray := [d for d in params.documents if d not in project
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
