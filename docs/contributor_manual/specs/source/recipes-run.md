@@ -97,9 +97,11 @@ the engine done, the app not seen in a build); a started recipe does not redo wh
   owns it) Start on the project, "Run the Recipe on This Folder…" on a folder, and an import's own run are
   one loop (`runner.enqueue`); the folder's plan covers only its live pages. *Left:* the app's folder Start
   seen in a build; Set Up… shows the whole project's plan when a folder's refusal is the reason.
-- `recipes-run.journey.start-opens-the-run` — **[GAP]** (#5576) pressing Start closes Set Up and opens the
-  run in Activity (the window, the run's row selected), so the person sees where the work went; today Set
-  Up closes and nothing points at the run.
+- `recipes-run.journey.start-opens-the-run` — **[OK]** (#5576) pressing Start closes Set Up and opens the
+  run in Activity (the window, the run's row selected), so the person sees where the work went. Built at every
+  Start: Set Up's (`FirstRunWindow.showStartedRun`), the Project menu's and Run the Recipe on This Folder…
+  (`FocusedCommandButtons+Recipe.swift`), each through `FirstRunWindow.startedRunSelection`. Test:
+  fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift (`testStart_landsOnTheRecipeRunItQueued`).
 
 ### 3. The run: batches, order, progress
 
@@ -163,9 +165,16 @@ a summary that raises never fails the tree (`activity.summary.never-fails-the-tr
 failures ends "Done with failures", each cause said once (`source.recipe.batch-at-archive-scale`,
 `test_one_failure_one_line.py`).
 
-- `recipes-run.journey.finish-summary` — **[GAP]** (#5577) when a run ends the project shows the
+- `recipes-run.journey.finish-summary` — **[OK]** (#5577) when a run ends the project shows the
   summary once, in words: pages read, names by kind, dates, documents proposed, failed pages with Read
-  Again, skipped steps with their fix; a run whose steps had failed pages never reads a bare "Done".
+  Again, skipped steps with their fix; a run whose steps had failed pages never reads a bare "Done". Built: the
+  engine's summary lines (`RecipeRunSummary.lines`) on the run's Activity details and the project window's run
+  strip ("Recipe run finished", "failed" or "stopped", never a bare finished; a summary the person closed stays
+  closed across a relaunch); a run with failed pages ends "Done with failures", each cause once. Tests:
+  fichero-server/tests/unit/recipes/test_run_summary_counts_6001.py,
+  fichero-server/tests/unit/recipes/test_one_failure_one_line.py,
+  fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift,
+  fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift.
 
 ### 5. Resume: after a quit, a sleep, a crash, a Stop
 
