@@ -1851,9 +1851,15 @@ class Database(DatabaseEmbeddingMixin):
 
     def _materialize_schema(self) -> None:
         """Create and reconcile all persisted tables/columns eagerly."""
+        # One read of the tables there are: a table this pass creates has every column at its type already, so it
+        # skips the column read and the widening (a fresh library paid three statements a table: #6221).
+        try:
+            preexisting = {str(row[0]).lower() for row in self.conn.execute("SELECT table_name FROM duckdb_tables()").fetchall()}
+        except duckdb.Error:
+            preexisting = None
         for model in self._all_schema_models():
             self._tables_created.discard(self._table_name(model))
-            self._ensure_table(model)
+            self._ensure_table(model, preexisting=preexisting)
 
     def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
         """Execute SQL, retrying bounded DuckDB transient write conflicts.
@@ -2795,10 +2801,11 @@ class Database(DatabaseEmbeddingMixin):
                 dimension=ClassificationDimension.document_prototype,
             )
         }
+        missing = []
         for seed in _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS:
             value = existing.get(seed["key"])
             if value is None:
-                self.save(
+                missing.append(
                     ClassificationValue(
                         dimension=ClassificationDimension.document_prototype,
                         key=seed["key"],
@@ -2835,6 +2842,7 @@ class Database(DatabaseEmbeddingMixin):
             if changed:
                 value.updated_at = utc_now()
                 self.save(value)
+        self.save_many(missing, new=True)  # the new ones in one statement, not two a row (#6221)
 
     def _seed_builtin_node_classes(self) -> None:
         """Ensure the built-in node_class values exist in fresh DB fixtures."""
@@ -2853,18 +2861,9 @@ class Database(DatabaseEmbeddingMixin):
                 dimension=ClassificationDimension.node_class,
             )
         }
-        for seed in _BUILTIN_NODE_CLASS_SEEDS:
-            if seed["key"] in existing:
-                continue
-            self.save(
-                ClassificationValue(
-                    dimension=ClassificationDimension.node_class,
-                    key=seed["key"],
-                    label=seed["label"],
-                    color=seed["color"],
-                    is_builtin=True,
-                )
-            )
+        self.save_many([ClassificationValue(dimension=ClassificationDimension.node_class, key=seed["key"],
+                                            label=seed["label"], color=seed["color"], is_builtin=True)
+                        for seed in _BUILTIN_NODE_CLASS_SEEDS if seed["key"] not in existing], new=True)  # #6221
 
     def _seed_builtin_reading_kinds(self) -> None:
         """Seed the shipped reading kinds (source-model slice 8, #4934).
@@ -2884,19 +2883,16 @@ class Database(DatabaseEmbeddingMixin):
         )
 
         existing = {row.key for row in self.query(LibraryReadingKind)}
-        for key, label in BUILTIN_READING_KINDS:
-            if key in existing:
-                continue
-            self.save(LibraryReadingKind(key=key, label=label, builtin=True))
+        self.save_many([LibraryReadingKind(key=key, label=label, builtin=True)
+                        for key, label in BUILTIN_READING_KINDS if key not in existing], new=True)  # #6221
 
         # The reading LEVELS (`source.reading.levels`, ruled 2026-10-10), seeded the same way: additive,
         # a key already present (a project's relabelling, a level it added) left exactly as it is.
         from fichero_server.models.readings import BUILTIN_READING_LEVELS, LibraryReadingLevel
 
         existing_levels = {row.key for row in self.query(LibraryReadingLevel)}
-        for key, label in BUILTIN_READING_LEVELS:
-            if key not in existing_levels:
-                self.save(LibraryReadingLevel(key=key, label=label, builtin=True))
+        self.save_many([LibraryReadingLevel(key=key, label=label, builtin=True)
+                        for key, label in BUILTIN_READING_LEVELS if key not in existing_levels], new=True)  # #6221
 
     def _seed_builtin_link_types(self) -> None:
         """Seed the shipped link types (source-model slice 10, #4931).
@@ -2916,14 +2912,9 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.typed_links import LibraryLinkType, builtin_link_types
 
         existing = {row.key for row in self.query(LibraryLinkType)}
-        for key, label, inverse_label in builtin_link_types():
-            if key in existing:
-                continue
-            self.save(
-                LibraryLinkType(
-                    key=key, label=label, inverse_label=inverse_label, builtin=True
-                )
-            )
+        self.save_many([LibraryLinkType(key=key, label=label, inverse_label=inverse_label, builtin=True)
+                        for key, label, inverse_label in builtin_link_types() if key not in existing],
+                       new=True)  # one statement, not two a row (#6221)
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""
@@ -7835,8 +7826,9 @@ class Database(DatabaseEmbeddingMixin):
         """Quote a table name for DuckDB SQL."""
         return f'"{self._table_name(obj_or_model)}"'
 
-    def _ensure_table(self, model: Type[BaseModel]) -> None:
-        """Create table if it doesn't exist."""
+    def _ensure_table(self, model: Type[BaseModel], preexisting: set[str] | None = None) -> None:
+        """Create table if it doesn't exist. `preexisting` (lower-case table names, read once by the caller) lets a
+        table this call creates skip reconciling the columns it was just created with."""
         table = self._table_name(model)
         sql_table = self._sql_table_name(model)
 
@@ -7907,11 +7899,14 @@ class Database(DatabaseEmbeddingMixin):
             # provenance_chain on a Document table from before that field landed).
             # ADD COLUMN is non-destructive and idempotent, so this is the generic
             # mechanism that makes the no-migration rule hold for existing DBs too.
+            if first_reconcile_this_connection and preexisting is not None and table.lower() not in preexisting:
+                self._tables_created.add(table)  # just created from the model: nothing to add, nothing to widen
+                self._after_table_ready(table, first_reconcile_this_connection)
+                return
+            table_info = None
             try:
-                existing = {
-                    row[1]
-                    for row in _execute_locked(f"PRAGMA table_info({sql_table})").fetchall()
-                }
+                table_info = _execute_locked(f"PRAGMA table_info({sql_table})").fetchall()
+                existing = {row[1] for row in table_info}
             except Exception:
                 existing = {
                     row[0]
@@ -7920,11 +7915,13 @@ class Database(DatabaseEmbeddingMixin):
                         f"WHERE table_name = '{table}'"
                     ).fetchall()
                 }
+            added = False
             for name, field_info in model.model_fields.items():
                 if name in transient or name in existing:
                     continue
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 _execute_locked(f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}")
+                added = True
 
             # WIDEN INT32 COLUMNS TO INT64 (#5059). Changing the type map above
             # only helps libraries created afterwards; every existing library
@@ -7941,41 +7938,44 @@ class Database(DatabaseEmbeddingMixin):
             #
             # Idempotent: a column already BIGINT is skipped, so a second open
             # does nothing.
-            self._widen_int_columns(model, sql_table, table, _execute_locked)
+            self._widen_int_columns(model, sql_table, table, _execute_locked, table_info if not added else None)
 
             self._tables_created.add(table)
+            self._after_table_ready(table, first_reconcile_this_connection)
 
-            # Apply knowledge-table indices once both knowledgeclaims AND
-            # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
-            # is a no-op when already present); critical for query latency
-            # at 50K+ claims. (#991 — scaling-review bottleneck 2)
-            if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
-                from fichero_server.db.migrations.schema import migrate_knowledge_indices
-                migrate_knowledge_indices(self.conn)
+    def _after_table_ready(self, table: str, first_reconcile_this_connection: bool) -> None:
+        """The indices that wait for a table (and its partners) to exist on this connection."""
+        # Apply knowledge-table indices once both knowledgeclaims AND
+        # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
+        # is a no-op when already present); critical for query latency
+        # at 50K+ claims. (#991 — scaling-review bottleneck 2)
+        if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
+            from fichero_server.db.migrations.schema import migrate_knowledge_indices
+            migrate_knowledge_indices(self.conn)
 
-            # Source-model slice 3 (#4921): wait for BOTH tables (unlike the
-            # knowledge indices above, some of this migration's statements
-            # target segment_passes specifically) -- since `_all_schema_models`
-            # now creates both at open, "both already created" is true by the
-            # second of the two, one connection-reconcile pass apart, so this
-            # never logs the noisy "table does not exist yet" warning that
-            # firing on the FIRST of the two would guarantee on every fresh
-            # library.
-            if (
-                first_reconcile_this_connection
-                and table in {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"}
-                and {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"} <= self._tables_created
-            ):
-                from fichero_server.db.migrations.schema import migrate_activity_record_indices
-                migrate_activity_record_indices(self.conn)
+        # Source-model slice 3 (#4921): wait for BOTH tables (unlike the
+        # knowledge indices above, some of this migration's statements
+        # target segment_passes specifically) -- since `_all_schema_models`
+        # now creates both at open, "both already created" is true by the
+        # second of the two, one connection-reconcile pass apart, so this
+        # never logs the noisy "table does not exist yet" warning that
+        # firing on the FIRST of the two would guarantee on every fresh
+        # library.
+        if (
+            first_reconcile_this_connection
+            and table in {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"}
+            and {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"} <= self._tables_created
+        ):
+            from fichero_server.db.migrations.schema import migrate_activity_record_indices
+            migrate_activity_record_indices(self.conn)
 
-            if (
-                first_reconcile_this_connection
-                and table in {"segments", "segment_passes"}
-                and {"segments", "segment_passes"} <= self._tables_created
-            ):
-                from fichero_server.db.migrations.schema import migrate_segment_indices
-                migrate_segment_indices(self.conn)
+        if (
+            first_reconcile_this_connection
+            and table in {"segments", "segment_passes"}
+            and {"segments", "segment_passes"} <= self._tables_created
+        ):
+            from fichero_server.db.migrations.schema import migrate_segment_indices
+            migrate_segment_indices(self.conn)
 
     #: DuckDB's narrower integer types, all of which a Python `int` field may
     #: now legitimately overflow. Widening any of them to BIGINT is lossless.
@@ -7992,7 +7992,7 @@ class Database(DatabaseEmbeddingMixin):
         "readingorderentrys.version", "segmentforwardings.sequence", "workflowrunloglines.seq",
     })
 
-    def _widen_int_columns(self, model, sql_table: str, table: str, execute) -> None:
+    def _widen_int_columns(self, model, sql_table: str, table: str, execute, table_info=None) -> None:
         """Widen this table's INT32 columns to BIGINT where the model says `int`.
 
         Only columns the MODEL declares as `int` are touched, and only when the
@@ -8023,7 +8023,7 @@ class Database(DatabaseEmbeddingMixin):
         them and four had never been judged.
         """
         try:
-            rows = execute(f"PRAGMA table_info({sql_table})").fetchall()
+            rows = table_info if table_info is not None else execute(f"PRAGMA table_info({sql_table})").fetchall()
         except Exception as exc:
             logger.debug("cannot read %s's column types to widen them: %s", table, exc)
             return

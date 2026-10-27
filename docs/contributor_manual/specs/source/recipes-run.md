@@ -206,6 +206,13 @@ replaces the Kraken figure before #6212 is coded.
   the same library on one thread goes through (the lock is re-entrant), never waits on itself. Was: on the M4 run two
   embedding threads each opened the worker connection at once and `migrate_document_table` rolled back on a catalog
   write-write conflict on idx_documents_parent_id. Test: fichero-server/tests/unit/db/test_open_migrations_serialised.py.
+- `recipes-run.engine.fresh-library-opens-lean` — **[PARTIAL]** (#6221) a fresh library's open does not read back
+  the tables it has just created from the models (no column read, no int widening on them), reads an existing table's
+  columns once (not once to add and again to widen), and seeds its built-in link types, reading kinds, levels,
+  prototypes and node classes one statement a kind. Was: POST /api/library made 617 statements (the query ratchet's
+  best is 197); now 303. Left: the ratchet is still over its best, from ~50 more tables and 15 legacy migrations that
+  also create tables; the owner decides between cutting the open further and a written baseline change. Test:
+  fichero-server/tests/unit/db/test_fresh_library_open_statements_6221.py.
 - `recipes-run.engine.empty-kraken-lines-are-named` — **[OK]** (#6219) a Kraken read of a page's working lines that
   came back empty on most or every line leaves each of those lines unread with the reason in words ("most lines came
   back empty: the reader may not suit this hand"), so the read step ends partial naming the page, the summary gives that
