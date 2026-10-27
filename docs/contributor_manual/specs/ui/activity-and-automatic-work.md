@@ -2364,16 +2364,28 @@ is the answer; the grey line says both.
   `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the seed is made before the server
   starts and has one thread; a worker asked of the seed sees no inherited thread or selector; the engine never forks
   itself after start).
-- `activity.lane.spacy-one-call-at-a-time` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27) spaCy runs one pipeline
-  per language, one `nlp(text)` at a time under the fair turn lock (`knowledge/spacy_ner.py` `_turn`, people first) on
-  the embed lane, with thinc's BLAS at one thread; never on two threads (the `Language` object is not thread-safe,
-  measured) and never `nlp.pipe(n_process=…)` (spawn runs `sys.executable`, the sandboxed stub). `nlp.pipe` batching
-  is built only if `fichero-server/scripts/bench_spacy_pipe.py` clears 1.5x on the M4 (`runtime.spacy.batched-and-off-the-loop`).
-  The names step's time is not the parse: pages 1 to 86 took 1 to 4 s each and page 87 spun 20 minutes on a native
-  thread after `upsert_entity` lines while the page alone parses in seconds (#6236), so the step's fit is one call at a
-  time and the fix is the entity write path. Built: the lock, the turn, one pipeline. Not built: the one-thread BLAS
-  bound, the batch bench's result. *Test (to write):* `fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py`
-  (two pages at once queue, never fail; no `n_process`; the thread count asked of thinc is one).
+- `activity.lane.spacy-threads-one-pipeline-each` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27, revised the same
+  day from the explorer's measurement) spaCy pages run on threads, each thread with its own copy of the pipeline, never
+  two threads on one `Language` object (not thread-safe: two pages on the one cached pipeline crashed, hence today's
+  `_spacy_lock`) and never `nlp.pipe(n_process=…)` (spawn runs `sys.executable`, the sandboxed stub). Measured (M1 Air
+  4P+4E, `es_core_news_sm`, one `nlp` a thread): 3152 docs a minute at 1 thread, 4550 at 2, 6790 at 4 (2.15x), about
+  55 MB a copy. The thread count is the fit's N (`activity.lane.fit-learned-from-runs`; prior: the performance cores ÷ 2),
+  bounded by memory per copy, on the embed lane, a person's step first at the turn (`knowledge/spacy_ner.py` `_turn`).
+  The names step's time is not the parse but its writes (`activity.lane.writer-batched-per-page`, #6236). Built: one
+  pipeline per language, the lock, the fair turn. Not built: the copies, the thread count, the per-copy memory bound.
+  `nlp.pipe` batching inside one thread stays as `runtime.spacy.batched-and-off-the-loop` says (only if
+  `fichero-server/scripts/bench_spacy_pipe.py` clears 1.5x). *Test (to write):*
+  `fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py` (two pages at once run on two
+  copies, never one; N follows the fit and the memory bound; no `n_process`).
+- `activity.lane.opencv-threads-one-page-a-task` — **[GAP]** (#6192; proposed 2026-10-27 from the explorer's measurement)
+  an image step on OpenCV (Cleanup's find page, crop, straighten, enhance; the derivatives) runs on threads, one page a
+  task, with `cv2.setNumThreads(1)`, N from the fit's rule: measured (M1 Air 4P+4E) 124 pages a minute at one thread,
+  285 at four, 406 at eight; cv2's own threads stop paying past two (1 × 4 = 200, 1 × 8 = 194); processes reach 343 and
+  double the memory (3.85 GB against 2.06). The old code did the same with workers = max(2, cores ÷ 2) and model work on
+  a 640 px copy. The fit's ceiling is the performance cores by the ruling; whether light image work may take the
+  efficiency cores at background QoS (1.4x measured) is decision 9 of the review. *Test (to write):*
+  `fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py` (cv2 threads are set to one before
+  the first page; N pages run on N threads; never a process).
 - `activity.lane.mlx-one-model-batched-on-the-gpu` — **[PARTIAL]** (#5641, #5370; proposed 2026-10-27) a local MLX
   reader is one model served once in the engine (`llm/mlx_in_process.py`), its pages batched as sequences
   (`MLX_VLM_MAX_NUM_SEQS` = `reads_at_once_for`: half the Mac's memory less the weights, at the read margin, at most
@@ -2518,8 +2530,8 @@ nothing here depends on them except where said.
 - Size: M
 
 #### Step 1.10 — The fit learned from runs, per engine (proposed 2026-10-27) (#5931, #5956, #5641)
-- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-one-call-at-a-time`, `activity.lane.mlx-one-model-batched-on-the-gpu`, `activity.lane.fit-skips-a-busy-machine`
-- Tests: fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py, fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py, fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py
+- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-threads-one-pipeline-each`, `activity.lane.mlx-one-model-batched-on-the-gpu`, `activity.lane.fit-skips-a-busy-machine`
+- Tests: fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py, fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py, fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py
 - Depends on: 1.8, 1.9
 - Size: M
 
@@ -2529,9 +2541,9 @@ nothing here depends on them except where said.
 - Depends on: 1.10
 - Size: M
 
-#### Step 1.12 — The writer takes one batch per page (proposed 2026-10-27) (#6236, #6212)
-- Behaviours: `activity.lane.writer-batched-per-page`
-- Tests: fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py
+#### Step 1.12 — The writer takes one batch per page; image steps on threads (proposed 2026-10-27) (#6236, #6212, #6192)
+- Behaviours: `activity.lane.writer-batched-per-page`, `activity.lane.opencv-threads-one-page-a-task`
+- Tests: fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py, fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py
 - Depends on: 1.5
 - Size: M
 

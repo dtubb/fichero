@@ -15,11 +15,11 @@ section "Proposed for the maintainer (compute per engine, 2026-10-27)", awaiting
   (measured: 25 crash reports, isolated tests). The engine already leaves by `fast_exit.leave`. What is owed is the same
   way out in the scripts and children, and one clean N=4 engine run on the M4. Then the gate of 2 is lifted.
 - Each engine gets its own rule: Kraken segmenting (CPU, GIL-bound, knee at 2), Kraken reading (CPU, torch releases the
-  GIL, scales with threads), spaCy (one call at a time, never processes), MLX (one model on the GPU, sequences
+  GIL, scales with threads), spaCy (threads with one pipeline copy each, never processes), MLX (one model on the GPU, sequences
   batched), the embedder (a forked child, ONNX threads), cloud (the provider's limit, no cores).
-- The morning's 39 s/page on Find Lines is withdrawn (section 7): a quiet M4 segments these pages in about 5 s and
+- The morning's 39 s/page on Find Lines is withdrawn (section 7.5): a quiet M4 segments these pages in about 5 s and
   reads them in about 6 s (measured). The rule as built still reads an automatic run one page on one thread, which
-  #6230 and #5931 fix. The writer, not the cores, is the knee of the names step (section 9).
+  #6230 and #5931 fix. The writer, not the cores, is the knee of the names step (section 7.2).
 
 ## 1. Per engine: where the time goes, and threads or processes
 
@@ -74,13 +74,18 @@ section "Proposed for the maintainer (compute per engine, 2026-10-27)", awaiting
   stall at page 87 is not the parse: the page alone parses in seconds, and the hot thread is native (DuckDB or a
   regex) after `upsert_entity … creating a second row` lines (measured). Inferred: entity resolution against a growing
   table. The names step's time is the database path, not spaCy.
-- **Does it release the GIL?** Mostly no (the code's own note: "spaCy inference is GIL-bound anyway"; inferred: thinc's
-  numpy ops release briefly, the pipeline components do not).
-- **Threads or processes:** neither. The `Language` object is not thread-safe (measured: it crashed on two pages at once,
-  hence `_spacy_lock` and the fair turn). `nlp.pipe(n_process=N)` uses `multiprocessing` spawn on macOS, which runs
-  `sys.executable`, the sandboxed stub that hangs (memory bundle-sys-executable-is-the-stub). So: one pipeline per
-  language, one call at a time on the embed lane, thinc/BLAS at one thread, people first. `nlp.pipe` batching is built
-  only if `bench_spacy_pipe.py` clears 1.5x on the M4 (lead rule, unrun).
+- **Does it release the GIL?** Enough to scale (measured by the explorer, M1 Air 4P+4E, `es_core_news_sm`, one `nlp`
+  object per thread: 3152 docs/min at 1 thread, 4550 at 2, 6790 at 4, 2.15x; RSS 0.33 → 0.49 GB, about 55 MB a copy).
+  The code's own note "GIL-bound anyway" is wrong for the small pipelines: thinc's numpy ops and the Cython components
+  release it.
+- **Threads or processes:** threads, each with its own `nlp` object. One shared `Language` is not thread-safe (measured:
+  two pages at once on the one cached pipeline crashed, hence `_spacy_lock`); the fix is a copy per thread, not a lock.
+  `nlp.pipe(n_process=N)` is out: spawn runs `sys.executable`, the sandboxed stub. So: N threads, one pipeline copy
+  each, N from the fit rule and bounded by memory per copy (the prior N = performance cores ÷ 2), on the embed lane,
+  people first at the turn. The earlier draft of this report said "one call at a time"; the measurement overrides it.
+- **The old code (explorer):** the 2026.07 ingest ran 8 threads under one `db_lock`, so it ran serially: a pool in
+  front of one lock buys nothing. The same trap waits for the names step unless the writer takes one batch per page
+  (section 7.2).
 
 ### MLX readers (a local vision model)
 
@@ -206,24 +211,11 @@ GIL proof's. Every `gil_proof` row logs `pmset -g therm` and refuses N over 4 or
    narrow 1.7 to what is actually owed: the scripts and children leave by `fast_exit`, and one N=4 engine run on the
    M4 is clean mid-run. The crash is exit-time, so a running engine is not at risk; the gate's lifting is then one line.
 
-## 7. Correction to the evidence (manager, 2026-10-27, later)
+## 7. Added scope (the manager's five additions, 2026-10-27)
 
-On a quiet M4 the 106 large pages segmented in 531 s, about **5 s a page** (measured); recognition about 6 s a page.
-The morning's 39 s a page overlapped a Time Machine restore and probably Spotlight indexing, so it is not used anywhere
-above; the causes listed under Kraken segmentation for it are withdrawn except the first (an automatic run reads one
-page on one thread), which stands as read from the code. Two things follow and are now spec lines:
+Each answered against the code; what Activity, the database and the HPC path already do was read first and is built on.
 
-- **Every run records what it chose per page** (`activity.run.records-what-it-chose-per-page`): threads, QoS class,
-  pages at once, the throttle's state and the fit's source, on the page row and served with the run status, so two runs
-  can be compared. Today the engine's per-page log line has threads and QoS but nothing serves it, and the `Threads:`
-  note is in the call log only; the run status has `pages_at_once` and its reason (`run_view.py`,
-  `RecipeRunPagesAtOnce` in the app) and nothing else.
-- **The fit skips or flags a busy machine** (`activity.lane.fit-skips-a-busy-machine`): a calibration window is not a
-  measurement when the one-minute load average exceeds the performance cores, when `backupd`, `mds`/`mds_stores` or
-  `photoanalysisd` are busy (the same `pgrep` the build probe uses), or when the Mac is paging; the window runs at the
-  current fit and is marked "measured while the Mac was busy", never stored as the best.
-
-## 8. The compute choice, shown graphically
+### 7.1 The compute choice, shown graphically
 
 Checked first (iterate, never replace): the project window already has the run strip (`ProjectRunStrip`) with the
 pages-at-once words from the run status (`RecipeRunPagesAtOnce`: count and reason, #6217); the Activity popover has the
@@ -256,7 +248,7 @@ the run strip and in the opened run's details, in the Mac state row's idiom:
   use, performance cores, GPU share, fit state, step-down cause. The Activity window's run rows do not get it (a row
   is one line); the popover's Mac state row stays as it is.
 
-## 9. DuckDB's one writer as a knee
+### 7.2 DuckDB's one writer as a knee
 
 **As built (measured from the code):** one `Database` per library with one connection, one `RLock` round every
 statement and one `_transaction_gate` round every transaction (`db/manager.py`, `db/__init__.py:1063-1073`,
@@ -276,6 +268,8 @@ holds it and for how long, but nothing sums the hold per page, so the figure the
   (inferred; the page alone parses in seconds).
 - Vectors: `embed_many` appends to LanceDB once per batch, outside the DuckDB gate; the single-doc `embed` once per page.
 
+**The old code (explorer, measured from `fichero_archive`):** the 2026.07 ingest ran 8 threads under one `db_lock` (`importers/ingest.py:1105-1132`), so it ran serially. A pool in front of one lock buys nothing; that is the trap the names step is in today.
+
 **Where the writer becomes the knee (inferred):** pages at once helps until N × (page write time) approaches the model
 time of one page. At 5 s of model time and tens of milliseconds of writes, Kraken reaches that only past N≈50, so
 never on a Mac. The names step is the other way round: its parse is a second and its writes are tens of statements, so
@@ -283,7 +277,7 @@ there the writer is already the knee, and the fix is fewer, larger statements, n
 
 **Rule (spec line `activity.lane.writer-batched-per-page`):** a page's results are handed to the writer as ONE
 batch per page and per step (one transaction: `save_many` for new rows, updates after), never a row at a time; a
-worker never holds the gate while a model runs; the per-page record (section 7) carries "db <ms>" so the writer's share
+worker never holds the gate while a model runs; the per-page record (section 7.5) carries "db <ms>" so the writer's share
 is visible on the row. Not a dedicated writer thread: the one connection is already the serial point, a thread adds a
 queue without removing it; what helps is fewer transactions and the reads off the gate (#6178's committed reads, built).
 
@@ -305,7 +299,7 @@ PY
 page record's "db <ms>" column summed per step, and `grep loop_lag` on the engine log. For the names stall, #6236's own
 repro with `sample <pid> 10` past 60 s.
 
-## 10. Target machines: the rule must land well on each without hand-tuning
+### 7.3 Target machines: the rule must land well on each without hand-tuning
 
 | Machine | Cores (P+E) | Memory | GPU | Kraken segment prior (N × T) | Kraken read prior | MLX | Note |
 |---|---|---|---|---|---|---|---|
@@ -314,12 +308,12 @@ repro with `sample <pid> 10` past 60 s.
 | M4 Air 16 GB (fanless) | 4P + 6E | 16 GB | 10-core | 2 × 1 (measured knee) | 1 × 4 | 3B | heat step-down matters: fanless |
 | M5 24 GB (Ann, to confirm with `sysctl hw.perflevel0.physicalcpu hw.perflevel1.physicalcpu`) | likely 4P + 6E (M5 Pro: more P) | 24 GB | 10-core, neural accelerators per GPU core | 2 × 1, learned up | 1 × 4 | 7B fits (24 GB floor); prefill faster on M5's GPU, so MLX favoured more | the fit learns the rest; the first run is its calibration |
 | 36 to 48-core Mac (Ultra class) | 24 to 32P + 8E | 64 GB and up | 60 to 80-core | 4 × 1, learned up to the knee (bandwidth is wider, so likely 6 to 8) | 1 × 8 (torch stops scaling before P) | 7B+, 4 reads at once | never "N = P": the fit finds the knee |
-| Cluster node / container | `SLURM_CPUS_PER_TASK` or the cgroup quota | the job's | the task's GPU | 1 pipeline a task, T = the cores given | same | vLLM offline batch in the task | parallelism = array tasks (section 11) |
+| Cluster node / container | `SLURM_CPUS_PER_TASK` or the cgroup quota | the job's | the task's GPU | 1 pipeline a task, T = the cores given | same | vLLM offline batch in the task | parallelism = array tasks (section 7.4) |
 
 The prior is `N = min(4, max(1, P ÷ 2))` for the line finder (the M4 knee at P ÷ 2 and the owner's M1 figure agree),
 `T = 1`; `N = 1, T = P` for the reader; always capped by memory. The fit replaces the prior after the first run.
 
-## 11. Scale-out: HPC (ACEnet/Slurm) and Hugging Face Jobs, one design
+### 7.4 Scale-out: HPC (ACEnet/Slurm) and Hugging Face Jobs, one design
 
 **What exists (built, read):** `remote_read/job.py` runs one job row (`read-at-scale`, lane `remote`) over shards:
 package once, at most `max_in_flight` shards in flight, one status call a round, each finished shard landed at once
@@ -359,7 +353,41 @@ the person's wait (recommend one hour, or any run under 200 pages); else the che
 to receive the pages (`compute.leave.one-gate`): HF when a key and a budget exist, ACEnet when a cluster is configured;
 the stage page shows the three estimates and the person can override per step. (Decision 7.)
 
-## 12. Further decisions for the owner
+### 7.5 Busy machines, and what a run records per page
+
+On a quiet M4 the 106 large pages segmented in 531 s, about **5 s a page** (measured); recognition about 6 s a page.
+The morning's 39 s a page overlapped a Time Machine restore and probably Spotlight indexing, so it is not used anywhere
+above; the causes listed under Kraken segmentation for it are withdrawn except the first (an automatic run reads one
+page on one thread), which stands as read from the code. Two things follow and are now spec lines:
+
+- **Every run records what it chose per page** (`activity.run.records-what-it-chose-per-page`): threads, QoS class,
+  pages at once, the throttle's state and the fit's source, on the page row and served with the run status, so two runs
+  can be compared. Today the engine's per-page log line has threads and QoS but nothing serves it, and the `Threads:`
+  note is in the call log only; the run status has `pages_at_once` and its reason (`run_view.py`,
+  `RecipeRunPagesAtOnce` in the app) and nothing else.
+- **The fit skips or flags a busy machine** (`activity.lane.fit-skips-a-busy-machine`): a calibration window is not a
+  measurement when the one-minute load average exceeds the performance cores, when `backupd`, `mds`/`mds_stores` or
+  `photoanalysisd` are busy (the same `pgrep` the build probe uses), or when the Mac is paging; the window runs at the
+  current fit and is marked "measured while the Mac was busy", never stored as the best.
+
+### 7.6 The explorer's measurements (M1 Air 4P+4E, 8 GB, 12 real pages x2, every row rc=0, no swap)
+
+- **OpenCV preprocessing** (imread, gray, blur, adaptive threshold, open, Canny+Hough, resize, PNG), pages/min: 1 thread
+  with `cv2.setNumThreads(1)` 124; 1 × 4 cv2 threads 200; 1 × 8 194; 2 × 1 199; 4 × 1 285; 8 × 1 406; 4 × 2 343;
+  processes 4 × 1 262, 8 × 1 343 (3.85 GB against 2.06 GB for threads). Reading: cv2's internal threads stop paying
+  past 2; Python threads with `setNumThreads(1)` scale to every core (3.3x at 8); processes lose and double the memory.
+  The old code ran OpenCV in a `ThreadPoolExecutor`, one page a task, cv2 threads never capped, workers =
+  `max(2, cores // 2)`, and model work on a 640 px downscaled copy. So the engine's image steps (Cleanup, #6192;
+  derivatives) take the OpenCV rule: threads, one page a task, `cv2.setNumThreads(1)`, N from the fit with the prior
+  N = the cores. One tension for the owner: on this Air the measured best used the efficiency cores too (8 × 1 beat
+  4 × 1 by 1.4x), while the ruling keeps the efficiency cores for the app and the person; the fit's ceiling stays the
+  performance cores by that ruling, and lifting it for light image work is decision 9.
+- **spaCy**: above (section 1). `n_process` rows pending from the explorer; they do not change the rule, since spawn
+  cannot run in the shipped engine.
+- **Prior M4 data** agrees with section 1: blla knees at N=2 in threads and processes; default torch threads = same speed,
+  twice the CPU.
+
+## 8. Further decisions for the owner
 
 5. **The compute graphic lives in the run strip and the opened run's details**, extending the pages-at-once view the
    strip already has; not in the Activity window's rows. Recommend: yes.
@@ -368,5 +396,9 @@ the stage page shows the three estimates and the person can override per step. (
 7. **Local versus HF versus ACEnet:** local when the local estimate finishes within one hour or the run is under 200
    pages, else the cheapest remote that is set up; always shown with the three estimates before anything leaves.
    Recommend: yes, with the hour as a setting-free constant.
-8. **The priors table (section 10) is the starting point for every Mac**, and Ann's M5 is confirmed by `sysctl` before
+8. **The priors table (section 7.3) is the starting point for every Mac**, and Ann's M5 is confirmed by `sysctl` before
    its first run. Recommend: yes; no hand-tuning per machine.
+9. **Light image work (OpenCV) may use the efficiency cores.** Measured 1.4x on the M1 Air from 4 to 8 threads at
+   `setNumThreads(1)`. The ruling keeps the efficiency cores for the app and the person; the fit honours it. Recommend:
+   keep the ruling for model work, and let image steps alone take the efficiency cores at background QoS, where the
+   scheduler already puts background work.
