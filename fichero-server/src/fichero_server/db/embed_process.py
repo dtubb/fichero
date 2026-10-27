@@ -174,7 +174,10 @@ def _stop_lancedbs_loop() -> None:
     background = sys.modules.get("lancedb.background_loop")
     if background is None:
         return
-    background.LOOP.loop.call_soon_threadsafe(background.LOOP.loop.stop)
+    try:
+        background.LOOP.loop.call_soon_threadsafe(background.LOOP.loop.stop)
+    except RuntimeError:  # its loop already closed: nothing left to stop
+        return
     background.LOOP.thread.join(5)
 
 
