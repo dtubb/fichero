@@ -36,15 +36,23 @@ def qos(monkeypatch):
 
 def test_automatic_kraken_while_the_mac_is_used_is_utility_with_few_threads(qos):
     priority, label, cores = kraken_runtime.set_page_priority(person=False)
-    assert (priority, label, cores) == ("background", "utility", 2)  # embed_threads // 2: the same few threads
+    assert (priority, label, cores) == ("background", "utility", 4)  # half the cores while in use (#6230), never a quarter
     assert qos == ["utility"]
+
+
+def test_an_automatic_page_on_a_4_core_mac_in_use_gets_two_threads_not_one_6229(qos, monkeypatch):
+    """`activity.lane.cores-are-used` (#6229, ruling #6230): in use slows an automatic run to HALF the performance cores;
+    priority changes the QoS class, never the threads below half. A 4-core Mac's automatic page reads on two, not one."""
+    monkeypatch.setattr(bc, "embed_threads", lambda: 2)
+    monkeypatch.setattr(bc, "cpu_count", lambda: 4)
+    assert kraken_runtime.set_page_priority(person=False)[2] == 2
 
 
 def test_other_automatic_work_in_the_same_state_still_picks_background(qos):
     from fichero_server.core.compute_preferences import apply_to_this_thread, priority_for
 
     assert priority_for(False) == "background"
-    assert apply_to_this_thread("background") == 2 and qos == ["background"]
+    assert apply_to_this_thread("background") == 4 and qos == ["background"]  # the class, not fewer threads (#6229)
 
 
 def test_a_persons_kraken_page_is_still_fast(qos):
@@ -56,5 +64,5 @@ def test_a_persons_own_background_setting_with_the_mac_idle_stays_background(qos
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: 600.0)  # idle: the throttle chose balanced, not background
     monkeypatch.setattr("fichero_server.core.compute_preferences.stored_preferences",
                         lambda: {"priority": "background", "device": "auto"})
-    assert kraken_runtime.set_page_priority(person=False) == ("background", "background", 2)
+    assert kraken_runtime.set_page_priority(person=False) == ("background", "background", 4)
     assert qos == ["background"]

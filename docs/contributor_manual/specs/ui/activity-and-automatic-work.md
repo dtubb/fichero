@@ -185,8 +185,8 @@ every 10 s; battery or Low Power Mode; memory = free under the model's need (Kra
 critical, or pressure warn with 64 MB paged in the last minute; heat = thermal state serious (2 of 0–3).
 Memory and heat hold everything; battery holds background work and slows a person's; in use and a
 build never hold, they slow background work to the lowest class (`decide`, `throttle.py:540`), which
-for Kraken is a quarter of the performance cores (`compute_preferences.apply_to_this_thread`): one
-thread on a 4-core Mac, at utility QoS since the 2026-10-20 ruling. That cost is
+for Kraken is half the performance cores (`compute_preferences.apply_to_this_thread`, since #6229; was a
+quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling. What is left is
 `activity.throttle.in-use-slows-to-half` (#6230) and `activity.lane.cores-are-used` (#6229).
 
 ## Prior art (what we build on, and what we do differently)
@@ -1666,14 +1666,16 @@ and node, not by job); a retry action for failed pages.
   has its own pages-at-once budget from GPU memory and a CPU step (Kraken) its own from the performance cores
   and free memory (`activity.lane.pages-at-once-sized-from-the-machine`), so the two run side by side; neither
   budget borrows from the other. The sum is bounded by one memory rule (#6000): free memory less Kraken's need, the served weights, the CPU pages at their measured peak and the GPU reads at their margin stays above the reserve; on a 16 GB Mac or less one heavy model at a time, so side by side is only above 16 GB, and only once measured: the M4's line-finder knee at two is a shared-hardware limit, and a GPU model beside it draws on the same unified memory, so each may slow the other (unmeasured; `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M4; proposed 2026-10-27, awaiting the maintainer).
-- `activity.lane.cores-are-used` — **[BROKEN]** (#6229; run-system review 2026-10-27, read from the code) a
+- `activity.lane.cores-are-used` — **[PARTIAL]** (#6229; run-system review 2026-10-27, read from the code) a
   Kraken page uses the Mac's performance cores: the threads a page gets are the performance cores divided by the
   pages at once, whatever its priority, and the run's grey line says it ("2 pages at once, 2 threads each").
   Today (`core/compute_preferences.py` `apply_to_this_thread`): a person's run gets every performance core
   (`fast`); an automatic run gets half of them while the Mac is idle (`balanced`, the default setting) and a
   QUARTER, never below one thread, while the Mac is used or a build runs (`background`, lifted to utility QoS);
   then `kraken_runtime.py` ~1022 splits that by the pages inside the gate. On a 4-core Mac an automatic run reads
-  one page on one or two threads, and only the run's log says so (`Threads: …`). Priority is to change the QoS
+  one page on one or two threads, and only the run's log says so (`Threads: …`). Built (#6229): `background` gives
+  half the performance cores, as `balanced` does, at its own QoS class; a 4-core Mac's automatic page reads on two
+  threads. Left: the run's grey line naming pages at once and threads each (`recipes-run.memory.threads-fill-the-cores`). Priority is to change the QoS
   class, not the thread count below half the cores. Measure: `fichero-server/scripts/bench_priority_qos.py` and
   the per-page log line (`kraken page …: total … | priority= qos= threads=`). *Test (to write):*
   `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py` (a case: the threads of an
@@ -1721,14 +1723,15 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that loads the segmenter, reads
   two faked pages on threads and leaves by `fast_exit` exits 0; on the Pro the bare exit is 0 too, so it pins the way
   out, not the abort).
-- `activity.throttle.in-use-slows-to-half` — **[GAP]** (#6230; ruled 2026-10-27: half the performance cores, not a
+- `activity.throttle.in-use-slows-to-half` — **[PARTIAL]** (#6230; ruled 2026-10-27: half the performance cores, not a
   quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
   in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
   slows to HALF the performance cores at utility QoS, never to one thread and never to the background class;
   the holds (battery, memory, heat) stay as they are, and Pause All stays the way to have the Mac to oneself.
   Today "slow" is the lowest class (`throttle.decide`, `throttle.py:540`), a quarter of the cores for Kraken,
   measured about 18x slower at the background class (#4959); a person reading pages beside a recipe keeps the
-  Mac in use for the whole sitting. *Test (if ruled so):* `fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`.
+  Mac in use for the whole sitting. Built (#6229): the threads are half the cores, never a quarter (an import's
+  automatic Kraken at utility QoS). Left: other automatic work in use still drops to the background class. *Test (if ruled so):* `fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`.
 - `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
   time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
   page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after

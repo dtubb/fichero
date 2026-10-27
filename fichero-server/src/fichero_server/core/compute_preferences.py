@@ -96,8 +96,10 @@ def apply_to_this_thread(priority: str, *, lift_to_utility: bool = False) -> int
         set_fast_qos()
         return cpu_count()
     if priority == "background":
+        # In use slows to HALF the performance cores, never a quarter: priority is the QoS class, not fewer threads
+        # (owner ruling #6230, `activity.lane.cores-are-used`, #6229).
         set_utility_qos() if lift_to_utility else set_background_qos()
-        return max(1, embed_threads() // 2)
+        return max(1, embed_threads())
     set_utility_qos()
     return max(1, embed_threads())
 
