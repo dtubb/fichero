@@ -126,7 +126,8 @@ its pages (`source.recipe.step-counts-its-pages`); the run's status is Activity'
   already-done counts belong on the row; `source.recipe.done-is-not-redone` has the numbers). Built (engine): each stage
   of the run carries Start's own count as `note` ("already done on 37 of 95 pages; runs on the other 58"), so the row can
   say why it runs on fewer pages than the project has (`test_step_rerun_on_folder.py`,
-  `test_a_run_on_fewer_pages_than_the_project_says_why`); left: the app row showing it.
+  `test_a_run_on_fewer_pages_than_the_project_says_why`); Activity's stage row shows it as sent
+  (`ActivityStageReadersTests.aStageCarriesStartsCountOfWhatWasDone`, Swift compile owed).
 
 **Each step: ran, or why not.** Every recipe step either runs and finishes with its result recorded on the run
 (the step's state and the pages it ran on, `source.recipe.step-counts-its-pages`), or does not run and says why on

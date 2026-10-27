@@ -238,6 +238,9 @@ struct ActivityDetailsStages: View {
                     if let waiting = stage.waitingFor {
                         Label(waiting, systemImage: "hourglass").foregroundStyle(.secondary)
                     }
+                    if let note = stage.note {
+                        Text(note).foregroundStyle(.secondary)
+                    }
                 }
                 .font(.callout)
             }

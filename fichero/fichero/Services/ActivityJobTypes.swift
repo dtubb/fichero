@@ -153,6 +153,8 @@ struct ActivityRecipeStage: Equatable, Identifiable {
     let job: String?
     let state: String
     let why: String?
+    /// Start's count of what was already done ("already done on 37 of 95 pages; runs on the other 58"), the engine's words.
+    let note: String?
     let childId: String?
     let account: ActivityRunAccount?
     /// What each reader of a stage that reads with several says ("Also reads print pages with Apple Vision"), the engine's own
@@ -168,6 +170,7 @@ struct ActivityRecipeStage: Equatable, Identifiable {
         job = step.job
         state = step.state
         why = step.why
+        note = step.note
         childId = step.childId
         account = step.account.map(ActivityRunAccount.init)
         let readers = step.readers ?? []

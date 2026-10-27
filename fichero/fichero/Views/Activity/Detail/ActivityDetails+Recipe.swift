@@ -24,6 +24,8 @@ extension ActivityDetails {
         let timeLeft: String?
         /// What its pages wait for ("memory is tight"), while it runs.
         let waitingFor: String?
+        /// Why it runs on fewer pages than the project has: Start's count of what was already done (#6091).
+        let note: String?
     }
 
     /// What a recipe run made, in words (#5577).
@@ -113,7 +115,8 @@ extension ActivityDetails {
                 isFailed: stage.state == "failed" || stage.state == "not run",
                 counts: counts,
                 timeLeft: running ? account?.estimateSecondsLeft.map(ActivityMonitorRow.duration) : nil,
-                waitingFor: running ? account?.waitingReason : nil
+                waitingFor: running ? account?.waitingReason : nil,
+                note: stage.note
             )
         }
     }
