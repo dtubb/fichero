@@ -220,3 +220,12 @@ def test_the_trainer_beats_at_its_batches(db, model_lane, monkeypatch):
     gentle.on_batch()
 
     assert lane.heard["ketos"] > time.monotonic() - 5
+
+
+def test_saying_nothing_clears_the_reason(db):
+    """`say(db, id, "")` leaves no words on the row: NULL, not an empty string a reader would show (b20)."""
+    jobs._ensure(db)
+    job_id = jobs._insert(db, "compare-line-finders", "samples", None, "automatic")
+    jobs.say(db, job_id, "Page 1 of 2")
+    jobs.say(db, job_id, "")
+    assert jobs.read_job(db, job_id)["reason"] is None

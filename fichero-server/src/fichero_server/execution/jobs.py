@@ -429,7 +429,7 @@ def note_call_reason(reason: str | None) -> None:
     held = _call_row.get()
     if held is not None and _holding.get():
         db, job_id = held
-        db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])
+        db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason or None, job_id])
 
 
 # A workflow run and its steps, as rows (#5353, spec "Workflow runs inside the one job model"). The
@@ -996,7 +996,7 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
 
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason or None, job_id])
     _heard_from(job_id)
 
 
