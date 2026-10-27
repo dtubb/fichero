@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+import sys
+import traceback
 from collections import defaultdict
 from typing import Any, Iterator
 
@@ -46,6 +48,20 @@ from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_k
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
+
+#: How long one page's names may take (#6236). Pages take 1-4 s; past this the page is skipped with a worded stall and
+#: left un-noted, so Run again on what was missed offers it. A spaCy thread past it cannot be stopped and keeps the spaCy
+#: turn, so the pages after it may stall too, each named.
+NAMES_PAGE_SECONDS = 300.0
+
+
+def _stalled(doc_name: str, what: str) -> str:
+    """The stall's words, and every thread's stack in the log, so the spin names itself (#6236)."""
+    logger.warning("extract_entities_only: %s on %s passed %s s; threads:\n%s", what, doc_name, NAMES_PAGE_SECONDS,
+                   "\n".join(f"thread {ident}:\n{''.join(traceback.format_stack(frame))}"
+                             for ident, frame in sys._current_frames().items()))
+    return (f"names on page {doc_name} took over {NAMES_PAGE_SECONDS:g} s; skipped, as {what} did not finish in "
+            f"that time, so Run again on what was missed offers it")
 
 _TRANSCRIPTION_ARTIFACT = "transcription"
 #: Why a selected document was left out of a run: it has no text to read names from.
@@ -448,14 +464,17 @@ async def extract_entities_only(
         extraction = None
         if not use_local_ner:
             async with extraction_sem:
-                extraction = await chat_structured_with_fallback(
-                    prompt=record["text"],
-                    schema=_EntitiesOnly,
-                    config=llm_config,
-                    system=instructions,
-                    include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
-                    permissive_guardrails=True,
-                )
+                try:
+                    extraction = await asyncio.wait_for(chat_structured_with_fallback(
+                        prompt=record["text"],
+                        schema=_EntitiesOnly,
+                        config=llm_config,
+                        system=instructions,
+                        include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
+                        permissive_guardrails=True,
+                    ), NAMES_PAGE_SECONDS)
+                except TimeoutError:
+                    return {"resolution": resolution, "stalled": "the names model"}
         return {"resolution": resolution, "extraction": extraction}
 
     run_id = state.get("task_id", "")
@@ -464,29 +483,38 @@ async def extract_entities_only(
         # names and their note (`page_finished`), and a start again goes on from the next.
         if cancellation_requested(run_id):
             raise WorkflowCancelled(run_id)
-        processed += 1
         doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
         await emit_progress_event(
             progress_callback,
             "file_start",
             "",
             f"Extract Entities {doc_name}",
-            processed,
+            processed + 1,
             total,
             message=f"Extracting step-2 entities for {doc_name}",
         )
 
-        resolution, extraction = pre["resolution"], pre["extraction"]
+        resolution, extraction = pre["resolution"], pre.get("extraction")
         # (canonical_name, entity_type, aliases) to upsert, from whichever
         # extractor this run selected. The upsert loop below is shared.
         # The fourth element is where the name is written in the text (#5488): the local NER model's own
         # spans, or None for a language model's name, which is then found in the text as written.
         mentions: list[tuple[str, Any, list[str], list[tuple[int, int]] | None]] = []
         text = record["text"]
+        spans = []
+        if use_local_ner and "stalled" not in pre:
+            try:
+                spans = await asyncio.wait_for(ner_provider.extract(
+                    record["text"], language=resolution.language
+                ), NAMES_PAGE_SECONDS)
+            except TimeoutError:
+                pre = {**pre, "stalled": "spaCy"}
+        if "stalled" in pre:
+            left_out.append({"document_id": record["doc_id"], "name": doc_name,
+                             "why": _stalled(doc_name, pre["stalled"])})
+            continue
+        processed += 1
         if use_local_ner:
-            spans = await ner_provider.extract(
-                record["text"], language=resolution.language
-            )
             for span in spans:
                 section_key = _NER_TYPE_TO_SECTION.get(str(span.type))
                 if section_key is None or section_key not in requested_sections:
@@ -577,6 +605,7 @@ async def extract_entities_only(
             message=f"Extracted step-2 entities for {doc_name}",
         )
 
+    stalls = [e["why"] for e in left_out if "took over" in e["why"]]
     summary = {
         "documents_processed": processed,
         "entity_mentions_processed": mentions_processed,
@@ -591,4 +620,7 @@ async def extract_entities_only(
         "documents_left_out": len(left_out),
         "left_out": left_out,
     }
+    if stalls and not processed:  # every page stalled: a run that read nothing fails, saying why (#5521)
+        return {"error": f"no names found: {stalls[0]}" + (f"; and {len(stalls) - 1} more" if len(stalls) > 1 else ""),
+                "summary": summary, "count": 0}
     return {"summary": summary, "count": processed}
