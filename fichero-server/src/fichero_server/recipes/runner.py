@@ -196,6 +196,19 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     return enqueue(db, plan, documents=list(document_ids), started_by="import")
 
 
+def stages_the_run_takes(db: Any, run_id: str | None) -> set[str]:
+    """The import-time work a queued recipe run does itself, once after reading (ruling 5, #6186): the per-page embed when
+    the run has a Search stage, the names draft when it has a names stage. None for no run or a refused one (a failed row)."""
+    from fichero_server.importers.derivatives import EMBED_KIND, NLP_KIND
+
+    row = jobs.read_job(db, run_id) if run_id else None
+    if row is None or row["state"] in ("failed", "cancelled"):
+        return set()
+    cards = json.loads(row["detail"] or "{}").get("runs") or []
+    return ({EMBED_KIND} if any(c.get("card") == "embed" for c in cards) else set()) | (
+        {NLP_KIND} if any(c.get("job") == "find-names-tag-words" for c in cards) else set())
+
+
 def _why_no_recipe_on_add(db: Any) -> str | None:
     """Why an import runs no recipe at all, in words; None when it runs the recipe's plan. The one gate
     `material_arrived` and `what_runs_by_itself` share."""
@@ -241,6 +254,12 @@ def what_runs_by_itself(db: Any) -> dict[str, list[dict[str, Any]]]:
         if plan["refusals"] or not plan["runs"]:
             refusals = "; ".join(plan["refusals"]) or "nothing in this recipe can run"
             on_add.append(entry(KIND, False, f"the project's recipe cannot run on an import: {refusals}"))
+        else:  # ruling 5 (#6186): the run's Search and names stages take the import's embed and names draft
+            once = "Search and names run once at the end of the recipe's reading, not on each page added"
+            for item in on_add:
+                if (item["job"] == EMBED_KIND and any(r.get("card") == "embed" for r in plan["runs"])) or (
+                        item["job"] == NLP_KIND and any(r.get("job") == "find-names-tag-words" for r in plan["runs"])):
+                    item["runs"], item["why"] = False, once
         for run in plan["runs"]:
             on_add.append(entry(run["job"], True, "the project's recipe runs it on what an import brings",
                                 list(run.get("steps") or [])))

@@ -324,20 +324,20 @@ replaces the Kraken figure before #6212 is coded.
   the gap before it closes (a failed page closes its gap: it is settled and listed). Built: each stage's run
   account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract). Left: Activity's opened
   run showing it (Step 4.1, `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
-- `recipes-run.order.search-entities-once-at-the-end` — **[PARTIAL]** (#6186; `activity.run.stages-before-search-do-not-embed`
-  and `activity.lane.embed-after-reading` are the built halves) for a recipe run, the search embedding and
+- `recipes-run.order.search-entities-once-at-the-end` — **[OK]** (#6186; `activity.run.stages-before-search-do-not-embed`
+  and `activity.lane.embed-after-reading` are its halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says
   "Search and names run once at the end"; they never compete with the readers for the model lane.
   **Ruling 5:** a project with a started recipe queues NO per-page embed and NO names draft at import;
   the recipe does both once at the end of each batch; a project with no started recipe keeps today's
-  import-time behaviour. Built:
-  inside a run no stage before Search queues a page's embed, Search embeds it once
-  (`fichero-server/tests/unit/recipes/test_stages_before_search_do_not_queue_embeds_6126.py`); background
-  embeds wait for the reading and run off the heavy lane (`test_embed_after_reading.py`,
-  `test_embed_off_the_reading_lane.py`). Not built: the import still queues an embed and an NLP draft per
-  page at import time (`derivatives.py` `EMBED_KIND`, `NLP_KIND`), before there is text, so Activity shows
-  them beside every step (dogfood B12: "Embed for search 0/95" queued at import). Test (to write):
-  fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py.
+  import-time behaviour. Built: an import whose recipe run has a Search stage queues no embed, and one with a
+  names stage no names draft (`runner.stages_the_run_takes`; thumbnails still queue; a refused run or a run
+  without the stage keeps today's import); What runs by itself says "Search and names run once at the end of the
+  recipe's reading"; Search's embed clears the page's pending (a run stopped before Search leaves its pages
+  pending, and the next open embeds them, `db/manager.py`'s stranded pages); inside a run no stage before Search
+  queues a page's embed (`test_stages_before_search_do_not_queue_embeds_6126.py`); background embeds wait for the
+  reading and run off the heavy lane (`test_embed_after_reading.py`, `test_embed_off_the_reading_lane.py`).
+  Test: fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py.
 
 ### 12. Per-step timings are recorded
 

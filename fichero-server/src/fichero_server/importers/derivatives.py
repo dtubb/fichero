@@ -119,20 +119,24 @@ def queue_derivatives(
         return []
 
     docs = list(docs)
+    taken: set[str] = set()
     if arrived and docs:
         # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
         # `arrived=False` is the library-open recovery of stranded pages, which are not new.
-        from fichero_server.recipes.runner import material_arrived
+        from fichero_server.recipes.runner import material_arrived, stages_the_run_takes
 
-        material_arrived(db if db is not None else _library_db(library), [doc.id for doc in docs])
+        run_db = db if db is not None else _library_db(library)
+        taken = stages_the_run_takes(run_db, material_arrived(run_db, [doc.id for doc in docs]))
     queued = [
         doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
     ]
+    # The run's Search embeds these pages once after reading (ruling 5, #6186): no per-page embed now.
+    embed_queued = [] if EMBED_KIND in taken else queued
     # #4823: gated separately from thumbnails/embeds by the Settings ▸
     # General ▸ Ingestion toggle (default ON) -- OFF means not queued at
-    # all, never a stage that runs and no-ops.
+    # all, never a stage that runs and no-ops. The run's names stage takes it as Search takes the embed.
     nlp_queued = (
-        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() else []
+        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() and NLP_KIND not in taken else []
     )
     futures: list[Future] = []
     if not queued and not nlp_queued:
@@ -149,7 +153,7 @@ def queue_derivatives(
     # per-document visibility is its job row and the `nlp_error` field.
     queued_jobs = (
         jobs.enqueue_many(db, THUMBNAIL_KIND, queued)
-        + jobs.enqueue_many(db, EMBED_KIND, queued)
+        + jobs.enqueue_many(db, EMBED_KIND, embed_queued)
         + jobs.enqueue_many(db, NLP_KIND, nlp_queued)
     )
 

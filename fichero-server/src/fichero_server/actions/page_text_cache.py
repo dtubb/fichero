@@ -467,6 +467,19 @@ def _reembed_batch(db: Any, subject: str) -> None:
             current, embedded, wanted = db.embed_many_unless_current(docs)
         if current + embedded < wanted:  # the job fails, so Activity shows it, as for a single page
             raise RuntimeError(f"{wanted - current - embedded} of {wanted} pages could not be embedded")
+        _clear_pending(db, docs)
+
+
+def _clear_pending(db: Any, docs: list[Any]) -> None:
+    """A page the import left to the run's Search (#6186) stops being pending once Search embedded it, as the import's own
+    embed stage would have done; else every open would queue its embed again (`db/manager.py`'s stranded pages)."""
+    from fichero_server.models import Document, Status
+
+    for doc in docs:
+        fresh = db.get(Document, doc.id)
+        if fresh is not None and fresh.status == Status.pending and "derivative_error" not in (fresh.metadata or {}):
+            fresh.status = Status.completed
+            db.save(fresh)
 
 
 def _reembed(db: Any, document_id: str) -> None:
