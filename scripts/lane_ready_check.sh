@@ -8,6 +8,36 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+run_fast_guards() {  # prints each red guard with its output tail; returns 1 if any is red
+  # tomllib is Python 3.11+: the system python3 may be older, so take the first interpreter that has it
+  local py
+  for py in "${FICHERO_PYTHON_BIN:-}" python3.13 python3.12 python3.11 python3; do
+    [ -n "$py" ] && command -v "$py" >/dev/null && "$py" -c 'import tomllib' 2>/dev/null && break; py=""; done
+  [ -n "$py" ] || { echo "FAIL: no python with tomllib (3.11+) to read pipeline/projects/fichero.toml"; return 1; }
+  "$py" - <<'PYEOF'
+import glob, os, subprocess, sys, tomllib
+cfg = tomllib.load(open("pipeline/projects/fichero.toml", "rb"))
+rung = next((r for r in cfg["ladder"] if r.get("name") == "fast-guards"), None)
+if rung is None:
+    sys.exit("FAIL: no fast-guards rung in pipeline/projects/fichero.toml")
+env = dict(os.environ, PYTHONPATH=":".join(os.path.abspath(p) for p in cfg["repo"]["python_path"].split(":")))
+env.update(cfg["repo"].get("test_env", {}))
+guards = [g for g in sorted(glob.glob("scripts/check_*.py")) if not any(k in g for k in rung["skip"])]
+if len(guards) < 20:  # a guard that finds nothing to run is blind, not green
+    sys.exit(f"FAIL: only {len(guards)} guards found under scripts/check_*.py")
+bad = []
+for g in guards:
+    try:
+        r = subprocess.run([sys.executable, g], env=env, capture_output=True, text=True, timeout=rung.get("timeout_s", 60))
+        if r.returncode:
+            bad.append(f"FAIL: {g}\n" + "\n".join((r.stdout + r.stderr).splitlines()[-40:]))
+    except subprocess.TimeoutExpired:
+        bad.append(f"FAIL: {g}: timeout")
+print("\n".join(bad))
+sys.exit(1 if bad else 0)
+PYEOF
+}
+
 check() {  # check <rev> -> prints FAIL lines, returns count
   local rev=$1 base fails=0 n
   base=$(git merge-base origin/integration "$rev")
@@ -34,18 +64,10 @@ check() {  # check <rev> -> prints FAIL lines, returns count
     out=$(echo "$py" | tr '\n' '\0' | xargs -0 ruff check --output-format concise 2>&1) || { echo "FAIL: ruff on the changed Python"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   if [ -n "$sw" ] && [ "$rev" = HEAD ] && command -v swiftlint >/dev/null; then
     out=$(echo "$sw" | tr '\n' '\0' | xargs -0 swiftlint lint --quiet --strict 2>&1) || { echo "FAIL: swiftlint on the changed Swift"; echo "$out" | head -40; fails=$((fails+1)); }; fi
-  # 4b. the fast guards that apply to the changed paths (#6140). They are the scripts/check_*.py the runner's
-  # fast-guards rung runs (pipeline/projects/fichero.toml), so none is kept in a second list here: only which diff
-  # paths call for which guard. ponytail: three guards; add a line when another one proves to be missed the same way.
-  local all guards="" g
-  all=$(git diff --name-only --diff-filter=AMDR "$base" "$rev")
-  echo "$all" | grep -q '^fichero/fichero/.*\.swift$' && guards="check_folder_organization"
-  echo "$all" | grep -q '^fichero/fichero/Views/.*\.swift$' && guards="$guards check_shell_chrome"
-  echo "$all" | grep -q '^fichero/Tests/.*\.swift$' && guards="$guards check_capability_scrapes"
+  # 4b. the fast guards (#6140): the SAME set the runner's fast-guards rung runs: every scripts/check_*.py except the
+  # skip list in pipeline/projects/fichero.toml, read from there so no second list is kept here. 60 s each.
   if [ "$rev" = HEAD ]; then
-    for g in $guards; do
-      out=$(PYTHONPATH=fichero-server/src python3 "scripts/$g.py" 2>&1) || { echo "FAIL: scripts/$g.py"; echo "$out" | tail -40; fails=$((fails+1)); }
-    done; fi
+    out=$(run_fast_guards) || { echo "$out"; fails=$((fails+1)); }; fi
   # 5. a source change comes with a test change
   local src tst
   src=$(git diff --name-only "$base" "$rev" -- 'fichero-server/src/*.py' 'fichero/fichero/*.swift' | head -1)
