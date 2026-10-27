@@ -124,7 +124,8 @@ class EngineProcess:
 
 
 def start_engine(*, transport: str = "uds", token: str | None = None,
-                 log_dir: str | None = None, ready_timeout: float = 60.0) -> EngineProcess:
+                 log_dir: str | None = None, ready_timeout: float = 60.0,
+                 base_path: str | None = None) -> EngineProcess:
     """Launch uvicorn on a UDS ('uds') or plain-HTTP TCP loopback ('tcp').
 
     Blocks until ``/api/health`` returns 200 or ``ready_timeout`` elapses.
@@ -134,7 +135,7 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
     import httpx
 
     token = token or secrets.token_urlsafe(24)
-    base_path = tempfile.mkdtemp(prefix="fich_base_")
+    base_path = base_path or tempfile.mkdtemp(prefix="fich_base_")
     log_dir = log_dir or tempfile.gettempdir()
     log_path = os.path.join(log_dir, f"uv_{transport}_{secrets.token_hex(3)}.log")
     logf = open(log_path, "w")
