@@ -166,10 +166,23 @@ def _let_go_of_the_engines_files(keep: int) -> None:
                 pass
 
 
+def _stop_lancedbs_loop() -> None:
+    """lancedb's after-fork hook starts a fresh loop thread in this child; the child never uses LanceDB, and closing the
+    engine's files closes that loop's kqueue, so its thread died with "Bad file descriptor" (#6237). Stop it first."""
+    import sys
+
+    background = sys.modules.get("lancedb.background_loop")
+    if background is None:
+        return
+    background.LOOP.loop.call_soon_threadsafe(background.LOOP.loop.stop)
+    background.LOOP.thread.join(5)
+
+
 def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[str, str]) -> None:
     """The child: load the model, say so, then answer batches until the pipe closes or its engine is gone."""
     os.environ.update(env)
     engine_pid = os.getppid()
+    _stop_lancedbs_loop()
     _let_go_of_the_engines_files(conn.fileno())
     try:
         try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
