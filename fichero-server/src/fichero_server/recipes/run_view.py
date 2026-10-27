@@ -188,8 +188,8 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
         from fichero_server.execution.jobs import BACKGROUND_STARTERS
         from fichero_server.llm import kraken_runtime
 
-        status["pages_at_once"], status["pages_at_once_reason"] = kraken_runtime.pages_at_once_and_why(
-            (status.get("started_by") or "automatic") not in BACKGROUND_STARTERS)
+        status["pages_at_once"], status["pages_at_once_reason"] = await asyncio.to_thread(  # memory probes: off the loop (#6178)
+            kraken_runtime.pages_at_once_and_why, (status.get("started_by") or "automatic") not in BACKGROUND_STARTERS)
     status["estimate_seconds_left"] = account.estimate_seconds_left if account is not None else None
     if (status["state"] == "running" and running is not None and account is not None and account.pages_total
             and (status["reason"] or "").startswith("Running step")):

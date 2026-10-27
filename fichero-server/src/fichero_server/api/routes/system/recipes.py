@@ -3230,7 +3230,8 @@ async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRun
     from fichero_server.recipes import runner
     from fichero_server.recipes.run_view import with_accounts
 
-    return RecipeRuns(items=[RecipeRunStatus(**await with_accounts(db, r)) for r in runner.runs(db)])
+    # Off the loop (#6178): the runs' rows wait on the transaction gate behind a run's write.
+    return RecipeRuns(items=[RecipeRunStatus(**await with_accounts(db, r)) for r in await asyncio.to_thread(runner.runs, db)])
 
 
 @router.get("/project/runs/{job_id}", response_model=RecipeRunStatus)
@@ -3242,7 +3243,7 @@ async def recipe_run_status(job_id: str, db: Database = Depends(get_library_data
     from fichero_server.recipes.run_view import with_accounts
 
     try:
-        return RecipeRunStatus(**await with_accounts(db, runner.status(db, job_id)))
+        return RecipeRunStatus(**await with_accounts(db, await asyncio.to_thread(runner.status, db, job_id)))  # off the loop (#6178)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

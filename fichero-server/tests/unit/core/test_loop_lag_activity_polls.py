@@ -1,0 +1,69 @@
+"""While a run goes, the run's status and Activity's recipe-run node never hold the event loop: every database read of a
+poll runs on a worker thread (`recipes-run.engine.answers-while-a-run-goes`, #6178)."""
+from __future__ import annotations
+
+import asyncio
+import time
+
+from fichero_server.execution import jobs
+from fichero_server.llm import kraken_runtime
+from fichero_server.recipes import run_view, runner
+
+
+def _status(job_id="r1"):
+    return {"job_id": job_id, "state": "running", "reason": None, "steps": [], "skipped": [], "started_by": "owner"}
+
+
+def _slow(value):
+    def call(*_a, **_k):
+        time.sleep(1.5)  # waiting on the transaction gate behind a run's write
+        return value
+
+    return call
+
+
+def _loop_turn_during(blocking_call) -> float:
+    """How long a 0.2 s sleep beside `blocking_call` takes (a poll beside it): over 1 s, the call held the loop."""
+    async def go() -> float:
+        work = asyncio.ensure_future(blocking_call())
+        started = time.monotonic()
+        await asyncio.sleep(0.2)
+        took = time.monotonic() - started
+        await work
+        return took
+
+    return asyncio.run(go())
+
+
+def test_the_run_status_reads_the_run_off_the_loop(monkeypatch):
+    from fichero_server.api.routes.system import recipes
+
+    monkeypatch.setattr(runner, "status", _slow(_status()))
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (1, None))
+
+    assert _loop_turn_during(lambda: recipes.recipe_run_status("r1", db=None)) < 1.0
+
+
+def test_the_list_of_runs_reads_off_the_loop(monkeypatch):
+    from fichero_server.api.routes.system import recipes
+
+    monkeypatch.setattr(runner, "runs", _slow([_status()]))
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (1, None))
+
+    assert _loop_turn_during(lambda: recipes.recipe_runs(db=None)) < 1.0
+
+
+def test_the_gate_reading_of_a_running_run_is_off_the_loop(monkeypatch):
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", _slow((2, None)))  # the memory and paging probes
+
+    assert _loop_turn_during(lambda: run_view.with_accounts(None, _status())) < 1.0
+
+
+def test_activitys_recipe_run_node_reads_its_row_off_the_loop(monkeypatch):
+    from fichero_server.api.routes.system import activity
+
+    monkeypatch.setattr(runner, "status", lambda db, job_id: _status(job_id))
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (1, None))
+    monkeypatch.setattr(jobs, "state_and_reason", _slow(("running", None)))
+
+    assert _loop_turn_during(lambda: activity._recipe_state(None, "r1")) < 1.0

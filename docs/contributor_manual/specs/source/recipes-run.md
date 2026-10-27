@@ -176,13 +176,16 @@ replaces the Kraken figure before #6212 is coded.
   sample; it is the M4 gate's load leg (#4634), marked slow and skipped on the Pro. Nothing today runs a
   whole recipe at that size: the owner's 20-page runs wedged three times (dogfood B12) and a Dev Local
   engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). Test (to write): fichero-server/tests/perf/test_recipe_run_100_pages.py.
-- `recipes-run.engine.answers-while-a-run-goes` — **[BROKEN]** (#6178, #6001) while a run goes, every
+- `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:
   every database read of a poll runs on a worker thread, and a poll under a held writer answers with what
   it has rather than waiting. Ann's engine log shows 754 `loop_lag` warnings up to 16.9 s in
   `get_job_tree -> run_account -> execute_fetchone` and polls of 14 to 21 s; the dogfood engine's
   `/api/health` timed out for 9 minutes. `activity.summary.off-the-loop` (B) is the recipe summary's half.
-  Test (to write): fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
+  Built: the run status, the list of runs, Activity's recipe-run node and the gate reading read on a worker thread
+  (the Activity list, job tree and run account already did, #5843, #5860, #6176). Left: a poll under a held writer
+  still waits on its worker thread for the writer (it does not answer with what it has), and the M4 run sampling
+  `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
 - `recipes-run.engine.local-call-judged-by-progress` — **[OK]** (#5537; `compute.memory.local-call-judged-by-progress`
   owns it; pinned by `fichero-server/tests/unit/jobs/test_local_no_progress_retry_5537.py`) a page whose
   local model stopped answering is read once more before it fails, with the model's output in the log;

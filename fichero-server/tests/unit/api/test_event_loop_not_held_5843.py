@@ -25,11 +25,10 @@ def test_the_jobs_schema_is_created_once_per_connection_not_per_poll():
 
 
 def _loop_turn_during(blocking_call) -> float:
-    async def go() -> float:
+    async def go() -> float:  # a 0.2 s sleep beside the call: the turn after it would miss a block at the start (#6178)
         work = asyncio.ensure_future(blocking_call())
-        await asyncio.sleep(0.2)
         started = time.monotonic()
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.2)
         took = time.monotonic() - started
         await work
         return took

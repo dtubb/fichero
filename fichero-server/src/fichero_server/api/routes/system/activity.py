@@ -1056,7 +1056,7 @@ async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], 
 
     # Off the loop (#5843): `runner.status` reads the library's rows and waits on the transaction gate behind a write.
     status = await run_view.with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))
-    state, reason = job_queue.state_and_reason(db, job_id) or (status["state"], status["reason"])
+    state, reason = await asyncio.to_thread(job_queue.state_and_reason, db, job_id) or (status["state"], status["reason"])
     if state == "running":
         # What it waits for, else the stage in words with its pages (#6125), not the stored "Running step 2 of 5".
         reason = status["waiting_for"] or status["reason"] or reason
