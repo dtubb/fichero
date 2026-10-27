@@ -189,8 +189,11 @@ def load_spacy_pipeline(name: str):
     if name not in _SPACY_PIPELINES:
         import spacy
 
+        from fichero_server.core.perf import model_load
+
         stored = spacy_pipeline_path(name)
-        _SPACY_PIPELINES[name] = spacy.load(stored) if stored is not None else spacy.load(name)
+        with model_load(f"spacy {name}"):
+            _SPACY_PIPELINES[name] = spacy.load(stored) if stored is not None else spacy.load(name)
     return _SPACY_PIPELINES[name]
 
 

@@ -319,14 +319,17 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
             # and freeze the app ([[user-machine-always-useful]]). fastembed
             # otherwise defaults to all cores per call.
             threads = embed_threads()
-            if embed_process.in_process():
-                embedder = embed_process.load_text_embedding(model_name, cache_dir, threads)
-            else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
-                try:
-                    embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
-                except embed_process.EmbedderUnavailable as exc:
-                    _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
-                    raise
+            from fichero_server.core.perf import model_load
+
+            with model_load(f"embedder {model_name}"):
+                if embed_process.in_process():
+                    embedder = embed_process.load_text_embedding(model_name, cache_dir, threads)
+                else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
+                    try:
+                        embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
+                    except embed_process.EmbedderUnavailable as exc:
+                        _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
+                        raise
             _EMBEDDER_CACHE[model_name] = embedder
             logger.info(
                 "model-lane: load embedder %s (threads=%d)",

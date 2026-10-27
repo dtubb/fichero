@@ -1212,7 +1212,9 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
     logger.info("model-lane: load kraken %s %s (%s)", kind, key,
                 "replacing the one held" if held is not None else "none held")
-    with _stage("load"):
+    from fichero_server.core.perf import model_load
+
+    with _stage("load"), model_load(f"kraken {kind} {key}"):
         model = load()
     _RESIDENT[kind] = (key, model)
     return model
