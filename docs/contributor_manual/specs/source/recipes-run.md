@@ -238,6 +238,16 @@ replaces the Kraken figure before #6212 is coded.
   whole recipe at that size: the owner's 20-page runs wedged three times (dogfood B12) and a Dev Local
   engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). The load leg is written (skipped unless
   `FICHERO_LOAD_LEG_PAGES` names a folder of 100+ pages) and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
+- `recipes-run.reliability.a-page-never-spins-silently` — **[PARTIAL]** (#6236) no page holds a step without a
+  word: the names step (Extract Entities) gives each page a time limit (300 s; a page takes 1-4 s) for its model or
+  spaCy call. Past it the page is left out of the step's summary with "names on page X took over 300 s; skipped, as
+  spaCy (or the names model) did not finish in that time, so Run again on what was missed offers it", the log carries
+  every thread's stack, the page is not noted done, and the step goes on; a step whose every page stalled fails in
+  those words. Was: on the M4 106-page run (864293bd3) Extract Entities read pages 1-86 in 1-4 s each, then held one
+  core at 100% for 20+ minutes on page 87, logging nothing. Left: the spin itself is not named (spaCy reads unspaced,
+  combining-mark Kraken text in under 0.03 s; the step's regexes are linear), a spaCy thread past the limit cannot be
+  stopped and keeps the spaCy turn so the pages after it may stall too, and the other per-page steps have no such
+  limit yet. Test: fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py.
 - `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:
   every database read of a poll runs on a worker thread, and a poll under a held writer answers with what
@@ -261,9 +271,14 @@ replaces the Kraken figure before #6212 is coded.
   completes it and the embed waits; a batch that meets a missing model waits as a whole instead of failing each page.
   Was (M4 rerun at 7337332c2): a partial bge-m3 folder passed the folder check, the child failed to load it offline, no
   download was queued and make-a-vector failed 10 of 10. The refusal holds under the tests' fake model load too.
-  Unverified on the M4 (rerun owed on that partial folder).
+  Unverified on the M4 (rerun owed on that partial folder). The child stops the LanceDB loop thread that lancedb's
+  after-fork hook starts in it before it closes the engine's files (`engine.orphan-child-lets-go`), so no thread in it
+  dies with "Bad file descriptor" (#6237). Was: on the M4 106-page run (864293bd3) the log showed "Exception in thread
+  LanceDBBackgroundEventLoop -> selectors.select -> OSError: [Errno 9] Bad file descriptor" twice, as that loop's kqueue
+  was among the files closed. The child never uses LanceDB; the engine writes the vectors.
   Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py,
-  fichero-server/tests/unit/db/test_embedder_cache_names.py.
+  fichero-server/tests/unit/db/test_embedder_cache_names.py,
+  fichero-server/tests/unit/db/test_embedder_child_stops_lancedbs_loop_6237.py.
 - `recipes-run.engine.open-migrations-serialised` — **[OK]** (#6220) opens of one library in one engine run their
   open-time migrations one at a time: a second open waits for the first, then finds every step done, so a fresh
   library records no migration failure; two embedding threads share one worker connection; an open inside an open of
@@ -518,8 +533,8 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: M
 
 #### Step 2.3 — Measure, then the ceiling and the load leg (#6076, #6212)
-- Behaviours: `recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`, `recipes-run.reliability.hundred-pages-finish`
-- Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py
+- Behaviours: `recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`, `recipes-run.reliability.hundred-pages-finish`, `recipes-run.reliability.a-page-never-spins-silently`
+- Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py, fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py
 - Depends on: 1.1, 2.1, 2.2
 - Size: M
 
