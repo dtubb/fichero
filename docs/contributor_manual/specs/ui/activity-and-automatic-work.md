@@ -2384,6 +2384,80 @@ is the answer; the grey line says both.
   was written and never run; no MLX number exists in the tree). *Test (to write):*
   `fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py` (a second load of the same model is refused in
   favour of the served one; the sequence count follows memory; the fit record is not consulted for a GPU step).
+- `activity.run.records-what-it-chose-per-page` — **[GAP]** (#6215, #6229; proposed 2026-10-27, after the manager's
+  correction: a quiet M4 segments the 106 large pages in about 5 s a page and reads them in about 6 s; the morning's
+  39 s a page overlapped a Time Machine restore) every run records, on each page's row and served with the run status,
+  what it chose for that page: threads, QoS class, pages at once, the throttle's state (go, slow and why, hold and why),
+  the fit's source (measured best, prior, stepped down and why) and the milliseconds its writes held the database, so two
+  runs can be compared page for page. Today the per-page log line has threads and QoS, the `Threads:` note is in the
+  call log only, and the run status serves `pages_at_once` and its reason and nothing else (`recipes/run_view.py`,
+  `RecipeRunPagesAtOnce` in the app). *Test (to write):* `fichero-server/tests/unit/recipes/test_run_records_what_it_chose_per_page_6215.py`
+  (two faked pages under different throttle states serve different records; the record is on the page row).
+- `activity.lane.fit-skips-a-busy-machine` — **[GAP]** (#5931; proposed 2026-10-27) a calibration window is not a
+  measurement while the machine is busy with something else: the one-minute load average above the performance cores,
+  `backupd`, `mds`, `mds_stores` or `photoanalysisd` busy (read as the build probe reads `xcodebuild`), or the Mac
+  paging; such a window runs at the current fit, is marked "measured while the Mac was busy" on the page record, and is
+  never stored as the best. *Test (to write):* `fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py`
+  (a window under a faked Time Machine restore leaves the fit untouched and says so).
+- `activity.lane.compute-shown-graphically` — **[GAP]** (#6229; proposed 2026-10-27, the owner's addition) the compute
+  choice is drawn, not written: one small view, in the project window's run strip (`ProjectRunStrip`, extending the
+  pages-at-once words it already shows from `RecipeRunPagesAtOnce`) and in the opened run's details (live, and the last
+  value once ended), in the idiom of the popover's Mac state row (`ActivityMacStateRow`: SF Symbols, `.caption`,
+  `.secondary`, orange only for a problem, the full reading in help and in one accessibility label). It shows: one small
+  square per core, performance cores first (filled while a page thread runs on it, outlined when free) and the
+  efficiency cores after, always outlined; one page glyph per page in flight up to the fit's N, dimmed for a slot
+  memory or the in-use rule took away; a short bar for the GPU share while an MLX step runs (sequences in flight over
+  `reads_at_once_for`); and the fit's state: a seal mark when it is the measured best on this Mac, a down arrow in
+  orange when stepped down with the cause's symbol beside it (paging, heat, battery, in use), a question mark while not
+  yet measured. No text in the view beyond the two counts; the words are the accessibility label ("4 pages at once on
+  4 of 4 performance cores, 1 thread each; measured best on this Mac" / "2 pages at once on 2 of 4 performance cores;
+  slowed, the Mac is in use"). The engine serves the fields beside `pages_at_once` on the run status. The Activity
+  window's rows are one line and do not get it; the Mac state row stays as it is. *Tests (to write):*
+  `fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift` (the label from each state; the core squares
+  from P, E and threads in use; the dimmed slot) and `fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py`.
+- `activity.lane.writer-batched-per-page` — **[GAP]** (#6236, #6212; proposed 2026-10-27, the owner's question on
+  DuckDB's one writer) every write of every page goes through one connection, one lock and one transaction gate per
+  library (`db/manager.py`, `db/__init__.py` `transaction()`), so pages read side by side still save one at a time, and
+  pages at once cannot help past the point where N × a page's write time nears one page's model time. For Kraken that
+  point is far off (writes under 1% of a page, measured 2026-10-20: a few `db.save` calls a page); for the names step
+  it is already here: `workflows/tools/_entity_writer.py` writes one autocommitted ON CONFLICT `db.save` per entity,
+  claim, mention and match candidate (twelve call sites, tens of lock trips a page) against a parse of about a second,
+  and #6236's 20-minute spin is a lookup against the growing entity table. Required: a page's results are handed to
+  the writer as ONE batch per page and per step (one transaction, `save_many(new=True)` for fresh rows so DuckDB 1.5's
+  ~32 KB per column per new ON CONFLICT row until commit is not paid, updates after), never a row at a time; a worker
+  never holds the gate while a model runs; the page record says the milliseconds its writes held the gate
+  (`activity.run.records-what-it-chose-per-page`). Not a writer thread: the one connection is already the serial point;
+  fewer, larger transactions and the reads off the gate (#6178, built) are what help. Vectors already append once per
+  batch outside the gate (`embed_many`). *Measure:* `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M8
+  (1000 single saves against one `save_many` on a scratch library; the page record's db column over an e2e run).
+  *Test (to write):* `fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py` (a page
+  with 30 entities and 40 claims opens one transaction; a model call never runs inside it).
+- `activity.lane.scale-out-batches-and-result-files` — **[GAP]** (#5642, #5398, #6233; proposed 2026-10-27, the
+  owner's scale-out addition; builds on `remote_read/job.py`, `slurm_target.py`, `sizing.size_run` and the lines of
+  `compute/hpc-runner-acenet.md`, which keep their ids) at scale the rule has two layers and one design for Hugging
+  Face Jobs and ACEnet/Slurm. Inside a task: the per-engine knee rule with the cores the task was given
+  (`core/cores.py`: `SLURM_CPUS_PER_TASK`, or the container's cgroup quota) and its GPU; no fit record; one page
+  pipeline a task. Across tasks: scale out, never up: P pages become K = ceil(P ÷ S) tasks, S from `size_run` (the
+  measured per-page time from a pilot task of about 20 pages, or the local fit's rate as the first estimate, sized to
+  80% of the shortest walltime class), throttled by the queue's limit (`--array=0-K%M` on Slurm, `max_in_flight` on
+  HF); a task that fails is retried once by itself for NODE_FAIL and PREEMPTED, with a half-size slice for OUT_OF_MEMORY
+  and TIMEOUT, and set aside after two failures, offered as "Read these pages again"; the same words for an HF Job. No
+  database over the network: each task writes its result files beside the job (PAGE XML per page, one JSON record per
+  page with its compute record, vectors as one Parquet shard per task, one tar per task); the library imports each
+  returned task in ONE batched pass (`save_many` and `embed_many` in one transaction per task), as it returns, so
+  partial returns land and count; a returned page is never rerun (`compute.land.idempotent`, #6127). Before anything
+  is sent, one sheet for either place: pages, tasks and their size, the array or flavor line, the time (tasks ÷ the
+  throttle × the walltime, plus the queue wait from `sinfo` or HF's own), the cost (HF: the flavor's price an hour ×
+  GPU-hours, `price_per_hour`; ACEnet: allocation GPU-hours, the queue wait in words) and the local estimate beside
+  them (pages ÷ the local fit's pages a minute). Progress is drawn: one run row with a strip of K small cells in the
+  status colours (done, running, queued, failed) and "3,400 of 6,000 pages landed", from the one status call. The
+  place per step: cloud by default per step (`activity.run.cloud-batch`) picks the model's place; among machines,
+  cheapest and local first: local when the local estimate finishes within an hour or the run is under 200 pages, else
+  the cheapest remote that is set up and may receive the pages (`compute.leave.one-gate`), HF with a key and a budget,
+  ACEnet with a cluster; the stage page shows the three estimates and the person overrides per step. *Tests (to
+  write):* `fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py` (K and S from a faked rate and queue
+  limit; the retry ladder; a returned page is not resent; the sheet's three estimates; the place chosen from the
+  estimates) alongside the existing `fichero-server/tests/unit/remote_read/test_sizing.py` and `fichero-server/tests/unit/remote_read/test_slurm_target.py`.
 
 ## Build order
 
@@ -2444,9 +2518,27 @@ nothing here depends on them except where said.
 - Size: M
 
 #### Step 1.10 — The fit learned from runs, per engine (proposed 2026-10-27) (#5931, #5956, #5641)
-- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-one-call-at-a-time`, `activity.lane.mlx-one-model-batched-on-the-gpu`
+- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-one-call-at-a-time`, `activity.lane.mlx-one-model-batched-on-the-gpu`, `activity.lane.fit-skips-a-busy-machine`
 - Tests: fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py, fichero-server/tests/unit/knowledge/test_spacy_one_call_at_a_time_5956.py, fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py
 - Depends on: 1.8, 1.9
+- Size: M
+
+#### Step 1.11 — The run records what it chose, and shows it graphically (proposed 2026-10-27) (#6215, #6229)
+- Behaviours: `activity.run.records-what-it-chose-per-page`, `activity.lane.compute-shown-graphically`
+- Tests: fichero-server/tests/unit/recipes/test_run_records_what_it_chose_per_page_6215.py, fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py, fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift
+- Depends on: 1.10
+- Size: M
+
+#### Step 1.12 — The writer takes one batch per page (proposed 2026-10-27) (#6236, #6212)
+- Behaviours: `activity.lane.writer-batched-per-page`
+- Tests: fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.13 — Scale-out on Hugging Face Jobs and ACEnet: batches, result files, one import (proposed 2026-10-27) (#5642, #5398, #6233)
+- Behaviours: `activity.lane.scale-out-batches-and-result-files`
+- Tests: fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py, fichero-server/tests/unit/remote_read/test_sizing.py, fichero-server/tests/unit/remote_read/test_slurm_target.py
+- Depends on: 1.10, 1.12
 - Size: M
 
 ### Stage 2 — The summary the window reads (engine)
