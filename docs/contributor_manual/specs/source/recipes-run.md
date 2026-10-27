@@ -246,11 +246,11 @@ replaces the Kraken figure before #6212 is coded.
   `/api/health` timed out for 9 minutes. `activity.summary.off-the-loop` (B) is the recipe summary's half.
   Built: the run status, the list of runs, Activity's recipe-run node and the gate reading read on a worker thread
   (the Activity list, job tree and run account already did, #5843, #5860, #6176). Built: the run status, the list of
-  runs and Activity's job tree read what was committed (`Database.reading_committed`, the READ cursor of #4523, carried
-  to the poll's worker threads), so under a held writer they answer at once with what they have
-  (`test_the_run_status_answers_under_a_held_writer`, `test_activitys_job_tree_answers_under_a_held_writer`). Left:
-  Activity's list still waits, because each poll recovers stale runs, a write (`activity_store._recover`), and the M4
-  run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
+  runs, Activity's list and Activity's job tree read what was committed (`Database.reading_committed`, the READ cursor
+  of #4523, carried to the poll's worker threads; SQL reads and `query`/`get` reads alike, never a write), so under a
+  held writer they answer at once with what they have (`test_the_run_status_answers_under_a_held_writer`,
+  `test_activitys_job_tree_answers_under_a_held_writer`, `test_activitys_list_answers_under_a_held_writer`). Left: the
+  M4 run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
 - `recipes-run.engine.embedder-child-never-downloads` — **[PARTIAL]** (#6218) the search model's forked child never
   fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),
   the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it

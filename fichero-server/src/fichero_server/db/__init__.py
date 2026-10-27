@@ -1888,8 +1888,7 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
-        if (fetch is not None and _COMMITTED_READS.get() and not self.in_transaction
-                and sql.split(None, 1)[0].upper() in ("SELECT", "WITH")):  # an UPDATE ... RETURNING keeps the gate
+        if fetch is not None and self._reads_committed_now(sql):
             rows, _columns = self._read_fetch_with_columns(sql, params)
             return rows if fetch == "all" else (rows[0] if rows else None)
         self._ensure_transaction_started()
@@ -2080,6 +2079,9 @@ class Database(DatabaseEmbeddingMixin):
         fetch: Literal["one", "all"] = "all",
     ) -> tuple[Any, list[str]]:
         """Fetch rows and column names atomically under the shared connection lock."""
+        if self._reads_committed_now(sql):  # a poll's ORM read (`query`), under `reading_committed` (#6178)
+            rows, columns = self._read_fetch_with_columns(sql, params)
+            return (rows if fetch == "all" else (rows[0] if rows else None)), columns
         self._ensure_transaction_started()
         with self._transaction_gate:
             with self._lock:
@@ -2186,6 +2188,12 @@ class Database(DatabaseEmbeddingMixin):
         except Exception:
             self._transaction_gate.release()
             raise
+
+    def _reads_committed_now(self, sql: str) -> bool:
+        """Under `reading_committed`, outside a transaction of this thread, and a read: an UPDATE ... RETURNING keeps
+        the gate."""
+        return (_COMMITTED_READS.get() and not self.in_transaction
+                and sql.split(None, 1)[0].upper() in ("SELECT", "WITH"))
 
     @contextmanager
     def reading_committed(self):

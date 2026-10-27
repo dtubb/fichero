@@ -139,3 +139,11 @@ def test_a_write_that_returns_rows_still_waits_for_the_writer(db):
 
     _rows, took = _under_a_held_writer(db, run_id, write)
     assert took > 2.0, took
+
+
+def test_activitys_list_answers_under_a_held_writer(db):
+    from fichero_server.api.routes.system import activity
+
+    run_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner")
+    _listed, took = _under_a_held_writer(db, run_id, lambda: asyncio.run(activity.list_background_jobs(db=db)))
+    assert took < 1.0, took

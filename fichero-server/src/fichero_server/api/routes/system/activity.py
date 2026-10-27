@@ -767,6 +767,7 @@ def _reads_committed(route):
 
 @router.get("/jobs", response_model=BackgroundJobsResponse)
 @single_flight
+@_reads_committed
 async def list_background_jobs(
     db: Database = Depends(get_library_database),
 ) -> BackgroundJobsResponse:
