@@ -3187,6 +3187,8 @@ class RecipeRunStatus(BaseModel):
         "(memory, a model loading); null when nothing waits (#5576)"))
     estimate_seconds_left: Optional[float] = Field(default=None, description=(
         "the running stage's time left at its own pace so far; null until it has done a page"))
+    seconds: Optional[float] = Field(default=None, description=(
+        "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"))
     pages_at_once: Optional[int] = Field(default=None, description=(
         "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"))
     pages_at_once_reason: Optional[str] = Field(default=None, description=(

@@ -85055,6 +85055,12 @@
             "title": "Estimate Seconds Left",
             "description": "the running stage's time left at its own pace so far; null until it has done a page"
           },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"
+          },
           "pages_at_once": {
             "type": "integer",
             "nullable": true,
@@ -85189,6 +85195,11 @@
             "$ref": "#/components/schemas/StageRegions",
             "nullable": true,
             "description": "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/StepTiming",
+            "nullable": true,
+            "description": "when the stage started and ended, its seconds, pages and seconds a page; null before it has a job (#6215)"
           }
         },
         "type": "object",
@@ -95783,6 +95794,43 @@
           "skipped"
         ],
         "title": "StepStatus"
+      },
+      "StepTiming": {
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Ended At"
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "ended (or now, while it runs) less started"
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "description": "the pages with a time of their own",
+            "default": 0
+          },
+          "seconds_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Per Page",
+            "description": "the median of its pages' own times (each from its slot to its end, every node of the page added)"
+          }
+        },
+        "type": "object",
+        "title": "StepTiming",
+        "description": "A stage's time (`recipes-run.timing.per-step-recorded`, #6215): read from its job's row and its pages' own times\nas the run stored them, never kept in memory, so it is the same after a restart."
       },
       "StepTool": {
         "type": "string",

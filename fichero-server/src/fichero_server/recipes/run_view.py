@@ -14,12 +14,17 @@ account's), and the steps the plan skipped with their fixes.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
+from datetime import datetime
+import statistics
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
 from fichero_server.workflows.run_account import PageFailure, RunAccount
+
+logger = logging.getLogger(__name__)
 
 
 class StageReader(BaseModel):
@@ -91,6 +96,81 @@ class FailedPage(BaseModel):
     reason: str
 
 
+class StepTiming(BaseModel):
+    """A stage's time (`recipes-run.timing.per-step-recorded`, #6215): read from its job's row and its pages' own times
+    as the run stored them, never kept in memory, so it is the same after a restart."""
+
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    seconds: Optional[float] = Field(default=None, description="ended (or now, while it runs) less started")
+    pages_done: int = Field(default=0, description="the pages with a time of their own")
+    seconds_per_page: Optional[float] = Field(default=None, description=(
+        "the median of its pages' own times (each from its slot to its end, every node of the page added)"))
+
+
+def page_seconds(progress_timeline: Optional[dict]) -> list[float]:
+    """Each page's own time in a workflow run's stored timeline: its file entries that finished, by page, summed over the
+    run's nodes. A file's time counts from its slot (`execution.runner.file_duration_ms`), never the fan-out's start."""
+    by_page: dict[str, float] = {}
+    for e in (progress_timeline or {}).get("steps") or []:
+        if e.get("type") == "file" and e.get("status") == "success" and isinstance(e.get("duration_ms"), (int, float)):
+            key = str(e.get("document_id") or e.get("page_id") or e.get("file_path"))
+            by_page[key] = by_page.get(key, 0.0) + e["duration_ms"] / 1000
+    return list(by_page.values())
+
+
+def step_timing(started: Optional[datetime], ended: Optional[datetime], pages: list[float],
+                now: datetime) -> StepTiming:
+    from fichero_server.core.timeutil import ensure_utc
+
+    seconds = None if started is None else round((ensure_utc(ended or now) - ensure_utc(started)).total_seconds(), 1)
+    return StepTiming(started_at=started, ended_at=ended, seconds=seconds, pages_done=len(pages),
+                      seconds_per_page=round(statistics.median(pages), 1) if pages else None)
+
+
+def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str, StepTiming]]:
+    """The run's seconds and each step's timing, by its job, from the rows: the jobs table and a workflow step's stored
+    timeline (#6215). Bookkeeping: a library that cannot be read gives none, never a failed status."""
+    import json
+
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.execution import jobs
+    from fichero_server.db import activity_records as records
+
+    try:
+        children = {s["child_id"]: s.get("card") for s in status["steps"] if s.get("child_id")}
+        times = jobs.times(db, [status["job_id"], *children])
+        now = utc_now()
+        out = {}
+        for child, card in children.items():
+            if child not in times:
+                continue
+            row = (db.execute_fetchone(f"SELECT progress_timeline FROM {records.RUNS} WHERE id = ?", [child])
+                   if card == "workflow" else None)  # the timeline only: never the run's log
+            timeline = row[0] if row else None
+            timeline = json.loads(timeline) if isinstance(timeline, str) and timeline else timeline
+            out[child] = step_timing(*times[child], page_seconds(timeline if isinstance(timeline, dict) else None), now)
+        run = times.get(status["job_id"])
+        return (step_timing(*run, [], now).seconds if run else None), out
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("no timings for run %s: %s", status.get("job_id"), exc)
+        return None, {}
+
+
+def slowest_words(steps: list["RecipeRunStep"]) -> Optional[str]:
+    """'Slowest step: Read each line: 48 s a page on 20 pages' (or its whole time, for a stage with no pages of its own)."""
+    timed = [s for s in steps if s.timing is not None and s.timing.seconds is not None]
+    if not timed:
+        return None
+    per_page = [s for s in timed if s.timing.seconds_per_page is not None]
+    if per_page:
+        s = max(per_page, key=lambda s: s.timing.seconds_per_page)
+        return (f"Slowest step: {s.title}: {s.timing.seconds_per_page:g} s a page on "
+                f"{_plural(s.timing.pages_done, 'page')}")
+    s = max(timed, key=lambda s: s.timing.seconds)
+    return f"Slowest step: {s.title}: {s.timing.seconds:g} s"
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -130,6 +210,8 @@ class RecipeRunStep(BaseModel):
         "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"))
     regions_found: Optional[StageRegions] = Field(default=None, description=(
         "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"))
+    timing: Optional[StepTiming] = Field(default=None, description=(
+        "when the stage started and ended, its seconds, pages and seconds a page; null before it has a job (#6215)"))
 
     @model_validator(mode="after")
     def _name_the_stage(self) -> "RecipeRunStep":
@@ -165,9 +247,12 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     `estimate_seconds_left` for the run: what it waits for now, and the running stage's time left."""
     from fichero_server.workflows.run_account import run_account
 
+    status["seconds"], timings = await asyncio.to_thread(_timings, db, status)  # the rows: off the loop (#6178)
     running = None
     for step in status["steps"]:
         step["account"] = None
+        if step.get("child_id") in timings:
+            step["timing"] = timings[step["child_id"]]
         if step.get("card") == "workflow" and step.get("child_id"):
             step["account"] = await run_account(db, step["child_id"])
             if step["account"] is not None and step["account"].offer is not None:
@@ -723,4 +808,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                 made.left_out.append(LeftOutPage(**entry))
     ran = await asyncio.to_thread(_tail, db, made, status, pages, counts)
     made.lines = _lines(made, pages_split, ran)
+    slowest = slowest_words([RecipeRunStep(**s) for s in status["steps"]])
+    if slowest:
+        made.lines.append(slowest)
     return made

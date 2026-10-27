@@ -968,6 +968,17 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
 
 
+def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
+    """Each job's (started_at, finished_at) from its row (#6215: a step's time survives a restart)."""
+    _ensure(db)
+    ids = [i for i in dict.fromkeys(job_ids) if i]
+    if not ids:
+        return {}
+    rows = db.execute_fetchall(
+        f"SELECT id, started_at, finished_at FROM jobs WHERE id IN ({', '.join('?' * len(ids))})", ids)
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])

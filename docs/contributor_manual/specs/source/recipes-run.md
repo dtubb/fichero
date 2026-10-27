@@ -361,10 +361,13 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.timing.per-step-recorded` — **[PARTIAL]** (#6215, #6178) the run's record carries, per step
   and per batch, started, ended, seconds, pages done and seconds a page (the median of its pages' own
   times), and the run's total; a page's time is its own, never the job's cumulative figure; the figures
-  survive a restart; the summary names the slowest step in words. Built: job rows carry `started_at` and
-  `finished_at` (`execution/jobs.py`), the run has `estimate_seconds_left` from measured pages
-  (`recipes/run_view.py`). Not built: the per-step durations on the run's record, and the per-file time
-  (Ann's log shows "File N/213 completed (6541168ms)", the cumulative figure). Test (to write):
+  survive a restart; the summary names the slowest step in words. Built: each step of the run status
+  (`GET /api/recipes/project/runs/{id}`, the list of runs) carries `timing` (started_at, ended_at, seconds,
+  pages_done, seconds_per_page: the median of its pages' own times, each page's nodes added) and the run its
+  `seconds`, all read from the rows (the jobs table, the workflow run's stored timeline), so a restart reads the
+  same; the summary's last line is "Slowest step: <stage>: N s a page on M pages"; a file's time counts from its
+  slot (c5bfcf65d). Not built: per-batch figures (a step's timing is its own job's, the one the status points
+  at), and the job tree's rows carrying the same fields. Test:
   fichero-server/tests/unit/recipes/test_step_timings_recorded.py.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
