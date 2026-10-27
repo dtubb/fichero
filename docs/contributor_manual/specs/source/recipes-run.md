@@ -349,10 +349,14 @@ replaces the Kraken figure before #6212 is coded.
   (`recipes/run_view.py`). Not built: the per-step durations on the run's record, and the per-file time
   (Ann's log shows "File N/213 completed (6541168ms)", the cumulative figure). Test (to write):
   fichero-server/tests/unit/recipes/test_step_timings_recorded.py.
-- `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[GAP]** (#6193) a thumbnail of a 10.7 MP TIFF
+- `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page
-  beside a Kraken fan-out). Test (to write): fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
+  beside a Kraken fan-out). Built: the page is shrunk before it is turned upright (`db/storage.py`
+  `_generate_image`), so the EXIF turn never copies the full-resolution image and a JPEG decodes reduced;
+  thumbnails run on the images lane (`test_lanes_released_per_project.py`). Left: a reduced-size TIFF decode
+  (Pillow decodes a TIFF whole) and the time beside a Kraken fan-out measured on the M4.
+  Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
 
 ## Changes to existing behaviours
 

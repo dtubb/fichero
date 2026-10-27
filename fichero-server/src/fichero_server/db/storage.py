@@ -984,12 +984,13 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
         with Image.open(source) as img:
             logger.debug(f"Image opened successfully: mode={img.mode}, size={img.size}")
 
-            # Handle EXIF rotation
+            # Shrink first, then turn upright (#6193): `thumbnail` decodes a JPEG reduced (draft) and the EXIF turn
+            # then copies the small image, never a second full-resolution one. A quarter turn can leave the small
+            # image past the box, so it is fitted once more (cheap at this size; Pillow 12 already turns a TIFF at load).
+            img.thumbnail(size, Image.Resampling.LANCZOS)
             if ImageOps:
                 img = ImageOps.exif_transpose(img)
-
-            # Create thumbnail (modifies in place, maintains aspect ratio)
-            img.thumbnail(size, Image.Resampling.LANCZOS)
+                img.thumbnail(size, Image.Resampling.LANCZOS)
 
             # Convert to RGB for JPEG. Transparency composites onto white —
             # see media/image_flatten; dropping the alpha channel is what made
