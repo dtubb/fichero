@@ -211,6 +211,7 @@ def import_file_impl(
     db: Database,
     request: IngestFileRequest,
     package_path: Path,
+    known_checksum: str | None = None,
 ) -> Document:
     """Validate + ingest a single file. Returns the created Document.
 
@@ -242,6 +243,8 @@ def import_file_impl(
             auto_embed=request.auto_embed,
             db=db,
             package_path=package_path,
+            # A link import hashes again: the check that the file did not change while it was read (as a folder's).
+            known_checksum=None if mode == IngestMode.LINK else known_checksum,
         )
         logger.info(f"Ingested file: {path.name} -> {doc.id}")
         # Its thumbnail and embedding are queued by the caller once the document is final (#4225): a TEI,
@@ -1375,10 +1378,11 @@ def _action_import_file(
     db: Database, params: IngestFileRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
-    if (kept := _unchanged_import(db, params)) is not None:
+    kept, checksum = _unchanged_import(db, params)
+    if kept is not None:
         # The same file, unchanged, under the same parent: that page, with no new document, run or undo (#6225).
         return kept.model_dump(mode="json"), ChangeSpec(domains=["document"])
-    doc = import_file_impl(db, params, package_path)
+    doc = import_file_impl(db, params, package_path, known_checksum=checksum)
     # A TEI, PAGE or ALTO file on its own is a document of its pages (#5143).
     from fichero_server.api.routes.document.format_import import import_file_as_pages
 
@@ -1408,18 +1412,20 @@ def _action_import_file(
     return doc.model_dump(mode="json"), spec
 
 
-def _unchanged_import(db: Database, params: IngestFileRequest) -> Document | None:
-    """The page this file already is: same source path, same bytes, same parent (never re-read, #6127). A cloud
-    placeholder is left to the import, which refuses it, rather than downloaded here to be hashed."""
+def _unchanged_import(db: Database, params: IngestFileRequest) -> tuple[Document | None, str | None]:
+    """The page this file already is: same source path, same bytes, same parent (never re-read, #6127), and the
+    file's hash, for the import to reuse. A cloud placeholder is left to the import, which refuses it, rather than
+    downloaded here to be hashed."""
     from fichero_server.importers.ingest import _file_checksum
     from fichero_server.importers.dataless import dataless_reason
 
     path = Path(params.path)
     if path.is_symlink() or not path.is_file() or dataless_reason(path) is not None:
-        return None
+        return None, None
     path = path.resolve()
-    found = db.unchanged_import(str(path), _file_checksum(path), import_parent_id(db, params.parent_id))
-    return db.get(Document, found) if found else None
+    checksum = _file_checksum(path)
+    found = db.unchanged_import(str(path), checksum, import_parent_id(db, params.parent_id))
+    return (db.get(Document, found) if found else None), checksum
 
 
 def _apply_sidecar_renditions(

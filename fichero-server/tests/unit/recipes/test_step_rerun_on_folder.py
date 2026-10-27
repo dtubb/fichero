@@ -208,6 +208,19 @@ def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, 
     assert sum(d.name == "same.png" for d in db.query(Document)) == 1, "the same page, not a second"
 
 
+def test_a_new_file_copied_in_is_hashed_once(client, tmp_path, monkeypatch):
+    """#6225 review: the unchanged-import check hashes the file, and the import reuses that hash (copy and move; a
+    link import hashes again, as the folder import does, to catch a file changed while it was read)."""
+    from fichero_server.importers import ingest
+    from tests.unit.recipes.test_recipe_execution_to_spec import _png
+
+    hashed, real = [], ingest._file_checksum
+    monkeypatch.setattr(ingest, "_file_checksum", lambda path, *a, **k: hashed.append(path) or real(path, *a, **k))
+    r = client.post("/api/ingest/file", json={"path": str(_png(tmp_path / "once.png")), "mode": "copy"})
+    assert r.status_code == 200, r.text
+    assert len(hashed) == 1, hashed
+
+
 def test_a_deliberate_second_page_is_duplicate_or_another_folder(client, db, tmp_path):
     """#6225: copy, link and move dedupe alike (copy is how the file is stored, not a second page asked for); a
     deliberate second page is Duplicate, or the same file imported into another folder."""
