@@ -50,3 +50,18 @@ def test_the_gate_names_which_hold_makes_it_one(monkeypatch):
 
     assert kraken_runtime.pages_at_once_and_why(True) == (1, "the Mac is paging")
     assert kraken_runtime.pages_at_once(True) == 1
+
+
+@pytest.mark.parametrize("priority, gate, threads", [("fast", (2, None), 4), ("fast", (1, "x"), 8), ("background", (1, "x"), 4)])
+def test_a_running_run_says_the_threads_each_page_reads_on(monkeypatch, priority, gate, threads):
+    # `recipes-run.memory.threads-fill-the-cores` (#6229): the cores the run's priority gives, split by the pages at once
+    from fichero_server.core import background_compute
+
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: gate)
+    monkeypatch.setattr("fichero_server.core.compute_preferences.priority_for", lambda person: priority)
+    monkeypatch.setattr(background_compute, "cpu_count", lambda: 8)
+    monkeypatch.setattr(background_compute, "embed_threads", lambda: 4)
+
+    status = RecipeRunStatus(**asyncio.run(with_accounts(None, _status())))
+
+    assert status.threads_each == threads

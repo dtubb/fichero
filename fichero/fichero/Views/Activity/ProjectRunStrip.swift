@@ -150,22 +150,29 @@ struct RecipeRunFolders: Equatable {
 struct RecipeRunPagesAtOnce: Equatable {
     let count: Int
     let reason: String?
+    /// The threads each page reads on (#6229); nil from an engine that does not say.
+    let threads: Int?
 
     /// nil when the status says nothing: the run is not going.
     init?(_ status: Components.Schemas.RecipeRunStatus) {
         guard let count = status.pagesAtOnce else { return nil }
-        self.init(count: count, reason: status.pagesAtOnceReason)
+        self.init(count: count, reason: status.pagesAtOnceReason, threads: status.threadsEach)
     }
 
-    init(count: Int, reason: String?) {
+    init(count: Int, reason: String?, threads: Int? = nil) {
         self.count = count
         self.reason = reason
+        self.threads = threads
     }
 
-    /// "reading 2 pages at once"; "one page at a time: the Mac is paging".
+    /// "reading 2 pages at once, 2 threads each"; "one page at a time on 4 threads: the Mac is paging".
     var words: String {
-        count > 1 ? "reading \(count) pages at once"
-            : ["one page at a time", reason].compactMap { $0 }.joined(separator: ": ")
+        let each = threads.map { $0 == 1 ? "1 thread" : "\($0) threads" }
+        if count > 1 {
+            return ["reading \(count) pages at once", each.map { "\($0) each" }].compactMap { $0 }.joined(separator: ", ")
+        }
+        let oneAtATime = ["one page at a time", each].compactMap { $0 }.joined(separator: " on ")
+        return [oneAtATime, reason].compactMap { $0 }.joined(separator: ": ")
     }
 }
 

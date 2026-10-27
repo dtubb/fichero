@@ -61,6 +61,11 @@ struct ActivityOpenedRunTests {
         #expect(RecipeRunPagesAtOnce(count: 2, reason: nil).words == "reading 2 pages at once")
         #expect(RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging").words == "one page at a time: the Mac is paging")
         #expect(RecipeRunPagesAtOnce(count: 1, reason: nil).words == "one page at a time")
+        // The threads each page reads on, as the engine sends them (#6229)
+        #expect(RecipeRunPagesAtOnce(count: 2, reason: nil, threads: 2).words == "reading 2 pages at once, 2 threads each")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging", threads: 4).words
+                == "one page at a time on 4 threads: the Mac is paging")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: nil, threads: 1).words == "one page at a time on 1 thread")
         let strip = ProjectRunStrip(jobId: "r", node: nil, job: nil, folders: nil,
                                     pagesAtOnce: RecipeRunPagesAtOnce(count: 1, reason: "resuming after a restart"))
         #expect(strip.detail.hasSuffix("one page at a time: resuming after a restart"))
