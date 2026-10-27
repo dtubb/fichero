@@ -71909,6 +71909,10 @@
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true
           },
+          "timing": {
+            "$ref": "#/components/schemas/StepTiming",
+            "nullable": true
+          },
           "stages": {
             "items": {
               "$ref": "#/components/schemas/RecipeRunStep"
@@ -85200,6 +85204,18 @@
             "$ref": "#/components/schemas/StepTiming",
             "nullable": true,
             "description": "when the stage started and ended, its seconds, pages and seconds a page; null before it has a job (#6215)"
+          },
+          "batch_jobs": {
+            "items": {
+              "additionalProperties": {
+                "type": "string",
+                "nullable": true
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Batch Jobs",
+            "description": "each batch's job of the stage, in order: {folder, child_id} (#6215)"
           }
         },
         "type": "object",
@@ -95826,6 +95842,26 @@
             "nullable": true,
             "title": "Seconds Per Page",
             "description": "the median of its pages' own times (each from its slot to its end, every node of the page added)"
+          },
+          "folder": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder",
+            "description": "a batch's folder; null on a step's own timing"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "a batch's job (its row in the Activity tree); null as above"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/StepTiming"
+            },
+            "type": "array",
+            "title": "Batches",
+            "description": "each batch the step ran on, in order, with its own figures; the step's span the first batch's start to the last's end, its pages' median over all of them"
           }
         },
         "type": "object",

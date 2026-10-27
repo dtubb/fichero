@@ -81,3 +81,35 @@ def test_a_step_with_no_pages_of_its_own_is_named_by_its_whole_time():
                                     timing=run_view.StepTiming(seconds=12.5))]
     assert run_view.slowest_words(steps).endswith(": 12.5 s")
     assert run_view.slowest_words([]) is None
+
+
+def test_a_step_over_two_batches_spans_both_and_each_batch_has_its_own_figures(db, monkeypatch):
+    """Per batch: a step run on two folders' batches is timed from the first batch's start to the last's end, its
+    pages' median over both, and each batch carries its own figures, all from the rows (the run's checkpoint keeps
+    each batch's job, `batch_jobs`)."""
+    import json
+
+    from fichero_server.db import activity_records as records
+    import fichero_server.workflows.run_account as accounts
+
+    _row(db, "run", 0, 200)
+    _row(db, "read-1", 10, 40)
+    _row(db, "read-2", 100, 160)
+    for thread, files in (("read-1", [_file("a", 10000), _file("b", 20000)]),
+                          ("read-2", [_file("c", 50000)])):
+        db.execute(f"INSERT INTO {records.RUNS} (id, workflow_id, workflow_name, status, progress_timeline) "
+                   "VALUES (?, 'w', 'w', 'completed', ?)", [thread, json.dumps({"steps": files})])
+
+    async def _no_account(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(accounts, "run_account", _no_account)
+    status = {"job_id": "run", "state": "done", "reason": None, "started_by": "person", "steps": [
+        {"steps": ["read-a-line"], "card": "workflow", "state": "done", "child_id": "read-2",
+         "batch_jobs": [{"folder": "f1", "child_id": "read-1"}, {"folder": "f2", "child_id": "read-2"}]}]}
+
+    (read,) = asyncio.run(run_view.with_accounts(db, status))["steps"]
+    t = read["timing"]
+    assert (t.seconds, t.pages_done, t.seconds_per_page) == (150.0, 3, 20.0)
+    assert [(b.folder, b.seconds, b.pages_done, b.seconds_per_page) for b in t.batches] == [
+        ("f1", 30.0, 2, 15.0), ("f2", 60.0, 1, 50.0)]

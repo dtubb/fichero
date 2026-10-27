@@ -1534,6 +1534,9 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         # An earlier batch's worse end stands (`_settle`).
         step.update(state=before if before != "running" else "waiting", child_id=before_child)
         _settle(step, state, child, why)
+        if child is not None and all(b.get("child_id") != child for b in step.get("batch_jobs") or []):
+            # each batch's job, kept in the checkpoint: the step is timed over all of them (#6215)
+            step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
         _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint

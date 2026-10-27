@@ -106,6 +106,11 @@ class StepTiming(BaseModel):
     pages_done: int = Field(default=0, description="the pages with a time of their own")
     seconds_per_page: Optional[float] = Field(default=None, description=(
         "the median of its pages' own times (each from its slot to its end, every node of the page added)"))
+    folder: Optional[str] = Field(default=None, description="a batch's folder; null on a step's own timing")
+    job_id: Optional[str] = Field(default=None, description="a batch's job (its row in the Activity tree); null as above")
+    batches: list["StepTiming"] = Field(default_factory=list, description=(
+        "each batch the step ran on, in order, with its own figures; the step's span the first batch's start to the "
+        "last's end, its pages' median over all of them"))
 
 
 def page_seconds(progress_timeline: Optional[dict]) -> list[float]:
@@ -138,18 +143,34 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
     from fichero_server.db import activity_records as records
 
     try:
-        children = {s["child_id"]: s.get("card") for s in status["steps"] if s.get("child_id")}
-        times = jobs.times(db, [status["job_id"], *children])
+        jobs_of = {s["child_id"]: [b for b in s.get("batch_jobs") or [] if b.get("child_id")]
+                   or [{"folder": None, "child_id": s["child_id"]}] for s in status["steps"] if s.get("child_id")}
+        cards = {s["child_id"]: s.get("card") for s in status["steps"] if s.get("child_id")}
+        batch_ids = [b["child_id"] for bs in jobs_of.values() for b in bs]
+        times = jobs.times(db, [status["job_id"], *batch_ids])
         now = utc_now()
-        out = {}
-        for child, card in children.items():
-            if child not in times:
-                continue
+
+        def pages_of(child: str, card: Any) -> list[float]:
             row = (db.execute_fetchone(f"SELECT progress_timeline FROM {records.RUNS} WHERE id = ?", [child])
                    if card == "workflow" else None)  # the timeline only: never the run's log
             timeline = row[0] if row else None
             timeline = json.loads(timeline) if isinstance(timeline, str) and timeline else timeline
-            out[child] = step_timing(*times[child], page_seconds(timeline if isinstance(timeline, dict) else None), now)
+            return page_seconds(timeline if isinstance(timeline, dict) else None)
+
+        out = {}
+        for child, batches in jobs_of.items():
+            timed = [(b, times[b["child_id"]], pages_of(b["child_id"], cards[child]))
+                     for b in batches if b["child_id"] in times]
+            if not timed:
+                continue
+            starts = [t[0] for _b, t, _p in timed if t[0] is not None]
+            ends = [t[1] for _b, t, _p in timed]
+            step = step_timing(min(starts) if starts else None, None if None in ends else max(ends),
+                               [x for _b, _t, p in timed for x in p], now)
+            if len(timed) > 1:  # one batch is the step itself
+                step.batches = [step_timing(*t, p, now).model_copy(update={"folder": b.get("folder"), "job_id": b["child_id"]})
+                                for b, t, p in timed]
+            out[child] = step
         run = times.get(status["job_id"])
         return (step_timing(*run, [], now).seconds if run else None), out
     except Exception as exc:  # noqa: BLE001
@@ -212,6 +233,8 @@ class RecipeRunStep(BaseModel):
         "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"))
     timing: Optional[StepTiming] = Field(default=None, description=(
         "when the stage started and ended, its seconds, pages and seconds a page; null before it has a job (#6215)"))
+    batch_jobs: list[dict[str, Optional[str]]] = Field(default_factory=list, description=(
+        "each batch's job of the stage, in order: {folder, child_id} (#6215)"))
 
     @model_validator(mode="after")
     def _name_the_stage(self) -> "RecipeRunStep":

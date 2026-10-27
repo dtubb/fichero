@@ -48,7 +48,7 @@ from fichero_server.workflows.activity import (
 )
 from fichero_server.models import ActivityListResponse
 from fichero_server.workflows.run_account import RunAccount
-from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary
+from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, StepTiming
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -574,6 +574,9 @@ class JobTree(BaseModel):
     # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
     # `total` and `failed` count on the run's own node.
     account: Optional[RunAccount] = None
+    # A recipe run's stage row (#6215): its timing, a batch's own when the stage ran over batches (each batch's job is a
+    # row); null on any other row. The run status's `stages[].timing` holds the same figures.
+    timing: Optional[StepTiming] = None
     # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
     # included, each workflow stage with its run's account; null on any other job.
     stages: Optional[list[RecipeRunStep]] = None
@@ -1073,9 +1076,16 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
     readers = {s["child_id"]: s["readers"] for s in status["steps"] if s.get("child_id") and s.get("readers")}
+    timings = {}
+    for s in status["steps"]:
+        t = s.get("timing")
+        if t is not None:
+            timings.update({b.job_id: b for b in t.batches} if t.batches else {s["child_id"]: t})
     for child in found["children"]:
         if child["id"] in readers:  # the stage reads with a reader per kind: the row names each (#6134)
             child["readers"] = [dict(r) if isinstance(r, dict) else r.model_dump() for r in readers[child["id"]]]
+        if child["id"] in timings:
+            child["timing"] = timings[child["id"]]
         account = accounts.get(child["id"])
         if account is not None:
             child["account"] = account

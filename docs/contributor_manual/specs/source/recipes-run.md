@@ -407,7 +407,7 @@ replaces the Kraken figure before #6212 is coded.
 
 ### 12. Per-step timings are recorded
 
-- `recipes-run.timing.per-step-recorded` — **[PARTIAL]** (#6215, #6178) the run's record carries, per step
+- `recipes-run.timing.per-step-recorded` — **[OK]** (#6215, #6178) the run's record carries, per step
   and per batch, started, ended, seconds, pages done and seconds a page (the median of its pages' own
   times), and the run's total; a page's time is its own, never the job's cumulative figure; the figures
   survive a restart; the summary names the slowest step in words. Built: each step of the run status
@@ -415,9 +415,12 @@ replaces the Kraken figure before #6212 is coded.
   pages_done, seconds_per_page: the median of its pages' own times, each page's nodes added) and the run its
   `seconds`, all read from the rows (the jobs table, the workflow run's stored timeline), so a restart reads the
   same; the summary's last line is "Slowest step: <stage>: N s a page on M pages"; a file's time counts from its
-  slot (c5bfcf65d). Not built: per-batch figures (a step's timing is its own job's, the one the status points
-  at), and the job tree's rows carrying the same fields. Test:
-  fichero-server/tests/unit/recipes/test_step_timings_recorded.py.
+  slot (c5bfcf65d). Per batch: the run's checkpoint keeps each batch's job on its step (`batch_jobs`, by folder),
+  so a step is timed from its first batch's start to its last's end, its pages' median over all of them, and lists
+  each batch's own figures (`timing.batches`, each with its folder and job; was: the last batch only); the Activity
+  tree's stage rows (`GET /api/activity/jobs/{id}`, one row a batch's job) carry the same `timing`. Tests:
+  fichero-server/tests/unit/recipes/test_step_timings_recorded.py,
+  fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py. Swift compile owed (new optional fields).
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

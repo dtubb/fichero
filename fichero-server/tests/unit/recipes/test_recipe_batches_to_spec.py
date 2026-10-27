@@ -246,6 +246,26 @@ def test_a_folder_is_one_batch_under_the_limit(client, db, archive, steps):
     assert [s for s, _ in steps.ran] == ["lines", "names"] * 4
 
 
+
+def test_each_step_keeps_each_batchs_job_and_is_timed_per_batch(client, db, archive, steps):
+    """recipes-run.timing.per-step-recorded (#6215): the run's checkpoint keeps each batch's job on the step
+    (`batch_jobs`, by folder), so its timing spans every batch and lists each one; was: the step's last batch only."""
+    _save(client)
+    run = _finished(client, _start(client)["started"]["job_id"])
+
+    for step in run["steps"]:
+        folders = [b["folder"] for b in step["batch_jobs"]]
+        assert len(folders) == 4 and len({b["child_id"] for b in step["batch_jobs"]}) == 4, step
+        assert [b["folder"] for b in step["timing"]["batches"]] == folders, step["timing"]
+        assert [b["job_id"] for b in step["timing"]["batches"]] == [b["child_id"] for b in step["batch_jobs"]]
+
+    # The Activity tree's rows: each batch's job row carries its own timing, the one the run status lists for it.
+    tree = client.get(f"/api/activity/jobs/{run['job_id']}").json()
+    batch_timing = {b["job_id"]: b for s in run["steps"] for b in s["timing"]["batches"]}
+    rows = [c for c in tree["children"] if c["id"] in batch_timing]
+    assert len(rows) == len(batch_timing) == 8, [c["id"] for c in tree["children"]]
+    assert all(c["timing"] == batch_timing[c["id"]] for c in rows)
+
 def test_the_run_says_how_many_folders_are_done(client, db, archive, steps):
     """activity.run.progress-per-folder: the run's row says "N of M folders done" as it goes and how many folders
     when it ends; its status carries folders_done and folders_total. WHY: one figure for 400,000 pages says
