@@ -121,7 +121,7 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   `harness.content-renders`), but the ≤15 s target bound from this spec was never enforced:
   `FicheroUISession.swift`'s `readyTimeout` and `ColdLaunchReachesLibraryUITests`'s
   `launchDeadline` are both still 120 s, and nothing measures/asserts actual connect time.
-- `harness.fail-fast-loud` [OK] (#4781) — engine-bind failure is loud and pinned
+- `harness.fail-fast-loud` [PARTIAL] (#4781; built, Swift compile and run owed) — engine-bind failure is loud and pinned
   (`test_unready_engine_fails_loudly_not_green`). App-side too: `FicheroUISessionTests.setUp` skips
   only for an ABSENT harness (`HarnessError.isAbsent`: no repo root, no venv python) and fails with
   "harness connection broken — fix this first" for a present-but-broken one (`seedFailed`,
