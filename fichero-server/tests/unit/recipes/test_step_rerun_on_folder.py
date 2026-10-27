@@ -118,3 +118,19 @@ def test_the_engine_fixture_stubs_read_again(engine):
     from fichero_server.llm import kraken_runtime
 
     assert kraken_runtime.read_given_lines == engine.read_given
+
+
+def test_the_steps_to_run_again_come_with_the_project_not_a_plan(client, pages, tmp_path):
+    """`source.recipe.step-rerun-on-folder`: the folder menu lists the started recipe's steps to run again from the
+    project's setup (`GET /api/recipes/project`, `redo_steps`), read when the project opens, with no Start plan read
+    first; none before the first yes."""
+    _save(client, _recipe(tmp_path, *STEPS))
+    assert client.get("/api/recipes/project").json()["redo_steps"] == [], "nothing started: nothing to run again"
+    assert _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])[
+        "state"] == "done"
+    redo = client.get("/api/recipes/project").json()["redo_steps"]
+    assert any("read" in s["steps"] for s in redo) and all(s["name"] for s in redo), redo
+    # Each one is what Start takes back as `redo`: the folder's rerun of it starts.
+    r = client.post("/api/recipes/project/start", json={"folder_id": None, "redo": redo[0]["steps"]})
+    assert r.status_code == 200, r.text
+    assert _finished(client, r.json()["started"]["job_id"])["state"] == "done"

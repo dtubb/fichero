@@ -368,6 +368,23 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage == nil)
     }
 
+    /// WHY: the folder menu's Run a Step Again on This Folder ▸ lists the engine's `redo_steps`, read with the setup,
+    /// never a Start plan (#6170, `source.recipe.step-rerun-on-folder`); reading them alone leaves the answers as they are.
+    @Test("the steps to run again come with the project's setup")
+    func redoStepsComeWithTheSetup() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            Self.reply(request, 200, #"{"answers":null,"recipe":null,"redo_steps":[{"steps":["lines","read"],"name":"Transcribe (Kraken)"}]}"#)
+        }
+        #expect(store.redoSteps.isEmpty)
+
+        await store.loadRedoSteps()
+
+        #expect(store.redoSteps.map(\.name) == ["Transcribe (Kraken)"])
+        #expect(store.redoSteps.first?.steps == ["lines", "read"])
+        #expect(store.recipe == nil && store.errorMessage == nil)
+    }
+
     /// WHY: saving writes the answers under the engine's field names, with the
     /// ingest mode in the engine's lowercase form, plus the proposed recipe. A
     /// renamed key or an upper-case "MOVE" would be saved but never read back

@@ -182,12 +182,12 @@ struct RunRecipeOnFolderMenuItem: View {
         }
         .disabled(folderId == nil || library == nil)
         // One step run again on this folder (#6170, `source.recipe.step-rerun-on-folder`): Start on the folder with that
-        // step to redo, as a new pass; the other steps skip what is done. The steps are the plan's runs, as the engine
-        // names them. ponytail: shown once a plan has been read this session (Set Up or Start), not fetched for the menu.
-        if let folderId, let library, let runs = library.recipeSetupStore.startPlan?.runs, !runs.isEmpty {
+        // step to redo, as a new pass; the other steps skip what is done. The steps are the engine's `redo_steps`, read
+        // with the project's setup at open, so no Start plan is read first.
+        if let folderId, let library, !library.recipeSetupStore.redoSteps.isEmpty {
             Menu("Run a Step Again on This Folder") {
-                ForEach(runs, id: \.steps) { step in
-                    Button(step.workflow ?? step.steps.joined(separator: ", ")) {
+                ForEach(library.recipeSetupStore.redoSteps, id: \.steps) { step in
+                    Button(step.name) {
                         Task { await run(folderId: folderId, library: library, redo: step.steps) }
                     }
                 }

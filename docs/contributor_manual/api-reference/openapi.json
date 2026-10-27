@@ -82440,6 +82440,14 @@
             "title": "Cloud Inherited",
             "description": "True when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)",
             "default": false
+          },
+          "redo_steps": {
+            "items": {
+              "$ref": "#/components/schemas/RedoStep"
+            },
+            "type": "array",
+            "title": "Redo Steps",
+            "description": "after the first yes, the recipe's steps a folder can run again, each as Start takes it back in `redo`, with its name; read with the setup, so the folder menu needs no Start plan (`source.recipe.step-rerun-on-folder`, #6170)"
           }
         },
         "additionalProperties": false,
@@ -85681,6 +85689,29 @@
           "name"
         ],
         "title": "RedeemedClient"
+      },
+      "RedoStep": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "the step ids, Start's `redo` for this run"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the run's name, as the menu shows it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "name"
+        ],
+        "title": "RedoStep"
       },
       "Reference": {
         "properties": {

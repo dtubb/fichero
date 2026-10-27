@@ -1807,12 +1807,20 @@ class ProjectSetup(BaseModel):
     recipe: Optional[dict[str, Any]] = Field(default=None, description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")
 
 
+class RedoStep(BaseModel):
+    steps: list[str] = Field(description="the step ids, Start's `redo` for this run")
+    name: str = Field(description="the run's name, as the menu shows it")
+
+
 class ProjectSetupView(ProjectSetup):
     """`GET /api/recipes/project`'s answer: the setup and, beside the answers, what the project inherits."""
 
     cloud_inherited: bool = Field(default=False, description=(
         "True when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there "
         "by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"))
+    redo_steps: list[RedoStep] = Field(default_factory=list, description=(
+        "after the first yes, the recipe's steps a folder can run again, each as Start takes it back in `redo`, with its "
+        "name; read with the setup, so the folder menu needs no Start plan (`source.recipe.step-rerun-on-folder`, #6170)"))
 
 
 def _library(db: Database) -> Path:
@@ -1887,8 +1895,17 @@ def _whole_setup(setup: dict) -> ProjectSetup:
 @router.get("/project", response_model=ProjectSetupView)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetupView:
     """The open project's saved setup answers and recipe, and whether it inherits the app's cloud setting."""
-    setup = read_project_setup(_library(db))
-    return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")))
+    from fichero_server.recipes.project import read_start
+    from fichero_server.recipes.start import plan_start
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    redo = []
+    if read_start(library) and setup["recipe"]:  # the started recipe's workflow runs, planned without the pages (cheap)
+        planned = plan_start(setup["recipe"], stays_local=not places.may_leave_to(setup["answers"], "cloud"))
+        redo = [RedoStep(steps=w["steps"], name=w.get("workflow") or ", ".join(w["steps"])) for w in planned["workflows"]]
+    return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")),
+                            redo_steps=redo)
 
 
 class ReviewInstruction(BaseModel):
