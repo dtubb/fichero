@@ -60,3 +60,52 @@ def test_a_system_stop_with_no_known_stopper_says_stopped_6005(db):
 
     assert jobs.read_job(db, theirs)["reason"] == "Stopped"
     assert jobs.read_job(db, mine)["reason"] == "Stopped by you"
+
+
+def test_a_restores_stop_of_every_job_names_nobody_6005(db):
+    """`jobs.stop_everything` (a restore, a bulk Undo) is the engine's own stop: "Stopped", never "Stopped by you"."""
+    jobs._ensure(db)
+    job = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+
+    assert jobs.stop_everything(db) == 1
+
+    assert jobs.read_job(db, job)["reason"] == "Stopped"
+
+
+def _parent_and_step(db):
+    jobs._ensure(db)
+    parent = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+    child = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+    db.execute("UPDATE jobs SET parent_id = ?, state = 'paused' WHERE id = ?", [parent, child])
+    return parent, child
+
+
+def test_a_runs_step_stopped_with_its_waiting_run_says_who_stopped_the_run_6005(db):
+    """A run stopped while it waits stops its parked step too (runner.request_cancel): the step's row names the run's
+    stopper; the person's own stop still reads "Stopped by you"."""
+    from fichero_server.recipes import runner
+
+    for actor, words in (("system", "Stopped"), ("javier", "Stopped by javier"), ("owner", "Stopped by you")):
+        parent, child = _parent_and_step(db)
+        jobs.note_stopper(parent, actor)
+
+        assert runner.request_cancel(db, parent) == "cancelled"
+
+        assert jobs.read_job(db, child)["reason"] == words, actor
+
+
+def test_a_running_runs_step_stopped_at_its_next_look_says_who_stopped_the_run_6005(db):
+    """A running run asked to stop stops its step at the next look (runner._stop_child_if_asked): the step's row names
+    the run's stopper."""
+    from fichero_server.execution.cancellation import clear_cancellation, request_cancellation
+    from fichero_server.recipes import runner
+
+    parent, child = _parent_and_step(db)
+    jobs.note_stopper(parent, "system")
+    request_cancellation(parent)
+    try:
+        assert runner._stop_child_if_asked(db, parent, child)
+    finally:
+        clear_cancellation(parent)
+
+    assert jobs.read_job(db, child)["reason"] == "Stopped"

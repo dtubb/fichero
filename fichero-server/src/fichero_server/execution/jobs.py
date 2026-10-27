@@ -1148,6 +1148,12 @@ def note_stopper(job_id: str, actor: str | None, client: str | None = None) -> N
         _STOPPED_BY[job_id] = ""
 
 
+def pass_stopper(parent_id: str, child_id: str) -> None:
+    """A step stopped because its run was stopped names whoever stopped the run (#6005)."""
+    if parent_id in _STOPPED_BY:
+        _STOPPED_BY[child_id] = _STOPPED_BY[parent_id]
+
+
 _CLIENT_WORDS = {"fichero-mcp": "an agent (MCP)", "fichero-cli": "the command line"}
 
 
@@ -1967,6 +1973,7 @@ def stop_everything(db: "Database") -> int:
     ids = [r[0] for r in db.execute_fetchall(
         "SELECT id FROM jobs WHERE state IN ('waiting', 'running', 'paused') ORDER BY created_at")]
     for job_id in ids:
+        _STOPPED_BY.setdefault(job_id, "")  # the engine's own stop names nobody; a person's stop already asked keeps theirs (#6005)
         try:
             cancel_job(db, job_id)
         except KeyError:

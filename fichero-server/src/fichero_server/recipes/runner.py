@@ -597,6 +597,7 @@ def request_cancel(db: Any, job_id: str) -> str:
         child = jobs.running_child(db, job_id)  # a recipe parked on a paused step run stops that run too
         jobs.cancel_waiting(db, job_id)
         if child is not None:
+            jobs.pass_stopper(job_id, child)
             try:
                 jobs.cancel_job(db, child)
             except (ValueError, KeyError):
@@ -620,6 +621,7 @@ def _stop_child_if_asked(db: Any, parent: str | None, child: str) -> bool:
     True once asked (asked once)."""
     if not _stop_asked(parent) or not jobs._still_open(db):
         return False
+    jobs.pass_stopper(parent, child)
     try:
         jobs.cancel_job(db, child)
     except KeyError:  # its row is not written yet: asked again at the next look
