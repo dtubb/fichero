@@ -193,6 +193,11 @@ replaces the Kraken figure before #6212 is coded.
   in the engine, then embeds; the child always loads offline. Was: on the M4 run the forked child began fetching from
   the Hub, a LanceDB thread died with "Bad file descriptor" after the fork, make-a-vector failed 10 of 10 and the run
   ended failed. Test: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py.
+- `recipes-run.engine.open-migrations-serialised` — **[OK]** (#6220) opens of one library in one engine run their
+  open-time migrations one at a time: a second open waits for the first, then finds every step done, so a fresh
+  library records no migration failure; two embedding threads share one worker connection. Was: on the M4 run two
+  embedding threads each opened the worker connection at once and `migrate_document_table` rolled back on a catalog
+  write-write conflict on idx_documents_parent_id. Test: fichero-server/tests/unit/db/test_open_migrations_serialised.py.
 - `recipes-run.engine.local-call-judged-by-progress` — **[OK]** (#5537; `compute.memory.local-call-judged-by-progress`
   owns it; pinned by `fichero-server/tests/unit/jobs/test_local_no_progress_retry_5537.py`) a page whose
   local model stopped answering is read once more before it fails, with the model's output in the log;

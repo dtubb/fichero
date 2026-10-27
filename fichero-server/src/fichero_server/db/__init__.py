@@ -98,6 +98,17 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
+_OPEN_MIGRATIONS_LOCKS: dict[str, threading.Lock] = {}
+_OPEN_MIGRATIONS_LOCKS_GUARD = threading.Lock()
+
+
+def _open_migrations_lock(path: Path) -> threading.Lock:
+    """The one lock a library file's open-time migrations run under, in this process (#6220)."""
+    key = os.path.realpath(str(path))
+    with _OPEN_MIGRATIONS_LOCKS_GUARD:
+        return _OPEN_MIGRATIONS_LOCKS.setdefault(key, threading.Lock())
+
+
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
@@ -1077,7 +1088,15 @@ class Database(DatabaseEmbeddingMixin):
         # (it appends to this SAME instance's list) — a failure looks the
         # same from either caller. Surfaced at `GET /api/health`.
         self.migration_failures: list = []
+        # One open's migrations at a time per library file (#6220): two opens at once (two embed
+        # threads each making the worker Database) both made idx_documents_parent_id in the same
+        # moment, and one rolled back on a catalog write-write conflict. The second open waits,
+        # then finds every step done.
+        with _open_migrations_lock(path):
+            self._run_open_migrations()
 
+    def _run_open_migrations(self) -> None:
+        """The open-time repair, migrations and steps; under `_open_migrations_lock` (#6220)."""
         # Before any migration writes: a migration's UPDATE on a row a stale index cannot find is
         # the FATAL that invalidates the whole database (#5644).
         self._repair_indexes_once()

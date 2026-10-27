@@ -181,6 +181,7 @@ class EmbeddableUnit:
 # configured model still loads the new one once.
 _EMBEDDER_CACHE: dict[str, Any] = {}
 _EMBEDDER_CACHE_LOCK = threading.Lock()
+_EMBED_WORKER_LOCK = threading.Lock()
 
 # Tables for which the legacy-embedding warning has already been emitted this
 # process. Keyed by table name; shared across all Database instances and threads
@@ -1818,10 +1819,15 @@ class DatabaseEmbeddingMixin:
         """
         worker = getattr(self, "_embed_worker_db", None)
         if worker is None:
-            from fichero_server.db import Database
+            # Two embed threads at once made two workers (#6220): one leaked a connection.
+            # ponytail: one process-wide lock; worker creation is once per library.
+            with _EMBED_WORKER_LOCK:
+                worker = getattr(self, "_embed_worker_db", None)
+                if worker is None:
+                    from fichero_server.db import Database
 
-            worker = Database(self.path)
-            self._embed_worker_db = worker
+                    worker = Database(self.path)
+                    self._embed_worker_db = worker
         return worker
 
     def defer_embeddings(self):
