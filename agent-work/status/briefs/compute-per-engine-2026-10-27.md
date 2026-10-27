@@ -25,16 +25,23 @@ section "Proposed for the maintainer (compute per engine, 2026-10-27)", awaiting
 
 ### Kraken segmentation (Find Lines, blla)
 
-- **Where the time goes (measured, M4, smaller pages):** raw blla is 3.7 s a page; the engine's segment stage is 3.84 s
-  at N=1 (+3%). Under load both stages stretch together (segment 3.8, 5.2, 9.1, 27.0 s at N=1, 2, 4, 8).
-  **Inferred:** blla is a small torch forward (releases the GIL) followed by Python postprocessing: skeletonising
-  and vectorising baselines with scikit-image and numpy, then polygonising each line with shapely/GEOS, one geometry
-  at a time in a Python loop. That loop holds the GIL between calls; GEOS itself releases nothing useful at this grain.
-  Image decode (PIL) is under 1% at N=1 (measured). The DB is not on this path (measured, under 1%).
-- **Does it release the GIL?** Partly (inferred). Measured consequence: threads lose to processes by only 12% at N=2 and
+- **Where the time goes (measured by the explorer, cProfile, kraken 7.1.1, one torch thread, a 3265x2202 page):** the
+  network forward 45% (convolutions 8.4 s, LSTM 3.0 s of a 27 s page on a loaded Pro), the vectorizer 33% (scikit-image's
+  `sato` ridge filter alone 6.6 s, plus scipy gaussian filters), the polygonizer 18% (`calculate_polygonal_environment`
+  5.0 s, of which shapely 2.4 s across 452k calls). My earlier inference that GEOS dominated was wrong: the ridge filter
+  and the network do. Everything outside the forward is single-threaded numpy, scipy and shapely, which is why torch
+  threads barely matter (1 → 4 threads: 4.6 → 4.9 pages/min on the M1 Air, CPU 96% → 117%). Image decode and the DB are
+  under 1%. Downscaling before segmenting gains nothing (measured): blla already resizes every page to 1800 px high and
+  the vectorizer and polygonizer work at that scale (24.8 vs 22.1 s, 20.0 vs 22.4 s, identical line counts).
+  **MPS for the network only: 28% faster a page (22 → 16 s, 22 → 17 s, same lines; measured).** The engine calls
+  `blla.segment` without `device=` (`kraken_runtime.py:1138, :1392`), so segmentation always runs on the CPU; under load on
+  a 16 GB Mac MPS hit out-of-memory on a third page, so it needs the memory guard, and the reader's MPS graph growth
+  (#5529) is a separate question from blla's. Decision 10.
+- **Does it release the GIL?** Partly (the forward does; the numpy, scipy and shapely half mostly does not). Measured consequence: threads lose to processes by only 12% at N=2 and
   30% at N=8, so the GIL is second-order; the first-order limit is shared hardware (both models plateau at N=2:
   processes 16.0 → 27.7 → 26.4 → 27.1 pages/min at N=1, 2, 4, 6; threads 16.2 → 24.3 → 22.7 → 21.1).
-- **Threads or processes:** threads, in this engine, at the measured knee. Processes buy at most 14% at N=2 (measured) and
+- **Threads or processes:** threads, one torch thread a page, two pages at once (measured on both Macs: M1 Air 8 GB 1 × 1 = 4.6/min,
+  2 × 1 = 7.2 (1.57x), 2 × 2 = 6.2, 4 × 1 = 4.9 and swapping at 3 GB; M4 knee at 2, 1.7x, flat after). Threads, in this engine, at the measured knee. Processes buy at most 14% at N=2 (measured) and
   cost a fork taken before threads start (the only process model the shipped engine has; see the embedder). Not worth
   it today. The CPU-seconds a page rising 4x past N=2 while pages/min stays flat (measured) says more workers only heat
   the Mac.
@@ -402,3 +409,8 @@ page on one thread), which stands as read from the code. Two things follow and a
    `setNumThreads(1)`. The ruling keeps the efficiency cores for the app and the person; the fit honours it. Recommend:
    keep the ruling for model work, and let image steps alone take the efficiency cores at background QoS, where the
    scheduler already puts background work.
+10. **Kraken's line finder may run its network on the GPU (MPS) when memory allows.** Measured 28% faster a page with the
+    same lines; the engine passes no `device=` today. The risk is memory (OOM on a third page under load), and #5529's
+    reader-side MPS graph growth is not yet measured for blla. Recommend: a bounded trial on the M4 (blla on MPS, N = 2,
+    the memory guard on, footprint sampled over 50 pages) before any default changes; the CPU stays the default until then.
+    Not recommended from the data: pre-downscaling, more torch threads.
