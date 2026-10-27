@@ -61,6 +61,14 @@ def test_the_gate_reading_of_a_running_run_is_off_the_loop(monkeypatch):
     assert _loop_turn_during(lambda: run_view.with_accounts(None, _status())) < 1.0
 
 
+def test_the_threads_each_reading_of_a_running_run_is_off_the_loop(monkeypatch):
+    """`threads_each` asks the throttle for the run's priority: vm_stat, pmset, pgrep on a cache miss (b24)."""
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (2, None))
+    monkeypatch.setattr("fichero_server.core.compute_preferences.priority_for", _slow("fast"))  # throttle.decide inside
+
+    assert _loop_turn_during(lambda: run_view.with_accounts(None, _status())) < 1.0
+
+
 def test_activitys_recipe_run_node_reads_its_row_off_the_loop(monkeypatch):
     from fichero_server.api.routes.system import activity
 

@@ -317,11 +317,15 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
 
         from fichero_server.core.compute_preferences import cores_for, priority_for
 
+        def gate(person: bool) -> tuple[int, str | None, int]:
+            n, why = kraken_runtime.pages_at_once_and_why(person)
+            # The cores the run's priority gives, shared by the pages at once, as the gate splits them (#6229)
+            return n, why, max(1, cores_for(priority_for(person)) // max(1, n))
+
         person = (status.get("started_by") or "automatic") not in BACKGROUND_STARTERS
-        status["pages_at_once"], status["pages_at_once_reason"] = await asyncio.to_thread(  # memory probes: off the loop (#6178)
-            kraken_runtime.pages_at_once_and_why, person)
-        # The cores the run's priority gives, shared by the pages at once, as the gate splits them (#6229)
-        status["threads_each"] = max(1, cores_for(priority_for(person)) // max(1, status["pages_at_once"]))
+        # The memory probes and the throttle's vm_stat/pmset/pgrep: off the loop (#6178)
+        status["pages_at_once"], status["pages_at_once_reason"], status["threads_each"] = await asyncio.to_thread(
+            gate, person)
     status["estimate_seconds_left"] = account.estimate_seconds_left if account is not None else None
     if (status["state"] == "running" and running is not None and account is not None and account.pages_total
             and (status["reason"] or "").startswith("Running step")):
