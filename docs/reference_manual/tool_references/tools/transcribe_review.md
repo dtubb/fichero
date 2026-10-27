@@ -11,7 +11,7 @@ Second-pass QA of a prior transcription against the image
 | Tool id | `transcribe_review` |
 | Category | vision |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |

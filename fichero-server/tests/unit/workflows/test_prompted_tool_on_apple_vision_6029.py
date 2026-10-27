@@ -43,3 +43,8 @@ def test_the_preflight_refuses_a_prompted_tool_on_apple_vision_once(monkeypatch,
     node = NodeDef(id="n", tool=tool, provider_name="apple", model_name="apple-vision")
     errors = validate_workflow_llm_preflight(_workflow_for(node), LLMConfig(provider="", model=""))
     assert len(errors) == 1 and "generation-capable vision model" in errors[0]
+
+
+def test_transcribe_review_builds_its_config_at_run_time_so_it_declares_the_need_itself():
+    _tools_that_cannot_run_on_apple_vision()
+    assert TOOL_DEFS["transcribe_review"].requires_generative_model
