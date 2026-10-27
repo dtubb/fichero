@@ -79,7 +79,7 @@ extension SidebarDeleteTests {
         let search = SidebarItem.fromSearch(SavedSearch(id: "s", name: "S", query: ""), libraryId: first)
         let items = [doc("a", in: first), search, doc("x", in: second), doc("b", in: first)]
         let batches = sidebarDeleteBatches(items, parentOf: { _ in nil })
-        #expect(batches.documents.map(\.libraryId) == [first, second])
+        #expect(batches.documents.map { $0.libraryId } == [first, second])
         #expect(batches.documents.map { $0.documents.map(\.id) } == [["a", "b"], ["x"]])
         #expect(batches.others.map(\.id) == [search.id])
     }

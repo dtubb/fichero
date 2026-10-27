@@ -69,3 +69,17 @@ def test_a_batch_delete_undone_as_one_set_puts_every_item_back_in_its_place_and_
 
     assert _state(db, everything) == before, "every row back as it was: folder, order, deleted flags"
     assert sorted(a.model_dump_json() for a in db.all(Artifact)) == artifacts_before, "no artifact made or changed"
+
+
+def test_put_back_from_the_trash_returns_a_deleted_folder_with_its_contents_in_place_and_order(client, db):
+    parent = _doc(db, "Parent")
+    folder = _doc(db, "Folder", parent.id, 1)
+    inside = [_doc(db, f"In {i}", folder.id, i, DocType.file) for i in range(3)]
+    everything = [parent, folder, *inside]
+    before = _state(db, everything)
+
+    _delete(client, folder)
+    r = client.post(f"/api/documents/{folder.id}/restore")
+    assert r.status_code == 200, r.text
+
+    assert _state(db, everything) == before
