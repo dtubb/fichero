@@ -1444,6 +1444,18 @@ def _no_workflow_node_leaks_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _no_gentle_minute_leaks_between_tests():
+    """An open that finds interrupted rows starts the gentle minute after a restart (#6216): it would hold every later test's
+    lanes to one page for 60 s. Only when the module is already imported."""
+    import sys
+
+    yield
+    jobs = sys.modules.get("fichero_server.execution.jobs")
+    if jobs is not None:
+        jobs._gentle_until = None
+
+
+@pytest.fixture(autouse=True)
 def _no_embedder_leaks_between_tests():
     """An embedder a test loads stays in the process cache and shows up as a held model in every later test (#6129); put the
     cache back as it was. Only when the module is already imported: importing it here would load it for every test."""

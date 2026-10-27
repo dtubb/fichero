@@ -232,11 +232,13 @@ replaces the Kraken figure before #6212 is coded.
   `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`). *Seen in the dogfood:* a try of 5
   pages launched all 5 in the same millisecond and the engine peaked at 2.9 GB; whether the gate held them
   to 2 is not shown anywhere a person reads (ruling 3, the next line).
-- `recipes-run.memory.gate-shown` — **[GAP]** (#6217; ruling 3) the run's row says how many pages it
+- `recipes-run.memory.gate-shown` — **[PARTIAL]** (#6217; ruling 3) the run's row says how many pages it
   reads at once in its grey line ("reading 2 pages at once"; "one page at a time: the Mac is paging";
   "one page at a time: resuming after a restart"), the figure and its reason served as fields of the run
   status from `kraken_runtime.pages_at_once` and the throttle's reason, never parsed from a sentence;
-  the app renders them as sent; no setting. Test (to write): fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
+  the app renders them as sent; no setting. Built: the run status's `pages_at_once` and `pages_at_once_reason`
+  (`kraken_runtime.pages_at_once_and_why`), in the contract. Left: the app's grey line rendering them (Step 4.1's
+  `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
 - `recipes-run.memory.fan-out-does-not-decode-ahead` — **[PARTIAL]** (#5846; `activity.lane.same-model-pages-together` (P))
   a fan-out node hands the lane at most `pages_at_once` pages, and a page waiting for the lane holds no
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).
@@ -259,12 +261,13 @@ replaces the Kraken figure before #6212 is coded.
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
   starts within one claim cycle. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
-- `recipes-run.restart.resumes-at-once-gently` — **[GAP]** (#6216; ruling 2) an interrupted run resumes
+- `recipes-run.restart.resumes-at-once-gently` — **[OK]** (#6216; ruling 2) an interrupted run resumes
   by itself on the next open (nothing waits for a person), and for the first minute after an engine
   start every lane admits ONE page at a time whatever the gate would allow, so a Mac that has just
   recovered from paging or a kill is not thrown back into it; the grey line says "resuming after a
-  restart: one page at a time for a minute"; a person who wants it stopped presses Stop. Test (to
-  write): fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py.
+  restart: one page at a time for a minute"; a person who wants it stopped presses Stop. The minute starts when an open
+  finds rows a dead engine left running (`jobs.resuming_gently`); an open with nothing interrupted is not gentle.
+  Test: fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py.
 - `recipes-run.restart.retry-reaches-a-kind-row` — **[OK]** (#6203) Retry on a kind row (`waiting:thumbnail`)
   requeues that kind's set-aside and dead claims for the project; today it answers 404 (the kind row is not
   a job id), so there was no way from Activity to restart the thumbnail work. Test:

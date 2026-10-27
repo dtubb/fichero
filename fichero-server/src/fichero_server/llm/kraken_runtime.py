@@ -876,20 +876,34 @@ PAGES_AT_ONCE_GATE_5929 = 2
 
 
 def pages_at_once(person: bool) -> int:
-    """How many pages may be read at once (`source.read.pages-at-once-scales`): on a Mac, the performance cores (gated at two
+    """`pages_at_once_and_why`'s number."""
+    return pages_at_once_and_why(person)[0]
+
+
+def pages_at_once_and_why(person: bool) -> tuple[int, str | None]:
+    """How many pages may be read at once, and when it is one, which hold makes it so, in words the run's grey line
+    shows as sent (`recipes-run.memory.gate-shown`, #6217); None when more than one may go.
+
+    How many pages may be read at once (`source.read.pages-at-once-scales`): on a Mac, the performance cores (gated at two
     until #5929), held down by what the free memory carries (`page_fan_out`: 1.5 GB a page beyond the model, so one on an
     8 GB Mac), for a person-started run on the fast priority; one for every automatic or background run, and one on a
     cluster task or in a container (its parallelism is array tasks, `source.read.threads-fit-the-machine`)."""
     from fichero_server.core.compute_preferences import priority_for
     from fichero_server.core.cores import cores_available, is_a_mac_pipeline_host
+    from fichero_server.execution.jobs import RESUMING_WORDS, resuming_gently
     from fichero_server.execution.throttle import memory_is_busy, paging_now_on_this_mac
 
-    if priority_for(person) != "fast" or (memory_is_busy() and paging_now_on_this_mac()):  # paging now under pressure: one page at a time, whoever asked (#6075)
-        return 1
+    if resuming_gently():
+        return 1, RESUMING_WORDS
+    if memory_is_busy() and paging_now_on_this_mac():  # paging now under pressure: one page at a time, whoever asked (#6075)
+        return 1, "the Mac is paging"
+    if priority_for(person) != "fast":
+        return 1, "a run that started by itself reads in the background"
     cores, source = cores_available()
     if not is_a_mac_pipeline_host(source):
-        return 1
-    return page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+        return 1, "this machine reads one page at a time"
+    n = page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+    return n, None if n > 1 else "the free memory holds one page"
 
 
 #: The environment variables the thread pools around torch read when they load.

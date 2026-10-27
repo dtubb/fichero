@@ -85054,6 +85054,18 @@
             "nullable": true,
             "title": "Estimate Seconds Left",
             "description": "the running stage's time left at its own pace so far; null until it has done a page"
+          },
+          "pages_at_once": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages At Once",
+            "description": "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"
+          },
+          "pages_at_once_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pages At Once Reason",
+            "description": "which hold makes it one page at a time, in words shown as sent; null when more than one may go"
           }
         },
         "type": "object",

@@ -113,6 +113,17 @@ CO_RUN_KIND = "ask-a-model"
 HEAVY_LANES = ("local-ml", "images")
 #: An images-lane job running longer than this is stuck (a thumbnail takes seconds): it gives back its slot (#6213).
 STUCK_IMAGE_JOB_SECONDS = 60.0  # the spec's "first thumbnail within a minute"
+#: After an open that found work a dead engine left (#6216, ruling 2): for this long every memory lane takes one page at a
+#: time whatever its gate allows, so a Mac just back from paging or a kill is not thrown straight back into it.
+GENTLE_START_SECONDS = 60.0
+RESUMING_WORDS = "resuming after a restart: one page at a time for a minute"
+_GENTLE_LANES = ("local-ml", "images", "embed")
+_gentle_until: float | None = None
+
+
+def resuming_gently() -> bool:
+    """Whether the gentle minute after a restart is on (`recipes-run.restart.resumes-at-once-gently`)."""
+    return _gentle_until is not None and time.monotonic() < _gentle_until
 #: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
@@ -1580,6 +1591,7 @@ def resume(db: "Database") -> None:
     """On library open: jobs left running were interrupted. Back to waiting, or failed after
     `MAX_ATTEMPTS`; then, if anything is waiting, wake the scheduler for this library. A library
     with nothing waiting is never scanned, so opening one adds no traffic on its connection."""
+    global _gentle_until
     _ensure(db)
     db.execute(
         "DELETE FROM jobs WHERE state IN ('done', 'cancelled') AND finished_at < ?",
@@ -1589,6 +1601,8 @@ def resume(db: "Database") -> None:
     # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
+    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE state = 'running'{not_live} LIMIT 1", live):
+        _gentle_until = time.monotonic() + GENTLE_START_SECONDS  # a dead engine left work: resume it, gently (#6216)
     # A page's work, handed in by a caller that is gone. NOT a run's or a batch's own row: those are not pages, and a
     # page's words on them read wrong (Fable review #7). The runs are settled by `mark_interrupted_runs` on open; a batch
     # row left running by a killed engine is settled here, in its own words.
@@ -2393,6 +2407,8 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
         not_running = {row[0] for row in db.execute_fetchall(
             f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running)}
         running = [r for r in running if r not in not_running]
+    if lane is not None and running and lane_name in _GENTLE_LANES and resuming_gently():
+        return f"Waiting: {RESUMING_WORDS}"
     if lane is not None and len(running) >= lane.slots:
         if lane_name == "local-ml" and len(running) >= 2:  # the cap of pages at once, not a lane held by something else
             found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
@@ -2801,8 +2817,11 @@ class _Lane:
         """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
         model server joining the calls to the same model already running, up to its reads at once."""
         running = self.holding()
-        if len(running) < self.slots:
+        gentle = self.name in _GENTLE_LANES and resuming_gently()
+        if len(running) < (1 if gentle else self.slots):
             return True
+        if gentle:
+            return False
         if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
                 and set(running.values()) == {model}):
             # A second page of the model already running, for a person's run, when memory holds both
