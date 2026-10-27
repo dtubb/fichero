@@ -1007,6 +1007,25 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
+def cost_under(db: "Database", job_ids: list[str]) -> float | None:
+    """The dollars of every model call under these jobs, as `tree` rolls them up: null unless every call is priced, and
+    null for no calls or a free sum (a local step says its time, never "$0"; `recipes-run.timing.cost-per-step`, #6234)."""
+    from fichero_server.llm.usage import aggregate_usage
+
+    _ensure(db)
+    ids = [i for i in dict.fromkeys(job_ids) if i]
+    if not ids:
+        return None
+    rows = db.execute_fetchall(
+        f"WITH RECURSIVE t AS (SELECT id, kind, detail FROM jobs WHERE id IN ({', '.join('?' * len(ids))}) UNION ALL "
+        "SELECT j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
+        f"SELECT detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
+        [*ids, *RUN_KINDS], committed=True)
+    usage = [u for (detail,) in rows for u in (json.loads(detail) or {}).get("usage", [])]
+    totals = aggregate_usage(usage)
+    return totals.cost_usd if totals.priced and totals.cost_usd else None
+
+
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason or None, job_id])

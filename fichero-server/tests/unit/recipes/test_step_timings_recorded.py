@@ -159,3 +159,45 @@ def test_pages_of_one_document_are_each_their_own_page():
     timeline = {"steps": [{"type": "file", "status": "success", "duration_ms": 80_000, "document_id": "doc", "page_id": p,
                            "file_path": f"{p}.jpg"} for p in ("p1", "p2", "p3")]}
     assert page_seconds(timeline) == [80.0, 80.0, 80.0]
+
+
+def _call(db, parent, provider="openai", model="gpt-5"):
+    import json
+
+    job_id = jobs._insert(db, "ask-a-model", "page", f"{provider}:{model}", "workflow")
+    db.execute("UPDATE jobs SET parent_id = ?, state = 'done', detail = ? WHERE id = ?", [
+        parent, json.dumps({"usage": [{"provider": provider, "model": model, "kind": "chat", "input_tokens": 1000,
+                                       "output_tokens": 500, "total_tokens": 1500}]}), job_id])
+
+
+def test_each_step_carries_its_cost_beside_its_seconds_6234(db, monkeypatch):
+    """`recipes-run.timing.cost-per-step` (#6234): a step's cost is its calls' sum as the Activity tree rolls it up; one
+    unpriced call makes it null; a step with no calls (local) has none, never a bare $0. The summary names the dearest."""
+    import fichero_server.workflows.run_account as accounts
+
+    _row(db, "run", 0, 100)
+    for job, start, end in (("cloud", 0, 30), ("mixed", 30, 60), ("local", 60, 99)):
+        _row(db, job, start, end)
+    _call(db, "cloud")
+    _call(db, "cloud")
+    _call(db, "mixed")
+    _call(db, "mixed", provider="nobody", model="a-model-with-no-price")
+
+    async def _no_account(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(accounts, "run_account", _no_account)
+    status = {"job_id": "run", "state": "done", "reason": None, "started_by": "person", "steps": [
+        {"steps": ["read-a-line"], "card": "workflow", "state": "done", "child_id": "cloud"},
+        {"steps": ["find-names-tag-words"], "card": "names", "state": "done", "child_id": "mixed"},
+        {"steps": ["find-lines"], "card": "workflow", "state": "done", "child_id": "local"}]}
+
+    cloud, mixed, local = asyncio.run(run_view.with_accounts(db, status))["steps"]
+    expected = jobs.tree(db, "cloud")["cost_usd"]
+    assert expected and cloud["timing"].cost_usd == expected
+    assert mixed["timing"].cost_usd is None, "one unpriced call: no sum, never a floor shown as the cost"
+    assert local["timing"].cost_usd is None, "a local step says its time, never $0"
+
+    words = run_view.dearest_words([run_view.RecipeRunStep(**s) for s in (cloud, mixed, local)])
+    assert words == f"Dearest step: {run_view.RecipeRunStep(**cloud).title}: ${expected:.2f}"
+    assert run_view.dearest_words([run_view.RecipeRunStep(**local)]) is None

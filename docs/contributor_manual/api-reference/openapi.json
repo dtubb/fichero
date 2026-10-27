@@ -95958,6 +95958,12 @@
             "title": "Job Id",
             "description": "a batch's job (its row in the Activity tree); null as above"
           },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "the step's model calls in dollars, as the Activity tree rolls them up (#6234); null unless every call is priced, and null for a step with no paid calls (a local step: its time is its figure)"
+          },
           "batches": {
             "items": {
               "$ref": "#/components/schemas/StepTiming"

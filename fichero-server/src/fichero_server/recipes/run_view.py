@@ -108,6 +108,9 @@ class StepTiming(BaseModel):
         "the median of its pages' own times (each from its slot to its end, every node of the page added)"))
     folder: Optional[str] = Field(default=None, description="a batch's folder; null on a step's own timing")
     job_id: Optional[str] = Field(default=None, description="a batch's job (its row in the Activity tree); null as above")
+    cost_usd: Optional[float] = Field(default=None, description=(
+        "the step's model calls in dollars, as the Activity tree rolls them up (#6234); null unless every call is "
+        "priced, and null for a step with no paid calls (a local step: its time is its figure)"))
     batches: list["StepTiming"] = Field(default_factory=list, description=(
         "each batch the step ran on, in order, with its own figures; the step's span the first batch's start to the "
         "last's end, its pages' median over all of them"))
@@ -173,6 +176,7 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
             if len(timed) > 1:  # one batch is the step itself
                 step.batches = [step_timing(*t, p, now).model_copy(update={"folder": b.get("folder"), "job_id": b["child_id"]})
                                 for b, t, p in timed]
+            step.cost_usd = jobs.cost_under(db, [b["child_id"] for b, _t, _p in timed])
             out[child] = step
         run = times.get(status["job_id"])
         return (step_timing(*run, [], now).seconds if run else None), out
@@ -193,6 +197,15 @@ def slowest_words(steps: list["RecipeRunStep"]) -> Optional[str]:
                 f"{_plural(s.timing.pages_done, 'page')}")
     s = max(timed, key=lambda s: s.timing.seconds)
     return f"Slowest step: {s.title}: {s.timing.seconds:g} s"
+
+
+def dearest_words(steps: list["RecipeRunStep"]) -> Optional[str]:
+    """'Dearest step: Read each line: $0.42' (#6234); None when no step has a cost (a local run)."""
+    priced = [s for s in steps if s.timing is not None and s.timing.cost_usd]
+    if not priced:
+        return None
+    s = max(priced, key=lambda s: s.timing.cost_usd)
+    return f"Dearest step: {s.title}: ${s.timing.cost_usd:.2f}"
 
 
 class RecipeRunStep(BaseModel):
@@ -873,7 +886,6 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     if made.finished:
         made.missed = missed([RecipeRunStep(**s) for s in status["steps"]], len(pages), status.get("folder_id"),
                              status.get("documents"))
-    slowest = slowest_words([RecipeRunStep(**s) for s in status["steps"]])
-    if slowest:
-        made.lines.append(slowest)
+    steps = [RecipeRunStep(**s) for s in status["steps"]]
+    made.lines.extend(line for line in (slowest_words(steps), dearest_words(steps)) if line)
     return made

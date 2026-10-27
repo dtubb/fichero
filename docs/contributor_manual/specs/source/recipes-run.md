@@ -520,6 +520,14 @@ replaces the Kraken figure before #6212 is coded.
   tree's stage rows (`GET /api/activity/jobs/{id}`, one row a batch's job) carry the same `timing`. Tests:
   fichero-server/tests/unit/recipes/test_step_timings_recorded.py,
   fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py. Swift compile owed (new optional fields).
+- `recipes-run.timing.cost-per-step` — **[OK]** (#6234) each step of the run status (`steps[].timing`) carries
+  `cost_usd` beside its `seconds` and `seconds_per_page`: its model calls' dollars over all its batches, read from the
+  step's job rows as the Activity tree rolls them up (`activity.jobs-are-a-tree`, `jobs.cost_under`); null unless every
+  call under it is priced, and null for a step with no paid calls, so a local step says its time and a cloud step its
+  money, never a bare "$0". The summary's last lines name the slowest step in seconds a page and the dearest in dollars
+  ("Dearest step: <stage>: $N"). Per batch: the step's figure only (a batch's own cost is its row in the Activity
+  tree). Test: fichero-server/tests/unit/recipes/test_step_timings_recorded.py (two priced calls carry their sum; one
+  unpriced call makes it null; no calls, null). Swift compile owed (new optional field).
 - `recipes-run.timing.slow-path-logged` — **[PARTIAL]** (#6236) what goes slow or grows over a long run says so in
   the engine log, one line once it passes its threshold, so a 100k-page grind is read from its log, not guessed at:
   a slow statement and transaction memory (section 6), a step's per-page time that climbs, a model loaded again, the
