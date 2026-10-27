@@ -215,15 +215,17 @@ replaces the Kraken figure before #6212 is coded.
   spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
   (Ann's log: the warning 6,671 times); fixed in ef6ffa17e, the refusal now said at debug. Test:
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
-- `recipes-run.memory.one-heavy-model` — **[BROKEN]** (#6000, #6167; `activity.lane.small-mac-one-heavy-model` (B)
+- `recipes-run.memory.one-heavy-model` — **[OK]** (#6000, #6167; `activity.lane.small-mac-one-heavy-model` (B)
   and `designer.model.one-resident-local-model` (G) own it) on a Mac of 16 GB or less the model lane never
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
   model it frees Kraken, whatever the free-memory reading says; the run's row says which model it swapped
   for and why. Built: one heavy job at a time while memory is tight (`activity.throttle.one-heavy-when-memory-tight`,
   `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`), the idle release of Kraken after
   120 s and the embedder after 600 s (`activity.lane.idle-unload`), the memory hold freeing idle models
-  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py`). Not built: the release of
-  the served model before a Kraken load (`_RELEASE["local-model"]` frees nothing).
+  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py`). The release of the served model
+  before a Kraken load (`_stop_local_model_server`, since 2026-10-21) and of Kraken before a served model are pinned at the
+  lane by `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py::test_a_small_mac_frees_the_loaded_heavy_model_before_another_loads_whatever_memory_reads`
+  and at the server by `fichero-server/tests/unit/api/test_served_model_released_for_kraken.py`.
 - `recipes-run.memory.hold-when-paging` — **[PARTIAL]** (#6075; `activity.throttle.hold-when-swapping` (P)
   owns it) new heavy work is held, and Kraken reads one page at a time, while this Mac is paging NOW under
   memory pressure at warn or above (pageouts or swap grown by 64 MB within the last minute); static swap
@@ -243,11 +245,11 @@ replaces the Kraken figure before #6212 is coded.
   the app renders them as sent; no setting. Built: the run status's `pages_at_once` and `pages_at_once_reason`
   (`kraken_runtime.pages_at_once_and_why`), in the contract. Left: the app's grey line rendering them (Step 4.1's
   `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
-- `recipes-run.memory.fan-out-does-not-decode-ahead` — **[PARTIAL]** (#5846; `activity.lane.same-model-pages-together` (P))
+- `recipes-run.memory.fan-out-does-not-decode-ahead` — **[OK]** (#5846; `activity.lane.same-model-pages-together` (P))
   a fan-out node hands the lane at most `pages_at_once` pages, and a page waiting for the lane holds no
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).
-  Built: the lane admits pages by the gate; not pinned: that the waiting pages hold no image. Test (to
-  write): fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py.
+  The lane admits pages by the gate and a page's work reads its image only once admitted (the node hands a path,
+  never a bitmap). Test: fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py.
 
 ### 8. A restart requeues unfinished work and releases every lane
 

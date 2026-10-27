@@ -102,3 +102,28 @@ def test_start_does_not_lift_it(db, pressure, lanes):
     release.set()
     assert _wait_for(lambda: db.execute_fetchone("SELECT count(*) FROM jobs WHERE state = 'done'")[0] == 2)
     assert max(together) == 1
+
+
+# `recipes-run.memory.one-heavy-model` (#6000, #6167): on a Mac of 16 GB or less the model lane never keeps two heavy models
+# loaded, whatever the free-memory reading says; the release is told which model the lane switches to and why.
+@pytest.mark.parametrize("loaded, wanted, freed", [("omlx:qwen-7b", "kraken:blla", "local-model"),
+                                                   ("kraken:blla", "omlx:qwen-7b", "kraken")])
+def test_a_small_mac_frees_the_loaded_heavy_model_before_another_loads_whatever_memory_reads(db, monkeypatch, loaded, wanted,
+                                                                                            freed):
+    jobs._ensure(db)
+    released: list[tuple[str, str]] = []
+    for family in ("kraken", "local-model"):
+        monkeypatch.setitem(jobs._RELEASE, family, lambda reason="", f=family: released.append((f, reason)) or True)
+    monkeypatch.setattr(jobs, "_physical_memory_bytes", lambda: 16 * 1024**3)
+    monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 14 * 1024**3)  # plenty free, by macOS's reading
+    monkeypatch.setattr(jobs, "_kraken_busy", lambda queued=0: False)
+    monkeypatch.setitem(jobs.KINDS, "t-heavy", jobs.Kind(run=lambda db, subject: None, model=wanted))
+    job_id = jobs._insert(db, "t-heavy", "page-1", wanted, "automatic")
+    lane = jobs._Lane("local-ml", 1)
+    lane.loaded_model = loaded
+
+    jobs._scheduler._run(lane, jobs._key(db), db, (job_id, "t-heavy", "page-1", wanted), None)
+
+    assert [f for f, _ in released] == [freed]
+    assert "one heavy model at a time" in released[0][1] and f"switches to {jobs._family(wanted)}" in released[0][1]
+    assert lane.loaded_model == wanted
