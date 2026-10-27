@@ -894,6 +894,18 @@ EMBED_RETRY_SECONDS = 120.0
 DOWNLOAD_RETRY_WINDOW_SECONDS = 3600.0
 
 
+def wait_for_the_search_model(db, why: str, cause: BaseException | None = None) -> None:
+    """The running embed job waits (it comes back after EMBED_RETRY_SECONDS) while the app fetches Search's model; never
+    a failed page (#6218). Raises `JobDeferred` with `why`."""
+    from fichero_server.execution import jobs
+
+    job_id = getattr(jobs._current, "job_id", None)
+    if job_id:
+        jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
+    _fetch_the_search_model(db)
+    raise jobs.JobDeferred(why) from cause
+
+
 def _fetch_the_search_model(db) -> None:
     """Search's model is missing: queue its download in the app (a row in Activity). Not while one waits or runs, not
     within the window after one failed, and not when the files are already in the cache (the load failed for another
@@ -959,15 +971,10 @@ def _embed_stage(doc_id: str, library: str) -> None:
             with _embed_gate:
                 embed_error = _embed_document_tree(doc, db, library)
         except EmbedderUnavailable as exc:
-            from fichero_server.execution import jobs
 
             # Search cannot index yet (its model is missing): the row WAITS with the sentence as its reason, and comes
             # back later; the download clears it (P2, 436). Not "done", and not a count in the document's metadata.
-            job_id = getattr(jobs._current, "job_id", None)
-            if job_id:
-                jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
-            _fetch_the_search_model(db)
-            raise jobs.JobDeferred(str(exc)) from exc
+            wait_for_the_search_model(db, str(exc), exc)
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
         # takes seconds, and saving the copy read at stage START resurrected

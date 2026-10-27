@@ -111,4 +111,5 @@ def test_the_child_goes_offline_when_cached_and_gets_the_parents_proxies(tmp_pat
     env = embed_process._child_env("BAAI/bge-m3-onnx", str(tmp_path))
     assert env["HF_HUB_OFFLINE"] == "1" and env["https_proxy"] == "http://p:3128"
     assert env["no_proxy"] and env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] == "YES"
-    assert "HF_HUB_OFFLINE" not in embed_process._child_env("other/model", str(tmp_path))
+    # #6218: an uncached model is refused before the fork, so the child is offline for every model, never fetching.
+    assert embed_process._child_env("other/model", str(tmp_path))["HF_HUB_OFFLINE"] == "1"

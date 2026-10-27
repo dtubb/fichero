@@ -187,6 +187,12 @@ replaces the Kraken figure before #6212 is coded.
   (the Activity list, job tree and run account already did, #5843, #5860, #6176). Left: a poll under a held writer
   still waits on its worker thread for the writer (it does not answer with what it has), and the M4 run sampling
   `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
+- `recipes-run.engine.embedder-child-never-downloads` — **[OK]** (#6218) the search model's forked child never
+  fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),
+  the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it
+  in the engine, then embeds; the child always loads offline. Was: on the M4 run the forked child began fetching from
+  the Hub, a LanceDB thread died with "Bad file descriptor" after the fork, make-a-vector failed 10 of 10 and the run
+  ended failed. Test: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py.
 - `recipes-run.engine.local-call-judged-by-progress` — **[OK]** (#5537; `compute.memory.local-call-judged-by-progress`
   owns it; pinned by `fichero-server/tests/unit/jobs/test_local_no_progress_retry_5537.py`) a page whose
   local model stopped answering is read once more before it fails, with the model's output in the log;

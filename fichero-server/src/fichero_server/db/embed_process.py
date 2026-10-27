@@ -78,8 +78,7 @@ def _child_env(model_name: str, cache_dir: str) -> dict[str, str]:
 
     env = {f"{scheme}_proxy": url for scheme, url in urllib.request.getproxies().items() if scheme != "no"}
     env["no_proxy"] = urllib.request.getproxies().get("no") or "localhost,127.0.0.1"
-    if _cached(model_name, cache_dir):
-        env["HF_HUB_OFFLINE"] = "1"
+    env["HF_HUB_OFFLINE"] = "1"  # the child never fetches: `RemoteEmbedder` refuses an uncached model before forking (#6218)
     env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     return env
 
@@ -212,6 +211,12 @@ class RemoteEmbedder:
         self._start()
 
     def _start(self) -> None:
+        self._conn = self._process = None
+        if not _cached(self.model_name, self._cache_dir) and not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
+            # A forked child that downloads dies with the threads it was forked beside (LanceDB's event loop: "Bad file
+            # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
+            raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "
+                                      "search waits for it.")
         context = multiprocessing.get_context("fork")
         self._conn, child = context.Pipe(duplex=True)
         self._process = context.Process(
@@ -268,7 +273,9 @@ class RemoteEmbedder:
         return self._process.is_alive()
 
     def close(self) -> None:
-        """End the child; the engine goes on. Safe to call twice."""
+        """End the child; the engine goes on. Safe to call twice, and on one refused before any fork."""
+        if self._process is None:
+            return
         try:
             self._conn.close()
         except Exception as exc:  # noqa: BLE001 -- already closed or the pipe broke; the process is ended below
