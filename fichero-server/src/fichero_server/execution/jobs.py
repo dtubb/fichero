@@ -236,11 +236,18 @@ KINDS: dict[str, Kind] = {}
 _SLIPS = (KeyError, IndexError, AttributeError, TypeError, NameError, AssertionError, ZeroDivisionError)
 
 
+def _a_sentence(text: str) -> bool:
+    """A KeyError raised with words ("no job 'x' in this project", "Unknown model: m"), not a missing key that has spaces
+    (a step title, "Read each line"): four words or more, with a colon, a semicolon, a quoted name or a full stop (b24)."""
+    # ponytail: a heuristic over the engine's own KeyError texts; a worded refusal should be its own exception class.
+    return len(text.split()) >= 4 and any(c in text for c in ":;'.")
+
+
 def failed_reason(kind: str, exc: BaseException) -> str:
     """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
     from fichero_server.core.failure_text import failure_text
 
-    if isinstance(exc, KeyError) and len(exc.args) == 1 and " " in str(exc.args[0]):
+    if isinstance(exc, KeyError) and len(exc.args) == 1 and _a_sentence(str(exc.args[0])):
         return str(exc.args[0])  # raised with words ("No local runtime installs model: X"), not a missing key (b23)
     if isinstance(exc, _SLIPS):
         return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"

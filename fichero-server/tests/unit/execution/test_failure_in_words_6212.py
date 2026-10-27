@@ -2,6 +2,8 @@
 its row, never the bare exception text ("'x'" for a KeyError); a failure that already says why keeps its words."""
 from __future__ import annotations
 
+import pytest
+
 from fichero_server.execution import jobs
 
 
@@ -23,3 +25,15 @@ def test_a_worded_key_error_keeps_its_words_and_no_slip_label():
     # reviewer b23: local_model_catalog raises KeyError("No local runtime installs model: X"), a refusal in words
     said = jobs.failed_reason("embed-page", KeyError("No local runtime installs model: x"))
     assert said == "No local runtime installs model: x"
+
+
+@pytest.mark.parametrize("key", ["Read each line", "Find the names on a page"])
+def test_a_missing_key_with_a_space_is_still_a_slip(key):
+    # reviewer b24: a step title is a key with spaces; missing, it is a slip in Fichero, not a refusal in words
+    said = jobs.failed_reason("embed-page", KeyError(key))
+    assert "could not finish" in said and "KeyError" in said
+
+
+@pytest.mark.parametrize("words", ["no job 'j1' in this project", "Unknown managed MLX model: m"])
+def test_the_engines_worded_key_errors_keep_their_words(words):
+    assert jobs.failed_reason("embed-page", KeyError(words)) == words
