@@ -233,7 +233,7 @@ class RemoteEmbedder:
 
     def _start(self) -> None:
         self._conn = self._process = None
-        if not _cached(self.model_name, self._cache_dir) and not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
+        if not _cached(self.model_name, self._cache_dir):  # also under the fake-init test switch: a test fakes the cache too
             # A forked child that downloads dies with the threads it was forked beside (LanceDB's event loop: "Bad file
             # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
             raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "

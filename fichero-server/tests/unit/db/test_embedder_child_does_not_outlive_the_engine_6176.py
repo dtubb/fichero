@@ -14,7 +14,10 @@ import time
 ENGINE = r"""
 import os, socket, sys
 os.environ["FICHERO_EMBED_FAKE_INIT_SECONDS"] = "0.1"
+from fichero_server.db import embed_process
 from fichero_server.db.embed_process import RemoteEmbedder
+embed_process._cached = lambda *_a: True  # the fake model is "in the cache"
+import onnxruntime  # as in the engine, whose real cache check loads fastembed before any fork
 listener = socket.socket()
 listener.bind(("127.0.0.1", 0))
 listener.listen()

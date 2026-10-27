@@ -15,6 +15,8 @@ from fichero_server.db import embed_process
 @pytest.fixture
 def forked(monkeypatch):
     monkeypatch.delenv("FICHERO_EMBED_IN_PROCESS", raising=False)
+    monkeypatch.setattr(embed_process, "_cached", lambda *_a: True)  # the fake model is "in the cache"
+    import onnxruntime  # noqa: F401 -- as in the engine, whose real cache check loads fastembed before any fork
 
 
 def test_a_fake_model_embeds_through_the_child(forked, monkeypatch):

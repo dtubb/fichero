@@ -98,15 +98,16 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
-_OPEN_MIGRATIONS_LOCKS: dict[str, threading.Lock] = {}
+_OPEN_MIGRATIONS_LOCKS: dict[str, threading.RLock] = {}
 _OPEN_MIGRATIONS_LOCKS_GUARD = threading.Lock()
 
 
-def _open_migrations_lock(path: Path) -> threading.Lock:
-    """The one lock a library file's open-time migrations run under, in this process (#6220)."""
+def _open_migrations_lock(path: Path) -> threading.RLock:
+    """The one lock a library file's open-time migrations run under, in this process (#6220); re-entrant, so an open
+    inside an open of the same library on one thread does not wait on itself."""
     key = os.path.realpath(str(path))
     with _OPEN_MIGRATIONS_LOCKS_GUARD:
-        return _OPEN_MIGRATIONS_LOCKS.setdefault(key, threading.Lock())
+        return _OPEN_MIGRATIONS_LOCKS.setdefault(key, threading.RLock())
 
 
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3

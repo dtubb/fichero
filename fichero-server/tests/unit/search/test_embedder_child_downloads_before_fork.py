@@ -83,3 +83,12 @@ def test_a_batch_that_meets_a_missing_model_waits_instead_of_failing_each_page(d
     monkeypatch.setattr(type(db), "_embed_texts", unavailable)
     with pytest.raises(embed_process.EmbedderUnavailable):
         db.embed_many(docs)
+
+
+def test_a_fake_model_load_does_not_skip_the_refusal(tmp_path, monkeypatch):
+    # Review LOW on ce8b274c0's base: the fake-init test switch also switched the not-cached refusal off, so a test (or a
+    # stray environment) could fork a child for a model that is not there. The refusal holds whatever the switch says.
+    monkeypatch.setenv("FICHERO_EMBED_FAKE_INIT_SECONDS", "0")
+    monkeypatch.setattr(multiprocessing, "get_context", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("forked")))
+    with pytest.raises(embed_process.EmbedderUnavailable, match="not downloaded"):
+        embed_process.RemoteEmbedder("BAAI/bge-m3", str(tmp_path), 1)

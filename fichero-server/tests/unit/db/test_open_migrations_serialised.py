@@ -57,3 +57,21 @@ def test_two_embed_threads_share_one_worker_database(tmp_path):
     for t in threads:
         t.join(60)
     assert len({id(w) for w in workers}) == 1
+
+
+def test_an_open_inside_an_open_of_the_same_library_does_not_hang(tmp_path):
+    # Review LOW on ce8b274c0: the lock was a plain Lock, so an open-time step that opened the same library again on its
+    # own thread would wait on itself forever. Re-entry on one thread goes through; other threads still wait.
+    from fichero_server.db import _open_migrations_lock
+
+    path = tmp_path / "lib.duckdb"
+    Database(path)
+    done = threading.Event()
+
+    def _nested() -> None:
+        with _open_migrations_lock(path):
+            Database(path)
+        done.set()
+
+    threading.Thread(target=_nested, daemon=True).start()
+    assert done.wait(30), "an open inside an open of the same library waited on itself"

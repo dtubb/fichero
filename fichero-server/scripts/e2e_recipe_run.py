@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
 import tempfile
 import time
@@ -101,6 +102,8 @@ def main() -> int:
     base = tempfile.mkdtemp(prefix="fich_base_")
     if args.cloud:
         _provider_rows(base, args.models)
+    for sig in (signal.SIGTERM, signal.SIGHUP):  # a killed script still runs `finally`, which stops its temp engine
+        signal.signal(sig, lambda signum, _frame: sys.exit(128 + signum))
     ep = start_engine(transport="uds", log_dir=str(out), base_path=base)
     try:
         headers = {"Authorization": f"Bearer {ep.token}"}

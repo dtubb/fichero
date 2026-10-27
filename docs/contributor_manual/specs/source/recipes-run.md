@@ -187,7 +187,7 @@ replaces the Kraken figure before #6212 is coded.
   (the Activity list, job tree and run account already did, #5843, #5860, #6176). Left: a poll under a held writer
   still waits on its worker thread for the writer (it does not answer with what it has), and the M4 run sampling
   `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
-- `recipes-run.engine.embedder-child-never-downloads` — **[OK]** (#6218) the search model's forked child never
+- `recipes-run.engine.embedder-child-never-downloads` — **[PARTIAL]** (#6218) the search model's forked child never
   fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),
   the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it
   in the engine, then embeds; the child always loads offline. Was: on the M4 run the forked child began fetching from
@@ -196,12 +196,14 @@ replaces the Kraken figure before #6212 is coded.
   it, the tokenizer), not the folder: a partial folder a dead download left is not cached, so the app's download job
   completes it and the embed waits; a batch that meets a missing model waits as a whole instead of failing each page.
   Was (M4 rerun at 7337332c2): a partial bge-m3 folder passed the folder check, the child failed to load it offline, no
-  download was queued and make-a-vector failed 10 of 10. Unverified on the M4 (rerun owed on that partial folder).
+  download was queued and make-a-vector failed 10 of 10. The refusal holds under the tests' fake model load too.
+  Unverified on the M4 (rerun owed on that partial folder).
   Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py,
   fichero-server/tests/unit/db/test_embedder_cache_names.py.
 - `recipes-run.engine.open-migrations-serialised` — **[OK]** (#6220) opens of one library in one engine run their
   open-time migrations one at a time: a second open waits for the first, then finds every step done, so a fresh
-  library records no migration failure; two embedding threads share one worker connection. Was: on the M4 run two
+  library records no migration failure; two embedding threads share one worker connection; an open inside an open of
+  the same library on one thread goes through (the lock is re-entrant), never waits on itself. Was: on the M4 run two
   embedding threads each opened the worker connection at once and `migrate_document_table` rolled back on a catalog
   write-write conflict on idx_documents_parent_id. Test: fichero-server/tests/unit/db/test_open_migrations_serialised.py.
 - `recipes-run.engine.empty-kraken-lines-are-named` — **[OK]** (#6219) a Kraken read of a page's working lines that
