@@ -237,8 +237,6 @@ class TestAHalfConvertedProjectReadsTheSame:
     """`source.convert.half-done-reads-the-same`, across six surfaces, at every
     point in between."""
 
-    @pytest.mark.xfail(strict=True, reason="#5986: CHECKPOINT is refused after the first converted page (a write "
-                       "transaction no Database records); release blocker")
     def test_every_surface_is_unchanged_before_halfway_and_after(
         self, project, client
     ):

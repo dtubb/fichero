@@ -84,6 +84,7 @@ from fichero_server.db.manager import DatabaseManager, db_manager  # noqa: F401
 from fichero_server.db.busy_evidence import watch_statement
 from fichero_server.errors import ErrorCategory, handle_error
 from fichero_server.security.path_security import resolve_under_allowed_roots
+from fichero_server.core.duckdb_session import fetch_one
 
 logger = logging.getLogger(__name__)
 
@@ -1269,7 +1270,7 @@ class Database(DatabaseEmbeddingMixin):
             f"SELECT table_name FROM duckdb_tables() WHERE table_name IN ({marks})", wanted).fetchall()}
         if not old:
             return  # a library made after the fold, or one that never used the store: nothing to copy
-        folded = conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]).fetchone()
+        folded = fetch_one(conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]))
         if folded:
             self._say_older_engine_rows(name, folded[0], [(t, newer_sql) for t, _c, _m, newer_sql in copies if t in old])
             return
@@ -1289,7 +1290,7 @@ class Database(DatabaseEmbeddingMixin):
                     failures = len(self.migration_failures)
 
                     def _chunk(table=table, copy_sql=copy_sql) -> None:
-                        row = conn.execute(f"{copy_sql} LIMIT {chunk}").fetchone()
+                        row = fetch_one(conn.execute(f"{copy_sql} LIMIT {chunk}"))
                         copied[0] = row[0] if row else 0
 
                     _run_atomic_migration(conn, f"fold_{name}_tables_5645", _chunk, self.migration_failures)
@@ -1302,7 +1303,7 @@ class Database(DatabaseEmbeddingMixin):
             for table, copy_sql, _missing, _newer in copies:
                 if table in old:
                     conn.execute(copy_sql)
-            missing = sum(conn.execute(missing_sql).fetchone()[0]
+            missing = sum(fetch_one(conn.execute(missing_sql))[0]
                           for table, _c, missing_sql, _n in copies if table in old)
             if missing:
                 raise RuntimeError(f"{missing} rows of the old {name} tables were not found after the copy")
@@ -1319,7 +1320,7 @@ class Database(DatabaseEmbeddingMixin):
         newer = 0
         for table, newer_sql in checks:
             try:
-                newer += self.conn.execute(newer_sql, [folded_at]).fetchone()[0]
+                newer += fetch_one(self.conn.execute(newer_sql, [folded_at]))[0]
             except duckdb.Error as exc:
                 said = f"could not check the old {table} table for rows an older Fichero wrote: {exc}"
                 logger.warning("%s: %s", self.path, said)
@@ -1413,16 +1414,16 @@ class Database(DatabaseEmbeddingMixin):
     def _apply_added_jobs_columns(self) -> None:
         """A library made by an older release gets the columns later releases added to `jobs`, here, on the write
         connection at open (#5814), as the other idempotent migrations do; the jobs code also checks per connection."""
-        if self.conn.execute(
+        if fetch_one(self.conn.execute(
             "SELECT 1 FROM information_schema.tables WHERE table_name = 'jobs'"
-        ).fetchone() is None:
+        )) is None:
             return  # no jobs table yet: `jobs._ensure` makes it with the columns
         from fichero_server.execution import jobs
 
         count = "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jobs'"
-        before = self.conn.execute(count).fetchone()[0]
+        before = fetch_one(self.conn.execute(count))[0]
         jobs.apply_added_columns(self.conn.execute, str(self.path))
-        if self.conn.execute(count).fetchone()[0] > before:
+        if fetch_one(self.conn.execute(count))[0] > before:
             # An ALTER ... ADD COLUMN must not sit in the WAL: DuckDB cannot replay it, and a library that dies
             # before the next checkpoint then poisons every restart (the house rule, db/app.py, 2026-06-12).
             try:
@@ -1491,12 +1492,12 @@ class Database(DatabaseEmbeddingMixin):
 
     def _repair_indexes_once_locked(self) -> None:
         conn = self.conn
-        has_settings = bool(conn.execute(
+        has_settings = bool(fetch_one(conn.execute(
             "SELECT 1 FROM duckdb_tables() WHERE table_name = 'librarysettings'"
-        ).fetchone())
-        repaired = has_settings and bool(conn.execute(
+        )))
+        repaired = has_settings and bool(fetch_one(conn.execute(
             "SELECT 1 FROM librarysettings WHERE id = ?", [self.INDEXES_REPAIRED_SETTING]
-        ).fetchone())
+        )))
         if repaired or not has_settings:
             # Repaired before, or a new library with nothing written before the fix to repair. Rebuilding
             # a new library's indexes on every open, while other threads write to it, crashed the engine.
@@ -1922,7 +1923,7 @@ class Database(DatabaseEmbeddingMixin):
                             if fetch == "all":
                                 return cur.fetchall()
                             if fetch == "one":
-                                return cur.fetchone()
+                                return fetch_one(cur)
                         return cur
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -2110,7 +2111,7 @@ class Database(DatabaseEmbeddingMixin):
                                 else self.conn.execute(sql, params)
                             )
                             columns = [desc[0] for desc in cur.description]
-                            rows = cur.fetchone() if fetch == "one" else cur.fetchall()
+                            rows = fetch_one(cur) if fetch == "one" else cur.fetchall()
                         return rows, columns
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -3333,7 +3334,7 @@ class Database(DatabaseEmbeddingMixin):
                     sql = f"SELECT * FROM {sql_table} WHERE id = $id"
                     with watch_statement(sql):
                         cur = self._read_conn.execute(sql, {"id": id})
-                        row = cur.fetchone()
+                        row = fetch_one(cur)
                     columns = [d[0] for d in cur.description]
                     break
                 except duckdb.Error as exc:
@@ -4087,10 +4088,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
         """Return a single entity's canonical name, if present."""
-        row = self._execute(
+        row = fetch_one(self._execute(
             "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
             {"id": entity_id},
-        ).fetchone()
+        ))
         return row[0] if row and row[0] else None
 
     def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
@@ -4183,10 +4184,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def document_page_content(self, document_id: str) -> str | None:
         """Return a document's full page content by id."""
-        row = self._execute(
+        row = fetch_one(self._execute(
             "SELECT page_content FROM documents WHERE id = $id",
             {"id": document_id},
-        ).fetchone()
+        ))
         return row[0] if row else None
 
     def live_document_identity_rows(self, document_ids: Sequence[str]) -> list[tuple]:
@@ -4286,9 +4287,9 @@ class Database(DatabaseEmbeddingMixin):
             raise ValueError(f"Invalid table name: {table_name}")
         if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
             raise ValueError(f"Unsupported knowledge table: {table_name}")
-        row = self._execute(
+        row = fetch_one(self._execute(
             f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
-        ).fetchone()
+        ))
         if not row:
             return (0, "")
         return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
@@ -5631,7 +5632,7 @@ class Database(DatabaseEmbeddingMixin):
             for table in tables:
                 if not _VALID_IDENTIFIER.match(table):
                     raise ValueError(f"refusing to count a table with an odd name: {table!r}")
-                row = conn.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                row = fetch_one(conn.execute(f'SELECT count(*) FROM "{table}"'))
                 counts[table] = int((row[0] if row else 0) or 0)
             return counts
         finally:
@@ -5673,7 +5674,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
 
         if not filters:
-            result = self._execute(f"SELECT COUNT(*) FROM {sql_table}").fetchone()
+            result = fetch_one(self._execute(f"SELECT COUNT(*) FROM {sql_table}"))
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -5691,9 +5692,9 @@ class Database(DatabaseEmbeddingMixin):
                 for k in filters.keys()
             )
             params = {k: v for k, v in filters.items() if v is not None}
-            result = self._execute(
+            result = fetch_one(self._execute(
                 f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
-            ).fetchone()
+            ))
 
         return result[0] if result else 0
 

@@ -48,6 +48,7 @@ from fichero_server.llm.model_profiles import (
     ModelProfilePrivacy,
     ModelProfileRole,
 )
+from fichero_server.core.duckdb_session import fetch_one
 
 logger = logging.getLogger(__name__)
 
@@ -600,9 +601,9 @@ class AppDatabase:
         from fichero_server.models import ProviderType
 
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 "SELECT * FROM providers WHERE id = ?", [provider_id]
-            ).fetchone()
+            ))
 
         if not result:
             return None
@@ -657,9 +658,9 @@ class AppDatabase:
         from fichero_server.models import Model
 
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 "SELECT * FROM models WHERE id = ?", [model_id]
-            ).fetchone()
+            ))
 
         if not result:
             return None
@@ -714,10 +715,10 @@ class AppDatabase:
         # (#939 follow-up — the providers route now sets canonical caps
         # for known model_ids; this is the belt-and-braces.)
         with self._lock:
-            existing_row = self.conn.execute(
+            existing_row = fetch_one(self.conn.execute(
                 "SELECT id, capabilities FROM models WHERE provider_id = ? AND model_id = ?",
                 [model.provider_id, model.model_id],
-            ).fetchone()
+            ))
             if existing_row and existing_row[0] != model.id:
                 model = model.model_copy(update={"id": existing_row[0]})
             if existing_row and not (model.capabilities or []):
@@ -822,14 +823,14 @@ class AppDatabase:
 
         # Legacy fallback: check is_default column on models table
         with self._lock:
-            result = self.conn.execute("""
+            result = fetch_one(self.conn.execute("""
                 SELECT p.provider_type, m.model_id
                 FROM models m
                 JOIN providers p ON m.provider_id = p.id
                 WHERE m.is_default = TRUE AND m.enabled = TRUE AND p.enabled = TRUE
                 ORDER BY m.updated_at DESC
                 LIMIT 1
-            """).fetchone()
+            """))
 
         if result:
             return (result[0], result[1])
@@ -844,9 +845,9 @@ class AppDatabase:
         if key in self._settings:
             return self._settings[key]
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 "SELECT value FROM settings WHERE key = ?", [key]
-            ).fetchone()
+            ))
             self._settings[key] = result[0] if result else None
         return self._settings[key]
 
@@ -1082,17 +1083,17 @@ class AppDatabase:
     def get_model_profile(self, profile_id: str) -> ModelProfile | None:
         """Get a model profile by id."""
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT * FROM model_profiles WHERE id = ?", [profile_id]
-            ).fetchone()
+            ))
         return self._row_to_model_profile(row) if row else None
 
     def get_model_profile_by_name(self, name: str) -> ModelProfile | None:
         """Get a model profile by exact display name."""
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT * FROM model_profiles WHERE name = ?", [name]
-            ).fetchone()
+            ))
         return self._row_to_model_profile(row) if row else None
 
     def list_model_profiles(self) -> list[ModelProfile]:
@@ -1189,7 +1190,7 @@ class AppDatabase:
         """Get a user row by username, EXACTLY: sign-in and authorization resolve the name as it was made, so 'Carol'
         and 'carol' that already exist side by side each stay themselves."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, username, display_name, password_hash,
                        is_owner, active, created_at
@@ -1197,16 +1198,16 @@ class AppDatabase:
                 WHERE username = ?
                 """,
                 [username.strip()],
-            ).fetchone()
+            ))
         return self._row_to_user(result) if result else None
 
     def username_taken(self, username: str) -> bool:
         """Is this name taken, whatever its case? Asked only when a name is MADE (create, invite, redeem): a new
         'CAROL' beside 'carol' is refused, while lookups stay exact."""
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT 1 FROM users WHERE lower(username) = lower(?) LIMIT 1", [username.strip()]
-            ).fetchone()
+            ))
         return row is not None
 
     @contextlib.contextmanager
@@ -1226,7 +1227,7 @@ class AppDatabase:
     def get_user(self, user_id: str, *, wait: float | None = None) -> AccountUser | None:
         """Get a user by ID."""
         with self._lock_within(wait):
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, username, display_name, password_hash,
                        is_owner, active, created_at
@@ -1234,7 +1235,7 @@ class AppDatabase:
                 WHERE id = ?
                 """,
                 [user_id],
-            ).fetchone()
+            ))
         return self._row_to_user(result) if result else None
 
     def list_users(self) -> list[AccountUser]:
@@ -1283,7 +1284,7 @@ class AppDatabase:
     def delete_user(self, user_id: str) -> bool:
         """Delete a user and the credentials and grants that depend on it."""
         with self._lock:
-            exists = self.conn.execute("SELECT 1 FROM users WHERE id = ?", [user_id]).fetchone()
+            exists = fetch_one(self.conn.execute("SELECT 1 FROM users WHERE id = ?", [user_id]))
             if exists is None:
                 return False
             for table in (
@@ -1424,14 +1425,14 @@ class AppDatabase:
     ) -> LibraryRole | None:
         """Return a user's role for one library."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, user_id, library_path, role, created_at, updated_at
                 FROM library_roles
                 WHERE user_id = ? AND library_path = ?
                 """,
                 [user_id, library_path],
-            ).fetchone()
+            ))
         return self._row_to_library_role(result) if result else None
 
     def list_library_roles(self, library_path: str) -> list[LibraryRole]:
@@ -1521,14 +1522,14 @@ class AppDatabase:
     ) -> LibraryAclOverride | None:
         """Return one exact-target ACL override, if any."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
                 FROM library_acl_overrides
                 WHERE user_id = ? AND library_path = ? AND target_id = ?
                 """,
                 [user_id, library_path, target_id],
-            ).fetchone()
+            ))
         return self._row_to_library_acl_override(result) if result else None
 
     def list_library_acl_overrides(
@@ -1604,7 +1605,7 @@ class AppDatabase:
     def get_session_by_token_hash(self, token_hash: str) -> AccountSession | None:
         """Get a session by its stored token hash."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, user_id, token_hash, device_label,
                        created_at, last_seen_at, expires_at, revoked
@@ -1612,13 +1613,13 @@ class AppDatabase:
                 WHERE token_hash = ?
                 """,
                 [token_hash],
-            ).fetchone()
+            ))
         return self._row_to_session(result) if result else None
 
     def get_session(self, session_id: str) -> AccountSession | None:
         """Get a session by its row id."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, user_id, token_hash, device_label,
                        created_at, last_seen_at, expires_at, revoked
@@ -1626,7 +1627,7 @@ class AppDatabase:
                 WHERE id = ?
                 """,
                 [session_id],
-            ).fetchone()
+            ))
         return self._row_to_session(result) if result else None
 
     def list_sessions(self, user_id: str | None = None) -> list[AccountSession]:
@@ -1782,7 +1783,7 @@ class AppDatabase:
     def get_invite(self, invite_id: str) -> AccountInvite | None:
         """Get an invite by row id."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
                        created_at, expires_at, channel, consumed_at, revoked
@@ -1790,13 +1791,13 @@ class AppDatabase:
                 WHERE id = ?
                 """,
                 [invite_id],
-            ).fetchone()
+            ))
         return self._row_to_invite(result) if result else None
 
     def get_invite_by_token_hash(self, token_hash: str) -> AccountInvite | None:
         """Get an invite by stored token hash."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
                        created_at, expires_at, channel, consumed_at, revoked
@@ -1804,7 +1805,7 @@ class AppDatabase:
                 WHERE token_hash = ?
                 """,
                 [token_hash],
-            ).fetchone()
+            ))
         return self._row_to_invite(result) if result else None
 
     def list_pending_invites(self) -> list[AccountInvite]:
@@ -1827,7 +1828,7 @@ class AppDatabase:
         """Get the latest redeemable invite for one username, if any."""
         now = utc_now()
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
                        created_at, expires_at, channel, consumed_at, revoked
@@ -1837,7 +1838,7 @@ class AppDatabase:
                 LIMIT 1
                 """,
                 [username.strip(), now],
-            ).fetchone()
+            ))
         return self._row_to_invite(result) if result else None
 
     def revoke_invite(self, invite_id: str) -> AccountInvite | None:
@@ -1882,14 +1883,14 @@ class AppDatabase:
     def get_enrollment_secret_by_token_hash(self, token_hash: str) -> EnrollmentSecret | None:
         """Return a persistent enrollment grant by its stored hash."""
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 """
                 SELECT id, user_id, token_hash, created_at, revoked
                 FROM enrollment_secrets
                 WHERE token_hash = ?
                 """,
                 [token_hash],
-            ).fetchone()
+            ))
         if row is None:
             return None
         return EnrollmentSecret(
@@ -1923,10 +1924,10 @@ class AppDatabase:
 
     def user_has_key(self, user_id: str) -> bool:
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT 1 FROM clients WHERE user_id = ? AND public_key_pem <> '' AND revoked_at IS NULL LIMIT 1",
                 [user_id],
-            ).fetchone()
+            ))
         return row is not None
 
     def migrate_device_tokens_to_clients(self) -> int:
@@ -1949,11 +1950,11 @@ class AppDatabase:
 
     def get_client(self, client_id: str) -> AccountClient | None:
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT id, user_id, kind, name, host, public_key_pem, created_at, revoked_at "
                 "FROM clients WHERE id = ?",
                 [client_id],
-            ).fetchone()
+            ))
         if row is None:
             return None
         return AccountClient(
@@ -1973,11 +1974,11 @@ class AppDatabase:
     def session_client(self, token_hash: str) -> AccountClient | None:
         """The client a session was signed in through, in one read (None for password and device sessions)."""
         with self._lock:
-            row = self.conn.execute(
+            row = fetch_one(self.conn.execute(
                 "SELECT c.id, c.user_id, c.kind, c.name, c.host, c.public_key_pem, c.created_at, c.revoked_at "
                 "FROM sessions s JOIN clients c ON c.id = s.client_id WHERE s.token_hash = ?",
                 [token_hash],
-            ).fetchone()
+            ))
         if row is None:
             return None
         return AccountClient(
@@ -2041,7 +2042,7 @@ class AppDatabase:
     def get_device(self, device_id: str) -> Device | None:
         """Return one paired device by id."""
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, name, user_id, token_hash,
                        created_at, last_seen, expires_at, revoked
@@ -2049,13 +2050,13 @@ class AppDatabase:
                 WHERE id = ?
                 """,
                 [device_id],
-            ).fetchone()
+            ))
         return self._row_to_device(result) if result else None
 
     def get_device_by_token_hash(self, token_hash: str, *, wait: float | None = None) -> Device | None:
         """Return one paired device by stored token hash. `wait` bounds the lock (auth must never hang)."""
         with self._lock_within(wait):
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 """
                 SELECT id, name, user_id, token_hash,
                        created_at, last_seen, expires_at, revoked
@@ -2063,7 +2064,7 @@ class AppDatabase:
                 WHERE token_hash = ?
                 """,
                 [token_hash],
-            ).fetchone()
+            ))
         return self._row_to_device(result) if result else None
 
     def list_devices(self) -> list[Device]:
@@ -2110,7 +2111,7 @@ class AppDatabase:
 
     def device_route(self, device_id: str) -> str | None:
         with self._lock:
-            row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
+            row = fetch_one(self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]))
         return row[0] if row else None
 
     def device_paired_by(self) -> dict[str, str]:
@@ -2227,9 +2228,9 @@ class AppDatabase:
         from fichero_server.models import MCPServer
 
         with self._lock:
-            result = self.conn.execute(
+            result = fetch_one(self.conn.execute(
                 "SELECT * FROM mcp_servers WHERE id = ?", [server_id]
-            ).fetchone()
+            ))
 
         if not result:
             return None
@@ -2359,10 +2360,10 @@ class AppDatabase:
         from fichero_server.actions.audit_chain import compute_action_audit_hash
 
         with self._lock:
-            head = self.conn.execute(
+            head = fetch_one(self.conn.execute(
                 "SELECT chain_seq, row_hash FROM actionaudits WHERE chain_seq IS NOT NULL "
                 "ORDER BY chain_seq DESC LIMIT 1"
-            ).fetchone()
+            ))
             audit.created_at = utc_now()
             audit.chain_seq = (head[0] + 1) if head else 1
             audit.prev_hash = (head[1] or None) if head else None

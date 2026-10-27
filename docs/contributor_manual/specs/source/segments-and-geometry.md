@@ -1138,7 +1138,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   resumed run ends EXACTLY where an uninterrupted one would, a third run writes nothing and files
   no report, and progress survives a close and reopen
   (`fichero-server/tests/unit/maintenance/test_project_conversion_resume.py::TestStoppingAndResuming`).
-- `source.convert.half-done-reads-the-same` — **[BROKEN]** (#5986, release blocker: after the first converted page the conversion's CHECKPOINT is refused because a write transaction no Database records is still open, so a stop mid-conversion may leave pages unsaved; the test below is a strict xfail until it is fixed; → #4998) at every moment of a conversion,
+- `source.convert.half-done-reads-the-same` — **[OK]** (#5986: the CHECKPOINT refused after the first converted page met a transaction no Database recorded, a one-row read's result left open on an idle connection; every result is now read to the end, `fetch_one`, #6236; → #4998) at every moment of a conversion,
   every reader gets the same answer for every page as before it started, but for the ids. Pinned
   across surfaces rather than one: the page text at every point, a claim anchored by rectangle
   still revealing after its page converts, and the artifact still reporting its own boxes

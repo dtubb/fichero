@@ -138,6 +138,14 @@ def self_test_counting() -> int:
     return get_query_count()
 
 
+def fetch_one(cur: Any) -> Any:
+    """The first row of `cur`'s result, read to the end (#6236). A result left after `fetchone()` keeps its statement's
+    transaction open until the connection's next statement: an idle connection (a read cursor, a second Database)
+    then holds every later update's undo, which spilled to disk and made each names page slower than the last."""
+    rows = cur.fetchall()
+    return rows[0] if rows else None
+
+
 def pin_utc_session(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
     """Set ``TimeZone='UTC'`` on an existing connection and return it.
 
@@ -239,7 +247,7 @@ def _live(refs: list[Any]) -> Any:
         if conn is None:
             continue
         try:
-            conn.cursor().execute("SELECT 1")
+            conn.cursor().execute("SELECT 1").fetchall()  # read to the end: no snapshot left open (#6236)
             return conn
         except Exception as exc:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
             said = f"{type(exc).__name__}: {exc}"
@@ -323,7 +331,7 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
         # Joined an instance that already has its share: its limit is what we set (a reopened one is back at default).
         # (DuckDB prints a size rounded -- "1.6 GiB" -- so "the same" is within 6%, not to the byte.)
         shared = known and expected is not None and abs(parse_size(
-            conn.execute("SELECT current_setting('memory_limit')").fetchone()[0].replace(" ", "")) - expected
+            fetch_one(conn.execute("SELECT current_setting('memory_limit')"))[0].replace(" ", "")) - expected
         ) <= max(1024**2, expected * 0.06)
         if not shared:
             with _instances_lock:
