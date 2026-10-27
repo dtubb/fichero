@@ -275,7 +275,8 @@ extension ActivityDetails {
                 isFailed: phase == .failed,
                 counts: child.total > 0 ? "\(child.done) done · \(child.failed) failed · \(left) left" : nil,
                 timeLeft: nil,
-                waitingFor: nil
+                waitingFor: nil,
+                note: nil
             )
         }
     }
