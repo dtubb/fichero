@@ -821,6 +821,19 @@ class PredictionMetadata(BaseModel):
     predicted_links: list[PredictionLink] | None = None
 
 
+def derived_aliases(aliases: list[str] | None, names: list, canonical_name: str) -> list[str]:
+    """`KnowledgeEntity.aliases` as its validator derives it: the older plain aliases, then every name's text and
+    romanized form. `names` are EntityName or their stored dicts, so a names-only read (`Database.query_fields`) derives
+    the same list without hydrating the entity (#6236, reviewer b22)."""
+    seen = dict.fromkeys(aliases or [])
+    for name in names or []:
+        forms = (name.get("text"), name.get("romanized")) if isinstance(name, dict) else (name.text, name.romanized)
+        for form in forms:
+            if form and form != canonical_name:
+                seen.setdefault(form, None)
+    return list(seen)
+
+
 class EntityName(BaseModel):
     """One name of an entity, as a source attests it (maps D6, `source.geo.names-over-time`): the
     form in its own script, its language and script, when it was used, and who says so. The
@@ -879,12 +892,7 @@ class KnowledgeEntity(BaseModel):
         and romanized form -- so each reader of `aliases` (search, matching, dedupe, the inspector)
         sees the names, and "what is it called" has one answer. A name's metadata lives only in
         `names`; `aliases` never holds anything a name does not, except the older plain ones."""
-        seen = dict.fromkeys(self.aliases or [])
-        for name in self.names:
-            for form in (name.text, name.romanized):
-                if form and form != self.canonical_name:
-                    seen.setdefault(form, None)
-        self.aliases = list(seen)
+        self.aliases = derived_aliases(self.aliases, self.names, self.canonical_name)
         return self
 
     def add_attribution(self, entry: dict) -> bool:

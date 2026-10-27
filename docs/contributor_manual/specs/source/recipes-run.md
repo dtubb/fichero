@@ -262,7 +262,9 @@ replaces the Kraken figure before #6212 is coded.
   never one transaction (55k new rows in one ran an 8 GB Mac out of memory). A statement that runs over 10 s logs its
   SQL, its thread and every thread's stack. A new name compares against the stored names of its type, read as names
   only, and reads whole just the one it matches: it read every stored entity whole, mentions and all (40 names against
-  3000 stored: 5.0 s a page before, 0.59 s now, the same names and proposals). Left: that comparison is still one scan
+  3000 stored: 5.0 s a page before, 0.59 s now, the same names and proposals); the names read derive `aliases` as the
+  entity's validator does (every name's text and romanized form), so an older row's romanized form still matches
+  exactly (test_names_match_romanized_forms_6236.py). Left: that comparison is still one scan
   per new name, a spaCy call past the limit can't be stopped
   (one page's pipeline, under 0.1 s), and the other per-page steps have no such limit yet. Tests:
   fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py,

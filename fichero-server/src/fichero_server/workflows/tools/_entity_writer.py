@@ -1953,11 +1953,14 @@ def _upsert_entity_matched(
     # merely SIMILAR match below (admin qualifier, vector neighbour, SequenceMatcher) makes a new
     # entity and proposes the pair for a person; a model never decides two names are one.
     from fichero_server.knowledge.dedupe import normalize_name
+    from fichero_server.models.knowledge import derived_aliases
 
     # Only the names of every same-type row: reading each whole (its mentions and all) cost a page most of its
     # time (#6236). ponytail: still one scan per new name; a name-key column when a type passes ~100k entities.
-    same_type = db.query_fields(KnowledgeEntity, ["id", "canonical_name", "aliases", "merged_into_id"],
+    same_type = db.query_fields(KnowledgeEntity, ["id", "canonical_name", "aliases", "names", "merged_into_id"],
                                 entity_type=entity_type)
+    for row in same_type:  # as the validator derives them: a romanized form an older row's column lacks still matches
+        row.aliases = derived_aliases(row.aliases, row.names, row.canonical_name)
     key = normalize_name(canonical_name)
     if key:
         for row in same_type:
