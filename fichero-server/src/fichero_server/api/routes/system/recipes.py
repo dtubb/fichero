@@ -3100,7 +3100,11 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         if params.documents is not None:
             from fichero_server.recipes.done import pages_for
 
-            if stray := set(params.documents) - set(pages_for(db, {}, None)):
+            # An import run's documents are the imported top-level ones: a PDF or a cut photograph is the
+            # project's through its pages (importers/derivatives.py).
+            project = set(pages_for(db, {}, None))
+            if stray := [d for d in params.documents if d not in project
+                         and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)

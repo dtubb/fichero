@@ -190,6 +190,20 @@ def test_start_on_pages_refuses_a_folder_too_and_pages_not_in_the_project(client
     assert not _runs(client), "a refused Start queues no run"
 
 
+def test_start_on_an_imported_photograph_cut_into_pages_is_the_projects_own(client, db, pages, tmp_path):
+    """#6170: an import run's documents are the imported top-level documents; a photograph cut into pages is in the
+    project through its pages, so Start on it is not refused."""
+    from fichero_server.models import DocType, Document
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    photo = pages[1]
+    for i in range(2):
+        db.save(Document(name=f"cut{i}", doc_type=DocType.chunk, parent_id=photo.id,
+                         metadata={"split_source_id": photo.id}))
+    r = client.post("/api/recipes/project/start", json={"documents": [photo.id]})
+    assert r.status_code == 200, r.text
+
+
 def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, tmp_path, engine):
     """#6225, never rerun a model pass (#6127): after Start, the same file imported again unchanged is the page it already
     is: no second page, no run queued, the reader not called again."""
