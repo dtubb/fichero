@@ -1749,6 +1749,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
+        step["note"] = card.get("note")  # Start's count of what was already done, kept on the run (#6091)
     for step in steps:
         if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
                 and step.get("card") in _CARDS_WITH_A_JOB):

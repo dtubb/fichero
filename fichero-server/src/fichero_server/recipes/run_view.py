@@ -207,6 +207,9 @@ class RecipeRunStep(BaseModel):
     state: str = Field(description="waiting, running, done, partial (some pages lost; `why` and `failed_pages` say which), failed or not run")
     child_id: Optional[str] = Field(default=None, description="the step's own job: a workflow run or a check run")
     why: Optional[str] = None
+    note: Optional[str] = Field(default=None, description=(
+        "how many of its pages Start found already done, as Start said it (\"already done on 37 of 95 pages; runs on the other 58\"), "
+        "so a stage that runs on fewer pages than the project has says why (`source.recipe.done-is-not-redone`); null when not counted"))
     failed_pages: Optional[list[FailedPage]] = Field(default=None, description=(
         "a partial step: the pages it lost, each with why (`activity.run.step-honest-about-lost-pages`); null otherwise"))
     account: Optional[RunAccount] = Field(default=None, description=(

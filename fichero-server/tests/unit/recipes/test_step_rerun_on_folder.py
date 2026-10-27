@@ -17,6 +17,7 @@ from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (f
     _import,
     _png,
     _recipe,
+    _run_status,
     _runs,
     _save,
     _wait,
@@ -240,3 +241,17 @@ def test_the_steps_to_run_again_come_with_the_project_not_a_plan(client, pages, 
     r = client.post("/api/recipes/project/start", json={"folder_id": None, "redo": redo[0]["steps"]})
     assert r.status_code == 200, r.text
     assert _finished(client, r.json()["started"]["job_id"])["state"] == "done"
+
+
+def test_a_run_on_fewer_pages_than_the_project_says_why(client, db, pages, tmp_path, engine):
+    """#6091 (dogfood B12: Start said 95 pages, the run took 58, nothing said why): each stage of the run carries Start's
+    own count of what was already done, so the row can say it."""
+    from fichero_server.models import DocType, Document, FileType
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])
+    db.save(Document(name="p2.png", doc_type=DocType.file, file_type=FileType.image, path=str(_png(tmp_path / "p2.png"))))
+    job_id = client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"]
+    _finished(client, job_id)
+    notes = [s.get("note") for s in _run_status(client, job_id)["steps"]]
+    assert "already done on 2 of 3 pages; runs on the other 1" in notes, notes

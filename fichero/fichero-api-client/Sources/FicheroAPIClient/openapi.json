@@ -85172,6 +85172,12 @@
             "nullable": true,
             "title": "Why"
           },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "how many of its pages Start found already done, as Start said it (\"already done on 37 of 95 pages; runs on the other 58\"), so a stage that runs on fewer pages than the project has says why (`source.recipe.done-is-not-redone`); null when not counted"
+          },
           "failed_pages": {
             "items": {
               "$ref": "#/components/schemas/FailedPage"
