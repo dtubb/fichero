@@ -1252,6 +1252,16 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
     return await _wait_for_lane(db, future, asyncio.wrap_future(future), run_id)
 
 
+#: A page whose document went to the Trash while it waited (#6232, `activity.run.trashed-pages-leave-the-run`).
+TRASHED_PAGE = "Skipped: the page was moved to the Trash"
+
+
+def _in_the_trash(db: "Database", subject: str | None) -> bool:
+    """The job's subject is a document in the Trash; a subject that is no document (a file name, a run) is not."""
+    found = db.execute_fetchone("SELECT deleted_at FROM documents WHERE id = ?", [subject]) if subject else None
+    return bool(found and found[0] is not None)
+
+
 #: Why handed-in work stops waiting when its project closes (#5608): no lane looks at a closed project.
 CLOSED_BEFORE_RUN = "Interrupted: the project was closed before this work ran"
 
@@ -1272,6 +1282,8 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
         # still say why it was withdrawn. A paused page is not a failed one (it would be recorded as the page's error
         # and never read on Resume: `activity.durable.paused-stays-paused`).
         return WorkflowPaused(run_id)
+    if said == TRASHED_PAGE:
+        return PageStopped(said)  # skipped as a stopped page is: the run goes on to its next page
     if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
         return JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
     return PageStopped(said)  # skip this page; the run goes on
@@ -3265,6 +3277,11 @@ class _Scheduler:
                     handed_in[1].cancel()
                     db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
                                [stopped, utc_now(), row[0]])
+                    continue
+                if handed_in is not None and _in_the_trash(db, row[2]):  # trashed while it waited: never read (#6232)
+                    handed_in[1].cancel()
+                    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
+                               [TRASHED_PAGE, utc_now(), row[0]])
                     continue
                 if handed_in is not None and not handed_in[1].set_running_or_notify_cancel():
                     db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped before it started', "

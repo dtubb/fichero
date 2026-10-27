@@ -1970,7 +1970,7 @@ and node, not by job); a retry action for failed pages.
   `_asked_again` `:1325`; its only caller is `scripts/realrun_check.py --redo`; no route, no app control); the row
   says it runs on done pages and why. What redoes by itself on a change stays as built: the re-embed and the
   names re-read after a correction (`activity.auto.reembed-on-change`, `activity.auto.reextract-on-change`).
-- `activity.run.trashed-pages-leave-the-run` — **[GAP]** (#6232; run-system review 2026-10-27, approved 2026-10-27; see
+- `activity.run.trashed-pages-leave-the-run` — **[PARTIAL]** (#6232; run-system review 2026-10-27, approved 2026-10-27; see
   `safety.trash.dependants-go-with-their-source`, `safety.trash.put-back`,
   `recipes-run.journey.run-again-on-what-was-missed`) a queued page whose document is in the Trash ends
   `skipped`, "Skipped: the page was moved to the Trash", and the run goes on; a page mid-read finishes and its
@@ -1980,7 +1980,12 @@ and node, not by job); a retry action for failed pages.
   queues nothing (`:3321`), a Start after the delete plans live pages only (`Database.unit_of_work_ids`), the
   derivative stages skip a trashed page (`derivatives.py:771, 858, 984, 1048`). Not built (INFERRED, no
   `deleted_at` check in `execution/jobs.py`, `workflows/builder.py`, `vision_base.py`): a Kraken, served-model or
-  fan-out page already queued keeps reading a trashed page, and Activity says nothing of the Trash.
+  fan-out page already queued keeps reading a trashed page, and Activity says nothing of the Trash. Built since
+  (#6232): a page handed to the lane whose document is in the Trash when the lane claims it is never read; its row
+  ends `cancelled`, "Skipped: the page was moved to the Trash" (`jobs.TRASHED_PAGE`), and the caller skips it as a
+  stopped page, so the run goes on. Left: a stored page job (not handed in); the run's summary counting those pages
+  under that reason with Run again on what was missed. *Test:*
+  `fichero-server/tests/unit/jobs/test_trashed_page_leaves_the_run_6232.py`.
 - `activity.run.cloud-batch` — **[GAP]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
   step runs in the cloud BY DEFAULT, with a per-step choice of local or cloud on Set Up's stage page, and the cost
   of each step is shown beside its time (`recipes-run.timing.cost-per-step`, #6234). A step a person is not waiting
