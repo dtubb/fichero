@@ -66,6 +66,19 @@ struct ActivityOpenedRunTests {
         #expect(strip.detail.hasSuffix("one page at a time: resuming after a restart"))
     }
 
+    @Test("an opened run's grey line says how many pages it reads at once while it runs, as the engine sends it (#6217)")
+    func pagesAtOnceOnTheOpenedRun() {
+        func details(_ state: ActivityJob.State) -> ActivityDetails {
+            let row = ActivityMonitorRow.job(
+                ActivityJob(id: "run-1", taskType: "run-a-recipe", name: "Recipe run", current: 1, total: 4, state: state),
+                libraryId: nil, projectName: nil)
+            return ActivityDetails(row: row, node: nil, runRow: nil, projectName: nil, startedBy: nil, machine: nil,
+                                   pagesAtOnce: RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging"))
+        }
+        #expect(details(.running).subheading.contains("one page at a time: the Mac is paging"))
+        #expect(!details(.completed).subheading.contains("one page at a time: the Mac is paging"), "an ended run reads no pages")
+    }
+
     @Test("a stage's counts say the first pages in order while a page finished ahead of a gap (#6186)")
     func doneInOrder() {
         let ahead = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8, pagesDoneInOrder: 9)

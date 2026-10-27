@@ -338,7 +338,8 @@ replaces the Kraken figure before #6212 is coded.
   the app renders them as sent; no setting. Built: the run status's `pages_at_once` and `pages_at_once_reason`
   (`kraken_runtime.pages_at_once_and_why`), in the contract; the project window's run strip words them on its line as
   sent ("reading 2 pages at once", "one page at a time: the Mac is paging"; `RecipeRunPagesAtOnce`, Swift compile owed).
-  Left: the Activity window's run row (Step 4.1's `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
+  The Activity window's opened run says them in its grey line while it runs (`ActivityDetails.subheading`; Swift test
+  `ActivityOpenedRunTests.pagesAtOnceOnTheOpenedRun`, compile owed). Test: fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py.
 - `recipes-run.memory.fan-out-does-not-decode-ahead` — **[OK]** (#5846; `activity.lane.same-model-pages-together` (P))
   a fan-out node hands the lane at most `pages_at_once` pages, and a page waiting for the lane holds no
   decoded image: 58 pages queued is 58 rows, not 58 bitmaps (58 × 32 MB RGB ≈ 1.9 GB before any model).

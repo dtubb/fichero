@@ -135,8 +135,10 @@ extension ActivityDetails {
         }
         // Who started it: the row's own record, else its run's (a run's steps and pages say "workflow").
         let startedBy = [node?.startedBy, tree?.startedBy].compactMap { $0 }.first { $0 != "workflow" }
+        // A recipe run's own row says how many pages it reads at once, from its status (#6217).
+        let atOnce = jobId == treeKey ? store.recipeRunPagesAtOnce[jobId] : nil
         self.init(row: row, node: node, runRow: runRow, projectName: projectName, startedBy: startedBy,
-                  machine: store.machine)
+                  machine: store.machine, pagesAtOnce: atOnce)
     }
 
     /// The details from the table's row and its node: pure, so a test can build them.
@@ -146,7 +148,8 @@ extension ActivityDetails {
         runRow: ActivityMonitorRow?,
         projectName: String?,
         startedBy: String?,
-        machine: MachineReading?
+        machine: MachineReading?,
+        pagesAtOnce: RecipeRunPagesAtOnce? = nil
     ) {
         self.row = row
         self.node = node
@@ -154,7 +157,8 @@ extension ActivityDetails {
         let owningRun = runRow?.kind == .run ? runRow : nil
 
         heading = Self.heading(row: row, node: node)
-        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started)].compactMap { value in
+        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started),
+                      row.phase == .running ? pagesAtOnce?.words : nil].compactMap { value in
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
