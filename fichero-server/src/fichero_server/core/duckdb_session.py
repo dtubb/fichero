@@ -277,6 +277,9 @@ def _rebalance() -> None:
                 keepers[key] = conn
         limit = instance_limit_bytes(len(keepers))
         todo = [(key, conn) for key, conn in keepers.items() if _applied.get(key) != limit]
+    if todo:  # the share in force, at warning so a run that keeps only warnings has it: on the M4 it was unknown (#6236)
+        logger.warning("DuckDB memory: %d open instance(s), %d MiB each (budget %d MiB)",
+                    len(keepers), limit // 1024**2, total_budget_bytes() // 1024**2)
     for key, conn in todo:
         try:
             _set_limit(conn, limit)
