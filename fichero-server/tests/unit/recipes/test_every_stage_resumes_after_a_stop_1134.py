@@ -118,7 +118,7 @@ def _stage_cases():
         return Path(args[0]).name
 
     return {
-        "find-lines": dict(steps=[LINES], target=(kraken_runtime, "segment_to_geometry"), unit_of=image,
+        "find-lines": dict(steps=[LINES], target=(kraken_runtime, "segment_lines"), unit_of=image,
                            done=lambda db: _done_pages(db, "find-lines")),
         "leave-out": dict(steps=[LINES, LEAVE], target=(leave_out, "decide"), unit_of=None,
                           done=lambda db: _done_pages(db, "leave-out")),
@@ -144,12 +144,9 @@ def _memory_is_not_the_question(monkeypatch):
 
 @pytest.fixture
 def stubs(monkeypatch, engine):
-    """The segmenter on its own (Find Lines alone has no reader), and the vision model every step that looks at a page asks."""
+    """The vision model every step that looks at a page asks (the segmenter is `engine`'s: Find Lines calls
+    `segment_lines`, not `segment_to_geometry`, which this stubbed before #6222)."""
     import fichero_server.llm as llm
-    from fichero_server.llm import kraken_runtime
-
-    monkeypatch.setattr(kraken_runtime, "segment_to_geometry",
-                        lambda image_path, **kw: engine.recognize(image_path, None))
 
     async def vision(images, prompt, config, **kw):
         return WRITTEN

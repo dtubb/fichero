@@ -78,6 +78,10 @@ def engine(monkeypatch, app_db):
         monkeypatch.setitem(jobs.KINDS, kind, jobs.Kind(run=lambda db, subject: None, model=None))
     cards = Cards()
     monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", cards.recognize)
+    # Find Lines calls the segmenter here, not `segment_to_geometry` (#6222: unstubbed, real Kraken segmented every page,
+    # ~14 s and 6 GB a test). Its answer on these small pages: no lines, so Read reads the page (`recognize` above).
+    monkeypatch.setattr(kraken_runtime, "segment_lines",
+                        lambda image_path, **kw: {"width": 32, "height": 32, "regions": [], "lines": []})
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model",
                         lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
     monkeypatch.setattr(llm, "chat", cards.chat)
