@@ -401,10 +401,10 @@ replaces the Kraken figure before #6212 is coded.
   The lane admits pages by the gate and a page's work reads its image only once admitted (the node hands a path,
   never a bitmap). Test: fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py.
 - `recipes-run.memory.threads-fill-the-cores` — **[PARTIAL]** (#6229) a page's torch threads are the performance cores
-  given to the run divided by the pages read at once, served on the run status beside `pages_at_once` ("2 pages at
+  given to the run divided by the pages inside the gate now, served on the run status beside `pages_at_once` ("2 pages at
   once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
   is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`). Built: `RecipeRunStatus.threads_each`
-  (`compute_preferences.cores_for`, the one rule the Kraken seam also sets torch by). Left: the app's grey line says it
+  (`compute_preferences.cores_for` shared by `kraken_runtime.threads_each`, the one rule the Kraken seam also sets torch by). Left: the app's grey line says it
   (Swift). *Test:* `fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py`.
 
 ### 8. A restart requeues unfinished work and releases every lane

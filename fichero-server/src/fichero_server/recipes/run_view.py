@@ -319,8 +319,8 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
 
         def gate(person: bool) -> tuple[int, str | None, int]:
             n, why = kraken_runtime.pages_at_once_and_why(person)
-            # The cores the run's priority gives, shared by the pages at once, as the gate splits them (#6229)
-            return n, why, max(1, cores_for(priority_for(person)) // max(1, n))
+            # The cores the run's priority gives, shared as the Kraken seam shares them (#6229)
+            return n, why, kraken_runtime.threads_each(cores_for(priority_for(person)))
 
         person = (status.get("started_by") or "automatic") not in BACKGROUND_STARTERS
         # The memory probes and the throttle's vm_stat/pmset/pgrep: off the loop (#6178)

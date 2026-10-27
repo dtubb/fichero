@@ -875,6 +875,12 @@ _INFERENCE_LOCK = _PageGate()
 PAGES_AT_ONCE_GATE_5929 = 2
 
 
+def threads_each(cores: int) -> int:
+    """The threads each page reads on: the cores shared by the pages inside the gate now (one page has them all, two
+    half each). The one rule the Kraken seam sets torch's threads by and the run's status shows (#6229)."""
+    return max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+
+
 def pages_at_once(person: bool) -> int:
     """`pages_at_once_and_why`'s number."""
     return pages_at_once_and_why(person)[0]
@@ -1027,8 +1033,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority, qos, cores = set_page_priority(person)
-            # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
-            threads = max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+            threads = threads_each(cores)
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
