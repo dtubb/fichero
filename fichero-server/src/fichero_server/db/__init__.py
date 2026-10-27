@@ -2014,6 +2014,23 @@ class Database(DatabaseEmbeddingMixin):
             if isinstance(source, str) and isinstance(checksum, str)
         }
 
+    def unchanged_import(self, source_path: str, checksum: str, parent_id: str | None) -> str | None:
+        """The live document already imported from ``source_path`` with these bytes under ``parent_id``, if any: a
+        single file imported again unchanged is that page, not a second one read again (#6225). The folder import's
+        skip-set (``ingest_dedup_keys``) does the same for a folder."""
+        rows = self.execute_fetchall(
+            """
+            SELECT id FROM documents
+            WHERE status != 'failed' AND deleted_at IS NULL
+              AND COALESCE(json_extract_string(metadata, '$.source_path'), path) = ?
+              AND json_extract_string(metadata, '$.checksum') = ?
+              AND parent_id IS NOT DISTINCT FROM ?
+            LIMIT 1
+            """,
+            [source_path, checksum, parent_id],
+        )
+        return rows[0][0] if rows else None
+
     def child_counts(self, parent_ids: list[str]) -> dict[str, int]:
         """Live (non-deleted) child count per parent id, one query.
 

@@ -141,6 +141,24 @@ def test_changed_material_runs_the_steps_again_by_itself(client, db, pages, tmp_
     assert {r.id for r in db.query(ContentRepresentation, document_id=first.id)} == kept, "the earlier reading is kept"
 
 
+def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, tmp_path, engine):
+    """#6225, never rerun a model pass (#6127): after Start, the same file imported again unchanged is the page it already
+    is: no second page, no run queued, the reader not called again."""
+    from fichero_server.models import Document
+
+    _save(client, _recipe(tmp_path, *STEPS))
+    _finished(client, client.post("/api/recipes/project/start", json={}).json()["started"]["job_id"])
+    path = _import(client, tmp_path, "same.png")
+    assert _wait(lambda: len(_runs(client)) == 2)
+    assert all(_finished(client, j["job_id"])["state"] == "done" for j in _runs(client))
+
+    engine.read = []
+    assert client.post("/api/ingest/files", json={"paths": [str(path)]}).status_code == 200
+    assert not _wait(lambda: len(_runs(client)) > 2, seconds=3), "an unchanged file queues no run"
+    assert engine.read == [], "the reader is not called again"
+    assert sum(d.name == "same.png" for d in db.query(Document)) == 1, "the same page, not a second"
+
+
 def test_the_engine_fixture_stubs_read_again(engine):
     """#6222: Read Again calls `kraken_runtime.read_given_lines`; the shared fixture answers it, never real Kraken."""
     from fichero_server.llm import kraken_runtime
