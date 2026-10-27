@@ -251,7 +251,8 @@ class SpacyNERProvider(BaseNERProvider):
 _TRANSFORMERS_PIPELINES: dict[str | None, Any] = {}
 _TRANSFORMERS_LAST_USE: dict[str | None, float] = {}
 _TRANSFORMERS_IN_USE: dict[str | None, int] = {}
-_TRANSFORMERS_LOAD = threading.Lock()
+_TRANSFORMERS_LOAD = threading.Lock()  # held while a model loads: never taken on the event loop
+_TRANSFORMERS_COUNT = threading.Lock()  # the in-use counts and last-use times: brief, so an extract on the loop may take it. Order: LOAD, then COUNT
 _TRANSFORMERS_RELEASER: threading.Thread | None = None
 
 
@@ -263,7 +264,7 @@ def release_idle_transformers(idle_seconds: float | None = None, reason: str = "
 
         idle_seconds = embeddings.EMBEDDER_IDLE_SECONDS
     now = time.monotonic()
-    with _TRANSFORMERS_LOAD:
+    with _TRANSFORMERS_LOAD, _TRANSFORMERS_COUNT:
         gone = [name for name in list(_TRANSFORMERS_PIPELINES)
                 if not _TRANSFORMERS_IN_USE.get(name) and now - _TRANSFORMERS_LAST_USE.get(name, 0.0) >= idle_seconds]
         for name in gone:
@@ -284,7 +285,7 @@ def release_idle_transformers(idle_seconds: float | None = None, reason: str = "
 def clear_transformers_pipelines() -> None:
     """Forget the loaded pipelines now (a model replaced, or a test): the next extract loads again."""
     release_idle_transformers(idle_seconds=0, reason="cleared")
-    with _TRANSFORMERS_LOAD:
+    with _TRANSFORMERS_LOAD, _TRANSFORMERS_COUNT:
         _TRANSFORMERS_PIPELINES.clear()
         _TRANSFORMERS_LAST_USE.clear()
 
@@ -295,8 +296,10 @@ def _release_transformers_when_idle() -> None:
     while True:
         time.sleep(max(0.05, min(embeddings.EMBEDDER_IDLE_SECONDS / 4, 60.0)))
         release_idle_transformers()
+        global _TRANSFORMERS_RELEASER
         with _TRANSFORMERS_LOAD:
             if not _TRANSFORMERS_PIPELINES:
+                _TRANSFORMERS_RELEASER = None  # deciding to end and ceasing to be the running one are one step: a load that starts next starts another (## 1004)
                 return
 
 
@@ -304,7 +307,7 @@ def _start_transformers_releaser() -> None:
     """One daemon thread while a pipeline is loaded: checks for the idle spell, ends when none is."""
     global _TRANSFORMERS_RELEASER
     with _TRANSFORMERS_LOAD:
-        if _TRANSFORMERS_RELEASER is not None and _TRANSFORMERS_RELEASER.is_alive():
+        if _TRANSFORMERS_RELEASER is not None:
             return
         _TRANSFORMERS_RELEASER = threading.Thread(target=_release_transformers_when_idle, name="transformers-ner-releaser", daemon=True)
         _TRANSFORMERS_RELEASER.start()
@@ -320,8 +323,8 @@ class TransformersNERProvider(BaseNERProvider):
         with _TRANSFORMERS_LOAD:
             if self.model_name not in _TRANSFORMERS_PIPELINES:
                 _TRANSFORMERS_PIPELINES[self.model_name] = self._build_pipeline()
-            _TRANSFORMERS_LAST_USE[self.model_name] = time.monotonic()
-            _TRANSFORMERS_IN_USE[self.model_name] = _TRANSFORMERS_IN_USE.get(self.model_name, 0) + 1  # held until the extract ends
+            with _TRANSFORMERS_COUNT:
+                _TRANSFORMERS_LAST_USE[self.model_name] = time.monotonic()
             pipeline = _TRANSFORMERS_PIPELINES[self.model_name]
         _start_transformers_releaser()
         return pipeline
@@ -356,22 +359,27 @@ class TransformersNERProvider(BaseNERProvider):
         if not text:
             return []
 
+        # Held from here to the end, however it ends: taken on this side of the thread hop, so a Stop that cancels the await while
+        # the model loads cannot leave a count behind for a load thread that still finishes (## 1004).
+        with _TRANSFORMERS_COUNT:
+            _TRANSFORMERS_IN_USE[self.model_name] = _TRANSFORMERS_IN_USE.get(self.model_name, 0) + 1
         try:
-            pipeline = await asyncio.to_thread(self._load_pipeline)  # imports and loads weights: off the loop
-        except Exception as exc:
-            logger.warning(
-                "transformers ner unavailable (%s) — falling back to no results",
-                exc,
-            )
-            return []
+            try:
+                pipeline = await asyncio.to_thread(self._load_pipeline)  # imports and loads weights: off the loop
+            except Exception as exc:
+                logger.warning(
+                    "transformers ner unavailable (%s) — falling back to no results",
+                    exc,
+                )
+                return []
 
-        try:
-            results = await asyncio.to_thread(pipeline, text)  # a model forward pass: off the loop (`runtime.spacy.never-blocks` family)
-        except Exception as exc:
-            logger.warning("transformers ner call failed: %s", exc)
-            return []
+            try:
+                results = await asyncio.to_thread(pipeline, text)  # a model forward pass: off the loop (`runtime.spacy.never-blocks` family)
+            except Exception as exc:
+                logger.warning("transformers ner call failed: %s", exc)
+                return []
         finally:  # the pipeline is no longer held: the idle spell counts from here (## 1003)
-            with _TRANSFORMERS_LOAD:
+            with _TRANSFORMERS_COUNT:
                 _TRANSFORMERS_IN_USE[self.model_name] = max(0, _TRANSFORMERS_IN_USE.get(self.model_name, 1) - 1)
                 _TRANSFORMERS_LAST_USE[self.model_name] = time.monotonic()
 
