@@ -51,11 +51,11 @@ extension ActivityDetails {
         /// A step waiting on a model download that failed (#5352).
         var downloadFailed: [DownloadFailure] = []
         /// What the run did not finish and its one action (#6170, `source.recipe.run-again-on-what-was-missed`).
-        var missed: Missed?
+        var missed: MissedOffer?
 
         /// The engine's words for what was missed, its offer, and the run's scope; Start on that scope runs only what is
         /// not done (`source.recipe.done-is-not-redone`). The engine decides; the app only shows it.
-        struct Missed: Equatable {
+        struct MissedOffer: Equatable {
             let words: String
             /// The action's label; nil, no action.
             let offer: String?
@@ -160,7 +160,7 @@ extension ActivityDetails {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
         let download = downloadFailures(summary.downloadFailed ?? [])
-        let missed = summary.missed.map { Summary.Missed(words: $0.words, offer: $0.offer, folderId: $0.folderId) }
+        let missed = summary.missed.map { Summary.MissedOffer(words: $0.words, offer: $0.offer, folderId: $0.folderId) }
         return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download, missed: missed)
     }
 }
