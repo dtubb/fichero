@@ -184,8 +184,11 @@ struct ProjectRunStripView: View {
                 readAgain: { threadId, offer in
                     .stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })
                 },
-                runAgain: { folderId in
-                    Task { failure = await LibraryManager.shared.runAgainOnMissed(for: libraryId, folderId: folderId) }
+                runAgain: { missed in
+                    Task {
+                        failure = await LibraryManager.shared.runAgainOnMissed(
+                            for: libraryId, folderId: missed.folderId, documents: missed.documents)
+                    }
                 },
                 onShowDetails: { showDetails(strip.jobId) },
                 onClose: { store.putAwayProjectRun() }
@@ -207,7 +210,7 @@ struct ProjectRunStripRow: View {
     /// A stage's Read Again target (`ActivityRunMenuTarget.stage`): the shared item Activity renders (#5652).
     let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
     /// What the run missed, run again on its folder (nil, the project): plain Start (#6170).
-    var runAgain: (_ folderId: String?) -> Void = { _ in }
+    var runAgain: (_ missed: ActivityDetails.MissedOffer) -> Void = { _ in }
     let onShowDetails: () -> Void
     let onClose: () -> Void
 
@@ -237,7 +240,7 @@ struct ProjectRunStripRow: View {
                 }
             }
             if let missed = strip.missed, let offer = missed.offer {
-                Button(offer) { runAgain(missed.folderId) }
+                Button(offer) { runAgain(missed) }
                     .controlSize(.small)
                     .help(missed.words)
                     .accessibilityIdentifier("project.runStrip.runAgainOnMissed")

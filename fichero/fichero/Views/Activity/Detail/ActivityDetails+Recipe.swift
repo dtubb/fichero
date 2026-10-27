@@ -62,6 +62,8 @@ extension ActivityDetails {
         let offer: String?
         /// The run's folder; nil, the project.
         let folderId: String?
+        /// The run's pages when it covered some alone (a run an import started); nil, the scope is `folderId` (#6170).
+        var documents: [String]?
     }
 
     /// A step waiting on a failed download: Retry the download's job, or take the step's next candidate (#5352,
@@ -160,7 +162,7 @@ extension ActivityDetails {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
         let download = downloadFailures(summary.downloadFailed ?? [])
-        let missed = summary.missed.map { MissedOffer(words: $0.words, offer: $0.offer, folderId: $0.folderId) }
+        let missed = summary.missed.map { MissedOffer(words: $0.words, offer: $0.offer, folderId: $0.folderId, documents: $0.documents) }
         return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download, missed: missed)
     }
 }

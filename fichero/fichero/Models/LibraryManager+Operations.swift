@@ -249,12 +249,12 @@ extension LibraryManager {
     /// What a finished recipe run missed, run again (#6170, `source.recipe.run-again-on-what-was-missed`): plain Start on
     /// the run's folder (nil, the project) through the project's own setup store, the Start "Run the Recipe on This Folder…"
     /// makes; the engine reads only what is not done (`source.recipe.done-is-not-redone`). Returns why not, or nil.
-    func runAgainOnMissed(for libraryId: UUID, folderId: String?) async -> String? {
+    func runAgainOnMissed(for libraryId: UUID, folderId: String?, documents: [String]? = nil) async -> String? {
         guard let store = openLibraries.first(where: { $0.id == libraryId })?.recipeSetupStore else {
             return "Couldn't run it again: the project is not open"
         }
         store.errorMessage = nil
-        return await store.start(folderId: folderId) ? nil : (store.errorMessage ?? "Start was refused")
+        return await store.start(folderId: folderId, documents: documents) ? nil : (store.errorMessage ?? "Start was refused")
     }
 
     /// Create a new unsaved library

@@ -116,7 +116,10 @@ struct RecipeReadyFields: View {
             // a refusal shows above, in the store's error.
             if let project, let missed = Self.missed(in: project.activityStore), let offer = missed.offer {
                 Button(offer) {
-                    Task { _ = await LibraryManager.shared.runAgainOnMissed(for: project.id, folderId: missed.folderId) }
+                    Task {
+                        _ = await LibraryManager.shared.runAgainOnMissed(
+                            for: project.id, folderId: missed.folderId, documents: missed.documents)
+                    }
                 }
                 .help(missed.words)
                 .disabled(isStarting)

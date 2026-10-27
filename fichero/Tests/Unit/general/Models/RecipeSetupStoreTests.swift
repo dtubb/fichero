@@ -647,7 +647,12 @@ struct RecipeSetupStoreTests {
         let again = seen("5 POST")["json"] as? [String: Any]
         #expect(again?["folder_id"] as? String == "folder-7")
         #expect(again?["redo"] as? [String] == ["lines", "read"])
-        #expect(RecipesMockURLProtocol.calls == 5)
+        // What an import's run missed, run again on its pages alone (#6170): the pages, no folder.
+        #expect(await store.start(documents: ["page-1"]))
+        let pagesAlone = seen("6 POST")["json"] as? [String: Any]
+        #expect(pagesAlone?["documents"] as? [String] == ["page-1"])
+        #expect(pagesAlone?["folder_id"] == nil)
+        #expect(RecipesMockURLProtocol.calls == 6)
     }
 
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download
