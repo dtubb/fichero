@@ -15,6 +15,7 @@ import time
 from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (fixtures)
     _finished,
     _import,
+    _png,
     _recipe,
     _runs,
     _save,
@@ -193,6 +194,29 @@ def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, 
     assert not _wait(lambda: len(_runs(client)) > 2, seconds=3), "an unchanged file queues no run"
     assert engine.read == [], "the reader is not called again"
     assert sum(d.name == "same.png" for d in db.query(Document)) == 1, "the same page, not a second"
+
+
+def test_a_deliberate_second_page_is_duplicate_or_another_folder(client, db, tmp_path):
+    """#6225: copy, link and move dedupe alike (copy is how the file is stored, not a second page asked for); a
+    deliberate second page is Duplicate, or the same file imported into another folder."""
+    from fichero_server.models import DocType, Document
+
+    path = _png(tmp_path / "same.png")
+
+    def imported(**kw):
+        r = client.post("/api/ingest/file", json={"path": str(path), **kw})
+        assert r.status_code == 200, r.text
+        return r.json()["id"]
+
+    first = imported(mode="copy")
+    assert imported(mode="copy") == first, "an unchanged copy import is the page it already is"
+    assert imported(mode="link") == first, "link dedupes as copy does"
+    r = client.post(f"/api/documents/{first}/duplicate")
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] != first, "Duplicate after an unchanged re-import is a new page"
+    folder = Document(name="Other", doc_type=DocType.folder)
+    db.save(folder)
+    assert imported(mode="copy", parent_id=folder.id) != first, "another folder is a new page"
 
 
 def test_the_engine_fixture_stubs_read_again(engine):

@@ -3058,8 +3058,10 @@ Profiles (the defaults section of a recipe)
   imported again unchanged (the same source path and the same bytes, into the same place) is the page it already is:
   no second page, no run queued after Start, and no model reads it again. The import answers with that page and
   records nothing to undo (`import.file`, `Database.unchanged_import`); a folder import already skips it the same
-  way. A changed file is new material (`source.recipe.steps-follow-new-material`). *Tests:*
-  `fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py` (`test_unchanged_material_imported_again_is_not_read_again`).
+  way. A changed file is new material (`source.recipe.steps-follow-new-material`). Copy, link and move
+  dedupe alike (copy is how the file is stored); a deliberate second page is Duplicate, or the same file imported into
+  another folder. *Tests:*
+  `fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py` (`test_unchanged_material_imported_again_is_not_read_again`, `test_a_deliberate_second_page_is_duplicate_or_another_folder`).
 - `source.recipe.steps-follow-new-material` — **[OK]** (#6170; owner ask 2026-10-26; after Start an import runs the recipe's steps over the new pages alone (`recipes.runner.material_arrived`), runs nothing with Nothing runs automatically or a tools purpose, and the catalogue redoes only the folders that cover them (`tests/unit/recipes/test_catalogue_stage_6087.py`); changed material is a file imported again with its content changed (the engine has no in-place replacement of an original): it arrives as a page of its own, its steps run over it alone by themselves, and the earlier page's reading is kept) the person should not have to ask: when pages or folders are added, every step the recipe has already run over that folder redoes itself for the new or changed material only (`source.recipe.done-is-not-redone` skips the rest), and the folders above it that cover it, once each. It generalises `source.recipe.catalogue-follows-new-material` (catalogue only) and honours the project's choice between automatic runs and runs by hand. Test: `tests/unit/recipes/test_step_rerun_on_folder.py`.
   page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
   with a pass that has lines; reading lines, on a page with a pass read by the step's own model; reading a page, on
