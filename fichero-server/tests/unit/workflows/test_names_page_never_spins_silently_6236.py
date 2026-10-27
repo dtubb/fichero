@@ -70,3 +70,38 @@ def test_a_spacy_page_past_the_limit_is_skipped_and_a_run_of_only_stalls_fails_6
 
     assert "took over 0.3 s" in result["error"] and result["summary"]["documents_processed"] == 0
     assert not noted
+
+
+def test_writing_a_pages_names_past_the_limit_stops_and_the_next_page_goes_on_6236(library, tmp_path, monkeypatch):
+    """The M4 spin was the names' writing (upsert_entity against a grown table), after the timed model call. The page's
+    time limit covers the writing too, and the writing really stops: no name of the page is written past it, so no core
+    or DB writer is held for it, and the next page is read and noted."""
+    path, db, folder, _seen = library
+    _page(db, folder, tmp_path, "0074.jpg", imported=True)
+    _page(db, folder, tmp_path, "0075.jpg", imported=True)
+    names = [{"name": f"Name {i}"} for i in range(50)]
+
+    async def model(**kwargs):
+        return extract_all_module._EntitiesOnly(people=names, places=[], organizations=[], dates=[], events=[])
+
+    written: list[str] = []  # the page each name was written for
+    real_upsert = module.upsert_entity
+
+    def slow_upsert(db, *, canonical_name, **kwargs):
+        written.append(kwargs["source_document_id"])
+        if written[0] == written[-1]:
+            time.sleep(0.05)  # the first page's names, each slow to write
+        return real_upsert(db, canonical_name=canonical_name, **kwargs)
+
+    monkeypatch.setattr(module, "chat_structured_with_fallback", model)
+    monkeypatch.setattr(module, "upsert_entity", slow_upsert)
+    monkeypatch.setattr("fichero_server.db.Database.schedule_entity_embedding", lambda self, entity: None)  # fast writes
+    monkeypatch.setattr(module, "NAMES_PAGE_SECONDS", 0.5)
+    noted = _noted(monkeypatch)
+
+    result = _run(path, folder.id)
+
+    (stalled,) = [e for e in result["summary"]["left_out"] if "took over" in e["why"]]
+    assert "writing its names did not finish" in stalled["why"]
+    assert written.count(stalled["document_id"]) < 50, "the stalled page's writing went on past its limit"
+    assert result["summary"]["documents_processed"] == 1 and len(noted) == 1 and stalled["document_id"] not in noted

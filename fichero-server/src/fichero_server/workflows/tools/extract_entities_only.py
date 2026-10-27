@@ -15,6 +15,7 @@ import asyncio
 import itertools
 import logging
 import sys
+import time
 import traceback
 from collections import defaultdict
 from typing import Any, Iterator
@@ -49,9 +50,10 @@ from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
 
-#: How long one page's names may take (#6236). Pages take 1-4 s; past this the page is skipped with a worded stall and
-#: left un-noted, so Run again on what was missed offers it. A spaCy thread past it cannot be stopped and keeps the spaCy
-#: turn, so the pages after it may stall too, each named.
+#: How long one page's names may take (#6236), for its model or spaCy call and again for writing its names. Pages take
+#: 1-4 s; past this the page is skipped with a worded stall and left un-noted, so Run again on what was missed offers it.
+#: The writing stops between names. ponytail: a spaCy call past it can't be stopped (one nlp() call in a worker thread);
+#: it is one page's pipeline, measured under 0.1 s, so the thread ends soon after; a killable spaCy process if not.
 NAMES_PAGE_SECONDS = 300.0
 
 
@@ -556,9 +558,16 @@ async def extract_entities_only(
 
         written_entity_ids: list[str] = []
         lines = line_spans(db, record["doc_id"], text) if mentions else []
+        # The writing has the page's time limit too, checked between names, so it stops for real: it runs here, on
+        # the step's own thread, and holds the DB writer while it does (#6236's spin was here, not in the model).
+        writing_until = time.monotonic() + NAMES_PAGE_SECONDS
+        stalled_writing = False
         for canonical_name, entity_type, aliases, written in mentions:
             if not canonical_name:
                 continue
+            if time.monotonic() > writing_until:
+                stalled_writing = True
+                break
             mentions_processed += 1
             entity_id = upsert_entity(
                 db,
@@ -591,6 +600,12 @@ async def extract_entities_only(
                 claim_ids=[],
                 document_ids=[record["doc_id"]],
             )
+
+        if stalled_writing:
+            processed -= 1
+            left_out.append({"document_id": record["doc_id"], "name": doc_name,
+                             "why": _stalled(doc_name, "writing its names")})
+            continue
 
         from fichero_server.recipes.done import page_finished
 
