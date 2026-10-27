@@ -1479,7 +1479,7 @@ def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContex
 def _action_job_retry(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    before = job_queue._job_row(db, params.job_id)[1]
+    before = "waiting" if params.job_id.startswith("waiting:") else job_queue._job_row(db, params.job_id)[1]  # a kind's row (#6203)
     state = job_queue.retry_job(db, params.job_id)
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},

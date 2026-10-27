@@ -116,9 +116,11 @@ def test_releasing_a_project_with_no_connection_never_opens_it(project, monkeypa
     assert calls == []
 
 
-def test_release_refuses_while_a_workflow_run_is_going(project):
+def test_release_refuses_while_a_workflow_run_is_going(project, monkeypatch):
     package, global_db = project
     db = db_manager.get_database(package)
+    # alive in this engine: a run row no live thread runs is a phantom and refuses nothing (#6213)
+    monkeypatch.setattr("fichero_server.execution.runner._running_workflows", {"run-1": {"status": "running"}})
     jobs._record(db, "run-1", kind="workflow", subject="run-1", parent_id=None, state="running",
                  reason=None, name="Read the diary")
 

@@ -245,41 +245,46 @@ replaces the Kraken figure before #6212 is coded.
 
 ### 8. A restart requeues unfinished work and releases every lane
 
-- `recipes-run.restart.requeues-unfinished` — **[BROKEN]** (#6203; `activity.lane.no-wait-on-a-job-that-will-not-run`
+- `recipes-run.restart.requeues-unfinished` — **[PARTIAL]** (#6203; `activity.lane.no-wait-on-a-job-that-will-not-run`
   is the file-exists half) after a kill and restart, every claim a dead process left (a thumbnail with no
   file, a page half-read, an embed) goes back to waiting within one claim cycle and runs; `Make thumbnails`
   reaches N of N and the thumbnails-first hold lifts. Today the recipe run and the import's pages do
   (`activity.durable.dies-with-the-engine`), but a thumbnail claim whose file does NOT exist is neither
   run nor released, so `activity.lane.thumbnails-first` held every Kraken, embed and spaCy job forever
   across three restarts (dogfood B12: 81 of 95 thumbnails, the 14 missing pages never made).
-  Test (to write): fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
-- `recipes-run.restart.releases-lanes` — **[BROKEN]** (#6213; `activity.durable.reopen-leaves-live-jobs` is
+  Built: the reopen puts every claim no live thread runs back to waiting, and a running thumbnail row no thread runs is
+  requeued by the next scan (`requeue_orphaned_first`), so the hold lifts. Left: the real kill-and-restart run on the M4
+  that shows `Make thumbnails` reaching N of N. Test: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
+- `recipes-run.restart.releases-lanes` — **[OK]** (#6213; `activity.durable.reopen-leaves-live-jobs` is
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
-  starts within one claim cycle. Test (to write): fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
+  starts within one claim cycle. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 - `recipes-run.restart.resumes-at-once-gently` — **[GAP]** (#6216; ruling 2) an interrupted run resumes
   by itself on the next open (nothing waits for a person), and for the first minute after an engine
   start every lane admits ONE page at a time whatever the gate would allow, so a Mac that has just
   recovered from paging or a kill is not thrown back into it; the grey line says "resuming after a
   restart: one page at a time for a minute"; a person who wants it stopped presses Stop. Test (to
   write): fichero-server/tests/unit/jobs/test_resume_gently_after_restart.py.
-- `recipes-run.restart.retry-reaches-a-kind-row` — **[GAP]** (#6203) Retry on a kind row (`waiting:thumbnail`)
+- `recipes-run.restart.retry-reaches-a-kind-row` — **[OK]** (#6203) Retry on a kind row (`waiting:thumbnail`)
   requeues that kind's set-aside and dead claims for the project; today it answers 404 (the kind row is not
-  a job id), so there is no way from Activity to restart the thumbnail work. Test (to write):
+  a job id), so there was no way from Activity to restart the thumbnail work. Test:
   fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
 
 ### 9. One project never blocks another
 
-- `recipes-run.isolation.one-project-never-blocks-another` — **[BROKEN]** (#6213) the lanes are shared,
+- `recipes-run.isolation.one-project-never-blocks-another` — **[PARTIAL]** (#6213) the lanes are shared,
   the holds are not: a project whose rows are wedged (running with no worker) never holds the thumbnail,
   model or embed lane against another project; a fresh project's import makes its first thumbnail within
   a minute whatever another project's rows say. Dogfood B12 23:50Z: a fresh project sat at 0 of 20,
   "Waiting for the thumbnail lane: work in another project is running", on the wedged project's phantom
-  rows. Test (to write): fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
-- `recipes-run.isolation.release-never-refused-by-a-phantom` — **[BROKEN]** (#6213) releasing a library
+  rows. Built: an images-lane job running past `STUCK_IMAGE_JOB_SECONDS` (60 s) holds no slot, no one-heavy hold and no
+  waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. Left: a stuck
+  job on a one-slot lane (the model lane) still holds it; the M4 run with a wedged project beside a fresh one.
+  Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
+- `recipes-run.isolation.release-never-refused-by-a-phantom` — **[OK]** (#6213) releasing a library
   refuses only for a run with a live thread of this engine, naming the run and its state; with every thread
   terminal it releases. Dogfood B12: `fichero_library_release` answered 409 "1 workflow run(s) are going"
-  with `list_threads` empty and every thread terminal. Test (to write): fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
+  with `list_threads` empty and every thread terminal. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 
 ### 10. A run can be stopped, paused and resumed
 

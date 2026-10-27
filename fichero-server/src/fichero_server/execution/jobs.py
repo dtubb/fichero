@@ -111,6 +111,8 @@ CO_RUN_KIND = "ask-a-model"
 #: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
 #: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
 HEAVY_LANES = ("local-ml", "images")
+#: An images-lane job running longer than this is stuck (a thumbnail takes seconds): it gives back its slot (#6213).
+STUCK_IMAGE_JOB_SECONDS = 60.0  # the spec's "first thumbnail within a minute"
 #: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
@@ -1642,19 +1644,28 @@ def live_work(db: "Database") -> tuple[list[str], int, int]:
     """(the names of the workflow runs and batches waiting or running, page jobs running, page jobs
     waiting) in this library. Read by a project release (#5563): a run holds the project from its
     own thread and has no stop at a page boundary, so a release refuses while one is live."""
+    from fichero_server.execution.runner import _running_workflows
+    from fichero_server.workflows.run_status import is_terminal
+
     _ensure(db)
     marks = ", ".join("?" for _ in _RUN_KINDS)
     runs = db.execute_fetchall(
-        f"SELECT id, detail FROM jobs WHERE state IN ('waiting', 'running') AND kind IN ({marks}) "
+        f"SELECT id, detail, state, kind FROM jobs WHERE state IN ('waiting', 'running') AND kind IN ({marks}) "
         "AND parent_id IS NULL ORDER BY created_at",
         list(_RUN_KINDS),
     )
+    # A workflow run's row says running, but only a thread of this engine runs it: one with no live thread is a phantom a
+    # dead process left, and never refuses a release (#6213, `recipes-run.isolation.release-never-refused-by-a-phantom`).
+    live = {tid for tid, s in list(_running_workflows.items()) if not is_terminal(s.get("status"))}
     names: list[str] = []
-    for run_id, detail in runs:
+    for run_id, detail, state, kind in runs:
+        if kind == "workflow" and state == "running" and run_id not in live:
+            continue
         try:
-            names.append((json.loads(detail) or {}).get("name") or run_id)
+            name = (json.loads(detail) or {}).get("name") or run_id
         except (TypeError, ValueError):
-            names.append(run_id)
+            name = run_id
+        names.append(f"{name}, {run_id}, {state}")
     counts = dict(db.execute_fetchall(
         f"SELECT state, count(*) FROM jobs WHERE state IN ('waiting', 'running') "
         f"AND kind NOT IN ('workflow-step', {marks}) GROUP BY state",
@@ -2012,6 +2023,25 @@ def run_of_page(db: "Database", job_id: str) -> str | None:
     return None
 
 
+def _retry_kind(db: "Database", kind: str) -> str:
+    """Retry on a kind's row (`waiting:thumbnail`): its set-aside jobs and the claims no live thread of this engine runs go
+    back to waiting, and the lane looks (#6203, `recipes-run.restart.retry-reaches-a-kind-row`). The kind's row has no job
+    id of its own; without this Retry answered 404 and nothing in Activity could restart the thumbnail work."""
+    if kind not in KINDS:
+        load_kinds()
+    if kind not in KINDS:
+        raise KeyError(f"no work of kind {kind!r} in this project")
+    _ensure(db)
+    live = _scheduler.running_ids()
+    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
+    db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, run_after = NULL"
+               f"{', cleared_at = NULL' if _has_cleared_at(db) else ''}{_clear_waiting_on(db)} "
+               f"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))", [kind, *live])
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return "waiting"
+
+
 def retry_job(db: "Database", job_id: str) -> str:
     """Run a failed or stopped job again (`activity.pause.per-job`, #5356): its row goes back to
     waiting with its attempts cleared, and its kind's `run` takes it up again, from its own
@@ -2019,6 +2049,8 @@ def retry_job(db: "Database", job_id: str) -> str:
     in words) for a page or step a workflow run waits for (the run is retried, not its page), for a
     kind that says why it cannot be, and where the same work already waits. Any other state is
     returned unchanged."""
+    if job_id.startswith("waiting:"):
+        return _retry_kind(db, job_id.split(":", 1)[1])
     kind, state = _job_row(db, job_id)
     if kind not in KINDS:
         load_kinds()  # a project opened with nothing waiting: its kinds not yet registered by a lane (#5615)
@@ -2355,7 +2387,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     lane_name = _lane_of(job_id, kind)
     lane = _scheduler.lanes.get(lane_name)
     words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
-    running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
+    running = [r for r in lane.holding() if r != job_id] if lane is not None else []  # a stuck job holds no slot (#6213)
     if running:  # only a job that is running holds a lane: never name one whose row says otherwise
         marks = ", ".join("?" for _ in running)
         not_running = {row[0] for row in db.execute_fetchall(
@@ -2739,11 +2771,28 @@ class _Lane:
         self.running: dict[str, str | None] = {}
         #: The running jobs that are calls to the engine's own model server (`CO_RUN_KIND`).
         self.calls: set[str] = set()
+        #: When each running job was claimed (monotonic), by job id: the images lane's stuck ones give back their slot.
+        self.started: dict[str, float] = {}
+
+    def stuck(self) -> set[str]:
+        """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds): their
+        threads are blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
+        ponytail: a blocked Python thread cannot be killed; the lane runs beside it on a thread of its own, at most `slots`
+        extra, and the stuck row stays running (its thread may still finish it)."""
+        if self.name != "images":
+            return set()
+        cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
+        return {job_id for job_id, at in list(self.started.items()) if at < cutoff and job_id in self.running}
+
+    def holding(self) -> dict[str, str | None]:
+        """The running jobs that hold a slot of this lane: every one but the stuck."""
+        stuck = self.stuck()
+        return {job_id: model for job_id, model in list(self.running.items()) if job_id not in stuck}
 
     @property
     def threads_wanted(self) -> int:
         if self.name != "local-ml":
-            return self.slots
+            return self.slots + min(len(self.stuck()), self.slots)
         from fichero_server.llm.local_inference import LOCAL_READS_CEILING
 
         return max(self.slots, LOCAL_READS_CEILING)
@@ -2751,7 +2800,7 @@ class _Lane:
     def may_start(self, kind: str, model: str | None, is_person: Callable[[], bool] = lambda: False) -> bool:
         """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
         model server joining the calls to the same model already running, up to its reads at once."""
-        running = dict(self.running)
+        running = self.holding()
         if len(running) < self.slots:
             return True
         if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
@@ -2872,6 +2921,9 @@ class _Scheduler:
             if self._retire(lane):
                 return
             lane.event.clear()
+            images = self.lanes["images"]
+            if images.libraries and len(images.threads) < images.threads_wanted:
+                self.wake(None)  # its threads are stuck: no other wake may come to start the one beside them (#6213)
             # An error in a scan ends this thread (logged by threading's excepthook); the next
             # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
             # on handed-in work hears the error rather than waiting forever.
@@ -2881,6 +2933,7 @@ class _Scheduler:
                         self._run(lane, *picked)
                     finally:
                         lane.running.pop(picked[2][0], None)
+                        lane.started.pop(picked[2][0], None)
                         lane.calls.discard(picked[2][0])
                         if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
                             for name in HEAVY_LANES:
@@ -2949,7 +3002,7 @@ class _Scheduler:
     def heavy_running(self, besides: str | None = None) -> str | None:
         """A job running on a heavy lane now (its id), other than `besides`, or None."""
         for name in HEAVY_LANES:
-            for job_id in list(self.lanes[name].running):
+            for job_id in self.lanes[name].holding():  # a stuck job holds nothing (#6213)
                 if job_id != besides:
                     return job_id
         return None
@@ -3097,6 +3150,7 @@ class _Scheduler:
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
                 lane.running[row[0]] = row[3]
+                lane.started[row[0]] = time.monotonic()
                 if row[1] == CO_RUN_KIND:
                     lane.calls.add(row[0])
                 return key, db, row, handed_in
