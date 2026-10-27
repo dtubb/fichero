@@ -188,4 +188,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    try:
+        from fichero_server.core.fast_exit import leave  # torch loaded: leave past its exit-time destructor (#5929)
+    except ImportError:
+        sys.exit(code)
+    leave(code or 0)
+    sys.exit(code)

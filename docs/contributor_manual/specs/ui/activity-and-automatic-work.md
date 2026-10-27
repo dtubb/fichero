@@ -1711,13 +1711,16 @@ and node, not by job); a retry action for failed pages.
   calls GEOS through its reentrant API with a context per thread. `gil_proof.py procs` "never crashed" because its
   parent never imports torch and it joins its children without reading their exit codes, so their exits were not seen.
   Built: the engine leaves by `fichero-server/src/fichero_server/core/fast_exit.py` `leave` (every DuckDB checkpointed
-  and closed, then `os._exit`), green on the M4 at `bf3d1a721`. Owed: the same way out in the Kraken line-extraction
-  children, the subprocess workers and the scripts (`fichero-server/scripts/gil_proof.py`, `fichero-server/scripts/bench_reading.py`),
-  and one engine run at N=4 on the M4 that is clean mid-run, which is what lifts the gate. *Tests:*
-  `fichero-server/tests/unit/llm/test_torch_exit_5929.py` (M4; `mps-kraken-blla-left-by-the-engines-exit` is the fix)
-  and `fichero-server/tests/unit/core/test_fast_exit_5929.py` exist; to write:
-  `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that reads two faked pages on
-  threads and leaves by `fast_exit` returns 0).
+  and closed, then `os._exit`), green on the M4 at `bf3d1a721`; the Kraken scripts leave the same way
+  (`gil_proof.py`, `bench_reading.py`, `bench_same_model_pages.py`, `ab_kraken_cloud.py`). No engine subprocess
+  loads Kraken's model (training runs in the engine's process; Kraken's line-extraction children load none), so
+  none needs it. Owed: one engine run at N=4, clean mid-run, which is what lifts the gate (on this Mac: the owner
+  ruled 2026-10-27 that the M4 is not used). *Tests:*
+  `fichero-server/tests/unit/llm/test_torch_exit_5929.py` (M4; `mps-kraken-blla-left-by-the-engines-exit` is the fix),
+  `fichero-server/tests/unit/core/test_fast_exit_5929.py`, and
+  `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that loads the segmenter, reads
+  two faked pages on threads and leaves by `fast_exit` exits 0; on the Pro the bare exit is 0 too, so it pins the way
+  out, not the abort).
 - `activity.throttle.in-use-slows-to-half` — **[GAP]** (#6230; ruled 2026-10-27: half the performance cores, not a
   quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
   in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
