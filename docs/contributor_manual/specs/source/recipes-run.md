@@ -207,13 +207,14 @@ replaces the Kraken figure before #6212 is coded.
   40 (sampled every 2 s, `throttle.footprint_bytes`). The 2026-10-06 leak (8,418 compiled MPS graphs,
   18 GB in 25 minutes) is pinned at its seam by `fichero-server/tests/unit/jobs/test_engine_memory.py`;
   the whole-run assertion is not written. Test (to write): fichero-server/tests/perf/test_recipe_run_100_pages.py.
-- `recipes-run.memory.duckdb-cap-applies` — **[BROKEN]** (#6177) every open DuckDB instance runs under its
+- `recipes-run.memory.duckdb-cap-applies` — **[OK]** (#6177) every open DuckDB instance runs under its
   share of the budget (about 10% of physical memory split across the open instances, a 256 MiB floor,
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
   ("Cannot switch temporary directory after the current one has been used") is logged once and never
-  skips the cap. Today `apply_memory_limit` sets the spill directory first, the instance that has already
-  spilled refuses, the exception skips the cap, and the instance runs at DuckDB's default of 80% of RAM
-  (Ann's log: the warning 6,671 times). Test (to write): fichero-server/tests/unit/core/test_duckdb_memory_cap.py.
+  skips the cap. Was: `apply_memory_limit` set the spill directory first, the instance that had already
+  spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
+  (Ann's log: the warning 6,671 times); fixed in ef6ffa17e, the refusal now said at debug. Test:
+  `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
 - `recipes-run.memory.one-heavy-model` — **[BROKEN]** (#6000, #6167; `activity.lane.small-mac-one-heavy-model` (B)
   and `designer.model.one-resident-local-model` (G) own it) on a Mac of 16 GB or less the model lane never
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
@@ -389,7 +390,7 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 
 #### Step 2.1 — The DuckDB cap applies (#6177)
 - Behaviours: `recipes-run.memory.duckdb-cap-applies`
-- Tests: fichero-server/tests/unit/core/test_duckdb_memory_cap.py
+- Tests: fichero-server/tests/unit/core/test_duckdb_memory_budget.py
 - Size: S
 
 #### Step 2.2 — One heavy model on a small Mac; the fan-out decodes only admitted pages (#6000, #6167, #5846)

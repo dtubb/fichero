@@ -47,8 +47,8 @@ def test_no_step_places_an_undefined_behaviour():
 
 
 def test_the_rulings_behaviours_are_defined_and_placed():
-    _, owed, placed = _spec()
-    assert RULING_IDS <= owed and RULING_IDS <= set(placed)
+    defined, _, placed = _spec()  # defined, not owed: a ruling built and tagged OK stays in its step
+    assert RULING_IDS <= defined and RULING_IDS <= set(placed)
 
 
 def test_the_spec_is_approved_under_its_own_milestone():
