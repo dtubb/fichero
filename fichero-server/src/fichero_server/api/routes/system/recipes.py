@@ -3093,6 +3093,11 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
     else:
         if params.documents is not None and params.folder_id:
             raise ValueError("Start takes a folder or some pages, not both")
+        if params.documents is not None:
+            from fichero_server.recipes.done import pages_for
+
+            if stray := set(params.documents) - set(pages_for(db, {}, None)):
+                raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project

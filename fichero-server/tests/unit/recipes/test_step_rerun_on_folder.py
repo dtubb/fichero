@@ -179,6 +179,17 @@ def test_a_run_on_imported_pages_offers_running_again_on_those_pages_alone(clien
     assert engine.read == ["late.png"], "the missed page alone: the page nobody started waits"
 
 
+def test_start_on_pages_refuses_a_folder_too_and_pages_not_in_the_project(client, db, pages, tmp_path):
+    """#6170: Start takes a folder or some pages, never both; and the pages must be the project's own."""
+    _save(client, _recipe(tmp_path, *STEPS))
+    page = pages[0].id
+    r = client.post("/api/recipes/project/start", json={"documents": [page], "folder_id": "anything"})
+    assert r.status_code == 422 and "not both" in r.text, r.text
+    r = client.post("/api/recipes/project/start", json={"documents": [page, "not-a-page"]})
+    assert r.status_code == 422 and "not in the project" in r.text, r.text
+    assert not _runs(client), "a refused Start queues no run"
+
+
 def test_unchanged_material_imported_again_is_not_read_again(client, db, pages, tmp_path, engine):
     """#6225, never rerun a model pass (#6127): after Start, the same file imported again unchanged is the page it already
     is: no second page, no run queued, the reader not called again."""
