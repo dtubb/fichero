@@ -50,9 +50,21 @@ def in_process() -> bool:
     return os.environ.get("FICHERO_EMBED_IN_PROCESS") == "1"
 
 
+def _model_files(fastembed_name: str) -> list[str]:
+    """The files fastembed loads the model from, relative to its snapshot: its ONNX file, the ONNX file's extra parts
+    (a 2 GB model's weights live beside it) and the tokenizer."""
+    from fastembed import TextEmbedding
+
+    for entry in TextEmbedding._list_supported_models():
+        if entry.model.lower() == fastembed_name.lower():
+            return ["tokenizer.json", entry.model_file, *entry.additional_files]
+    return ["tokenizer.json", "model.onnx"]
+
+
 def _cached(model_name: str, cache_dir: str) -> bool:
-    """Whether the model's files are already in the cache, so loading needs no Hub call."""
-    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+    """Whether every file of the model is in the cache, so loading needs no Hub call. A folder is not enough: a download
+    that died leaves a partial one, and the child then fails to load it offline (#6218, the M4 rerun)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
     from fichero_server.llm.local_models import _fastembed_source_repo
 
     # The pinned e5's fastembed name is an alias; its files live under the repo fastembed fetches it from
@@ -62,8 +74,17 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     source = space.source_model_name if space else model_name
     folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
-        return any(d.name.lower() == folder.lower() and os.path.isdir(os.path.join(d.path, "snapshots")) for d in os.scandir(cache_dir))
-    except OSError:
+        if space is not None:
+            _register_fastembed_model_for_space(space)
+        files = _model_files(space.fastembed_model_name if space else model_name)
+        for d in os.scandir(cache_dir):
+            snapshots = os.path.join(d.path, "snapshots")
+            if d.name.lower() == folder.lower() and os.path.isdir(snapshots):
+                # isfile follows the snapshot's link into blobs/: a link to a blob that never arrived is not a file.
+                return any(all(os.path.isfile(os.path.join(snap.path, f)) and os.path.getsize(os.path.join(snap.path, f))
+                               for f in files) for snap in os.scandir(snapshots) if snap.is_dir())
+        return False
+    except (OSError, ImportError):
         return False
 
 

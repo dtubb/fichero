@@ -41,3 +41,45 @@ def test_make_a_vector_waits_for_the_download_instead_of_failing(db, monkeypatch
     with pytest.raises(jobs.JobDeferred):
         page_text_cache._reembed(db, doc.id)
     assert fetched == [True]
+
+
+# The M4 rerun (2026-10-26 22:55, integration 7337332c2): a PARTIAL bge-m3 folder left by the earlier crashed child
+# passed the folder check, the child loaded offline and failed ("Could not load model BAAI/bge-m3 from any source"),
+# no download was queued (the folder looked cached), and make-a-vector failed 10 of 10.
+
+def _snapshot(tmp_path, files):
+    snap = tmp_path / "models--BAAI--bge-m3" / "snapshots" / "abc"
+    for name in files:
+        (snap / name).parent.mkdir(parents=True, exist_ok=True)
+        (snap / name).write_bytes(b"x")
+    return snap
+
+
+def test_a_partial_cache_is_not_cached(tmp_path):
+    _snapshot(tmp_path, ["config.json", "tokenizer.json", "onnx/model.onnx"])  # model.onnx_data never arrived
+    assert not embed_process._cached("BAAI/bge-m3", str(tmp_path))
+
+
+def test_a_link_to_a_blob_that_never_arrived_is_not_cached(tmp_path):
+    snap = _snapshot(tmp_path, ["config.json", "tokenizer.json", "onnx/model.onnx", "onnx/sentencepiece.bpe.model"])
+    (snap / "onnx" / "model.onnx_data").symlink_to(tmp_path / "blobs-missing")
+    assert not embed_process._cached("BAAI/bge-m3", str(tmp_path))
+
+
+def test_every_file_of_the_model_is_cached(tmp_path):
+    _snapshot(tmp_path, ["config.json", "tokenizer.json", "onnx/model.onnx", "onnx/model.onnx_data",
+                         "onnx/sentencepiece.bpe.model"])
+    assert embed_process._cached("BAAI/bge-m3", str(tmp_path))
+
+
+def test_a_batch_that_meets_a_missing_model_waits_instead_of_failing_each_page(db, monkeypatch):
+    from fichero_server.models import DocType, Document
+
+    docs = [Document(name=f"p{i}.jpg", doc_type=DocType.file, page_content=f"A page of the diary, entry {i}, long enough to embed for search.") for i in range(3)]
+
+    def unavailable(*_a, **_k):
+        raise embed_process.EmbedderUnavailable("The search model could not be loaded: Could not load model")
+
+    monkeypatch.setattr(type(db), "_embed_texts", unavailable)
+    with pytest.raises(embed_process.EmbedderUnavailable):
+        db.embed_many(docs)

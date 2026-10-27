@@ -192,7 +192,13 @@ replaces the Kraken figure before #6212 is coded.
   the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it
   in the engine, then embeds; the child always loads offline. Was: on the M4 run the forked child began fetching from
   the Hub, a LanceDB thread died with "Bad file descriptor" after the fork, make-a-vector failed 10 of 10 and the run
-  ended failed. Test: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py.
+  ended failed. "In the cache" means every file the model loads from is in a snapshot (its ONNX file, the weights beside
+  it, the tokenizer), not the folder: a partial folder a dead download left is not cached, so the app's download job
+  completes it and the embed waits; a batch that meets a missing model waits as a whole instead of failing each page.
+  Was (M4 rerun at 7337332c2): a partial bge-m3 folder passed the folder check, the child failed to load it offline, no
+  download was queued and make-a-vector failed 10 of 10. Unverified on the M4 (rerun owed on that partial folder).
+  Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py,
+  fichero-server/tests/unit/db/test_embedder_cache_names.py.
 - `recipes-run.engine.open-migrations-serialised` — **[OK]** (#6220) opens of one library in one engine run their
   open-time migrations one at a time: a second open waits for the first, then finds every step done, so a fresh
   library records no migration failure; two embedding threads share one worker connection. Was: on the M4 run two

@@ -788,6 +788,10 @@ class DatabaseEmbeddingMixin:
             self.save_vectors(EMBEDDINGS_TABLE, records)
             return set(units_by_doc_id)
         except (RuntimeError, ValueError, OSError, MemoryError) as exc:
+            from fichero_server.db.embed_process import EmbedderUnavailable
+
+            if isinstance(exc, EmbedderUnavailable):  # no model to retry page by page: the caller waits for it (#6218)
+                raise
             logger.warning("Failed to batch-embed %d document(s): %s", len(docs), exc)
             embedded_ids: set[str] = set()
             for doc, _text in docs_with_text:
