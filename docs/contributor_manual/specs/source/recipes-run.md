@@ -248,11 +248,14 @@ replaces the Kraken figure before #6212 is coded.
   page 1: the fuzzy match keeps each stored name's keys and skips a stored name its cheap bounds rule out (one name
   against 5000 stored entities: 0.31 s before, under 0.04 s now). Was: on the M4 106-page run (864293bd3) Extract
   Entities read pages 1-86 in 1-4 s each, then held one core at 100% for 20+ minutes on page 87, logging nothing; the
-  spin was the names' writing against the grown entity table, which ran after the timed call. Left: each new name
+  spin was the names' writing against the grown entity table, which ran after the timed call. A new name's vector is
+  written once, by its save, off the page's thread; it was also written a second time on the page's thread (a read,
+  an embed and a LanceDB write per name), where the M4 rerun stalled on page 77 past the limit. Left: each new name
   still reads every stored entity of its type (about 0.05 s per 1000), a spaCy call past the limit can't be stopped
   (one page's pipeline, under 0.1 s), and the other per-page steps have no such limit yet. Tests:
   fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py,
-  fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py.
+  fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py,
+  fichero-server/tests/unit/workflows/test_names_vectors_off_the_page_6236.py.
 - `recipes-run.engine.answers-while-a-run-goes` — **[PARTIAL]** (#6178, #6001) while a run goes, every
   Activity poll, the run's status and `/api/health` answer within 1 s and never hold the event loop:
   every database read of a poll runs on a worker thread, and a poll under a held writer answers with what

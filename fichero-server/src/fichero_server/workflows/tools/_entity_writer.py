@@ -2111,18 +2111,9 @@ def _upsert_entity_matched(
         _record_source_page(db, survivor, source_document_id)  # #1562
         return survivor.id
 
-    try:
-        from fichero_server.knowledge import entity_vectors
-
-        entity_vectors.index_entity(
-            db=db,
-            entity_id=entity.id,
-            entity_type=entity_type,
-            canonical_name=canonical_name,
-            description=description,
-        )
-    except Exception as exc:
-        logger.warning("upsert_entity: failed to index new entity vector: %s", exc)
+    # The new entity's vector: db.save above already embedded it (the post-save hook, off this thread when a loop runs).
+    # A second, synchronous index_entity here held a names page on a db.get + embed + LanceDB write per name (#6236).
+    # ponytail: a name's vector may land after the page's next name is matched; stage 1 still matches it by name.
 
     # Stage 5: write the EntityMatchCandidate row when stage 2 hit the
     # review band. The survivor is the existing entity (higher claim
