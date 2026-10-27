@@ -63,6 +63,9 @@ class RunAccount(BaseModel):
     pages_done: int = 0
     pages_failed: int = 0
     pages_left: int = 0
+    pages_done_in_order: int = Field(0, description=(
+        "The first N pages in sidebar order that are finished (read or failed): a page finished ahead counts when the "
+        "gap before it closes, so progress reads in order (recipes-run.order.done-in-order-shown, #6186)."))
     failures: list[PageFailure] = Field(default_factory=list,
                                         description=f"The first {MAX_FAILURES_LISTED} failed pages, with why.")
     retried: int = Field(0, description="Pages read once more after a passing cause (a model loading, memory).")
@@ -193,10 +196,13 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
         # done is every page it was given, never "0 of 92" after 1,193 names (#5706).
         done = list(range(total))
     left = max(0, total - len(done) - len(failed))
+    position = {f: i for i, f in enumerate(files)} if isinstance(files, list) else {}
+    settled = {k if isinstance(k, int) else position.get(k) for k in [*done, *failed]}  # a fan-out index, or a file
+    in_order = next((i for i in range(total) if i not in settled), total)
 
     account = RunAccount(
         state=run_state, pages_total=total, pages_done=len(done), pages_failed=len(failed), pages_left=left,
-        failures=[PageFailure(page=str(p["file"] or "?").rsplit("/", 1)[-1], document_id=p["document_id"],
+        pages_done_in_order=in_order, failures=[PageFailure(page=str(p["file"] or "?").rsplit("/", 1)[-1], document_id=p["document_id"],
                               reason=p["error"], retried=p["retried"])
                   for _k, p in sorted(((k, pages[k]) for k in failed), key=lambda kp: str(kp[0]))
                   ][:MAX_FAILURES_LISTED],

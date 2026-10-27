@@ -318,10 +318,12 @@ replaces the Kraken figure before #6212 is coded.
   it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`) a run queues and
   starts its pages folder by folder in sidebar order, pages in no folder first, each page in its natural
   name order.
-- `recipes-run.order.done-in-order-shown` — **[GAP]** (#6186) with pages read side by side they finish out
+- `recipes-run.order.done-in-order-shown` — **[PARTIAL]** (#6186) with pages read side by side they finish out
   of order; the run's progress is shown as done-in-order: the first N consecutive pages done in sidebar
   order, so the page grid and the pages list read alphanumerically, a page finished ahead counted when
-  the gap before it closes. Test (to write): fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
+  the gap before it closes (a failed page closes its gap: it is settled and listed). Built: each stage's run
+  account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract). Left: Activity's opened
+  run showing it (Step 4.1, `ActivityOpenedRunTests.swift`). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
 - `recipes-run.order.search-entities-once-at-the-end` — **[PARTIAL]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are the built halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says

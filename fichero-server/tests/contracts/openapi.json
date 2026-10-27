@@ -88456,6 +88456,12 @@
             "title": "Pages Left",
             "default": 0
           },
+          "pages_done_in_order": {
+            "type": "integer",
+            "title": "Pages Done In Order",
+            "description": "The first N pages in sidebar order that are finished (read or failed): a page finished ahead counts when the gap before it closes, so progress reads in order (recipes-run.order.done-in-order-shown, #6186).",
+            "default": 0
+          },
           "failures": {
             "items": {
               "$ref": "#/components/schemas/PageFailure"
