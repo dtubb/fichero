@@ -1009,23 +1009,49 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
-def cost_under(db: "Database", job_ids: list[str]) -> float | None:
+#: A finished job's calls, rolled up once: (calls, dollars of the priced ones, every call priced), keyed by the job and
+#: its end, so a poll never re-reads a finished step's page rows (review b24).
+# ponytail: one small tuple per finished batch for the process's life; an LRU if a library runs millions of batches.
+_FINISHED_COST: dict[tuple[str, Any], tuple[int, float, bool]] = {}
+
+
+def cost_under(db: "Database", job_ids: list[str], ended: dict[str, tuple[Any, Any]] | None = None) -> float | None:
     """The dollars of every model call under these jobs, as `tree` rolls them up: null unless every call is priced, and
-    null for no calls or a free sum (a local step says its time, never "$0"; `recipes-run.timing.cost-per-step`, #6234)."""
+    null for no calls or a free sum (a local step says its time, never "$0"; `recipes-run.timing.cost-per-step`, #6234).
+
+    `ended`: `times`' (started_at, finished_at) for the jobs; a job with a finished_at is read once and remembered, so a
+    poll reads only the running jobs' calls."""
     from fichero_server.llm.usage import aggregate_usage
 
     _ensure(db)
     ids = [i for i in dict.fromkeys(job_ids) if i]
     if not ids:
         return None
-    rows = db.execute_fetchall(
-        f"WITH RECURSIVE t AS (SELECT id, kind, detail FROM jobs WHERE id IN ({', '.join('?' * len(ids))}) UNION ALL "
-        "SELECT j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
-        f"SELECT detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
-        [*ids, *RUN_KINDS], committed=True)
-    usage = [u for (detail,) in rows for u in (json.loads(detail) or {}).get("usage", [])]
-    totals = aggregate_usage(usage)
-    return totals.cost_usd if totals.priced and totals.cost_usd else None
+    key = {i: (i, ended[i][1]) if ended and ended.get(i) and ended[i][1] is not None else None for i in ids}
+    unread = [i for i in ids if key[i] is None or key[i] not in _FINISHED_COST]
+    usage: dict[str, list[dict[str, Any]]] = {i: [] for i in unread}
+    if unread:
+        rows = db.execute_fetchall(
+            f"WITH RECURSIVE t AS (SELECT id AS root, id, kind, detail FROM jobs WHERE id IN ({', '.join('?' * len(unread))}) "
+            "UNION ALL SELECT t.root, j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
+            f"SELECT root, detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
+            [*unread, *RUN_KINDS], committed=True)
+        for root, detail in rows:
+            usage[root].extend((json.loads(detail) or {}).get("usage", []))
+    rolled = []
+    for i in ids:
+        if i in usage:
+            totals = aggregate_usage(usage[i])
+            sums = (totals.model_calls, totals.cost_usd or 0.0, totals.priced)
+            if key[i] is not None:
+                _FINISHED_COST[key[i]] = sums
+        else:
+            sums = _FINISHED_COST[key[i]]
+        rolled.append(sums)
+    calls = sum(n for n, _c, _p in rolled)
+    cost = sum(c for _n, c, _p in rolled)
+    priced = all(p for n, _c, p in rolled if n)
+    return cost if calls and priced and cost else None
 
 
 def say(db: "Database", job_id: str, reason: str) -> None:

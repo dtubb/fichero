@@ -201,3 +201,31 @@ def test_each_step_carries_its_cost_beside_its_seconds_6234(db, monkeypatch):
     words = run_view.dearest_words([run_view.RecipeRunStep(**s) for s in (cloud, mixed, local)])
     assert words == f"Dearest step: {run_view.RecipeRunStep(**cloud).title}: ${expected:.2f}"
     assert run_view.dearest_words([run_view.RecipeRunStep(**local)]) is None
+
+
+def test_a_finished_steps_cost_is_read_once_not_on_every_poll_6234(db, monkeypatch):
+    """A poll reads a finished batch's calls once: its cost never changes, so later polls read none of its page rows,
+    however many pages it read (100k pages: O(pages) per poll would not scale; review b24). A running batch is read live."""
+    _row(db, "done-batch", 0, 30)
+    _row(db, "live-batch", 30, None)
+    for _ in range(40):
+        _call(db, "done-batch")
+    _call(db, "live-batch")
+    read = []
+    real = db.execute_fetchall
+
+    def counting(*a, **k):
+        rows = real(*a, **k)
+        read.append(len(rows))
+        return rows
+
+    monkeypatch.setattr(db, "execute_fetchall", counting)
+    ended = jobs.times(db, ["done-batch", "live-batch"])
+    first = jobs.cost_under(db, ["done-batch", "live-batch"], ended)
+    read.clear()
+    _call(db, "live-batch")
+
+    again = jobs.cost_under(db, ["done-batch", "live-batch"], ended)
+
+    assert sum(read) <= 2, read  # the live batch's two calls; none of the finished batch's 40
+    assert first and again > first

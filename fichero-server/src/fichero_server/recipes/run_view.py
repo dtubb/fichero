@@ -176,7 +176,7 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
             if len(timed) > 1:  # one batch is the step itself
                 step.batches = [step_timing(*t, p, now).model_copy(update={"folder": b.get("folder"), "job_id": b["child_id"]})
                                 for b, t, p in timed]
-            step.cost_usd = jobs.cost_under(db, [b["child_id"] for b, _t, _p in timed])
+            step.cost_usd = jobs.cost_under(db, [b["child_id"] for b, _t, _p in timed], times)  # a finished batch: read once
             out[child] = step
         run = times.get(status["job_id"])
         return (step_timing(*run, [], now).seconds if run else None), out
