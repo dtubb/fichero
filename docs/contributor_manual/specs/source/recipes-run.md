@@ -213,8 +213,9 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   beside the ended run in Activity's summary and on the project's run strip, the engine's words as given, pressing it the
   project's own Start on that folder (`LibraryManager.runAgainOnMissed`; `RecipeRunVisibleTests`, `ProjectRunStripTests`);
   the folder's menu already has Run the Recipe on This Folder…, the same Start; and beside Start on the recipe's own
-  setup page (Ready), the strip's offer (`RecipeReadyFields.missed(in:)`, `ProjectRunStripTests`). Left: a run started on
-  an import's pages offers Start on the whole project.
+  setup page (Ready), the strip's offer (`RecipeReadyFields.missed(in:)`, `ProjectRunStripTests`). A run an import
+  started offers running again on its pages alone (`missed.documents`, Start's `documents`), never Start on the whole
+  project, from all three places.
 
 ## Reliability: the behaviours that make a run finish
 
