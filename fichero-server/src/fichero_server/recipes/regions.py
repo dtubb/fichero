@@ -57,13 +57,16 @@ def progress_words(done: int, total: int, *, elapsed: float = 0.0, seconds_left:
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                  stop: Callable[[], bool] | None = None, provider: str = "yolo",
                  say: Callable[[str], None] | None = None, person: bool | None = None,
-                 created: list[str] | None = None) -> dict[str, int]:
+                 created: list[str] | None = None, progress: bool = True) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
     asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
     why; between pages `say` is told the pages done and the time left (#5685, #5689, `activity.throttle.power-heat-memory`).
     A page cut from a PDF is rendered through the shared page-render seam and found on that image (#4892); the ids of the
-    artifacts saved are appended to `created`, for a caller that tells the run which artifacts it made (#4890)."""
+    artifacts saved are appended to `created`, for a caller that tells the run which artifacts it made (#4890).
+    `progress=False`: `say` hears only the throttle (a hold's words cleared when it lifts), never the pages done: a
+    workflow's node runs this one page at a time, under a stage that is not Find Regions (Find Lines), and its count
+    of 1 page said "Finding regions: 0 of 1 pages" there (dogfood 2026-10-27)."""
     from fichero_server.execution import jobs, throttle
 
     from PIL import Image
@@ -83,17 +86,21 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     for number, doc_id in enumerate(documents):
         # The throttle's one decision (#5819): memory and heat hold (and battery, for background work); a person's run
         # on battery, and background work under a build or while the Mac is used, goes on slower and says so.
+        held = False
         while (decision := throttle.decide(person)).action == "hold" and not (stop is not None and stop()):
             if say is not None:
                 say(decision.reason)
+            held = True
             time.sleep(WAIT_POLL_SECONDS)
+        if held and say is not None and not progress:
+            say("")
         if decision.action == "slow" and not (stop is not None and stop()):
             if say is not None:
                 say(decision.words)
             time.sleep(SLOWER_YIELD_SECONDS)
         if stop is not None and stop():
             break
-        if say is not None:
+        if say is not None and progress:
             # How far it is, with the time left once a page is done (#5689).
             say(f"Finding regions: {progress_words(number, len(documents), elapsed=time.monotonic() - started)}")
         doc = db.get(Document, doc_id)
@@ -133,7 +140,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             created.append(artifact_id)
         account["pages"] += 1
         account["regions"] += regions_here
-    if say is not None and documents and not (stop is not None and stop()):
+    if say is not None and progress and documents and not (stop is not None and stop()):
         say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account
 

@@ -121,8 +121,10 @@ its pages (`source.recipe.step-counts-its-pages`); the run's status is Activity'
   say the stage in words ("Find lines and Read each line · stage 1 of 5", never `find-lines`), pages done
   of total with the time left from measured pages, and one grey line of why when it waits. Built: the stage
   bar, page grid and `up_next` (`activity.window.open-a-run` (P), `activity.summary.up-next` (P)); the
-  job-id wording is #6091. *Seen in the dogfood:* "Finding regions: 0 of 1 pages" on a find-lines stage,
-  and `start_project` saying 95 pages while the run took 58 with no reason shown (the blank-verso and
+  job-id wording is #6091. *Seen in the dogfood:* "Finding regions: 0 of 1 pages" on a find-lines stage
+  (fixed: Find Lines runs Detect Segments (Kraken), whose node ran the region loop a page at a time and said its
+  count on the workflow's row; that node now says only the throttle, and the stage counts the pages;
+  `test_find_lines_says_its_own_progress.py`), and `start_project` saying 95 pages while the run took 58 with no reason shown (the blank-verso and
   already-done counts belong on the row; `source.recipe.done-is-not-redone` has the numbers). Built (engine): each stage
   of the run carries Start's own count as `note` ("already done on 37 of 95 pages; runs on the other 58"), so the row can
   say why it runs on fewer pages than the project has (`test_step_rerun_on_folder.py`,
