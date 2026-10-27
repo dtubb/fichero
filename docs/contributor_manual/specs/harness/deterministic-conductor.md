@@ -395,9 +395,9 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 ### Checking the work
 - `pipeline.ready-check` [OK] — `scripts/lane_ready_check.sh` (self-tested): current integration history, no
   private folders, agent author, every commit cites an issue, lint on the diff, a source change has a test change,
-  and the fast guards the diff's paths call for (`check_folder_organization`, `check_shell_chrome`,
-  `check_capability_scrapes`; #6140). Test: `scripts/lane_ready_check.sh --self-test` (a scratch commit that breaks
-  `check_folder_organization` is NOT READY).
+  and every fast guard the runner's fast-guards rung runs (all `scripts/check_*.py` minus the skip list in
+  `pipeline/projects/fichero.toml`, read from there, 60 s each; #6140). Test: `scripts/lane_ready_check.sh --self-test`
+  (a scratch commit that breaks `check_folder_organization` is NOT READY).
 - `pipeline.test-red-on-base` [OK] — the branch's changed or new test files are copied into a scratch
   worktree at origin/integration and must fail there, and must pass on the branch; a test that passes on the base
   proves nothing. Tests: `pipeline/tests/test_checks.py::test_red_on_base_fails_a_test_that_passes_on_base`,
