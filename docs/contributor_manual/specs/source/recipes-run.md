@@ -329,9 +329,12 @@ replaces the Kraken figure before #6212 is coded.
   the run carries on past it.
 
 - `recipes-run.engine.failure-in-words` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
-  exception's text: a step whose body raises KeyError('x') reads "<kind> could not finish: ...". Built: the
-  names step's time limit and the stalled-page lines (above). Left: `execution/jobs.py` still stores `str(exc)` as a
-  failed job's reason.
+  exception's text: a step whose body raises KeyError('x') reads "<kind> could not finish: ...". Built: a failed
+  job's reason (`execution/jobs.failed_reason`) names a slip in Fichero's own code (KeyError, TypeError,
+  AttributeError and the like) as "<kind in words> could not finish: an error in Fichero (KeyError: 'x')", keeps a
+  failure's own words, and is never blank (`core/failure_text`); the names step's time limit and stalled-page lines
+  above. Left: a workflow node's failure on its page row still carries the tool's own text.
+  Test: fichero-server/tests/unit/execution/test_failure_in_words_6212.py.
 
 ### 7. Memory is bounded
 

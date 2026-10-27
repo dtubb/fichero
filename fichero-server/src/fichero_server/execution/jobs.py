@@ -232,6 +232,19 @@ class Kind:
 KINDS: dict[str, Kind] = {}
 
 
+#: A slip in Fichero's own code, not a failure with something to say: its text alone ("'x'") tells the person nothing.
+_SLIPS = (KeyError, IndexError, AttributeError, TypeError, NameError, AssertionError, ZeroDivisionError)
+
+
+def failed_reason(kind: str, exc: BaseException) -> str:
+    """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
+    from fichero_server.core.failure_text import failure_text
+
+    if isinstance(exc, _SLIPS):
+        return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"
+    return failure_text(exc)
+
+
 def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
                   name: str | None = None, cancel: Callable[["Database", str], str] | None = None,
@@ -3583,7 +3596,7 @@ class _Scheduler:
             state, reason, error = "running", str(exc), exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
-            state, reason, error = "failed", str(exc) or type(exc).__name__, exc
+            state, reason, error = "failed", failed_reason(kind_name, exc), exc
         finally:
             _current.job_id = None
             _current.lane = None
