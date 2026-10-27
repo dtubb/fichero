@@ -52,7 +52,7 @@ if TYPE_CHECKING:
     from fichero_server.models.conversion import UnconvertedScope
     from fichero_server.models import Artifact, Segment, Workflow
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from types import SimpleNamespace
 import difflib
@@ -173,6 +173,10 @@ def transient_field_names(model_cls: type) -> set[str]:
     cannot itself become a column.
     """
     return set(getattr(model_cls, "TRANSIENT_FIELDS", ()) or ())
+
+
+# ponytail: a fixed grace; a reader holding an older version past it loses its files (each call opens the latest).
+_VECTOR_PRUNE_GRACE = timedelta(minutes=5)  # optimize() alone kept every old version for 7 days (#6236)
 
 
 def _vector_compaction_interval() -> int:
@@ -5950,7 +5954,7 @@ class Database(DatabaseEmbeddingMixin):
                     results[name] = False
                     continue
                 try:
-                    self.lance.open_table(name).optimize()
+                    self.lance.open_table(name).optimize(cleanup_older_than=_VECTOR_PRUNE_GRACE)
                     self._vector_append_counts[name] = 0
                     results[name] = True
                 except Exception as exc:  # noqa: BLE001
