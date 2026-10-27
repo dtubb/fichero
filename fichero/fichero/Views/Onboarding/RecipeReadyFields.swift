@@ -92,6 +92,16 @@ struct RecipeReadyFields: View {
                 }
                 Spacer()
                 if isStarting { ProgressView().controlSize(.small) }
+                // What the project's last run missed, run again (#6170): the engine's offer, the strip's own Start on its folder;
+                // a refusal shows above, in the store's error.
+                if let project, let missed = Self.missed(in: project.activityStore), let offer = missed.offer {
+                    Button(offer) {
+                        Task { _ = await LibraryManager.shared.runAgainOnMissed(for: project.id, folderId: missed.folderId) }
+                    }
+                    .help(missed.words)
+                    .disabled(isStarting)
+                    .accessibilityIdentifier("setup.ready.runAgainOnMissed")
+                }
                 Button("Start", action: onStart)
                     .buttonStyle(.borderedProminent)
                     .disabled(!store.canStart || isStarting)
@@ -113,6 +123,11 @@ struct RecipeReadyFields: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// What the project's last ended run missed, with its offer, as its run strip has it (`source.recipe.run-again-on-what-was-missed`).
+    static func missed(in activity: ActivityStore?) -> ActivityDetails.Summary.Missed? {
+        activity.flatMap { ProjectRunStrip(store: $0) }?.missed.flatMap { $0.offer == nil ? nil : $0 }
     }
 
     /// Start (the first yes): the export rows are kept, the answers and plan saved, then the engine

@@ -290,6 +290,8 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(strip.missed?.words, missed["words"] as? String)
         XCTAssertEqual(strip.missed?.offer, "Run again on what was missed")
         XCTAssertNil(strip.missed?.folderId, "an import-scoped run's Start is the whole project")
+        // The recipe's setup page offers the same action beside Start (#6170).
+        XCTAssertEqual(RecipeReadyFields.missed(in: store)?.words, strip.missed?.words)
 
         let readAgainError = await store.readPagesAgain(runThreadId: stage.threadId)
         XCTAssertNil(readAgainError, "Read Again is the stage run's own route, through the store")
