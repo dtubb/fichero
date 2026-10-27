@@ -25,6 +25,8 @@ struct ActivityDetails: Equatable {
         case retryDownload(jobId: String)
         /// The steps take the next candidate of their chain (#5352).
         case useNextCandidate(steps: [String], card: String)
+        /// What a finished run missed, run again (#6170): plain Start on the run's folder (nil, the project).
+        case runAgainOnMissed(folderId: String?, label: String)
     }
 
     struct FailedPageRow: Equatable, Identifiable {

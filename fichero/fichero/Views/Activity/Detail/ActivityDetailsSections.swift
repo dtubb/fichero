@@ -173,6 +173,7 @@ struct ActivityDetailsActions: View {
         case .openSetUp: "Open Set Up…"
         case .retryDownload: "Retry"
         case .useNextCandidate: "Use the Next Reader"
+        case .runAgainOnMissed(_, let label): label
         }
     }
 
@@ -187,6 +188,7 @@ struct ActivityDetailsActions: View {
         case .openSetUp: "slider.horizontal.3"
         case .retryDownload: "arrow.clockwise"
         case .useNextCandidate: "arrow.right.circle"
+        case .runAgainOnMissed: "arrow.clockwise"
         }
     }
 
@@ -201,6 +203,7 @@ struct ActivityDetailsActions: View {
         case .openSetUp: "openSetUp"
         case .retryDownload: "retryDownload"
         case .useNextCandidate: "useNextCandidate"
+        case .runAgainOnMissed: "runAgainOnMissed"
         }
     }
 }
@@ -284,6 +287,17 @@ struct ActivityDetailsSummary: View {
                                   ? "This reader runs in the cloud: allow cloud models in Set Up first."
                                   : "Take the next reader in this step's chain")
                             .accessibilityIdentifier("activity.details.summary.useNextCandidate")
+                    }
+                }
+                .font(.callout)
+            }
+            if let missed = summary.missed {
+                HStack(alignment: .firstTextBaseline) {
+                    Label(missed.words, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    if let offer = missed.offer {
+                        Button(offer) { perform(.runAgainOnMissed(folderId: missed.folderId, label: offer)) }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("activity.details.summary.runAgainOnMissed")
                     }
                 }
                 .font(.callout)

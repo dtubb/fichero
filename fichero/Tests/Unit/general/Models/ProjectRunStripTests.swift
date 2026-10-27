@@ -285,6 +285,11 @@ final class ProjectRunStripTests: XCTestCase {
         let stage = try XCTUnwrap(strip.failed.first)
         XCTAssertEqual(stage.offer, "Read the 2 pages that failed")
         XCTAssertEqual(stage.threadId, threadId)
+        // What it missed and its one action, as the engine words them (#6170): plain Start on the run's folder.
+        let missed = try XCTUnwrap((failed["summary"] as? [String: Any])?["missed"] as? [String: Any])
+        XCTAssertEqual(strip.missed?.words, missed["words"] as? String)
+        XCTAssertEqual(strip.missed?.offer, "Run again on what was missed")
+        XCTAssertNil(strip.missed?.folderId, "an import-scoped run's Start is the whole project")
 
         let readAgainError = await store.readPagesAgain(runThreadId: stage.threadId)
         XCTAssertNil(readAgainError, "Read Again is the stage run's own route, through the store")

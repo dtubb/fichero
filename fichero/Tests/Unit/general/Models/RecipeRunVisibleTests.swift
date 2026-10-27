@@ -366,6 +366,9 @@ final class RecipeRunVisibleTests: XCTestCase {
             let details = try XCTUnwrap(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
             let shown = try XCTUnwrap(details.summary, "an ended run says what it made")
             XCTAssertEqual(shown.lines, lines ?? [], "the engine's lines as given; none when it sends none")
+            // What it missed, as given, with its offer (#6170).
+            XCTAssertEqual(shown.missed?.offer, "Run again on what was missed")
+            XCTAssertEqual(shown.missed?.words, (summary["missed"] as? [String: Any])?["words"] as? String)
         }
     }
 }

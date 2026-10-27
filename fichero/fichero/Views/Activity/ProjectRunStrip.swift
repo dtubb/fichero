@@ -22,6 +22,8 @@ struct ProjectRunStrip: Equatable {
     let detail: String
     /// An ended run's stages whose pages failed, each with its Read Again.
     let failed: [ActivityDetails.Summary.Failed]
+    /// What an ended run missed and its Run Again (#6170), as the engine sends it.
+    var missed: ActivityDetails.Summary.Missed?
 
     /// The strip for the store's project run, or nil when there is none.
     @MainActor
@@ -62,6 +64,7 @@ struct ProjectRunStrip: Equatable {
                 ?? [node?.reason, job?.reason].compactMap { $0 }.first { !$0.isEmpty }
                 ?? "What it made could not be read just now. Show Details has the log."
             failed = summary?.failed ?? []
+            missed = summary?.missed
             return
         }
         failed = []
@@ -181,6 +184,9 @@ struct ProjectRunStripView: View {
                 readAgain: { threadId, offer in
                     .stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })
                 },
+                runAgain: { folderId in
+                    Task { failure = await LibraryManager.shared.runAgainOnMissed(for: libraryId, folderId: folderId) }
+                },
                 onShowDetails: { showDetails(strip.jobId) },
                 onClose: { store.putAwayProjectRun() }
             )
@@ -200,6 +206,8 @@ struct ProjectRunStripRow: View {
     let failure: String?
     /// A stage's Read Again target (`ActivityRunMenuTarget.stage`): the shared item Activity renders (#5652).
     let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
+    /// What the run missed, run again on its folder (nil, the project): plain Start (#6170).
+    var runAgain: (_ folderId: String?) -> Void = { _ in }
     let onShowDetails: () -> Void
     let onClose: () -> Void
 
@@ -227,6 +235,12 @@ struct ProjectRunStripRow: View {
                         .help(stage.text)
                         .accessibilityIdentifier("project.runStrip.readAgain")
                 }
+            }
+            if let missed = strip.missed, let offer = missed.offer {
+                Button(offer) { runAgain(missed.folderId) }
+                    .controlSize(.small)
+                    .help(missed.words)
+                    .accessibilityIdentifier("project.runStrip.runAgainOnMissed")
             }
             Button("Show Details", action: onShowDetails)
                 .controlSize(.small)

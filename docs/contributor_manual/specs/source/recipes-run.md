@@ -209,8 +209,11 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   Run again on what was missed, which runs only what is not done. *Built (engine):* a finished run's summary carries
   `missed` (each stage's pages not done, in words, a failed page included; the offer; the run's `folder_id`), and the
   action is plain Start on that `folder_id`, which reads only the missed pages
-  (`fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py`). Left: the button on the recipe's page, in
-  Activity and on the folder's menu (Swift); a run started on an import's pages offers Start on the whole project.
+  (`fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py`). *Built (app, compile owed):* the offer
+  beside the ended run in Activity's summary and on the project's run strip, the engine's words as given, pressing it the
+  project's own Start on that folder (`LibraryManager.runAgainOnMissed`; `RecipeRunVisibleTests`, `ProjectRunStripTests`);
+  the folder's menu already has Run the Recipe on This Folder…, the same Start. Left: the button on the recipe's own
+  setup page; a run started on an import's pages offers Start on the whole project.
 
 ## Reliability: the behaviours that make a run finish
 
