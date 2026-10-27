@@ -631,9 +631,10 @@ def _fuzzy_match_existing(
                 return ent
 
     needle_tokens = _match_tokens(canonical_name)
-    # #6236: one matcher for the needle (difflib caches the second sequence), and its cheap upper bounds first:
-    # a candidate whose bound can't reach the threshold or beat the best so far can't change the answer.
-    matcher = SequenceMatcher(None, b=_fold_accents(canonical_name.lower()))
+    # #6236: one matcher for the needle, and its cheap upper bounds first: a candidate whose bound can't reach the
+    # threshold or beat the best so far can't change the answer. The needle stays the FIRST sequence: ratio() is
+    # not symmetric, and near the floor the order decides the proposal.
+    matcher = SequenceMatcher(None, a=_fold_accents(canonical_name.lower()))
 
     best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
     for ent in existing:
@@ -652,7 +653,7 @@ def _fuzzy_match_existing(
         else:
             token_ratio = 0.0
         floor = max(token_ratio, best[0])
-        matcher.set_seq1(_fold_accents(ent.canonical_name.lower()))
+        matcher.set_seq2(_fold_accents(ent.canonical_name.lower()))
         if max(threshold, floor) > matcher.real_quick_ratio() or floor >= matcher.quick_ratio():
             seq_ratio = 0.0
         else:
