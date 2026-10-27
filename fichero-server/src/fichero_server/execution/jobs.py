@@ -1009,6 +1009,21 @@ def _heard_from(job_id: str) -> None:
         lane.heard[job_id] = time.monotonic()
 
 
+@contextlib.contextmanager
+def _live_call():
+    """This thread's model-lane job waits on one model call that says nothing while it computes (a Kraken page: about 39 s
+    on the M4, minutes on a 4-core Mac, #5846): slow, never stuck, as `lane_slot`'s call is (#6213)."""
+    job_id, lane = current_job_id(), _scheduler.lanes["local-ml"]
+    if job_id is None or job_id not in lane.running or job_id in lane.live_calls:
+        yield
+        return
+    lane.live_calls.add(job_id)
+    try:
+        yield
+    finally:
+        lane.live_calls.discard(job_id)
+
+
 def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
     """The newest job of this kind on this subject."""
     row = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
@@ -1570,7 +1585,8 @@ def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, m
     forbid_in_get("model work")
     db = _open_library(library_path)
     if db is None or getattr(_current, "lane", None) == "local-ml":
-        return fn()
+        with _live_call():
+            return fn()
     future = submit(db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id)
     return _wait_for_lane_blocking(db, future, run_id)
 
@@ -2835,7 +2851,7 @@ class _Lane:
         blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
         ponytail: a blocked Python thread cannot be killed; the lane runs beside it on a thread of its own, at most `slots`
         extra, and the stuck row stays running (its thread may still finish it). A Kraken page is one call with no words of
-        its own: one silent for a minute counts as stuck; give it a progress hook if the M4 shows slow pages taken for stuck."""
+        its own: handed to the lane it is a live call (`_live_call`), slow, never stuck."""
         if self.name == "images":
             cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
             return {job_id for job_id, at in list(self.started.items()) if at < cutoff and job_id in self.running}
@@ -3442,7 +3458,10 @@ class _Scheduler:
 
         while True:
             try:
-                return handed_in[0]() if handed_in is not None else kind.run(db, subject)
+                if handed_in is None:
+                    return kind.run(db, subject)
+                with _live_call():  # handed-in work is one model call (a Kraken page): slow, never stuck (#6213)
+                    return handed_in[0]()
             except MemoryShortError as exc:
                 if handed_in is None:
                     raise JobDeferred(str(exc)) from exc

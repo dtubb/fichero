@@ -162,3 +162,27 @@ def test_a_slow_model_job_that_still_makes_progress_keeps_the_lane(db, model_lan
     lane.heard[job_id] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS - 1
     jobs.save_detail(db, job_id, "{}", reason="Page 8 of 20")
     assert lane.stuck() == set()
+
+
+@pytest.mark.parametrize("handed", ["to the lane", "in place"])
+def test_a_kraken_page_silent_past_the_deadline_keeps_its_slot(db, model_lane, monkeypatch, handed):
+    """A Kraken page is one call that writes nothing to its row while it computes (about 39 s a page on the M4, minutes on
+    a 4-core Mac, #5846): handed to the lane, or run in place by a job already on it, it is a live call, slow and never
+    stuck, so the one-heavy hold stays while Kraken computes (#6213)."""
+    lane = model_lane
+    lane.running["kraken-page"] = "kraken:blla"
+    lane.started["kraken-page"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 5
+    monkeypatch.setattr(jobs._current, "job_id", "kraken-page", raising=False)
+    monkeypatch.setattr(jobs._current, "lane", "local-ml", raising=False)
+    seen: list[set[str]] = []
+
+    def segment_lines():  # kraken_runtime.segment_lines, silent past the deadline
+        seen.append(lane.stuck())
+        return "lines"
+
+    if handed == "to the lane":
+        assert jobs._scheduler._work(db, "kraken-page", None, "page", (segment_lines, None, "local-ml", None)) == "lines"
+    else:
+        assert jobs.run_on_lane_blocking(None, "find-regions", "page", model="kraken:blla", fn=segment_lines) == "lines"
+    assert seen == [set()]
+    assert "kraken-page" not in lane.live_calls  # the call over, its silence counts again
