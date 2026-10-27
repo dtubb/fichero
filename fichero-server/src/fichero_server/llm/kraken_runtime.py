@@ -972,6 +972,15 @@ def _log_page(total: float) -> None:
 
 
 def _kraken_call(op: Callable[[], _T]) -> _T:
+    """`_kraken_call_once`, marked on the job's model lane as one live call: a Kraken page says nothing while it reads
+    (about 39 s on the M4, minutes on a 4-core Mac), so a job that reads pages directly (Check lines, Evaluate models)
+    is slow, not stuck, and its slot is not released beside a live read (#6213, review 2026-10-27)."""
+    jobs_module = sys.modules.get("fichero_server.execution.jobs")
+    with jobs_module._live_call() if jobs_module else contextlib.nullcontext():
+        return _kraken_call_once(op)
+
+
+def _kraken_call_once(op: Callable[[], _T]) -> _T:
     """Run one Kraken operation in-process, one at a time, off the main
     thread (callers already dispatch through `asyncio.to_thread`, same as
     every other CPU-bound provider in this engine — see `vision_base.py`).

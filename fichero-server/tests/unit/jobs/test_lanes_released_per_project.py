@@ -229,3 +229,27 @@ def test_saying_nothing_clears_the_reason(db):
     jobs.say(db, job_id, "Page 1 of 2")
     jobs.say(db, job_id, "")
     assert jobs.read_job(db, job_id)["reason"] is None
+
+
+def test_a_job_reading_kraken_pages_itself_is_slow_not_stuck(model_lane, monkeypatch):
+    """Check lines and Evaluate models read Kraken pages directly, not through the lane's handed-in call, and speak only
+    after each page: a page past the deadline released their slot as stuck, and a second heavy job started beside a
+    live Kraken read (review 2026-10-27). Every Kraken call is a live call now, wherever it is made from."""
+    from fichero_server.llm import kraken_runtime
+
+    lane = model_lane
+    lane.running["check-lines"] = None
+    lane.kinds["check-lines"] = "says-every-page"
+    lane.started["check-lines"] = time.monotonic() - jobs.STUCK_MODEL_JOB_SECONDS * 5
+    monkeypatch.setattr(jobs._current, "job_id", "check-lines", raising=False)
+    monkeypatch.setattr(jobs._current, "lane", "local-ml", raising=False)
+    monkeypatch.setattr(kraken_runtime, "_kraken_call_once", lambda op: op())  # no Kraken installed: the page itself
+    seen: list[set[str]] = []
+
+    def read_a_page():  # kraken_runtime.read_given_lines' work, silent past the deadline
+        seen.append(lane.stuck())
+        return "reads"
+
+    assert kraken_runtime._kraken_call(read_a_page) == "reads"
+    assert seen == [set()]
+    assert lane.stuck() == {"check-lines"}  # between pages its silence counts again
