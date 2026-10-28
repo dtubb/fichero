@@ -3133,16 +3133,15 @@ A recipe that only finds lines and reads each one was refused for having no page
 make lines alone the default and the only required shape; a page reader and the reviewers are steps a
 person adds, never required; and every step says plainly what it does wherever a step is named.
 
-- `source.recipe.transcribe-is-lines-alone` — **[BROKEN]** (#6250) the default steps of Transcribe,
-  and the "transcribe jobs" every other purpose builds on, are `find-lines` then `read-a-line` and
-  nothing else: setup proposes them, the recipe saves them, Start runs them. Today `assemble._TRANSCRIBE`
-  (`fichero-server/src/fichero_server/recipes/assemble.py:17`) is `("find-lines", "read-a-line", "correct")`,
-  so every purpose proposes a Correct step by default; Edit a corpus (`("find-lines", "read-a-line")`) is
-  already the shape this rule makes the default. *Test (to write, red first):* assembling [transcribe]
-  gives exactly find-lines, read-a-line; [map-places] gives find-lines, read-a-line, find-names-tag-words,
-  place-in-a-gazetteer; no purpose adds `correct`, `read-a-page` or `check` by itself. A project saved
-  before this rule keeps its Correct step (a recipe change never changes a person's recipe by itself,
-  Rulings 2026-10-01).
+- `source.recipe.transcribe-is-lines-alone` — **[OK]** (#6250) the default steps of Transcribe,
+  and the "transcribe jobs" every other purpose builds on, are `find-lines` then `read-a-line`: setup proposes them,
+  the recipe saves them, Start runs them. No purpose proposes `correct`, `read-a-page` or `check` by itself. Found
+  2026-10-28: this already held. `assemble._TRANSCRIBE` lists `correct`, but only as the step Set Up's question turns on
+  (`correct_with_a_second_model`, default no): unasked, `_correct_left_off` (#5677, #5812) makes it a left-off row with
+  its cost and Turn On, never a step; taking it out of the table would break that yes. Leave out (built in, no model)
+  still rides on Find lines between the two. A project saved before keeps its Correct step (Rulings 2026-10-01).
+  *Test:* `fichero-server/tests/unit/recipes/test_transcribe_is_lines_alone_6250.py` (through the assemble route:
+  [transcribe] with and without cloud, map-places, every purpose with cloud allowed).
 - `source.recipe.lines-alone-never-refused` — **[BROKEN]** (#6250) a recipe of `find-lines` and
   `read-a-line` (with or without the add-ons below) is never refused for lacking a page step, by the
   recipe check, Start's plan, a stage try, Use This from a comparison, or choosing a model for a step.
