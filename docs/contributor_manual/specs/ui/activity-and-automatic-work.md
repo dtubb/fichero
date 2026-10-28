@@ -2355,13 +2355,13 @@ is the answer; the grey line says both.
   Mac"). *Test (to write):* `fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py` (a faked run
   whose windows gain 30%, 12% then 4% stops at the third; a window under paging steps down and leaves the fit; a 5%
   slower configuration with fewer cores is the one kept; the grey words).
-- `activity.lane.torch-threads-set-once-per-plan` — **[BROKEN]** (#6229; proposed 2026-10-27) the torch thread count is
+- `activity.lane.torch-threads-set-once-per-plan` — **[OK]** (#6229; proposed 2026-10-27; built: `kraken_runtime.threads_each(cores, pages_at_once)`, set only when it or torch changes) the torch thread count is
   set once for a plan (N pages at once, T threads each, from the fit) when the gate's plan changes, never per page:
   `torch.set_num_threads` is process-wide, and today `kraken_runtime.py` ~1020-1035 sets it on every page from the
   pages inside the gate, so a page that entered alone at four threads drops to two when a second page enters and stays
   there after it leaves; `set_num_interop_threads` may only be set once, and the OpenMP and BLAS variables are
   `setdefault`, so only the first value ever holds. The per-page log line keeps saying the threads the page ran with.
-  *Test (to write):* `fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py` (a fake torch
+  *Test:* `fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py` (a fake torch
   records every `set_num_threads` call: two pages through the gate under one plan make one call; a plan change makes
   one more).
 - `activity.lane.embedder-forks-before-threads` — **[BROKEN]** (#6237; proposed 2026-10-27, decision 3 of the review)
