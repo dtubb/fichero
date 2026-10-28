@@ -1085,11 +1085,13 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
     # A choice for a step the person has since un-ticked goes with the step: kept, it named a step this recipe no longer
-    # has and the check refused the whole plan, so Start could not run (owner 2026-10-24). A removed-step record stays.
-    from fichero_server.recipes.recipe import REMOVED_STEP, override_kind
+    # has and the check refused the whole plan, so Start could not run (owner 2026-10-24). A page reader adds the page
+    # step instead (#6259). A removed-step record stays.
+    from fichero_server.recipes.recipe import fit_overrides
 
-    step_ids = {s.get("id") for s in recipe.get("steps") or [] if isinstance(s, dict)}
-    kept = [o for o in kept if not isinstance(o, dict) or override_kind(o) == REMOVED_STEP or o.get("step") in step_ids]
+    recipe["overrides"] = kept
+    fit_overrides(recipe)
+    kept = recipe.pop("overrides")
     if kept:
         from fichero_server.recipes.bakeoff import apply_project_overrides
 
@@ -1975,9 +1977,11 @@ async def save_project_setup(
             # A Use This made since the app loaded this recipe is kept, an override a PUT adds is dropped (an undo goes through the action)
             from fichero_server.recipes import bakeoff
 
-            bakeoff.apply_project_overrides(
-                bakeoff.keep_saved_overrides(read_project_setup(_library(db)).get("recipe"), params["recipe"]),
-                list(known_cards(include_not_built=True)))
+            from fichero_server.recipes.recipe import fit_overrides
+
+            kept = bakeoff.keep_saved_overrides(read_project_setup(_library(db)).get("recipe"), params["recipe"])
+            fit_overrides(kept)  # a saved choice for a step the sent recipe lacks: the page step added, any other dropped (#6259)
+            bakeoff.apply_project_overrides(kept, list(known_cards(include_not_built=True)))
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2470,6 +2474,9 @@ class StartPlan(BaseModel):
         "which one is used: the step menu's data; choosing is POST /api/recipes/project/steps/use-candidate, taking it "
         "back POST /api/recipes/project/steps/use-setup-pick (`source.onboard.step-candidates-on-the-plan`)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
+    notes: list[str] = Field(default_factory=list, description=(
+        "what Start changed in the saved recipe to fit the person's kept choices, one sentence each: a page reader adds the "
+        "Read the whole page step, a choice for a step the recipe no longer has is dropped; never a refusal (#6259)"))
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
         "when it lands (#5660)"))
@@ -2588,6 +2595,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
     # added layer proposes for the material already there, and what did not finish.
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
+    from fichero_server.recipes.recipe import fit_overrides
+
+    notes = fit_overrides(setup["recipe"]) if setup["recipe"] else []  # a kept choice never refuses Start (#6259)
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
@@ -2612,6 +2622,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
+    plan["notes"] = notes
     from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
     from fichero_server.recipes.answers import spend_cap

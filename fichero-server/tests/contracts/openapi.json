@@ -95061,6 +95061,14 @@
             "title": "Refusals",
             "description": "Start is refused while this is not empty"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "what Start changed in the saved recipe to fit the person's kept choices, one sentence each: a page reader adds the Read the whole page step, a choice for a step the recipe no longer has is dropped; never a refusal (#6259)"
+          },
           "waiting": {
             "items": {
               "type": "string"

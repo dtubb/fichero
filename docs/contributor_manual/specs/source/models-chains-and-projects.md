@@ -3159,7 +3159,7 @@ person adds, never required; and every step says plainly what it does wherever a
   test. *Test (to write):* `recipes check` on a find-lines + read-a-line recipe lists no problem; Start's
   plan for it has two runs and no refusal; Use This with a page reader's row on it adds the page step
   rather than refusing; use-candidate with a local vision model on its line step adds the page step.
-- `source.recipe.page-reader-is-an-add-on` — **[GAP]** (#6250) **Read the whole page** (`read-a-page`) is
+- `source.recipe.page-reader-is-an-add-on` — **[PARTIAL]** (#6250, #6259; built for a kept choice, engine, unrun in the app: a saved page reader's override on a recipe with no Read the whole page step adds the step with that reader as its model, `tie-text-to-lines` after it (with the line reader's model) and Find lines if missing, in Start's plan, in assembling again and in saving Set Up (`recipe.fit_overrides`); any other kept choice for a step the recipe no longer has is dropped, each said in the plan's `notes`, never a refusal; pinned by `fichero-server/tests/unit/recipes/test_a_page_reader_adds_the_page_step_6259.py`. Not built: the Use This and use-candidate presses below, and Set Up's Also on hand) **Read the whole page** (`read-a-page`) is
   an optional step a person adds in Set Up (under Also on hand), in the Recipe Designer or on the recipe
   card; no purpose proposes it. It **needs the lines step** (`find-lines`) in the recipe: it reads the
   page at once and its output is tied to the found lines (`tie-text-to-lines` runs as part of it, as
