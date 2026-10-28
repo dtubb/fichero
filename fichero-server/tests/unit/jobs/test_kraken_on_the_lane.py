@@ -399,6 +399,37 @@ class TestStopReachesAPageWaitingForTheLane:
             gate.set()
             clear_cancellation("run-busy")
 
+    @pytest.mark.asyncio
+    async def test_a_dropped_page_that_is_then_deferred_ends_cancelled_never_waiting(self, db, test_package):
+        """WHY (#4402): a page Stop dropped that then raises JobDeferred must not go back to waiting (and later end done)."""
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, clear_cancellation, request_cancellation)
+
+        started, gate = threading.Event(), threading.Event()
+
+        def page():
+            started.set()
+            gate.wait(10)
+            raise jobs.JobDeferred("later")
+
+        waiting = asyncio.ensure_future(jobs.run_on_lane(
+            str(test_package), "find-lines", "busy-deferred", model="kraken:blla", fn=page, run_id="run-deferred"))
+        try:
+            await asyncio.to_thread(started.wait, 10)
+            request_cancellation("run-deferred")
+            with pytest.raises(WorkflowCancelled):
+                await asyncio.wait_for(waiting, 3)
+            gate.set()
+            row = "SELECT state FROM jobs WHERE subject = 'busy-deferred'"
+            for _ in range(100):
+                if db.execute_fetchone(row) != ("running",):
+                    break
+                await asyncio.sleep(0.05)
+            assert db.execute_fetchone(row) == ("cancelled",)
+        finally:
+            gate.set()
+            clear_cancellation("run-deferred")
+
     def test_stop_does_not_wait_for_a_running_page_from_a_thread_either(self, db, test_package):
         """The same for a synchronous caller (a recipe step's page, `run_on_lane_blocking`)."""
         from fichero_server.execution.cancellation import (

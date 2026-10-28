@@ -3707,6 +3707,8 @@ class _Scheduler:
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         dropped = _DROPPED_PAGES.pop(job_id, None)  # on every end, the deferred one too: never left behind
+        if dropped is not None and state in ("waiting", "running"):  # its run stopped: it ends, never back to waiting
+            state, reason = "cancelled", dropped[0]
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)

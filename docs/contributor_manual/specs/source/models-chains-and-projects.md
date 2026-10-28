@@ -3199,13 +3199,9 @@ person adds, never required; and every step says plainly what it does wherever a
   (`read-a-page`), **Review the reading** (`correct`); while running, Activity says **Finding the lines**,
   **Reading each line**, **Reading the whole page**, **Reviewing the reading**. One source: the job's
   topic title (`fichero-server/src/fichero_server/recipes/seed/topics.yaml`, `title:`), which Start's
-  plan already uses (`source.onboard.ready-speaks-plainly`, `start.step_names`). Today the words differ
-  by surface: topics say "Read a page" and "Correct"; the stage page says "Read lines", "Read pages",
-  "Correct" (`fichero-server/src/fichero_server/recipes/step_choices.py:17`, `_STAGE_WORDS`); the runner's
-  progress says "Reading the lines", "Reading the pages", "Correcting the readings"
-  (`fichero-server/src/fichero_server/recipes/runner.py:1668`, `_DOING`); Activity's stage table groups
-  all four under one "Read" (`fichero/fichero/Views/Activity/Detail/ActivityDetails+RunStages.swift`,
-  mirrored from `recipes/stages.py:77`), so a person cannot tell which step is which. The stage keeps
+  plan already uses (`source.onboard.ready-speaks-plainly`, `start.step_names`). Before 2026-10-28 the words differed
+  by surface (topics said "Read a page" and "Correct"; the stage page "Read lines", "Read pages"; the runner "Reading the lines",
+  "Correcting the readings"; Activity's stage table grouped all four under one "Read", mirrored from `recipes/stages.py`), so a person cannot tell which step is which. The stage keeps
   its name (Read) as the group; each step row under it carries its own label. *Test (to write):* the
   purposes endpoint, the stage page's choices, the plan's step names and a run's progress lines all
   name the four steps with these labels and no other; a step id or job id never shows.

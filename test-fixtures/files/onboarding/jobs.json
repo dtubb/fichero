@@ -173,7 +173,7 @@
   },
   {
    "id": "read-a-page",
-   "name": "Read a page",
+   "name": "Read the whole page",
    "description": "Reads a whole page at once, usually with a vision model. Strong on hard pages, but it does not keep where each line was.",
    "topic": "read-a-page",
    "layer": "reading",
@@ -211,7 +211,7 @@
   },
   {
    "id": "correct",
-   "name": "Correct",
+   "name": "Review the reading",
    "description": "A second model checks each reading against the picture and proposes corrections, kept as new readings beside the first. It can be limited to the lines the first reader was unsure of, which saves time and money on long runs.",
    "topic": "correct",
    "layer": "reading",
