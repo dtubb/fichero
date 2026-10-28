@@ -15,8 +15,13 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import os
+import pickle
+import signal
+import socket
 import threading
-from typing import Any
+import time
+from multiprocessing.connection import Connection
+from typing import Any, NamedTuple, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -188,10 +193,13 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
     _stop_lancedbs_loop()
     _let_go_of_the_engines_files(conn.fileno())
     try:
+        # A fake model imports no onnxruntime: a test's process is not launched with OBJC_DISABLE_INITIALIZE_FORK_SAFETY, as
+        # the app launches the engine (EmbeddedBackendService+Spawn.swift), and an ObjC class first set up in a fork crashes.
         try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
-            import onnxruntime
+            if not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
+                import onnxruntime
 
-            onnxruntime.disable_telemetry_events()
+                onnxruntime.disable_telemetry_events()
         except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
             os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
             logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
@@ -232,6 +240,135 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
         os._exit(0)
 
 
+class _Seed(NamedTuple):
+    control: socket.socket
+    pid: int
+
+
+#: The seed the engine forked at start (`start_seed`); None in a test or a dev server that did not make one, where the
+#: embedder forks the engine itself as before.
+_SEED: _Seed | None = None
+_SEED_LOCK = threading.Lock()
+
+
+def start_seed() -> None:
+    """Fork the seed (`activity.lane.embedder-forks-before-threads`, #6237): called once at the engine's start, before
+    uvicorn's loop, LanceDB's loop or any other thread exists. It does nothing but fork a worker on request, so a worker
+    never inherits a thread or a selector of the running engine (LanceDB's loop died in one with "Bad file descriptor")."""
+    global _SEED
+    if _SEED is not None or in_process():
+        return
+    ours, theirs = socket.socketpair()
+    pid = os.fork()
+    if pid == 0:
+        ours.close()
+        _seed(theirs)
+    theirs.close()
+    _SEED = _Seed(ours, pid)
+
+
+def stop_seed() -> None:
+    """End the seed (tests; the engine's own end closes its socket, and the seed leaves when it reads the end)."""
+    global _SEED
+    if _SEED is None:
+        return
+    _SEED.control.close()
+    _wait_gone(_SEED.pid, 5)
+    _SEED = None
+
+
+def _recv_exactly(sock: socket.socket, n: int, first: bytes = b"") -> bytes:
+    data = first
+    while len(data) < n:
+        more = sock.recv(n - len(data))
+        if not more:
+            raise EOFError("the other end closed")
+        data += more
+    return data
+
+
+def _seed(control: socket.socket) -> NoReturn:
+    """The seed: fork one worker (`_serve`) for each request, hand back its pid, and leave when the engine is gone."""
+    try:
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)  # its workers are reaped by the system: none is left a zombie
+        _let_go_of_the_engines_files(control.fileno())
+        while True:
+            head, fds, _flags, _addr = socket.recv_fds(control, 8, 1)
+            if not head:
+                break  # the engine closed its end, or died
+            args = pickle.loads(_recv_exactly(control, int.from_bytes(_recv_exactly(control, 8, head), "big")))
+            pid = os.fork()
+            if pid == 0:
+                control.close()
+                signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+                _serve(Connection(fds[0]), *args)
+            os.close(fds[0])
+            control.sendall(pid.to_bytes(8, "big"))
+    except BaseException as exc:  # noqa: BLE001 -- the seed only leaves; the engine's next ask says it is gone
+        os.environ["FICHERO_SEED_LEFT"] = type(exc).__name__
+    finally:
+        os._exit(0)
+
+
+def _gone(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:  # the pid was reused by another user's process: ours is gone
+        return True
+    return False
+
+
+def _wait_gone(pid: int, seconds: float) -> None:
+    end = time.monotonic() + seconds
+    while not _gone(pid) and time.monotonic() < end:
+        try:  # the engine's own child (the seed itself) is reaped here; a seed's worker is reaped by the seed
+            os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
+        time.sleep(0.02)
+
+
+class _SeedWorker:
+    """A worker the seed forked, as `multiprocessing.Process` stands for one the engine forked: alive, terminate, kill,
+    join. It is the seed's child, so the engine signals it by pid."""
+
+    def __init__(self, pid: int, parent: int) -> None:
+        self.pid, self.parent = pid, parent
+
+    def is_alive(self) -> bool:
+        return not _gone(self.pid)
+
+    def terminate(self) -> None:
+        self._signal(signal.SIGTERM)
+
+    def kill(self) -> None:
+        self._signal(signal.SIGKILL)
+
+    def join(self, timeout: float | None = None) -> None:
+        _wait_gone(self.pid, 5 if timeout is None else timeout)
+
+    def _signal(self, sig: int) -> None:
+        try:
+            os.kill(self.pid, sig)
+        except ProcessLookupError:
+            pass
+
+
+def _ask_the_seed(seed: _Seed, args: tuple) -> tuple[Connection, _SeedWorker]:
+    """A worker forked by the seed, with `args` for `_serve`, and the engine's end of its pipe."""
+    ours, theirs = socket.socketpair()
+    payload = pickle.dumps(args)
+    try:
+        with _SEED_LOCK:
+            socket.send_fds(seed.control, [len(payload).to_bytes(8, "big") + payload], [theirs.fileno()])
+            pid = int.from_bytes(_recv_exactly(seed.control, 8), "big")
+    finally:
+        theirs.close()
+    return Connection(ours.detach()), _SeedWorker(pid, seed.pid)
+
+
 class RemoteEmbedder:
     """Stands where fastembed's `TextEmbedding` stood: `embed(texts)` returns one vector per text."""
 
@@ -254,13 +391,21 @@ class RemoteEmbedder:
             # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
             raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "
                                       "search waits for it.")
-        context = multiprocessing.get_context("fork")
-        self._conn, child = context.Pipe(duplex=True)
-        self._process = context.Process(
-            target=_serve, args=(child, self.model_name, self._cache_dir, self._threads,
-                                 _child_env(self.model_name, self._cache_dir)), daemon=True)
-        self._process.start()
-        child.close()
+        if _SEED is not None:  # forked by the seed, never by the running engine (#6237); it gets the engine's env as now
+            env = {**os.environ, **_child_env(self.model_name, self._cache_dir)}
+            try:
+                self._conn, self._process = _ask_the_seed(_SEED, (self.model_name, self._cache_dir, self._threads, env))
+            except (OSError, EOFError) as exc:
+                raise EmbedderUnavailable("The search model's process could not be started; embedding for search "
+                                          "will try again later.") from exc
+        else:  # no seed (a test, a dev server started without `main`): the engine forks it, as before
+            context = multiprocessing.get_context("fork")
+            self._conn, child = context.Pipe(duplex=True)
+            self._process = context.Process(
+                target=_serve, args=(child, self.model_name, self._cache_dir, self._threads,
+                                     _child_env(self.model_name, self._cache_dir)), daemon=True)
+            self._process.start()
+            child.close()
         try:
             ready = self._conn.poll(self._init_timeout)
             if not ready:
@@ -308,6 +453,10 @@ class RemoteEmbedder:
 
     def alive(self) -> bool:
         return self._process.is_alive()
+
+    def parent_pid(self) -> int | None:
+        """The process that forked the worker: the seed's pid, or the engine's own without a seed."""
+        return getattr(self._process, "parent", None) or os.getpid()
 
     def close(self) -> None:
         """End the child; the engine goes on. Safe to call twice, and on one refused before any fork."""
