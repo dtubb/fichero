@@ -174,6 +174,23 @@ final class LibraryManagerCreateProjectTests: XCTestCase {
         XCTAssertEqual(appWide.errorMessage, "Open a project first.")
     }
 
+    /// WHY (#6255): a project in a folder outside the app's container was refused by the engine (403
+    /// failed_check=roots) because the save panel's grant for that folder was never sent to it. The chosen
+    /// folder is granted first, then the engine opens the project.
+    func test_a_chosen_folder_is_granted_to_the_engine_before_it_opens_the_project() async throws {
+        _ = installGlobalLibrary()
+        let chosen = tempDirectory.appendingPathComponent("Volume", isDirectory: true)
+        var calls: [String] = []
+        let newProject = NewProjectStore(libraryManager: libraryManager,
+                                         openInEngine: { calls.append("open \($0.url.lastPathComponent)") },
+                                         grantFolder: { calls.append("grant \($0.lastPathComponent)") })
+        newProject.name = "GHG Box 12"
+        newProject.place = .chosen(chosen)
+        let made = await newProject.create()
+        _ = try XCTUnwrap(made, newProject.errorMessage ?? "not created")
+        XCTAssertEqual(calls, ["grant Volume", "open GHG Box 12.fichero"])
+    }
+
     /// WHY: a place that cannot be written is refused on Where it lives, in words, and nothing
     /// is made; the person stays on the screen to choose another.
     func test_where_it_lives_refuses_a_folder_it_cannot_write() async throws {

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import os
+import pwd
 import tempfile
 import threading
 from pathlib import Path
@@ -284,6 +285,17 @@ def is_sandbox_container_library_staging(path: Path, home: Path) -> bool:
     )
 
 
+def _real_home() -> Path:
+    """The person's own home from the password database. In the sandboxed engine ``Path.home()`` (``$HOME``) is the
+    app's container, ``~/Library/Containers/<app>/Data``, not where their Documents are (#6255)."""
+    return Path(pwd.getpwuid(os.getuid()).pw_dir)
+
+
+def _homes() -> list[Path]:
+    """``Path.home()`` and the real home, once each (the same folder when not sandboxed)."""
+    return list(dict.fromkeys((Path.home().resolve(), _real_home().resolve())))
+
+
 def ingest_allowed_roots() -> list[Path]:
     """Directory roots a file may be imported FROM.
 
@@ -294,17 +306,11 @@ def ingest_allowed_roots() -> list[Path]:
     The two sandbox-container shapes are NOT roots: they are pattern rules on
     a single container and stay in their helpers.
     """
-    home = Path.home().resolve()
-    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
     return [
-        home / "Documents",
-        home / "Desktop",
-        home / "Fichero",
-        home / "Dropbox",
-        home / "code",
-        home / "Library" / "Application Support",
-        home / "Library" / "CloudStorage",
-        icloud,
+        *(home / sub for home in _homes() for sub in (
+            "Documents", "Desktop", "Fichero", "Dropbox", "code", "Library/Application Support",
+            "Library/CloudStorage", "Library/Mobile Documents/com~apple~CloudDocs",
+        )),
         Path("/var/folders"),
         Path("/private/var/folders"),
         Path("/tmp"),
@@ -432,17 +438,27 @@ def owner_folder_grant_key(path: str | Path) -> str:
         resolved = raw.resolve(strict=True)
     except (OSError, RuntimeError, ValueError):
         raise OwnerFolderGrantRefused(f"{path} does not exist.") from None
-    home = Path.home().resolve()
     system = [Path(p) for p in _SYSTEM_FOLDERS]
     if (
         resolved == Path(resolved.anchor)
-        or resolved == home
-        or home.is_relative_to(resolved)
+        or any(_home_or_its_hidden_parts(resolved, home) for home in _homes())
         or (
             any(resolved.is_relative_to(root) for root in system)
             and not any(resolved.is_relative_to(Path(p)) for p in _SYSTEM_FOLDER_EXCEPTIONS)
         )
         or resolved in [Path(p) for p in _MOUNT_FOLDERS]
+    ):
+        raise OwnerFolderGrantRefused(
+            f"{resolved} is a system folder; choose the folder that holds your material instead."
+        )
+    return unicodedata.normalize("NFC", str(resolved))
+
+
+def _home_or_its_hidden_parts(resolved: Path, home: Path) -> bool:
+    """The home itself, a folder above it, its Library (but for the synced drives under it) or a dot-folder."""
+    return (
+        resolved == home
+        or home.is_relative_to(resolved)
         or (
             resolved.is_relative_to(home / "Library")
             and not any(
@@ -450,11 +466,7 @@ def owner_folder_grant_key(path: str | Path) -> str:
             )
         )
         or (resolved.is_relative_to(home) and resolved.relative_to(home).parts[0].startswith("."))
-    ):
-        raise OwnerFolderGrantRefused(
-            f"{resolved} is a system folder; choose the folder that holds your material instead."
-        )
-    return unicodedata.normalize("NFC", str(resolved))
+    )
 
 
 def note_owner_granted_folder(path: str | Path) -> str:
