@@ -363,6 +363,11 @@ class AnswerBook:
         return [r for r in requests if r.key not in known]
 
 
+def in_a_batch() -> bool:
+    """A step sent as a provider batch is under way (its capture or its replay): its calls go through the batch."""
+    return _SEAM.get() is not None
+
+
 def is_capturing() -> bool:
     """A capture run is under way: the step's tools save nothing (its answers are stand-ins)."""
     seam = _SEAM.get()
