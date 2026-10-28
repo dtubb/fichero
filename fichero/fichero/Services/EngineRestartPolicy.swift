@@ -81,7 +81,12 @@ struct EngineWorkSample: Equatable {
     let cpuSeconds: Double
     let diskBytes: UInt64
 
-    /// The process's usage now; nil when `pid` is not a live process.
+    /// Gone only when no such process exists (ESRCH). EPERM, as the sandbox can give for usage reads, is alive.
+    static func isGone(pid: pid_t) -> Bool {
+        kill(pid, 0) != 0 && errno == ESRCH
+    }
+
+    /// The process's usage now; nil when it can't be read (gone, or not ours to read: see `isGone`).
     static func read(pid: pid_t) -> EngineWorkSample? {
         var info = rusage_info_v4()
         let status = withUnsafeMutablePointer(to: &info) {

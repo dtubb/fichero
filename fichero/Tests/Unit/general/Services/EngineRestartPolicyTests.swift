@@ -1,4 +1,5 @@
 @testable import Fichero
+import Foundation
 import Testing
 
 struct EngineRestartPolicyTests {
@@ -70,6 +71,17 @@ struct EngineRestartPolicyTests {
                                            processGone: false) == .restartHung)
         #expect(EngineRestartPolicy.decide(failures: 3, workRunning: false, isLocal: false, windowStart: nil,
                                            now: nil, processGone: false) == .restartHung)
+    }
+
+    @Test func aProcessWeMayNotReadIsAliveNotGone_onlyNoSuchProcessIsGone() throws {
+        // launchd's usage is not ours to read (EPERM), as the sandbox gives for the engine: never "dead".
+        #expect(!EngineWorkSample.isGone(pid: 1))
+        #expect(!EngineWorkSample.isGone(pid: getpid()))
+        let done = Process()
+        done.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try done.run()
+        done.waitUntilExit()
+        #expect(EngineWorkSample.isGone(pid: done.processIdentifier))
     }
 
     @Test func theBusyLineSaysHowLongTheEngineHasNotAnswered() {

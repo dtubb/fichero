@@ -22,7 +22,7 @@ struct ActivityStatusToolbarItem: View {
     /// state re-rooted the content tree. Degrade; never trap.
     @Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?
     @Environment(ActivityStore.self) private var activityStore
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self) private var appState: AppState?
     @Environment(\.openWindow) private var openWindow
 
     let isImporting: Bool
@@ -167,7 +167,7 @@ struct ActivityStatusToolbarItem: View {
                     ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
                     openWindow(id: ActivityWindowSelectionState.detailWindowID)
                 },
-                engineBusy: appState.engineBusySentence
+                engineBusy: appState?.engineBusySentence
             )
 
             Divider()
