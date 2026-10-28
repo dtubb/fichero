@@ -10,10 +10,12 @@ the Keychain; tests pass a fake of the same surface.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Iterator
 
 #: Pages of one step on one cloud model in one run from which the step goes as a batch (ruling 4, 2026-10-28):
 #: below it, plain calls finish sooner and the saving is cents. ponytail: re-set from step 2's real runs.
@@ -283,3 +285,43 @@ class GeminiBatches:
 
     def cancel(self, ids: dict[str, str]) -> None:
         self.client.batches.cancel(name=ids["batch_id"])
+
+
+# --- the seam in `llm.vision` -----------------------------------------------------------------------------------
+#: Set by the batch step around a run of the step's own workflow: ("capture", calls, answer) records each vision
+#: call as a request and answers it with `answer(prompt)` without calling anyone; ("answers", book) answers a call
+#: from the batch's lines by its key. Unset, `llm.vision` is untouched.
+_SEAM: contextvars.ContextVar[tuple | None] = contextvars.ContextVar("provider_batch_seam", default=None)
+
+
+@contextlib.contextmanager
+def capturing(answer: Callable[[str], str]) -> Iterator[list[BatchRequest]]:
+    """The vision calls made inside, as batch requests under their cache keys; none of them is sent. `answer` stands
+    in for the model so the step goes on to its next call as if answered (no re-ask is captured)."""
+    calls: list[BatchRequest] = []
+    token = _SEAM.set(("capture", calls, answer))
+    try:
+        yield calls
+    finally:
+        _SEAM.reset(token)
+
+
+@contextlib.contextmanager
+def answering(book: dict[str, str]) -> Iterator[None]:
+    """Vision calls inside are answered from the batch's lines by key; a key with no line goes as a plain call."""
+    token = _SEAM.set(("answers", book))
+    try:
+        yield
+    finally:
+        _SEAM.reset(token)
+
+
+def through_the_seam(key: str, prompt: str, images: list[str]) -> str | None:
+    """`llm.vision`'s hook, at its cache lookup: the seam's answer for this call, or None to go on as a plain call."""
+    seam = _SEAM.get()
+    if seam is None:
+        return None
+    if seam[0] == "capture":
+        seam[1].append(BatchRequest(key=key, prompt=prompt, images=tuple(images)))
+        return seam[2](prompt)
+    return seam[1].get(key)

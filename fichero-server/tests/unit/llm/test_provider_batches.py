@@ -237,3 +237,36 @@ def test_gemini_sends_a_file_of_keyed_requests_and_lands_each_answer_under_its_k
     assert client.poll({"batch_id": "batches/old"})["state"] == "gone"
     client.cancel(ids)
     assert fake.cancelled == ["batches/1"]
+
+
+# --- the seam in llm.vision: the step's own calls, captured, then answered from the batch --------------------------
+
+def test_the_steps_own_vision_calls_are_captured_and_then_answered_from_the_batch(monkeypatch):
+    """WHY (`compute.recipe.cloud-batch-above-threshold`, `ai.where.batch-results-land-once`): the requests a batch sends
+    are the step's own calls, captured under their cache keys (nothing is called); the step run again is answered from
+    the batch's lines under the same keys, so each lands as the pass a plain call writes; a call with no answer (a line
+    that failed) goes as a plain call."""
+    import asyncio
+
+    from fichero_server import llm
+
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
+    plain = []
+
+    def no_plain_call(config):
+        plain.append(config.model)
+        raise RuntimeError("a plain call")
+
+    monkeypatch.setattr(llm, "get_langchain_model", no_plain_call)
+    config = llm.LLMConfig(provider="anthropic", model="claude-opus-5-5")
+    with pb.capturing(answer=lambda prompt: '["x"]') as captured:
+        said = asyncio.run(llm.vision([JPEG], "Read the line.", config))
+    key = llm._vision_cache_key(config, "Read the line.", [JPEG])
+    assert said == '["x"]' and plain == []
+    assert captured == [pb.BatchRequest(key=key, prompt="Read the line.", images=(JPEG,))]
+
+    with pb.answering({key: '["En la ciudad"]'}):
+        assert asyncio.run(llm.vision([JPEG], "Read the line.", config)) == '["En la ciudad"]'
+        with pytest.raises(RuntimeError, match="a plain call"):
+            asyncio.run(llm.vision([JPEG], "Another prompt.", config))
+    assert plain == ["claude-opus-5-5"]

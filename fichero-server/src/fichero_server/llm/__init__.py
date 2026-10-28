@@ -2888,6 +2888,11 @@ async def vision(
     with _LLM_RESULT_CACHE_LOCK:
         if _cache_key in _LLM_RESULT_CACHE:
             return _LLM_RESULT_CACHE[_cache_key]
+    # A step sent as a provider batch: its calls captured, then answered from the batch's lines (#5940).
+    from fichero_server.llm.provider_batch import through_the_seam
+
+    if (seamed := through_the_seam(_cache_key, prompt, images)) is not None:
+        return seamed
 
     # Get LangChain model
     await _ensure_managed_local_provider_ready(config, capability="vision")
