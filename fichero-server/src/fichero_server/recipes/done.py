@@ -411,6 +411,8 @@ def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None
     recipe)."""
     from fichero_server.models import Artifact
 
+    if model is None and workflow_id is None:  # nothing says whose review it is: not this step's (a second Review step)
+        return False
     return any(a.artifact_type == REVIEWED and _by_the_step(a, model, workflow_id)
                for a in db.query(Artifact, document_id=doc_id))
 
@@ -613,7 +615,7 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         pages = [p for p in pages_for(db, card, None) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
-            out[card["job"]] = len(todo)
+            out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
 
