@@ -837,6 +837,16 @@ def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: floa
     return {"place": "this-mac", "target": None, "why": why}
 
 
+def goes_as_provider_batch(run: dict[str, Any], pages: int) -> bool:
+    """`compute.recipe.cloud-batch-above-threshold` (#5940): a read on a cloud model whose provider has a batch API, with
+    one reader, over at least the threshold's pages, goes as one batch; the plan places it so and the sheet prices it so."""
+    from fichero_server.llm.provider_batch import goes_as_batch
+    from fichero_server.remote_read.cloud_batch import CLIENTS
+
+    return (run.get("job") in ("read-a-line", "read-a-page") and run.get("provider_override") in CLIENTS
+            and not run.get("readers") and goes_as_batch(pages, waiting=False))
+
+
 def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, bound_cluster: str | None = None,
                pages_per_second: float | None = None, hf_allowed: bool = False,
                hf_cap_usd: float = 0.0, hf_spent_usd: float = 0.0) -> list[dict[str, Any]]:
@@ -848,13 +858,11 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
     from fichero_server.recipes.placement import place_step
     from fichero_server.remote_read.sizing import size_run
 
-    from fichero_server.llm.provider_batch import goes_as_batch
     from fichero_server.remote_read.cloud_batch import CLIENTS
 
     for run in runs:
         provider = run.get("provider_override")
-        if run.get("job") in ("read-a-line", "read-a-page") and provider in CLIENTS and not run.get("readers") \
-                and goes_as_batch(pages, waiting=False):  # `compute.recipe.cloud-batch-above-threshold` (#5940)
+        if goes_as_provider_batch(run, pages):
             run.update(place="batch", target=provider, why=f"{pages:,} pages go to {CLIENTS[provider][0]} as one batch, "
                                                            "at the batch price, answered within a day")
             continue
@@ -1513,6 +1521,12 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         cost = (_priced_lines(w, to_send) if to_send is not None
                 else _priced(w, pages * calls) if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
+        if runs_on.startswith("cloud") and calls is not None and goes_as_provider_batch(w, pages):
+            from fichero_server.llm.spend import batch_cost_usd
+
+            cost = batch_cost_usd(w["provider_override"], w["model_override"] or "", pages * calls * _TOKENS_IN,
+                                  pages * calls * _TOKENS_OUT)
+            basis = "unpriced" if cost is None else "the batch price, answered within a day"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None
         lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}

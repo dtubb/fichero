@@ -337,3 +337,21 @@ def test_the_recipe_runner_sends_a_batch_step_to_the_batch_and_every_other_place
     for place in ("this-mac", None):
         runner._run_card(None, {**card, "place": place}, ["p1"], {}, "recipe-1", {}, "owner")
     assert seen == [("workflow", "this-mac"), ("workflow", None)]
+
+
+def test_the_estimate_prices_a_step_that_goes_as_a_batch_at_the_batch_price(monkeypatch):
+    """WHY (`compute.recipe.cloud-batch-consent-and-cost`): the sheet shows what the person will be billed: a step the
+    plan sends as a batch at the batch price, said so; under 100 pages, the listed rate, as before."""
+    from fichero_server.llm import spend
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "_TOKENS_IN", 1000)
+    monkeypatch.setattr(start, "_TOKENS_OUT", 100)
+    step = {"workflow": "Transcribe HTR", "steps": ["read"], "job": "read-a-page", "runs_on": "cloud:anthropic",
+            "provider_override": "anthropic", "model_override": "claude-sonnet-4-5"}
+    (batch,) = start.estimate([step], 100)["runs"]
+    assert batch["basis"] == "the batch price, answered within a day"
+    assert batch["cost_usd"] == pytest.approx(spend.batch_cost_usd("anthropic", "claude-sonnet-4-5", 100_000, 10_000))
+    (plain,) = start.estimate([step], 99)["runs"]
+    assert plain["basis"] == "the model's listed rate"
+    assert batch["cost_usd"] < plain["cost_usd"] * 100 / 99

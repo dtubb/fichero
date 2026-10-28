@@ -94786,7 +94786,7 @@
           "basis": {
             "type": "string",
             "title": "Basis",
-            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
+            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, `the batch price, answered within a day` (a step sent as one provider batch, #5940), or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
             "default": "unpriced"
           },
           "memory": {
