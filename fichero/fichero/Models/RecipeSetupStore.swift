@@ -90,6 +90,8 @@ final class RecipeSetupStore {
     }
     /// The Hugging Face spend cap a month the person set; nil is the engine's $0 (`source.onboard.spend-cap`, #5769).
     var spendCapUsd: Double?
+    /// The cloud spend cap a month the person set; nil is the engine's US$10 (`ai.where.cloud-spend-cap`, #5943).
+    var cloudSpendCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -498,7 +500,8 @@ final class RecipeSetupStore {
                            cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
-                           hfSpendCapUsd: spendCapUsd, copiesMayStayOnCluster: copiesMayStay)
+                           hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
+                           copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -540,6 +543,7 @@ final class RecipeSetupStore {
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }
         spendCapUsd = saved.hfSpendCapUsd
+        cloudSpendCapUsd = saved.cloudSpendCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
