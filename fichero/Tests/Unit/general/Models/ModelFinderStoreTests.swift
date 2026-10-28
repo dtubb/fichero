@@ -383,6 +383,32 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertFalse(setup.readsMaterial("unknown-job"))
     }
 
+    /// WHY (#6254, #6258): every step that runs a model a person can choose offers Choose a Model…, by the registry's
+    /// `needs_a_model`. A list kept here named only the readers, Find Regions and Correct, so Find names, Find statements,
+    /// Translate, Catalogue and Entries showed their own model alone though the engine listed Claude, Gemini and MLX.
+    func testEveryModelStepsRowOffersTheFinder_byTheRegistry() async throws {
+        let modelSteps = ["find-lines", "read-a-line", "correct", "find-names-tag-words", "find-statements",
+                          "translate-transliterate-normalise", "describe-for-the-catalogue", "split-into-entries"]
+        FinderMockURLProtocol.reset { request in
+            guard request.url?.path == "/api/recipes/jobs" else { return (404, "{}") }
+            func job(_ id: String, model: Bool) -> String {
+                """
+                {"id":"\(id)","name":"\(id)","description":"","topic":"\(id)","layer":"reading","takes":[],
+                 "gives":[],"compare":"","settings":[],"since":"2026.10.03","reads_material":\(id == "read-a-line"),
+                 "needs_a_model":\(model)}
+                """
+            }
+            let items = modelSteps.map { job($0, model: true) } + [job("put-in-order", model: false)]
+            return (200, "{\"items\":[\(items.joined(separator: ","))],\"count\":\(items.count)}")
+        }
+        let setup = RecipeSetupStore(client: makeClient())
+        await setup.loadJobs()
+        for job in modelSteps {
+            XCTAssertTrue(setup.offersFinder(job), "\(job)'s row offers no choice of model")
+        }
+        XCTAssertFalse(setup.offersFinder("put-in-order"), "a step that runs no model offers no finder")
+    }
+
     /// WHY (`source.find.app-card-actions`, #5612): Use for This Step works on ANY candidate, not only
     /// the Start plan's installed offer: it sends the step and the card to use-candidate, setup's one
     /// code path, and a refusal is shown rather than swallowed.

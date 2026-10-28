@@ -71718,6 +71718,12 @@
             "title": "Reads Material",
             "description": "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)",
             "default": false
+          },
+          "needs_a_model": {
+            "type": "boolean",
+            "title": "Needs A Model",
+            "description": "whether the job runs a model a person can choose: setup offers the model finder beside its step (#6258)",
+            "default": false
           }
         },
         "type": "object",

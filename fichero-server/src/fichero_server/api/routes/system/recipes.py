@@ -89,6 +89,8 @@ class JobInfo(BaseModel):
     since: str
     reads_material: bool = Field(default=False, description=(
         "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)"))
+    needs_a_model: bool = Field(default=False, description=(
+        "whether the job runs a model a person can choose: setup offers the model finder beside its step (#6258)"))
 
 
 class JobListResponse(BaseModel):
@@ -102,7 +104,8 @@ async def list_jobs() -> JobListResponse:
     items = [
         JobInfo(id=j.id, name=j.name, description=j.description, topic=j.topic.id, layer=j.layer,
                 takes=sorted(j.takes), gives=sorted(j.gives), compare=j.compare,
-                settings=list(j.settings), since=j.since, reads_material=j.id in READING_JOBS)
+                settings=list(j.settings), since=j.since, reads_material=j.id in READING_JOBS,
+                needs_a_model=bool(j.needs_a_model))
         for j in all_jobs()
     ]
     return JobListResponse(items=items, count=len(items))
