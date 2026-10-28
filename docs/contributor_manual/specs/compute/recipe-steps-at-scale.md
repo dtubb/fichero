@@ -193,7 +193,7 @@ twelve hours or costs more than its estimate.
   current while tasks land. *Test (to write):* the same file.
 - `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642) each task's per-page compute record lands with
   its results and feeds the run's slow-path lines. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-above-threshold` — **[GAP]** (#5940) a step on a cloud model with at least the
+- `compute.recipe.cloud-batch-above-threshold` — **[PARTIAL]** (#5940; built: `llm/provider_batch.py` `goes_as_batch`, `cut_to_cap`, the Anthropic inline client against a fake of its SDK, `tests/unit/llm/test_provider_batches.py`; not yet: OpenAI, Gemini, the runner sending a step as a batch) a step on a cloud model with at least the
   threshold of pages in a run nobody is waiting for goes as one provider batch per recipe batch (cut to the provider's
   byte cap; Gemini by file when images are in it); below the threshold, or for a press a person waits on, plain calls
   as today; a page whose cache key is already answered is left out. *Test (to write):* the same file, with a fake
