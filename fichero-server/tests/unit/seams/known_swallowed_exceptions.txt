@@ -91,7 +91,7 @@ execution/runner.py::_run_workflow_body._close_in_flight_steps 1
 execution/runner.py::_run_workflow_body._finalize_documents 2
 importers/derivatives.py::_emit_queue_activity 1
 importers/derivatives.py::_emit_queue_progress 1
-importers/derivatives.py::_nlp_stage 1
+importers/derivatives.py::_nlp_stage_one_page 1
 importers/ingest.py::_create_pdf_page_children 3
 importers/ingest.py::_extract_file_metadata 1
 importers/ingest.py::_extract_image_metadata 1
