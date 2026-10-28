@@ -185,32 +185,44 @@ REMOVED_STEP = "removed-step"
 PAGE_STEP = "read-a-page"
 
 
+def add_page_step(recipe: dict[str, Any], model: dict | None = None, runs_on: str | None = None) -> tuple[dict, str]:
+    """The recipe's Read the whole page step, added when it has none (#6250 ruling 3): with `model` as its reader, tied to the
+    lines (`tie-text-to-lines`, with the line reader's model) and with Find lines if missing. (the step, the sentence saying
+    what was added; "" when it was there). Changes `recipe` in place."""
+    from fichero_server.recipes.layers import _insert
+
+    steps = recipe.setdefault("steps", [])
+    found = next((s for s in steps if s.get("job") == PAGE_STEP), None)
+    if found is not None:
+        return found, ""
+    jobs = {s.get("job") for s in steps}
+    line_model = next((s.get("model") for s in steps if s.get("job") == "read-a-line" and s.get("model")), None)
+    added = []
+    for job, extra in (("find-lines", {}), (PAGE_STEP, {"model": dict(model or {}), "runs_on": runs_on}),
+                       ("tie-text-to-lines", {"model": dict(line_model)} if line_model else {})):
+        if job not in jobs:
+            _insert(steps, {"id": job, "job": job, **{k: v for k, v in extra.items() if v}})
+            added.append(job)
+    page = next(s for s in steps if s.get("job") == PAGE_STEP)
+    return page, ("Your page reader adds the step Read the whole page, tied to the lines"
+                  + (", with Find lines" if "find-lines" in added else "") + ".")
+
+
 def fit_overrides(recipe: dict[str, Any]) -> list[str]:
     """Fit the kept choices to the recipe's steps, never refusing (#6259): a page reader chosen for a recipe with no Read the
     whole page step adds that step with the reader as its model, tied to the lines (and Find lines, if missing), as the #6250
     ruling says; any other choice for a step the recipe no longer has is dropped. The sentences say what changed. Changes
     `recipe` in place."""
-    from fichero_server.recipes.layers import _insert
-
-    steps = recipe.setdefault("steps", [])
-    ids = {s.get("id") for s in steps if isinstance(s, dict)}
+    ids = {s.get("id") for s in recipe.get("steps") or [] if isinstance(s, dict)}
     kept, notes = [], []
     for o in recipe.get("overrides") or []:
         if not isinstance(o, dict) or override_kind(o) == REMOVED_STEP or o.get("step") in ids:
             kept.append(o)
             continue
         if o.get("step") == PAGE_STEP and o.get("scope") == "project" and isinstance(o.get("model"), dict) and o["model"]:
-            line_model = next((s.get("model") for s in steps if s.get("job") == "read-a-line" and s.get("model")), None)
-            added = []
-            for job, extra in (("find-lines", {}), (PAGE_STEP, {"model": dict(o["model"]), "runs_on": o.get("runs_on")}),
-                               ("tie-text-to-lines", {"model": dict(line_model)} if line_model else {})):
-                if job not in ids:
-                    _insert(steps, {"id": job, "job": job, **{k: v for k, v in extra.items() if v}})
-                    ids.add(job)
-                    added.append(job)
+            notes.append(add_page_step(recipe, o["model"], o.get("runs_on"))[1])
+            ids.add(PAGE_STEP)
             kept.append(o)
-            notes.append("Your page reader adds the step Read the whole page, tied to the lines"
-                         + (", with Find lines" if "find-lines" in added else "") + ".")
         else:
             notes.append(f"Your choice for the step {o.get('step')!r} was dropped: this recipe no longer has that step.")
     if "overrides" in recipe:

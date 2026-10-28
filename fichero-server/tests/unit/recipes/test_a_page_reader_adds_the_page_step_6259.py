@@ -54,3 +54,30 @@ def test_start_plans_the_page_step_for_a_saved_lines_only_recipe_with_a_page_rea
     assert not [r for r in body["refusals"] if "which this recipe does not have" in r], body["refusals"]
     assert any("read-a-page" in r["steps"] for r in body["runs"]), body["runs"]
     assert any("Read the whole page" in n for n in body["notes"])
+
+
+def _page_reader(runs_on="this-mac"):
+    from fichero_server.recipes.assemble import Card
+
+    return Card(id="mlx:vision/x/Qwen3-VL@1", pin={"hf": "x/Qwen3-VL", "revision": "abc123"}, jobs=frozenset({"read-a-page"}), scripts=None,
+                languages=None, material=frozenset(), runs_on=runs_on, note="Qwen3-VL", open_licence=True)
+
+
+def test_use_this_with_a_page_reader_on_a_lines_only_recipe_adds_the_page_step():
+    from fichero_server.recipes.bakeoff import use_this
+
+    card = _page_reader()
+    table = {"id": "b1", "step": "read-a-page", "lines": 40, "rows": [
+        {"card": card.id, "measured": True, "cer": 0.08, "policy": "strict", "pages_read": 3, "pages_total": 3, "rank": 1}]}
+    out = use_this(copy.deepcopy(LINES_ONLY), table, card, scope="project", folder_id=None, now="2026-10-28T00:00:00Z")
+    page = next(s for s in out["steps"] if s["job"] == "read-a-page")
+    assert page["model"] == card.pin and check_recipe(out) == []
+
+
+def test_use_candidate_with_a_local_page_reader_on_the_line_step_adds_the_page_step():
+    from fichero_server.recipes.start import use_candidate
+
+    out = use_candidate(copy.deepcopy(LINES_ONLY), "read-a-line", _page_reader(), now="2026-10-28T00:00:00Z")
+    assert [s["job"] for s in out["steps"]] == ["find-lines", "read-a-line", "read-a-page", "tie-text-to-lines"]
+    assert next(s for s in out["steps"] if s["job"] == "read-a-line")["model"] == KRAKEN, "the line reader stays"
+    assert [o["step"] for o in out["overrides"]] == ["read-a-page"] and check_recipe(out) == []

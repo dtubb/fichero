@@ -72,7 +72,7 @@ def test_any_candidate_becomes_the_steps_reader_audited_and_undoable(client, db,
 
 
 def test_use_candidate_refuses_in_words(client, db, pages, mac):
-    """A card Fichero has not found, a step the recipe lacks, or a card that does not do the step's job is refused."""
+    """A card Fichero has not found, or a step the recipe lacks, is refused; a page reader on the line step adds the page step."""
     _save(client, _recipe(None, LINES, READ), cloud_allowed=False)
     page_only = next(i for i in _candidates(client) if "read-a-line" not in i["jobs"])
     post = lambda body: client.post("/api/recipes/project/steps/use-candidate", json=body)  # noqa: E731
@@ -80,5 +80,7 @@ def test_use_candidate_refuses_in_words(client, db, pages, mac):
     assert r.status_code == 422 and "not a model Fichero has found" in r.json()["detail"]
     r = post({"step": "nope", "card": page_only["id"]})
     assert r.status_code == 422 and "no step 'nope'" in r.json()["detail"]
+    # A page reader on the line step is no longer refused: it adds the page step (#6250 ruling 3, #6259).
     r = post({"step": "read", "card": page_only["id"]})
-    assert r.status_code == 422 and "does not do the step 'read'" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert "read-a-page" in [s["job"] for s in r.json()["recipe"]["steps"]]
