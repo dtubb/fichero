@@ -15,10 +15,10 @@ from __future__ import annotations
 import time
 
 from fichero_server.db.manager import db_manager
+from fichero_server.execution import cancellation
 from fichero_server.execution import jobs
 from fichero_server.recipes import runner as recipes
 from tests.unit.jobs.test_closed_mid_run_5608 import (  # noqa: F401
-    _close_and_open,
     _first_child,
     _listed,
     _recipe,
@@ -37,6 +37,7 @@ from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
 )
 
 ENDED = ("done", "failed", "cancelled")
+real_request_cancellation = cancellation.request_cancellation
 
 
 def _cancel(client, job_id) -> str:
@@ -118,22 +119,29 @@ def test_activity_stop_reaches_the_run__an_engine_resumed_mid_stop_does_not_take
     """WHY (#5609): a run left running when the engine went away is taken up again on the next open ("Interrupted;
     carries on"). One stopped while its step wound down is not: it ends cancelled, stopped by you, and runs nothing
     more."""
+    # The engine goes away before the run winds down (#6243). The Stop is held until then, so the step's run (linked to
+    # the recipe run, `runner.py` `link_child`) does not end at once; and the reopen comes only once the old run's lane
+    # thread is gone, since `jobs.resume` leaves a row a live lane thread runs. A poll patch and a sleep raced both.
+    asked: list[str] = []
+    monkeypatch.setattr(cancellation, "request_cancellation", asked.append)
     db = db_manager.get_database(test_package)
     recipe = _recipe(db, workflow, pages, steps=("read", "names"))
     assert _wait_for(lambda: _first_child(db, recipe) is not None, 60)
     child = _first_child(db, recipe)
     assert _wait_for(lambda: _waiting_pages(db, child) == 3, 60)
-    # The recipe run looks at its Stop only after a long while: the project closes before the run winds down.
-    monkeypatch.setattr(recipes, "_CHECK_POLL_SECONDS", 60.0)
-    time.sleep(0.6)  # the run's current look (0.5 s) ends; its next one is the long one
 
     assert _cancel(client, recipe) == "stopping"
+    assert asked == [recipe]
     row = jobs.read_job(db, recipe)
     assert (row["state"], row["reason"]) == ("running", jobs.STOPPING), row
     listed, tree = _listed(client, recipe), _tree(client, recipe)
     assert (listed["state"], listed["reason"]) == (tree["state"], tree["reason"]) == ("running", jobs.STOPPING)
 
-    db = _close_and_open(test_package)
+    assert recipe in jobs._scheduler.running_ids()
+    db_manager.close_database(test_package)
+    real_request_cancellation(recipe)  # the Stop reaches the old run's step now, and the old run winds down
+    assert _wait_for(lambda: recipe not in jobs._scheduler.running_ids(), 60), "the old run's lane thread ended"
+    db = db_manager.get_database(test_package)
 
     row = jobs.read_job(db, recipe)
     assert row["state"] == "cancelled" and row["reason"].startswith("Stopped by you"), row

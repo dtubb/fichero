@@ -1088,11 +1088,13 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None, *, overri
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     kept = list(overrides) if overrides is not None else list(saved.get("overrides") or [])  # `overrides`: the choices to keep
     # A choice for a step the person has since un-ticked goes with the step: kept, it named a step this recipe no longer
-    # has and the check refused the whole plan, so Start could not run (owner 2026-10-24). A removed-step record stays.
-    from fichero_server.recipes.recipe import REMOVED_STEP, override_kind
+    # has and the check refused the whole plan, so Start could not run (owner 2026-10-24). A page reader adds the page
+    # step instead (#6259). A removed-step record stays.
+    from fichero_server.recipes.recipe import fit_overrides
 
-    step_ids = {s.get("id") for s in recipe.get("steps") or [] if isinstance(s, dict)}
-    kept = [o for o in kept if not isinstance(o, dict) or override_kind(o) == REMOVED_STEP or o.get("step") in step_ids]
+    recipe["overrides"] = kept
+    fit_overrides(recipe)
+    kept = recipe.pop("overrides")
     if kept:
         from fichero_server.recipes.bakeoff import apply_project_overrides
 
@@ -1978,9 +1980,19 @@ async def save_project_setup(
             # A Use This made since the app loaded this recipe is kept, an override a PUT adds is dropped (an undo goes through the action)
             from fichero_server.recipes import bakeoff
 
-            bakeoff.apply_project_overrides(
-                bakeoff.keep_saved_overrides(read_project_setup(_library(db)).get("recipe"), params["recipe"]),
-                list(known_cards(include_not_built=True)))
+            from fichero_server.recipes.recipe import fit_overrides
+
+            from fichero_server.recipes.recipe import PAGE_STEP
+
+            stored = read_project_setup(_library(db)).get("recipe")
+            kept = bakeoff.keep_saved_overrides(stored, params["recipe"])
+            had = {s.get("id") for s in (stored or {}).get("steps") or [] if s.get("job") == PAGE_STEP}
+            unticked = had - {s.get("id") for s in kept.get("steps") or []}
+            if unticked:  # the person un-ticked Read the whole page: its reader goes with it, never adds it back (2026-10-24)
+                kept["overrides"] = [o for o in kept["overrides"] if o.get("step") not in unticked]
+                logger.info("Read the whole page was un-ticked; its page reader's choice went with it")
+            fit_overrides(kept)  # a saved choice for a step the sent recipe lacks: the page step added, any other dropped (#6259)
+            bakeoff.apply_project_overrides(kept, list(known_cards(include_not_built=True)))
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2373,9 +2385,10 @@ class CloudCapLine(BaseModel):
     estimate_usd: Optional[float] = Field(default=None, description="this run's estimated cloud cost; null when a model has no listed price")
     over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
     unpriced_models: list[str] = Field(default_factory=list, description=(
-        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be "
-        "held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused "
-        "until accepted"))
+        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: listed apart, "
+        "counted at an assumed price per call; pressing Start accepts them (`cloud.accept_unpriced`), never a refusal (#6259)"))
+    note: Optional[str] = Field(default=None, description=(
+        "one sentence naming the unpriced models and the assumed price per call they are counted at; null when there are none"))
     unpriced: bool = Field(description="the estimate is unknown (a cloud model with no listed price): asked about, never $0")
     assumed_calls: int = Field(default=0, description="calls this month booked at the assumed price of a model with no listed price")
     assumed_usd: float = Field(default=0.0, description="what those calls were booked at: counted against the cap, listed apart")
@@ -2472,6 +2485,9 @@ class StartPlan(BaseModel):
         "which one is used: the step menu's data; choosing is POST /api/recipes/project/steps/use-candidate, taking it "
         "back POST /api/recipes/project/steps/use-setup-pick (`source.onboard.step-candidates-on-the-plan`)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
+    notes: list[str] = Field(default_factory=list, description=(
+        "what Start changed in the saved recipe to fit the person's kept choices, one sentence each: a page reader adds the "
+        "Read the whole page step, a choice for a step the recipe no longer has is dropped; never a refusal (#6259)"))
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
         "when it lands (#5660)"))
@@ -2590,6 +2606,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
     # added layer proposes for the material already there, and what did not finish.
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
+    from fichero_server.recipes.recipe import fit_overrides
+
+    notes = fit_overrides(setup["recipe"]) if setup["recipe"] else []  # a kept choice never refuses Start (#6259)
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
@@ -2614,6 +2633,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
+    plan["notes"] = notes
     from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
     from fichero_server.recipes.answers import spend_cap
@@ -2641,15 +2661,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     cloud_models = [(str(w.get("provider_override") or ""), str(w.get("model_override") or ""))
                     for w in plan["workflows"] if str(w.get("runs_on")).startswith("cloud") and w.get("model_override")]
     plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"), cloud_models=cloud_models)
-    if plan["cloud_cap"]["unpriced_models"]:  # asked before the run: Start records the yes (`accept_unpriced`)
-        plan["refusals"] = [*plan["refusals"], "These cloud models have no listed price, so their cost cannot be held to your "
-                            f"project's cloud spending cap: {', '.join(plan['cloud_cap']['unpriced_models'])}. Press Start and "
-                            "accept running them (counted at an assumed price, and listed apart), or choose models with a price."]
-    if plan["cloud_cap"]["over"]:  # asked before the run, not after the money is gone (#5987)
-        line = plan["cloud_cap"]
-        plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
-                            f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
-                            "Raise the cap in Set Up, or choose a cheaper model."]
+    _cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
@@ -2784,24 +2796,35 @@ class StartRequest(BaseModel):
         "(`ai.where.accept-unpriced-cloud-model`)"))
 
 
+def _cap_refusals(plan: dict) -> None:
+    """The cap's one refusal: an estimate over what the cap leaves, asked before the run, not after the money is gone (#5987).
+    A model with no listed price never refuses (#6259): the cap line lists it apart at the assumed price, and Start is the yes."""
+    line = plan["cloud_cap"]
+    if line["over"]:
+        plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
+                            f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
+                            "Raise the cap in Set Up, or choose a cheaper model."]
+
+
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
 NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
 
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
-    """Start's yes to the cloud models with no listed price it asked about (`StartRequest.accept_unpriced`): each by
-    `cloud.accept_unpriced`, the one accept action. Only a model the plan names can be accepted here."""
-    if not accepted:
-        return
+    """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
+    every one the plan lists, since pressing Start is the yes (#6259); none while the plan refuses Start. Each by `cloud.accept_unpriced`, the one accept action.
+    Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
+    if plan["refusals"]:  # a refused Start accepts nothing: project.start says why
+        return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
     if unknown:
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
-    for key in accepted:
+    for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
         registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
 

@@ -423,8 +423,68 @@ def _running_a_job(thread) -> bool:
                for scheduler in list(jobs._SCHEDULERS) for lane in scheduler.lanes.values())
 
 
+#: Which test made what is still around at the session's end (#6238): every Database opened and not closed, and every
+#: thread born during a test, by the test's node id.
+_test_now: str | None = None
+_databases_open: "dict" = {}
+_threads_born: "dict" = {}
+
+
+def _track_databases() -> None:
+    """Every `Database` opened from here on is remembered, by the test that opened it, until it is closed."""
+    import weakref
+
+    from fichero_server.db import Database
+
+    global _databases_open
+    _databases_open = weakref.WeakKeyDictionary()
+    init, close = Database.__init__, Database.close
+
+    def tracked_init(self, *args, **kwargs):
+        init(self, *args, **kwargs)
+        _databases_open[self] = _test_now or "(outside a test)"
+
+    def tracked_close(self):
+        _databases_open.pop(self, None)
+        close(self)
+
+    Database.__init__, Database.close = tracked_init, tracked_close
+
+
+def _left_running() -> tuple[list[str], list[str]]:
+    """(the Databases still open, the job threads and non-daemon threads still alive), each naming the test that made
+    it. A Database nothing refers to any more is closed by the collector, so it is not a leak."""
+    import gc
+    import threading
+
+    gc.collect()
+    databases = sorted(f"{test}: {db.path}" for db, test in list(_databases_open.items()))
+    threads = sorted(f"{_threads_born.get(t, '(outside a test)')}: {t.name}" for t in threading.enumerate()
+                     if t is not threading.main_thread() and (not t.daemon or t.name.startswith("fichero-jobs")))
+    return databases, threads
+
+
+def _report_left_running(terminalreporter) -> None:
+    """What the tests left open or running, named (#6238): a wide run deadlocked on the Databases and lane threads
+    tests made and never closed or stopped."""
+    databases, threads = _left_running()
+    if not databases and not threads:
+        return
+    terminalreporter.write_sep("=", "LEFT OPEN BY TESTS (#6238)", yellow=True)
+    for what, lines in (("Database(s) still open", databases), ("thread(s) still running", threads)):
+        if lines:
+            terminalreporter.write_line(f"{len(lines)} {what}:")
+            for line in lines:
+                terminalreporter.write_line(f"  {line}")
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_setup(item):
+    import threading
+
+    global _test_now
+    _test_now = item.nodeid
+    item._fichero_threads_before = set(threading.enumerate())
     item._fichero_job_threads_before = _job_threads()
     item._fichero_lane_libraries_before = _lane_libraries()
     return (yield)
@@ -440,8 +500,13 @@ def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
     fails the test's teardown, named, so the leak is fixed where it starts (close the library, or
     stop the scheduler the test made) instead of piling up. Costs one thread listing per test."""
     result = yield
+    import threading
     import time
 
+    global _test_now
+    _test_now = None
+    for thread in set(threading.enumerate()) - getattr(item, "_fichero_threads_before", set()):
+        _threads_born.setdefault(thread, item.nodeid)
     before = getattr(item, "_fichero_job_threads_before", set())
     born = _job_threads() - before
     deadline = time.monotonic() + _JOB_THREAD_GRACE_SECONDS
@@ -655,6 +720,7 @@ def pytest_sessionstart(session):  # noqa: ARG001
     """Optionally arm faulthandler to dump all Python stacks on a hung suite."""
     global _deadlock_dump_armed
 
+    _track_databases()
     if _ratchet_enabled():
         _verify_query_counting_wired()
 
@@ -1374,6 +1440,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     project keeps hitting. So the count and its issues are printed at the end
     of EVERY run, in red, whether or not anything failed.
     """
+    _report_left_running(terminalreporter)
     # #4434: retained failing tests' tmp dirs, and any dropped past the cap.
     if _retained_failed_tmp:
         held = sum(b for _, _, b in _retained_failed_tmp)

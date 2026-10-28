@@ -1283,8 +1283,15 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
 
     if not recipe:
         raise ValueError("this project has no recipe yet: run setup first")
+    from fichero_server.recipes.recipe import PAGE_STEP, add_page_step
+
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
+    on_lines = step is not None and step.get("job") == "read-a-line" and not does_the_step(card, "read-a-line")
+    if PAGE_STEP in card.jobs and (on_lines or (step is None and step_id == PAGE_STEP)):
+        # A page reader the line step cannot take goes on the page step, added when the recipe has none (#6250, #6259).
+        step = add_page_step(out, card.pin, card.runs_on)[0]
+        step_id = step["id"]
     if step is None:
         raise ValueError(f"this project's recipe has no step {step_id!r}")
     if card.cannot_run_because.startswith("retired:"):  # #6096 (the Claude placeholder stays choosable before its row exists)
