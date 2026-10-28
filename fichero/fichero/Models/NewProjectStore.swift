@@ -39,12 +39,18 @@ final class NewProjectStore {
     /// Moves the package to the Trash (recoverable, never an unlink). A seam for the test.
     private let trash: (URL) throws -> Void
 
+    /// Hands the engine the save panel's grant for a chosen folder before it is asked to open the project there
+    /// (#6255: a project outside the app's container was refused, 403 failed_check=roots). A seam for the test.
+    private let grantFolder: (URL) async throws -> Void
+
     init(libraryManager: LibraryManager,
          openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil,
-         trash: ((URL) throws -> Void)? = nil) {
+         trash: ((URL) throws -> Void)? = nil,
+         grantFolder: ((URL) async throws -> Void)? = nil) {
         self.libraryManager = libraryManager
         self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
         self.openInEngine = openInEngine
+        self.grantFolder = grantFolder ?? { try await FolderAccessManager.shared.saveBookmarkIfDirectory($0) }
     }
 
     /// Read the engine's list of search models; a choice it no longer offers falls back to the first (the recommended).
@@ -109,6 +115,8 @@ final class NewProjectStore {
         defer { isCreating = false }
         do {
             let project = try libraryManager.createProject(at: url)
+            // After createProject (it gives the grants an engine client), before the engine opens the package.
+            if case .chosen = place { try await grantFolder(folder) }
             if let openInEngine {
                 try await openInEngine(project)
             } else {
