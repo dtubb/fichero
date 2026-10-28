@@ -13,7 +13,8 @@ forks it itself. The app launches the engine with OBJC_DISABLE_INITIALIZE_FORK_S
 whether real Vision survives that fork is checked on the M4. `FICHERO_APPLE_VISION_START=spawn` execs a
 child instead (a dev engine, which has a Python). The parent never imports `Vision` itself: only the child runs the calls.
 
-This module imports nothing heavy, so the gate can load it without the ObjC runtime.
+This module imports nothing heavy itself, but its package (`workflows.tools`) loads PyObjC: a seed child that imports it
+fresh needs OBJC_DISABLE_INITIALIZE_FORK_SAFETY set at the engine's launch, as the app sets it.
 """
 from __future__ import annotations
 
