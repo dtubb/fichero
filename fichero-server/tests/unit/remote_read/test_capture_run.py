@@ -75,3 +75,55 @@ def test_the_capture_is_the_steps_own_calls_and_no_run_anyone_can_see_or_join(tm
     runs = asyncio.run(get_activity_tracker(str(db.path)).store.list_workflow_runs(limit=10))
     assert list(runs or []) == [], "Activity shows no run"
     assert {t: db.execute_fetchone(f"SELECT count(*) FROM {t}")[0] for t in tables} == before
+
+
+def test_a_step_sent_as_a_batch_asks_each_page_once_and_lands_the_batchs_answer_through_its_own_run(tmp_path, monkeypatch):
+    """WHY (design A, #5940, never-rerun-a-model-pass): the capture's keys are the replay's keys, so a page the batch
+    answered is never asked again as a plain call, and its reading lands through the step's own run as any reading does."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.llm import provider_batch as pb
+    from fichero_server.llm import spend
+    from fichero_server.recipes import runner
+    from fichero_server.remote_read import cloud_batch
+
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
+    monkeypatch.setattr(llm, "get_langchain_model", lambda config: (_ for _ in ()).throw(AssertionError("a plain call")))
+    monkeypatch.setattr(llm, "get_api_key", lambda provider: "test-key-not-real")
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / "batch" / job_id)
+    monkeypatch.setattr(spend, "reserve_batch", lambda *a, **k: 0.0)
+    monkeypatch.setattr(spend, "settle_batch", lambda *a, **k: None)
+    monkeypatch.setattr("fichero_server.recipes.places.project_says_cloud", lambda answers: True)
+    monkeypatch.setattr(cloud_batch, "_project_must_agree", lambda db, what: None)
+    db, ids = _pages(tmp_path)
+    card = _card()
+    parent = jobs.enqueue(db, "batch", "recipe-under-test", started_by="owner")  # the step's row; nothing runs it
+
+    class Provider:  # answers every request it was sent
+        name, cap_bytes = "Anthropic", 10**9
+        sent: list[str] = []
+
+        def submit(self, model, requests, *, max_tokens):
+            self.sent += [r.key for r in requests]
+            return {"batch_id": "b1"}
+
+        def poll(self, ids):
+            return {"state": "ended"}
+
+        def lines(self, ids):
+            return [pb.BatchLine(k, True, text="En la villa de Mosquera") for k in self.sent]
+
+        def cancel(self, ids):
+            pass
+
+    provider = Provider()
+    monkeypatch.setattr(cloud_batch, "client_for", lambda name: provider)  # the only fake: the provider itself
+
+    # The real route: the row run by the engine's scheduler, waited on as the runner waits, then the step's own run.
+    out = runner._run_card(db, {**card, "place": "batch"}, ids, {}, parent, {}, "owner")
+
+    assert out[1] == "done", out
+    assert len(provider.sent) == 2
+    landed = [r for r in db.execute_fetchall("SELECT * FROM artifacts") if "En la villa de Mosquera" in json.dumps(r, default=str)]
+    assert len(landed) >= 2, "each page's batch answer lands through the step's own run"

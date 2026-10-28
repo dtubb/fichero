@@ -8,7 +8,7 @@ Under capture the vision tools save nothing (`vision_base.process_vision`) and n
 
 ponytail: the card -> workflow steps below mirror `_run_workflow` (lenses, review instructions, tool_config) and the
 run body's model choice; recipes/runner.py and execution/runner.py are another lane's files today. The upgrade is one
-shared builder both call; until then the route's test must pin that a capture's keys are the replay's keys.
+shared builder both call; until then `test_capture_run.py` pins, through the real scheduler and replay, that a capture's keys are the replay's.
 """
 from __future__ import annotations
 
