@@ -60,6 +60,11 @@ struct SetupStagePage: View {
                 }
             }
             // The review's own instructions for each pass, from the profile built for this project (#6128).
+            // The project's one search model is chosen on the Search step, never on the first screen (#6249).
+            if stage.jobs.contains("make-a-vector") {
+                Divider()
+                SetupSearchModelField(client: store.client)
+            }
             if stage.jobs.contains("correct") {
                 Divider()
                 ReviewInstructionsSection(store: store)
