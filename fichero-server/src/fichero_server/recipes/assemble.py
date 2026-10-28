@@ -910,8 +910,8 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     if CORRECT in a.jobs or asked is True:
         return None
     if asked is False:
-        return {"job": CORRECT, "title": "Correct",
-                "sentence": "Correct is off: you chose not to correct the reading with a second model."}
+        return {"job": CORRECT, "title": "Review the reading",
+                "sentence": "Review the reading is off: you chose not to have a second model check the reading."}
     # An optional step joins the plan only when the person ticks it or says yes: a corrector at hand does not put it
     # in (owner ruling 2026-10-19, #5812); the answer drives the plan, never the plan the answer.
     choice = _choose(CORRECT, cards, a)
@@ -957,7 +957,7 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
                    ", once you allow the cloud in Set Up Fichero… and let pages leave this Mac,")
         cost += (f"; or{letting} {provider} {price} "
                  f"for {pages} {'page' if pages == 1 else 'pages'}" + (f" ({unlisted})" if unlisted else ""))
-    return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
+    return {"job": CORRECT, "title": "Review the reading", "sentence": f"Review the reading is off: {cost}.", "offered": offered}
 
 
 #: The jobs that send a page's PICTURE to a model; the others send the text read from it.

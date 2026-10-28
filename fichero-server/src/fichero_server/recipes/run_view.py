@@ -274,7 +274,7 @@ class SkippedStep(BaseModel):
 
 #: The verb a stage's offer says (#5706: "Read the 92 pages not done" on a names step).
 _OFFER_VERBS = {"find-names-tag-words": "Find names on", "work-out-dates": "Work out dates on",
-                "find-statements": "Find statements on", "correct": "Correct",
+                "find-statements": "Find statements on", "correct": "Review",
                 "prepare-the-image": "Prepare", "split-into-entries": "Split into entries"}
 
 

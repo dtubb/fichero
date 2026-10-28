@@ -1725,8 +1725,8 @@ RAN_ON_JOBS = frozenset({"find-names-tag-words", "prepare-the-image"})
 #: The steps that note each page as they finish it (`done.page_finished`): Leave Out and Names.
 PAGE_NOTED_JOBS = frozenset({"find-names-tag-words", "leave-out"})
 #: What a step is doing, by its last job, as the run's line says it (#5685).
-_DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
-          "correct": "Correcting the readings", "find-names-tag-words": "Finding names",
+_DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading each line",
+          "read-a-page": "Reading the whole page", "correct": "Reviewing the reading", "find-names-tag-words": "Finding names",
           "find-statements": "Finding statements", "prepare-the-image": "Preparing the images",
           "find-regions": "Finding regions", "split-pages": "Splitting the pages"}
 _READERS = {"kraken": "Kraken", "apple": "Apple Vision", "spacy": "spaCy"}

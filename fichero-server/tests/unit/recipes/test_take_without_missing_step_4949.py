@@ -85,4 +85,4 @@ def test_a_step_that_read_from_the_removed_one_is_caught_by_the_check_not_left_d
 
     problems = check_recipe(taken)
 
-    assert problems and any("Correct" in p and "no earlier step gives" in p for p in problems), problems
+    assert problems and any("Review the reading" in p and "no earlier step gives" in p for p in problems), problems

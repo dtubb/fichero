@@ -3184,7 +3184,7 @@ person adds, never required; and every step says plainly what it does wherever a
   `step_choices.py:167`). *Test (to write):* [transcribe] answered "no second model" has no correct step;
   answered yes it has find-lines, read-a-line, correct; a recipe of find-lines, correct fails the check
   naming Read each line or Read the whole page.
-- `source.recipe.steps-say-what-they-do` — **[GAP]** (#6250) every place a step is named uses one plain
+- `source.recipe.steps-say-what-they-do` — **[PARTIAL]** (#6250) every place a step is named uses one plain
   label for what it does, the same in Set Up, the Recipe Designer, the recipe card, Start's plan and
   Activity: **Find lines** (`find-lines`), **Read each line** (`read-a-line`), **Read the whole page**
   (`read-a-page`), **Review the reading** (`correct`); while running, Activity says **Finding the lines**,
@@ -3200,6 +3200,11 @@ person adds, never required; and every step says plainly what it does wherever a
   its name (Read) as the group; each step row under it carries its own label. *Test (to write):* the
   purposes endpoint, the stage page's choices, the plan's step names and a run's progress lines all
   name the four steps with these labels and no other; a step id or job id never shows.
+  *Built 2026-10-28:* the topic titles (Read the whole page, Review the reading), the stage page's words
+  (`step_choices._STAGE_WORDS`), the run's progress (`runner._DOING`), the left-off row ("Review the reading is off: …")
+  and the stage offer's verb (`run_view._OFFER_VERBS`, "Review"); test
+  `fichero-server/tests/unit/recipes/test_steps_say_what_they_do_6250.py`. *Left:* Activity's Read card lists no row per
+  step (`ActivityDetails+RunStages.swift`); the run's stages need each step's name served first.
 - `source.onboard.job-detail-screens` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen, as ruled that day (every ticked job its own screen):** each ticked job adds one screen after What it is, in step order (`SetupPage.pages`), with its topic's paragraph and example; Entities asks its kinds (default people and places), Translate or normalise how far, Map places which gazetteer, saved as `answers.job_answers`; an unticked job adds none; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Built 2026-10-07 (engine): the names step reads its kinds (`source.onboard.auto.job-answers-read`). Not built: the gazetteer and translate steps reading theirs; translate's target language, the gazetteer's region and period, catalogue fields, table columns.* a ticked job that needs an answer the
   engine cannot work out gets one short screen of its own after What it is, and only then: entity
   kinds (checkboxes; default people and places), translate or normalise (into which language, how
