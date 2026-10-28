@@ -44,7 +44,7 @@ def test_each_lens_says_its_cost_per_page_on_or_off():
 def test_a_review_on_this_mac_costs_nothing_a_lens_and_any_other_run_is_one_call():
     [here] = estimate([{**REVIEW, "runs_on": "this-mac", "provider_override": "omlx"}], 10)["runs"]
     assert here["cost_usd"] == 0.0 and {lens["cost_per_page_usd"] for lens in here["lenses"]} == {0.0}
-    [read] = estimate([{**REVIEW, "job": "read-a-line", "steps": ["read"]}], 10)["runs"]
+    [read] = estimate([{**REVIEW, "job": "tag-a-page", "steps": ["tag"]}], 10)["runs"]  # a text job: page reads are priced by the image (#6265)
     assert read["calls_per_page"] == 1 and read["lenses"] == [] and read["cost_usd"] == pytest.approx(0.10)
 
 

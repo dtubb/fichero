@@ -2,11 +2,9 @@
 `activity.throttle.in-use-slows-to-half`). The run-a-recipe row is on the real scheduler; the Mac's signals are faked."""
 from __future__ import annotations
 
-import time
-
 import pytest
 
-from fichero_server.execution import jobs, throttle
+from fichero_server.execution import jobs
 from fichero_server.recipes import runner
 from tests.unit.jobs.test_start_stop_mode import _wait_for, mac  # noqa: F401  (fixture)
 
