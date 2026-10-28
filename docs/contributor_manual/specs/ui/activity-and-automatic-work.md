@@ -703,6 +703,10 @@ workflow by hand: a hand run is a job like any other.
   Built (2026-10-03): each page's NLP draft is a job ("Read names (NLP draft)"), counted and
   shown in Activity with its state (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the import progress bar
   ("37 of 252 pages") still counts embeds only.
+- `activity.nlp.one-page-drafted-once` — **[OK]** (#6223; 4b7bd5c01) one page's names draft runs one at a time:
+  the import's draft and a run's read-names-again for the same document never both read one text (the check of
+  `nlp_processed_at` and the draft were a check-then-act race; a lock per document, striped, in
+  `derivatives._nlp_stage`). *Test:* `fichero-server/tests/unit/api/test_names_read_once_when_two_jobs_race.py`.
 - `activity.correction-reembed-visible` — **[OK]** (#5359) the re-embed after a
   correction is a queued, visible job, not a raw daemon thread. Built (2026-10-03): kind
   `make-a-vector`, written in the correction's own transaction, shown by `/api/activity/jobs`,

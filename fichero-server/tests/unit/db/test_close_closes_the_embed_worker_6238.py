@@ -50,9 +50,12 @@ def test_a_close_while_an_embed_is_mid_statement_waits_for_it_and_its_next_state
 
 def test_closing_twice_is_safe(tmp_path):
     db = Database(tmp_path / "lib" / "fichero.duckdb")
-    db._embed_worker()
+    worker = db._embed_worker()
     db.close()
-    db.close()
+    db.close()  # the second close raises nothing
+    for conn in (db.conn, worker.conn):
+        with pytest.raises(duckdb.ConnectionException):
+            conn.execute("SELECT 1")
 
 
 def test_a_close_while_the_library_is_mid_statement_waits_for_it(tmp_path):

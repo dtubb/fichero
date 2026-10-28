@@ -553,6 +553,10 @@ replaces the Kraken figure before #6212 is coded.
   fichero-server/tests/unit/core/test_model_load_logged.py,
   fichero-server/tests/unit/db/test_rss_and_spill_logged_6236.py,
   fichero-server/tests/unit/db/test_watchdog_never_fails_a_checkpoint_6236.py.
+- `recipes-run.timing.watchdog-checks-stand-alone` — **[OK]** (#6236; 9bb7c0381) each of the watchdog's checks on
+  its every-second tick runs on its own: one failing (a DuckDB error or any other) does not stop the others, and its
+  warning names the check that failed, never another. *Test:*
+  `fichero-server/tests/unit/db/test_watchdog_reads_held_versions_once_6236.py`.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

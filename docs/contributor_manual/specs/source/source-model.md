@@ -1309,5 +1309,12 @@ action record holding a researcher's words is ruled out.
   reads one setting, or one run, and queues the job when it is needed. Tested in
   `fichero-server/tests/unit/db/test_run_log_lines_5711.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
   the plan is on #5645).
+- `source.store.close-waits-then-closes-everything` — **[OK]** (#6238, #6247; 9b6887753, e8d7c3b28) closing a
+  library waits for the statement in flight on its own connection and on its embedding worker's (the close takes each
+  one's lock), then closes both: a Set Up cancelled while pages import no longer closes DuckDB under a running
+  statement (a native crash inside the app's engine), and the worker `_embed_worker` opened is never left open behind
+  the manager. An embed that carries on after the close fails cleanly on its next statement. Closing twice is
+  harmless. `db_manager.close_database` takes the library out under its lock and closes it outside. *Test:*
+  `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py`.
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

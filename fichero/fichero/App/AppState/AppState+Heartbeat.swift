@@ -28,7 +28,7 @@ extension AppState {
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
     }
 
-    private func pingBackendOnce() async {
+    func pingBackendOnce() async {
         // #6244: never lower a conflict by probing the engine that caused it (`EngineSession.awaitsAChoice`).
         guard !engine.awaitsAChoice else { return }
         // Health-200 alone is NOT "online" (#2864): a leftover engine can answer

@@ -65,13 +65,18 @@ enum EngineSocketConflict {
         var owner: String?
         /// Its `contract` is not this app's (`ContractCompatibility`), or it did not say one (#6244).
         var contractDiffers = false
+
+        /// Its health did not answer or did not decode: nothing named, and never adopted.
+        static let unreadable = LiveEngine(contractDiffers: true)
     }
 
-    /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid.
+    /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid. An engine
+    /// whose health cannot be read (an old schema, a timeout, not a 200) is taken for another contract (#6244): Use it
+    /// is never offered for an engine nothing is known of.
     @MainActor static func liveEngine(socketPath: String) async -> LiveEngine {
         let client = FicheroClient(transportMode: .uds(path: socketPath))
         guard let response = try? await client.api.healthCheckApiHealthGet(.init()),
-              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return LiveEngine() }
+              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return .unreadable }
         return LiveEngine(version: health.backendVersion, pid: health.enginePid, owner: health.engineOwner,
                           contractDiffers: ContractCompatibility.mismatch(engine: health.contract) != nil)
     }

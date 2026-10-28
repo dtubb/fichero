@@ -117,24 +117,22 @@ struct EngineSocketConflictTests {
 
     // MARK: - #6244: the 2026.10.27 Dev Embedded smoke attached silently to a script-started engine
 
-    @Test("a conflict awaits the person's choice: the heartbeat never lowers it by probing the other engine")
-    func heartbeatLeavesAConflictAlone() throws {
+    @Test("a conflict awaits the person's choice: the heartbeat neither probes nor lowers it")
+    func heartbeatLeavesAConflictAlone() async {
         let session = EngineSession()
         #expect(!session.awaitsAChoice)
-        session.markSocketConflict(pid: 71, version: "2026.10.26", owner: "dev external")
-        #expect(session.awaitsAChoice)
         session.markPortConflict(pid: nil)
         #expect(session.awaitsAChoice)
         session.markStarting()  // the person chose: the retry path leaves the conflict
         #expect(!session.awaitsAChoice)
+
         // The heartbeat's probe answered .ready from the other engine (same socket, same .api-key) and
         // warmContextThenMarkReady flipped .portConflict to .ready within 5 s: no window, silent adoption.
-        let heartbeat = try String(
-            contentsOf: AppSource.root().appendingPathComponent("App/AppState/AppState+Heartbeat.swift"), encoding: .utf8)
-        let ping = try #require(heartbeat.range(of: "private func pingBackendOnce() async {"))
-        let body = heartbeat[ping.upperBound...].prefix(400)
-        #expect(body.contains("guard !engine.awaitsAChoice else { return }"),
-                "pingBackendOnce must return before probing while a conflict awaits a choice")
+        let appState = AppState()
+        appState.engine.markSocketConflict(pid: 71, version: "2026.10.26", owner: "dev external", contractDiffers: true)
+        await appState.pingBackendOnce()
+        #expect(appState.engine.phase == .portConflict(pid: 71), "the conflict stays up until the person chooses")
+        #expect(appState.heartbeatFailureCount == 0, "no probe ran: neither a ready nor a missed one was counted")
     }
 
     @Test("Use it never adopts an engine on another API contract")
@@ -157,6 +155,6 @@ struct EngineSocketConflictTests {
         #expect(!other.sentence.contains("use that one"))
         #expect(EngineSession.Conflict.socket(pid: 71, version: "2026.10.27").offersUseIt)
         #expect(EngineSession.Conflict.port8765.offersUseIt)
-        #expect(EngineSocketConflict.LiveEngine().contractDiffers == false)
+        #expect(EngineSocketConflict.LiveEngine.unreadable.contractDiffers, "an engine whose health cannot be read is never adopted")
     }
 }
