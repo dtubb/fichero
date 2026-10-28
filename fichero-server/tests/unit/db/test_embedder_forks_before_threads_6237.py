@@ -90,3 +90,33 @@ def test_a_stuck_vision_call_still_kills_its_seeded_worker_and_the_next_one_read
         assert vision.WORKER.call(("os", "getppid"), (), 10) == seed.pid, "the new worker is the seed's child"
     finally:
         vision.WORKER.close()
+
+
+def test_a_bad_request_does_not_end_the_seed(seed):
+    """One request the seed cannot run (here, args it cannot read) is answered with no worker; the next one is served."""
+    ours, theirs = embed_process.socket.socketpair()
+    try:
+        bad = b"not json"
+        embed_process.socket.send_fds(seed.control, [len(bad).to_bytes(8, "big") + bad], [theirs.fileno()])
+        assert int.from_bytes(embed_process._recv_exactly(seed.control, 8), "big") == 0
+    finally:
+        ours.close()
+        theirs.close()
+    embedder = embed_process.RemoteEmbedder("m", "/nowhere", 1)
+    try:
+        assert embedder.embed(["ab"]) == [[2.0, 1.0]]
+        assert embedder.parent_pid() == seed.pid, "the seed still forks after a bad request"
+    finally:
+        embedder.close()
+
+
+def test_a_killed_seed_falls_back_to_a_direct_fork(seed):
+    os.kill(seed.pid, embed_process.signal.SIGKILL)
+    embed_process._wait_gone(seed.pid, 5)
+    embedder = embed_process.RemoteEmbedder("m", "/nowhere", 1)
+    try:
+        assert embedder.embed(["ab"]) == [[2.0, 1.0]], "the embedder still starts when the seed is gone"
+        assert embedder.parent_pid() == os.getpid()
+    finally:
+        embedder.close()
+    assert embed_process._SEED is None, "a gone seed is forgotten, not asked again"
