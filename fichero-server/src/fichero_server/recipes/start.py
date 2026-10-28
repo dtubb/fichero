@@ -848,7 +848,16 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
     from fichero_server.recipes.placement import place_step
     from fichero_server.remote_read.sizing import size_run
 
+    from fichero_server.llm.provider_batch import goes_as_batch
+    from fichero_server.remote_read.cloud_batch import CLIENTS
+
     for run in runs:
+        provider = run.get("provider_override")
+        if run.get("job") in ("read-a-line", "read-a-page") and provider in CLIENTS and not run.get("readers") \
+                and goes_as_batch(pages, waiting=False):  # `compute.recipe.cloud-batch-above-threshold` (#5940)
+            run.update(place="batch", target=provider, why=f"{pages:,} pages go to {CLIENTS[provider][0]} as one batch, "
+                                                           "at the batch price, answered within a day")
+            continue
         if run.get("job") != "read-a-line":
             continue
         sendable = run.get("provider_override") == KRAKEN_READER_PROVIDER and not run.get("readers")

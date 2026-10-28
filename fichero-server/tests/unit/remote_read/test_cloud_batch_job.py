@@ -289,3 +289,19 @@ def test_a_step_whose_pages_may_not_leave_fails_in_words_with_nothing_queued(db,
                                replay=lambda: pytest.fail("no replay"))
     assert out[0] is None and out[1] == "failed" and "Anthropic" in out[2]
     assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 0
+
+
+def test_the_plan_sends_a_cloud_read_of_a_hundred_pages_or_more_as_a_batch_and_a_smaller_one_as_plain_calls():
+    """WHY (`compute.recipe.cloud-batch-above-threshold`): from 100 pages a cloud reader whose provider has a batch API
+    goes as one batch at the batch price; under it, or a provider without one, or a reader per material, plain calls."""
+    from fichero_server.recipes.start import place_runs
+
+    def runs(provider="anthropic", **more):
+        return [{"steps": ["read"], "job": "read-a-page", "card": "workflow", "provider_override": provider, **more}]
+
+    (big,) = place_runs(runs(), 100, cloud_allowed=False)
+    assert big["place"] == "batch" and big["target"] == "anthropic" and "batch" in big["why"]
+    for small in (place_runs(runs(), 99, cloud_allowed=False), place_runs(runs("openrouter"), 5_000, cloud_allowed=False),
+                  place_runs(runs(readers={"print": {}}), 5_000, cloud_allowed=False),
+                  place_runs(runs("kraken"), 5_000, cloud_allowed=False)):
+        assert small[0].get("place") != "batch"
