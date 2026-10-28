@@ -1619,6 +1619,12 @@ def ingest_folder(
                     if on_progress:
                         on_progress(i + 1, total)
                     continue
+                # Brought down within a bound before any read (#6248, Box Drive): a read of an online-only file
+                # could block until the app gave up on the whole import. Not down in time: this file fails, named.
+                from fichero_server.importers import dataless
+
+                if not_fetched := dataless.fetch_first([str(file_path)], min_timeout=dataless._MIN_TIMEOUT_SECONDS):
+                    raise dataless.DatalessSourceError(not_fetched[str(file_path)])
             checksum = _file_checksum(file_path)
             source_key = str(file_path)
             if (source_key, checksum) in existing_hashes:

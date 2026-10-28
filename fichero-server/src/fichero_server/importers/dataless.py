@@ -197,6 +197,15 @@ def _size_words(count: int) -> str:
     return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
 
 
+def cloud_name(path: Path) -> str:
+    """Whose cloud a placeholder is in, for the words: Box, OneDrive... for a File Provider folder
+    (~/Library/CloudStorage/Box-Box), else iCloud (#6248)."""
+    parts = Path(path).parts
+    if "CloudStorage" in parts[:-1]:
+        return parts[parts.index("CloudStorage") + 1].split("-")[0]
+    return "iCloud"
+
+
 def request_download(path: Path) -> None:
     """Ask macOS to bring a dataless file's bytes down, without waiting for them (the waiting is the caller's,
     bounded). `brctl download` where it runs; else a read in a daemon thread, the read being the download trigger
@@ -267,7 +276,8 @@ def fetch_first(paths: list[str], *, say=lambda words: None, fetch=None, min_tim
         return failed
     total = len(evicted)
     plural = "s" if total != 1 else ""
-    say(f"Downloading {total} page{plural} from iCloud: 0 of {total}")
+    where = cloud_name(evicted[0][0])
+    say(f"Downloading {total} page{plural} from {where}: 0 of {total}")
     deadlines, bounds = {}, {}
     for path, size in evicted:
         fetch(path)
@@ -283,9 +293,9 @@ def fetch_first(paths: list[str], *, say=lambda words: None, fetch=None, min_tim
                 NOT_FETCHED.pop(str(path), None)
             elif now() > deadlines[path]:
                 pending.discard(path)
-                failed[str(path)] = (f"{path.name} is in iCloud and did not download in {int(bounds[path])} s "
+                failed[str(path)] = (f"{path.name} is in {cloud_name(path)} and did not download in {int(bounds[path])} s "
                                      "(no network?)")
-        say(f"Downloading {total} page{plural} from iCloud: {done} of {total}")
+        say(f"Downloading {total} page{plural} from {where}: {done} of {total}")
         if pending:
             sleep(_FETCH_POLL_SECONDS)
     NOT_FETCHED.update(failed)
