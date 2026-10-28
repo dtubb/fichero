@@ -97,16 +97,10 @@ def find_lines(image: Any) -> list[dict[str, Any]]:
     return [line for line in _raw_lines(blla.segment(image, model=_segmenter())) if line["polygon"]]
 
 
-def lines_in(xml: Path) -> list[dict[str, Any]]:
-    """The lines a lines step wrote (`page_xml`), read back so a task run again does not find them again."""
-    import xml.etree.ElementTree as ET
-
-    def points(node: Any) -> list[list[float]]:
-        return [[float(v) for v in pair.split(",")] for pair in (node.get("points") or "").split()]
-
-    ns = {"p": PAGE_NS}
-    return [{"polygon": points(line.find("p:Coords", ns)), "baseline": points(line.find("p:Baseline", ns))}
-            for line in ET.parse(xml).getroot().iter(f"{{{PAGE_NS}}}TextLine")]
+def lines_in(found: Path) -> list[dict[str, Any]]:
+    """The lines a lines step found, kept beside its PAGE XML as JSON (`<id>.lines.json`), read back so a task run again
+    does not find them again; no XML is parsed here (the engine's own parser is not shipped with this file)."""
+    return json.loads(found.read_text(encoding="utf-8"))
 
 
 def _segmentation(lines: list[dict[str, Any]]) -> Any:
@@ -258,6 +252,7 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[..., lis
     for index in indices:
         source = job["sources"][index]
         target, lines_file = folder / f"{source['id']}.xml", folder / f"{source['id']}.lines.xml"
+        found_file = lines_file.with_suffix(".json")  # `<id>.lines.json`: the same lines, for a rerun to read back
         before = outcome["sources"].get(source["id"], {})
         if target.exists() and before.get("ok"):
             continue  # done before this task was cut short
@@ -277,10 +272,11 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[..., lis
             found = None
             if "lines" in stage:
                 clock = time.time()
-                if lines_file.exists() and (before.get("steps") or {}).get("lines", {}).get("ok"):
-                    found = lines_in(lines_file)  # found before this task was cut short
+                if found_file.exists() and (before.get("steps") or {}).get("lines", {}).get("ok"):
+                    found = lines_in(found_file)  # found before this task was cut short
                 else:
                     found = find(image)
+                    found_file.write_text(json.dumps(found), encoding="utf-8")
                     lines_file.write_text(page_xml(source["id"], image.size, found, creator="Fichero remote line finder",
                                                    image_name=seen), encoding="utf-8")
                 record["lines"] = {"ok": True, "lines": len(found), "seconds": round(time.time() - clock, 3)}
