@@ -239,6 +239,12 @@ class SlurmReadTarget(SlurmTarget):
 
         job = json.loads((Path(local_dir) / "job.json").read_text(encoding="utf-8"))
         self._package = ReadPackage(job_id=job_key, sources=job["sources"], shards=job["shards"])
+        if any(source.get("iiif_service") for source in job["sources"]):
+            # Compute nodes have no internet and a login node runs nothing heavy: the pages are fetched here,
+            # politely, into the package, and travel in it (`compute.hpc.nothing-heavy-on-a-login-node`).
+            from fichero_server.remote_read import runner
+
+            runner.prefetch(Path(local_dir))
         return super().send(local_dir, job_key)
 
     def submit(self, job_key: str, *, script: str = "", flavor: str = "", timeout: str = "2h",

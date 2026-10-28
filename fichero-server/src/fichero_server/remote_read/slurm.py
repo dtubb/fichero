@@ -3,8 +3,8 @@
 `compute.job.array-by-shard`: one array task per shard of the read package, each running Fichero's
 runner inside the server image (one Apptainer file in project space, `--nv` for the GPU).
 `compute.job.sparse-resubmit`: naming the failed shards gives an array of only those (`--array=3,7`).
-Compute nodes have no internet, so a package with IIIF pages is prefetched first on the login node
-(`runner.py --prefetch`), politely, into the package.
+Compute nodes have no internet, so a package with IIIF pages is filled on this Mac before it is sent
+(`SlurmReadTarget.send`); nothing heavy runs on the login node (`compute.hpc.nothing-heavy-on-a-login-node`).
 
 This DESCRIBES the run (the sbatch script, the array, the commands); it sends nothing. Live
 submission over SSH waits for the cluster account (`compute.job.live-submit`); until then
@@ -12,7 +12,6 @@ submission over SSH waits for the cluster account (`compute.job.live-submit`); u
 """
 from __future__ import annotations
 
-import shlex
 from dataclasses import dataclass
 
 from fichero_server.remote_read.package import ReadPackage
@@ -22,7 +21,6 @@ from fichero_server.workflows.remote_jobs import (
     SlurmJobConfig,
     build_bundle_manifest,
     build_remote_run_spec,
-    build_ssh_command,
 )
 
 IMAGE = "fichero-server.sif"
@@ -31,8 +29,6 @@ IMAGE = "fichero-server.sif"
 @dataclass(frozen=True)
 class SlurmRead:
     spec: RemoteRunSpec
-    #: Run on the login node before `sbatch`; None when the package has no IIIF pages.
-    prefetch: list[str] | None
 
 
 def image_path(cluster: HpcClusterConfig) -> str:
@@ -61,10 +57,4 @@ def describe_slurm_read(cluster: HpcClusterConfig, package: ReadPackage, *, shar
                             time_limit=time_limit, cpus_per_task=cpus, mem_gb=mem_gb, gpus=gpus)
     spec = build_remote_run_spec(cluster=cluster, manifest=manifest, input_indices=indices, job_config=config,
                                  throttle=throttle, runner_command=command)
-    prefetch = None
-    if any(s.get("iiif_service") for s in package.sources):
-        on_login = (f"cd {shlex.quote(spec.remote_workdir)} && "
-                    f"apptainer exec --bind .:/package {shlex.quote(image)} python /package/_fichero/runner.py "
-                    "--package /package --prefetch")
-        prefetch = build_ssh_command(cluster, ["bash", "-lc", on_login])
-    return SlurmRead(spec=spec, prefetch=prefetch)
+    return SlurmRead(spec=spec)
