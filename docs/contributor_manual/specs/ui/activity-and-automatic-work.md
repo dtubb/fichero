@@ -2391,8 +2391,10 @@ is the answer; the grey line says both.
   and leaves when the engine's end closes, so a worker of a killed engine is re-parented and leaves as before. Without a
   seed (a test, a dev server not started by `main`) the engine forks the worker itself, as before. Test:
   `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the worker is the seed's child, a crashed
-  worker is asked of the seed again, `main` makes the seed before any thread). *Not built:* Apple Vision's worker from
-  the seed; not yet run in the shipped engine (owed: a real e2e on the app).
+  worker is asked of the seed again, `main` makes the seed before any thread). Apple Vision's worker (#5392) is forked
+  the same way (`embed_process.fork_from_seed`, a named target run in the engine's environment as it is now; its stuck
+  call still kills it and the next one is the seed's child again; same test file). *Not built:* a run in the shipped
+  engine (owed: the M4 e2e with Search, booked).
 - `activity.lane.spacy-threads-one-pipeline-each` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27, revised the same
   day from the explorer's measurement) spaCy pages run on threads, each thread with its own copy of the pipeline, never
   two threads on one `Language` object (not thread-safe: two pages on the one cached pipeline crashed, hence today's

@@ -63,3 +63,30 @@ def test_the_engine_makes_the_seed_before_it_starts_any_thread(monkeypatch):
     with pytest.raises(SystemExit):
         engine._main([])
     assert order == ["seed"], f"the engine started a thread before the seed: {order}"
+
+
+def test_apple_visions_worker_is_the_seeds_child_too(seed, monkeypatch):
+    """Apple Vision's worker (#5392) is forked the same way: from the seed, never from the running engine."""
+    from fichero_server.workflows.tools import apple_vision_worker as vision
+
+    monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
+    monkeypatch.delenv("FICHERO_APPLE_VISION_START", raising=False)
+    vision.WORKER.close()
+    try:
+        assert vision.WORKER.call(("os", "getppid"), (), 10) == seed.pid != os.getpid()
+    finally:
+        vision.WORKER.close()
+
+
+def test_a_stuck_vision_call_still_kills_its_seeded_worker_and_the_next_one_reads(seed, monkeypatch):
+    from fichero_server.workflows.tools import apple_vision_worker as vision
+
+    monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
+    monkeypatch.delenv("FICHERO_APPLE_VISION_START", raising=False)
+    vision.WORKER.close()
+    try:
+        with pytest.raises(vision.WorkerTimeout):
+            vision.WORKER.call(("time", "sleep"), (5,), 0.5)
+        assert vision.WORKER.call(("os", "getppid"), (), 10) == seed.pid, "the new worker is the seed's child"
+    finally:
+        vision.WORKER.close()
