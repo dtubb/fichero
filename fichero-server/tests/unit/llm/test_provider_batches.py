@@ -284,3 +284,39 @@ def test_the_answers_are_kept_on_disk_so_a_resume_or_rerun_sends_no_answered_pag
     assert [r.key for r in again.still_to_send(reqs)] == [reqs[1].key, reqs[2].key]
     again.keep([pb.BatchLine(reqs[0].key, True, text="uno")])  # landed twice: kept once
     assert len((tmp_path / "answers.jsonl").read_text().splitlines()) == 1
+
+
+# --- what a batch costs, and the cap --------------------------------------------------------------------------------
+
+def test_a_batch_is_priced_at_the_listed_batch_price_else_half_the_listed_price():
+    """WHY (`compute.recipe.cloud-batch-consent-and-cost`): a model whose price list has a batch price is booked at it;
+    one with no batch price at half its listed price, as the providers bill; a model with no price at all is None."""
+    from fichero_server.llm import spend
+    from fichero_server.llm.usage import price_call
+
+    listed = price_call({"provider": "openai", "model": "gpt-4o", "input_tokens": 1000, "output_tokens": 100}).cost_usd
+    assert spend.batch_cost_usd("openai", "gpt-4o", 1000, 100) == pytest.approx(listed / 2)
+    half = price_call({"provider": "anthropic", "model": "claude-sonnet-4-5", "input_tokens": 1000,
+                       "output_tokens": 100})
+    if half.priced:
+        assert spend.batch_cost_usd("anthropic", "claude-sonnet-4-5", 1000, 100) == pytest.approx(half.cost_usd / 2)
+    assert spend.batch_cost_usd("openai", "no-such-model-xyz", 1000, 100) is None
+
+
+def test_a_batch_that_could_pass_the_cap_is_refused_before_it_is_sent_and_one_that_fits_is_held_then_booked(tmp_path):
+    """WHY (`compute.recipe.cloud-batch-consent-and-cost`, `ai.where.cloud-spend-cap`): the cap holds the batch's worst
+    case at the batch price from submission (it may answer a day later); when it ends, the hold is let go and what its
+    lines were billed is booked."""
+    from fichero_server.llm import spend
+
+    library = str(tmp_path)
+    (tmp_path / ".fichero").mkdir()  # no setup: the default cap
+    worst_one = spend.batch_worst_usd("openai", "gpt-4o", max_tokens=2048)
+    with pytest.raises(spend.CloudSpendRefusedError, match="capped"):
+        spend.reserve_batch(library, "openai", "gpt-4o", requests=int(spend.DEFAULT_CAP_USD / worst_one) + 10,
+                            max_tokens=2048)
+    held = spend.reserve_batch(library, "openai", "gpt-4o", requests=3, max_tokens=2048)
+    assert held == pytest.approx(3 * worst_one) and spend.booked_usd(library) == 0
+    spend.settle_batch(library, held, 0.012)
+    assert spend.booked_usd(library) == pytest.approx(0.012)
+    assert spend._RESERVED.get(library, 0) == pytest.approx(0)

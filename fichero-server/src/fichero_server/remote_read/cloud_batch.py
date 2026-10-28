@@ -118,19 +118,34 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
     """Submit what is still to answer (or adopt what is out), poll to the end, keep the answers. {answered, failed}."""
     from fichero_server.core.timeutil import utc_now
 
+    from fichero_server.llm import spend
+
     now = now or utc_now
     job_id = jobs.job_id_for(db, KIND, subject)
     detail = _detail(db, job_id)
     book = book_for(job_id)
     who = client.name
+    library = str(Path(db.path).parent)
+    provider, model = detail["provider"], detail["model"]
     if not detail.get("batches"):
         to_send = book.still_to_send(capture(db, detail))
         detail["batches"] = []
         for chunk in pb.cut_to_cap(to_send, cap_bytes=client.cap_bytes):
-            ids = client.submit(detail["model"], chunk, max_tokens=detail["max_tokens"])
-            detail["batches"].append({"ids": ids, "state": "open", "requests": len(chunk), "sent_at": now().isoformat()})
+            # The cap holds the batch's worst case from now until it ends; refused in words before it is sent.
+            held = spend.reserve_batch(library, provider, model, requests=len(chunk), max_tokens=detail["max_tokens"])
+            try:
+                ids = client.submit(model, chunk, max_tokens=detail["max_tokens"])
+            except BaseException:
+                spend.settle_batch(library, held, 0.0)  # not sent: nothing owed
+                raise
+            detail["batches"].append({"ids": ids, "state": "open", "requests": len(chunk), "sent_at": now().isoformat(),
+                                      "held_usd": held})
             _save(db, job_id, detail, reason=f"Sent as a batch to {who}: {sum(b['requests'] for b in detail['batches'])} "
                                               "requests, answered within a day")  # on the row before anything else
+    else:  # adopted after a restart: the holds of the batches still out are held again in this process
+        for batch in detail["batches"]:
+            if batch["state"] == "open" and batch.get("held_usd"):
+                spend.hold_again(library, batch["held_usd"])
     counts = {"answered": 0, "failed": 0}
     wait, stopping = POLL_FIRST, False
     while any(b["state"] == "open" for b in detail["batches"]):
@@ -153,12 +168,19 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
                 continue
             if seen["state"] == "gone":  # past the provider's retention: its unanswered pages are asked again
                 batch["state"] = "gone"
+                spend.settle_batch(library, batch.get("held_usd", 0.0), batch.get("held_usd", 0.0))  # never free
                 continue
             lines = client.lines(batch["ids"])
             book.keep(lines)
             batch.update(state="ended", answered=sum(line.ok for line in lines),
                          failed=sum(not line.ok for line in lines), why=seen.get("why"), ended_at=at.isoformat(),
                          tokens={k: sum(line.usage.get(k, 0) for line in lines) for k in ("input_tokens", "output_tokens")})
+            costs = [spend.batch_cost_usd(provider, model, line.usage.get("input_tokens", 0),
+                                          line.usage.get("output_tokens", 0)) for line in lines if line.ok]
+            # What it was billed; a line that cannot be priced is booked at the hold (never free).
+            batch["cost_usd"] = (round(sum(costs), 6) if all(c is not None for c in costs)
+                                 else batch.get("held_usd", 0.0))
+            spend.settle_batch(library, batch.get("held_usd", 0.0), batch["cost_usd"])
             if batch.get("sent_at"):
                 batch["waited_hours"] = round((at - datetime.fromisoformat(batch["sent_at"])).total_seconds() / 3600, 2)
         counts = {"answered": sum(b.get("answered", 0) for b in detail["batches"]),

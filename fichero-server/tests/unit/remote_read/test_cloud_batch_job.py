@@ -39,7 +39,7 @@ class FakeProvider:
 
     def lines(self, ids):
         sent = self.sent[int(ids["batch_id"][1:]) - 1]
-        return [pb.BatchLine(sent[0], True, text="uno"), *(pb.BatchLine(k, False, why="Anthropic: overloaded") for k in sent[1:2]),
+        return [pb.BatchLine(sent[0], True, text="uno", usage={"input_tokens": 1000, "output_tokens": 100}), *(pb.BatchLine(k, False, why="Anthropic: overloaded") for k in sent[1:2]),
                 *(pb.BatchLine(k, True, text="más") for k in sent[2:])]
 
     def cancel(self, ids):
@@ -51,7 +51,7 @@ def row(db, tmp_path, monkeypatch):
     monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
     job_id = jobs.enqueue_remote(db, cloud_batch.KIND, "batch:t", target="anthropic", reason="Waiting",
-                                 started_by="owner", detail=json.dumps({"provider": "anthropic", "model": "claude-opus-5-5",
+                                 started_by="owner", detail=json.dumps({"provider": "openai", "model": "gpt-4o",
                                                                         "max_tokens": 2048}))
     return job_id
 
@@ -198,6 +198,31 @@ def test_each_batch_records_its_wait_and_tokens_and_a_batch_past_twelve_hours_lo
                         now=lambda: next(clock))
     (batch,) = json.loads(jobs.read_job(db, row)["detail"])["batches"]
     assert batch["sent_at"].startswith("2026-10-28T00:00") and batch["waited_hours"] > 12
-    assert batch["tokens"] == {"input_tokens": 0, "output_tokens": 0}
+    assert batch["tokens"] == {"input_tokens": 1000, "output_tokens": 100}
     slow = [r for r in caplog.records if "twelve hours" in r.getMessage()]
     assert len(slow) == 1 and "Anthropic" in slow[0].getMessage()
+
+
+def test_the_cap_holds_each_batch_from_submission_and_books_what_its_lines_were_billed(db, row):
+    """WHY (`compute.recipe.cloud-batch-consent-and-cost`, `ai.where.cloud-spend-cap`): the hold is on the row (a restart
+    holds it again), let go when the batch ends, and what its answered lines cost at the batch price is booked."""
+    from pathlib import Path
+
+    from fichero_server.llm import spend
+
+    library = str(Path(db.path).parent)
+    _run(db, row, FakeProvider())
+    (batch,) = json.loads(jobs.read_job(db, row)["detail"])["batches"]
+    assert batch["held_usd"] > 0 and batch["cost_usd"] == pytest.approx(spend.batch_cost_usd("openai", "gpt-4o", 1000, 100))
+    assert spend.booked_usd(library) == pytest.approx(batch["cost_usd"])
+    assert spend._RESERVED.get(library, 0) == pytest.approx(0)
+
+
+def test_a_batch_that_would_pass_the_cap_is_never_sent(db, row, monkeypatch):
+    from fichero_server.llm import spend
+
+    monkeypatch.setattr(spend, "cap_usd", lambda library: 0.0001)
+    provider = FakeProvider()
+    with pytest.raises(spend.CloudSpendRefusedError):
+        _run(db, row, provider)
+    assert provider.sent == []
