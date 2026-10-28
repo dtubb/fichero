@@ -1419,10 +1419,19 @@ def export_excel_xlsx(
         raise FileExistsError(f"Export file already exists: {output_file}")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    _, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
     entities, claims = _knowledge_graph_rows(
         db, documents, include_unsourced=target_id is None
     )
+    # Folder rows too: the catalogue step describes folders, and their attributes are part of the sheet.
+    folders = [
+        doc for doc in (_descendants(db, root.id) if recursive else db.query(Document, parent_id=root.id))
+        if doc.doc_type == DocType.folder and doc.deleted_at is None
+    ] if root is not None and root.doc_type == DocType.folder else (
+        [doc for doc in db.all(Document) if doc.doc_type == DocType.folder and doc.deleted_at is None]
+        if root is None else []
+    )
+    folders.sort(key=lambda doc: (doc.parent_id or "", doc.sequence or 0, natural_key(doc.name)))
 
     document_rows = [
         {
@@ -1437,8 +1446,10 @@ def export_excel_xlsx(
             "metadata": doc.metadata,
             "created_at": doc.created_at,
             "updated_at": doc.updated_at,
+            # one column per attribute key across the rows: the catalogue's fields (`attr:` keeps them apart from ours)
+            **{f"attr:{key}": value for key, value in (doc.attributes or {}).items()},
         }
-        for doc in documents
+        for doc in [*folders, *documents]
     ]
     entity_rows = [
         {
