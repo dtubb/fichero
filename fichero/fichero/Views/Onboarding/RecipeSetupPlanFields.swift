@@ -236,6 +236,11 @@ struct RecipeStartFields: View {
                     .font(.headline)
                 // The project's cloud cap beside the estimate, set here (`ai.where.cloud-spend-cap`).
                 if let cap = plan.cloudCap { RecipeCloudCapRow(store: store, line: cap) }
+                // What Start changed in the saved recipe to fit kept choices (a page reader added the page step, a stale
+                // choice dropped): said once, never a refusal (`source.recipe.page-reader-is-an-add-on`, #6259).
+                ForEach(plan.notes ?? [], id: \.self) { note in
+                    Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                }
                 // In words, never the engine's raw message (section 7d, `source.onboard.ready.words-not-engine-errors`).
                 // A refusal that names a step sits in that step's box (#5840), so only the others are here.
                 let stepIds = Set((store.recipe?.steps ?? []).map(\.id))
@@ -299,6 +304,9 @@ struct RecipeCloudCapRow: View {
             }
             Text(Self.words(line)).font(.caption).foregroundStyle(line.over ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let note = line.note {  // e.g. a model with no listed price is run at an assumed one (#6259)
+                Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
