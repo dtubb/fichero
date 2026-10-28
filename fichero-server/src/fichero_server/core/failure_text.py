@@ -8,6 +8,15 @@ nothing written. This names the failure by its type, and by its cause when it ha
 """
 from __future__ import annotations
 
+class MissingInWords(KeyError):
+    """Nothing by that name, refused in words ("no job 'x' in this project"), not a missing key in Fichero's own code:
+    a failed job's row keeps the words (#6240). A KeyError still, so callers that 404 on one keep working; its text is
+    the words, never KeyError's quoted repr."""
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
+
+
 #: How many causes deep a message is looked for.
 _CHAIN_DEPTH = 3
 

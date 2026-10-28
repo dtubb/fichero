@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from fichero_server.core.background_compute import set_background_qos, set_utility_qos
+from fichero_server.core.failure_text import MissingInWords
 from fichero_server.core.timeutil import ensure_utc, utc_now
 
 if TYPE_CHECKING:
@@ -236,19 +237,12 @@ KINDS: dict[str, Kind] = {}
 _SLIPS = (KeyError, IndexError, AttributeError, TypeError, NameError, AssertionError, ZeroDivisionError)
 
 
-def _a_sentence(text: str) -> bool:
-    """A KeyError raised with words ("no job 'x' in this project", "Unknown model: m"), not a missing key that has spaces
-    (a step title, "Read each line"): four words or more, with a colon, a semicolon, a quoted name or a full stop (b24)."""
-    # ponytail: a heuristic over the engine's own KeyError texts; a worded refusal should be its own exception class.
-    return len(text.split()) >= 4 and any(c in text for c in ":;'.")
-
-
 def failed_reason(kind: str, exc: BaseException) -> str:
     """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
     from fichero_server.core.failure_text import failure_text
 
-    if isinstance(exc, KeyError) and len(exc.args) == 1 and _a_sentence(str(exc.args[0])):
-        return str(exc.args[0])  # raised with words ("No local runtime installs model: X"), not a missing key (b23)
+    if isinstance(exc, MissingInWords):
+        return str(exc)  # refused in words ("No local runtime installs model: X"), not a missing key (b23, #6240)
     if isinstance(exc, _SLIPS):
         return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"
     return failure_text(exc)
@@ -1902,7 +1896,7 @@ def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
     _ensure(db)
     row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])
     if row is None:
-        raise KeyError(f"no job {job_id!r} in this project")
+        raise MissingInWords(f"no job {job_id!r} in this project")
     return row[0], row[1]
 
 
@@ -2187,7 +2181,7 @@ def _retry_kind(db: "Database", kind: str) -> str:
     if kind not in KINDS:
         load_kinds()
     if kind not in KINDS:
-        raise KeyError(f"no work of kind {kind!r} in this project")
+        raise MissingInWords(f"no work of kind {kind!r} in this project")
     _ensure(db)
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
