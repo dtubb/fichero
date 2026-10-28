@@ -7,6 +7,7 @@ builds, the states it reads, the lines it lands.
 from __future__ import annotations
 
 import base64
+import json
 from types import SimpleNamespace as NS
 
 import pytest
@@ -113,3 +114,126 @@ def test_a_request_with_no_image_or_a_key_the_provider_refuses_is_refused_here()
     with pytest.raises(ValueError, match="custom_id"):
         pb.AnthropicBatches(FakeAnthropic()).submit("m", [pb.BatchRequest(key="a b", prompt="x", images=())],
                                                     max_tokens=10)
+
+
+# --- OpenAI Batch: a file -----------------------------------------------------------------------------------------
+
+class FakeOpenAI:
+    """The surface of `openai.OpenAI()` the client uses: `files.create/content`, `batches.create/retrieve/cancel`."""
+
+    def __init__(self, status="in_progress"):
+        self.uploaded, self.made, self.cancelled, self.status = [], [], [], status
+        self.files, self.batches = NS(create=self._upload, content=self._content), NS(
+            create=self._create, retrieve=self._retrieve, cancel=self.cancelled.append)
+
+    def _upload(self, *, file, purpose):
+        self.uploaded.append((file, purpose))
+        return NS(id="file-in")
+
+    def _create(self, **kw):
+        self.made.append(kw)
+        return NS(id="batch_1", status="validating")
+
+    def _retrieve(self, batch_id):
+        if batch_id != "batch_1":
+            raise NotFound(batch_id)
+        return NS(id=batch_id, status=self.status, output_file_id="file-out", error_file_id="file-err",
+                  request_counts=NS(total=3, completed=1, failed=2), errors=None)
+
+    def _content(self, file_id):
+        keys = [json.loads(line)["custom_id"] for line in self.uploaded[0][0][1].decode().splitlines()]
+        body = {"choices": [{"message": {"content": "En la ciudad"}}], "usage": {"prompt_tokens": 900,
+                                                                                 "completion_tokens": 60}}
+        rows = {"file-out": [{"custom_id": keys[0], "response": {"status_code": 200, "body": body}, "error": None},
+                             {"custom_id": keys[1], "response": {"status_code": 429, "body": {
+                                 "error": {"message": "Rate limit"}}}, "error": None}],
+                "file-err": [{"custom_id": keys[2], "response": None,
+                              "error": {"code": "batch_expired", "message": "not done in 24h"}}]}[file_id]
+        return NS(text="\n".join(json.dumps(r) for r in rows))
+
+
+def test_openai_sends_one_file_of_one_model_and_lands_answers_and_errors_by_custom_id():
+    """WHY (`.cloud-batch-above-threshold`, `.cloud-batch-retries-failed-requests-only`): OpenAI takes a `.jsonl` file of
+    chat requests, the image as an `image_url`; answers and failures come back in two files, in any order, matched by
+    `custom_id`; a failed line is that page's failure in OpenAI's words."""
+    fake = FakeOpenAI()
+    client = pb.OpenAIBatches(fake)
+    ids = client.submit("gpt-5", _requests(), max_tokens=2048)
+
+    assert ids == {"batch_id": "batch_1", "input_file_id": "file-in"}
+    ((name, data), purpose), = fake.uploaded
+    assert purpose == "batch" and name.endswith(".jsonl")
+    first = json.loads(data.decode().splitlines()[0])
+    assert (first["custom_id"], first["method"], first["url"]) == (_requests()[0].key, "POST", "/v1/chat/completions")
+    assert first["body"]["model"] == "gpt-5" and first["body"]["max_completion_tokens"] == 2048
+    assert first["body"]["messages"][0]["content"] == [{"type": "text", "text": "Read the lines."},
+                                                        {"type": "image_url", "image_url": {"url": JPEG}}]
+    assert fake.made == [{"input_file_id": "file-in", "endpoint": "/v1/chat/completions", "completion_window": "24h"}]
+
+    assert client.poll(ids)["state"] == "open"
+    fake.status = "expired"
+    assert client.poll(ids) == {"state": "ended", "counts": {"succeeded": 1, "failed": 2, "open": 0}}
+    ok, limited, expired = sorted(client.lines(ids), key=lambda line: line.key)
+    assert (ok.text, ok.usage) == ("En la ciudad", {"input_tokens": 900, "output_tokens": 60})
+    assert (limited.ok, limited.why) == (False, "OpenAI: 429: Rate limit")
+    assert (expired.ok, expired.why) == (False, "OpenAI: batch_expired: not done in 24h")
+    assert pb.OpenAIBatches(fake).poll({"batch_id": "gone"})["state"] == "gone"
+
+
+# --- Gemini Batch Mode: by file, so each answer comes back under its key --------------------------------------------
+
+class FakeGemini:
+    """The surface of `google.genai.Client()` the client uses: `files.upload/download`, `batches.create/get/cancel`."""
+
+    def __init__(self):
+        self.uploaded, self.made, self.cancelled, self.state = [], [], [], "JOB_STATE_RUNNING"
+        self.files = NS(upload=self._upload, download=self._download)
+        self.batches = NS(create=self._create, get=self._get, cancel=lambda *, name: self.cancelled.append(name))
+
+    def _upload(self, *, file, config):
+        self.uploaded.append((file.read(), config))
+        return NS(name="files/in")
+
+    def _create(self, *, model, src, config=None):
+        self.made.append((model, src))
+        return NS(name="batches/1", state=NS(name="JOB_STATE_PENDING"))
+
+    def _get(self, *, name):
+        if name != "batches/1":
+            raise NotFound(name)
+        return NS(name=name, state=NS(name=self.state), dest=NS(file_name="files/out"))
+
+    def _download(self, *, file):
+        keys = [json.loads(line)["key"] for line in self.uploaded[0][0].decode().splitlines()]
+        rows = [{"key": keys[0], "response": {"candidates": [{"content": {"parts": [{"text": "En la ciudad"}]}}],
+                                              "usageMetadata": {"promptTokenCount": 700, "candidatesTokenCount": 40}}},
+                {"key": keys[1], "error": {"code": 400, "message": "Image too large"}}]
+        return "\n".join(json.dumps(r) for r in rows).encode()
+
+
+def test_gemini_sends_a_file_of_keyed_requests_and_lands_each_answer_under_its_key():
+    """WHY (`.cloud-batch-above-threshold`): a batch with images goes to Gemini as a FILE (its inline batches answer by
+    position, not key); the answer file's lines land under their keys, a failed one in Gemini's words, and a request
+    with no line at all is left for the caller to call failed."""
+    fake = FakeGemini()
+    client = pb.GeminiBatches(fake)
+    ids = client.submit("gemini-3-pro", _requests(), max_tokens=2048)
+
+    assert ids == {"batch_id": "batches/1", "input_file_id": "files/in"}
+    data, config = fake.uploaded[0]
+    first = json.loads(data.decode().splitlines()[0])
+    assert first["key"] == _requests()[0].key and config["mime_type"] == "jsonl"
+    assert first["request"]["contents"][0]["parts"] == [
+        {"text": "Read the lines."}, {"inline_data": {"mime_type": "image/jpeg", "data": JPEG.split(",", 1)[1]}}]
+    assert first["request"]["generation_config"] == {"max_output_tokens": 2048}
+    assert fake.made == [("gemini-3-pro", "files/in")]
+
+    assert client.poll(ids)["state"] == "open"
+    fake.state = "JOB_STATE_SUCCEEDED"
+    assert client.poll(ids)["state"] == "ended"
+    ok, refused = client.lines(ids)
+    assert (ok.text, ok.usage) == ("En la ciudad", {"input_tokens": 700, "output_tokens": 40})
+    assert (refused.ok, refused.why) == (False, "Gemini: 400: Image too large")
+    assert client.poll({"batch_id": "batches/old"})["state"] == "gone"
+    client.cancel(ids)
+    assert fake.cancelled == ["batches/1"]

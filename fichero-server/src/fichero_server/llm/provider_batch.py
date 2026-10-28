@@ -10,6 +10,7 @@ the Keychain; tests pass a fake of the same surface.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -132,3 +133,153 @@ class AnthropicBatches:
     def cancel(self, ids: dict[str, str]) -> None:
         self.client.messages.batches.cancel(ids["batch_id"])
 
+
+
+#: OpenAI's limits on one batch file (developers.openai.com, checked 2026-10-28).
+OPENAI_CAP_BYTES = 200 * 1024 * 1024
+OPENAI_MAX_REQUESTS = 50_000
+_OPENAI_OPEN = frozenset({"validating", "in_progress", "finalizing", "cancelling"})
+
+
+class OpenAIBatches:
+    """OpenAI Batch: submitted as a FILE (`files.create(purpose="batch")`, one chat request a line, one model a file),
+    then `batches.create` over it with the 24-hour window; answers in `output_file_id`, failures in `error_file_id`,
+    matched by `custom_id` (their order differs). An `expired` or `cancelled` batch ends with what it answered."""
+
+    name = "OpenAI"
+    cap_bytes = OPENAI_CAP_BYTES
+    endpoint = "/v1/chat/completions"
+
+    def __init__(self, client: Any):
+        self.client = client
+
+    def submit(self, model: str, requests: list[BatchRequest], *, max_tokens: int) -> dict[str, str]:
+
+        lines = [json.dumps({"custom_id": r.key, "method": "POST", "url": self.endpoint, "body": {
+            "model": model, "max_completion_tokens": max_tokens, "messages": [{"role": "user", "content": [
+                {"type": "text", "text": r.prompt}, *({"type": "image_url", "image_url": {"url": i}} for i in r.images)]}]}})
+            for r in requests]
+        uploaded = self.client.files.create(file=("fichero-batch.jsonl", "\n".join(lines).encode()), purpose="batch")
+        made = self.client.batches.create(input_file_id=uploaded.id, endpoint=self.endpoint, completion_window="24h")
+        return {"batch_id": made.id, "input_file_id": uploaded.id}
+
+    def _batch(self, ids: dict[str, str]) -> Any | None:
+        try:
+            return self.client.batches.retrieve(ids["batch_id"])
+        except Exception as exc:
+            if _is_gone(exc):
+                return None
+            raise
+
+    def poll(self, ids: dict[str, str]) -> dict[str, Any]:
+        batch = self._batch(ids)
+        if batch is None:
+            return {"state": "gone"}
+        if batch.status in _OPENAI_OPEN:
+            return {"state": "open"}
+        c = batch.request_counts
+        out: dict[str, Any] = {"state": "ended", "counts": {"succeeded": c.completed, "failed": c.failed,
+                                                            "open": c.total - c.completed - c.failed}}
+        if batch.status == "failed":  # the file itself was refused: no line is answered
+            out["why"] = "OpenAI refused the batch: " + "; ".join(
+                e.message for e in (getattr(batch.errors, "data", None) or [])) if batch.errors else "OpenAI refused the batch"
+        return out
+
+    def lines(self, ids: dict[str, str]) -> list[BatchLine]:
+
+        batch = self._batch(ids)
+        out = []
+        for file_id in (batch.output_file_id, batch.error_file_id) if batch else ():
+            if not file_id:
+                continue
+            for raw in self.client.files.content(file_id).text.splitlines():
+                if not raw.strip():
+                    continue
+                row = json.loads(raw)
+                response, error = row.get("response") or {}, row.get("error")
+                body = response.get("body") or {}
+                if not error and response.get("status_code") == 200:
+                    usage = body.get("usage") or {}
+                    out.append(BatchLine(row["custom_id"], True, text=body["choices"][0]["message"]["content"] or "",
+                                         usage={"input_tokens": usage.get("prompt_tokens", 0),
+                                                "output_tokens": usage.get("completion_tokens", 0)}))
+                elif error:
+                    out.append(BatchLine(row["custom_id"], False, why=f"OpenAI: {error.get('code')}: {error.get('message')}"))
+                else:
+                    message = (body.get("error") or {}).get("message")
+                    out.append(BatchLine(row["custom_id"], False, why=f"OpenAI: {response.get('status_code')}: {message}"))
+        return out
+
+    def cancel(self, ids: dict[str, str]) -> None:
+        self.client.batches.cancel(ids["batch_id"])
+
+
+#: Gemini's file batches (ai.google.dev, checked 2026-10-28): a `.jsonl` through the Files API, up to 2 GB.
+GEMINI_CAP_BYTES = 2 * 1024 * 1024 * 1024
+_GEMINI_ENDED = frozenset({"JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"})
+
+
+class GeminiBatches:
+    """Gemini Batch Mode, always by FILE: a `.jsonl` of `{key, request}` uploaded through the Files API, the job made over
+    it; the answers come back as a file of `{key, response | error}`. ponytail: its inline mode (under about 20 MB, answers
+    by position) is not used; one path keeps every answer under its key."""
+
+    name = "Gemini"
+    cap_bytes = GEMINI_CAP_BYTES
+
+    def __init__(self, client: Any):
+        self.client = client
+
+    def submit(self, model: str, requests: list[BatchRequest], *, max_tokens: int) -> dict[str, str]:
+        import io
+
+        lines = [json.dumps({"key": r.key, "request": {
+            "contents": [{"role": "user", "parts": [{"text": r.prompt}, *(
+                {"inline_data": {"mime_type": media, "data": data}} for media, data in map(_split_data_uri, r.images))]}],
+            "generation_config": {"max_output_tokens": max_tokens}}}) for r in requests]
+        uploaded = self.client.files.upload(file=io.BytesIO("\n".join(lines).encode()),
+                                            config={"mime_type": "jsonl", "display_name": "fichero-batch"})
+        made = self.client.batches.create(model=model, src=uploaded.name)
+        return {"batch_id": made.name, "input_file_id": uploaded.name}
+
+    def _job(self, ids: dict[str, str]) -> Any | None:
+        try:
+            return self.client.batches.get(name=ids["batch_id"])
+        except Exception as exc:
+            if _is_gone(exc):
+                return None
+            raise
+
+    def poll(self, ids: dict[str, str]) -> dict[str, Any]:
+        job = self._job(ids)
+        if job is None:
+            return {"state": "gone"}
+        state = job.state.name
+        if state not in _GEMINI_ENDED:
+            return {"state": "open"}
+        return {"state": "ended", **({} if state == "JOB_STATE_SUCCEEDED" else {"why": f"Gemini: {state}"})}
+
+    def lines(self, ids: dict[str, str]) -> list[BatchLine]:
+        job = self._job(ids)
+        name = getattr(getattr(job, "dest", None), "file_name", None)
+        if not name:
+            return []
+        out = []
+        for raw in self.client.files.download(file=name).decode().splitlines():
+            if not raw.strip():
+                continue
+            row = json.loads(raw)
+            if row.get("response"):
+                response = row["response"]
+                parts = ((response.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
+                usage = response.get("usageMetadata") or {}
+                out.append(BatchLine(row["key"], True, text="".join(p.get("text", "") for p in parts),
+                                     usage={"input_tokens": usage.get("promptTokenCount", 0),
+                                            "output_tokens": usage.get("candidatesTokenCount", 0)}))
+            else:
+                error = row.get("error") or row.get("status") or {}
+                out.append(BatchLine(row["key"], False, why=f"Gemini: {error.get('code')}: {error.get('message')}"))
+        return out
+
+    def cancel(self, ids: dict[str, str]) -> None:
+        self.client.batches.cancel(name=ids["batch_id"])
