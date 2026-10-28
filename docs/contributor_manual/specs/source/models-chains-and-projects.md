@@ -3186,6 +3186,13 @@ person adds, never required; and every step says plainly what it does wherever a
   `step_choices.py:167`). *Test (to write):* [transcribe] answered "no second model" has no correct step;
   answered yes it has find-lines, read-a-line, correct; a recipe of find-lines, correct fails the check
   naming Read each line or Read the whole page.
+- `source.recipe.second-reviewer` — **[PARTIAL]** (#6257) Set Up's Read question "Add another model to review the reading
+  after the first?" (`correct_with_another_model`, default no, asked only once Review the reading is on) adds a second
+  `correct` step, `correct-2`, after the first, with its own model (never the first's again) and its own model finder. *Built:*
+  in turn: it reviews the first's corrected reading. **[OWNER CALL, not a decision]** whether the second reviews in turn or
+  both review the reading and their disagreements are flagged (`find-where-readers-disagree`); the in-turn run is the
+  placeholder until the owner says. *Test:* `fichero-server/tests/unit/recipes/test_second_correct_model_6257.py`. *Left:* the
+  Swift question row, and a third reviewer (the id scheme stops at `correct-2`).
 - `source.recipe.steps-say-what-they-do` — **[PARTIAL]** (#6250) every place a step is named uses one plain
   label for what it does, the same in Set Up, the Recipe Designer, the recipe card, Start's plan and
   Activity: **Find lines** (`find-lines`), **Read each line** (`read-a-line`), **Read the whole page**

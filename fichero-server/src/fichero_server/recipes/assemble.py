@@ -880,6 +880,8 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
 CORRECT = "correct"
 #: Set Up's question under Read that asks for Correct (`recipes/stages.py`).
 CORRECT_QUESTION = "correct_with_a_second_model"
+#: "Add another model to review in turn?" (#6257): a second `correct` step, `correct-2`, after the first.
+ANOTHER_CORRECT_QUESTION = "correct_with_another_model"
 
 
 def correct_available(card: Card | None) -> bool:
@@ -1132,6 +1134,15 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+        if job == CORRECT and a.job_answers.get(ANOTHER_CORRECT_QUESTION) is True:
+            # A second reviewer, in turn after the first (#6257): its own model, never the first's again.
+            others = [c for c in cards if c.id != choice.card.id] if choice.card else cards
+            second_choice = _choose(job, others, a)
+            second: dict[str, Any] = {"id": f"{job}-2", "job": job, **_topic(job), **_chosen(second_choice)}
+            second["uses_cloud"] = str(second.get("runs_on") or "").startswith("cloud")
+            if second_choice.card is None:
+                notes.append(f"{second['id']}: {second_choice.gap}")
+            steps.append(second)
     from fichero_server.recipes.jobs import get_job
 
     for step in steps:

@@ -79,6 +79,7 @@ STAGES: tuple[Stage, ...] = (
           "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",
           # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
           (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),
+           Question("correct_with_another_model", "Add another model to review the reading after the first?", "yes-no", default=False),
            # Kraken, then a model for the unsure lines (variant A, #5894): the bar the step reads as `only_below_confidence`.
            Question("review_certainty_bar", "Send the second model only the lines Kraken is unsure of?", "one",
                     (("whole-page", "No: it checks the whole page"), ("0.5", "Only lines under 0.5 sure"),
