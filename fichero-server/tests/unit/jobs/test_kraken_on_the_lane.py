@@ -394,7 +394,7 @@ class TestStopReachesAPageWaitingForTheLane:
                 if db.execute_fetchone(row) != ("running",):
                     break
                 await asyncio.sleep(0.05)
-            assert db.execute_fetchone(row) == ("done",)
+            assert db.execute_fetchone(row) == ("cancelled",), "its result was dropped: the page did not finish"
         finally:
             gate.set()
             clear_cancellation("run-busy")
