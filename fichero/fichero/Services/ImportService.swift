@@ -189,7 +189,9 @@ class ImportService {
         autoEmbed: Bool?
     ) async throws -> (documents: [Document], failures: [ImportError]) {
         for url in urls { try? await FolderAccessManager.shared.grantAccessForImport(url) }
-        let response = try await client.api.ingestFilesApiIngestFilesPost(
+        // `longRunningAPI`: an online-only Box or iCloud file comes down first, within the engine's own bound
+        // (#6248); the 60-second request deadline failed it while it downloaded.
+        let response = try await client.longRunningAPI.ingestFilesApiIngestFilesPost(
             body: .json(.init(
                 paths: urls.map(\.path),
                 parentId: parentId,
@@ -366,7 +368,8 @@ class ImportService {
         return try await FolderAccessManager.grantThenEngineWork(
             grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(parent) },
             engineWork: {
-                let response = try await self.client.api.ingestFileApiIngestFilePost(
+                // `longRunningAPI`, as above: a cloud placeholder downloads before it imports (#6248).
+                let response = try await self.client.longRunningAPI.ingestFileApiIngestFilePost(
                     body: .json(.init(
                         path: url.path,
                         parentId: parentId,

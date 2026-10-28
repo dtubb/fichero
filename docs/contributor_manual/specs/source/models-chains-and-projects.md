@@ -3021,6 +3021,14 @@ Profiles (the defaults section of a recipe)
   pages copied into the project are never counted. *Test:*
   `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
   `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
+- `source.onboard.online-only-files-come-down-at-import` — **[PARTIAL]** (#6248; not yet seen on a real Box folder;
+  the app's half needs compile) An import of an online-only file (Box Drive, OneDrive, iCloud), loose or in a folder,
+  asks for its bytes and waits for them within a bound that grows with the file's size (at least 120 s, about
+  1 MB/s), never on a read that can block. One that does not come down in time fails alone, saying which cloud it is
+  in and that it did not download; the rest import. While a file in a folder comes down, the import's progress moves
+  inside that file's share, so the app never takes a long download for a stalled import; loose files go to the engine
+  without the app's 60-second request deadline. *Test:*
+  `fichero-server/tests/unit/importers/test_cloud_placeholder_never_blocks_folder_import_6248.py`.
 - `source.onboard.correct-off-unless-a-corrector-is-here` — **[PARTIAL]** (#5677; ruled Q3 2026-10-17: with a cloud key set, Correct is OFFERED at Ready with its cost, never on by itself. *Built: the off line names a cloud and its price only when that provider has a key set here (`Answers.cloud_keys`), and carries it as `offered` (card, provider, pages, cost), `fichero-server/tests/unit/recipes/test_correct_offered_with_a_key_5677.py`. The corrector offered is the person's own: a cloud vision reader from their Settings › AI rows whose provider has a key, priced per page from the price list (`recipes._cloud_correctors`, passed to `assemble` as `offered`, never among the rules' cards); one that lists no language of the project's is offered saying so ("try it on a few pages first"), and one with no known price is not offered. Taken through `POST /api/recipes/project/steps/use-candidate` (step `correct`, the offered `card`) once the answers turn Correct on. Not built: Ready's button that turns it on from the offer (app)*) Correct (a second model checking the
   reading) is in a purpose's recipe only when the person asks for it (ticks Correct, or answers yes to "Correct with a
   second model?"); a corrector already at hand does not put it in (owner ruling 2026-10-19, #5812,
