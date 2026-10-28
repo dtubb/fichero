@@ -8294,7 +8294,13 @@ class Database(DatabaseEmbeddingMixin):
         return type_map.get(python_type, "VARCHAR")
 
     def close(self) -> None:
-        """Release database and vector-store handles."""
+        """Release database and vector-store handles, and the embedding worker's own connection to this file (#6238: it
+        stayed open after the library closed). The worker is closed under its gate and lock, so a statement an embed has
+        in flight finishes first; the embed's next statement fails with DuckDB's closed-connection error."""
+        worker = self.__dict__.pop("_embed_worker_db", None)
+        if worker is not None:
+            with worker._transaction_gate, worker._lock:
+                worker.close()
         self._lance_db = None
         self.conn.close()
 
