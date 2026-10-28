@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-27
+
+- Recipe runs: pages-at-once and threads each in the run status and Activity (#6229, #5929); Run again on what was missed (#6170, #6091); an unchanged re-import is the page it already is (#6225); per-step cost in the summary.
+- Slowdowns: an idle DuckDB read is read to the end at every site, so no snapshot is held (#6236); the names step's fuzzy match, the page grid and the status polls stay flat over a long run (#6178, #6213).
+- Stalls and stops: a stalled names page is skipped with a worded reason; every Kraken call is a live call on its lane (#6000); the engine's own stops read "Stopped".
+- Sidebar: a multi-library delete is one undoable step per library (#6175).
+- Tests and tooling: the segmentation change-event test no longer loads the real segmenter (#6228); the engine logs slow statements, model reloads and memory shares.
+
 ## 2026-10-26
 
 - Set Up and Activity: a folder's own reader is used at Start (#6135); a running recipe's Activity row says its stage in words with its pages (#6125); the stages before Search leave their embeds to Search and the embed left to it is queued, not dropped (#6126); the Activity row names each reader of a stage that reads with several (#6134); the Activity window port and its list routes return {items, count} (#6101); more error branches show the engine's words (#6109).
