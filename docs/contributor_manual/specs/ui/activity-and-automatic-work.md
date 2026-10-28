@@ -2377,17 +2377,22 @@ is the answer; the grey line says both.
   *Test:* `fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py` (a fake torch
   records every `set_num_threads` call: two pages through the gate under one plan make one call; a plan change makes
   one more).
-- `activity.lane.embedder-forks-before-threads` — **[BROKEN]** (#6237; proposed 2026-10-27, decision 3 of the review)
+- `activity.lane.embedder-forks-before-threads` — **[PARTIAL]** (#6237; proposed 2026-10-27, decision 3 of the review)
   a worker process the engine needs (the search embedder first; Apple Vision's worker the same way) is forked from a
   seed process that the engine forks once at start, before uvicorn's loop, LanceDB's background loop or any other
   thread exists, and that does nothing but fork on request over a pipe; never from the running engine. Today
   `RemoteEmbedder._start` forks the engine itself at first use, after those threads exist, so the child inherits a dead
   kqueue and LanceDB's loop in it dies with EBADF (the M4 106-page run). The shipped engine cannot spawn: its
   `sys.executable` is the sandboxed stub (`loaders/kreuzberg_cache._fork_worker`). Inside the child the embedder keeps
-  `embed_threads` ONNX intra-op threads, one batch at a time. *Test (to write):*
-  `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the seed is made before the server
-  starts and has one thread; a worker asked of the seed sees no inherited thread or selector; the engine never forks
-  itself after start).
+  `embed_threads` ONNX intra-op threads, one batch at a time. Built (2026-10-28) for the embedder: `main()` forks the
+  seed (`embed_process.start_seed`) before it starts any thread (after only the `FICHERO_RUN_MODULE` CLI/MCP branch,
+  which needs none); `RemoteEmbedder._start` asks it for a worker over a Unix socket, handing it the worker's pipe end
+  (`socket.send_fds`) and the engine's environment; the seed forks `_serve`, answers its pid, lets the system reap it,
+  and leaves when the engine's end closes, so a worker of a killed engine is re-parented and leaves as before. Without a
+  seed (a test, a dev server not started by `main`) the engine forks the worker itself, as before. Test:
+  `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the worker is the seed's child, a crashed
+  worker is asked of the seed again, `main` makes the seed before any thread). *Not built:* Apple Vision's worker from
+  the seed; not yet run in the shipped engine (owed: a real e2e on the app).
 - `activity.lane.spacy-threads-one-pipeline-each` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27, revised the same
   day from the explorer's measurement) spaCy pages run on threads, each thread with its own copy of the pipeline, never
   two threads on one `Language` object (not thread-safe: two pages on the one cached pipeline crashed, hence today's
