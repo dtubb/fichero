@@ -2473,6 +2473,8 @@ Jobs and chains
 - `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe runs it as the `Split Pages` workflow (#5390), its pages then read by the steps after it, pinned by `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
 - `source.job.tie-text-to-lines` — **[PARTIAL]** (#5444, #5487) *Built (2026-10-05, reworked 2026-10-06 to
+  Setup's step row offers the model finder (#6256): the job is registered `needs_a_model=True` with a `model` setting, because
+  it runs the step's Kraken reader; the finder lists the three Kraken reader cards that name the job.
   the one-line-pass ruling, #5467): `POST /api/check/runs` with `check: tie-text-to-lines` (provider
   `kraken`, a Kraken reader; `pass_model` keeps only that model's lines) queues a `tie-text-to-lines` job on
   the local model lane; `checking/tie_text.py` takes the page's best reading (`page_reading`: a person's,
