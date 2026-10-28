@@ -1737,6 +1737,9 @@ and node, not by job); a retry action for failed pages.
   measured about 18x slower at the background class (#4959); a person reading pages beside a recipe keeps the
   Mac in use for the whole sitting. Built (#6229): the threads are half the cores, never a quarter (an import's
   automatic Kraken at utility QoS). Left: other automatic work in use still drops to the background class. *Test (if ruled so):* `fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`.
+  A recipe run a person started (`run-a-recipe`, `owner` or `owner on <device>`) begins at once with the Mac in use and on battery:
+  `test_a_started_recipe_run_begins_while_in_use_6263.py` pins the run row. **Open (#6263):** the Air's run sat with every step
+  waiting 83 s until Run Now; the hold is inside the steps, not the row, and was not reproduced (needs that run's step reasons).
 - `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
   time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
   page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after

@@ -148,7 +148,7 @@ def test_a_step_with_no_model_is_skipped_never_run_with_a_default():
     and never runs the step's default."""
     gap = {"id": "correct", "job": "correct", "gap": "no model fits this step"}
     plan = plan_start(_recipe(LINES, READ, gap), stays_local=True)
-    assert any("Correct has no model" in s["why"] for s in plan["skipped"])
+    assert any("Review the reading has no model" in s["why"] for s in plan["skipped"])
     assert all("correct" not in r["steps"] for r in plan["runs"])
 
 

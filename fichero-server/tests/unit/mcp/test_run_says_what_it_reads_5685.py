@@ -22,7 +22,7 @@ from tests.unit.recipes.test_recipe_execution_to_spec import _png
 
 #: The pages read in parallel, so with the second held the run is caught at 1 or 2 of 3 done: the count is not the claim,
 #: the step and the pages are.
-SAID = re.compile(r"Reading the lines with Kraken: [12] of 3 pages")
+SAID = re.compile(r"Reading each line with Kraken: [12] of 3 pages")
 
 RECIPE = {"fichero_recipe": 1, "id": "t/reads", "version": "0.1.0", "title": "Reads", "steps": [
     {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}},

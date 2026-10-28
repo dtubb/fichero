@@ -55,4 +55,4 @@ def test_the_start_plan_says_it_is_off(client, mac, pages):
     r = client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": recipe})
     assert r.status_code == 200, r.text
     plan = client.get("/api/recipes/project/start").json()
-    assert any("Correct" in line and "GB" in line for line in plan["left_off"]), plan["left_off"]
+    assert any("Review the reading" in line and "GB" in line for line in plan["left_off"]), plan["left_off"]

@@ -880,6 +880,8 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
 CORRECT = "correct"
 #: Set Up's question under Read that asks for Correct (`recipes/stages.py`).
 CORRECT_QUESTION = "correct_with_a_second_model"
+#: "Add another model to review in turn?" (#6257): a second `correct` step, `correct-2`, after the first.
+ANOTHER_CORRECT_QUESTION = "correct_with_another_model"
 
 
 def correct_available(card: Card | None) -> bool:
@@ -910,8 +912,8 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     if CORRECT in a.jobs or asked is True:
         return None
     if asked is False:
-        return {"job": CORRECT, "title": "Correct",
-                "sentence": "Correct is off: you chose not to correct the reading with a second model."}
+        return {"job": CORRECT, "title": "Review the reading",
+                "sentence": "Review the reading is off: you chose not to have a second model check the reading."}
     # An optional step joins the plan only when the person ticks it or says yes: a corrector at hand does not put it
     # in (owner ruling 2026-10-19, #5812); the answer drives the plan, never the plan the answer.
     choice = _choose(CORRECT, cards, a)
@@ -957,7 +959,7 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
                    ", once you allow the cloud in Set Up Fichero… and let pages leave this Mac,")
         cost += (f"; or{letting} {provider} {price} "
                  f"for {pages} {'page' if pages == 1 else 'pages'}" + (f" ({unlisted})" if unlisted else ""))
-    return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
+    return {"job": CORRECT, "title": "Review the reading", "sentence": f"Review the reading is off: {cost}.", "offered": offered}
 
 
 #: The jobs that send a page's PICTURE to a model; the others send the text read from it.
@@ -1132,6 +1134,15 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+        if job == CORRECT and a.job_answers.get(ANOTHER_CORRECT_QUESTION) is True:
+            # A second reviewer, in turn after the first (#6257): its own model, never the first's again.
+            others = [c for c in cards if c.id != choice.card.id] if choice.card else cards
+            second_choice = _choose(job, others, a)
+            second: dict[str, Any] = {"id": f"{job}-2", "job": job, **_topic(job), **_chosen(second_choice)}
+            second["uses_cloud"] = str(second.get("runs_on") or "").startswith("cloud")
+            if second_choice.card is None:
+                notes.append(f"{second['id']}: {second_choice.gap}")
+            steps.append(second)
     from fichero_server.recipes.jobs import get_job
 
     for step in steps:

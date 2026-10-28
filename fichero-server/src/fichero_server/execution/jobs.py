@@ -1324,8 +1324,18 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
     return PageStopped(said)  # skip this page; the run goes on
 
 
-#: Running pages whose run's Stop dropped them (`_stop_the_page`), job id -> reason: the row ends cancelled, not done.
-_DROPPED_PAGES: dict[str, str] = {}
+#: Running pages whose run's Stop dropped them (`_stop_the_page`), job id -> (reason, its future): the row ends
+#: cancelled, not done. The lane pops an entry as the page ends, whatever its end.
+_DROPPED_PAGES: dict[str, tuple[str, Future]] = {}
+
+
+def _note_dropped(job_id: str, reason: str, future: Future) -> None:
+    """Note a dropped page. A page that ended between the withdraw and this note was popped before it landed: any entry
+    whose future is done is such a one (a future is done only after its row is written), so it goes here.
+    ponytail: pruned on the next Stop, not at once; bounded by the pages one Stop drops."""
+    for stale in [j for j, (_r, f) in _DROPPED_PAGES.items() if f.done()]:
+        _DROPPED_PAGES.pop(stale, None)
+    _DROPPED_PAGES[job_id] = (reason, future)
 
 
 def _stop_the_page(db: "Database", future: Future, run_id: str) -> NoReturn:
@@ -1337,7 +1347,7 @@ def _stop_the_page(db: "Database", future: Future, run_id: str) -> NoReturn:
 
     reason = _run_stopped(run_id)
     if not _scheduler.withdraw(db, future, reason=reason):
-        _DROPPED_PAGES[future.job_id] = reason or "Stopped by you"  # type: ignore[attr-defined]
+        _note_dropped(future.job_id, reason or "Stopped by you", future)  # type: ignore[attr-defined]
     raise WorkflowCancelled(run_id)
 
 
@@ -3696,6 +3706,9 @@ class _Scheduler:
             _episode_library_path.reset(library_token)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
+        dropped = _DROPPED_PAGES.pop(job_id, None)  # on every end, the deferred one too: never left behind
+        if dropped is not None and state in ("waiting", "running"):  # its run stopped: it ends, never back to waiting
+            state, reason = "cancelled", dropped[0]
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
@@ -3711,9 +3724,8 @@ class _Scheduler:
                     lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
-        dropped = _DROPPED_PAGES.pop(job_id, None)
         if dropped is not None and state == "done":  # its run stopped and dropped what it read: it did not finish
-            state, reason = "cancelled", dropped
+            state, reason = "cancelled", dropped[0]
         current = db_manager.open_database(key)
         if current is not None:  # the same project, reopened while it ran: the row is written on the connection it has now
             current.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",

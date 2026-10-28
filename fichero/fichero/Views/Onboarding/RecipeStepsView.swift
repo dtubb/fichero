@@ -256,7 +256,7 @@ struct RecipeStepRow: View {
         steps: [
             .init(id: "lines", job: "find-lines", title: "Find lines", sentence: "Finds each line of writing on the page.",
                   reasons: ["ships inside the app"], layer: "lines"),
-            .init(id: "correct", job: "correct", title: "Correct", sentence: "A language model corrects the reading.",
+            .init(id: "correct", job: "correct", title: "Review the reading", sentence: "A language model corrects the reading.",
                   reasons: [], gap: "no local corrector knows es",
                   problem: .init(kind: "no-model-for-language", sentence: "No correcting model here knows Spanish yet.",
                                  fix: "download", fixes: ["download", "choose-cloud"], detail: ""))

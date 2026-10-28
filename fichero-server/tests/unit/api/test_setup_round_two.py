@@ -61,7 +61,7 @@ def test_every_purpose_lists_its_jobs_and_the_new_purposes_are_offered(client):
     for new in ("statements", "translate-normalise", "quotations", "catalogue", "tables"):
         assert new in items and items[new]["runs_by_itself"] is True
     assert [j["title"] for j in items["map-places"]["jobs"]] == [
-        "Find lines", "Read each line", "Correct", "Find names", "Place in a gazetteer"]
+        "Find lines", "Read each line", "Review the reading", "Find names", "Place in a gazetteer"]
     assert items["decipher"]["jobs"] == [] and items["not-sure"]["jobs"] == []
 
 
