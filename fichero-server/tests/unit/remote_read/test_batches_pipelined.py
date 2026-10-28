@@ -131,3 +131,32 @@ def test_a_stop_reaches_the_read_sent_ahead_before_anything_is_sent_and_while_it
     with pytest.raises(jobs.JobCancelled):
         read_job.run(db, subject, target=place, sleep=lambda s: None)
     assert place.cancelled == ["job-0"]
+
+
+def test_the_recipe_runner_sends_the_second_batch_ahead_while_it_runs_the_first(db, monkeypatch, tmp_path):
+    """WHY (the hook in `_run_the_plan`): a two-batch plan whose first step is on Hugging Face sends the second batch's
+    read before the first batch runs, on that batch's own pages; the last batch sends nothing ahead."""
+    from PIL import Image
+
+    from fichero_server.models import DocType, Document, FileType
+
+    ids = []
+    for i in range(2):
+        image = tmp_path / f"p{i}.png"
+        Image.new("RGB", (32, 32), "white").save(image)
+        doc = Document(name=image.name, doc_type=DocType.file, file_type=FileType.image, path=str(image))
+        db.save(doc)
+        ids.append(doc.id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    monkeypatch.setattr(runner, "BATCH_PAGE_LIMIT", 1)
+    monkeypatch.setattr(runner, "_step_pages", lambda db, card, step, batch, tree, detail: (list(batch["units"]), {}, {}))
+    events = []
+    monkeypatch.setattr(runner, "_send_at_scale", lambda db, card, documents, parent, started_by:
+                        (events.append(("ahead", list(documents))), (None, "refused here"))[1])
+    monkeypatch.setattr(runner, "_run_card", lambda db, card, documents, *a, **k:
+                        (events.append(("run", list(documents))), (None, "done", None))[1])
+    job_id = runner.enqueue(db, {"runs": [CARD], "skipped": []}, documents=ids, started_by="owner")
+    out = runner._run_the_plan(db, job_id)
+    runs = [e for e in events if e[0] == "run"]
+    assert len(runs) == 2 and events[0] == ("ahead", runs[1][1]), (events, out)
+    assert [e for e in events if e[0] == "ahead"] == [events[0]], "the last batch sends nothing ahead"
