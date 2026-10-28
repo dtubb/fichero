@@ -169,10 +169,13 @@ def by_hand(job: str) -> dict[str, str]:
             "fix": BY_HAND_FIX.get(job, _NO_TOOL_YET)}
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
-#: What a cloud reader sends a page: the page picture in two calls (~13k and ~43k input tokens, ~400 out), measured on
-#: Gemini Flash-Lite (#6265: $0.0143 a page against the text assumption's $0.00075).
-#: ponytail: one figure; a per-model image-token rule or the project's own past `LLM usage` would refine it.
+#: What a cloud reader sends a page (#6265). Gemini (direct or via OpenRouter), measured: the page picture in two calls (~13k and
+#: ~43k input tokens, ~400 out; $0.0143 a page on Flash-Lite against the text assumption's $0.00075). Anthropic's documented rule:
+#: an image is resized to a 1568 px long edge and costs min(w*h/750, ~1600) tokens, so the cap, in the same two calls plus a prompt.
+#: Any other provider takes the measured figure (the safe, dear side).
+#: ponytail: per provider, not per model; a project's own past `LLM usage` for the model would refine it.
 PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT = 56_000, 400
+ANTHROPIC_PAGE_READ_TOKENS_IN = 2 * 1_600 + 400
 PAGE_READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
 CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
@@ -1512,7 +1515,7 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         bar = certainty_bar(w) if review else None
         to_send, send_kind, send_basis = lines_to_send(bar, pages, lines_known) if bar is not None else (None, None, None)
         cost = (_priced_lines(w, to_send) if to_send is not None
-                else _priced(w, pages * calls, *((PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT) if w.get("job") in PAGE_READ_JOBS else ()))
+                else _priced(w, pages * calls, *(_page_read_tokens(w) if w.get("job") in PAGE_READ_JOBS else ()))
                 if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
@@ -1537,6 +1540,13 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
                      "lines_to_send_kind": None, "lines_basis": None})
         total = None if total is None or cost is None else total + cost
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
+
+
+def _page_read_tokens(run: dict[str, Any]) -> tuple[int, int]:
+    """(in, out) tokens of one page read by this cloud run: Claude's capped image, else the measured figure."""
+    named = f"{run.get('provider_override') or ''}/{run.get('model_override') or ''}".lower()
+    return (ANTHROPIC_PAGE_READ_TOKENS_IN if "anthropic" in named or "claude" in named else PAGE_READ_TOKENS_IN,
+            PAGE_READ_TOKENS_OUT)
 
 
 def _priced(run: dict[str, Any], calls: int, tokens_in: int = _TOKENS_IN, tokens_out: int = _TOKENS_OUT) -> float | None:

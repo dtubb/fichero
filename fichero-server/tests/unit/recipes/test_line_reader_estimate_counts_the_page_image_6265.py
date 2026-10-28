@@ -19,9 +19,25 @@ def _run(job):
 @pytest.mark.parametrize("job", ["read-a-line", "read-a-page"])
 def test_a_cloud_reader_is_priced_on_the_page_image_it_sends(job):
     cost = estimate([_run(job)], 874)["runs"][0]["cost_usd"]
-    assert cost == pytest.approx(estimate_cost(MODEL, 874 * 56_000, 874 * 400, provider=PROVIDER))
+    assert cost == pytest.approx(estimate_cost(MODEL, 874 * 3_600, 874 * 400, provider=PROVIDER))  # Claude: the capped image, twice
 
 
 def test_a_text_step_keeps_the_text_assumption():
     cost = estimate([_run("translate-transliterate-normalise")], 874)["runs"][0]["cost_usd"]
     assert cost == pytest.approx(estimate_cost(MODEL, 874 * 1200, 874 * 300, provider=PROVIDER))
+
+
+@pytest.mark.parametrize("provider,model", [("google", "gemini-2.5-flash-lite"), ("openrouter", "google/gemini-3.1-flash-lite"),
+                                            ("openai", "gpt-4.1-mini")])
+def test_gemini_and_other_providers_take_the_measured_figure(provider, model):
+    run = {**_run("read-a-line"), "model_override": model, "provider_override": provider, "runs_on": f"cloud:{provider}"}
+    cost = estimate([run], 874)["runs"][0]["cost_usd"]
+    if cost is not None:  # an unlisted price stays None, never a stand-in
+        assert cost == pytest.approx(estimate_cost(model, 874 * 56_000, 874 * 400, provider=provider))
+
+
+def test_openrouter_claude_is_the_capped_image_too():
+    run = {**_run("read-a-page"), "model_override": "anthropic/claude-haiku-4.5", "provider_override": "openrouter"}
+    cost = estimate([run], 10)["runs"][0]["cost_usd"]
+    if cost is not None:
+        assert cost == pytest.approx(estimate_cost("anthropic/claude-haiku-4.5", 10 * 3_600, 10 * 400, provider="openrouter"))

@@ -3798,10 +3798,13 @@ Setup
   right-to-left, sign-by-sign scripts, an Indigenous syllabary, unwritten speech), setup produces
   the steps the table names or "needs a model", never an error and never a silent substitute.
 - `source.onboard.estimate-counts-the-image` — **[PARTIAL]** (#6265) the Start estimate for a cloud reader of pages (`read-a-line`,
-  `read-a-page`) prices what it sends, the page picture in two calls of about 13k and 43k input tokens and about 400 out a page
-  (`start.PAGE_READ_TOKENS_IN/OUT`, 56k/400), not the 1,200/300 a text call is assumed to take: measured on Gemini Flash-Lite,
-  $0.0143 a page against an estimate of $0.00075. *Left:* one figure for every model; a per-model image-token rule, or the project's
-  own past `LLM usage` for the same model, would refine it. *Test:* `fichero-server/tests/unit/recipes/test_line_reader_estimate_counts_the_page_image_6265.py`.
+  `read-a-page`) prices what it sends, by provider, not the 1,200/300 a text call is assumed to take. Gemini (direct or via OpenRouter)
+  and any provider not named: the measured page picture in two calls (about 13k + 43k in, about 400 out; $0.0143 a page on Flash-Lite
+  against $0.00075 before; `start.PAGE_READ_TOKENS_IN/OUT`). Anthropic, direct or via OpenRouter: its documented image rule, an image
+  resized to a 1568 px long edge costs at most about 1,600 tokens, so two calls of the cap plus a prompt, 3,600 in (about
+  `ANTHROPIC_PAGE_READ_TOKENS_IN`); a single figure would have quoted a Sonnet run about 30 times too dear and blocked it at the cap.
+  *Left:* per provider, not per model; the page's own size under the cap (w*h/750), or the project's past `LLM usage` for the model.
+  *Test:* `fichero-server/tests/unit/recipes/test_line_reader_estimate_counts_the_page_image_6265.py`.
 - `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); the count is the pages a run runs over, and `estimate.counted` says what it counts ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not a page, and photographs that share a file name (copies taken in twice), #5498, pinned by `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`; time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
