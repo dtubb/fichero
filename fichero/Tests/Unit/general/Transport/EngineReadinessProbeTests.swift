@@ -226,3 +226,26 @@ struct EngineAuthHeadersTests {
         #expect(headers["X-Fichero-Library-Path"] == "/tmp/Test.fichero")
     }
 }
+
+@Suite("The health GET has a timeout (#6176)")
+struct EngineHealthTimeoutTests {
+    // engine.restart-waits-for-the-work (#6176): the health GET has a 2 s timeout, so a hung engine costs a ping 2 s,
+    // not the transport's 60 s request deadline (which stretched 36 missed pings to over half an hour).
+    @Test("a health answer that does not come in time is a miss, after the timeout, never after the work")
+    func aHealthAnswerTooLateIsAMiss() async {
+        #expect(EngineReadinessProbe.healthTimeout == .seconds(2))
+        let start = ContinuousClock.now
+        let answer = await EngineReadinessProbe.answerWithin(.milliseconds(100), orElse: -1) {
+            try? await Task.sleep(for: .seconds(30))
+            return 200
+        }
+        #expect(answer == -1)
+        #expect(ContinuousClock.now - start < .seconds(5))
+    }
+
+    @Test("a health answer in time is the answer")
+    func aHealthAnswerInTimeIsTheAnswer() async {
+        let answer = await EngineReadinessProbe.answerWithin(.seconds(2), orElse: -1) { 200 }
+        #expect(answer == 200)
+    }
+}
