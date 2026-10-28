@@ -712,8 +712,11 @@ workflow by hand: a hand run is a job like any other.
   Activity, obeys the pause and survives a quit, and asking twice while it waits is one job. Built
   (2026-10-08): it used to run on FastAPI `BackgroundTasks`, invisible and unresumable
   (`fichero-server/tests/unit/api/test_routes_search.py`).
-- `activity.legacy-chain-retired` — **[BROKEN]** (→ #4949) `/chains/{id}/execute` runs with "no thread
-  ids, no SSE, no activity records" (`chains.py:814`).
+- `activity.legacy-chain-retired` — **[OK]** (#4949; 2026-10-28) a chain runs only through the one runner: `/chains/{id}/execute`
+  and `/execute-steps` start each step as a real run, under a `chain` row in Activity (`activity.run.one-way-to-run`). The old
+  `ChainExecutor`, which ran with no thread ids, no stream and no Activity record, is deleted with its passthrough to the
+  standalone executor and its graph-only helpers (output paths, transforms, conditions). *Test:*
+  `fichero-server/tests/unit/api/test_routes_chains.py` (`test_the_legacy_chain_executor_is_retired`, and the `/execute` tests).
 
 ### B. The window
 
