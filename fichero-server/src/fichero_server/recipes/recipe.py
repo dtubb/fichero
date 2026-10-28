@@ -219,7 +219,8 @@ def fit_overrides(recipe: dict[str, Any]) -> list[str]:
         if not isinstance(o, dict) or override_kind(o) == REMOVED_STEP or o.get("step") in ids:
             kept.append(o)
             continue
-        if o.get("step") == PAGE_STEP and o.get("scope") == "project" and isinstance(o.get("model"), dict) and o["model"]:
+        # A folder's page reader adds the step too, as Use This does: a step is project-wide, the choice stays the folder's.
+        if o.get("step") == PAGE_STEP and o.get("scope") in ("project", "folder") and isinstance(o.get("model"), dict) and o["model"]:
             notes.append(add_page_step(recipe, o["model"], o.get("runs_on"))[1])
             ids.add(PAGE_STEP)
             kept.append(o)

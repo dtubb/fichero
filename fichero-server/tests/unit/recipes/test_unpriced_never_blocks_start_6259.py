@@ -25,17 +25,36 @@ def test_the_plan_line_lists_an_unpriced_model_apart_at_the_assumed_price(tmp_pa
     assert "acme/mystery" in line["note"] and f"US${spend.UNPRICED_CALL_USD:.2f}" in line["note"]
 
 
-def test_start_goes_on_and_records_the_yes_for_every_unpriced_model_it_names(client, db, monkeypatch):
+def _unpriced_plan(client, monkeypatch, refusals):
     from fichero_server.api.routes.system import recipes as routes
-    from fichero_server.models import ActionAudit
 
     assert client.put("/api/recipes/project", json={"answers": {"purposes": ["transcribe"], "cloud_allowed": True},
                                                     "recipe": None}).status_code == 200
-    plan = {"refusals": ["stop here"], "cloud_cap": {"unpriced_models": ["acme/mystery"]}, "estimate": {"pages": 1}, "workflows": []}
+    plan = {"refusals": refusals, "cloud_cap": {"unpriced_models": ["acme/mystery"]}, "estimate": {"pages": 1}, "workflows": []}
     monkeypatch.setattr(routes, "_start_plan", lambda *a, **k: plan)
-    client.post("/api/recipes/project/start", json={})  # no accept_unpriced sent: the Start itself is the yes
+    return routes
+
+
+def test_start_goes_on_and_records_the_yes_for_every_unpriced_model_it_names(client, db, monkeypatch):
+    from fichero_server.models import ActionAudit
+
+    routes = _unpriced_plan(client, monkeypatch, [])
+    invoke = routes.registry.invoke
+    monkeypatch.setattr(routes.registry, "invoke", lambda db, name, *a, **k: None if name == "project.start" else invoke(db, name, *a, **k))
+    monkeypatch.setattr(routes, "_as_started", lambda db, plan: (_ for _ in ()).throw(LookupError("started")))
+    with pytest.raises(LookupError, match="started"):  # the run itself is stubbed: only the yes is asked of it
+        client.post("/api/recipes/project/start", json={})  # no accept_unpriced sent: the Start itself is the yes
     assert spend.accepted_models(_library(db)) == ["acme/mystery"]
     assert any(a.action_name == "cloud.accept_unpriced" for a in db.all(ActionAudit))
+
+
+def test_a_refused_start_records_no_yes(client, db, monkeypatch):
+    from fichero_server.models import ActionAudit
+
+    _unpriced_plan(client, monkeypatch, ["over the cap"])
+    assert client.post("/api/recipes/project/start", json={}).status_code == 422
+    assert spend.accepted_models(_library(db)) == []
+    assert not any(a.action_name == "cloud.accept_unpriced" for a in db.all(ActionAudit))
 
 
 def test_the_plan_does_not_refuse_an_unpriced_model():

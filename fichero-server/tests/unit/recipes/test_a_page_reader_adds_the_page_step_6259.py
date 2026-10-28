@@ -81,3 +81,47 @@ def test_use_candidate_with_a_local_page_reader_on_the_line_step_adds_the_page_s
     assert [s["job"] for s in out["steps"]] == ["find-lines", "read-a-line", "read-a-page", "tie-text-to-lines"]
     assert next(s for s in out["steps"] if s["job"] == "read-a-line")["model"] == KRAKEN, "the line reader stays"
     assert [o["step"] for o in out["overrides"]] == ["read-a-page"] and check_recipe(out) == []
+
+
+def test_a_folder_scoped_page_reader_adds_the_page_step_and_stays_folder_scoped():
+    override = {**_override("read-a-page", PAGE_READER), "scope": "folder", "folder_id": "f1"}
+    recipe = {**copy.deepcopy(LINES_ONLY), "overrides": [override]}
+    fit_overrides(recipe)
+    assert [s["job"] for s in recipe["steps"]] == ["find-lines", "read-a-line", "read-a-page", "tie-text-to-lines"]
+    assert recipe["overrides"] == [override] and check_recipe(recipe) == []
+
+
+def _with_page_step():
+    recipe = copy.deepcopy(LINES_ONLY)
+    from fichero_server.recipes.recipe import add_page_step
+
+    add_page_step(recipe, PAGE_READER)
+    return {**recipe, "overrides": [_override("read-a-page", PAGE_READER)]}
+
+
+def test_unticking_the_page_step_drops_its_reader_and_the_step_stays_gone(client, db):
+    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.recipes.project import read_project_setup, write_project_setup
+
+    other = _override("read-a-line", KRAKEN)
+    saved = _with_page_step()
+    saved["overrides"].append(other)
+    write_project_setup(routes._library(db), {"purposes": ["transcribe"]}, saved)
+    sent = {**copy.deepcopy(LINES_ONLY), "overrides": saved["overrides"]}
+    said = client.put("/api/recipes/project", json={"recipe": sent})
+    assert said.status_code == 200, said.text
+    recipe = read_project_setup(routes._library(db))["recipe"]
+    assert "read-a-page" not in [s["job"] for s in recipe["steps"]], "the un-ticked step is never added back"
+    assert [o["step"] for o in recipe["overrides"]] == ["read-a-line"], "only the page reader's choice goes"
+
+
+def test_a_saved_page_reader_for_a_recipe_that_never_had_the_step_still_adds_it(client, db):
+    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.recipes.project import read_project_setup, write_project_setup
+
+    saved = {**copy.deepcopy(LINES_ONLY), "overrides": [_override("read-a-page", PAGE_READER)]}
+    write_project_setup(routes._library(db), {"purposes": ["transcribe"]}, saved)
+    said = client.put("/api/recipes/project", json={"recipe": copy.deepcopy(LINES_ONLY)})
+    assert said.status_code == 200, said.text
+    recipe = read_project_setup(routes._library(db))["recipe"]
+    assert "read-a-page" in [s["job"] for s in recipe["steps"]]

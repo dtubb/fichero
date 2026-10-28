@@ -1979,7 +1979,15 @@ async def save_project_setup(
 
             from fichero_server.recipes.recipe import fit_overrides
 
-            kept = bakeoff.keep_saved_overrides(read_project_setup(_library(db)).get("recipe"), params["recipe"])
+            from fichero_server.recipes.recipe import PAGE_STEP
+
+            stored = read_project_setup(_library(db)).get("recipe")
+            kept = bakeoff.keep_saved_overrides(stored, params["recipe"])
+            had = {s.get("id") for s in (stored or {}).get("steps") or [] if s.get("job") == PAGE_STEP}
+            unticked = had - {s.get("id") for s in kept.get("steps") or []}
+            if unticked:  # the person un-ticked Read the whole page: its reader goes with it, never adds it back (2026-10-24)
+                kept["overrides"] = [o for o in kept["overrides"] if o.get("step") not in unticked]
+                logger.info("Read the whole page was un-ticked; its page reader's choice went with it")
             fit_overrides(kept)  # a saved choice for a step the sent recipe lacks: the page step added, any other dropped (#6259)
             bakeoff.apply_project_overrides(kept, list(known_cards(include_not_built=True)))
         result = registry.invoke(db, "project.save_setup", params, ctx)
@@ -2801,12 +2809,14 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
-    every one the plan lists, since pressing Start is the yes (#6259). Each by `cloud.accept_unpriced`, the one accept action.
+    every one the plan lists, since pressing Start is the yes (#6259); none while the plan refuses Start. Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
+    if plan["refusals"]:  # a refused Start accepts nothing: project.start says why
+        return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
     if unknown:
