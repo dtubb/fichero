@@ -3160,7 +3160,7 @@ person adds, never required; and every step says plainly what it does wherever a
   test. *Test (to write):* `recipes check` on a find-lines + read-a-line recipe lists no problem; Start's
   plan for it has two runs and no refusal; Use This with a page reader's row on it adds the page step
   rather than refusing; use-candidate with a local vision model on its line step adds the page step.
-- `source.recipe.page-reader-is-an-add-on` — **[GAP]** (#6250) **Read the whole page** (`read-a-page`) is
+- `source.recipe.page-reader-is-an-add-on` — **[PARTIAL]** (#6250, #6259; built for a kept choice, engine, unrun in the app: a saved page reader's override on a recipe with no Read the whole page step adds the step with that reader as its model, `tie-text-to-lines` after it (with the line reader's model) and Find lines if missing, in Start's plan, in assembling again and in saving Set Up (`recipe.fit_overrides`); any other kept choice for a step the recipe no longer has is dropped, each said in the plan's `notes`, never a refusal; Use This with a page reader's bake-off row (`bakeoff.use_this`) and use-candidate with a page reader on the line step (`start.use_candidate`) add the page step the same way (`recipe.add_page_step`) instead of refusing; pinned by `fichero-server/tests/unit/recipes/test_a_page_reader_adds_the_page_step_6259.py` and `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. Setup's Start view shows the plan's `notes`, one line each beside the estimate, and the cap's `note` under the cap line (`RecipeStartFields`, `RecipeCloudCapRow`; Swift uncompiled). Not built: Set Up's Also on hand) **Read the whole page** (`read-a-page`) is
   an optional step a person adds in Set Up (under Also on hand), in the Recipe Designer or on the recipe
   card; no purpose proposes it. It **needs the lines step** (`find-lines`) in the recipe: it reads the
   page at once and its output is tied to the found lines (`tie-text-to-lines` runs as part of it, as
@@ -3186,7 +3186,14 @@ person adds, never required; and every step says plainly what it does wherever a
   `step_choices.py:167`). *Test (to write):* [transcribe] answered "no second model" has no correct step;
   answered yes it has find-lines, read-a-line, correct; a recipe of find-lines, correct fails the check
   naming Read each line or Read the whole page.
-- `source.recipe.steps-say-what-they-do` — **[GAP]** (#6250) every place a step is named uses one plain
+- `source.recipe.second-reviewer` — **[PARTIAL]** (#6257) Set Up's Read question "Add another model to review the reading
+  after the first?" (`correct_with_another_model`, default no, asked only once Review the reading is on) adds a second
+  `correct` step, `correct-2`, after the first, with its own model (never the first's again) and its own model finder. *Built:*
+  in turn: it reviews the first's corrected reading. **[OWNER CALL, not a decision]** whether the second reviews in turn or
+  both review the reading and their disagreements are flagged (`find-where-readers-disagree`); the in-turn run is the
+  placeholder until the owner says. *Test:* `fichero-server/tests/unit/recipes/test_second_correct_model_6257.py`. *Left:* the
+  Swift question row, and a third reviewer (the id scheme stops at `correct-2`).
+- `source.recipe.steps-say-what-they-do` — **[PARTIAL]** (#6250) every place a step is named uses one plain
   label for what it does, the same in Set Up, the Recipe Designer, the recipe card, Start's plan and
   Activity: **Find lines** (`find-lines`), **Read each line** (`read-a-line`), **Read the whole page**
   (`read-a-page`), **Review the reading** (`correct`); while running, Activity says **Finding the lines**,
