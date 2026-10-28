@@ -1523,6 +1523,23 @@ def _no_gentle_minute_leaks_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _no_chat_model_kept_between_tests():
+    """A chat model one test built (often a test's fake, through a patched `_build_langchain_model`) stays in llm's model
+    cache under its config, and a later test with the same config is handed it: its own build spy sees nothing. The
+    5368 audited-click test failed after the egress test that built one first (#6238). Emptied after each test, only
+    when llm is already imported."""
+    import sys
+
+    yield
+    llm = sys.modules.get("fichero_server.llm")
+    if llm is None:
+        return
+    with llm._LANGCHAIN_MODEL_CACHE_LOCK:
+        llm._LANGCHAIN_MODEL_CACHE.clear()
+        llm._LANGCHAIN_MODEL_CACHE_NO_LOOP.clear()
+
+
+@pytest.fixture(autouse=True)
 def _no_embedder_leaks_between_tests():
     """An embedder a test loads stays in the process cache and shows up as a held model in every later test (#6129); put the
     cache back as it was. Only when the module is already imported: importing it here would load it for every test."""
