@@ -881,6 +881,17 @@ def threads_each(cores: int) -> int:
     return max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
 
 
+#: torch's threads as the Kraken seam last set them: one pool for the whole process, so every page inside reads on it.
+_THREADS_NOW: int | None = None
+
+
+def threads_reading_now() -> int | None:
+    """The threads the pages inside the gate read on now, for the run's status (#6240); None while no Kraken page is
+    inside (a step on another engine, or between pages)."""
+    # ponytail: process-wide, so a non-Kraken run beside another run's Kraken page shows that page's threads
+    return _THREADS_NOW if _INFERENCE_LOCK.pages_inside() else None
+
+
 def pages_at_once(person: bool) -> int:
     """`pages_at_once_and_why`'s number."""
     return pages_at_once_and_why(person)[0]
@@ -1045,6 +1056,8 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
 
                 # Process-wide in torch: balanced never pegs the machine, fast may.
                 torch.set_num_threads(threads)
+                global _THREADS_NOW
+                _THREADS_NOW = threads
                 try:
                     torch.set_num_interop_threads(1)  # one page at a time: no inter-op parallelism to pay for
                 except RuntimeError:

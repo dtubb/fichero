@@ -52,19 +52,14 @@ def test_the_gate_names_which_hold_makes_it_one(monkeypatch):
     assert kraken_runtime.pages_at_once(True) == 1
 
 
-@pytest.mark.parametrize("priority, gate, inside, threads", [
-    ("fast", (2, None), 2, 4), ("fast", (2, None), 1, 8), ("fast", (1, "x"), 1, 8), ("background", (1, "x"), 0, 4)])
-def test_a_running_run_says_the_threads_each_page_reads_on(monkeypatch, priority, gate, inside, threads):
-    # `recipes-run.memory.threads-fill-the-cores` (#6229): the cores the run's priority gives, split by the pages inside
-    # the gate now, by the one rule the Kraken seam sets torch's threads by (review b24: never the gate's number)
-    from fichero_server.core import background_compute
-
-    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: gate)
+@pytest.mark.parametrize("inside, set_last, threads", [(2, 4, 4), (1, 8, 8), (0, 8, None)])
+def test_a_running_run_says_the_threads_each_page_reads_on(monkeypatch, inside, set_last, threads):
+    # `recipes-run.memory.threads-fill-the-cores` (#6229, #6240): what the pages read on now, torch's one process-wide
+    # pool as the Kraken seam last set it; nothing while no Kraken page is inside the gate (a step on another engine,
+    # or between pages), never the cores divided by a guess (review b25)
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (2, None))
     monkeypatch.setattr(kraken_runtime._INFERENCE_LOCK, "pages_inside", lambda: inside)
-    assert kraken_runtime.threads_each(8 if priority == "fast" else 4) == threads
-    monkeypatch.setattr("fichero_server.core.compute_preferences.priority_for", lambda person: priority)
-    monkeypatch.setattr(background_compute, "cpu_count", lambda: 8)
-    monkeypatch.setattr(background_compute, "embed_threads", lambda: 4)
+    monkeypatch.setattr(kraken_runtime, "_THREADS_NOW", set_last, raising=False)
 
     status = RecipeRunStatus(**asyncio.run(with_accounts(None, _status())))
 

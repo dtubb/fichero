@@ -315,12 +315,10 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
         from fichero_server.execution.jobs import BACKGROUND_STARTERS
         from fichero_server.llm import kraken_runtime
 
-        from fichero_server.core.compute_preferences import cores_for, priority_for
-
-        def gate(person: bool) -> tuple[int, str | None, int]:
+        def gate(person: bool) -> tuple[int, str | None, int | None]:
             n, why = kraken_runtime.pages_at_once_and_why(person)
-            # The cores the run's priority gives, shared as the Kraken seam shares them (#6229)
-            return n, why, kraken_runtime.threads_each(cores_for(priority_for(person)))
+            # What the pages inside read on now, as the Kraken seam set it; none outside a Kraken page (#6229, #6240)
+            return n, why, kraken_runtime.threads_reading_now()
 
         person = (status.get("started_by") or "automatic") not in BACKGROUND_STARTERS
         # The memory probes and the throttle's vm_stat/pmset/pgrep: off the loop (#6178)

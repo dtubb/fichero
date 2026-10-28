@@ -3247,8 +3247,9 @@ class RecipeRunStatus(BaseModel):
     pages_at_once_reason: Optional[str] = Field(default=None, description=(
         "which hold makes it one page at a time, in words shown as sent; null when more than one may go"))
     threads_each: Optional[int] = Field(default=None, description=(
-        "the threads each page reads on now: the cores the run's priority gives, split by pages_at_once "
-        "(recipes-run.memory.threads-fill-the-cores, #6229); null when not running"))
+        "the torch threads the pages read on now, as the Kraken seam last set them (the cores the run's priority gives, "
+        "split by the pages inside the gate) (recipes-run.memory.threads-fill-the-cores, #6229); null when not running "
+        "or no Kraken page is being read"))
 
 
 class RecipeRuns(BaseModel):
