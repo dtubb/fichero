@@ -169,6 +169,11 @@ def by_hand(job: str) -> dict[str, str]:
             "fix": BY_HAND_FIX.get(job, _NO_TOOL_YET)}
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
+#: What a cloud reader sends a page: the page picture in two calls (~13k and ~43k input tokens, ~400 out), measured on
+#: Gemini Flash-Lite (#6265: $0.0143 a page against the text assumption's $0.00075).
+#: ponytail: one figure; a per-model image-token rule or the project's own past `LLM usage` would refine it.
+PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT = 56_000, 400
+PAGE_READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
 CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
 
@@ -1507,7 +1512,8 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         bar = certainty_bar(w) if review else None
         to_send, send_kind, send_basis = lines_to_send(bar, pages, lines_known) if bar is not None else (None, None, None)
         cost = (_priced_lines(w, to_send) if to_send is not None
-                else _priced(w, pages * calls) if calls is not None else None)
+                else _priced(w, pages * calls, *((PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT) if w.get("job") in PAGE_READ_JOBS else ()))
+                if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None
@@ -1533,14 +1539,14 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
 
 
-def _priced(run: dict[str, Any], calls: int) -> float | None:
+def _priced(run: dict[str, Any], calls: int, tokens_in: int = _TOKENS_IN, tokens_out: int = _TOKENS_OUT) -> float | None:
     """What `calls` model calls of `run` cost. Only this Mac is free by its own word; a cloud call is priced by the
     model's listed rate; any other place (a cluster, a person's other machine) is unpriced, never $0 (#5590)."""
     from fichero_server.workflows.model_comparison import estimate_cost
 
     runs_on = str(run["runs_on"])
     if runs_on.startswith("cloud"):
-        return estimate_cost(run["model_override"] or "", calls * _TOKENS_IN, calls * _TOKENS_OUT,
+        return estimate_cost(run["model_override"] or "", calls * tokens_in, calls * tokens_out,
                              provider=run["provider_override"] or "")
     return 0.0 if runs_on in ("this-mac", "") else None
 
