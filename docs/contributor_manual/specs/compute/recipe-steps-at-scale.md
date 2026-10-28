@@ -198,14 +198,14 @@ twelve hours or costs more than its estimate.
   byte cap; Gemini by file when images are in it); below the threshold, or for a press a person waits on, plain calls
   as today; a page whose cache key is already answered is left out. *Test (to write):* the same file, with a fake
   provider per API shape (inline, file, inline-or-file); the builder may split the provider fakes into their own file.
-- `compute.recipe.cloud-batch-adopted-by-id` — **[GAP]** (#5940, #6127) the provider's batch id is on the
+- `compute.recipe.cloud-batch-adopted-by-id` — **[PARTIAL]** (built: `remote_read/cloud_batch.run` saves each batch's ids on the row as the provider acknowledges them, adopts them on a resume, drops a forgotten one (`gone`); the answers file leaves answered keys out of a rerun; not yet: wired into the recipe runner; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`; #5940, #6127) the provider's batch id is on the
   run's row the moment it is acknowledged; a resume, restart or new run adopts an open batch by its id and never
   resubmits its pages; an id the provider has forgotten is dropped and its unlanded pages replanned. *Test (to
   write):* the same file.
-- `compute.recipe.cloud-batch-retries-failed-requests-only` — **[GAP]** (#5940) a batch's succeeded lines
+- `compute.recipe.cloud-batch-retries-failed-requests-only` — **[PARTIAL]** (built: answered lines are kept whatever the others did; a failed line is not kept, so a rerun sends it alone and the replay asks it as a plain call; not yet: wired into the recipe runner; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`; #5940) a batch's succeeded lines
   land whatever the others did; its errored or expired lines mark those pages failed in the provider's words and are
   re-sent alone, as a smaller batch or plain calls, never the whole batch again. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-stop-cancels` — **[GAP]** (#5940, #5946) Stop cancels the provider batch, polls
+- `compute.recipe.cloud-batch-stop-cancels` — **[PARTIAL]** (built: `request_cancel` marks the row; the run cancels at the provider, polls each batch to its end, keeps the answered lines, then reads Stopped; not yet: wired into the recipe runner; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`; #5940, #5946) Stop cancels the provider batch, polls
   it to a terminal state, lands and books every succeeded line, and only then reads Stopped; Pause submits no new
   batch. *Test (to write):* the same file.
 - `compute.recipe.cloud-batch-consent-and-cost` — **[GAP]** (#5940) a provider batch needs `pages_may_leave`
