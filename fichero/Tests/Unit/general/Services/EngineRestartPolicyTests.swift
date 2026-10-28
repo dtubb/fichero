@@ -27,4 +27,13 @@ struct EngineRestartPolicyTests {
         #expect(!EngineRestartPolicy.shouldRestart(failures: 2, workRunning: false, isLocal: false))
         #expect(EngineRestartPolicy.shouldRestart(failures: 3, workRunning: false, isLocal: false))
     }
+
+    @Test func restartsBackOffFromTenSecondsDoublingToFiveMinutes() {
+        #expect((1...6).map(EngineRestartPolicy.backoffSeconds(afterAttempt:)) == [10, 20, 40, 80, 160, 300])
+        #expect(EngineRestartPolicy.backoffSeconds(afterAttempt: 40) == 300)
+    }
+
+    @Test func theSupervisorTriesFiveTimesBeforeTheRetryQuitModal() {
+        #expect(EngineLifecycleController.supervisedAutoRestartAttempts == 5)
+    }
 }

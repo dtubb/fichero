@@ -25,6 +25,11 @@ enum EngineRestartPolicy {
         return (workRunning ? hungWithWorkSeconds : hungSeconds) / pingSeconds
     }
 
+    /// The wait after restart `attempt` fails, before the next: doubling from 10 s, capped at 5 minutes.
+    static func backoffSeconds(afterAttempt attempt: Int) -> Int {
+        min(10 << min(max(attempt - 1, 0), 5), 300)
+    }
+
     /// Whether `failures` missed pings in a row call for action now.
     static func shouldRestart(failures: Int, workRunning: Bool, isLocal: Bool = true) -> Bool {
         failures >= failuresBeforeRestart(workRunning: workRunning, isLocal: isLocal)

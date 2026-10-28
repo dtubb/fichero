@@ -91,7 +91,7 @@ final class EngineLifecycleController {
     /// guard so a second drop detected while a restart is already in flight is
     /// a no-op (the heartbeat can't re-fire the hook through `markStarting`).
     private var isHandlingSupervisedDrop = false
-    static let supervisedAutoRestartAttempts = 3
+    static let supervisedAutoRestartAttempts = 5
 
     func handleSupervisedBackendDropped() async {
         // Only the spawning strategy can auto-restart. A debugExternal /
@@ -139,9 +139,9 @@ final class EngineLifecycleController {
                 logger.info("Supervised backend drop: auto-restart recovered on attempt \(attempt) (#4064)")
                 return // recovered — no modal
             }
-            // Backoff before the next attempt: 1s, 2s, 4s.
+            // Backoff before the next attempt: 10 s doubling, capped at 5 minutes (#6176).
             if attempt < maxAttempts {
-                let backoffSeconds = 1 << (attempt - 1)
+                let backoffSeconds = EngineRestartPolicy.backoffSeconds(afterAttempt: attempt)
                 logger.info("Supervised backend drop: backing off for \(backoffSeconds)s before retry (#4064)")
                 try? await Task.sleep(for: .seconds(backoffSeconds))
             }
