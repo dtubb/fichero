@@ -50,7 +50,7 @@ def picked(tmp_path, monkeypatch, client, test_package):
         path_security,
         "ingest_allowed_roots",
         lambda: [test_package.resolve()]
-        + [root for root in real_roots() if not fake_home.resolve().is_relative_to(root)],
+        + [root for root in real_roots() if not fake_home.resolve().is_relative_to(root.resolve())],
     )
     monkeypatch.setattr(path_security, "_OWNER_GRANTED_FOLDERS", set())
 

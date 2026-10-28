@@ -505,32 +505,27 @@ def _within_owner_granted_folder(candidate: Path) -> bool:
 def is_allowed_ingest_path(path: str | Path) -> bool:
     """Return whether a local file path is below an engine-approved root.
 
-    Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
-    is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents,
-    so BOTH the resolved and the un-resolved form are tested.
+    Only the RESOLVED path is tested, against the resolved roots (#6261): a
+    symlink inside an allowed root that points elsewhere is judged by where it
+    points. When "Desktop & Documents in iCloud" is ON, ~/Documents is a
+    symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents, which
+    resolves under the iCloud root (and a resolved ~/Documents root), so it
+    still imports.
     """
     try:
-        expanded = Path(path).expanduser()
-        resolved = expanded.resolve()
+        resolved = Path(path).expanduser().resolve()
+        allowed_roots = [root.resolve() for root in ingest_allowed_roots()]
     except Exception:
         return False
 
     home = Path.home().resolve()
-    allowed_roots = ingest_allowed_roots()
-    candidates = [resolved]
-    if ".." not in expanded.parts:
-        candidates.append(expanded)
-    return any(
-        candidate.is_relative_to(root)
-        for candidate in candidates
-        for root in allowed_roots
-    ) or any(
-        is_sandbox_container_app_support(candidate, home) for candidate in candidates
-    ) or any(
-        is_sandbox_container_drop_staging(candidate, home) for candidate in candidates
-    ) or any(
-        is_sandbox_container_library_staging(candidate, home) for candidate in candidates
-    ) or _within_owner_granted_folder(resolved)  # #5484: the RESOLVED path only, so `..` and links can't escape
+    return (
+        any(resolved.is_relative_to(root) for root in allowed_roots)
+        or is_sandbox_container_app_support(resolved, home)
+        or is_sandbox_container_drop_staging(resolved, home)
+        or is_sandbox_container_library_staging(resolved, home)
+        or _within_owner_granted_folder(resolved)  # #5484: the RESOLVED path only, so `..` and links can't escape
+    )
 
 
 def resolve_document_source_path(

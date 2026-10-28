@@ -114,6 +114,7 @@ in the file's own status), never a silent nothing.
   `activity.lane.thumbnails-first` in `ui/activity-and-automatic-work.md`), and a folder the import
   fills is laid out on its canvas as filed (#5585, `library.canvas.arranged-at-import` in
   `ui/library-view-modes.md`).
+- `importer.import-roots-checked-resolved` — **[OK]** (#6261) a file may be imported only when its RESOLVED path lies under a resolved allowed root (or a sandbox staging place or a folder the owner picked): a symlink placed in Documents that points elsewhere is refused, judged by where it points; iCloud's ~/Documents, itself a link into ~/Library/Mobile Documents, still imports. Tested in `fichero-server/tests/unit/security/test_a_link_out_of_an_import_root_is_refused_6261.py`.
 - `importer.a-folder-is-never-one-file` — **[OK]** (2026-10-11) a folder is never recorded as a single file:
   the files import (`POST /api/ingest/file`, `/files`) and document create refuse a folder in words ("Not a
   file: X is a folder. Add it as a folder, and its files come in one by one."), and a document already recorded
