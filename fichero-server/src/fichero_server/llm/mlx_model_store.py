@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fichero_server.core.failure_text import MissingInWords
+
 import asyncio
 from dataclasses import dataclass
 import os
@@ -587,7 +589,7 @@ class MLXModelStore:
         if card is None:
             found = self.found_spec(model_id) or self.hub_spec(model_id)
             if found is None:
-                raise KeyError(f"Unknown managed MLX model: {model_id}")
+                raise MissingInWords(f"Unknown managed MLX model: {model_id}")
             return found
         # A landed model is its base with other weights (#5534): its size is its own weight files,
         # and what it needs to load and read a page is its card's, else its base's. With a size of 0

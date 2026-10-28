@@ -13,6 +13,8 @@ says which, so no width is a hidden constant.
 
 from __future__ import annotations
 
+from fichero_server.core.failure_text import MissingInWords
+
 from dataclasses import dataclass
 
 #: Tolerance when a unit has one conversion: a quarter of the stated distance. Historical distances
@@ -43,7 +45,7 @@ class Unit:
         for conversion in self.conversions:
             if conversion.key == wanted:
                 return conversion
-        raise KeyError(f"{self.key} has no conversion {wanted!r}; one of {', '.join(c.key for c in self.conversions)}")
+        raise MissingInWords(f"{self.key} has no conversion {wanted!r}; one of {', '.join(c.key for c in self.conversions)}")
 
 
 _VARA_CASTELLANA_M = 0.835905     # the vara of Burgos, Spain's legal vara, as fixed when the metric system was adopted
