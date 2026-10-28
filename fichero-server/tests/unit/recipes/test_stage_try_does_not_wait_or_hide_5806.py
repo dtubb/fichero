@@ -7,6 +7,7 @@ said nothing; Prepare Images' try was refused 422 with nothing on screen.
 """
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 import json
 from datetime import datetime
 
@@ -40,7 +41,7 @@ def test_a_try_waiting_on_a_download_says_what_for_with_its_progress(db, monkeyp
         seen.append(jobs.read_job(db, try_id)["reason"])
         db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [download])
 
-    monkeypatch.setattr(samples.time, "sleep", sleep)
+    monkeypatch.setattr(samples.time, "sleep", sleep_here(sleep))
     plan = {"downloads": [{"name": "Qwen2.5-VL 7B", "model": "qwen2.5-vl-7b", "job_id": download}]}
     assert samples._await_downloads(db, plan) is None
     assert seen and "Waiting for Qwen2.5-VL 7B" in seen[0] and "1.2 GB of 5.6 GB" in seen[0], seen
