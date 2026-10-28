@@ -533,7 +533,10 @@ def remote_reader_cards() -> list[Card]:
         # A key with no model saved under it (owner 2026-10-23: providers were listed, not models), or with models of
         # some families only (owner 2026-10-25, #6120: Gemini via OpenRouter saved, Claude never offered): its newest
         # frontier vision models from the vendored price list, one per family not already saved.
-        covered = {_family(m.model_id) for m in saved if m.enabled}
+        # A retired model saved long ago covers nothing: its family's current model is offered (#6259).
+        from fichero_server.llm.model_types import retired_because
+
+        covered = {_family(m.model_id) for m in saved if m.enabled and not retired_because(m.model_id)}
         for model_id in frontier_catalog_models(ptype):
             if _family(model_id) in covered or any(m.model_id == model_id for m in saved):
                 continue
