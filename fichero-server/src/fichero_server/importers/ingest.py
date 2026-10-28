@@ -514,6 +514,14 @@ def ingest_file(
         # MOVE becomes destructive only after every database write for this
         # file commits. If extraction, page creation, embedding, or commit
         # fails, the source remains available for a safe retry (#4203).
+        # A new project's Set Up holds the move until Start (#6245): the copy is kept and the source stays put.
+        if mode == IngestMode.MOVE and package_path is not None and "source_path" in doc.metadata:
+            from fichero_server.recipes.project import holds_moves
+
+            if holds_moves(Path(package_path)):
+                doc.metadata["move_pending"] = True
+                db.save(doc)
+                mode = IngestMode.COPY
         if mode == IngestMode.MOVE:
             def delete_original() -> None:
                 try:

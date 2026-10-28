@@ -98,7 +98,7 @@ struct ProjectIntakeChoice: View {
             .setupRadioGroup()
             .labelsHidden()
             if store.ingestMode == .move {
-                Label("Your original files will be removed from where they are now.",
+                Label("Your original files will be removed from where they are now, when you press Start.",
                       systemImage: "exclamationmark.triangle")
                     .font(.body)
                     .foregroundStyle(.orange)

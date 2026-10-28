@@ -78,6 +78,9 @@ extension RecipeSetupStore {
         guard !urls.isEmpty else { return }
         isAddingMaterial = true
         defer { isAddingMaterial = false }
+        // Move is held until Start (#6245): the answer is saved first, so the engine copies and leaves the files where
+        // they are; a project deleted before Start never takes them with it.
+        if ingestMode == .move, !(await save()) { return }
         // Before the copy starts, off the main actor: a big folder is walked without stalling the window.
         copySpace = nil
         if ingestMode == .copy {

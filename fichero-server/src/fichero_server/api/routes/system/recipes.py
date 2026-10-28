@@ -3181,6 +3181,11 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         from fichero_server.recipes.project import write_proposed
 
         write_proposed(library, None)
+        # Moves Set Up held finish now (#6245), read before the first yes is written.
+        from fichero_server.recipes.project import finish_held_moves, holds_moves
+
+        if holds_moves(library):
+            finish_held_moves(db)
     write_start(library, record)
     return {"started": record}, ChangeSpec(domains=["project"], target_ids=[], before={"started": before},
                                            after={"started": record}, emit_type="project.started")
