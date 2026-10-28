@@ -822,10 +822,13 @@ def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: s
         if spent >= cap:  # the cap is a ceiling on what is already sent, not only a switch (#6173)
             return None, "failed", (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
                                     f"has reached the ${cap:.2f} cap")
+    if (out := read_job.out_under(db, parent)) is not None:  # resumed: the read already sent is waited on, never sent again
+        return _wait(db, out, parent)
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
-                                                      parent_job_id=parent), started_by=started_by)["job_id"]
+                                                      parent_job_id=parent), started_by=started_by,
+                               stage=tuple(card.get("stage") or ("read",)))["job_id"]  # a card queued before stages: the read alone
     except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
         return None, "failed", f"could not send the read to {where}: {exc}"
     return _wait(db, child, parent)

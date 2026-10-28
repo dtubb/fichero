@@ -631,6 +631,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if (job == "read-a-line" and runs and runs[-1]["job"] == "find-lines"
                     and runs[-1]["workflow_id"] == _shipped(WORKFLOW_FOR_JOB["find-lines"])[1]):
                 entry["steps"] = runs.pop()["steps"] + entry["steps"]
+            if job == "read-a-line":  # where it is sent, the lines it carries are a step of their own (`compute.recipe.fuse-same-place-steps`)
+                entry["stage"] = ["lines", "read"] if len(entry["steps"]) > 1 else ["read"]
         if job == "translate-transliterate-normalise":
             # One run per level asked under "Into what" (a list; a project saved with one value reads as one), each
             # writing its reading level; a translation is a reading of kind translation (#5660 item 1).

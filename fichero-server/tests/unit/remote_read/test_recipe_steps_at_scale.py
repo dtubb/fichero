@@ -158,3 +158,86 @@ def test_a_stage_of_lines_and_read_lands_the_read_and_a_failed_reads_lines(db, t
     assert len(read_lines) == 1 and len(unread_lines) == 1
     assert read_job.status(db, started["job_id"])["landing"] == {"landed": 1, "already": 0, "unread": 1, "set_aside": 0,
                                                                   "lines_only": 1}
+
+
+# --- the recipe: a read that carries its lines step sends them as one stage ---------------------------------------
+
+def test_a_recipe_read_that_carries_its_lines_step_says_so_and_a_read_alone_does_not(monkeypatch):
+    """WHY (`compute.recipe.fuse-same-place-steps`): Kraken's lines and the read are one run of the plan; the run says
+    it carries the lines step, so where it is sent the lines are a step of their own (found once, landed alone when the
+    read fails). A read with no lines step before it carries none."""
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
+    monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])
+    monkeypatch.setattr(start, "provider_without_key", lambda step: None)
+    lines = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"},
+             "runs_on": "this-mac"}
+    read = {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}, "runs_on": "this-mac"}
+
+    def recipe(*steps):
+        return {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t", "steps": list(steps)}
+
+    (both,) = start.plan_start(recipe(lines, read), stays_local=True)["workflows"]
+    (alone,) = start.plan_start(recipe(read), stays_local=True)["workflows"]
+    assert both["steps"] == ["lines", "read"] and both["stage"] == ["lines", "read"]
+    assert alone["stage"] == ["read"]
+
+
+def test_the_recipe_sends_a_read_that_carries_its_lines_as_the_lines_then_the_read(db, monkeypatch):
+    """WHY (`compute.recipe.fuse-same-place-steps`): the read placed on Hugging Face goes as ONE run whose stage is the
+    lines then the read; a card queued before stages (no `stage`) is sent as the read alone, as it was."""
+    from fichero_server.recipes import places, project, runner, train_offers
+
+    monkeypatch.setattr(project, "read_project_setup", lambda _lib: {"answers": {"cloud_allowed": True,
+                                                                                 "hf_spend_cap_usd": 10}})
+    monkeypatch.setattr(runner, "_library", lambda _db: "lib")
+    monkeypatch.setattr(places, "allows", lambda place, _p=None: True)
+    monkeypatch.setattr(train_offers, "spend_this_month", lambda _db, *, cap: {"spent_at_most_usd": 0.0})
+    sent = []
+    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by, stage: sent.append(stage) or {"job_id": "r"})
+    monkeypatch.setattr(runner, "_wait", lambda _db, child, parent: (child, "done", None))
+    card = {"place": "huggingface", "target": "huggingface-jobs", "model_override": "catmus-medieval",
+            "job": "read-a-line", "steps": ["lines", "read"]}
+    runner._run_at_scale(db, {**card, "stage": ["lines", "read"]}, ["p1"], "run-1", "owner")
+    runner._run_at_scale(db, card, ["p1"], "run-1", "owner")
+    assert sent == [("lines", "read"), ("read",)]
+
+
+def test_a_resumed_recipe_adopts_the_read_still_out_by_its_id_and_never_sends_it_twice(db, tmp_path, monkeypatch,
+                                                                                      project_says_yes):
+    """WHY (`compute.recipe.done-is-landed`): the engine restarted while a recipe's read ran on Hugging Face; the recipe
+    resumed works out its pages again and would send them again (paid twice, read twice). The run still out under the
+    step is adopted by its id and waited on; one paused by the restart is brought back first; a run that ended is not
+    adopted."""
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import places, project, runner, train_offers
+
+    monkeypatch.setattr(read_job, "_work_dir", lambda job_id: tmp_path / "work" / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    monkeypatch.setattr(read_job, "resolve_step", lambda request, bucket: {"reader": "kraken", "card": request.card})
+    monkeypatch.setattr(project, "read_project_setup", lambda _lib: {"answers": {"cloud_allowed": True,
+                                                                                 "hf_spend_cap_usd": 10}})
+    monkeypatch.setattr(runner, "_library", lambda _db: "lib")
+    monkeypatch.setattr(places, "allows", lambda place, _p=None: True)
+    monkeypatch.setattr(train_offers, "spend_this_month", lambda _db, *, cap: {"spent_at_most_usd": 0.0})
+    monkeypatch.setattr(read_job, "start", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("sent twice")))
+    waited = []
+    monkeypatch.setattr(runner, "_wait", lambda _db, child, parent: waited.append(child) or (child, "done", None))
+    parent = runner.enqueue(db, {"runs": [{"steps": ["read"], "card": "workflow", "job": "read-a-line"}],
+                                 "skipped": []}, documents=None, started_by="owner")
+    card = {"place": "huggingface", "target": "huggingface-jobs", "model_override": "catmus", "job": "read-a-line",
+            "steps": ["read"]}
+    out = jobs.enqueue_remote(db, read_job.KIND, "read:out", target="huggingface-jobs", detail="{}", reason="x",
+                              started_by="owner")
+    jobs.set_parent(db, out, parent)
+
+    assert runner._run_at_scale(db, card, ["p1"], parent, "owner") == (out, "done", None)
+    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [out])
+    assert runner._run_at_scale(db, card, ["p1"], parent, "owner")[0] == out
+    assert jobs.read_job(db, out)["state"] == "waiting", "brought back before it is waited on"
+    assert waited == [out, out]
+
+    db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [out])
+    child, state, why = runner._run_at_scale(db, card, ["p1"], parent, "owner")
+    assert (child, state) == (None, "failed") and "sent twice" in why, "an ended run is not adopted: a new one is sent"

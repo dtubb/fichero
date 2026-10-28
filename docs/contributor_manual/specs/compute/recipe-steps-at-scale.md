@@ -170,20 +170,23 @@ twelve hours or costs more than its estimate.
 
 ## Behaviors
 
-- `compute.recipe.fuse-same-place-steps` — **[PARTIAL]** (#5642) consecutive steps of a batch at the same
+- `compute.recipe.fuse-same-place-steps` — **[OK]** (#5642) consecutive steps of a batch at the same
   remote place run as one remote stage: the images are sent once and each step's result files return together.
-  Built: the package's `stage` (the read alone, or the lines then the read) and `run_shard` running it, the read
-  reading the lines found (never finding them again), `<id>.lines.xml` beside `<id>.xml`, each step's end and seconds
-  in `_outcome.json`, a rerun reading back the lines it found; `job.start(stage=...)` sending it once for both
-  steps, and landing a page's lines when its read failed (`lines_only`). Not yet: the recipe runner sending a
-  batch's same-place steps as one stage.
+  Built for the one pair that runs remotely today, Kraken's lines then the read: the plan's read card that carries
+  its lines step says `stage: [lines, read]`, `_run_at_scale` sends that stage, `run_shard` finds each page's lines
+  once (`<id>.lines.xml`) and the read reads THOSE lines, each step's end and seconds in `_outcome.json`, a rerun
+  reading back the lines it found; landing lands the read, or a page's lines alone when its read failed
+  (`lines_only`). A text step riding along joins this list when one runs remotely (ruling 1).
   *Test:* `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py`.
 - `compute.recipe.step-major-batches-pipelined` — **[GAP]** (#5642) inside a batch the steps run in the
   recipe's order, a model loading once per task; batch b's remote stage overlaps batch b-1's local steps; at most two
   batches in flight per cluster or Hugging Face place. *Test (to write):* the same file.
-- `compute.recipe.done-is-landed` — **[GAP]** (#5642, #6127) a page's step is done when its result has
+- `compute.recipe.done-is-landed` — **[PARTIAL]** (#5642, #6127) a page's step is done when its result has
   landed; a rerun, resume or restart plans from the done state, sends no landed page, and adopts a task still running
-  by its id. *Test (to write):* the same file.
+  by its id. Built: a step's pages are worked out from the done state as it runs (`split_done`); a page's lines landed
+  alone count its lines step done; a resumed recipe adopts the read still out under it (`job.out_under`, a paused one
+  brought back first) and never sends it again. Not yet: the plan (batches, stages, places) stored on the row at start.
+  *Test:* the same file.
 - `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642) Stop cancels queued and running tasks and keeps
   everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file.
 - `compute.recipe.folder-shows-steps-done` — **[GAP]** (#5642) each folder shows which steps are done on it,
