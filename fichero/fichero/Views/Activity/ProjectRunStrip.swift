@@ -89,13 +89,14 @@ struct ProjectRunStrip: Equatable {
 
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
     /// `fetchRunTree`), so a run that has ended can still look running there while the jobs list, polled, already says it ended
-    /// or stalled: an end or a stall in the list wins over a tree that has not caught up. Pure, tested without a store.
+    /// or stalled: an end, a stall or a pause in the list wins over a tree that has not caught up. Pure, tested without a store.
     nonisolated static func effectiveState(nodeState: String?, jobState: ActivityJob.State?) -> String {
         if let nodeState, ["done", "failed", "cancelled"].contains(nodeState) { return nodeState }
         switch jobState {
         case .completed: return "done"
         case .failed: return "failed"
         case .stalled: return "stalled"
+        case .paused: return "paused"  // a pause in the list wins over a tree still saying running: a paused run never spins
         default: return nodeState ?? (jobState == .running ? "running" : "waiting")
         }
     }
