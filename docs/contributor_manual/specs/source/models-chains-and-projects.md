@@ -4213,8 +4213,11 @@ Trying another option
   the candidates side by side on it, right under the button: the page's picture with each model's lines drawn on it and its reading under it,
   Use This One per column; the counts under each column; the page's name opens its window (`StageShowcasePicturesTests.swift`).
 - `source.find.every-model-step-has-a-finder` — **[PARTIAL]** (#6038; Set Up review item 1; built, uncompiled) Set Up's plan rows offer the finder beside every step that
-  runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for Find Regions and Correct. The two ids are named in the app until
-  the registry carries `offers_finder` on `JobInfo` (engine, then regenerate) (`StageShowcasePicturesTests.swift`).
+  runs a chosen model: "Find a Reader…" for the reading steps, "Choose a Model…" for every other step whose job runs a model (Find lines, Find Regions,
+  Correct, Find names, Find statements, Translate, Catalogue, Entries), by the registry's `JobInfo.needs_a_model` (#6254, #6258: a list kept in the app
+  named only Find Regions and Correct, so the text steps showed their own model alone though the engine listed Claude, Gemini and MLX)
+  (`StageShowcasePicturesTests.swift`, `ModelFinderStoreTests.swift` testEveryModelStepsRowOffersTheFinder_byTheRegistry,
+  `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`).
 - `source.find.chosen-row-stays-in-place` — **[PARTIAL]** (#6043; Set Up review item 6; built, uncompiled) In the finder the chosen model keeps its place in its tier: every row
   has a leading radio glyph (empty, or a filled check in the tint on the chosen one) and the chosen row is tinted; only a result measured on the person's pages
   moves a row to the head of the list (`ModelFinderTiersTests.swift`).
