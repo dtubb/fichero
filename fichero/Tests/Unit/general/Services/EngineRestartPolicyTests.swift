@@ -36,4 +36,45 @@ struct EngineRestartPolicyTests {
     @Test func theSupervisorTriesFiveTimesBeforeTheRetryQuitModal() {
         #expect(EngineLifecycleController.supervisedAutoRestartAttempts == 5)
     }
+
+    // engine.restart-waits-for-the-work: HUNG is no answer AND no CPU, no disk; DEAD is the process gone.
+    private let quiet = EngineWorkSample(cpuSeconds: 10, diskBytes: 5_000_000)
+
+    @Test func thirtyMissedPingsWithTheEngineBusyNeverRestart() {
+        #expect(EngineRestartPolicy.decide(failures: 30, workRunning: false, windowStart: quiet, now: quiet,
+                                           processGone: false) == .wait)
+    }
+
+    @Test func aGoneProcessIsRestartedAtOnce() {
+        #expect(EngineRestartPolicy.decide(failures: 1, workRunning: true, windowStart: quiet, now: nil,
+                                           processGone: true) == .restartDead)
+    }
+
+    @Test func threeSilentMinutesWithNoCPUOrDiskIsHung() {
+        let barely = EngineWorkSample(cpuSeconds: 10.5, diskBytes: 5_100_000)
+        #expect(EngineRestartPolicy.decide(failures: 36, workRunning: false, windowStart: quiet, now: barely,
+                                           processGone: false) == .restartHung)
+    }
+
+    @Test func threeSilentMinutesWhileTheEngineComputesIsBusyNotHung() {
+        let computing = EngineWorkSample(cpuSeconds: 150, diskBytes: 5_000_000)
+        let writing = EngineWorkSample(cpuSeconds: 10, diskBytes: 80_000_000)
+        #expect(EngineRestartPolicy.decide(failures: 36, workRunning: false, windowStart: quiet, now: computing,
+                                           processGone: false) == .stillWorking)
+        #expect(EngineRestartPolicy.decide(failures: 36, workRunning: false, windowStart: quiet, now: writing,
+                                           processGone: false) == .stillWorking)
+    }
+
+    @Test func withNoProcessToReadTheClockAloneDecides() {
+        #expect(EngineRestartPolicy.decide(failures: 36, workRunning: false, windowStart: nil, now: nil,
+                                           processGone: false) == .restartHung)
+        #expect(EngineRestartPolicy.decide(failures: 3, workRunning: false, isLocal: false, windowStart: nil,
+                                           now: nil, processGone: false) == .restartHung)
+    }
+
+    @Test func theBusyLineSaysHowLongTheEngineHasNotAnswered() {
+        #expect(EngineRestartPolicy.busySentence(failures: 0) == nil)
+        #expect(EngineRestartPolicy.busySentence(failures: 7)
+            == "The engine is busy: no answer for 35 s. It is not restarted while it works.")
+    }
 }

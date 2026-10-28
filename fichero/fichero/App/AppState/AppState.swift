@@ -89,6 +89,11 @@ class AppState {
     /// ping. Used to avoid UI thrash on transient blips — the offline
     /// banner flips only after the count crosses `EngineRestartPolicy.failuresBeforeRestart` (#6176).
     var heartbeatFailureCount: Int = 0
+    /// The silent window the heartbeat judges "hung" over: the miss count it began at and the engine's CPU and disk
+    /// then (`EngineRestartPolicy.decide`, #6176). Moved on whenever the engine is found working.
+    @ObservationIgnored var hungWindow: (startFailures: Int, sample: EngineWorkSample?) = (0, nil)
+    /// The pid of the engine this app spawned, nil for any other (#6176). Set by `EngineLifecycleController`.
+    @ObservationIgnored var enginePID: (@MainActor () -> pid_t?)?
 
     /// Route a mid-session supervised-engine drop back to the app-scoped
     /// lifecycle controller (#4064). Set by `EngineLifecycleController` at

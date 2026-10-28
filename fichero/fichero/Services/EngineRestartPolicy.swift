@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// When the app may restart a LIVE engine (`engine.restart-waits-for-the-work`, #6176; owner 2026-10-26: "far too aggressive").
@@ -33,5 +34,66 @@ enum EngineRestartPolicy {
     /// Whether `failures` missed pings in a row call for action now.
     static func shouldRestart(failures: Int, workRunning: Bool, isLocal: Bool = true) -> Bool {
         failures >= failuresBeforeRestart(workRunning: workRunning, isLocal: isLocal)
+    }
+
+    /// What the heartbeat does after a missed ping.
+    enum Decision: Equatable {
+        /// Busy: say so, keep waiting.
+        case wait
+        /// The process is gone: restart now, there is nothing to wait for.
+        case restartDead
+        /// No answer for the whole window and no CPU or disk in it.
+        case restartHung
+        /// No answer for the whole window, but the process computed or wrote in it: busy, start a new window.
+        case stillWorking
+    }
+
+    /// CPU or disk over a silent window that means the engine is working, not hung. An idle engine's threads use
+    /// well under a second of CPU in 3 minutes. ponytail: fixed floors; learn them from runs if a busy engine trips them.
+    static let workingCPUSeconds = 2.0
+    static let workingDiskBytes: UInt64 = 1_000_000
+
+    /// `windowStart` is the engine's usage at the first missed ping (or the last `.stillWorking`), `now` its usage
+    /// now; nil when there is no local process to read (a paired Mac, an engine the app did not spawn).
+    static func decide(
+        failures: Int, workRunning: Bool, isLocal: Bool = true,
+        windowStart: EngineWorkSample?, now: EngineWorkSample?, processGone: Bool
+    ) -> Decision {
+        if isLocal, processGone { return .restartDead }
+        guard shouldRestart(failures: failures, workRunning: workRunning, isLocal: isLocal) else { return .wait }
+        if isLocal, let windowStart, let now,
+           now.cpuSeconds - windowStart.cpuSeconds >= workingCPUSeconds
+            || now.diskBytes &- windowStart.diskBytes >= workingDiskBytes {
+            return .stillWorking
+        }
+        return .restartHung
+    }
+
+    /// The busy line Activity shows while pings are missed (`engine.restart-waits-for-the-work`); nil when answering.
+    static func busySentence(failures: Int) -> String? {
+        guard failures > 0 else { return nil }
+        return "The engine is busy: no answer for \(failures * pingSeconds) s. It is not restarted while it works."
+    }
+}
+
+/// An engine process's lifetime CPU and disk use, read with `proc_pid_rusage`.
+struct EngineWorkSample: Equatable {
+    let cpuSeconds: Double
+    let diskBytes: UInt64
+
+    /// The process's usage now; nil when `pid` is not a live process.
+    static func read(pid: pid_t) -> EngineWorkSample? {
+        var info = rusage_info_v4()
+        let status = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+        }
+        guard status == 0 else { return nil }
+        // ri_*_time are mach ticks, not nanoseconds, on Apple silicon.
+        var timebase = mach_timebase_info_data_t()
+        mach_timebase_info(&timebase)
+        let ticks = Double(info.ri_user_time + info.ri_system_time)
+        return EngineWorkSample(
+            cpuSeconds: ticks * Double(timebase.numer) / Double(timebase.denom) / 1e9,
+            diskBytes: info.ri_diskio_bytesread + info.ri_diskio_byteswritten)
     }
 }

@@ -67,6 +67,7 @@ final class EngineLifecycleController {
         appState.onSupervisedBackendDropped = { [weak self] in
             await self?.handleSupervisedBackendDropped()
         }
+        appState.enginePID = { [weak self] in self?.backendService.backendPID }
     }
 
     /// Kick the engine once at app launch. Called from
