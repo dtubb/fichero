@@ -1547,10 +1547,7 @@ class Database(DatabaseEmbeddingMixin):
         )
 
     def _reconnect_after_invalidated(self) -> None:
-        """Replace a DuckDB connection poisoned by a prior FatalException. Never one this Database closed: DuckDB's
-        "closed" reads as invalidated, and reopening it brought a closed library back behind its holder (#6238)."""
-        if self.__dict__.get("_closed_for_good"):
-            raise duckdb.ConnectionException(f"Connection already closed: the library {self.path} was closed")
+        """Replace a DuckDB connection poisoned by a prior FatalException."""
         try:
             self.conn.close()
         except Exception:
@@ -8307,7 +8304,6 @@ class Database(DatabaseEmbeddingMixin):
         # The library's own connection likewise (#6247): a Set Up cancelled mid-import closed it under a running
         # statement, a native crash in the app's engine.
         with self._transaction_gate, self._lock:
-            self._closed_for_good = True
             self._lance_db = None
             self.conn.close()
 
