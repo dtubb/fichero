@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
+import json
 import os
-import pickle
 import signal
 import socket
 import threading
@@ -288,7 +288,8 @@ def _recv_exactly(sock: socket.socket, n: int, first: bytes = b"") -> bytes:
 
 
 def _seed(control: socket.socket) -> NoReturn:
-    """The seed: fork one worker (`_serve`) for each request, hand back its pid, and leave when the engine is gone."""
+    """The seed: fork one worker (`_serve`) for each request, hand back its pid (0 when that request could not be
+    forked: the seed goes on), and leave when the engine is gone."""
     try:
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)  # its workers are reaped by the system: none is left a zombie
         _let_go_of_the_engines_files(control.fileno())
@@ -296,8 +297,12 @@ def _seed(control: socket.socket) -> NoReturn:
             head, fds, _flags, _addr = socket.recv_fds(control, 8, 1)
             if not head:
                 break  # the engine closed its end, or died
-            args = pickle.loads(_recv_exactly(control, int.from_bytes(_recv_exactly(control, 8, head), "big")))
-            pid = os.fork()
+            body = _recv_exactly(control, int.from_bytes(_recv_exactly(control, 8, head), "big"))
+            try:  # JSON, never pickle: the args are plain str/int/dict
+                args = json.loads(body)
+                pid = os.fork()
+            except (ValueError, OSError):
+                pid = -1
             if pid == 0:
                 control.close()
                 signal.signal(signal.SIGCHLD, signal.SIG_DFL)
@@ -308,8 +313,9 @@ def _seed(control: socket.socket) -> NoReturn:
 
                 getattr(importlib.import_module(module), name)(Connection(fds[0]), *rest)
                 os._exit(0)
-            os.close(fds[0])
-            control.sendall(pid.to_bytes(8, "big"))
+            if fds:
+                os.close(fds[0])
+            control.sendall(max(pid, 0).to_bytes(8, "big"))
     except BaseException as exc:  # noqa: BLE001 -- the seed only leaves; the engine's next ask says it is gone
         os.environ["FICHERO_SEED_LEFT"] = type(exc).__name__
     finally:
@@ -364,18 +370,31 @@ class _SeedWorker:
 
 def fork_from_seed(target: tuple[str, str], args: tuple) -> tuple[Connection, _SeedWorker] | None:
     """A worker forked by the seed, running `target` ("module", "function") with its end of a pipe and `args`, in the
-    engine's environment as it is now; and the engine's end of the pipe. None when the engine made no seed."""
+    engine's environment as it is now; and the engine's end of the pipe. None when there is no seed (none was made, or
+    it is gone: it is forgotten then) or it could not fork this one: the caller forks the worker itself, as before."""
+    global _SEED
     seed = _SEED
     if seed is None:
         return None
     ours, theirs = socket.socketpair()
-    payload = pickle.dumps((target, dict(os.environ), args))
+    payload = json.dumps([target, dict(os.environ), list(args)]).encode()
     try:
         with _SEED_LOCK:
             socket.send_fds(seed.control, [len(payload).to_bytes(8, "big") + payload], [theirs.fileno()])
             pid = int.from_bytes(_recv_exactly(seed.control, 8), "big")
+    except (OSError, EOFError):  # the seed died (killed, or a fork it made failed past its catch)
+        ours.close()
+        with _SEED_LOCK:
+            if _SEED is seed:
+                seed.control.close()
+                _wait_gone(seed.pid, 1)
+                _SEED = None
+        return None
     finally:
         theirs.close()
+    if pid == 0:
+        ours.close()
+        return None
     return Connection(ours.detach()), _SeedWorker(pid, seed.pid)
 
 
@@ -401,15 +420,12 @@ class RemoteEmbedder:
             # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
             raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "
                                       "search waits for it.")
-        try:  # forked by the seed, never by the running engine (#6237)
-            seeded = fork_from_seed((__name__, "_serve"), (self.model_name, self._cache_dir, self._threads,
-                                                           _child_env(self.model_name, self._cache_dir)))
-        except (OSError, EOFError) as exc:
-            raise EmbedderUnavailable("The search model's process could not be started; embedding for search "
-                                      "will try again later.") from exc
+        # forked by the seed, never by the running engine (#6237)
+        seeded = fork_from_seed((__name__, "_serve"), (self.model_name, self._cache_dir, self._threads,
+                                                       _child_env(self.model_name, self._cache_dir)))
         if seeded is not None:
             self._conn, self._process = seeded
-        else:  # no seed (a test, a dev server started without `main`): the engine forks it, as before
+        else:  # no seed (a test, a dev server started without `main`, a seed gone): the engine forks it, as before
             context = multiprocessing.get_context("fork")
             self._conn, child = context.Pipe(duplex=True)
             self._process = context.Process(
