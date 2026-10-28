@@ -248,7 +248,7 @@ final class EngineLifecycleController {
         // starts. Awaited, not blocking: the respawn still needs the port
         // released first, but Retry must not beachball the window (#4291).
         if restart {
-            await backendService.stopAndAwaitExit()
+            await backendService.stopAndAwaitExit(policy: .restart)
         }
         LaunchProfile.milestone("engine spawn requested")
         try await backendService.start()
