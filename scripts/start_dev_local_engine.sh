@@ -13,7 +13,7 @@ ROOT=${0:A:h:h}
 SOCK="$HOME/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
 PY="${FICHERO_PYTHON_BIN:-$ROOT/fichero-server/.venv/bin/python}"
 LOG="$HOME/code/fichero-worktrees/.devlogs/dev_engine.log"; mkdir -p "${LOG:h}"
-old=$(pgrep -f "uvicorn fichero_server.api.uds_transport:app --uds" | head -1)
+old=$(pgrep -f "uvicorn fichero_server.api.uds_transport:app --uds $SOCK" | head -1)  # this socket only, not other lanes' engines
 if [ -n "$old" ]; then
   kill "$old"; for i in {1..15}; do kill -0 "$old" 2>/dev/null || break; sleep 1; done
   kill -0 "$old" 2>/dev/null && { kill -9 "$old"; sleep 2; }   # SIGTERM can be ignored while it drains

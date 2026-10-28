@@ -12,6 +12,8 @@ APP_SRC="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
 APP_DST="$HOME/Applications/Fichero.app"
 HEALTH_PATH="/api/health"
 PROBE_LAN=false
+# Only the dev engine on the app's container socket: other lanes' source engines on their own sockets stay up.
+DEV_ENGINE_PATTERN="uvicorn fichero_server.api.uds_transport:app --uds $HOME/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
 
 usage() {
   cat <<'EOF'
@@ -50,12 +52,12 @@ kill_fichero() {
   fi
   # A source-run dev engine on the container socket (scripts/start_dev_local_engine.sh) is stopped too: the app
   # would otherwise be offered it (Use it) and this smoke would test that engine, not the build's own (#6244).
-  pids="$(pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' || true)"
+  pids="$(pgrep -f "$DEV_ENGINE_PATTERN" || true)"
   if [ -n "$pids" ]; then
     echo "Stopping the external dev engine ($pids) so the build's own engine is the one tested"
     kill $pids 2>/dev/null || true
-    for _ in {1..15}; do pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' >/dev/null || break; sleep 1; done
-    pids="$(pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' || true)"
+    for _ in {1..15}; do pgrep -f "$DEV_ENGINE_PATTERN" >/dev/null || break; sleep 1; done
+    pids="$(pgrep -f "$DEV_ENGINE_PATTERN" || true)"
     if [ -n "$pids" ]; then kill -9 $pids 2>/dev/null || true; fi
   fi
 }
