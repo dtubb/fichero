@@ -37,7 +37,9 @@ struct RecipeWhenWhereHandFields: View {
             Text("A hand is a style of handwriting, such as Secretary or Kurrent. It helps Fichero find readers made for it. "
                  + "The hands listed are Fichero's own for your script and century; any other you type is kept as you typed it.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            FlowLayout(spacing: 10) {
+            // One column (#6253): in a flow a long name ("Spanish humanistic cursive (bastarda)") broke the grid, and a
+            // hand's line read as if it were under its neighbour's.
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(store.handOptions, id: \.id) { hand in
                     VStack(alignment: .leading, spacing: 1) {
                         Toggle(hand.title, isOn: Binding(get: { store.hands.contains(hand.id) },
@@ -45,7 +47,7 @@ struct RecipeWhenWhereHandFields: View {
                             .setupCheckbox()
                         // Shown, not hover-only: the century and look are how a person tells the hands apart.
                         Text("\(hand.centuries). \(hand.looks)").font(.caption).foregroundStyle(.secondary)
-                            .frame(maxWidth: 220, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Toggle("Not sure", isOn: Binding(get: { store.hands.contains(RecipeSetupStore.notSureHand) },
