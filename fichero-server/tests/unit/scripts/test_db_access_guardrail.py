@@ -69,6 +69,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The run summary's review counts (R3, #5723): the SQL moved here FROM recipes/run_view.py, behind typed
         # functions -- the persistence entry point the rule asks for.
         "db/run_reviews.py",
+        # The slow-statement watchdog's evidence (lane C): reads duckdb_memory() / temp_directory through the live
+        # instances' cursors -- DuckDB-session introspection with no table behind it, so no typed method can hold it.
+        "db/busy_evidence.py",
         "db/embeddings.py",
         "db/migrations/schema.py",
         "db/manager.py",
