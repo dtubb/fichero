@@ -270,3 +270,17 @@ def test_the_steps_own_vision_calls_are_captured_and_then_answered_from_the_batc
         with pytest.raises(RuntimeError, match="a plain call"):
             asyncio.run(llm.vision([JPEG], "Another prompt.", config))
     assert plain == ["claude-opus-5-5"]
+
+
+def test_the_answers_are_kept_on_disk_so_a_resume_or_rerun_sends_no_answered_page_again(tmp_path):
+    """WHY (`compute.recipe.cloud-batch-adopted-by-id`, never rerun a model pass #6127): each answered line is written to
+    the run's answers file as it lands; after a restart the book is read back, its keys are left out of the next batch,
+    and the step run again is answered from it. A failed line is not kept: it is asked again."""
+    book = pb.AnswerBook(tmp_path / "answers.jsonl")
+    reqs = _requests(3)
+    book.keep([pb.BatchLine(reqs[0].key, True, text="uno"), pb.BatchLine(reqs[1].key, False, why="Overloaded")])
+    again = pb.AnswerBook(tmp_path / "answers.jsonl")  # the engine restarted
+    assert again.answers() == {reqs[0].key: "uno"}
+    assert [r.key for r in again.still_to_send(reqs)] == [reqs[1].key, reqs[2].key]
+    again.keep([pb.BatchLine(reqs[0].key, True, text="uno")])  # landed twice: kept once
+    assert len((tmp_path / "answers.jsonl").read_text().splitlines()) == 1

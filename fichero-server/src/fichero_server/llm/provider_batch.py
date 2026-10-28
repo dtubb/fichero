@@ -325,3 +325,39 @@ def through_the_seam(key: str, prompt: str, images: list[str]) -> str | None:
         seam[1].append(BatchRequest(key=key, prompt=prompt, images=tuple(images)))
         return seam[2](prompt)
     return seam[1].get(key)
+
+
+class AnswerBook:
+    """The run's answered lines, on disk (one JSON line each), so what a provider answered is never asked again: a
+    resume, a restart or a rerun reads it back, leaves its keys out of the next batch and answers the step from it
+    (#6127). Only answers are kept; a failed line is asked again."""
+
+    def __init__(self, path: Any):
+        from pathlib import Path
+
+        self.path = Path(path)
+
+    def answers(self) -> dict[str, str]:
+        if not self.path.exists():
+            return {}
+        out = {}
+        for raw in self.path.read_text(encoding="utf-8").splitlines():
+            if raw.strip():
+                row = json.loads(raw)
+                out[row["key"]] = row["text"]
+        return out
+
+    def keep(self, lines: list[BatchLine]) -> None:
+        known = self.answers()
+        new = [line for line in lines if line.ok and line.key not in known]
+        if not new:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as handle:
+            for line in new:
+                handle.write(json.dumps({"key": line.key, "text": line.text, "usage": line.usage}) + "\n")
+            handle.flush()
+
+    def still_to_send(self, requests: list[BatchRequest]) -> list[BatchRequest]:
+        known = self.answers()
+        return [r for r in requests if r.key not in known]
