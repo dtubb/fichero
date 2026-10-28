@@ -289,15 +289,15 @@ class GeminiBatches:
 
 # --- the seam in `llm.vision` -----------------------------------------------------------------------------------
 #: Set by the batch step around a run of the step's own workflow: ("capture", calls, answer) records each vision
-#: call as a request and answers it with `answer(prompt)` without calling anyone; ("answers", book) answers a call
+#: call as a request and answers it with `answer(prompt, images)` without calling anyone; ("answers", book) answers a call
 #: from the batch's lines by its key. Unset, `llm.vision` is untouched.
 _SEAM: contextvars.ContextVar[tuple | None] = contextvars.ContextVar("provider_batch_seam", default=None)
 
 
 @contextlib.contextmanager
-def capturing(answer: Callable[[str], str]) -> Iterator[list[BatchRequest]]:
-    """The vision calls made inside, as batch requests under their cache keys; none of them is sent. `answer` stands
-    in for the model so the step goes on to its next call as if answered (no re-ask is captured)."""
+def capturing(answer: Callable[[str, list[str]], str]) -> Iterator[list[BatchRequest]]:
+    """The vision calls made inside, as batch requests under their cache keys; none of them is sent. `answer(prompt,
+    images)` stands in for the model so the step goes on to its next call as if answered (no re-ask is captured)."""
     calls: list[BatchRequest] = []
     token = _SEAM.set(("capture", calls, answer))
     try:
@@ -323,7 +323,7 @@ def through_the_seam(key: str, prompt: str, images: list[str]) -> str | None:
         return None
     if seam[0] == "capture":
         seam[1].append(BatchRequest(key=key, prompt=prompt, images=tuple(images)))
-        return seam[2](prompt)
+        return seam[2](prompt, list(images))
     return seam[1].get(key)
 
 

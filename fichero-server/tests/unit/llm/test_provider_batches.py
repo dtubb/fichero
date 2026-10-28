@@ -259,7 +259,7 @@ def test_the_steps_own_vision_calls_are_captured_and_then_answered_from_the_batc
 
     monkeypatch.setattr(llm, "get_langchain_model", no_plain_call)
     config = llm.LLMConfig(provider="anthropic", model="claude-opus-5-5")
-    with pb.capturing(answer=lambda prompt: '["x"]') as captured:
+    with pb.capturing(answer=lambda prompt, images: '["x"]') as captured:
         said = asyncio.run(llm.vision([JPEG], "Read the line.", config))
     key = llm._vision_cache_key(config, "Read the line.", [JPEG])
     assert said == '["x"]' and plain == []

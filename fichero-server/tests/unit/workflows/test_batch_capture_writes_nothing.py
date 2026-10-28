@@ -62,7 +62,7 @@ def test_the_capture_run_writes_nothing_and_the_replay_lands_the_answer(tmp_path
     db, doc, image = _library(tmp_path)
     before = _state(db, doc.id)
 
-    with provider_batch.capturing(answer=lambda prompt: "En la villa de Madrid") as captured:
+    with provider_batch.capturing(answer=lambda prompt, images: "En la villa de Madrid") as captured:
         _read(tmp_path, image, doc)
 
     assert len(captured) == 1, "the page's one call is captured"
