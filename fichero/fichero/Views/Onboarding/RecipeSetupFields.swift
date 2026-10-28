@@ -160,6 +160,8 @@ struct RecipeMaterialSourceFields: View {
             }
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.body)
+            } else if let there = store.materialAlreadyThere {
+                Label(there, systemImage: "checkmark.circle").font(.body)
             }
             if let syncFolders, let path = store.tiedFolderPath, let folder = syncFolders.folder(atPath: path) {
                 SyncedFolderSection(store: syncFolders, folder: folder)

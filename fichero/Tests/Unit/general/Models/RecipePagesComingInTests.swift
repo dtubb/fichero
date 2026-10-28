@@ -29,4 +29,14 @@ final class RecipePagesComingInTests: XCTestCase {
         XCTAssertEqual(store.refusalWords("Unknown script", fallback: "x"), "Unknown script")
         XCTAssertEqual(store.refusalWords(nil, fallback: "fallback"), "fallback")
     }
+
+    /// #6252: a project that already holds its pages is told so on Add Material, and adding more is optional.
+    func testAProjectWithPagesIsToldWhatIsThere_notAskedForThem() {
+        XCTAssertEqual(RecipeSetupStore.materialAlreadyThere(pages: 12, counted: "12 photographs in 3 folders"),
+                       "This project already has 12 pages (12 photographs in 3 folders). Adding more is optional.")
+        XCTAssertEqual(RecipeSetupStore.materialAlreadyThere(pages: 1, counted: nil),
+                       "This project already has 1 page. Adding more is optional.")
+        XCTAssertNil(RecipeSetupStore.materialAlreadyThere(pages: 0, counted: nil))
+        XCTAssertNil(RecipeSetupStore.materialAlreadyThere(pages: nil, counted: nil))
+    }
 }
