@@ -28,3 +28,9 @@ def test_without_the_answer_or_without_correct_there_is_one_or_none(client, with
     assert [i for i, j in steps if j == "correct"] == ["correct"]
     steps, _ = _ids(client, job_answers={"correct_with_another_model": True})
     assert not [i for i, j in steps if j == "correct"], steps
+
+
+def test_the_second_review_has_its_own_title(client, with_material, mac):  # noqa: F811
+    _, recipe = _ids(client, job_answers={**ASKED, "correct_with_another_model": True})
+    titles = {s["id"]: s["title"] for s in recipe["steps"] if s["job"] == "correct"}
+    assert titles == {"correct": "Review the reading", "correct-2": "Review the reading again"}

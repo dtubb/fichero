@@ -1139,6 +1139,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             others = [c for c in cards if c.id != choice.card.id] if choice.card else cards
             second_choice = _choose(job, others, a)
             second: dict[str, Any] = {"id": f"{job}-2", "job": job, **_topic(job), **_chosen(second_choice)}
+            second["title"] = f"{second.get('title') or job} again"
             second["uses_cloud"] = str(second.get("runs_on") or "").startswith("cloud")
             if second_choice.card is None:
                 notes.append(f"{second['id']}: {second_choice.gap}")
