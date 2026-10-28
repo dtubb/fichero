@@ -205,6 +205,26 @@ final class ProjectRunStripTests: XCTestCase {
 
     // MARK: - source.onboard.auto.lands-on-the-run (#5576)
 
+    func testStrip_aRunOnFewerPagesThanTheProject_saysStartsCountOfWhatWasDone() async throws {
+        // WHY: Start said 95 pages and the run went on 58, with no reason on the strip (#6091, dogfood B12).
+        let store = Self.store()
+        var tree = try Self.runningTree()
+        var stages = try XCTUnwrap(tree["stages"] as? [[String: Any]])
+        stages[0]["note"] = "already done on 37 of 95 pages; runs on the other 58"
+        tree["stages"] = stages
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store))
+        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · already done on 37 of 95 pages; runs on the other 58 · "
+                       + "\(ActivityMonitorRow.duration(120)) left · Waiting: memory is tight")
+    }
+
     func testStrip_whileTheRunGoes_saysItsStagePagesTimeLeftAndWhatItWaitsFor() async throws {
         // WHY: after Start the project window said nothing; the run was only in the Activity window.
         let store = Self.store()
@@ -285,6 +305,13 @@ final class ProjectRunStripTests: XCTestCase {
         let stage = try XCTUnwrap(strip.failed.first)
         XCTAssertEqual(stage.offer, "Read the 2 pages that failed")
         XCTAssertEqual(stage.threadId, threadId)
+        // What it missed and its one action, as the engine words them (#6170): plain Start on the run's folder.
+        let missed = try XCTUnwrap((failed["summary"] as? [String: Any])?["missed"] as? [String: Any])
+        XCTAssertEqual(strip.missed?.words, missed["words"] as? String)
+        XCTAssertEqual(strip.missed?.offer, "Run again on what was missed")
+        XCTAssertNil(strip.missed?.folderId, "an import-scoped run's Start is the whole project")
+        // The recipe's setup page offers the same action beside Start (#6170).
+        XCTAssertEqual(RecipeReadyFields.missed(in: store)?.words, strip.missed?.words)
 
         let readAgainError = await store.readPagesAgain(runThreadId: stage.threadId)
         XCTAssertNil(readAgainError, "Read Again is the stage run's own route, through the store")

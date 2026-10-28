@@ -24,6 +24,8 @@ extension ActivityDetails {
         let timeLeft: String?
         /// What its pages wait for ("memory is tight"), while it runs.
         let waitingFor: String?
+        /// Why it runs on fewer pages than the project has: Start's count of what was already done (#6091).
+        let note: String?
     }
 
     /// What a recipe run made, in words (#5577).
@@ -50,6 +52,20 @@ extension ActivityDetails {
         let skipped: [Skipped]
         /// A step waiting on a model download that failed (#5352).
         var downloadFailed: [DownloadFailure] = []
+        /// What the run did not finish and its one action (#6170, `source.recipe.run-again-on-what-was-missed`).
+        var missed: MissedOffer?
+    }
+
+    /// The engine's words for what a run missed, its offer, and the run's scope; Start on that scope runs only what is
+    /// not done (`source.recipe.done-is-not-redone`). The engine decides; the app only shows it.
+    struct MissedOffer: Equatable {
+        let words: String
+        /// The action's label; nil, no action.
+        let offer: String?
+        /// The run's folder; nil, the project.
+        let folderId: String?
+        /// The run's pages when it covered some alone (a run an import started); nil, the scope is `folderId` (#6170).
+        var documents: [String]?
     }
 
     /// A step waiting on a failed download: Retry the download's job, or take the step's next candidate (#5352,
@@ -89,7 +105,7 @@ extension ActivityDetails {
         return node.stages.map { stage in
             let child = stage.childId.flatMap { id in node.children.first { $0.id == id } }
             let account = stage.account
-            let counts = account.map { "\($0.pagesDone) done · \($0.pagesFailed) failed · \($0.pagesLeft) left" }
+            let counts = account.map(countsWords)
             let running = stage.state == "running"
             return Stage(
                 id: stage.id,
@@ -99,9 +115,18 @@ extension ActivityDetails {
                 isFailed: stage.state == "failed" || stage.state == "not run",
                 counts: counts,
                 timeLeft: running ? account?.estimateSecondsLeft.map(ActivityMonitorRow.duration) : nil,
-                waitingFor: running ? account?.waitingReason : nil
+                waitingFor: running ? account?.waitingReason : nil,
+                note: stage.note
             )
         }
+    }
+
+    /// "12 done · 0 failed · 8 left", and "· first 9 in order" while a page finished ahead of a gap
+    /// (`recipes-run.order.done-in-order-shown`, #6186): progress reads in sidebar order.
+    static func countsWords(_ account: ActivityRunAccount) -> String {
+        let counts = "\(account.pagesDone) done · \(account.pagesFailed) failed · \(account.pagesLeft) left"
+        let settled = account.pagesDone + account.pagesFailed
+        return account.pagesDoneInOrder < settled ? "\(counts) · first \(account.pagesDoneInOrder) in order" : counts
     }
 
     private static func cardTitle(_ stage: ActivityRecipeStage) -> String {
@@ -140,6 +165,7 @@ extension ActivityDetails {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
         let download = downloadFailures(summary.downloadFailed ?? [])
-        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download)
+        let missed = summary.missed.map { MissedOffer(words: $0.words, offer: $0.offer, folderId: $0.folderId, documents: $0.documents) }
+        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download, missed: missed)
     }
 }

@@ -11,7 +11,7 @@
 > needed and why); **"Reading the numbers"** (CER, WER, line recall, the noise band, the insertion rate
 > and why a large cloud model may invent text); **"Costs while it runs"**; **"Sharing a recipe"** (what a
 > recipe file holds and never holds, starting from one, following a published one).
-> Status: APPROVED 2026-10-24 (rulings below). Create
+> **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
@@ -192,6 +192,12 @@ facts, including the bundled font for a script macOS lacks, come from `recipes/d
   the device the person is looking at: "all 418 of your characters display", or "14 characters
   (Canadian Syllabics, U+1400…) have no font here and show as boxes until one is added", naming the
   fallback family. The Reader uses the same answer.
+
+- `designer.onboarding.metadata-language` [MISSING] (#6180) — onboarding (About the Material) offers the METADATA
+  LANGUAGE: the language of the catalogue's field labels and descriptions, which is not necessarily the language
+  of the records. It defaults to the project's primary language and the person can choose another separately; the
+  choice is saved with the project's answers and read by the Catalogue stage (`catalogue.folder-description-fields`,
+  cataloguing.md), which writes labels and descriptions in it. Changing it never re-runs a folder already described.
 
 ### 4. How do you want to work? (new page, after About the Material, before Choose the Stages)
 
@@ -455,6 +461,23 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
 - `designer.rank.searches-on-open` [PARTIAL] (#6052) — the finder searches online by itself when it
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
+
+- `designer.model.every-model-step-chooses` [MISSING] (#6168, #6167, #6173) — the shared "Which model does it"
+  chooser is offered for EVERY stage that runs a model, none left out (Statements, Entities and Leave out
+  included): the ways to do the stage, each with its cost, its time and where it runs (this Mac with Apple or
+  MLX, Kraken, a local model, a cloud model, Hugging Face Jobs, a cluster), the default marked, the choice
+  saved in the plan and used by the run. A stage with no model (pure rules) says so. Pinned by a test that
+  walks the jobs registry and fails for any model-capable job without a chooser.
+- `designer.model.chooser-is-one-component` [MISSING] (#6168) — there is ONE chooser, engine list and app
+  view, shared by every stage; a stage does not carry its own copy, so a new way to run a job appears in
+  every stage that can use it at once.
+- `designer.model.one-resident-local-model` [MISSING] (#6167, #6168) — never two local models loaded at
+  once: a stage that needs another local model swaps (or waits for the stage before it) and the run says
+  so in words; two stages that choose the same local model share it.
+- `designer.model.where-it-runs-is-part-of-the-choice` [MISSING] (#6173) — where a stage runs (this Mac,
+  Hugging Face Jobs, a cluster, a cloud model) is chosen in the same chooser as the model, never
+  separately; pages leave this Mac only where the project allows and the cap holds, and a place that is
+  not allowed is listed with the reason, never hidden.
 
 ### 8. On every stage page: measured on your pages, measured on the benchmark, compared by itself
 
@@ -827,7 +850,7 @@ screenshots (`docs/assets/recipe-designer/`).
 All strings through the String Catalog; no `Text(verbatim:)`. Presence scans are not behavioural tests;
 every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()` covers it.
 
-## Build order (person-visible value first; each step shippable alone)
+## Order of value (a summary of the build order below)
 
 0. **Screens-review fixes** (app and engine, all PARTIAL today): one visible selection, cloud permission
    said once, nothing-found from the engine, Choose a model… on every model step, says-what-it-cannot-
@@ -900,7 +923,7 @@ line per step with Change…; the duplicate grey example line removed (one is ke
 12. Only Find Lines has a "who does it" note; one engine sentence per sampleable stage is wanted.
 13. The grey stage example line is drawn twice.
 
-## Proposed build order (proposed, not approved)
+## Build order (person-visible value first; each step shippable alone)
 
 ### Stage 1 — Screens-review fixes (app and engine)
 
@@ -1075,3 +1098,29 @@ Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #544
 - Behaviours: `designer.share.recipe-search`, `designer.share.search-results-say-their-source`, `designer.share.publish-is-an-offer`
 - Tests: fichero-server/tests/unit/recipes/test_find_recipes_job.py, fichero-server/tests/unit/recipes/test_recipe_publish.py
 - Size: M
+
+### Stage 16 — A model chooser for every model-run stage (owner, 2026-10-26)
+
+#### Step 16.1 — One shared chooser, offered by every model-run stage (#6168)
+- Behaviours: `designer.model.chooser-is-one-component`, `designer.model.every-model-step-chooses`
+- Tests: fichero-server/tests/unit/recipes/test_model_chooser_every_job.py, fichero/Tests/Unit/general/Recipes/StageModelChooserTests.swift
+- Size: M
+
+#### Step 16.2 — One resident local model; Leave out chooses a model (#6167)
+- Behaviours: `designer.model.one-resident-local-model`
+- Tests: fichero-server/tests/unit/recipes/test_one_resident_local_model.py, fichero-server/tests/unit/recipes/test_leave_out.py, fichero/Tests/Unit/general/Recipes/LeaveOutModelChoiceTests.swift
+- Depends on: 16.1
+- Size: M
+
+#### Step 16.3 — Where it runs is part of the choice: Hugging Face Jobs first (#6173)
+- Behaviours: `designer.model.where-it-runs-is-part-of-the-choice`
+- Tests: fichero-server/tests/unit/recipes/test_recipe_remote_placement.py
+- Depends on: 16.1
+- Size: M
+
+### Stage 17 — Onboarding offers the metadata language (owner, 2026-10-26)
+
+#### Step 17.1 — The metadata language question, defaulted to the primary language
+- Behaviours: `designer.onboarding.metadata-language`
+- Tests: fichero-server/tests/unit/recipes/test_metadata_language_answer.py, fichero/Tests/Unit/general/Recipes/MetadataLanguageTests.swift
+- Size: S

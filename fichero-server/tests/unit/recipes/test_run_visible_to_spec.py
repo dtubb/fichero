@@ -174,8 +174,9 @@ def test_source_onboard_auto_results_summary(client, db, pages, tmp_path, engine
     assert skipped["check"] == "allow-cloud" and skipped["names"] == "choose-model"
     # In the engine's words, one line per figure, shown as given; no line for a stage the run did not have.
     # The run had Find Lines: it says how many pages have lines and regions (#5668; the fake run drew no regions).
-    assert summary["lines"] == ["Lines on 2 of 2 pages · regions on 0 of 2 pages", "Read 2 of 2 pages",
-                                "Names: 1 People · 1 Places", "1 page dated · 1 date named · 1 statement"]
+    assert summary["lines"][:-1] == ["Lines on 2 of 2 pages · regions on 0 of 2 pages", "Read 2 of 2 pages",
+                                     "Names: 1 People · 1 Places", "1 page dated · 1 date named · 1 statement"]
+    assert summary["lines"][-1].startswith("Slowest step: ")  # the slowest step, last (#6215)
     assert (summary["documents_proposed"], summary["groups_proposed"], summary["entries"]) == (None, None, None)
     tree = client.get(f"/api/activity/jobs/{job_id}").json()
     assert tree["summary"] == summary, "Activity's details show the same summary"
@@ -233,7 +234,7 @@ def test_source_onboard_auto_results_summary__documents_groups_and_entries(clien
     docs = "document" if proposed == 1 else "documents"
     # No Names, Dates or Statements stage and nothing of theirs found: no line for them (#5668).
     assert not [line for line in summary["lines"] if "dated" in line or "Names" in line]
-    assert summary["lines"][-3:] == [f"{proposed} {docs} proposed, {proposed} accepted",
+    assert summary["lines"][-4:-1] == [f"{proposed} {docs} proposed, {proposed} accepted",  # then the slowest step (#6215)
                                     f"{groups} {'group' if groups == 1 else 'groups'} proposed",
                                     "4 entries from 2 pages"]
     assert client.get(f"/api/activity/jobs/{job_id}").json()["summary"]["lines"] == summary["lines"]

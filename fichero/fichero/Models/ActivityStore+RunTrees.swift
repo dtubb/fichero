@@ -42,12 +42,14 @@ extension ActivityStore {
         return treeReadFailures[String(jobId[..<colon])]
     }
 
-    /// A recipe run's folders from its status (`GET /api/recipes/project/runs/{id}`), patched on its ONE key.
-    /// A failed read keeps what was shown.
+    /// A recipe run's folders and its pages at once from its status (`GET /api/recipes/project/runs/{id}`), each patched
+    /// on its ONE key. A failed read keeps what was shown.
     private func readRecipeRunFolders(jobId: String) async {
         do {
-            guard let status = try await activityService.getRecipeRunStatus(jobId: jobId),
-                  let folders = RecipeRunFolders(status) else { return }
+            guard let status = try await activityService.getRecipeRunStatus(jobId: jobId) else { return }
+            let atOnce = RecipeRunPagesAtOnce(status)
+            if recipeRunPagesAtOnce[jobId] != atOnce { recipeRunPagesAtOnce[jobId] = atOnce }
+            guard let folders = RecipeRunFolders(status) else { return }
             if recipeRunFolders[jobId] != folders { recipeRunFolders[jobId] = folders }
         } catch {
             log.debug("ActivityStore: recipe run \(jobId, privacy: .public) status failed \(error.localizedDescription, privacy: .public)")

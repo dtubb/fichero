@@ -13,6 +13,7 @@ import logging
 import queue
 import re
 import threading
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -45,6 +46,40 @@ if TYPE_CHECKING:  # pragma: no cover - import-time typing only
     from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
     from fichero_server.llm.usage import UsageTotals
     from fichero_server.workflows.builder import SystemicErrorDetected
+
+
+def file_duration_ms(entry: dict, now: datetime) -> float:
+    """How long a file really took, in ms: from when it got its slot (`running_at`), else from `started_at`.
+    Every file of a fan-out starts at once and most wait for a slot, so counting from `started_at` showed the
+    run's cumulative time as each file's (6,541,168 ms for one file, #6178)."""
+    since = datetime.fromisoformat(entry.get("running_at") or entry["started_at"])
+    return (now - since).total_seconds() * 1000
+
+
+#: A step's pages climbing over a run is a bug even with every test green (owner's north star, #6236; the M4 run went
+#: 1 s -> 300 s a page). The median of a node's last CLIMB_PAGES pages past CLIMB_FACTOR times its first ones, and a
+#: second or more slower, says so once; the node then takes a new baseline, so a further climb says so again. Kept per
+#: node for the process, so a run split into folder batches is one series. Bounded: 2 x CLIMB_PAGES times a node.
+CLIMB_PAGES = 10
+CLIMB_FACTOR = 3.0
+_PAGE_TIMES: dict[str, tuple[list[float], deque[float]]] = {}
+
+
+def note_page_time(node_id: str, ms: float, node_name: str) -> None:
+    from statistics import median
+
+    first, recent = _PAGE_TIMES.setdefault(node_id, ([], deque(maxlen=CLIMB_PAGES)))
+    if len(first) < CLIMB_PAGES:
+        first.append(ms)
+        return
+    recent.append(ms)
+    if len(recent) < CLIMB_PAGES:
+        return
+    base, now = median(first), median(recent)
+    if now > CLIMB_FACTOR * base and now - base > 1000:
+        logger.warning("per-page time climbing: %s now takes %.1f s a page (median of its last %d), %.1f s at its "
+                       "start: something grows with the run", node_name, now / 1000, CLIMB_PAGES, base / 1000)
+        _PAGE_TIMES.pop(node_id, None)
 
 
 def build_graph(*args, **kwargs):
@@ -1786,6 +1821,12 @@ async def _run_workflow_body(
                         "status": "running",
                     }
                 )
+            elif event_type == "file_running":
+                for entry in reversed(progress_timeline["steps"]):
+                    if (entry.get("type") == "file" and entry.get("node_id") == data.get("node_id", "")
+                            and entry.get("file_path") == data.get("file_path", "") and entry.get("status") == "running"):
+                        entry["running_at"] = datetime.now(timezone.utc).isoformat()  # got its slot: the time counted from here
+                        break
             elif event_type == "file_complete":
                 file_index = data.get("file_index", 0)
                 file_total = data.get("file_total", 0)
@@ -1804,12 +1845,10 @@ async def _run_workflow_body(
                     ):
                         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "success"
-                        # Calculate duration
-                        start = datetime.fromisoformat(entry["started_at"])
-                        duration_ms = (
-                            datetime.now(timezone.utc) - start
-                        ).total_seconds() * 1000
+                        duration_ms = file_duration_ms(entry, datetime.now(timezone.utc))
                         entry["duration_ms"] = duration_ms
+                        note_page_time(f"{workflow.id}/{entry['node_id']}", duration_ms,
+                                       f"{workflow.name} ({entry['node_id']})")
                         break
 
                 await log_execution(

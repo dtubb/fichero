@@ -22,6 +22,8 @@ struct ProjectRunStrip: Equatable {
     let detail: String
     /// An ended run's stages whose pages failed, each with its Read Again.
     let failed: [ActivityDetails.Summary.Failed]
+    /// What an ended run missed and its Run Again (#6170), as the engine sends it.
+    var missed: ActivityDetails.MissedOffer?
 
     /// The strip for the store's project run, or nil when there is none.
     @MainActor
@@ -29,7 +31,7 @@ struct ProjectRunStrip: Equatable {
         guard let jobId = store.projectRunId else { return nil }
         self.init(jobId: jobId, node: store.runTrees[jobId],
                   job: store.backgroundJobs.first { $0.id == jobId },
-                  folders: store.recipeRunFolders[jobId])
+                  folders: store.recipeRunFolders[jobId], pagesAtOnce: store.recipeRunPagesAtOnce[jobId])
     }
 
     /// Preview seam: the words given.
@@ -43,7 +45,8 @@ struct ProjectRunStrip: Equatable {
 
     /// The strip from the run's node, its row on the jobs poll and its folders done of its folders
     /// (`activity.run.progress-per-folder`): pure, so a test can build it.
-    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil) {
+    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil,
+         pagesAtOnce: RecipeRunPagesAtOnce? = nil) {
         self.jobId = jobId
         let state = Self.effectiveState(nodeState: node?.state, jobState: job?.state)
         let ended = ["done", "failed", "cancelled"].contains(state)
@@ -61,6 +64,7 @@ struct ProjectRunStrip: Equatable {
                 ?? [node?.reason, job?.reason].compactMap { $0 }.first { !$0.isEmpty }
                 ?? "What it made could not be read just now. Show Details has the log."
             failed = summary?.failed ?? []
+            missed = summary?.missed
             return
         }
         failed = []
@@ -73,7 +77,8 @@ struct ProjectRunStrip: Equatable {
         let words = Self.liveWords(state: state, node: node, job: job)
         // How far the run is in folders, after its stage, for a run over more than one (#5540).
         title = [words.title, folders?.words].compactMap { $0 }.joined(separator: " · ")
-        detail = words.detail
+        // Then how many pages it reads at once and why, as the engine sends them (#6217).
+        detail = [words.detail, pagesAtOnce?.words].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
@@ -98,6 +103,8 @@ struct ProjectRunStrip: Equatable {
             let stage = stages[running]
             var parts: [String] = []
             if let counts = stage.counts { parts.append(counts) }
+            // Start's own count of what was already done, so a run on 58 of 95 pages says why (#6091).
+            if let note = stage.note { parts.append(note) }
             if let timeLeft = stage.timeLeft { parts.append("\(timeLeft) left") }
             // Only the stage's own wait: while a stage runs, the run's reason is its progress ("Running the
             // recipe: 3 of 800 folders done"), shown as the folders count, never as a wait.
@@ -138,6 +145,37 @@ struct RecipeRunFolders: Equatable {
     }
 }
 
+/// How many pages a recipe run reads at once now, and which hold makes it one (`recipes-run.memory.gate-shown`, #6217),
+/// as the run's status carries them (`pages_at_once`, `pages_at_once_reason`). The engine decides; the app only words it.
+struct RecipeRunPagesAtOnce: Equatable {
+    let count: Int
+    let reason: String?
+    /// The threads each page reads on (#6229); nil from an engine that does not say.
+    let threads: Int?
+
+    /// nil when the status says nothing: the run is not going.
+    init?(_ status: Components.Schemas.RecipeRunStatus) {
+        guard let count = status.pagesAtOnce else { return nil }
+        self.init(count: count, reason: status.pagesAtOnceReason, threads: status.threadsEach)
+    }
+
+    init(count: Int, reason: String?, threads: Int? = nil) {
+        self.count = count
+        self.reason = reason
+        self.threads = threads
+    }
+
+    /// "reading 2 pages at once, 2 threads each"; "one page at a time on 4 threads: the Mac is paging".
+    var words: String {
+        let each = threads.map { $0 == 1 ? "1 thread" : "\($0) threads" }
+        if count > 1 {
+            return ["reading \(count) pages at once", each.map { "\($0) each" }].compactMap { $0 }.joined(separator: ", ")
+        }
+        let oneAtATime = ["one page at a time", each].compactMap { $0 }.joined(separator: " on ")
+        return [oneAtATime, reason].compactMap { $0 }.joined(separator: ": ")
+    }
+}
+
 /// The strip itself: one row along the bottom of the content column, beneath
 /// the library's own bottom bar (`ContentView.detailColumn`'s bottom inset).
 /// Shown only while the project has a recipe run to show.
@@ -154,6 +192,12 @@ struct ProjectRunStripView: View {
                 failure: failure,
                 readAgain: { threadId, offer in
                     .stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })
+                },
+                runAgain: { missed in
+                    Task {
+                        failure = await LibraryManager.shared.runAgainOnMissed(
+                            for: libraryId, folderId: missed.folderId, documents: missed.documents)
+                    }
                 },
                 onShowDetails: { showDetails(strip.jobId) },
                 onClose: { store.putAwayProjectRun() }
@@ -174,6 +218,8 @@ struct ProjectRunStripRow: View {
     let failure: String?
     /// A stage's Read Again target (`ActivityRunMenuTarget.stage`): the shared item Activity renders (#5652).
     let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
+    /// What the run missed, run again on its folder (nil, the project): plain Start (#6170).
+    var runAgain: (_ missed: ActivityDetails.MissedOffer) -> Void = { _ in }
     let onShowDetails: () -> Void
     let onClose: () -> Void
 
@@ -201,6 +247,12 @@ struct ProjectRunStripRow: View {
                         .help(stage.text)
                         .accessibilityIdentifier("project.runStrip.readAgain")
                 }
+            }
+            if let missed = strip.missed, let offer = missed.offer {
+                Button(offer) { runAgain(missed) }
+                    .controlSize(.small)
+                    .help(missed.words)
+                    .accessibilityIdentifier("project.runStrip.runAgainOnMissed")
             }
             Button("Show Details", action: onShowDetails)
                 .controlSize(.small)

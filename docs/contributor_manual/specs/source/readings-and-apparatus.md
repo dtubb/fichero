@@ -1,12 +1,10 @@
 # Source Model — Readings and the scholar's apparatus — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — part of the "How Fichero represents a source" section: that one patch of ink
-> can carry several readings, which one counts, and how hands, campaigns, damage and a
-> researcher's own notes are recorded.
+> Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: that one patch of ink can carry several readings, which one counts, and how hands, campaigns, damage and a researcher's own notes are recorded.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
+> code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless the foundation's "What exists today" says otherwise.
 

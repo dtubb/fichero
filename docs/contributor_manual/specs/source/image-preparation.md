@@ -5,6 +5,10 @@
 > reading it (find the page, split, turn, straighten, clean), that the original is never changed,
 > and how to see whether a step helped.
 >
+> **2026-10-26:** the enhancement steps (page crop, deskew, split, contrast, stains, ruling, show-through,
+> versos, prompt fragments, the working rendition) are specified in `image-enhancement.md` (#6185); this
+> draft keeps the 2026-10-03 design and its `prep.*` ids.
+>
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-10-03). Stage 1 to 2 of
 > `../../roadmap/research-pipeline.md`. Builds on the edit chain (`../ui/preview-image-editing.md`,
 > mostly [OK]), the prepare tools in `workflows/tools/` (split, deskew, crop, binarize, denoise,

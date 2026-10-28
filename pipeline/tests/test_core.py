@@ -283,7 +283,8 @@ def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fa
     f.write_text(json.dumps(dict(issues[1001])))
     core.start([1001], task="boot", base="runner-branch", from_file=str(f))
     it = core.state()["items"]["1001@boot"]
-    assert it["start_args"] == {"task": "boot", "milestone": None, "base": "runner-branch", "from_file": str(f), "ids": ["demo.one"]}
+    assert it["start_args"] == {"task": "boot", "milestone": None, "base": "runner-branch", "from_file": str(f), "ids": ["demo.one"],
+                          "provider": None, "model": None}
     core.verdict(1001, it["sha"], "NOT_READY", by="reviewer", findings="rename f1001")  # a bare number resolves to the one item
     out = core.retry(1001)
     assert out["task"] == "boot" and out["items"]["1001@boot"] == "checked"
@@ -910,3 +911,41 @@ def test_ask_parks_the_item_and_an_answer_wakes_the_same_session_after_a_restart
     assert any("The maintainer answered your question: tabs" in t[1] for t in fc.told)
     with pytest.raises(RuntimeError, match="nothing answered"):
         core.resume_asked("1001")
+
+
+def test_start_with_provider_and_model_runs_that_coder_for_the_item(scratch, issues, fake_coder):
+    """pipeline.per-item-coder: `start --provider P --model M` overrides roles.coder for this item only, even when the
+    profile has the provider switched off; the record keeps it so a retry runs on the same coder."""
+    fc = fake_coder()
+    scratch["cfg"]["roles"]["coder"] = [{"kind": "pi", "provider": "anthropic", "model": "claude-sonnet-5-5"}]
+    core.start([1001], provider="openrouter", model="qwen/x")
+    cmd = fc.windows[0][2]
+    assert cmd[cmd.index("--model") + 1] == "openrouter/qwen/x"
+    a = core.state()["items"]["1001"]["start_args"]
+    assert (a["provider"], a["model"]) == ("openrouter", "qwen/x")
+    core.start([1002])
+    cmd = fc.windows[1][2]
+    assert cmd[cmd.index("--model") + 1] == "anthropic/claude-sonnet-5-5", "the next item is back on the default"
+
+
+def test_a_provider_without_a_model_takes_the_profiles_tier_model(scratch, issues, fake_coder):
+    fc = fake_coder()
+    scratch["cfg"].setdefault("tiers", {})["openrouter"] = {"big": "qwen/big", "small": "qwen/small"}
+    core.start([1001], provider="openrouter")
+    cmd = fc.windows[0][2]
+    assert cmd[cmd.index("--model") + 1].startswith("openrouter/qwen/")
+
+
+def test_open_model_coders_are_capped_apart_from_the_roster(scratch, issues, fake_coder, monkeypatch):
+    """Owner 2026-10-26: up to caps.open_coders open-model coders run beside the Sonnet ones; one more is refused."""
+    fake_coder()
+    scratch["cfg"]["workers"]["caps"]["open_coders"] = 1
+    scratch["cfg"]["workers"]["caps"]["coders"] = 5
+    for name in ("coder-issues-9001",):
+        journal.append("worker", window=name, task="issues-9001", role="coder", model="openrouter/qwen/x", kind="pi",
+                       session_dir="/x", cwd="/x")
+    monkeypatch.setattr(core.coder, "live_windows", lambda cfg: {"coder-issues-9001"})
+    monkeypatch.setattr(core, "_live_open_coders", lambda s, task: ["coder-issues-9001"])  # busy: the fake reports idle
+    with pytest.raises(RuntimeError, match="open-model cap"):
+        core.start([1001], provider="openrouter", model="qwen/y")
+    assert core.start([1002])["items"]["1002"] == "checked", "a Sonnet coder is not counted against it"

@@ -523,6 +523,17 @@ class SnapshotListResponse(BaseModel):
     total: int
 
 
+def _stop_the_workers(library_path: str) -> int:
+    """Stop every open job of the library a restore is about to overwrite; nothing is restarted
+    (`safety.net.restore-stops-the-workers-first`, #5246). A library not open has no workers."""
+    from fichero_server.db.manager import db_manager
+    from fichero_server.execution import jobs
+
+    if not db_manager.is_open(library_path):
+        return 0
+    return jobs.stop_everything(db_manager.get_database(library_path))
+
+
 @router.post("/snapshots", response_model=LibrarySnapshot, tags=["snapshots"])
 async def create_snapshot(
     library_path: str = Query(..., description="Path to the .fichero package"),
@@ -642,7 +653,10 @@ async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
             event_type="snapshot.restore.intent",
             actor=actor,
         )
+        stopped = _stop_the_workers(snapshot.library_path)  # restore-stops-the-workers-first (#5246)
         result = restore_snapshot(snapshot_id)
+        if stopped:
+            result["note"] = f"{stopped} job(s) stopped first; start them again when you want. {result.get('note', '')}".strip()
         _record_snapshot_audit(
             action_name="snapshot.restore.outcome",
             actor=actor,

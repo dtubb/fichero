@@ -213,7 +213,7 @@ def put_log(db: Any, thread_id: str, text: str, *, replace: bool) -> None:
 def read_log(db: Any, thread_id: str, kept: Optional[str]) -> Optional[str]:
     """A run's log: a value kept from before #5711 that is not moved into lines yet, then its lines, joined."""
     joined = db.execute_fetchone(f"SELECT string_agg(line, chr(10) ORDER BY seq) FROM {LINES} WHERE run_id = ?",
-                                 [thread_id])[0]
+                                 [thread_id], committed=True)[0]
     parts = [p for p in (kept or None, joined) if p is not None]
     return "\n".join(parts) if parts else None
 
@@ -229,7 +229,7 @@ def flush_node_boundary(db: Any, thread_id: str, progress_timeline: dict, log_te
 
 def get_run(db: Any, thread_id: str) -> Optional[tuple]:
     """Every column of one run, its log read from its lines (#5711)."""
-    row = db.execute_fetchone(f"SELECT {', '.join(RUN_COLUMNS)} FROM {RUNS} WHERE id = ?", [thread_id])
+    row = db.execute_fetchone(f"SELECT {', '.join(RUN_COLUMNS)} FROM {RUNS} WHERE id = ?", [thread_id], committed=True)
     if row is None:
         return None
     at = RUN_COLUMNS.index("execution_log")
@@ -251,7 +251,7 @@ def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[st
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     return db.execute_fetchall(
         f"SELECT {', '.join(LIST_COLUMNS)} FROM {RUNS} {where_sql} ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?",
-        [*params, limit, offset])
+        [*params, limit, offset], committed=True)
 
 
 def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> list[str]:

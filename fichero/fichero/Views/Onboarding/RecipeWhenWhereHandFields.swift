@@ -19,6 +19,21 @@ struct RecipeWhenWhereHandFields: View {
                     .labelsHidden()
             }
             Text("Which hand").font(.headline)
+            if !RecipeSetupStore.asksWhichHand(materials: store.materials) {
+                Text("Print and typescript have no hand.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                handChoices
+            }
+        }
+        .task(id: "\(store.scripts.first ?? "")|\(store.period)|\(store.languages.joined(separator: ","))") {
+            try? await Task.sleep(for: .milliseconds(300))  // the period as typed: ask once the person pauses
+            guard !Task.isCancelled else { return }
+            await store.loadHands()
+        }
+    }
+
+    @ViewBuilder private var handChoices: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("A hand is a style of handwriting, such as Secretary or Kurrent. It helps Fichero find readers made for it. "
                  + "The hands listed are Fichero's own for your script and century; any other you type is kept as you typed it.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -51,11 +66,6 @@ struct RecipeWhenWhereHandFields: View {
                     if !hand.isEmpty, !store.hands.contains(hand) { store.toggle(hand: hand) }
                     typedHand = ""
                 }
-        }
-        .task(id: "\(store.scripts.first ?? "")|\(store.period)|\(store.languages.joined(separator: ","))") {
-            try? await Task.sleep(for: .milliseconds(300))  // the period as typed: ask once the person pauses
-            guard !Task.isCancelled else { return }
-            await store.loadHands()
         }
     }
 }

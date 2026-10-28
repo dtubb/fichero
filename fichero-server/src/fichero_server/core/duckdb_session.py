@@ -138,6 +138,14 @@ def self_test_counting() -> int:
     return get_query_count()
 
 
+def fetch_one(cur: Any) -> Any:
+    """The first row of `cur`'s result, read to the end (#6236). A result left after `fetchone()` keeps its statement's
+    transaction open until the connection's next statement: an idle connection (a read cursor, a second Database)
+    then holds every later update's undo, which spilled to disk and made each names page slower than the last."""
+    rows = cur.fetchall()
+    return rows[0] if rows else None
+
+
 def pin_utc_session(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
     """Set ``TimeZone='UTC'`` on an existing connection and return it.
 
@@ -239,7 +247,7 @@ def _live(refs: list[Any]) -> Any:
         if conn is None:
             continue
         try:
-            conn.cursor().execute("SELECT 1")
+            conn.cursor().execute("SELECT 1").fetchall()  # read to the end: no snapshot left open (#6236)
             return conn
         except Exception as exc:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
             said = f"{type(exc).__name__}: {exc}"
@@ -269,6 +277,9 @@ def _rebalance() -> None:
                 keepers[key] = conn
         limit = instance_limit_bytes(len(keepers))
         todo = [(key, conn) for key, conn in keepers.items() if _applied.get(key) != limit]
+    if todo:  # the share in force, at warning so a run that keeps only warnings has it: on the M4 it was unknown (#6236)
+        logger.warning("DuckDB memory: %d open instance(s), %d MiB each (budget %d MiB)",
+                    len(keepers), limit // 1024**2, total_budget_bytes() // 1024**2)
     for key, conn in todo:
         try:
             _set_limit(conn, limit)
@@ -303,7 +314,12 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
     try:
         spill = spill_directory()
         spill.mkdir(parents=True, exist_ok=True)
-        conn.execute("SET temp_directory=?", [str(spill)])
+        try:
+            conn.execute("SET temp_directory=?", [str(spill)])
+        except duckdb.Error as exc:
+            # An instance that has already spilled keeps the directory it spilled to: DuckDB refuses a switch. That must
+            # not stop the memory cap below from applying (it did: the cap never ran, and the warning repeated every poll).
+            logger.debug("DuckDB kept its spill directory: %s", exc)
         try:
             ref: Any = weakref.ref(conn)
         except TypeError:  # ponytail: a connection that cannot be weakly held is held strongly until closed
@@ -318,7 +334,7 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
         # Joined an instance that already has its share: its limit is what we set (a reopened one is back at default).
         # (DuckDB prints a size rounded -- "1.6 GiB" -- so "the same" is within 6%, not to the byte.)
         shared = known and expected is not None and abs(parse_size(
-            conn.execute("SELECT current_setting('memory_limit')").fetchone()[0].replace(" ", "")) - expected
+            fetch_one(conn.execute("SELECT current_setting('memory_limit')"))[0].replace(" ", "")) - expected
         ) <= max(1024**2, expected * 0.06)
         if not shared:
             with _instances_lock:

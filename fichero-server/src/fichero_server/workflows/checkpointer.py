@@ -32,6 +32,7 @@ from langgraph.checkpoint.base import (
 )
 
 from fichero_server.workflows.types import compact_output_for_state
+from fichero_server.core.duckdb_session import fetch_one
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
                     cur = self.conn.execute(query)
                 else:
                     cur = self.conn.execute(query, params)
-                return cur.fetchone()
+                return fetch_one(cur)
 
         return await asyncio.to_thread(_run)
 

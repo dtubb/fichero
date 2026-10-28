@@ -48,6 +48,9 @@ def test_a_new_library_is_not_rebuilt_on_every_open(tmp_path, monkeypatch):
             class R:
                 def fetchone(self):
                     return None
+
+                def fetchall(self):  # results are read to the end (#6236, `fetch_one`)
+                    return []
             return R()
 
     class Fake:

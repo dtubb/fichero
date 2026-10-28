@@ -156,7 +156,8 @@ workflows/activity.py::_settle_recovered_run_documents 1
 workflows/activity.py::get_activity_tracker 1
 workflows/builder.py::_make_node_function.node_function 2
 # #5555: the file_retry event, like the file_start/complete/error events beside it, never fails a page.
-workflows/builder.py::_make_parallel_node_function._read_one_page 8
+# #6178: a failed file_running emit is logged, the file still runs (same shape as its file_start sibling)
+workflows/builder.py::_make_parallel_node_function._read_one_page 9
 workflows/cache.py::NodeCache.set 1
 workflows/completion.py::finalize_run_documents 3
 workflows/default_workflows.py::_load_preset_files 1
@@ -239,3 +240,5 @@ maintenance/page_text_repair.py::repair_classification_page_text 1
 maintenance/page_text_repair.py::repair_on_open 1
 # #5933: saying a failed resume on the recipe's row is a courtesy; the log has the reason.
 recipes/runner.py::_resume_step_run.said 1
+# #6126: a failure to queue the embeds left to Search never replaces the run own result or error (it is logged); the closure keeps it out of the run path.
+recipes/runner.py::_run 1

@@ -463,10 +463,29 @@ def _reembed_batch(db: Any, subject: str) -> None:
     ids = (json.loads(detail or "{}") if detail is not None else {}).get("documents") or []
     docs = [d for d in (db.get(Document, i) for i in ids) if d is not None and d.page_content]
     if docs:
-        with _embed_gate:
-            current, embedded, wanted = db.embed_many_unless_current(docs)
+        from fichero_server.db.embed_process import EmbedderUnavailable
+        from fichero_server.importers.derivatives import wait_for_the_search_model
+
+        try:
+            with _embed_gate:
+                current, embedded, wanted = db.embed_many_unless_current(docs)
+        except EmbedderUnavailable as exc:  # the model is being fetched: the batch waits for it (#6218)
+            wait_for_the_search_model(db, str(exc), exc)
         if current + embedded < wanted:  # the job fails, so Activity shows it, as for a single page
             raise RuntimeError(f"{wanted - current - embedded} of {wanted} pages could not be embedded")
+        _clear_pending(db, docs)
+
+
+def _clear_pending(db: Any, docs: list[Any]) -> None:
+    """A page the import left to the run's Search (#6186) stops being pending once Search embedded it, as the import's own
+    embed stage would have done; else every open would queue its embed again (`db/manager.py`'s stranded pages)."""
+    from fichero_server.models import Document, Status
+
+    for doc in docs:
+        fresh = db.get(Document, doc.id)
+        if fresh is not None and fresh.status == Status.pending and "derivative_error" not in (fresh.metadata or {}):
+            fresh.status = Status.completed
+            db.save(fresh)
 
 
 def _reembed(db: Any, document_id: str) -> None:
@@ -482,6 +501,10 @@ def _reembed(db: Any, document_id: str) -> None:
     if doc is not None and doc.page_content:
         with _embed_gate:
             outcome = db.embed_unless_current(doc)  # a page read and then searched is embedded once per text version
+        if not outcome and outcome.reason == "embedder_unavailable":  # the model is being fetched: wait (#6218)
+            from fichero_server.importers.derivatives import wait_for_the_search_model
+
+            wait_for_the_search_model(db, outcome.error or "The search model is not ready yet")
         if not outcome and outcome.is_infrastructure_failure:  # the job fails, so Activity shows it
             raise RuntimeError(f"Could not embed {document_id}: {outcome.error}")
 

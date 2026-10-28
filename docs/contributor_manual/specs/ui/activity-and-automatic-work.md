@@ -1,21 +1,51 @@
 # Activity and Automatic Work — one job model, one window — Design Spec (#5352)
 
 > Milestone: activity
-> Manual: TBD — "What Fichero is doing": the Activity window; why work runs by itself when you add
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the contributor page; the
+> user-manual section is still to write — "What Fichero is doing": the Activity window; why work runs by itself when you add
 > or correct something; pausing everything, or one job; what happens when you quit, sleep or crash
 > (nothing is lost, nothing is done twice); what a job cost; taking a job's work back.
 > Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 2.
 
-> Design-led (Testing Constitution). **Status: DRAFT, 2026-10-01 — design review, awaiting the
-> maintainer.** Written read-only against the integration tree. Claims about the code are
-> **VERIFIED** (file and line read), or **INFERRED** (follows from what was read, not run). Nothing
-> was run.
+> Design-led (Testing Constitution). **Status: APPROVED 2026-10-27 by the maintainer** (first
+> drafted 2026-10-01; revised by the run-system review of 2026-10-27, read-only against
+> origin/integration 864293bd3, report `agent-work/status/briefs/run-system-review-2026-10-27.md`;
+> the rulings of 2026-10-27 are written into the lines they touch: in use slows to half the cores, the
+> pages-at-once gate is sized from the machine after #5929, cloud by default per step, the embedder stays
+> on its own lane, milestones stay, redo, trashed pages and cost per step approved).
+> Claims about the code are **VERIFIED** (file and line read), or **INFERRED** (follows from what was
+> read, not run). Nothing was run.
 >
 > This spec owns the one place for all background work, a question `ui/workflows.md`,
 > `ui/automation.md`, `compute/jobs-and-fine-tuning.md` and `source/models-chains-and-projects.md`
 > each touch but none owns; it cites them rather than restating them. It absorbed `ui/activity.md`
 > on 2026-10-04 (the maintainer's ruling): that spec's behaviours are section I here, with their
 > ids unchanged, and that file is gone.
+>
+> **Boundary (2026-10-27).** Three specs describe how work runs, and each owns one thing:
+> - this spec owns the **job model, the lanes and throttle, the window, durability and automatic
+>   work**: what every kind of work shares;
+> - `source/recipes-run.md` (APPROVED 2026-10-26) owns the **recipe run's journey and reliability**
+>   from Start to the summary: resume after a crash, the pages-at-once gate shown on the row, memory
+>   ceilings, search once at the end, per-step timings, dead claims requeued;
+> - `ui/workflows.md` owns the **workflow editor, the bar and the run log**.
+>
+> Where a behaviour is both, one spec owns the line and the other cites the id; nothing is said
+> twice. The lines this spec now defers to recipes-run: the crash half of
+> `activity.durable.lease-not-fail` and `activity.stale-runs-settle-across-restarts` →
+> `recipes-run.journey.resume-after-crash`; the pages-at-once figure and its words →
+> `recipes-run.memory.pages-at-once-bounded`, `recipes-run.memory.gate-shown`; thumbnail claims a
+> dead process left → `recipes-run.restart.requeues-unfinished` (this spec keeps the file-exists half,
+> `activity.lane.no-wait-on-a-job-that-will-not-run`); lanes freed after a restart →
+> `recipes-run.restart.releases-lanes`; search and names once at the end →
+> `recipes-run.order.search-entities-once-at-the-end` (this spec keeps its two halves,
+> `activity.lane.embed-after-reading` and `activity.run.stages-before-search-do-not-embed`); the
+> engine answering under a run → `recipes-run.engine.answers-while-a-run-goes` (this spec keeps the
+> summary's half, `activity.summary.off-the-loop`, and `engine.loop-never-blocked-by-db`); per-step
+> timings → `recipes-run.timing.per-step-recorded`. The lines recipes-run cites as this spec's stay
+> here: `activity.throttle.hold-when-swapping`, `activity.lane.small-mac-one-heavy-model`,
+> `activity.recipe-run.stop-reaches-its-step`, `activity.recipe-run.pause-reaches-its-step`,
+> `activity.run.quit-pauses`, `activity.durable.dies-with-the-engine`.
 >
 > Tags: **[OK]** built and pinned · **[PARTIAL]** exists, partly wired or unpinned · **[BROKEN]**
 > code contradicts the intent · **[GAP]** not built. `#ISSUE_<name>` marks an issue to file.
@@ -118,6 +148,46 @@ window, ruled 2026-10-19") and the details view; where one of them replaces an o
 Issues: #5839 (order and rows), #5850 (logs), #5851 (layout: background and History groups), #5852 (one summary for the
 popover and the window), #5853 (Stop and Retry; Stop is the bugs lane's entry). Already in flight with the bugs lane, not re-specified here: Stop on a
 page or a run, Retry within a run, the embed after reading, one live run per project.
+
+### Reviewed 2026-10-27 (the run system, verified against origin/integration 864293bd3)
+
+The one job model is real for everything that touches a model, with four forks. Paths are relative to
+`fichero-server/src/fichero_server/`.
+
+| Work | A row? | Lane (width) | Gate and throttle | Not done twice | Where |
+|---|---|---|---|---|---|
+| Recipe run | yes, `run-a-recipe` | `recipes` (1) | its steps' pages take the lanes below; Pause parks between steps | `source.recipe.done-is-not-redone` | `recipes/runner.py:1818`, `_run_batch_steps` `:1444` |
+| Workflow run (by hand, the bar, a batch, a chain, a schedule, a trigger) | yes, `workflow`, mirrored from the run record | **none of its own**: it runs on the engine's loop | only the slots its pages take (#4740) | the node cache: text steps keyed on the text, image readers on the file (`workflows/cache.py:78`) | `execution/jobs.py:456-475`, `execution/runner.py:129` |
+| Kraken page (`find-regions`, `find-lines`, `read-a-line`) | yes | `local-ml` (1 heavy model) | pages at once (gated at 2 until #5929 is fixed, then sized from the machine, #5931, `activity.lane.pages-at-once-sized-from-the-machine`), 1.5 GB a page, `throttle.decide`; pages at once and threads a page from the fit record (`activity.lane.fit-learned-from-runs`, proposed 2026-10-27) | the step skips done pages | `llm/kraken_runtime.py:875-906, 1020-1035` |
+| Served model page or text call (MLX, Ollama, a cloud model) | yes, `read-a-page` / `ask-a-model` | `local-ml` on this Mac, else `network` (4) | one served model; reads follow memory; idle stop 600 s | the node cache | `llm/__init__.py:1636-1646` |
+| spaCy at import and after a correction | yes, `nlp-draft`, `read-names-again` | `embed` (1) | spaCy's turn lock, people first | `nlp_text_sha` | `importers/derivatives.py:1207`, `actions/page_text_cache.py:516` |
+| spaCy inside a workflow step (the Names step) | **no row** | none: the run's own thread | `_spacy_lock` only | the node cache | `workflows/tools/entities.py:35`, `knowledge/spacy_ner.py:231` |
+| Embed for search | yes, `embed` | `embed` (1), a child process | waits for the reading; memory, battery, heat | once per text version | `importers/derivatives.py:1200` |
+| Thumbnails | yes | `images` (2) | first; a job stuck 60 s loses its slot | the file exists → done | `importers/derivatives.py:1195` |
+| Reading on Hugging Face or a cluster | yes, `read-at-scale` | `remote` (2) | the far side's state; one kind for both targets; a cluster's key is not built (#5238) | shards recorded | `remote_read/job.py:30, 147-184, 477` |
+| Training on this Mac (Kraken) | yes, `train-on-this-mac` | `local-ml` (`kraken:train`) | utility QoS; holds at every batch; resumes from `last.ckpt` | the checkpoint | `training/local.py:46, 233, 282` |
+| Training on Hugging Face or a cluster (Kraken, vision LoRA) | yes, `train-a-model` | `remote` | the far side's state; never retried in place | — | `training/job.py:48, 415` |
+| A model download | yes, `download-model` | `network` | — | cached files | `llm/local_models.py:794` |
+| Reindex, repair, metrics | yes | `database` (1) or `embed` | — | — | `workflows/task_workers.py:612` |
+
+**The four forks.** (1) A workflow run's state lives in three places: the runner's in-memory
+`_running_workflows` (`execution/runner.py:129`), the run record (`workflow_runs`), and the `jobs` row
+that mirrors it (`_RUN_STATES`, `execution/jobs.py:473`); Pause and Stop have a job route and a run
+route each (`activity.pause.one-start-stop`). (2) A recipe run's status is its own
+(`recipes/runner.py:1739` `status`) plus the run account; Activity's list reads both
+(`activity.run.row-matches-details`). (3) A workflow run has no lane; a recipe run has one. (4) spaCy
+in a step is not a row (`activity.every-worker-is-a-row`). None of the four needs a new system; each
+is a line below with its issue.
+
+**The slow-downs, as built** (`execution/throttle.py`): in use = any input in the last 30 s
+(`IDLE_BEFORE_HEAVY_SECONDS`); a build = `pgrep xcodebuild|swift-build|swift-frontend|clang`, read
+every 10 s; battery or Low Power Mode; memory = free under the model's need (Kraken 2.5 GB), pressure
+critical, or pressure warn with 64 MB paged in the last minute; heat = thermal state serious (2 of 0–3).
+Memory and heat hold everything; battery holds background work and slows a person's; in use and a
+build never hold, they slow background work to the lowest class (`decide`, `throttle.py:540`), which
+for Kraken is half the performance cores (`compute_preferences.apply_to_this_thread`, since #6229; was a
+quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling. What is left is
+`activity.throttle.in-use-slows-to-half` (#6230) and `activity.lane.cores-are-used` (#6229).
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -529,7 +599,7 @@ workflow by hand: a hand run is a job like any other.
   the person's own Stop "Stopped by you"; through the MCP server or the command line "Stopped by you, through an
   agent (MCP)" or "… the command line"; another account by its name (`jobs.note_stopper`, `jobs.stopped_by`;
   `fichero-server/tests/unit/jobs/test_a_stopped_run_says_who_stopped_it.py`).
-- `activity.recipe-run.stopped-by-unknown-says-stopped` — **[BROKEN]** (#6005) a system stop with no known stopper (stopped_by defaults to 'you') reads "Stopped by you" today; it should read "Stopped". Nothing is built for this. Intended test (to write): `fichero-server/tests/unit/jobs/test_a_stopped_run_says_who_stopped_it.py` (a new case: a system stop with no known stopper says Stopped).
+- `activity.recipe-run.stopped-by-unknown-says-stopped` — **[OK]** (#6005) a system stop with no known stopper reads "Stopped", never "Stopped by you"; the person's own Stop still reads "Stopped by you". Built: `jobs.note_stopper` records the engine's own stop (the action's actor "system", no client) as nobody, and `jobs.stopped_by` then says "Stopped". The engine's own stops name nobody too: `jobs.stop_everything` (a restore, a bulk Undo) keeps a stop someone already asked for, else "Stopped"; a run's step stopped because its run was (`runner.request_cancel`, `runner._stop_child_if_asked`) names whoever stopped the run (`jobs.pass_stopper`). Tests: `fichero-server/tests/unit/jobs/test_a_stopped_run_says_who_stopped_it.py::test_a_system_stop_with_no_known_stopper_says_stopped_6005`, `::test_a_restores_stop_of_every_job_names_nobody_6005`, `::test_a_runs_step_stopped_with_its_waiting_run_says_who_stopped_the_run_6005`, `::test_a_running_runs_step_stopped_at_its_next_look_says_who_stopped_the_run_6005`.
 - `activity.recipe-run.pause-reaches-its-step` — **[GAP]** (#5933, Fable runner review 2 HIGH 2; found 2026-10-20) Pause on a recipe run's row did nothing (the kind had no pause, so the call answered `running` and nothing happened), and a step's run paused through its own Pause read as FAILED: the recipe said "the engine stopped while this was running; try it again", carried on to the next step and batch with those pages unread, and ended "Done with failures". Rule: Pause on a running recipe row asks the recipe to pause (it waits at its next step) and pauses the step's run in flight, and says so on the row ("Pausing at its next step"); Resume on that row lets the recipe go on and resumes the step's run from its checkpoint. A step whose run is paused (by the recipe's Pause, or by a person on that run's own row) is WAITING, never failed and never moved on from, and it does not hold the lane while it waits (the recipes lane is one wide, so a sleeping recipe would block every other one; ## 656): the recipe PARKS, going back to waiting with "Paused with its run" and leaving the lane, and is taken up again (looking every few seconds while the run stays paused) when the run is resumed, at the step it parked on, adopting that run instead of starting another so nothing is read twice. Resume on the recipe row clears its pause, takes it up at once and resumes the run in the background (the call answers at once; a resume that fails is said on the row). Resume on a parked recipe whose awaited run a person paused resumes that run too (## 660). If only the run's JOB ROW is gone but the run's own state is not, the recipe keeps waiting on that run and adopts its outcome when retaken (nothing is read twice; ## 666). If that run's row is gone with its state, Resume says so on the row ("Its step run is gone; the recipe starts that step again") and the recipe starts the step again; it never answers 500 (## 663). The recipe's Pause between steps says "Paused between steps", not "Paused with its run". A failed resume is said through the store's own connection, not the request's (the callback runs on another thread). A Stop on a parked recipe ends it now and stops that run too. The same holds for a step that joined another live run which then pauses (`_join_live_run`). A Pause during a sub-workflow's fan-out is kept as `activity.durable.paused-stays-paused` says: the pages of a CHILD run are counted under the top run, so the runner does not cut them mid-read either (## 652). A model call's slot row whose body is ended by its run's Pause or Stop ends `cancelled` ("Paused with its run" / "Stopped by you"), never `failed` with the pause's words; Resume makes a new row for the call, the cancelled one stays as the record (#5936; `fichero-server/tests/unit/jobs/test_a_paused_call_is_not_a_failed_slot_5936.py`). Tests: `fichero-server/tests/unit/recipes/test_recipe_pause_5933.py` (not yet run).
 - `activity.job-tree-to-a-depth` — **[OK]** (#5605) `GET /api/activity/jobs/{id}?depth=N` returns the job
   and N levels under it (`depth=1`: a run and its steps); each row it cuts keeps its rolled-up counts and
@@ -1371,6 +1441,8 @@ and node, not by job); a retry action for failed pages.
   Kraken: its line finder and reader stay resident (`llm/kraken_runtime.py` `_resident`), and the
   lane runs a folder's pages for one reader together (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: batching, and
   the other runtimes.
+- `activity.lane.kraken-stays-while-a-run-has-pages` — **[OK]** (#6178; `fichero-server/tests/unit/llm/test_kraken_stays_resident_while_a_run_has_pages_6178.py`) the idle release (120 s without a page) never lets go of Kraken's reader while a Kraken run still has pages in flight or waiting at its gate: a slow page is not an idle spell; the timer looks again later. Ann's engine reloaded Kraken 23 times in a day.
+- `activity.file-time-is-the-files-own` — **[OK]** (#6178; `fichero-server/tests/unit/activity/test_file_time_is_per_file.py`) a file's time in the log and the run record counts from when it got its slot (the `file_running` event, sent inside the concurrency slot), not from when the fan-out started: every file of a fan-out starts at once, so the old time was the run's cumulative one (6,541,168 ms for "one file"). A file with no slot event falls back to its start.
 - `activity.lane.group-by-model` — **[PARTIAL]** (#5358) the local ML lane runs ready work grouped by the model it
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
@@ -1406,7 +1478,9 @@ and node, not by job); a retry action for failed pages.
   finder and the reader. Only battery, memory and heat hold the lane, as they hold the model lane; a build or the person
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
-  an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
+  an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background). Ruled
+  2026-10-27 (decision 3 of the run-system review): the embedder stays here, on its own lane; the ask to put it
+  through the model lane (#6176) is closed as superseded by this line.
 - `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (#5863) (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
   own lane and they run at once: Kraken on the CPU, Apple Vision on the Neural Engine, MLX on the GPU, hosted readers on the
   network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
@@ -1501,11 +1575,8 @@ and node, not by job); a retry action for failed pages.
   engine life only. While the hold lasts the record is rewritten every 2 s (seconds and the frame the loop is in now). Only a stall the engine DIED in survives: the watcher deletes the file when the loop answers again and on a clean stop. A corrupt, path-bearing or missing file is ignored (logged). Pinned by
   `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). NOT built: the app saying it in the restart
   sentence (Swift, HELD).
-  `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). App half built, needs compile (Swift, HELD): `AppState.restartSentence(previousStall:)` appends "The last time it got stuck was <N>s in <module:function>." and the health read keeps `dependencies['previous_stall']` (the generated client's existing map, no regen) in `ConnectionPresentation.lastPreviousStall`; pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift`. LIMIT: the engine reports a stall only in the life AFTER it, so the sentence for the restart in progress cannot carry it (that engine is down); it is added to the NEXT restart sentence and logged when read. FINDING (2026-10-20, from the code): the restart sentence is the `.unreachable` detail (`ConnectionPresentation.failureDetail`, shown by the toolbar popover and the library pane's engine-failure state). The supervised auto-restart sets the phase to `.starting` (the booting splash, no failure detail) BEFORE it respawns the engine (`EngineLifecycleController.handleSupervisedBackendDropped`), and the heartbeat clears the sentence when the new engine answers; the spawn wait's proven-readiness path skips the health read altogether. So in the auto-restart path the sentence is gone before the new engine's first health exists, and the previous stall cannot be added to a notice still showing. It is logged (a warning, when the health read has it) and kept for the NEXT restart sentence. Showing it to the person once would need a place of its own (decision with the lead, no new UI by ruling).
-  `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). App half built, needs compile (Swift, HELD): `AppState.restartSentence(previousStall:)` appends "The last time it got stuck was <N>s in <module:function>." and the health read keeps `dependencies['previous_stall']` (the generated client's existing map, no regen) in `ConnectionPresentation.lastPreviousStall`; pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift`. LIMIT: the engine reports a stall only in the life AFTER it, so the sentence for the restart in progress cannot carry it (that engine is down); it is added to the NEXT restart sentence and logged when read. It is said once: the sentence takes the kept stall and clears it (`AppState.takeRestartSentence`), so a later restart without a new stall says nothing about it (`stallIsSaidOnce`). FINDING (2026-10-20, from the code): the restart sentence is the `.unreachable` detail (`ConnectionPresentation.failureDetail`, shown by the toolbar popover and the library pane's engine-failure state). The supervised auto-restart sets the phase to `.starting` (the booting splash, no failure detail) BEFORE it respawns the engine (`EngineLifecycleController.handleSupervisedBackendDropped`), and the heartbeat clears the sentence when the new engine answers; the spawn wait's proven-readiness path skips the health read altogether. So in the auto-restart path the sentence is gone before the new engine's first health exists, and the previous stall cannot be added to a notice still showing. It is logged (a warning, when the health read has it) and kept for the NEXT restart sentence. Showing it to the person once would need a place of its own (decision with the lead, no new UI by ruling).
   `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). App half built, needs compile (Swift, HELD): `AppState.restartSentence(previousStall:)` appends "The last time it got stuck was <N>s in <module:function>." and the health read keeps `dependencies['previous_stall']` (the generated client's existing map, no regen) in `ConnectionPresentation.lastPreviousStall`; pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift`. LIMIT: the engine reports a stall only in the life AFTER it, so the sentence for the restart in progress cannot carry it (that engine is down); it is added to the NEXT restart sentence and logged when read. It is said once: the sentence takes the kept stall and clears it (`AppState.takeRestartSentence`), so a later restart without a new stall says nothing about it (`stallIsSaidOnce`). RULED (2026-10-20, the lead): that is all. The restart sentence is the `.unreachable` detail (`ConnectionPresentation.failureDetail`), and the supervised auto-restart shows the booting splash (`.starting`) before it respawns the engine, so the sentence is gone before the new engine's first health exists; the previous stall therefore is NOT added to a notice on screen and no new UI is built for it. What the app does: when it reads `dependencies['previous_stall']` it writes one warning to the log, keeps the stall, and adds it to the NEXT restart sentence, once; the sentence takes it and clears it, so a later restart without a new stall says nothing about it.
 - `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (#5860; Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
-  `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). App half built, needs compile (Swift, HELD): `AppState.restartSentence(previousStall:)` appends "The last time it got stuck was <N>s in <module:function>." and the health read keeps `dependencies['previous_stall']` (the generated client's existing map, no regen) in `ConnectionPresentation.lastPreviousStall`; pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift`. LIMIT: the engine reports a stall only in the life AFTER it, so the sentence for the restart in progress cannot carry it (that engine is down); it is added to the NEXT restart sentence and logged when read. Whether the person should see it once the new engine is up (a line in Activity, once) is put to the lead.
   event loop. Already so on the chain head: the app-DB flag reads are cached (`is_paused`, `is_started`, the settings), auth waits off the
   loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Route guard (#5860): `fichero-server/tests/unit/api/test_activity_jobs_off_the_loop_5860.py` (unrun on the Pro, M4): no database or queue call is made straight in the async route, and each named read goes through `to_thread`. Added: the per-row reads (`name_and_pages`,
   `_remote_row`), the process-tree walk (`ps`) and the machine readings run on threads too, and a battery reading taken on an event loop
@@ -1530,6 +1601,7 @@ and node, not by job); a retry action for failed pages.
 - `activity.run.row-matches-details` — **[PARTIAL]** (#6125; owner 2026-10-25, Test 17; engine tested, app unchanged) A recipe run's row in the Activity window shows the numbers its Details show for the stage working now: while a workflow stage runs, the row reads that stage's pages done and in all (Read running 20 of 20 reads "20 of 20", never "0 of 23" while Find Lines is done and Read is working), and the one-count-per-page rule above applies when no stage is running (between stages, or a finished run). A workflow a recipe runs for one of its stages (Transcribe HTR for Read) is part of the recipe's row, not a second top-level row: a workflow run whose job is under the recipe run, or that its status names as a stage's run, is left out of the list (`activity._recipe_progress`, `_run_ids_under`; `test_recipe_row_counts_each_page_once_5871.py`). The row names the stage in words with its pages through its reason ("Read each line: 20 of 20 pages", #5685, #6091): while a run runs and nothing waits, the row's reason is the status's (`run_view.with_accounts`), not the stored "Running step 2 of 5" (`activity._recipe_state`; `test_a_running_recipe_row_names_its_stage_and_pages_6125`). *Not reproduced on the owner's run: why the stage's account was missing from the row's status while Details had it; the ownership is now taken from the job tree as well as the status.*
 - `activity.up-next.follow-on-work-is-folded-into-a-live-run` — **[PARTIAL]** (#6126; owner 2026-10-25, Test 17; engine tested) The work a recipe run causes for its own pages (embedding for search, tying text to lines, the NLP draft, the import's derivative queue) is the run's: while ANY recipe run is going (running or paused; one still queued has caused nothing yet; the filter is by kind, not by which run's pages; a page's own owner is not looked up) it is not a top-level Up Next row (they read as if they ran before or beside Read and duplicated the recipe's own Search stage); the run's row and its Details show it under the stage it belongs to. With no recipe going, each waits as its own row and says what it waits for. One owner embeds a page: the Search stage's embed job leaves a page already embedded from its current text alone (`runtime.embed.once-per-text-version`, #5954), so the stage and the background embed never embed a page twice (`activity._FOLLOW_ON_KINDS`; `test_activity_summary_one_source.py`). *Not built: keying the fold to the run's own pages (an import running beside a recipe on other pages folds too); the import's derivative row naming its trigger ("Thumbnails for the 20 pages you added"); the Background group still lists these kinds' totals.*
 - `activity.run.stages-before-search-do-not-embed` — **[PARTIAL]** (#6126; owner 2026-10-25, restated) While a recipe run is going, a page it covers that Search has not yet embedded is not queued for its own embed by the stages before Search (the workflow save's tail embed, `derivatives.queue_embedding`): Search embeds each page once, from its text at that point. A page outside the run (a separate workflow on other pages, an import) still embeds at once, a page Search has embedded embeds again at once when a later stage changes its text, and a person's correction still re-embeds at once. A run that ends before Search reached a page (stopped, failed, interrupted) queues the embeds of the pages whose own embed it had left to Search (a pause ends the run's turn too, so it queues them early; the embed job is idempotent, Search then finds them embedded), so a skipped embed is deferred, never dropped (`runner.start_search_watch`, `leave_embed_to_search`, `search_embedded`, `end_search_watch`; `test_stages_before_search_do_not_queue_embeds_6126.py`). *Ceiling:* the watch is in memory, so a run cut off by the engine dying loses its list and those pages wait for their next text change to embed. *Not built:* the import's derivative row naming its trigger ("Thumbnails for the 20 pages you added"); the Background group still lists these kinds' totals.
+- `engine.run-account-reads-off-the-loop` — **[PARTIAL]** (#6176, #6178; Opus review 2026-10-26) a run's account (`workflows/run_account.run_account`, behind the Activity list and every run's Details) reads the project's rows (what a page waits for, the failed pages' titles) on a worker thread, never on the event loop: a writer holding the transaction gate stalled the loop for up to 17 s, `/api/health` answered late, and the app restarted the engine. *Test:* `fichero-server/tests/unit/workflows/test_run_account_reads_off_the_event_loop_6176.py`. *Not built:* the other sync reads the review names on the polls (`_start_plan` -> `_folders_covering` on its direct callers), and a measured health answer under a 10 s writer.
 - `activity.run.step-honest-about-lost-pages` — **[PARTIAL]** (#5758) (engine written, test `fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py` not yet run on the M4; the Swift stage card knows `partial`: state, words and bar label, `ActivityStateWordsTests`) a recipe step that loses pages is never `done`: it ends `partial` with `why` ("2 of 5 pages done; 3 failed: IMG_001: Kraken could not read its lines; ...") and `failed_pages` (each page with its reason); a later clean batch does not wipe it, a failed batch outranks it, a later step may use what it gave, Retry offers it again. The Activity stage card draws `partial` as not complete with that sentence (GAP: Swift).
 - `activity.runner.killed-batch-not-a-page` — **[OK]** (#5865) reopening a project does not word a killed batch's row like a page: it reads "The engine stopped before this batch finished"; runs are settled by `mark_interrupted_runs`. Test: `fichero-server/tests/unit/jobs/test_fable_runner_p2.py::test_resume_does_not_word_a_batch_row_like_a_page` (Pro single file, 2026-10-21, r1-steps-c15).
 - `activity.runner.stuck-row-ends-on-current-connection` — **[OK]** (#5866) a row stuck running after the connection is replaced ends on the connection the project has now. Test: `fichero-server/tests/unit/jobs/test_fable_runner_p2.py::test_a_job_ends_on_the_connection_the_project_has_now_not_only_the_one_it_started_on` (Pro single file, 2026-10-21, r1-steps-c15).
@@ -1589,8 +1661,77 @@ and node, not by job); a retry action for failed pages.
   process-wide, the last two summed over its child processes (`process_tree_rusage`), the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
   ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
-- `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
-  step can run at the same time when memory allows; two steps on the same processor do not.
+- `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370; ruled 2026-10-27) a CPU-bound step and a GPU-bound
+  step can run at the same time when memory allows; two steps on the same processor do not. A GPU step (MLX)
+  has its own pages-at-once budget from GPU memory and a CPU step (Kraken) its own from the performance cores
+  and free memory (`activity.lane.pages-at-once-sized-from-the-machine`), so the two run side by side; neither
+  budget borrows from the other. The sum is bounded by one memory rule (#6000): free memory less Kraken's need, the served weights, the CPU pages at their measured peak and the GPU reads at their margin stays above the reserve; on a 16 GB Mac or less one heavy model at a time, so side by side is only above 16 GB, and only once measured: the M4's line-finder knee at two is a shared-hardware limit, and a GPU model beside it draws on the same unified memory, so each may slow the other (unmeasured; `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M4; proposed 2026-10-27, awaiting the maintainer).
+- `activity.lane.cores-are-used` — **[PARTIAL]** (#6229; run-system review 2026-10-27, read from the code) a
+  Kraken page uses the Mac's performance cores: the threads a page gets are the performance cores divided by the
+  pages at once, whatever its priority, and the run's grey line says it ("2 pages at once, 2 threads each").
+  Today (`core/compute_preferences.py` `apply_to_this_thread`): a person's run gets every performance core
+  (`fast`); an automatic run gets half of them while the Mac is idle (`balanced`, the default setting) and a
+  QUARTER, never below one thread, while the Mac is used or a build runs (`background`, lifted to utility QoS);
+  then `kraken_runtime.py` ~1022 splits that by the pages inside the gate. On a 4-core Mac an automatic run reads
+  one page on one or two threads, and only the run's log says so (`Threads: …`). Built (#6229): `background` gives
+  half the performance cores, as `balanced` does, at its own QoS class; a 4-core Mac's automatic page reads on two
+  threads. Left: the run's grey line naming pages at once and threads each (`recipes-run.memory.threads-fill-the-cores`). Priority is to change the QoS
+  class, not the thread count below half the cores. Measure: `fichero-server/scripts/bench_priority_qos.py` and
+  the per-page log line (`kraken page …: total … | priority= qos= threads=`). *Test (to write):*
+  `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py` (a case: the threads of an
+  automatic page on a 4-core Mac are two, not one).
+- `activity.lane.pages-at-once-sized-from-the-machine` — **[GAP]** (#5931, after #5929; ruled 2026-10-27, replacing the
+  report's decision 2; reworded 2026-10-27 by the compute-per-engine review, `agent-work/status/briefs/compute-per-engine-2026-10-27.md`,
+  awaiting the maintainer) how many pages a step reads at once (N), and how many threads each gets (T), is the measured
+  best for this machine, this step kind and this model, never a formula from the core count alone: the fit record
+  (`activity.lane.fit-learned-from-runs`) holds the N and T that gave the most pages a minute and, among those within 5%
+  of the fastest, the fewest cores (N × T). The core count is a ceiling, not the answer: on the M4 Air the line finder
+  plateaus at two pages at once in processes and in threads alike (`briefs/gil-proof-result-2026-10-20.md`), a shared
+  hardware limit, so more pages only burn CPU. Until a fit is measured the prior is per engine: Kraken's line finder
+  N = 2, T = 1; Kraken's reader N = 1 and T = the performance cores (recognise scales with torch threads, segmenting
+  does not); an MLX reader one model with `reads_at_once_for` sequences on the GPU; spaCy and the embedder one call at
+  a time. The machine still bounds it: N × T never exceeds the performance cores (`cores_available`), N never exceeds
+  what free memory holds at a page's measured peak (`page_fan_out`), and a GPU step's budget is its own
+  (`activity.lane.overlap-different-processors`). The in-use rule applies on top (half the performance cores while the
+  Mac is used, `activity.throttle.in-use-slows-to-half`), as do the memory, battery and heat holds; the run's grey line
+  says the numbers and where they came from (`activity.lane.cores-are-used`: "4 pages at once, 1 thread each; fastest
+  measured on this Mac"). A cluster job or a container has no fit record: one page pipeline a task with the cores it
+  was given, its parallelism array tasks (`source.read.threads-fit-the-machine`). Order: the exit-time crash is fixed
+  first (`activity.lane.kraken-threads-exit-clean`, #5929), and only then is the fixed 2
+  (`kraken_runtime.PAGES_AT_ONCE_GATE_5929`) lifted; the gate's code line is `source.read.pages-at-once-scales` in
+  `source/recipes-run.md`, which this ruling sizes. *Test (to write):*
+  `fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py` (a faked 12-core, 32 GB Mac with a
+  stored fit of 4 × 2 reads four at once; with no fit it reads the engine's prior; a faked 4-core, 8 GB Mac reads one;
+  in use halves the cores first; a GPU step's budget is untouched by the CPU step's).
+- `activity.lane.kraken-threads-exit-clean` — **[BROKEN]** (#5929; run-system review 2026-10-27; the cause read
+  2026-10-27 from `ai/local-runtimes.md` `runtime.torch.exits-cleanly` and the M4 crash reports; wording awaiting the
+  maintainer) the engine, and every process it starts that loads Kraken, exits clean (rc 0) after reading pages on
+  threads. The rc=139 and rc=134 exits are NOT a thread fault: all 25 M4 crash reports fault on the main thread in
+  torch's static destructor (`MetalShaderLibrary::~MetalShaderLibrary` from `exit()`), after every row had printed,
+  and the isolated trigger is Kraken's model load through vgsl and coremltools, on the CPU as on MPS. The GEOS
+  TopologyException lines before it are warnings about degenerate line polygons during the run, not the crash; shapely
+  calls GEOS through its reentrant API with a context per thread. `gil_proof.py procs` "never crashed" because its
+  parent never imports torch and it joins its children without reading their exit codes, so their exits were not seen.
+  Built: the engine leaves by `fichero-server/src/fichero_server/core/fast_exit.py` `leave` (every DuckDB checkpointed
+  and closed, then `os._exit`), green on the M4 at `bf3d1a721`; the Kraken scripts leave the same way
+  (`gil_proof.py`, `bench_reading.py`, `bench_same_model_pages.py`, `ab_kraken_cloud.py`). No engine subprocess
+  loads Kraken's model (training runs in the engine's process; Kraken's line-extraction children load none), so
+  none needs it. Owed: one engine run at N=4, clean mid-run, which is what lifts the gate (on this Mac: the owner
+  ruled 2026-10-27 that the M4 is not used). *Tests:*
+  `fichero-server/tests/unit/llm/test_torch_exit_5929.py` (M4; `mps-kraken-blla-left-by-the-engines-exit` is the fix),
+  `fichero-server/tests/unit/core/test_fast_exit_5929.py`, and
+  `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that loads the segmenter, reads
+  two faked pages on threads and leaves by `fast_exit` exits 0; on the Pro the bare exit is 0 too, so it pins the way
+  out, not the abort).
+- `activity.throttle.in-use-slows-to-half` — **[PARTIAL]** (#6230; ruled 2026-10-27: half the performance cores, not a
+  quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
+  in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
+  slows to HALF the performance cores at utility QoS, never to one thread and never to the background class;
+  the holds (battery, memory, heat) stay as they are, and Pause All stays the way to have the Mac to oneself.
+  Today "slow" is the lowest class (`throttle.decide`, `throttle.py:540`), a quarter of the cores for Kraken,
+  measured about 18x slower at the background class (#4959); a person reading pages beside a recipe keeps the
+  Mac in use for the whole sitting. Built (#6229): the threads are half the cores, never a quarter (an import's
+  automatic Kraken at utility QoS). Left: other automatic work in use still drops to the background class. *Test (if ruled so):* `fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`.
 - `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
   time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
   page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after
@@ -1613,7 +1754,7 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/jobs/test_person_started_work_goes_first_5820.py`).
 - `activity.throttle.try-ahead-of-bulk` — **[OK]** (#5839) a person's stage try is watched, and so are the model-lane rows its steps hand in (`jobs.person_is_waiting()`: its Kraken pages were `started_by` "workflow", equal to the bulk recipe run's, so they queued behind it in creation order). The pick order is three-ranked: watched, then a person's started work, then background, each oldest first; the waiting rows in Activity are listed in that rank, then oldest first (a library's share, the attached-first rule and the loaded model, which the lane also weighs, aside), not by creation. While a try's page waits for the lane the try's own row says "Waiting: <the page's reason>" and is listed as waiting, reading running only once the page starts (`jobs.person_is_waiting(db, job_id)`). A job already running is never preempted. Pinned by `test_person_started_work_goes_first_5820.py`.
 - `activity.window.waiting-looks-waiting` — **[PARTIAL]** (#5839) **Built 2026-10-19 (app), not yet seen:** a row that has not started looks it: a grey clock and grey "Waiting: <reason>", no progress count and no ticking timer (`ActivityMonitorRow.looksWaiting`: the engine lists the row as waiting; a running job that waits for the lane, Kraken or memory is listed so by its `waiting_on`, set when the wait starts and cleared when it ends, never by the words of its reason). The table's default order is running work first, then waiting work in the engine's list order, which is the lane's pick order (`activity.throttle.try-ahead-of-bulk`), then the rest newest first. Pinned by `ActivityWaitingLooksWaitingTests`.
-- `activity.lane.no-wait-on-a-job-that-will-not-run` — **[OK]** (#5845) heavy work queued after thumbnails waits for them (`activity.lane.thumbnails-first`), so a thumbnail job that will never run must not hold it: on opening a project every thumbnail job waiting or set aside whose thumbnail file already exists ends `done` (`settle_made_thumbnails`), and Stop on a failed or set-aside job ends it `cancelled` (Delete and Stop work on it; a cancelled job offers nothing, `test_a_cancelled_set_aside_job_offers_nothing`). A restart is all it needs. The false "queue stalled" alarm is #5807. `test_stuck_thumbnail_waiters_5845.py`.
+- `activity.lane.no-wait-on-a-job-that-will-not-run` — **[PARTIAL]** (#5845, #6203) heavy work queued after thumbnails waits for them (`activity.lane.thumbnails-first`), so a thumbnail job that will never run must not hold it: on opening a project every thumbnail job waiting or set aside whose thumbnail file already exists ends `done` (`settle_made_thumbnails`), and Stop on a failed or set-aside job ends it `cancelled` (Delete and Stop work on it; a cancelled job offers nothing, `test_a_cancelled_set_aside_job_offers_nothing`). A restart is all it needs. The false "queue stalled" alarm is #5807. `test_stuck_thumbnail_waiters_5845.py`. **PARTIAL (#6203):** a thumbnail job left `running` that no lane thread of this engine runs (a worker that died or hung) no longer holds the gate: the lane scan sets it back to `waiting` after 60 s (`requeue_orphaned_first`; on open `resume` already did). `test_thumbnail_claims_requeued_6203.py`. NOT covered, not reproduced from code: a lane thread that is itself stuck (blocked in the database) still holds its slot and the gate behind it; a lane held for another project ("work in another project is running") is not released; a project release refused for a workflow run whose threads are all terminal; pages with no thumbnail file and no job are not re-queued.
 - `activity.lane.one-model-hold-holds-handed-in-pages` — **[BROKEN]** (#5934) (distinct from activity.lane.one-model-at-a-time: this is the hold for pages a run hands in) The one-model hold holds a page a run hands in, so two background runs on different heavy models do not swap per page. Test: (not yet written: a test citing #5934).
 - `activity.window.one-row-per-kind` — **[OK]** (#5839) Activity lists ONE row per kind of queued work per project (a recipe run and a try keep a row each), with the whole queue's total and what is done of it ("Make thumbnails: 12 of 41", `done` since its oldest queued job was queued); the row reads Running only while a job of the kind is really going (not waiting on the lane, Kraken or memory), else Waiting. `test_person_started_work_goes_first_5820.py`.
 - `activity.window.queue-summary` — **[PARTIAL]** (#5839) **Built 2026-10-19 (engine; the app's line waits on the route regen):** `GET /api/activity/jobs` carries `summary`: what is done, what is left across every kind's row, and about how long is left, from each kind's measured median time per item (its latest 50 finished); the time is absent when nothing queued has been measured, never guessed. `activity.window.expands-to-pages`: `GET /api/activity/jobs/kind/{kind}/items` lists a row's queued jobs in the order the lane picks them, running first, paged. `test_queue_summary_and_items_5839.py`.
@@ -1823,6 +1964,38 @@ and node, not by job); a retry action for failed pages.
   to add later.
 - `activity.derived.recompute-is-one-step` — **[GAP]** (→ #5245) a recompute's swap is one recorded
   step with its run id and can be taken back.
+- `activity.redo.one-way-per-step` — **[GAP]** (#6231; run-system review 2026-10-27, approved 2026-10-27) one control redoes a recipe
+  step on pages already done: Redo this step on Set Up's stage page and on the run's stage row, which is
+  `runner.enqueue(redo=[step])` on the project or the folder (built in the engine, `recipes/runner.py:128-136`,
+  `_asked_again` `:1325`; its only caller is `scripts/realrun_check.py --redo`; no route, no app control); the row
+  says it runs on done pages and why. What redoes by itself on a change stays as built: the re-embed and the
+  names re-read after a correction (`activity.auto.reembed-on-change`, `activity.auto.reextract-on-change`).
+- `activity.run.trashed-pages-leave-the-run` — **[PARTIAL]** (#6232; run-system review 2026-10-27, approved 2026-10-27; see
+  `safety.trash.dependants-go-with-their-source`, `safety.trash.put-back`,
+  `recipes-run.journey.run-again-on-what-was-missed`) a queued page whose document is in the Trash ends
+  `skipped`, "Skipped: the page was moved to the Trash", and the run goes on; a page mid-read finishes and its
+  result stays hidden with the page, so Put Back costs no model pass, embed or thumbnail; the summary counts the
+  skipped pages under that reason and offers Run again on what was missed, which after Put Back reads only what
+  was not done. Built: delete is soft and keeps every derived row and job row (`documents.py:3223`), Put Back
+  queues nothing (`:3321`), a Start after the delete plans live pages only (`Database.unit_of_work_ids`), the
+  derivative stages skip a trashed page (`derivatives.py:771, 858, 984, 1048`). Not built (INFERRED, no
+  `deleted_at` check in `execution/jobs.py`, `workflows/builder.py`, `vision_base.py`): a Kraken, served-model or
+  fan-out page already queued keeps reading a trashed page, and Activity says nothing of the Trash. Built since
+  (#6232): a page handed to the lane whose document is in the Trash when the lane claims it is never read; its row
+  ends `cancelled`, "Skipped: the page was moved to the Trash" (`jobs.TRASHED_PAGE`), and the caller skips it as a
+  stopped page, so the run goes on. Left: a stored page job (not handed in); the run's summary counting those pages
+  under that reason with Run again on what was missed. *Test:*
+  `fichero-server/tests/unit/jobs/test_trashed_page_leaves_the_run_6232.py`.
+- `activity.run.cloud-batch` — **[GAP]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
+  step runs in the cloud BY DEFAULT, with a per-step choice of local or cloud on Set Up's stage page, and the cost
+  of each step is shown beside its time (`recipes-run.timing.cost-per-step`, #6234). A step a person is not waiting
+  for goes to the provider's Batch API where the provider has one (half price, answered within a day), said on the
+  row; a provider without one is called page by page, and the network lane's width is the provider's stated limit,
+  not four. Built: a cloud step is the same run model (a row on the
+  network lane per page or call, `llm/__init__.py:1636-1646`, four at once per Mac with a provider share, its
+  cost on the row); a batch-only model is refused (`workflows/validation.py:337`). Where the line is drawn
+  (lines local, the text steps to the cloud when the local pace is slow) is answered by the ruling above: cloud by
+  default, local by choice per step; the recipe's step kinds that have no cloud form (lines, regions) stay local.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
@@ -1926,7 +2099,7 @@ code path.
 - `activity.run.stop-reaches-economy-htr` — **[OK]** (#5375) Stop (and Pause) take effect between
   files in economy HTR: each file is read off the run's event loop and the step checks for a stop or pause before the next
   (`workflows/tools/economy_htr.py`); pinned by `fichero-server/tests/unit/workflows/test_economy_htr_stops_5375.py`.
-- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5392, #5375, → #4402) Stop ends an
+- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#4402; #5392 and #5375 closed) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
   Built (2026-10-03): Stop reaches a Kraken page still waiting for the lane: its row is cancelled
@@ -2148,6 +2321,468 @@ tests or beside the module.
 engine subprocess, kill it with `SIGKILL` mid-run, relaunch, and assert the run resumes, every page
 is done exactly once, and no artifact is written twice.
 
+## Proposed for the maintainer (compute per engine, 2026-10-27)
+
+Written read-only by the compute-per-engine review (`agent-work/status/briefs/compute-per-engine-2026-10-27.md`: the
+per-engine answers, what is measured and what inferred, the M4 commands, four decisions). Nothing here is approved yet.
+The reworded lines above (`activity.lane.pages-at-once-sized-from-the-machine`, `activity.lane.kraken-threads-exit-clean`,
+the sentence on `activity.lane.overlap-different-processors`) and the lines and build steps below take effect on the
+maintainer's word; until then the ruled text of 2026-10-27 stands.
+
+The rule in one paragraph: maxing a machine is not using every core. Each engine has its own knee, found by measuring
+pages a minute on the machine it runs on and kept in a fit record per machine, step kind and model. Kraken's line
+finder is Python and GEOS under the GIL around a small torch forward, and plateaus at two pages at once on the M4 Air in
+processes as in threads (a shared hardware limit, not the GIL); Kraken's reader is torch that releases the GIL and
+scales with its threads; spaCy is one pipeline that is neither thread-safe nor forkable here; an MLX reader is one model
+on the GPU with its pages batched as sequences, bounded by memory not cores; the embedder is a forked child with ONNX
+threads; a cloud call costs no cores and only needs the loop free. The core count and free memory are ceilings; the fit
+is the answer; the grey line says both.
+
+- `activity.lane.fit-learned-from-runs` — **[GAP]** (#5931; proposed 2026-10-27, decision 1 and 2 of the review) a fit
+  record per machine, step kind and model (`compute.fit.<kind>.<model-id>` in the app settings: pages at once N, threads
+  a page T, pages a minute, cpu-seconds a page, a page's peak bytes, when, and whether a run or a measurement made it)
+  is learned from real runs, not from an idle calibration job: the first run of a model on a machine starts at the
+  engine's prior, reads a window of about eight pages, then tries one step up (N + 1 at the same T, then T + 1 at the
+  same N; never past N × T ≤ the performance cores, never past what free memory holds at the page's measured peak) for
+  the next window, keeps a step only when pages a minute gain at least 10%, and stops at the first step that does not.
+  Best is the most pages a minute; among configurations within 5% of that, the fewest cores, cpu-seconds a page the
+  tie-break. Every window a step down (N or T one down, the fit untouched: a slow window under pressure is not a
+  measurement) when the Mac is paging, thermal state is serious, it is on battery, or pages a minute fall more than
+  10% under the fit; a step up only on a clean window and only at ≥10%; the fit is measured again when the core count
+  or memory differs from the record's. While the Mac is in use the fit under the halved cores is a second record, so an
+  in-use run does not re-learn. A cluster task or container keeps no fit. The run's grey line says the numbers and the
+  source ("4 pages at once, 1 thread each; fastest measured on this Mac" / "2 pages at once; not yet measured on this
+  Mac"). *Test (to write):* `fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py` (a faked run
+  whose windows gain 30%, 12% then 4% stops at the third; a window under paging steps down and leaves the fit; a 5%
+  slower configuration with fewer cores is the one kept; the grey words).
+- `activity.lane.torch-threads-set-once-per-plan` — **[BROKEN]** (#6229; proposed 2026-10-27) the torch thread count is
+  set once for a plan (N pages at once, T threads each, from the fit) when the gate's plan changes, never per page:
+  `torch.set_num_threads` is process-wide, and today `kraken_runtime.py` ~1020-1035 sets it on every page from the
+  pages inside the gate, so a page that entered alone at four threads drops to two when a second page enters and stays
+  there after it leaves; `set_num_interop_threads` may only be set once, and the OpenMP and BLAS variables are
+  `setdefault`, so only the first value ever holds. The per-page log line keeps saying the threads the page ran with.
+  *Test (to write):* `fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py` (a fake torch
+  records every `set_num_threads` call: two pages through the gate under one plan make one call; a plan change makes
+  one more).
+- `activity.lane.embedder-forks-before-threads` — **[BROKEN]** (#6237; proposed 2026-10-27, decision 3 of the review)
+  a worker process the engine needs (the search embedder first; Apple Vision's worker the same way) is forked from a
+  seed process that the engine forks once at start, before uvicorn's loop, LanceDB's background loop or any other
+  thread exists, and that does nothing but fork on request over a pipe; never from the running engine. Today
+  `RemoteEmbedder._start` forks the engine itself at first use, after those threads exist, so the child inherits a dead
+  kqueue and LanceDB's loop in it dies with EBADF (the M4 106-page run). The shipped engine cannot spawn: its
+  `sys.executable` is the sandboxed stub (`loaders/kreuzberg_cache._fork_worker`). Inside the child the embedder keeps
+  `embed_threads` ONNX intra-op threads, one batch at a time. *Test (to write):*
+  `fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py` (the seed is made before the server
+  starts and has one thread; a worker asked of the seed sees no inherited thread or selector; the engine never forks
+  itself after start).
+- `activity.lane.spacy-threads-one-pipeline-each` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27, revised the same
+  day from the explorer's measurement) spaCy pages run on threads, each thread with its own copy of the pipeline, never
+  two threads on one `Language` object (not thread-safe: two pages on the one cached pipeline crashed, hence today's
+  `_spacy_lock`) and never `nlp.pipe(n_process=…)` (spawn runs `sys.executable`, the sandboxed stub). Measured (M1 Air
+  4P+4E, `es_core_news_sm`, one `nlp` a thread): 3152 docs a minute at 1 thread, 4550 at 2, 6790 at 4 (2.15x), about
+  55 MB a copy. The thread count is the fit's N (`activity.lane.fit-learned-from-runs`; prior: the performance cores ÷ 2),
+  bounded by memory per copy, on the embed lane, a person's step first at the turn (`knowledge/spacy_ner.py` `_turn`).
+  The names step's time is not the parse but its writes (`activity.lane.writer-batched-per-page`, #6236). Built: one
+  pipeline per language, the lock, the fair turn. Not built: the copies, the thread count, the per-copy memory bound.
+  `nlp.pipe` batching inside one thread stays as `runtime.spacy.batched-and-off-the-loop` says (only if
+  `fichero-server/scripts/bench_spacy_pipe.py` clears 1.5x). *Test (to write):*
+  `fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py` (two pages at once run on two
+  copies, never one; N follows the fit and the memory bound; no `n_process`).
+- `activity.lane.opencv-threads-one-page-a-task` — **[GAP]** (#6192; proposed 2026-10-27 from the explorer's measurement)
+  an image step on OpenCV (Cleanup's find page, crop, straighten, enhance; the derivatives) runs on threads, one page a
+  task, with `cv2.setNumThreads(1)`, N from the fit's rule: measured (M1 Air 4P+4E) 124 pages a minute at one thread,
+  285 at four, 406 at eight; cv2's own threads stop paying past two (1 × 4 = 200, 1 × 8 = 194); processes reach 343 and
+  double the memory (3.85 GB against 2.06). The old code did the same with workers = max(2, cores ÷ 2) and model work on
+  a 640 px copy. The fit's ceiling is the performance cores by the ruling; whether light image work may take the
+  efficiency cores at background QoS (1.4x measured) is decision 9 of the review. *Test (to write):*
+  `fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py` (cv2 threads are set to one before
+  the first page; N pages run on N threads; never a process).
+- `activity.lane.mlx-one-model-batched-on-the-gpu` — **[PARTIAL]** (#5641, #5370; proposed 2026-10-27) a local MLX
+  reader is one model served once in the engine (`llm/mlx_in_process.py`), its pages batched as sequences
+  (`MLX_VLM_MAX_NUM_SEQS` = `reads_at_once_for`: half the Mac's memory less the weights, at the read margin, at most
+  four), never a second copy of the weights: on unified memory the weights are the scarce thing and one decode step
+  reads them once for every page in the batch. Its budget is GPU memory, not cores, separate from the CPU step's
+  (`activity.lane.overlap-different-processors`). Built: one server, the sequence count from memory. Not measured:
+  s/page at one, two and four sequences, and the cost of a Kraken page beside it (`fichero-server/scripts/mlx_order_proof.py`
+  was written and never run; no MLX number exists in the tree). *Test (to write):*
+  `fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py` (a second load of the same model is refused in
+  favour of the served one; the sequence count follows memory; the fit record is not consulted for a GPU step).
+- `activity.run.records-what-it-chose-per-page` — **[GAP]** (#6215, #6229; proposed 2026-10-27, after the manager's
+  correction: a quiet M4 segments the 106 large pages in about 5 s a page and reads them in about 6 s; the morning's
+  39 s a page overlapped a Time Machine restore) every run records, on each page's row and served with the run status,
+  what it chose for that page: threads, QoS class, pages at once, the throttle's state (go, slow and why, hold and why),
+  the fit's source (measured best, prior, stepped down and why) and the milliseconds its writes held the database, so two
+  runs can be compared page for page. Today the per-page log line has threads and QoS, the `Threads:` note is in the
+  call log only, and the run status serves `pages_at_once` and its reason and nothing else (`recipes/run_view.py`,
+  `RecipeRunPagesAtOnce` in the app). *Test (to write):* `fichero-server/tests/unit/recipes/test_run_records_what_it_chose_per_page_6215.py`
+  (two faked pages under different throttle states serve different records; the record is on the page row).
+- `activity.lane.fit-skips-a-busy-machine` — **[GAP]** (#5931; proposed 2026-10-27) a calibration window is not a
+  measurement while the machine is busy with something else: the one-minute load average above the performance cores,
+  `backupd`, `mds`, `mds_stores` or `photoanalysisd` busy (read as the build probe reads `xcodebuild`), or the Mac
+  paging; such a window runs at the current fit, is marked "measured while the Mac was busy" on the page record, and is
+  never stored as the best. *Test (to write):* `fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py`
+  (a window under a faked Time Machine restore leaves the fit untouched and says so).
+- `activity.lane.compute-shown-graphically` — **[GAP]** (#6229; proposed 2026-10-27, the owner's addition) the compute
+  choice is drawn, not written: one small view, in the project window's run strip (`ProjectRunStrip`, extending the
+  pages-at-once words it already shows from `RecipeRunPagesAtOnce`) and in the opened run's details (live, and the last
+  value once ended), in the idiom of the popover's Mac state row (`ActivityMacStateRow`: SF Symbols, `.caption`,
+  `.secondary`, orange only for a problem, the full reading in help and in one accessibility label). It shows: one small
+  square per core, performance cores first (filled while a page thread runs on it, outlined when free) and the
+  efficiency cores after, always outlined; one page glyph per page in flight up to the fit's N, dimmed for a slot
+  memory or the in-use rule took away; a short bar for the GPU share while an MLX step runs (sequences in flight over
+  `reads_at_once_for`); and the fit's state: a seal mark when it is the measured best on this Mac, a down arrow in
+  orange when stepped down with the cause's symbol beside it (paging, heat, battery, in use), a question mark while not
+  yet measured. No text in the view beyond the two counts; the words are the accessibility label ("4 pages at once on
+  4 of 4 performance cores, 1 thread each; measured best on this Mac" / "2 pages at once on 2 of 4 performance cores;
+  slowed, the Mac is in use"). The engine serves the fields beside `pages_at_once` on the run status. The Activity
+  window's rows are one line and do not get it; the Mac state row stays as it is. *Tests (to write):*
+  `fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift` (the label from each state; the core squares
+  from P, E and threads in use; the dimmed slot) and `fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py`.
+- `activity.lane.writer-batched-per-page` — **[GAP]** (#6236, #6212; proposed 2026-10-27, the owner's question on
+  DuckDB's one writer) every write of every page goes through one connection, one lock and one transaction gate per
+  library (`db/manager.py`, `db/__init__.py` `transaction()`), so pages read side by side still save one at a time, and
+  pages at once cannot help past the point where N × a page's write time nears one page's model time. For Kraken that
+  point is far off (writes under 1% of a page, measured 2026-10-20: a few `db.save` calls a page); for the names step
+  it is already here: `workflows/tools/_entity_writer.py` writes one autocommitted ON CONFLICT `db.save` per entity,
+  claim, mention and match candidate (twelve call sites, tens of lock trips a page) against a parse of about a second,
+  and #6236's 20-minute spin is a lookup against the growing entity table. Required: a page's results are handed to
+  the writer as ONE batch per page and per step (one transaction, `save_many(new=True)` for fresh rows so DuckDB 1.5's
+  ~32 KB per column per new ON CONFLICT row until commit is not paid, updates after), never a row at a time; a worker
+  never holds the gate while a model runs; the page record says the milliseconds its writes held the gate
+  (`activity.run.records-what-it-chose-per-page`). Not a writer thread: the one connection is already the serial point;
+  fewer, larger transactions and the reads off the gate (#6178, built) are what help. Vectors already append once per
+  batch outside the gate (`embed_many`). *Measure:* `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M8
+  (1000 single saves against one `save_many` on a scratch library; the page record's db column over an e2e run).
+  *Test (to write):* `fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py` (a page
+  with 30 entities and 40 claims opens one transaction; a model call never runs inside it).
+- `activity.lane.scale-out-batches-and-result-files` — **[GAP]** (#5642, #5398, #6233; proposed 2026-10-27, the
+  owner's scale-out addition; builds on `remote_read/job.py`, `slurm_target.py`, `sizing.size_run` and the lines of
+  `compute/hpc-runner-acenet.md`, which keep their ids) at scale the rule has two layers and one design for Hugging
+  Face Jobs and ACEnet/Slurm. Inside a task: the per-engine knee rule with the cores the task was given
+  (`core/cores.py`: `SLURM_CPUS_PER_TASK`, or the container's cgroup quota) and its GPU; no fit record; one page
+  pipeline a task. Across tasks: scale out, never up: P pages become K = ceil(P ÷ S) tasks, S from `size_run` (the
+  measured per-page time from a pilot task of about 20 pages, or the local fit's rate as the first estimate, sized to
+  80% of the shortest walltime class), throttled by the queue's limit (`--array=0-K%M` on Slurm, `max_in_flight` on
+  HF); a task that fails is retried once by itself for NODE_FAIL and PREEMPTED, with a half-size slice for OUT_OF_MEMORY
+  and TIMEOUT, and set aside after two failures, offered as "Read these pages again"; the same words for an HF Job. No
+  database over the network: each task writes its result files beside the job (PAGE XML per page, one JSON record per
+  page with its compute record, vectors as one Parquet shard per task, one tar per task); the library imports each
+  returned task in ONE batched pass (`save_many` and `embed_many` in one transaction per task), as it returns, so
+  partial returns land and count; a returned page is never rerun (`compute.land.idempotent`, #6127). Before anything
+  is sent, one sheet for either place: pages, tasks and their size, the array or flavor line, the time (tasks ÷ the
+  throttle × the walltime, plus the queue wait from `sinfo` or HF's own), the cost (HF: the flavor's price an hour ×
+  GPU-hours, `price_per_hour`; ACEnet: allocation GPU-hours, the queue wait in words) and the local estimate beside
+  them (pages ÷ the local fit's pages a minute). Progress is drawn: one run row with a strip of K small cells in the
+  status colours (done, running, queued, failed) and "3,400 of 6,000 pages landed", from the one status call. The
+  place per step: cloud by default per step (`activity.run.cloud-batch`) picks the model's place; among machines,
+  cheapest and local first: local when the local estimate finishes within an hour or the run is under 200 pages, else
+  the cheapest remote that is set up and may receive the pages (`compute.leave.one-gate`), HF with a key and a budget,
+  ACEnet with a cluster; the stage page shows the three estimates and the person overrides per step. *Tests (to
+  write):* `fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py` (K and S from a faked rate and queue
+  limit; the retry ladder; a returned page is not resent; the sheet's three estimates; the place chosen from the
+  estimates) alongside the existing `fichero-server/tests/unit/remote_read/test_sizing.py` and `fichero-server/tests/unit/remote_read/test_slurm_target.py`.
+
+## Build order
+
+Written 2026-10-27, approved the same day; the migration order above is the history it grew from. BROKEN
+lines first, then the GAP lines, each in one step with the test that pins it; the gate work (1.8) comes
+after the exit-time crash (1.7). The PARTIAL lines are placed in Stage 6, five a step, grouped by their
+issue: each is the rest of something partly built, and burns down with its issue. Recipes-run's own steps (`source/recipes-run.md`) run first, in its order;
+nothing here depends on them except where said.
+
+### Stage 1 — Broken first: the engine answers, one heavy model, Stop reaches the call
+
+#### Step 1.1 — The recipe summary off the loop and never failing the tree (#6001)
+- Behaviours: `activity.summary.counts-in-two-queries`, `activity.summary.off-the-loop`, `activity.summary.never-fails-the-tree`
+- Tests: fichero-server/tests/unit/recipes/test_run_summary_counts_6001.py
+- Size: S
+
+#### Step 1.2 — Health answers under load (#6178, #6176)
+- Behaviours: `engine.health-answers-under-load`
+- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, fichero-server/tests/unit/db/test_embedder_child_does_not_outlive_the_engine_6176.py
+- Depends on: 1.1
+- Size: S
+
+#### Step 1.3 — One heavy model on a small Mac; the hold holds handed-in pages (#6000, #5934)
+- Behaviours: `activity.lane.small-mac-one-heavy-model`, `activity.lane.one-model-hold-holds-handed-in-pages`
+- Tests: fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py, fichero-server/tests/unit/api/test_served_model_released_for_kraken.py
+- Size: M
+
+#### Step 1.4 — Stop and Pause reach the call in flight; a stopped run says who (#4402, #5932, #6005, #4346)
+- Behaviours: `activity.run.stop-reaches-in-flight-calls`, `activity.stop.pause-in-fan-out-keeps-mid-read-pages`, `activity.recipe-run.stopped-by-unknown-says-stopped`, `activity.spinner-reflects-process-liveness`
+- Tests: fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py, fichero-server/tests/unit/workflows/test_runner_pause_keeps_reading_pages_5932.py, fichero-server/tests/unit/jobs/test_a_stopped_run_says_who_stopped_it.py
+- Size: M
+
+#### Step 1.5 — The cores are used (#6229, #6230, #5358)
+- Behaviours: `activity.lane.cores-are-used`, `activity.throttle.in-use-slows-to-half`, `activity.run.utility-qos-bounded`
+- Tests: fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py, fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py
+- Size: S
+
+#### Step 1.6 — The legacy chain executor retired (#4949)
+- Behaviours: `activity.legacy-chain-retired`
+- Tests: fichero-server/tests/unit/api/test_routes_chains.py
+- Size: S
+
+#### Step 1.7 — Kraken's threads exit clean (#5929)
+- Behaviours: `activity.lane.kraken-threads-exit-clean`
+- Tests: fichero-server/tests/unit/llm/test_torch_exit_5929.py, fichero-server/tests/unit/core/test_fast_exit_5929.py, fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py
+- Size: M
+
+#### Step 1.8 — The pages-at-once gate sized from the machine; CPU and GPU steps side by side (#5931, #5358, #5370)
+- Behaviours: `activity.lane.pages-at-once-sized-from-the-machine`, `activity.lane.overlap-different-processors`
+- Tests: fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py
+- Depends on: 1.7, 1.5
+- Size: M
+
+#### Step 1.9 — Threads set once per plan; the embedder forks before threads (proposed 2026-10-27) (#6229, #6237)
+- Behaviours: `activity.lane.torch-threads-set-once-per-plan`, `activity.lane.embedder-forks-before-threads`
+- Tests: fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py, fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.10 — The fit learned from runs, per engine (proposed 2026-10-27) (#5931, #5956, #5641)
+- Behaviours: `activity.lane.fit-learned-from-runs`, `activity.lane.spacy-threads-one-pipeline-each`, `activity.lane.mlx-one-model-batched-on-the-gpu`, `activity.lane.fit-skips-a-busy-machine`
+- Tests: fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py, fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py, fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py
+- Depends on: 1.8, 1.9
+- Size: M
+
+#### Step 1.11 — The run records what it chose, and shows it graphically (proposed 2026-10-27) (#6215, #6229)
+- Behaviours: `activity.run.records-what-it-chose-per-page`, `activity.lane.compute-shown-graphically`
+- Tests: fichero-server/tests/unit/recipes/test_run_records_what_it_chose_per_page_6215.py, fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py, fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift
+- Depends on: 1.10
+- Size: M
+
+#### Step 1.12 — The writer takes one batch per page; image steps on threads (proposed 2026-10-27) (#6236, #6212, #6192)
+- Behaviours: `activity.lane.writer-batched-per-page`, `activity.lane.opencv-threads-one-page-a-task`
+- Tests: fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py, fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.13 — Scale-out on Hugging Face Jobs and ACEnet: batches, result files, one import (proposed 2026-10-27) (#5642, #5398, #6233)
+- Behaviours: `activity.lane.scale-out-batches-and-result-files`
+- Tests: fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py, fichero-server/tests/unit/remote_read/test_sizing.py, fichero-server/tests/unit/remote_read/test_slurm_target.py
+- Depends on: 1.10, 1.12
+- Size: M
+
+### Stage 2 — The summary the window reads (engine)
+
+#### Step 2.1 — Stage counts, pace and cost on the live block (#5960)
+- Behaviours: `activity.summary.stage-counts`, `activity.summary.eta-basis`, `activity.summary.cost-so-far`
+- Tests: fichero-server/tests/unit/api/test_live_block_stage_counts_5960.py, fichero-server/tests/unit/api/test_live_block_eta_basis_5960.py, fichero-server/tests/unit/api/test_live_block_cost_5960.py
+- Size: M
+
+#### Step 2.2 — One row per run; every failed page; one line per page (#5960)
+- Behaviours: `activity.summary.one-row-per-run-in-list`, `activity.run.failed-pages-paged`, `activity.log.one-line-per-page`
+- Tests: fichero-server/tests/unit/api/test_run_is_not_also_a_jobs_row_5960.py, fichero-server/tests/unit/api/test_run_failed_pages_paged_5960.py, fichero-server/tests/unit/api/test_person_log_one_line_per_page_5960.py
+- Size: M
+
+#### Step 2.3 — Pause reaches a recipe's step (#5933)
+- Behaviours: `activity.recipe-run.pause-reaches-its-step`
+- Tests: fichero-server/tests/unit/recipes/test_recipe_pause_5933.py
+- Size: S
+
+### Stage 3 — The window (app)
+
+#### Step 3.1 — Three groups, one row, one subtitle, the person's log (#5960, #5839)
+- Behaviours: `activity.window.now-upnext-done-today`, `activity.window.row-subtitle`, `activity.window.acts-on`, `activity.log.person-reads-like-a-copy-history`
+- Tests: fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift, fichero/Tests/Unit/general/Models/ActivityRowSubtitleTests.swift
+- Depends on: 2.1, 2.2
+- Size: M
+
+#### Step 3.2 — Started by; one surface; what it made (#5354, #5245, #1830)
+- Behaviours: `activity.window.started-by`, `activity.window.one-surface`, `activity.window.what-it-made`, `activity.delete-by-workflow-run`
+- Tests: fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Size: M
+
+### Stage 4 — The Mac's own work, and the lanes' efficiency
+
+#### Step 4.1 — The Mac's own work is rows (#5359)
+- Behaviours: `activity.global-work-is-the-macs`, `activity.model-work-visible`
+- Tests: fichero-server/tests/unit/api/test_routes_local_models.py
+- Size: M
+
+#### Step 4.2 — Stage by stage, no juggling (#5939)
+- Behaviours: `activity.run.stage-by-stage-no-model-juggling`
+- Tests: fichero-server/tests/unit/jobs/test_model_order_5939.py, fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py
+- Depends on: 1.3
+- Size: M
+
+#### Step 4.3 — Pages pipeline between steps; a Kraken page takes seconds (#5370, #6178)
+- Behaviours: `activity.run.pipeline-pages`, `engine.kraken-page-time-is-seconds`
+- Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py, fichero-server/scripts/bench_same_model_pages.py
+- Depends on: 1.5, 4.2
+- Size: M
+
+#### Step 4.4 — Kraken workers; lines batched per call (#5370)
+- Behaviours: `activity.run.kraken-workers`, `activity.run.lines-batched-per-call`
+- Tests: fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py
+- Depends on: 4.3
+- Size: M
+
+#### Step 4.5 — Progress written on purpose (#5376)
+- Behaviours: `activity.run.progress-on-purpose`
+- Tests: fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py
+- Size: S
+
+#### Step 4.7 — Cloud by default per step; batch where the provider has it (#6233, #6234)
+- Behaviours: `activity.run.cloud-batch`
+- Tests: fichero-server/tests/unit/jobs/test_provider_share.py
+- Depends on: 1.4
+- Size: S
+
+### Stage 5 — Parked: owned elsewhere
+
+#### Step 5.1 — Where and estimate; the recipe declares what runs by itself (#5240, #4950, #5245)
+- Behaviours: `activity.run.where-and-estimate`, `activity.recipe.declares-automatic`, `activity.derived.recompute-is-one-step`
+- Tests: fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py
+- Size: M
+
+#### Step 4.6 — Trashed pages leave the run; Redo a step (#6232, #6231)
+- Behaviours: `activity.run.trashed-pages-leave-the-run`, `activity.redo.one-way-per-step`
+- Tests: fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py, fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py
+- Depends on: 1.4
+- Size: M
+
+#### Step 5.2 — The folded asks (#2277, #5116, #5117)
+- Behaviours: `activity.columns-move-into-activity-view`, `activity.step-click-jumps-to-comparison`, `activity.run-control-is-global`, `activity.simple-for-its-reader`
+- Tests: fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Size: S
+
+### Stage 6 — The PARTIAL lines: finishing what is partly built (placed on approval, 2026-10-27)
+
+Each step is the unbuilt rest of five lines, in issue order; a step's tests are the tests its lines
+already name. Nothing here blocks Stages 1 to 5; a step burns down with its issues.
+
+#### Step 6.1 — The rest of #4343, #4346, #4402, #4420, #4925
+- Behaviours: `activity.window.cost`, `activity.window.honest-state`, `activity.pause.cancel-long-call`, `activity.engine.warm-up-failures-are-said`, `activity.derived.names-its-inputs`
+- Tests: fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py, fichero-server/tests/unit/security/test_auth_refusals_say_why.py, fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift, fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift
+- Size: S
+
+#### Step 6.2 — The rest of #5016, #5240, #5353
+- Behaviours: `activity.window.clear-finished`, `activity.remote-under-its-step`, `activity.one-job-model`, `activity.jobs-are-a-tree`, `activity.jobs-follow-the-graph`
+- Tests: fichero-server/tests/unit/api/test_remote_runs_in_activity.py, fichero-server/tests/unit/jobs/test_batches_are_jobs.py, fichero-server/tests/unit/jobs/test_chat_on_the_lane.py, fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py
+- Size: S
+
+#### Step 6.3 — The rest of #5354, #5355, #5356
+- Behaviours: `activity.window.all-projects`, `activity.pause.global`, `activity.pause.global-survives-relaunch`, `activity.pause.per-job`, `activity.pause.controls-are-actions`
+- Tests: fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_runs_are_jobs.py
+- Size: S
+
+#### Step 6.4 — The rest of #5356, #5357
+- Behaviours: `activity.pause.one-start-stop`, `activity.durable.queue-is-rows`, `activity.durable.enqueue-with-the-change`, `activity.durable.lease-not-fail`, `activity.durable.paused-stays-paused`
+- Tests: fichero-server/tests/unit/jobs/test_a_paused_waiter_is_paused_not_failed.py, fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_durable_5357.py, fichero-server/tests/unit/jobs/test_job_queue.py
+- Size: S
+
+#### Step 6.5 — The rest of #5357, #5358
+- Behaviours: `activity.durable.poison-item`, `activity.durable.nothing-twice`, `activity.throttle.background-qos`, `activity.throttle.lanes`, `activity.lane.load-once`
+- Tests: fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_durable_5357.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py
+- Size: S
+
+#### Step 6.6 — The rest of #5358
+- Behaviours: `activity.lane.group-by-model`, `activity.lane.co-run-only-if-it-fits`, `activity.lane.measures-processors`, `activity.throttle.watched-first`, `activity.throttle.hand-started-waits-for-memory-and-heat`
+- Tests: fichero-server/tests/unit/jobs/test_chat_on_the_lane.py, fichero-server/tests/unit/jobs/test_job_queue.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py, fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py
+- Size: S
+
+#### Step 6.7 — The rest of #5358, #5359
+- Behaviours: `activity.throttle.power-heat-memory`, `activity.every-worker-is-a-row`, `activity.every-kind-reports`, `activity.kraken-mlx-inference-visible`, `activity.nlp-visible`
+- Tests: fichero-server/tests/unit/api/test_routes_local_models.py, fichero-server/tests/unit/jobs/test_deliberate_wait_is_not_a_stall.py, fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py, fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py
+- Size: S
+
+#### Step 6.8 — The rest of #5360, #5361, #5362
+- Behaviours: `activity.derived.stale-is-marked`, `activity.derived.coalesced`, `activity.auto.reextract-on-change`, `activity.derived.person-work-kept`, `activity.auto.on-add`
+- Tests: fichero-server/tests/unit/api/test_names_follow_a_correction.py, fichero-server/tests/unit/api/test_routes_entity_inspector.py, fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py, fichero-server/tests/unit/jobs/test_job_queue.py
+- Size: S
+
+#### Step 6.9 — The rest of #5362, #5415
+- Behaviours: `activity.auto.what-runs-by-itself`, `activity.window.table`, `activity.window.expand`, `activity.window.working-on`, `activity.window.measures`
+- Tests: fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py, fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Size: S
+
+#### Step 6.10 — The rest of #5415, #5420
+- Behaviours: `activity.window.absolute-times`, `activity.window.grouped-by-project`, `activity.window.row-shows-lane-state-reason`, `activity.popover.summary`, `activity.ghg.estimate-with-its-basis`
+- Tests: fichero-server/tests/unit/api/test_activity_window_absolute_times.py, fichero-server/tests/unit/jobs/test_ghg_estimate_with_its_basis_5420.py, fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift
+- Size: S
+
+#### Step 6.11 — The rest of #5434, #5540, #5561
+- Behaviours: `activity.document.what-has-been-run`, `activity.run.strip-tells-the-truth`, `activity.details.heading-names-not-ids`, `activity.details.progress-counts`, `activity.details.open-in-the-app`
+- Tests: fichero-server/tests/unit/api/test_document_run_history.py, fichero-server/tests/unit/jobs/test_a_try_row_counts_its_pages_2026_10_20.py, fichero-server/tests/unit/jobs/test_activity_details_5561.py, fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py
+- Size: S
+
+#### Step 6.12 — The rest of #5585, #5606, #5621
+- Behaviours: `activity.lane.thumbnails-first`, `activity.waiting-says-why`, `activity.list-and-tree-agree`, `activity.mode.start-stop`, `activity.throttle.recheck-when-it-clears`
+- Tests: fichero-server/tests/unit/importers/test_imported_pages_counted_once_5690.py, fichero-server/tests/unit/importers/test_names_step_not_starved_by_drafts_5690.py, fichero-server/tests/unit/jobs/test_activity_one_truth_5606.py, fichero-server/tests/unit/jobs/test_start_stop_mode.py
+- Size: S
+
+#### Step 6.13 — The rest of #5621, #5622, #5623, #5634, #5635
+- Behaviours: `activity.pause.per-queue`, `activity.throttle.one-heavy-when-memory-tight`, `activity.details.what-it-works-on-now`, `activity.window.clear-failed`, `activity.popover.mac-state-row`
+- Tests: fichero-server/tests/unit/jobs/test_clear_failed_5634.py, fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py
+- Size: S
+
+#### Step 6.14 — The rest of #5655, #5685, #5740, #5758, #5839
+- Behaviours: `activity.no-project-label-for-the-always-there-project`, `activity.run.says-what-it-reads`, `activity.remote.actions`, `activity.run.step-honest-about-lost-pages`, `activity.window.expands-to-pages`
+- Tests: fichero-server/tests/unit/jobs/test_queue_summary_and_items_5839.py, fichero-server/tests/unit/mcp/test_run_says_what_it_reads_5685.py, fichero-server/tests/unit/recipes/test_a_step_that_loses_pages_is_partial.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py
+- Size: S
+
+#### Step 6.15 — The rest of #5839, #5843
+- Behaviours: `activity.window.next-in-run-order`, `activity.window.waiting-looks-waiting`, `activity.window.queue-summary`, `activity.read.get-runs-no-model`, `activity.engine.restart-says-why`
+- Tests: fichero-server/tests/unit/api/test_activity_order_live_run_first.py, fichero-server/tests/unit/api/test_no_model_work_in_gets.py, fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py, fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py
+- Size: S
+
+#### Step 6.16 — The rest of #5845, #5846, #5850
+- Behaviours: `activity.lane.no-wait-on-a-job-that-will-not-run`, `activity.lane.same-model-pages-together`, `activity.read.page-read-once`, `activity.log.persons-log`, `activity.log.developer-level`
+- Tests: fichero-server/tests/unit/api/test_document_text_never_reads.py, fichero-server/tests/unit/jobs/test_person_log_levels.py, fichero-server/tests/unit/jobs/test_same_model_pages_together.py, fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift
+- Size: S
+
+#### Step 6.17 — The rest of #5851, #5852, #5860
+- Behaviours: `activity.window.live-block`, `activity.window.background-group`, `activity.window.history-group`, `activity.popover.same-summary`, `activity.jobs-poll-off-the-loop`
+- Tests: fichero-server/tests/unit/api/test_activity_jobs_off_the_loop_5860.py, fichero-server/tests/unit/api/test_activity_order_live_run_first.py, fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py, fichero-server/tests/unit/jobs/test_activity_summary_one_source.py
+- Size: S
+
+#### Step 6.18 — The rest of #5863, #5865, #5868, #5873, #5876
+- Behaviours: `activity.lane.each-unit-its-own-lane`, `activity.engine.embedder-model-missing-says-so`, `activity.reconnects-after-engine-restart`, `activity.runner.stale-run-sweep-on-background-loop`, `activity.runner.waiting-page-poll-backoff`
+- Tests: fichero-server/tests/unit/db/test_embedder_model_missing_says_so.py, fichero-server/tests/unit/db/test_search_model_downloads_in_the_app.py, fichero-server/tests/unit/jobs/test_fable_runner_p2.py, fichero-server/tests/unit/jobs/test_hosted_page_beside_local_5863.py
+- Size: S
+
+#### Step 6.19 — The rest of #5878, #5879, #5889, #5890, #5899
+- Behaviours: `activity.runner.snapshot-lists-batch-once`, `activity.runner.dead-lane-thread-wakes-lane`, `activity.engine.auth-never-hangs`, `activity.engine.app-db-lock-names-its-holder`, `activity.read.get-embeds-its-own-query`
+- Tests: fichero-server/tests/unit/api/test_get_embeds_its_own_query.py, fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py, fichero-server/tests/unit/jobs/test_fable_runner_p2.py, fichero-server/tests/unit/llm/test_providers.py
+- Size: S
+
+#### Step 6.20 — The rest of #5899, #5912, #5920, #5937, #5938
+- Behaviours: `activity.read.claims-backfill-is-a-lane-job`, `activity.stream-reconnects-after-a-sharing-switch`, `activity.lane.one-model-at-a-time`, `activity.run.partial-said-on-a-done-row`, `activity.lane.hold-limit-keeps-the-slot`
+- Tests: fichero-server/tests/unit/jobs/test_hold_limit_says_what_happened_5938.py, fichero-server/tests/unit/jobs/test_lane_rescans_when_the_state_moved_5920.py, fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
+- Size: S
+
+#### Step 6.21 — The rest of #5939, #5957, #5958, #5959, #5960
+- Behaviours: `activity.lane.model-order`, `activity.window.every-state-has-its-words`, `activity.window.waiting-run-reads-waiting`, `activity.run.pages-counted-once`, `activity.window.three-groups`
+- Tests: fichero-server/tests/unit/jobs/test_model_order_5939.py, fichero-server/tests/unit/jobs/test_pages_are_counted_once_5959.py, fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py, fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py
+- Size: S
+
+#### Step 6.22 — The rest of #5960
+- Behaviours: `activity.window.one-row-per-run`, `activity.window.stage-bar`, `activity.window.one-button`, `activity.window.project-prefix`, `activity.window.up-next`
+- Tests: fichero/Tests/Unit/general/Models/ActivityStageBarTests.swift, fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Size: S
+
+#### Step 6.23 — The rest of #5960
+- Behaviours: `activity.window.done-today`, `activity.window.open-a-run`, `activity.window.page-grid`, `activity.window.no-empty-prose`, `activity.popover.now-plus-next`
+- Tests: fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py, fichero/Tests/Unit/general/Models/ActivityNoEmptyProseTests.swift, fichero/Tests/Unit/general/Models/ActivityOpenedRunTests.swift, fichero/Tests/Unit/general/Models/ActivityPageGridTests.swift
+- Size: S
+
+#### Step 6.24 — The rest of #5960, #6109
+- Behaviours: `activity.summary.where-and-model`, `activity.summary.up-next`, `activity.run.page-states`, `activity.log.problems-first`, `activity.service.refusals-in-the-engines-words`
+- Tests: fichero-server/tests/unit/api/test_live_block_where_and_model_5960.py, fichero-server/tests/unit/api/test_log_problems_first_5960.py, fichero-server/tests/unit/api/test_run_page_states_5960.py, fichero-server/tests/unit/api/test_summary_up_next_5960.py
+- Size: S
+
+#### Step 6.25 — The rest of #6125, #6126, #6129, #6134
+- Behaviours: `activity.run.row-matches-details`, `activity.up-next.follow-on-work-is-folded-into-a-live-run`, `activity.run.stages-before-search-do-not-embed`, `activity.machine.models-held`, `activity.run.stage-names-each-reader`
+- Tests: fichero-server/tests/unit/execution/test_models_held_6129.py, fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py, fichero/Tests/Unit/general/Models/ActivityModelsHeldTests.swift, fichero/Tests/Unit/general/Models/ActivityStageReadersTests.swift
+- Size: S
+
+#### Step 6.26 — The rest of #6176
+- Behaviours: `engine.run-account-reads-off-the-loop`
+- Tests: fichero-server/tests/unit/workflows/test_run_account_reads_off_the_event_loop_6176.py
+- Size: S
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -2311,3 +2946,15 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 - `activity.simple-for-its-reader` — **[GAP]** (#5117) Activity is redesigned from who reads it, not from the existing views.
 - `activity.window.newest-first-and-clear-all` **[PARTIAL]** (#5016): the engine lists finished jobs newest first (pinned by fichero-server/tests/unit/jobs/test_activity_newest_first_5016.py); still owed on the Swift side, which needs a screen check: the window lists the newest run at the top, offers a way to delete every run at once, and its first row is never drawn under the title bar. (The 'just now' half is `activity.window.absolute-times`, built 2026-10-04.)
 - `activity.refused-key-says-restart` — **[PARTIAL]** (#6030): an engine whose cached key was replaced in the shared key file by another engine (#5419) refuses the app's current key with `stale_bootstrap_token` ("restart it"), not a bare `bootstrap_mismatch`; Activity's footer says that refusal in words, once (pinned by fichero-server/tests/unit/security/test_auth_refusals_say_why.py).
+
+## Engine responsiveness and model residency (owner 2026-10-26, #6178)
+
+- `engine.loop-never-blocked-by-db` — **[PARTIAL]** (#6178; a run account reads off the loop, `fichero-server/tests/unit/workflows/test_run_account_reads_off_the_event_loop_6176.py`; the other sync reads are owed) (#6178) no async handler runs a synchronous database call on the event loop: the activity polls (`activity.get_job_tree`, `list_background_jobs`, `waiting_reason`), `recipes _start_plan` and every other route read through the single-flight, off-loop reader and answer within 1 s while a long job writes; a poll that cannot be answered in time returns its last answer marked stale, never waits. `core/loop_lag.py` logs any hold over 1 s with the culprit, and the guard fails a test run that sees one over 2 s. *Test:* `tests/unit/core/test_loop_lag_activity_polls.py` (a held writer; the poll returns in under 1 s; the loop's lag stays under 200 ms).
+- `engine.health-answers-under-load` — **[BROKEN]** (#6178, #6176) the engine's health answer does not depend on the database or on a running job; the app restarts the engine only after a stated number of missed answers, with backoff, and never starts a second engine while the first lives. *Test:* #6176's.
+- `engine.file-time-is-per-file` — **[OK]** (#6178; retagged 2026-10-27: it is the same rule and the same test as `activity.file-time-is-the-files-own`, `fichero-server/tests/unit/activity/test_file_time_is_per_file.py`) Activity and the log show each file's OWN elapsed time and the job's elapsed time under separate names; "(6541168ms)" as a file's time was the job's cumulative time. *Left, owed to #6178:* a file slower than 10x the median is not yet flagged.
+- `engine.model-stays-for-the-job` — **[PARTIAL]** (#6178; retagged 2026-10-27) a model a running job uses (Kraken, spaCy, an embedder, MLX) is held for the whole job and unloaded only when no job needs it and a grace period has passed; never unloaded and reloaded between files of one job; at most ONE local model resident (`designer.model.one-resident-local-model`); each load/unload is one `model-lane:` log line with its reason. Built: the Kraken half (`activity.lane.kraken-stays-while-a-run-has-pages`, `fichero-server/tests/unit/llm/test_kraken_stays_resident_while_a_run_has_pages_6178.py`) and the log line (`activity.lane.group-by-model`). Left: the served model and the embedder under one job (`tests/unit/llm/test_kraken_runtime_residency.py`, a 20-file fake job loads once, to write).
+- `engine.duckdb-memory-cap-applies` — **[OK]** (#6177; `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`) (#6178) the DuckDB memory limit and temp directory are set when the connection opens, before first use, so the cap holds; the warning "Cannot switch temporary directory" never appears in a normal run. *Test:* `tests/unit/core/test_duckdb_memory_cap.py`.
+- `engine.kraken-page-time-is-seconds` — **[GAP]** (#6178) on an M-series Mac a Kraken page (segment and read) takes seconds, not minutes: the job reports pages per minute, and a page over 30 s raises an Activity note naming the cause (contention, a reload, swap). *Test:* measured on a scratch library with the real model on the M4 (e2e, overnight).
+- `engine.no-orphan-keeps-the-socket` — **[PARTIAL]** (#6176; the embedder child lets go and exits with its engine, `fichero-server/tests/unit/db/test_embedder_child_does_not_outlive_the_engine_6176.py`; owed: `loaders/kreuzberg_cache._fork_worker`, the skipped-spawn marker, a Dev Embedded smoke) (#6176, #6178; Opus review `agent-work/status/briefs/engine-respawn-root-cause-2026-10-26.md`) a child the engine forks (the embedder, the kreuzberg worker) never inherits the engine's listening socket or the parent's pipe ends, and exits when its parent dies (also on SIGKILL); after the engine stops, no process of this app still listens on its socket, so a new engine starts and exactly ONE engine runs. *Test:* fork a RemoteEmbedder with the fake model, SIGKILL the parent, the child exits within 5 s and holds no socket.
+- `engine.restart-waits-for-the-work` — **[PARTIAL]** (built, Swift uncompiled: `EngineRestartPolicy` (`shouldRestart`; a paired remote Mac keeps a short 3-ping threshold, the app cannot restart it; the running-jobs count is jobs in state running, not queued) — a missed ping is only logged as busy, the app restarts only after 36 missed pings in a row (3 minutes) and 120 (10 minutes) while an import or an Activity job is running, `EngineRestartPolicy.runningJobs`; `AppState.offlineFlipThreshold` (2) is gone. Not built: the no-CPU/disk/log-activity half of "hung", the 30 s graceful wait before a kill, the 10 s to 5 min backoff with 5 tries, the 2 s health GET timeout, no spawn marker for a skipped spawn, a "busy" status in Activity) (#6176; owner 2026-10-26: "far too aggressive") the app never kills a live engine for being slow. The heartbeat still pings every 5 s, but a miss only turns the status to "busy" (shown in Activity, no action). The app restarts the engine only when it is DEAD (the process is gone) or HUNG: no health answer for 3 minutes while the process shows no CPU, no disk and no log activity, and with a running job 10 minutes. Before any restart it asks the engine to stop gracefully and waits 30 s (no SIGKILL of a process still writing), says why in Activity, and never starts a second engine (`engine.no-orphan-keeps-the-socket`). Backoff between restarts doubles from 10 s to 5 minutes and stops after 5 tries with the Retry/Quit modal. The health GET has a 2 s timeout, a skipped spawn writes no "engine spawn" marker. *Test:* Swift heartbeat tests (30 missed pings with CPU busy: no restart; process gone: restart; hung 3 minutes: graceful stop first) and a Python health-under-load test.
+

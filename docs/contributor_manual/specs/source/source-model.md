@@ -1,15 +1,14 @@
 # Source Model — how a source is represented — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — the user manual needs a "How Fichero represents a source" section, written for
-> a researcher: a source is addressable from a group of pages down to a single stroke; every
-> reading, translation, note and claim points at the exact place it came from; and the whole
-> thing can leave as standard XML and come back.
+> Manual: docs/contributor_manual/guide/02-the-node-model.md (the model a source sits in; the researcher-facing
+> "How Fichero represents a source" section is authored in the user manual and is tracked by the slice files).
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT — third pass, 2026-09-19. This is the FOUNDATION of the
-> source model: the intent, the rulings, the words, and the map of the other files. Nothing is
-> approved. Behaviour ids are in the slices, each tagged [GAP] with its issue on milestone 322.**
+> code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.**
+> This approves the FOUNDATION only: the intent, the rulings, the words, the map of the other files and its own three
+> behaviours (under "Behaviors"). The slice files hold the rest of the behaviour ids, each tagged [GAP] with its issue
+> on milestone 322, and are approved one at a time.
 > Tags (when behaviours arrive): **[OK]** built and tested · **[PARTIAL]** built, partly proven
 > · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >
@@ -824,7 +823,7 @@ are unchanged.)
 A capability is done only across the whole spine: **engine → app → agent (MCP) and command
 line → tested → exportable.** Anything less is not done.
 
-## Build order (2026-09-19; engine before app; each slice builds, tests and commits alone)
+## Slice plan (2026-09-19; engine before app; each slice builds, tests and commits alone)
 
 Rules for every slice: one typed, audited, undoable action for every write; pydantic models;
 routes in the OpenAPI contract (the command line is generated from it, and the Swift client
@@ -1052,6 +1051,42 @@ segments and giving passes, `source.chain.segments-to-any-reader` and
 Every behaviour in the set is tagged **[GAP]** and cites one of 35 grouped issues on milestone
 `source-model` (322), filed 2026-09-19: one issue for each coherent piece of work, not one for
 each behaviour. Four of them are marked BLOCKED on the maintainer.
+
+## Build order
+
+This file's own behaviours, each in one step. The slices of the "Slice plan" above build the behaviours that live in the
+slice files; their steps are in those files.
+
+### Stage 1 — The foundation
+
+#### Step 1.1 — One store and the anchor (built)
+- Behaviours: `source.one-store`, `source.builds-on-the-anchor`
+- Tests: fichero-server/tests/unit/api/test_segments_route.py, fichero-server/tests/unit/api/test_readings_across_split_and_merge.py, fichero/Tests/Unit/general/Models/SegmentMappingTests.swift
+- Size: S
+
+#### Step 1.2 — One line pass
+- Behaviours: `source.model.one-line-pass`
+- Tests: fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py
+- Depends on: 1.1
+- Size: S
+
+## Behaviour tests
+
+| Behaviour | Test |
+|---|---|
+| `source.one-store` | fichero-server/tests/unit/api/test_segments_route.py (engine); fichero/Tests/Unit/general/Models/SegmentMappingTests.swift (app) |
+| `source.builds-on-the-anchor` | fichero-server/tests/unit/api/test_readings_across_split_and_merge.py |
+| `source.model.one-line-pass` | fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py |
+
+## Test matrix
+
+The foundation's own three behaviours; the legs of every other behaviour are in its slice file's matrix.
+
+| Behaviour | Unit | Click-around | Notes |
+| --- | --- | --- | --- |
+| `source.one-store` | `test_segments_route.py` (engine), `SegmentMappingTests.swift` (app) | not needed | A second store is a source-level fact, not a screen one. |
+| `source.builds-on-the-anchor` | `test_readings_across_split_and_merge.py` | not needed | The anchor is an engine fact; screens only draw from it. |
+| `source.model.one-line-pass` | `test_one_line_pass_read_many.py` | needed | Only a page shows that a second reader adds readings to the same lines and never a second line pass. |
 
 ## Plain-word glossary
 

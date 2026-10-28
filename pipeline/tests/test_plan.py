@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from pipeline import coder, core, journal, plan
+from pipeline import coder, core, feeder, journal, plan
 
 SPEC = """# Demo spec
 
@@ -161,3 +161,70 @@ def test_plan_approve_refuses_without_a_proposal_or_with_a_bad_one(scratch, plan
     path.write_text(path.read_text() + "\n" + GOOD.replace("`demo.three`", "`demo.two`").split("\n", 1)[1].join(["## Proposed build order (proposed, not approved)\n", ""]))
     with pytest.raises(RuntimeError, match="has problems"):
         plan.plan_approve("specs/demo.md")
+
+
+
+class Remote:
+    """A fake GitHub for plan-approve: issues and milestones. `crash_on_create` = GitHub keeps the first issue, then the
+    process dies before the number comes back (the crash a rerun must survive)."""
+
+    def __init__(self, monkeypatch, milestones=None, crash_on_create=False):
+        self.issues, self.creates, self.crash, self.made = [], 0, crash_on_create, []
+        self.milestones = [{"title": "demo-spec"}] if milestones is None else milestones
+        monkeypatch.setattr(core, "DRY_RUN", False)
+        monkeypatch.setattr(plan.gh, "read", self.read)
+        monkeypatch.setattr(plan.gh, "write", self.write)
+
+    def read(self, *args):
+        if args[0] == "api":
+            page = int(args[1].split("&page=")[1]) if "&page=" in args[1] else 1
+            return self.milestones[(page - 1) * 100: page * 100]
+        return [{"number": 900 + i, "title": t, "body": b} for i, (t, b) in enumerate(self.issues, 1)]
+
+    def write(self, *args, dry_run=True):
+        if args[:2] == ("api", "repos/{owner}/{repo}/milestones"):
+            self.made.append(args[-1])
+            return ""
+        if args[:2] != ("issue", "create"):
+            return ""
+        self.creates += 1
+        self.issues.append((args[args.index("--title") + 1], args[args.index("--body") + 1]))
+        if self.crash:
+            self.crash = False
+            raise RuntimeError("crash after GitHub accepted the issue")
+        return f"https://github.com/o/r/issues/{900 + len(self.issues)}"
+
+
+def test_a_crash_after_create_is_not_refiled_on_rerun(scratch, planned, monkeypatch):
+    plan.plan("specs/demo.md")
+    remote = Remote(monkeypatch, crash_on_create=True)
+    with pytest.raises(RuntimeError, match="crash"):
+        plan.plan_approve("specs/demo.md")
+    creates_before = remote.creates
+    out = plan.plan_approve("specs/demo.md")
+    assert out["filed"] == {"1.1": 901, "1.2": 902}
+    assert remote.creates == creates_before + 1 and len(remote.issues) == 2, "the rerun files only what was never filed"
+    assert "#### Step 1.1 — one and two (#901)" in (scratch["repo"] / "specs" / "demo.md").read_text()
+
+
+def test_milestone_lookup_reads_every_page(scratch, planned, monkeypatch):
+    plan.plan("specs/demo.md")
+    remote = Remote(monkeypatch, milestones=[{"title": f"m{i}"} for i in range(100)] + [{"title": "demo-spec"}])
+    plan.plan_approve("specs/demo.md")
+    assert remote.made == [], "demo-spec is on page 2 of the milestones: it exists, so none is made"
+    assert remote.creates == 2
+
+
+def test_behaviour_text_cannot_add_a_dependency(scratch, planned, monkeypatch):
+    path = scratch["repo"] / "specs" / "demo.md"
+    plan.plan("specs/demo.md")
+    path.write_text(path.read_text().replace("does one.", "does one. Depends on: #7."))
+    remote = Remote(monkeypatch)
+    plan.plan_approve("specs/demo.md")
+    body = remote.issues[0][1]
+    assert "#7" not in body and not feeder.blocked({"body": body}, {7, 35}), "a behaviour's words never make an issue wait on another"
+
+
+def test_behaviours_accept_a_bold_tag_after_a_dash_and_a_plain_tag():
+    bold = "- `a.one` — **[GAP]** (#5) does one.\n- `a.two` — **[PARTIAL: wired]** (#6) two.\n- `a.ok` — **[OK]** done.\n- `a.three` [BROKEN] (#7) three.\n"
+    assert [(b["id"], b["tag"]) for b in plan.behaviours(bold)] == [("a.one", "GAP"), ("a.two", "PARTIAL"), ("a.three", "BROKEN")]

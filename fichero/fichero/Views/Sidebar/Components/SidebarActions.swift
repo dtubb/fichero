@@ -113,7 +113,7 @@ extension SidebarView {
     /// A single selection resolves to exactly the primary, unchanged. No-op if
     /// nothing in the selection is deletable (headers etc. are filtered).
     func handleDeleteSelection() {
-        let items = sidebarDeletableItems(selectedItems)
+        let items = sidebarDeleteTargets(selectedItems, inheritedSelectionId: deleteState.inheritedSelectionId)
         guard !items.isEmpty else { return }
         // Names, not a count (2026-08-10 Inbox incident): the one log line
         // that says exactly what a delete is ABOUT to act on, so a wrong
@@ -168,8 +168,53 @@ extension SidebarView {
         #endif
     }
 
+    /// The confirmed delete of every item. One item keeps the Finder selection rule (`performDeleteOne`); several are
+    /// grouped by `sidebarDeleteBatches`: each library's documents are ONE undoable step and one refresh, so one Cmd-Z
+    /// restores them all (`delete.multi-is-one-undo-step`, #6175, `undo.batches`), and nothing is selected after.
+    func performDelete(_ items: [SidebarItem]) async {
+        guard items.count > 1 else {
+            for item in items { await performDeleteOne(item: item) }
+            return
+        }
+        let stores = Set(items.compactMap(\.libraryId)).compactMap { libraryManager.getLibrary(id: $0)?.documentStore }
+        let parents = Dictionary(
+            stores.flatMap { $0.collections + $0.childrenCache.values.joined() }.map { ($0.id, $0.parentId) },
+            uniquingKeysWith: { first, _ in first })
+        let batches = sidebarDeleteBatches(items, parentOf: { parents[$0] ?? nil })
+        for batch in batches.documents { await performDeleteBatch(batch.documents, libraryId: batch.libraryId) }
+        for item in batches.others { await performDeleteOne(item: item) }
+        selectedItemId = nil  // nothing is selected after a batch: no row is left for the next Delete to act on
+        deleteState.inheritedSelectionId = nil
+    }
+
+    /// One library's documents as one step named by how many went ("Move 3 Items to Trash").
+    private func performDeleteBatch(_ documents: [Document], libraryId: UUID) async {
+        guard let library = libraryManager.getLibrary(id: libraryId) else {
+            logger.error("Could not find library for deletion")
+            return
+        }
+        do {
+            try await UndoableChange.batch(
+                documents,
+                named: { UndoableChange.named("Move", count: $0, one: "Item to Trash", many: "Items to Trash") },
+                service: library.actionsService, steps: windowState.steps,
+                afterEach: { await library.documentStore.refresh() },
+                change: { doc in
+                    [try await library.actionsService.invokeAction(
+                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId]
+                }
+            )
+            logger.info("Delete successful: \(documents.count) items in one step")
+        } catch {
+            logger.error("Failed to delete: \(error.localizedDescription)")
+            deleteState.showError(message: error.localizedDescription)
+        }
+        rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
+        await library.documentStore.refresh()
+    }
+
     // Perform the actual deletion
-    func performDelete(item: SidebarItem) async {
+    func performDeleteOne(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")
         guard let libraryId = item.libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else {
@@ -184,6 +229,7 @@ extension SidebarView {
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
             selectedItemId = selectedItemId == item.id ? next : nil
+            deleteState.inheritedSelectionId = selectedItemId  // only a place to look until the next click (#6175)
         } catch {
             // Surface it. `DeleteStateManager` has carried a complete error
             // surface — `deleteErrorMessage`, `showingDeleteError`,
@@ -200,12 +246,12 @@ extension SidebarView {
         guard case .document(let doc) = item.itemType else { return [] }
         let store = library.documentStore
         let siblings = doc.parentId.map { store.childrenCache[$0] ?? [] } ?? store.collections
-        return siblings.map(\.id)
+        return siblings.map { SidebarDestination.document($0.id).serializedID }  // the rows' ids ("doc:<id>"), as `item.id`
     }
 
     private func parentId(of item: SidebarItem) -> String? {
         guard case .document(let doc) = item.itemType else { return nil }
-        return doc.parentId
+        return doc.parentId.map { SidebarDestination.document($0).serializedID }
     }
 
     // Dispatches by item-type group — grouping keeps this switch's branch

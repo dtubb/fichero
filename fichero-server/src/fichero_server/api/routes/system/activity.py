@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import functools
 import re
 import json
 import logging
@@ -37,7 +38,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.db import Database
+from fichero_server.db import Database, committed
 from fichero_server.workflows.activity import (
     Activity,
     ActivityFilter,
@@ -48,7 +49,7 @@ from fichero_server.workflows.activity import (
 )
 from fichero_server.models import ActivityListResponse
 from fichero_server.workflows.run_account import RunAccount
-from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary
+from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, StepTiming
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -574,6 +575,9 @@ class JobTree(BaseModel):
     # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
     # `total` and `failed` count on the run's own node.
     account: Optional[RunAccount] = None
+    # A recipe run's stage row (#6215): its timing, a batch's own when the stage ran over batches (each batch's job is a
+    # row); null on any other row. The run status's `stages[].timing` holds the same figures.
+    timing: Optional[StepTiming] = None
     # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
     # included, each workflow stage with its run's account; null on any other job.
     stages: Optional[list[RecipeRunStep]] = None
@@ -750,8 +754,20 @@ async def get_recent_activities(
     return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
 
 
+def _reads_committed(route):
+    """The poll's every read, on its worker threads too, is of what was committed: under a held writer it answers
+    at once with what it has (#6178)."""
+    @functools.wraps(route)
+    async def answer(*args, **kwargs):
+        with committed(kwargs.get("db")):
+            return await route(*args, **kwargs)
+
+    return answer
+
+
 @router.get("/jobs", response_model=BackgroundJobsResponse)
 @single_flight
+@_reads_committed
 async def list_background_jobs(
     db: Database = Depends(get_library_database),
 ) -> BackgroundJobsResponse:
@@ -950,6 +966,7 @@ async def list_queued_items(
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
 @single_flight
+@_reads_committed
 async def get_job_tree(
     job_id: str,
     depth: Optional[int] = Query(None, ge=0, description=(
@@ -965,7 +982,7 @@ async def get_job_tree(
 
     # A row that stands for many jobs (the import's "Processing imported pages", one kind's counted
     # waiting jobs) reads as a tree of its stages (`activity.details.what-it-works-on-now`, #5623).
-    # Off the loop (#5843): the tree's reads wait on the transaction gate behind a write.
+    # Off the loop (#5843), and under a held writer what was committed (#6178).
     found = await asyncio.to_thread(
         lambda: job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id))
     if found is None:
@@ -1056,7 +1073,7 @@ async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], 
 
     # Off the loop (#5843): `runner.status` reads the library's rows and waits on the transaction gate behind a write.
     status = await run_view.with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))
-    state, reason = job_queue.state_and_reason(db, job_id) or (status["state"], status["reason"])
+    state, reason = await asyncio.to_thread(job_queue.state_and_reason, db, job_id) or (status["state"], status["reason"])
     if state == "running":
         # What it waits for, else the stage in words with its pages (#6125), not the stored "Running step 2 of 5".
         reason = status["waiting_for"] or status["reason"] or reason
@@ -1073,9 +1090,16 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
     readers = {s["child_id"]: s["readers"] for s in status["steps"] if s.get("child_id") and s.get("readers")}
+    timings = {}
+    for s in status["steps"]:
+        t = s.get("timing")
+        if t is not None:
+            timings.update({b.job_id: b for b in t.batches} if t.batches else {s["child_id"]: t})
     for child in found["children"]:
         if child["id"] in readers:  # the stage reads with a reader per kind: the row names each (#6134)
             child["readers"] = [dict(r) if isinstance(r, dict) else r.model_dump() for r in readers[child["id"]]]
+        if child["id"] in timings:
+            child["timing"] = timings[child["id"]]
         account = accounts.get(child["id"])
         if account is not None:
             child["account"] = account
@@ -1225,7 +1249,8 @@ async def _run_page_list(db: Database, job_id: str, stage: Optional[str]) -> lis
     if held is not None and now - held[0] < _PAGE_LIST_SECONDS:
         return held[1]
     tree = (await get_job_tree(job_id=job_id, depth=None, db=db)).model_dump()
-    pages = page_states(tree, stage)
+    # The grid reads in sidebar order, as done-in-order counts (#6186); the project's order is read off the loop.
+    pages = page_states(tree, stage, order=await asyncio.to_thread(db.unit_of_work_ids))
     for old_key in [k for k, (built, _) in _PAGE_LISTS.items() if now - built >= _PAGE_LIST_SECONDS]:
         del _PAGE_LISTS[old_key]
     _PAGE_LISTS[key] = (now, pages)
@@ -1479,7 +1504,7 @@ def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContex
 def _action_job_retry(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    before = job_queue._job_row(db, params.job_id)[1]
+    before = "waiting" if params.job_id.startswith("waiting:") else job_queue._job_row(db, params.job_id)[1]  # a kind's row (#6203)
     state = job_queue.retry_job(db, params.job_id)
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},

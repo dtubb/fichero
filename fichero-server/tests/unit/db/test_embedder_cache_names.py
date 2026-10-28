@@ -1,5 +1,6 @@
 """`embed_process._cached` finds the real cache folders: the pinned e5 is fetched from qdrant/multilingual-e5-large-onnx
-(the M4's cache: models--qdrant--multilingual-e5-large-onnx/snapshots/...), and bge-m3 from BAAI/bge-m3."""
+(the M4's cache: models--qdrant--multilingual-e5-large-onnx/snapshots/...), and bge-m3 from BAAI/bge-m3;
+with every file the model loads from in a snapshot (#6218)."""
 from __future__ import annotations
 
 import pytest
@@ -14,7 +15,12 @@ from fichero_server.db import embed_process, embeddings
 ])
 def test_the_real_cache_folder_is_found(tmp_path, name, folder):
     assert not embed_process._cached(name, str(tmp_path))
-    (tmp_path / folder / "snapshots" / "66076b8dc6e3").mkdir(parents=True)
+    snap = tmp_path / folder / "snapshots" / "66076b8dc6e3"
+    snap.mkdir(parents=True)
+    assert not embed_process._cached(name, str(tmp_path))  # an empty snapshot is a download that died (#6218)
+    for f in embed_process._model_files(embeddings.SUPPORTED_EMBEDDING_SPACES[name.lower()].fastembed_model_name):
+        (snap / f).parent.mkdir(parents=True, exist_ok=True)
+        (snap / f).write_bytes(b"x")
     assert embed_process._cached(name, str(tmp_path))
 
 

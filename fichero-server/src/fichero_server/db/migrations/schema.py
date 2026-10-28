@@ -30,6 +30,7 @@ import logging
 from typing import Callable
 
 from fichero_server.core.timeutil import utc_now
+from fichero_server.core.duckdb_session import fetch_one
 
 logger = logging.getLogger(__name__)
 
@@ -124,12 +125,12 @@ def migrate_paired_device_owner(conn) -> None:
     retired row.  A sole legacy row is deliberately left alone: it remains a
     real account and this migration must not invent or discard user data.
     """
-    canonical = conn.execute(
+    canonical = fetch_one(conn.execute(
         "SELECT id FROM users WHERE username = ?", ["owner"]
-    ).fetchone()
-    legacy = conn.execute(
+    ))
+    legacy = fetch_one(conn.execute(
         "SELECT id FROM users WHERE username = ?", ["__paired_device_owner__"]
-    ).fetchone()
+    ))
     if canonical is None or legacy is None:
         return
 
@@ -149,10 +150,10 @@ def migrate_paired_device_owner(conn) -> None:
     ).fetchall()
     role_rank = {"viewer": 1, "editor": 2, "owner": 3}
     for role_id, library_path, role in legacy_roles:
-        existing = conn.execute(
+        existing = fetch_one(conn.execute(
             "SELECT id, role FROM library_roles WHERE user_id = ? AND library_path = ?",
             [canonical_id, library_path],
-        ).fetchone()
+        ))
         if existing is None:
             conn.execute(
                 "UPDATE library_roles SET user_id = ? WHERE id = ?",
@@ -215,10 +216,10 @@ def migrate_workflow_table(
 
 def _migrate_workflow_table_body(conn) -> None:
     table_exists = (
-        conn.execute("""
+        fetch_one(conn.execute("""
         SELECT COUNT(*) FROM information_schema.tables
         WHERE table_name = 'workflows'
-    """).fetchone()[0]
+    """))[0]
         > 0
     )
 
@@ -323,10 +324,10 @@ def migrate_document_table(
 
     def _step() -> None:
         table_exists = (
-            conn.execute("""
+            fetch_one(conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'documents'
-        """).fetchone()[0]
+        """))[0]
             > 0
         )
 
@@ -395,10 +396,10 @@ def migrate_document_language_fields(
     """
     def _step() -> None:
         table_exists = (
-            conn.execute("""
+            fetch_one(conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'documents'
-        """).fetchone()[0]
+        """))[0]
             > 0
         )
         if not table_exists:
@@ -428,10 +429,10 @@ def migrate_saved_search_table(
 
     def _step() -> None:
         table_exists = (
-            conn.execute("""
+            fetch_one(conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'saved_searches'
-        """).fetchone()[0]
+        """))[0]
             > 0
         )
 
@@ -481,10 +482,10 @@ def migrate_provider_refs_table(
 
     def _step() -> None:
         table_exists = (
-            conn.execute("""
+            fetch_one(conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'provider_refs'
-        """).fetchone()[0]
+        """))[0]
             > 0
         )
 
@@ -938,10 +939,10 @@ def migrate_spatial_node_layout_fields(
 
     def _step() -> None:
         table_exists = (
-            conn.execute("""
+            fetch_one(conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'spatialnode'
-            """).fetchone()[0]
+            """))[0]
             > 0
         )
         if not table_exists:
@@ -997,12 +998,12 @@ def migrate_canvas_layout_table(
             """
         )
         documents_exists = (
-            conn.execute(
+            fetch_one(conn.execute(
                 """
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'documents'
                 """
-            ).fetchone()[0]
+            ))[0]
             > 0
         )
         if not documents_exists:
@@ -1095,21 +1096,21 @@ def migrate_catalogue_chunk_artifact_type(
     """
     def _step() -> None:
         table_exists = (
-            conn.execute(
+            fetch_one(conn.execute(
                 """
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_name = 'artifacts'
         """
-            ).fetchone()[0]
+            ))[0]
             > 0
         )
         if not table_exists:
             logger.debug("artifacts table absent; skipping chunk-type migration")
             return
 
-        pending = conn.execute(
+        pending = fetch_one(conn.execute(
             "SELECT COUNT(*) FROM artifacts WHERE artifact_type LIKE 'catalogue.chunk.%'"
-        ).fetchone()[0]
+        ))[0]
         if not pending:
             return
 
@@ -1164,7 +1165,7 @@ def migrate_library_identity_table(
             )
             """
         )
-        row = conn.execute("SELECT COUNT(*) FROM library_identity").fetchone()
+        row = fetch_one(conn.execute("SELECT COUNT(*) FROM library_identity"))
         if row is not None and row[0] == 0:
             conn.execute(
                 "INSERT INTO library_identity (singleton, library_uuid, minted_at) "
@@ -1218,9 +1219,9 @@ def read_library_uuid(conn) -> str | None:
     function already promises, not a hidden failure.
     """
     try:
-        row = conn.execute(
+        row = fetch_one(conn.execute(
             "SELECT library_uuid FROM library_identity LIMIT 1"
-        ).fetchone()
+        ))
         return str(row[0]) if row and row[0] else None
     except Exception:
         return None

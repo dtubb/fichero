@@ -2158,6 +2158,11 @@ def _make_parallel_node_function(
                     if refused_for_all:  # refused while this page waited for its slot: it does not try (M4: all 26 tried)
                         result, error_msg = None, refused_for_all[0]
                         break
+                    if event_callback:  # the file has its slot: its own time counts from here (#6178)
+                        try:
+                            await event_callback("file_running", {"node_id": node_id, "file_path": file_path})
+                        except Exception as e:
+                            logger.warning(f"Failed to emit file_running event: {e}")
                     try:
                         result = await tool_fn(
                             inputs=tool_inputs,

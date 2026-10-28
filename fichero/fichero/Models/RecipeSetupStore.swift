@@ -277,6 +277,7 @@ final class RecipeSetupStore {
             if saved.cloudInherited == true, savedAnswers.flatMap({ Self.hasKey("cloud_allowed", in: $0) }) != true {
                 cloudAllowed = true
             }
+            redoSteps = saved.redoSteps ?? []
             if let savedRecipe = saved.recipe {
                 rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
                 recipe = try Self.convert(savedRecipe, to: Components.Schemas.AssembledRecipe.self)
@@ -288,6 +289,18 @@ final class RecipeSetupStore {
             NSLog("Fichero: reading the project's setup failed: %@", String(describing: error))
             errorMessage = "Could not read this project's setup: \(error.inWords)"
         }
+    }
+
+    /// The started recipe's steps a folder can run again, as the engine names them (`redo_steps`, #6170): the folder
+    /// menu's Run a Step Again on This Folder ▸. Read with the setup, at project open and after Start; empty before the
+    /// first yes.
+    private(set) var redoSteps: [Components.Schemas.RedoStep] = []
+
+    /// Read only `redoSteps` from the project's setup, leaving the answers on screen as they are.
+    func loadRedoSteps() async {
+        guard case .ok(let success) = try? await client.api.getProjectSetupApiRecipesProjectGet(),
+              let saved = try? success.body.json else { return }
+        redoSteps = saved.redoSteps ?? []
     }
 
     /// Whether saved answers (JSON) carry `key` at all.
@@ -365,10 +378,14 @@ final class RecipeSetupStore {
     /// Record the first yes. Returns whether the engine kept it. The refused steps are
     /// already on screen (the plan loads with the step), so a refusal only says so.
     /// With `folderId`, the run covers that folder's live pages alone (`source.recipe.folder-scoped-start`);
-    /// without it, the whole project, sent as before (no body).
-    func start(folderId: String? = nil) async -> Bool {
+    /// without it, the whole project, sent as before (no body). `redo`: the steps to run again on pages that already have
+    /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `documents`: a run's pages alone, as
+    /// its `missed` names them (a run an import started, #6170).
+    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil) async -> Bool {
         do {
-            let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? = folderId.map { .json(.init(folderId: $0)) }
+            let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
+                folderId == nil && redo.isEmpty && documents == nil
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json
@@ -377,6 +394,12 @@ final class RecipeSetupStore {
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
+                // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
+                if redoSteps.isEmpty {
+                    redoSteps.append(contentsOf: started.workflows.map {
+                        .init(steps: $0.steps, name: $0.workflow.isEmpty ? $0.steps.joined(separator: ", ") : $0.workflow)
+                    })
+                }
                 return true
             case .unprocessableContent(let error):
                 // The engine's declared sentence ("This project has no material yet: add your pages in Set Up ›

@@ -573,7 +573,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         name, workflow_id = _shipped(WORKFLOW_FOR_JOB[job])
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
-                 "runs_on": runs_on}
+                 "runs_on": runs_on, "chosen_place": step.get("place")}
         if (how := how_it_works(job)) is not None:
             entry["how"] = how
         if job == "split-pages":
@@ -791,8 +791,53 @@ def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args
     return out, skipped, refusals
 
 
+#: A step's `place` when the person put it on Hugging Face Jobs (`source.recipe.step-runs-on-huggingface`): its own key,
+#: because choosing a reader sets the step's `runs_on` from the card and must not undo where the person put it.
+HF_JOBS_PLACE = "huggingface-jobs"
+
+
+def set_step_place(recipe: dict[str, Any] | None, step_id: str, place: str) -> dict[str, Any]:
+    """The recipe with a read-a-line step put on Hugging Face Jobs (`place: huggingface-jobs`) or back on this Mac (the key
+    removed): the person's choice, kept on the step through `project.save_setup`. ValueError, in words, for a recipe without
+    that step, a step that is not a reading, or a place that is not one of the two."""
+    import copy
+
+    if place not in ("this-mac", HF_JOBS_PLACE):
+        raise ValueError(f"a step runs on this-mac or {HF_JOBS_PLACE}, not {place!r}")
+    out = copy.deepcopy(recipe or {})
+    step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
+    if step is None:
+        raise ValueError(f"this project's recipe has no step {step_id!r}")
+    if step.get("job") != "read-a-line":
+        raise ValueError("only a reading step can be put on Hugging Face Jobs yet (Kraken reading the lines)")
+    if place == "this-mac":
+        step.pop("place", None)
+    else:
+        step["place"] = place
+    return out
+
+
+def place_on_huggingface(sendable: bool, *, pages_may_leave: bool, cap_usd: float,
+                          spent_usd: float = 0.0) -> dict[str, str | None]:
+    """`{place, target, why}` for a read-a-line step the person put on Hugging Face Jobs: there when it can go and the
+    project's yes, the app's place and a monthly cap above $0 allow it, else on this Mac with the reason in words."""
+    here = "you chose Hugging Face Jobs for this step, but "
+    if not sendable:
+        why = here + "only a single Kraken reader runs there yet, not a vision reader or one reader per material"
+    elif not pages_may_leave:
+        why = here + "pages may not leave this Mac (the project's yes and the app's Hugging Face place)"
+    elif cap_usd <= 0:
+        why = here + "the monthly Hugging Face spend cap is $0: set a cap in setup first"
+    elif spent_usd >= cap_usd:
+        why = here + f"this month's Hugging Face spend (at most ${spent_usd:.2f}) has reached the ${cap_usd:.2f} cap"
+    else:
+        return {"place": "huggingface", "target": HF_JOBS_PLACE, "why": "you chose Hugging Face Jobs for this step"}
+    return {"place": "this-mac", "target": None, "why": why}
+
+
 def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, bound_cluster: str | None = None,
-               pages_per_second: float | None = None) -> list[dict[str, Any]]:
+               pages_per_second: float | None = None, hf_allowed: bool = False,
+               hf_cap_usd: float = 0.0, hf_spent_usd: float = 0.0) -> list[dict[str, Any]]:
     """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
     its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
     it. `bound_cluster` is the project's cluster (`answers.cluster`, `runs-on-binds-to-a-target`), its id. ponytail:
@@ -805,7 +850,11 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
         if run.get("job") != "read-a-line":
             continue
         sendable = run.get("provider_override") == KRAKEN_READER_PROVIDER and not run.get("readers")
-        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster if sendable else None))
+        if run.get("chosen_place") == HF_JOBS_PLACE:  # the person's own choice, not the scale rule (#6173)
+            run.update(place_on_huggingface(sendable, pages_may_leave=hf_allowed, cap_usd=hf_cap_usd, spent_usd=hf_spent_usd))
+        else:
+            run.update(place_step(pages, pages_may_leave=cloud_allowed,
+                                  bound_cluster=bound_cluster if sendable else None))
         unsent = bound_cluster and not sendable and run["place"] == "this-mac"
         if unsent and run["why"].endswith("set up for this project"):
             run["why"] = (f"{pages:,} pages would suit the cluster {bound_cluster}, but only a single Kraken reader is "
@@ -932,9 +981,9 @@ def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
 def _without_what_waits(runs: list[dict[str, Any]], needs_a_model: list[dict[str, Any]], recipe: dict[str, Any],
                         skip: Any, names: dict[str, str]) -> list[dict[str, Any]]:
     """The runs that do not need what a step with no model would have made; each that does is skipped, saying it
-    waits for that step (`source.onboard.no-model-step-kept`). A take is met when the material starts with it or
-    another run gives it. ponytail: one pass, so a run that waits on a run skipped here is not caught; add a loop
-    if a recipe ever chains two such waits."""
+    waits for that step (`source.onboard.no-model-step-kept`). A take is met when the material starts with it or a
+    run that does not wait gives it, to a fixpoint: a run never meets its own take (Leave Out takes and gives lines,
+    so with Find Lines model-less it ran on none and Read met its lines off it, `recipes-run.steps.leave-out`)."""
     from fichero_server.recipes.jobs import get_job, starts_with
 
     missing: dict[str, str] = {}
@@ -945,12 +994,23 @@ def _without_what_waits(runs: list[dict[str, Any]], needs_a_model: list[dict[str
         return runs
     material = (recipe.get("suits") or {}).get("material")
     have = set(starts_with([material] if isinstance(material, str) else material))
-    for run in runs:
-        have |= set(run.get("gives") or ())
+
+    def waits_on(run: dict[str, Any]) -> list[str]:
+        return sorted({missing[k] for take in run.get("takes") or [] if not have & set(take.split("|"))
+                       for k in take.split("|") if k in missing})
+
+    admitted: list[int] = []
+    more = True
+    while more:
+        more = False
+        for i, run in enumerate(runs):
+            if i not in admitted and not waits_on(run):
+                admitted.append(i)
+                have |= set(run.get("gives") or ())
+                more = True
     kept = []
-    for run in runs:
-        waits = sorted({missing[k] for take in run.get("takes") or [] if not have & set(take.split("|"))
-                        for k in take.split("|") if k in missing})
+    for i, run in enumerate(runs):
+        waits = [] if i in admitted else waits_on(run)
         if waits:
             # The fix is the waited step's model, so no button: this step's would choose a model for itself (#5801).
             needed = _and([names.get(w, w) for w in waits])

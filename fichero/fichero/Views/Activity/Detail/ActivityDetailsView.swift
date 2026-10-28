@@ -262,6 +262,13 @@ struct ActivityDetailsView: View {
                 .map { "Couldn't use the next reader: \($0)" }
         case .openSetUp(let stage):
             failure = openSetUp(stage)
+        case .runAgainOnMissed(let folderId, let documents, _):
+            if let libraryId = selection.libraryId {
+                failure = await LibraryManager.shared.runAgainOnMissed(
+                    for: libraryId, folderId: folderId, documents: documents)
+            } else {
+                failure = "Couldn't run it again: open the project and use Project › Start"
+            }
         }
         actionFailure = failure
     }

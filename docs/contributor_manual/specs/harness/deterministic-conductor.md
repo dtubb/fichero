@@ -90,7 +90,7 @@ through coders. One behaviour sits in exactly one build-order step. Behaviours t
 merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of this section.
 
 ### Specs and issues
-- `pipeline.spec-to-issues` [PARTIAL] (#6116) — built for a spec with NO ordered steps: `python -m pipeline plan <spec>` (facts + one big-tier call → a `## Proposed build order`, checked by the build-order guard's parser, queued as "approve this plan?") and `plan-approve <spec> [--apply]` (one issue per step with a `stage:<spec>-<n>` label, `Depends on: #N`, `(#N)` on each heading, the milestone made if missing); not built: reconciling with issues that already exist and the spec-change flow below. one issue per build-order STEP (never per behaviour): title
+- `pipeline.spec-to-issues` [PARTIAL] (#6116) — built for a spec with NO ordered steps: `python -m pipeline plan <spec>` (facts + one big-tier call → a `## Proposed build order`, checked by the build-order guard's parser, queued as "approve this plan?") and `plan-approve <spec> [--apply]` (one issue per step with a `stage:<spec>-<n>` label, `Depends on: #N`, `(#N)` on each heading, the milestone made if missing). Built since #6161: before each create, a step is looked up on GitHub by its exact title or its `<!-- plan-step: <spec> <n> -->` marker (any state), so a rerun or a crash after create reuses the issue instead of filing a duplicate; the milestone list is paged; behaviour text is written with `#` as `&num;`, so a spec's `#N` adds no dependency. Not built: the lookup in dry run (a preview counts steps already filed as would-file); reopening or commenting on existing issues and the spec-change flow below; milestones over 1000 issues (the lookup reads one page of 1000 per milestone). one issue per build-order STEP (never per behaviour): title
   `<spec short name> N.M: <title>`; body = the step's behaviour lines verbatim with their acceptance, the test paths,
   the dependencies and a link to the section; the spec's milestone; label `stage:<spec>-<n>`. Filing writes `(#N)`
   into the step heading as a commit on a branch for review, never straight to integration. Before filing it searches
@@ -195,12 +195,14 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   check files laid over it (`git worktree add --detach`, then `git checkout <pinned sha> -- <check paths>`), so a
   guard that scans `ROOT = Path(__file__).parent.parent` sees the coder's diff and never the pinned tree, uncommitted
   edits or the worktree's own copies; a coder cannot edit the check it is judged by (the runner builds itself, so
-  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer`; adding a new guard is
+  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer` (for the fichero profile those are `scripts/check_*`, `scripts/lane_ready_check.sh` and `scripts/gate`; the runner's own `pipeline/` code and new tests pass this rung and the reviewer is the gate, but a diff that deletes or weakens a base test, by a removed test function, fewer `assert`s or an added skip/xfail, still goes to `needs-maintainer`); adding a new guard is
   allowed, since the pinned runner does not run it until the maintainer pulls it in. The runner moves to a new sha only on the
   maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_a_coder_change_that_breaks_a_guard_turns_the_check_red`,
   `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
   `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
+  `pipeline/tests/test_checks.py::test_new_runner_code_and_a_new_test_pass_pinned_checks`,
+  `pipeline/tests/test_checks.py::test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer`,
   `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`,
   `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
   `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
@@ -392,8 +394,10 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
 
 ### Checking the work
 - `pipeline.ready-check` [OK] — `scripts/lane_ready_check.sh` (self-tested): current integration history, no
-  private folders, agent author, every commit cites an issue, lint on the diff, a source change has a test change.
-  Test: `scripts/lane_ready_check.sh --self-test`.
+  private folders, agent author, every commit cites an issue, lint on the diff, a source change has a test change,
+  and every fast guard the runner's fast-guards rung runs (all `scripts/check_*.py` minus the skip list in
+  `pipeline/projects/fichero.toml`, read from there, 60 s each; #6140). Test: `scripts/lane_ready_check.sh --self-test`
+  (a scratch commit that breaks `check_folder_organization` is NOT READY).
 - `pipeline.test-red-on-base` [OK] — the branch's changed or new test files are copied into a scratch
   worktree at origin/integration and must fail there, and must pass on the branch; a test that passes on the base
   proves nothing. Tests: `pipeline/tests/test_checks.py::test_red_on_base_fails_a_test_that_passes_on_base`,
@@ -756,3 +760,7 @@ runner (ponytail: the times below are from one Pro run on 2026-10-25 with the ve
    a smaller Qwen); measure it on landed issues against the Sonnet baseline before switching the profile.
 2. Who resolves a merge conflict a rebase leaves: proposed the Opus session with the maintainer, with the coder's
    diff and the conflicting commit in front of it.
+- `pipeline.land-rebases-and-reuses-the-review` — **[OK]** (#6179) `land` rebases the item's branch onto the current base itself; when the rebased diff has the same `git patch-id --stable` as the reviewed one the review is reused (never rerun, `never-rerun-a-model-pass`) and only the checks run again; a changed patch goes back to review, a conflict is sent back. Items land one at a time, each rebased onto the previous landing, so a queue of reviewed items drains. `land` works while the loop runs (the request queue of `pipeline.requests-not-locks`) and says so when paused. *Test:* `pipeline/tests/test_land_rebase.py`.
+- `pipeline.auto-land-to-integration` — **[OK]** (#6179; owner 2026-10-26) the runner lands its own items on `integration` without waiting for a person: an item that is reviewed READY, rebased (`pipeline.land-rebases-and-reuses-the-review`) and whose checks are green on the rebased head is fast-forward-pushed to `integration` by the scheduler on its next pass, one at a time, then closed by the closer. Never `main` (protected: PR and merge only, the Lead's release step), never an item that changes its own checks or its own acceptance (those stay `needs-maintainer`), and never while a person's question on it is open. Switchable in the profile (`[run] auto_land = true`), journalled per landing. *Test:* `pipeline/tests/test_auto_land.py` (a reviewed item lands on the next pass; a needs-maintainer item and a `main` target never do).
+- `pipeline.questions-go-up-and-the-loop-keeps-going` — **[PARTIAL]** (#6166; owner 2026-10-26: "the runner has to raise it to you, and then continue it, not wait for me") a worker's question parks ONLY that item (`asking`, its window), never the loop: the scheduler goes on with every other item and starts new work. The question goes to the MANAGER first (the watch notifies within a minute), who answers from the rulings already given; only a question no ruling covers goes to the OWNER, batched in the chat a few at a time, and it too parks only its item. An answered question wakes the same session with the answer (`resume-asked`); an unanswered one for an hour is re-raised once and then the item is set aside (`needs-maintainer`) while the loop continues. Built: `asking` parks the item, `resume-asked` wakes it. Not built: the manager notification from the runner itself (the watch script does it today), the hour re-raise. *Test:* `pipeline/tests/test_runner.py` (an asking item and a second item: the second is started and coded while the first waits).
+

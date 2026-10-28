@@ -29,6 +29,11 @@ extension RecipeSetupStore {
         languages.isEmpty ? nil : languages.joined(separator: ",")
     }
 
+    /// Whether Which hand is asked: a hand is a way of writing by hand, so print and typescript alone have none (#6012).
+    nonisolated static func asksWhichHand(materials: [String]) -> Bool {
+        materials.isEmpty || materials.contains("handwriting")
+    }
+
     /// Tick or untick a hand. "Not sure" stands alone: it clears the others, and a hand ticked clears it.
     func toggle(hand id: String) {
         if hands.contains(id) {

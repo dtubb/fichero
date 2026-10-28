@@ -142,7 +142,7 @@ def _hydrate_progress_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]
                 step["skip_reason"] = skip_reason
             continue
 
-        if event_type not in {"file_start", "file_complete", "file_error"}:
+        if event_type not in {"file_start", "file_running", "file_complete", "file_error"}:
             continue
 
         key = _progress_event_key(event)
@@ -164,10 +164,12 @@ def _hydrate_progress_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]
             steps.append(step)
             active_steps[key] = step
 
-        if event_type == "file_complete":
+        if event_type == "file_running":
+            step["running_at"] = timestamp  # it got its slot: its own time counts from here (#6178)
+        elif event_type == "file_complete":
             step["completed_at"] = timestamp
             step["status"] = "success"
-            started_at = step.get("started_at")
+            started_at = step.get("running_at") or step.get("started_at")
             if started_at and timestamp and "duration_ms" not in step:
                 try:
                     step["duration_ms"] = (

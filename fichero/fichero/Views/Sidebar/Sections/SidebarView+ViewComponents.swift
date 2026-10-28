@@ -208,6 +208,8 @@ extension SidebarView {
                 // click-timeline interval for a write the user never made.
                 return
             }
+            deleteState.inheritedSelectionId = inheritedSelection(
+                afterProposing: proposed.map(\.serializedID), inherited: deleteState.inheritedSelectionId)
             // Start of the click timeline (#4228). The setter is the first
             // of OUR code the click reaches; everything before it is AppKit
             // hit-testing. Closed in `handleSelectionChange` once the routed

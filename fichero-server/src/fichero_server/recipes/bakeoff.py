@@ -852,7 +852,7 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     if LINE_KIND not in jobs.KINDS or jobs.KINDS[LINE_KIND].run is None:
-        jobs.register_kind(LINE_KIND, _run_lines, model=None, lane="local-ml", name="Compare the line finders")
+        jobs.register_kind(LINE_KIND, _run_lines, model=None, lane="local-ml", name="Compare the line finders", says_per_item=True)
 
 
 def lines_result(db: Any, record: dict[str, Any]) -> dict[str, Any]:

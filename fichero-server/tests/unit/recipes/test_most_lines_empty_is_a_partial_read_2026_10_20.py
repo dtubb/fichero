@@ -59,7 +59,7 @@ def test_the_read_onto_working_lines_path_follows_the_same_rule(monkeypatch):
     from pathlib import Path
 
     src = (Path(kraken_runtime.__file__).parents[1] / "workflows" / "tools" / "vision_base.py").read_text()
-    assert "_mostly_nothing(len(_blank), len(geometry.boxes))" in src
+    assert "_wl.empty_lines_why(_blank, len(geometry.boxes))" in src  # reads_mostly_nothing inside (#6219)
     assert "len(_blank) == len(geometry.boxes)" not in src
 
 

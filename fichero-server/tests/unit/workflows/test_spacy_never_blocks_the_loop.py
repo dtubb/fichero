@@ -138,3 +138,27 @@ def test_the_loop_keeps_answering_while_the_transformers_provider_loads_and_runs
         return worst
 
     assert asyncio.run(go()) < 0.3, "the event loop was held while the Transformers provider loaded or ran"
+
+
+def test_two_extracts_load_the_transformers_pipeline_once(monkeypatch):
+    """## 988: the provider is built per call and `_load_pipeline` rebuilt the model on every extract. Two extracts (and a second
+    provider object for the same model id) load once; another model id loads its own; clearing forgets them."""
+    from fichero_server.workflows.ner import providers
+    from fichero_server.workflows.ner.providers import TransformersNERProvider, clear_transformers_pipelines
+
+    built = []
+    monkeypatch.setattr(TransformersNERProvider, "_build_pipeline",
+                        lambda self: built.append(self.model_name) or (lambda text: []))
+    clear_transformers_pipelines()
+    try:
+        asyncio.run(TransformersNERProvider().extract("Don Juan de Mosquera vendió una casa."))
+        asyncio.run(TransformersNERProvider().extract("Doña María compró la huerta."))
+        assert built == ["dslim/bert-base-NER"], f"the model was built {len(built)} times for two extracts"
+        asyncio.run(TransformersNERProvider(model_name="other/ner").extract("Pedro."))
+        assert built == ["dslim/bert-base-NER", "other/ner"]
+        clear_transformers_pipelines()
+        asyncio.run(TransformersNERProvider().extract("Otra vez."))
+        assert built[-1] == "dslim/bert-base-NER" and len(built) == 3
+    finally:
+        clear_transformers_pipelines()
+        assert providers._TRANSFORMERS_PIPELINES == {}

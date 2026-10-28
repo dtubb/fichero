@@ -13949,12 +13949,14 @@ def register_generated_openapi_commands(
     def recipes_get_start_plan_get(
         ctx: typer.Context,
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"),
     ) -> None:
         """Get Start Plan (GET /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
             params = {
                 "folder_id": folder_id,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13963,6 +13965,7 @@ def register_generated_openapi_commands(
     def recipes_start_project_post(
         ctx: typer.Context,
         accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        documents: Optional[list[str]] = typer.Option(None, '--documents', help="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13972,10 +13975,12 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "accept_unpriced": accept_unpriced,
+                "documents": documents,
                 "folder_id": folder_id,
                 "redo": redo,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
+                "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)
@@ -14001,6 +14006,26 @@ def register_generated_openapi_commands(
                 "card": {'type': 'string', 'title': 'Card', 'description': "the installed model's card id, as that download's `instead` names it", 'default': '', 'x-cli-required': False},
                 "model": {'type': 'string', 'title': 'Model', 'description': 'the download the plan waits for, as its `downloads` names it (`model`), or the model this Mac cannot run, as its `elsewhere` names it', 'x-cli-required': True},
                 "provider": {'type': 'string', 'title': 'Provider', 'description': "the free place's provider row id, as that `elsewhere` entry's `instead` names it", 'default': '', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-step-on-a-place")
+    def recipes_put_step_on_a_place_post(
+        ctx: typer.Context,
+        place: str = typer.Option(..., '--place', help="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step."),
+        step: str = typer.Option(..., '--step', help="the recipe step's id (a reading step)"),
+    ) -> None:
+        """Put Step On A Place (POST /api/recipes/project/steps/place)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/place"
+            params = None
+            payload = _build_json_payload({
+                "place": place,
+                "step": step,
+            }, {
+                "place": {'type': 'string', 'title': 'Place', 'description': "`this-mac` or `huggingface-jobs`: the person's choice, kept on the step", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id (a reading step)", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

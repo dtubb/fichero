@@ -136,6 +136,10 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   (an agent's default): each item without its text (`page_content`), its workflow runs or a metadata value over
   200 characters (a transcription), its name, kind, counts and dates kept; the app, calling with no parameters,
   keeps every field. *Test:* `fichero-server/tests/unit/api/test_children_answer_fits_an_agent_5695.py`.
+  **The Start plan too:** `GET /api/recipes/project/start` takes `summary` (an agent's default): each step's
+  candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models a
+  Mac has (a reviewer's machine answered 75 KB); the app, calling with no parameters, keeps the whole menu. *Test:*
+  `fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py::test_the_start_plan_for_an_agent_names_each_steps_pick_not_its_whole_menu`.
 - `openapi.mcp.onboarding-journey` **[PARTIAL]** (2026-10-12) an agent onboards a project end to end through
   the generated MCP tools on their default surface: it opens the project, saves Set Up's answers and recipe,
   reads the start plan, starts, reads the run's status and summary, lists Find the Documents' proposals, accepts

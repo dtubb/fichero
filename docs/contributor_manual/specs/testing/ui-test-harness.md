@@ -121,11 +121,15 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   `harness.content-renders`), but the ≤15 s target bound from this spec was never enforced:
   `FicheroUISession.swift`'s `readyTimeout` and `ColdLaunchReachesLibraryUITests`'s
   `launchDeadline` are both still 120 s, and nothing measures/asserts actual connect time.
-- `harness.fail-fast-loud` [PARTIAL] (#4781) — engine-bind failure is loud and pinned
-  (`test_unready_engine_fails_loudly_not_green`). App-side is not: `FicheroUISessionTests.setUp`
-  turns ANY provisioning error — including a present-but-broken harness — into `XCTSkip`, and
-  `waitForLibraryReady()` has no class-level memoization, so a broken app connection can still cost
-  N × 120 s across a run.
+- `harness.fail-fast-loud` [PARTIAL] (#4781; built, Swift compile and run owed) — engine-bind failure is loud and pinned
+  (`test_unready_engine_fails_loudly_not_green`). App-side too: `FicheroUISessionTests.setUp` skips
+  only for an ABSENT harness (`HarnessError.isAbsent`: no repo root, no venv python) and fails with
+  "harness connection broken — fix this first" for a present-but-broken one (`seedFailed`,
+  `engineDidNotBind`, any unclassified error); `waitForLibraryReady()` waits the full `readyTimeout`
+  once, then a run-wide flag makes every later session test fail at once (0 s), so a broken app
+  connection costs one wait, not N × 120 s. The flag is one-way: a later test on a relaunched app or
+  after a transient slow start also fails at once. Pinned by `HarnessFailFastTests`
+  (`provisioningOutcome`, `readyWait`); written, unrun.
 - `harness.ios-sim-same-socket` [PARTIAL] (#4782) written, unrun (the iOS lane owns the simulator runner, ruled 2026-10-17): `scripts/run_ios_ui_sim.sh` starts the seeded harness engine on the Mac at a /tmp socket and runs the fichero-ui-ios plan with TEST_RUNNER_FICHERO_FORCE_UDS_PATH; `fichero/Tests/UI/ios/IOSSimSameSocketTests.swift` (in that plan) connect()s the socket, and skips without it. The shared identifier-driven flows on the simulator (#4771) follow once this is green. Was: no iOS/iPad UI test target constructs a
   `UITestEngineHarness` or dials `FICHERO_FORCE_UDS_PATH` on a Simulator destination; nothing
   verifies a Simulator process can `connect()` the Mac runner's socket.
@@ -142,7 +146,7 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | fail-fast classifier (absent-vs-broken); `shortSocketPath`'s path builder | **none — #4701, #4808: `UITestHarnessTests.swift` never existed; no Swift test covers this today** |
+| Pure rule (Swift) | y | fail-fast classifier (absent-vs-broken); `shortSocketPath`'s path builder | `fichero/Tests/UI/general/HarnessFailFastTests.swift` (absent-vs-broken, no re-wait; written, unrun). `shortSocketPath`'s path builder is still uncovered (#4701, #4808) |
 | Snapshot/Preview (Swift) | y | the main interface renders with no library current | `fichero/Tests/Unit/**/…SnapshotTests.swift` |
 | Backend (pytest) | y | harness seeds + binds + ready-line into a passed-in dir | `fichero-server/tests/integration/test_spawn_per_run_harness.py` |
 | Click-around (XCUITest) | y | app connects → seeded rows drive (InspectorFlows goes GREEN) | `fichero/Tests/UI/**` |

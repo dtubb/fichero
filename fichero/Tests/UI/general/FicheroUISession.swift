@@ -59,6 +59,9 @@ class FicheroUISessionTests: XCTestCase {
     nonisolated(unsafe) private static var sharedApp: XCUIApplication?
     nonisolated(unsafe) private static var provisioningError: Error?
     /// Set once the app failed to reach `library.content.ready`; later tests do not re-wait (#4781).
+    /// One-way and run-wide by design: a later test on a relaunched app or a transient slow start
+    /// also fails at once, with the same "connection broken" message. ponytail: reset it where
+    /// the session relaunches the app, if that ever produces a false abort.
     nonisolated(unsafe) private static var libraryNeverReady = false
 
     /// What a provisioning error means for the run (#4781, `harness.fail-fast-loud`):
@@ -66,6 +69,10 @@ class FicheroUISessionTests: XCTestCase {
     enum ProvisioningOutcome: Equatable {
         case skip(String)
         case fail(String)
+    }
+
+    struct HarnessBroken: Error, CustomStringConvertible {
+        let description: String
     }
 
     nonisolated static func provisioningOutcome(for error: Error) -> ProvisioningOutcome {
@@ -111,8 +118,8 @@ class FicheroUISessionTests: XCTestCase {
                 // No venv / repo on this machine — skip rather than red.
                 throw XCTSkip(message)
             case .fail(let message):
-                XCTFail(message)
-                throw error
+                // Thrown, not XCTFail + throw: one cause records one failure.
+                throw HarnessBroken(description: message)
             }
         }
         seeded = Self.sharedSeeded

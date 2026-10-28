@@ -39,7 +39,8 @@ Usage:
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 from pathlib import Path
 from types import UnionType
 from typing import TYPE_CHECKING, ClassVar, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     from fichero_server.models.conversion import UnconvertedScope
     from fichero_server.models import Artifact, Segment, Workflow
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from types import SimpleNamespace
 import difflib
@@ -80,8 +81,10 @@ from fichero_server.db.embeddings import (
     _quantize_int8,
 )
 from fichero_server.db.manager import DatabaseManager, db_manager  # noqa: F401
+from fichero_server.db.busy_evidence import watch_statement
 from fichero_server.errors import ErrorCategory, handle_error
 from fichero_server.security.path_security import resolve_under_allowed_roots
+from fichero_server.core.duckdb_session import fetch_one
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,18 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+_OPEN_MIGRATIONS_LOCKS: dict[str, threading.RLock] = {}
+_OPEN_MIGRATIONS_LOCKS_GUARD = threading.Lock()
+
+
+def _open_migrations_lock(path: Path) -> threading.RLock:
+    """The one lock a library file's open-time migrations run under, in this process (#6220); re-entrant, so an open
+    inside an open of the same library on one thread does not wait on itself."""
+    key = os.path.realpath(str(path))
+    with _OPEN_MIGRATIONS_LOCKS_GUARD:
+        return _OPEN_MIGRATIONS_LOCKS.setdefault(key, threading.RLock())
+
 
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
@@ -160,6 +175,10 @@ def transient_field_names(model_cls: type) -> set[str]:
     cannot itself become a column.
     """
     return set(getattr(model_cls, "TRANSIENT_FIELDS", ()) or ())
+
+
+# ponytail: a fixed grace; a reader holding an older version past it loses its files (each call opens the latest).
+_VECTOR_PRUNE_GRACE = timedelta(minutes=5)  # optimize() alone kept every old version for 7 days (#6236)
 
 
 def _vector_compaction_interval() -> int:
@@ -1019,6 +1038,36 @@ def _repair_lock(path: str) -> threading.Lock:
     with _REPAIR_LOCKS_GUARD:
         return _REPAIR_LOCKS.setdefault(path, threading.Lock())
 
+#: Set by `Database.reading_committed`: a ContextVar, so the worker threads a poll hands its reads to
+#: (`asyncio.to_thread` copies the context) read committed too.
+_COMMITTED_READS: ContextVar[bool] = ContextVar("committed_reads", default=False)
+
+
+def committed(db: Any) -> Any:
+    """The library's committed reads (`Database.reading_committed`): a poll that answers under a held writer with what
+    was committed (#6178). A stand-in library without them reads as it does."""
+    reading = getattr(db, "reading_committed", None)
+    return reading() if reading else nullcontext()
+
+
+def read_committed(db: Any, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """`fn(*args)` under `committed(db)`."""
+    with committed(db):
+        return fn(*args, **kwargs)
+
+
+def get_read(db: Any, model: Any, id: str) -> Any:
+    """`db.get(model, id)`, a read: under a caller's `committed(db)`, of what was committed (#6178)."""
+    reads = getattr(db, "_reads_committed_now", None)
+    return db.get_committed(model, id) if reads is not None and reads() else db.get(model, id)
+
+
+def query_read(db: Any, model: Any, **filters: Any) -> list[Any]:
+    """`db.query(model, **filters)`, a read: under a caller's `committed(db)`, of what was committed (#6178)."""
+    reads = getattr(db, "_reads_committed_now", None)
+    return db.query_committed(model, **filters) if reads is not None and reads() else db.query(model, **filters)
+
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -1077,7 +1126,15 @@ class Database(DatabaseEmbeddingMixin):
         # (it appends to this SAME instance's list) — a failure looks the
         # same from either caller. Surfaced at `GET /api/health`.
         self.migration_failures: list = []
+        # One open's migrations at a time per library file (#6220): two opens at once (two embed
+        # threads each making the worker Database) both made idx_documents_parent_id in the same
+        # moment, and one rolled back on a catalog write-write conflict. The second open waits,
+        # then finds every step done.
+        with _open_migrations_lock(path):
+            self._run_open_migrations()
 
+    def _run_open_migrations(self) -> None:
+        """The open-time repair, migrations and steps; under `_open_migrations_lock` (#6220)."""
         # Before any migration writes: a migration's UPDATE on a row a stale index cannot find is
         # the FATAL that invalidates the whole database (#5644).
         self._repair_indexes_once()
@@ -1213,7 +1270,7 @@ class Database(DatabaseEmbeddingMixin):
             f"SELECT table_name FROM duckdb_tables() WHERE table_name IN ({marks})", wanted).fetchall()}
         if not old:
             return  # a library made after the fold, or one that never used the store: nothing to copy
-        folded = conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]).fetchone()
+        folded = fetch_one(conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]))
         if folded:
             self._say_older_engine_rows(name, folded[0], [(t, newer_sql) for t, _c, _m, newer_sql in copies if t in old])
             return
@@ -1233,7 +1290,7 @@ class Database(DatabaseEmbeddingMixin):
                     failures = len(self.migration_failures)
 
                     def _chunk(table=table, copy_sql=copy_sql) -> None:
-                        row = conn.execute(f"{copy_sql} LIMIT {chunk}").fetchone()
+                        row = fetch_one(conn.execute(f"{copy_sql} LIMIT {chunk}"))
                         copied[0] = row[0] if row else 0
 
                     _run_atomic_migration(conn, f"fold_{name}_tables_5645", _chunk, self.migration_failures)
@@ -1246,7 +1303,7 @@ class Database(DatabaseEmbeddingMixin):
             for table, copy_sql, _missing, _newer in copies:
                 if table in old:
                     conn.execute(copy_sql)
-            missing = sum(conn.execute(missing_sql).fetchone()[0]
+            missing = sum(fetch_one(conn.execute(missing_sql))[0]
                           for table, _c, missing_sql, _n in copies if table in old)
             if missing:
                 raise RuntimeError(f"{missing} rows of the old {name} tables were not found after the copy")
@@ -1263,7 +1320,7 @@ class Database(DatabaseEmbeddingMixin):
         newer = 0
         for table, newer_sql in checks:
             try:
-                newer += self.conn.execute(newer_sql, [folded_at]).fetchone()[0]
+                newer += fetch_one(self.conn.execute(newer_sql, [folded_at]))[0]
             except duckdb.Error as exc:
                 said = f"could not check the old {table} table for rows an older Fichero wrote: {exc}"
                 logger.warning("%s: %s", self.path, said)
@@ -1357,16 +1414,16 @@ class Database(DatabaseEmbeddingMixin):
     def _apply_added_jobs_columns(self) -> None:
         """A library made by an older release gets the columns later releases added to `jobs`, here, on the write
         connection at open (#5814), as the other idempotent migrations do; the jobs code also checks per connection."""
-        if self.conn.execute(
+        if fetch_one(self.conn.execute(
             "SELECT 1 FROM information_schema.tables WHERE table_name = 'jobs'"
-        ).fetchone() is None:
+        )) is None:
             return  # no jobs table yet: `jobs._ensure` makes it with the columns
         from fichero_server.execution import jobs
 
         count = "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jobs'"
-        before = self.conn.execute(count).fetchone()[0]
+        before = fetch_one(self.conn.execute(count))[0]
         jobs.apply_added_columns(self.conn.execute, str(self.path))
-        if self.conn.execute(count).fetchone()[0] > before:
+        if fetch_one(self.conn.execute(count))[0] > before:
             # An ALTER ... ADD COLUMN must not sit in the WAL: DuckDB cannot replay it, and a library that dies
             # before the next checkpoint then poisons every restart (the house rule, db/app.py, 2026-06-12).
             try:
@@ -1435,12 +1492,12 @@ class Database(DatabaseEmbeddingMixin):
 
     def _repair_indexes_once_locked(self) -> None:
         conn = self.conn
-        has_settings = bool(conn.execute(
+        has_settings = bool(fetch_one(conn.execute(
             "SELECT 1 FROM duckdb_tables() WHERE table_name = 'librarysettings'"
-        ).fetchone())
-        repaired = has_settings and bool(conn.execute(
+        )))
+        repaired = has_settings and bool(fetch_one(conn.execute(
             "SELECT 1 FROM librarysettings WHERE id = ?", [self.INDEXES_REPAIRED_SETTING]
-        ).fetchone())
+        )))
         if repaired or not has_settings:
             # Repaired before, or a new library with nothing written before the fix to repair. Rebuilding
             # a new library's indexes on every open, while other threads write to it, crashed the engine.
@@ -1831,11 +1888,17 @@ class Database(DatabaseEmbeddingMixin):
 
     def _materialize_schema(self) -> None:
         """Create and reconcile all persisted tables/columns eagerly."""
+        # One read of the tables there are: a table this pass creates has every column at its type already, so it
+        # skips the column read and the widening (a fresh library paid three statements a table: #6221).
+        try:
+            preexisting = {str(row[0]).lower() for row in self.conn.execute("SELECT table_name FROM duckdb_tables()").fetchall()}
+        except duckdb.Error:
+            preexisting = None
         for model in self._all_schema_models():
             self._tables_created.discard(self._table_name(model))
-            self._ensure_table(model)
+            self._ensure_table(model, preexisting=preexisting)
 
-    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
+    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None, *, committed: bool = False):
         """Execute SQL, retrying bounded DuckDB transient write conflicts.
 
         When ``fetch`` is ``"all"`` or ``"one"`` the fetch happens INSIDE the
@@ -1843,20 +1906,24 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
+        if fetch is not None and committed and self._reads_committed_now():
+            rows, _columns = self._read_fetch_with_columns(sql, params)
+            return rows if fetch == "all" else (rows[0] if rows else None)
         self._ensure_transaction_started()
         with self._transaction_gate:
             with self._lock:
                 for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                     try:
-                        cur = (
-                            self.conn.execute(sql)
-                            if params is None
-                            else self.conn.execute(sql, params)
-                        )
-                        if fetch == "all":
-                            return cur.fetchall()
-                        if fetch == "one":
-                            return cur.fetchone()
+                        with watch_statement(sql):
+                            cur = (
+                                self.conn.execute(sql)
+                                if params is None
+                                else self.conn.execute(sql, params)
+                            )
+                            if fetch == "all":
+                                return cur.fetchall()
+                            if fetch == "one":
+                                return fetch_one(cur)
                         return cur
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -1905,13 +1972,14 @@ class Database(DatabaseEmbeddingMixin):
         ``execute_fetchall`` / ``execute_fetchone`` when you need rows."""
         return self._execute(sql, params)
 
-    def execute_fetchall(self, sql: str, params: Any | None = None) -> list:
-        """Execute + ``fetchall`` atomically under the lock (#2508)."""
-        return self._execute(sql, params, fetch="all")
+    def execute_fetchall(self, sql: str, params: Any | None = None, *, committed: bool = False) -> list:
+        """Execute + ``fetchall`` atomically under the lock (#2508). ``committed``: this is a read, and under a
+        caller's `reading_committed` it reads what was committed (#6178)."""
+        return self._execute(sql, params, fetch="all", committed=committed)
 
-    def execute_fetchone(self, sql: str, params: Any | None = None):
-        """Execute + ``fetchone`` atomically under the lock (#2508)."""
-        return self._execute(sql, params, fetch="one")
+    def execute_fetchone(self, sql: str, params: Any | None = None, *, committed: bool = False):
+        """Execute + ``fetchone`` atomically under the lock (#2508); ``committed`` as `execute_fetchall`."""
+        return self._execute(sql, params, fetch="one", committed=committed)
 
     # Restricts a dedup query to the destination subtree (2026-08-11): the
     # skip-set used to be library-GLOBAL, so importing a folder that already
@@ -1988,6 +2056,23 @@ class Database(DatabaseEmbeddingMixin):
             if isinstance(source, str) and isinstance(checksum, str)
         }
 
+    def unchanged_import(self, source_path: str, checksum: str, parent_id: str | None) -> str | None:
+        """The live document already imported from ``source_path`` with these bytes under ``parent_id``, if any: a
+        single file imported again unchanged is that page, not a second one read again (#6225). The folder import's
+        skip-set (``ingest_dedup_keys``) does the same for a folder."""
+        rows = self.execute_fetchall(
+            """
+            SELECT id FROM documents
+            WHERE status != 'failed' AND deleted_at IS NULL
+              AND COALESCE(json_extract_string(metadata, '$.source_path'), path) = ?
+              AND json_extract_string(metadata, '$.checksum') = ?
+              AND parent_id IS NOT DISTINCT FROM ?
+            LIMIT 1
+            """,
+            [source_path, checksum, parent_id],
+        )
+        return rows[0][0] if rows else None
+
     def child_counts(self, parent_ids: list[str]) -> dict[str, int]:
         """Live (non-deleted) child count per parent id, one query.
 
@@ -2019,13 +2104,14 @@ class Database(DatabaseEmbeddingMixin):
             with self._lock:
                 for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                     try:
-                        cur = (
-                            self.conn.execute(sql)
-                            if params is None
-                            else self.conn.execute(sql, params)
-                        )
-                        columns = [desc[0] for desc in cur.description]
-                        rows = cur.fetchone() if fetch == "one" else cur.fetchall()
+                        with watch_statement(sql):
+                            cur = (
+                                self.conn.execute(sql)
+                                if params is None
+                                else self.conn.execute(sql, params)
+                            )
+                            columns = [desc[0] for desc in cur.description]
+                            rows = fetch_one(cur) if fetch == "one" else cur.fetchall()
                         return rows, columns
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
@@ -2120,6 +2206,24 @@ class Database(DatabaseEmbeddingMixin):
         except Exception:
             self._transaction_gate.release()
             raise
+
+    def _reads_committed_now(self) -> bool:
+        """Under `reading_committed` and outside a transaction of this thread. Only a query that says it is a read
+        (`committed=True`) asks: a statement's text is never guessed at, so a write that returns rows keeps the gate."""
+        return _COMMITTED_READS.get() and not self.in_transaction
+
+    @contextmanager
+    def reading_committed(self):
+        """Within this (this thread, and the worker threads it hands work to), a read that says so (`execute_fetchall`/
+        `execute_fetchone` with ``committed=True``) reads last-COMMITTED
+        state on the READ cursor (#4523) instead of queuing on the transaction gate: a poll under a held writer answers
+        with what was committed rather than waiting for the writer (`recipes-run.engine.answers-while-a-run-goes`,
+        #6178). Inside a transaction of this thread the gated path stands, so its own writes are read."""
+        token = _COMMITTED_READS.set(True)
+        try:
+            yield
+        finally:
+            _COMMITTED_READS.reset(token)
 
     @contextmanager
     def transaction(self):
@@ -2458,7 +2562,8 @@ class Database(DatabaseEmbeddingMixin):
                                     if new
                                     else self._upsert_sql(sql_table, cols, placeholders)
                                 )
-                                self.conn.execute(sql, [value for row in batch for value in row])
+                                with watch_statement(sql):
+                                    self.conn.execute(sql, [value for row in batch for value in row])
                 return len(param_rows)
             except duckdb.Error as exc:
                 if self._is_invalidated_error(exc):
@@ -2775,10 +2880,11 @@ class Database(DatabaseEmbeddingMixin):
                 dimension=ClassificationDimension.document_prototype,
             )
         }
+        missing = []
         for seed in _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS:
             value = existing.get(seed["key"])
             if value is None:
-                self.save(
+                missing.append(
                     ClassificationValue(
                         dimension=ClassificationDimension.document_prototype,
                         key=seed["key"],
@@ -2815,6 +2921,7 @@ class Database(DatabaseEmbeddingMixin):
             if changed:
                 value.updated_at = utc_now()
                 self.save(value)
+        self.save_many(missing, new=True)  # the new ones in one statement, not two a row (#6221)
 
     def _seed_builtin_node_classes(self) -> None:
         """Ensure the built-in node_class values exist in fresh DB fixtures."""
@@ -2833,18 +2940,9 @@ class Database(DatabaseEmbeddingMixin):
                 dimension=ClassificationDimension.node_class,
             )
         }
-        for seed in _BUILTIN_NODE_CLASS_SEEDS:
-            if seed["key"] in existing:
-                continue
-            self.save(
-                ClassificationValue(
-                    dimension=ClassificationDimension.node_class,
-                    key=seed["key"],
-                    label=seed["label"],
-                    color=seed["color"],
-                    is_builtin=True,
-                )
-            )
+        self.save_many([ClassificationValue(dimension=ClassificationDimension.node_class, key=seed["key"],
+                                            label=seed["label"], color=seed["color"], is_builtin=True)
+                        for seed in _BUILTIN_NODE_CLASS_SEEDS if seed["key"] not in existing], new=True)  # #6221
 
     def _seed_builtin_reading_kinds(self) -> None:
         """Seed the shipped reading kinds (source-model slice 8, #4934).
@@ -2864,19 +2962,16 @@ class Database(DatabaseEmbeddingMixin):
         )
 
         existing = {row.key for row in self.query(LibraryReadingKind)}
-        for key, label in BUILTIN_READING_KINDS:
-            if key in existing:
-                continue
-            self.save(LibraryReadingKind(key=key, label=label, builtin=True))
+        self.save_many([LibraryReadingKind(key=key, label=label, builtin=True)
+                        for key, label in BUILTIN_READING_KINDS if key not in existing], new=True)  # #6221
 
         # The reading LEVELS (`source.reading.levels`, ruled 2026-10-10), seeded the same way: additive,
         # a key already present (a project's relabelling, a level it added) left exactly as it is.
         from fichero_server.models.readings import BUILTIN_READING_LEVELS, LibraryReadingLevel
 
         existing_levels = {row.key for row in self.query(LibraryReadingLevel)}
-        for key, label in BUILTIN_READING_LEVELS:
-            if key not in existing_levels:
-                self.save(LibraryReadingLevel(key=key, label=label, builtin=True))
+        self.save_many([LibraryReadingLevel(key=key, label=label, builtin=True)
+                        for key, label in BUILTIN_READING_LEVELS if key not in existing_levels], new=True)  # #6221
 
     def _seed_builtin_link_types(self) -> None:
         """Seed the shipped link types (source-model slice 10, #4931).
@@ -2896,14 +2991,9 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.typed_links import LibraryLinkType, builtin_link_types
 
         existing = {row.key for row in self.query(LibraryLinkType)}
-        for key, label, inverse_label in builtin_link_types():
-            if key in existing:
-                continue
-            self.save(
-                LibraryLinkType(
-                    key=key, label=label, inverse_label=inverse_label, builtin=True
-                )
-            )
+        self.save_many([LibraryLinkType(key=key, label=label, inverse_label=inverse_label, builtin=True)
+                        for key, label, inverse_label in builtin_link_types() if key not in existing],
+                       new=True)  # one statement, not two a row (#6221)
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""
@@ -3241,10 +3331,10 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     if self._read_conn is None:
                         self._read_conn = self.conn.cursor()
-                    cur = self._read_conn.execute(
-                        f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
-                    )
-                    row = cur.fetchone()
+                    sql = f"SELECT * FROM {sql_table} WHERE id = $id"
+                    with watch_statement(sql):
+                        cur = self._read_conn.execute(sql, {"id": id})
+                        row = fetch_one(cur)
                     columns = [d[0] for d in cur.description]
                     break
                 except duckdb.Error as exc:
@@ -3272,8 +3362,9 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     if self._read_conn is None:
                         self._read_conn = self.conn.cursor()
-                    cur = self._read_conn.execute(sql, params or {})
-                    rows = cur.fetchall()
+                    with watch_statement(sql):
+                        cur = self._read_conn.execute(sql, params or {})
+                        rows = cur.fetchall()
                     columns = [d[0] for d in cur.description]
                     return rows, columns
                 except duckdb.Error as exc:
@@ -3487,6 +3578,27 @@ class Database(DatabaseEmbeddingMixin):
             for row in rows
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
+
+    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], **filters) -> list[SimpleNamespace]:
+        """Only `fields` of the rows `query(model, **filters)` returns, JSON read but not hydrated: for a scan that
+        compares a few fields of every row. A names page read and validated every stored entity whole, its
+        mentions and all, to compare their names (#6236). Read-only records: `get` the one row to change."""
+        for name in (*fields, *filters):
+            if not _VALID_IDENTIFIER.match(name):
+                raise ValueError(f"Invalid column name: {name}")
+        self._ensure_table(model)
+        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()) or "TRUE"
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
+            {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
+        )
+        out = []
+        for row in rows:
+            parsed = self._parse_json_fields(model, dict(zip(columns, row)))
+            if "id" in parsed and parsed["id"] is None:
+                continue  # a null-PK ghost, skipped as `_hydrate_row` skips it
+            out.append(SimpleNamespace(**{name: parsed[name] for name in fields}))
+        return out
 
     def query_in_committed(self, model: Type[T], column: str, values) -> list[T]:
         """``query_in`` through the READ connection (#4523's rule for listing
@@ -3976,10 +4088,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
         """Return a single entity's canonical name, if present."""
-        row = self._execute(
+        row = fetch_one(self._execute(
             "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
             {"id": entity_id},
-        ).fetchone()
+        ))
         return row[0] if row and row[0] else None
 
     def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
@@ -4072,10 +4184,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def document_page_content(self, document_id: str) -> str | None:
         """Return a document's full page content by id."""
-        row = self._execute(
+        row = fetch_one(self._execute(
             "SELECT page_content FROM documents WHERE id = $id",
             {"id": document_id},
-        ).fetchone()
+        ))
         return row[0] if row else None
 
     def live_document_identity_rows(self, document_ids: Sequence[str]) -> list[tuple]:
@@ -4175,9 +4287,9 @@ class Database(DatabaseEmbeddingMixin):
             raise ValueError(f"Invalid table name: {table_name}")
         if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
             raise ValueError(f"Unsupported knowledge table: {table_name}")
-        row = self._execute(
+        row = fetch_one(self._execute(
             f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
-        ).fetchone()
+        ))
         if not row:
             return (0, "")
         return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
@@ -5447,9 +5559,10 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.core.naturalsort import in_folder_order
 
         rows = {r[0]: r[1:] for r in self.execute_fetchall(
-            "SELECT id, name, sort_order, sequence, parent_id FROM documents WHERE deleted_at IS NULL")}
+            "SELECT id, name, sort_order, sequence, parent_id FROM documents WHERE deleted_at IS NULL",
+            committed=True)}
         wanted = [r[0] for r in self.execute_fetchall(
-            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")]
+            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)]
 
         def node(doc_id: str) -> tuple:
             name, sort_order, sequence, _parent = rows[doc_id]
@@ -5519,7 +5632,7 @@ class Database(DatabaseEmbeddingMixin):
             for table in tables:
                 if not _VALID_IDENTIFIER.match(table):
                     raise ValueError(f"refusing to count a table with an odd name: {table!r}")
-                row = conn.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                row = fetch_one(conn.execute(f'SELECT count(*) FROM "{table}"'))
                 counts[table] = int((row[0] if row else 0) or 0)
             return counts
         finally:
@@ -5561,7 +5674,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
 
         if not filters:
-            result = self._execute(f"SELECT COUNT(*) FROM {sql_table}").fetchone()
+            result = fetch_one(self._execute(f"SELECT COUNT(*) FROM {sql_table}"))
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -5579,9 +5692,9 @@ class Database(DatabaseEmbeddingMixin):
                 for k in filters.keys()
             )
             params = {k: v for k, v in filters.items() if v is not None}
-            result = self._execute(
+            result = fetch_one(self._execute(
                 f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
-            ).fetchone()
+            ))
 
         return result[0] if result else 0
 
@@ -5868,7 +5981,7 @@ class Database(DatabaseEmbeddingMixin):
                     results[name] = False
                     continue
                 try:
-                    self.lance.open_table(name).optimize()
+                    self.lance.open_table(name).optimize(cleanup_older_than=_VECTOR_PRUNE_GRACE)
                     self._vector_append_counts[name] = 0
                     results[name] = True
                 except Exception as exc:  # noqa: BLE001
@@ -7815,8 +7928,9 @@ class Database(DatabaseEmbeddingMixin):
         """Quote a table name for DuckDB SQL."""
         return f'"{self._table_name(obj_or_model)}"'
 
-    def _ensure_table(self, model: Type[BaseModel]) -> None:
-        """Create table if it doesn't exist."""
+    def _ensure_table(self, model: Type[BaseModel], preexisting: set[str] | None = None) -> None:
+        """Create table if it doesn't exist. `preexisting` (lower-case table names, read once by the caller) lets a
+        table this call creates skip reconciling the columns it was just created with."""
         table = self._table_name(model)
         sql_table = self._sql_table_name(model)
 
@@ -7887,11 +8001,14 @@ class Database(DatabaseEmbeddingMixin):
             # provenance_chain on a Document table from before that field landed).
             # ADD COLUMN is non-destructive and idempotent, so this is the generic
             # mechanism that makes the no-migration rule hold for existing DBs too.
+            if first_reconcile_this_connection and preexisting is not None and table.lower() not in preexisting:
+                self._tables_created.add(table)  # just created from the model: nothing to add, nothing to widen
+                self._after_table_ready(table, first_reconcile_this_connection)
+                return
+            table_info = None
             try:
-                existing = {
-                    row[1]
-                    for row in _execute_locked(f"PRAGMA table_info({sql_table})").fetchall()
-                }
+                table_info = _execute_locked(f"PRAGMA table_info({sql_table})").fetchall()
+                existing = {row[1] for row in table_info}
             except Exception:
                 existing = {
                     row[0]
@@ -7900,11 +8017,13 @@ class Database(DatabaseEmbeddingMixin):
                         f"WHERE table_name = '{table}'"
                     ).fetchall()
                 }
+            added = False
             for name, field_info in model.model_fields.items():
                 if name in transient or name in existing:
                     continue
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 _execute_locked(f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}")
+                added = True
 
             # WIDEN INT32 COLUMNS TO INT64 (#5059). Changing the type map above
             # only helps libraries created afterwards; every existing library
@@ -7921,41 +8040,44 @@ class Database(DatabaseEmbeddingMixin):
             #
             # Idempotent: a column already BIGINT is skipped, so a second open
             # does nothing.
-            self._widen_int_columns(model, sql_table, table, _execute_locked)
+            self._widen_int_columns(model, sql_table, table, _execute_locked, table_info if not added else None)
 
             self._tables_created.add(table)
+            self._after_table_ready(table, first_reconcile_this_connection)
 
-            # Apply knowledge-table indices once both knowledgeclaims AND
-            # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
-            # is a no-op when already present); critical for query latency
-            # at 50K+ claims. (#991 — scaling-review bottleneck 2)
-            if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
-                from fichero_server.db.migrations.schema import migrate_knowledge_indices
-                migrate_knowledge_indices(self.conn)
+    def _after_table_ready(self, table: str, first_reconcile_this_connection: bool) -> None:
+        """The indices that wait for a table (and its partners) to exist on this connection."""
+        # Apply knowledge-table indices once both knowledgeclaims AND
+        # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
+        # is a no-op when already present); critical for query latency
+        # at 50K+ claims. (#991 — scaling-review bottleneck 2)
+        if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
+            from fichero_server.db.migrations.schema import migrate_knowledge_indices
+            migrate_knowledge_indices(self.conn)
 
-            # Source-model slice 3 (#4921): wait for BOTH tables (unlike the
-            # knowledge indices above, some of this migration's statements
-            # target segment_passes specifically) -- since `_all_schema_models`
-            # now creates both at open, "both already created" is true by the
-            # second of the two, one connection-reconcile pass apart, so this
-            # never logs the noisy "table does not exist yet" warning that
-            # firing on the FIRST of the two would guarantee on every fresh
-            # library.
-            if (
-                first_reconcile_this_connection
-                and table in {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"}
-                and {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"} <= self._tables_created
-            ):
-                from fichero_server.db.migrations.schema import migrate_activity_record_indices
-                migrate_activity_record_indices(self.conn)
+        # Source-model slice 3 (#4921): wait for BOTH tables (unlike the
+        # knowledge indices above, some of this migration's statements
+        # target segment_passes specifically) -- since `_all_schema_models`
+        # now creates both at open, "both already created" is true by the
+        # second of the two, one connection-reconcile pass apart, so this
+        # never logs the noisy "table does not exist yet" warning that
+        # firing on the FIRST of the two would guarantee on every fresh
+        # library.
+        if (
+            first_reconcile_this_connection
+            and table in {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"}
+            and {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"} <= self._tables_created
+        ):
+            from fichero_server.db.migrations.schema import migrate_activity_record_indices
+            migrate_activity_record_indices(self.conn)
 
-            if (
-                first_reconcile_this_connection
-                and table in {"segments", "segment_passes"}
-                and {"segments", "segment_passes"} <= self._tables_created
-            ):
-                from fichero_server.db.migrations.schema import migrate_segment_indices
-                migrate_segment_indices(self.conn)
+        if (
+            first_reconcile_this_connection
+            and table in {"segments", "segment_passes"}
+            and {"segments", "segment_passes"} <= self._tables_created
+        ):
+            from fichero_server.db.migrations.schema import migrate_segment_indices
+            migrate_segment_indices(self.conn)
 
     #: DuckDB's narrower integer types, all of which a Python `int` field may
     #: now legitimately overflow. Widening any of them to BIGINT is lossless.
@@ -7972,7 +8094,7 @@ class Database(DatabaseEmbeddingMixin):
         "readingorderentrys.version", "segmentforwardings.sequence", "workflowrunloglines.seq",
     })
 
-    def _widen_int_columns(self, model, sql_table: str, table: str, execute) -> None:
+    def _widen_int_columns(self, model, sql_table: str, table: str, execute, table_info=None) -> None:
         """Widen this table's INT32 columns to BIGINT where the model says `int`.
 
         Only columns the MODEL declares as `int` are touched, and only when the
@@ -8003,7 +8125,7 @@ class Database(DatabaseEmbeddingMixin):
         them and four had never been judged.
         """
         try:
-            rows = execute(f"PRAGMA table_info({sql_table})").fetchall()
+            rows = table_info if table_info is not None else execute(f"PRAGMA table_info({sql_table})").fetchall()
         except Exception as exc:
             logger.debug("cannot read %s's column types to widen them: %s", table, exc)
             return

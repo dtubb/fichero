@@ -105,4 +105,7 @@ if __name__ == "__main__":
 
         db_manager.close_all()
         shutil.rmtree(SCRATCH, ignore_errors=True)
+    from fichero_server.core.fast_exit import leave  # torch loaded: leave past its exit-time destructor (#5929)
+
+    leave(code or 0)
     sys.exit(code)

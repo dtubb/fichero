@@ -86,18 +86,7 @@ struct RecipeReadyFields: View {
             RecipeStartFields(store: store, onFix: onFix, project: project)
             OfferedJobsList(store: store)
             StepChoiceMenusView(store: store)
-            HStack(alignment: .firstTextBaseline) {
-                if let why = store.startDisabledReason {
-                    Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if isStarting { ProgressView().controlSize(.small) }
-                Button("Start", action: onStart)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!store.canStart || isStarting)
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityIdentifier("setup.ready.start")
-            }
+            startRow
         case .checkOnYourPages:
             if let bakeoff {
                 BakeoffSection(context: bakeoff, setup: store)
@@ -113,6 +102,40 @@ struct RecipeReadyFields: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Start, with why it cannot start, and the last run's missed pages offered beside it.
+    private var startRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            if let why = store.startDisabledReason {
+                Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if isStarting { ProgressView().controlSize(.small) }
+            // What the project's last run missed, run again (#6170): the engine's offer, the strip's own Start on its folder;
+            // a refusal shows above, in the store's error.
+            if let project, let missed = Self.missed(in: project.activityStore), let offer = missed.offer {
+                Button(offer) {
+                    Task {
+                        _ = await LibraryManager.shared.runAgainOnMissed(
+                            for: project.id, folderId: missed.folderId, documents: missed.documents)
+                    }
+                }
+                .help(missed.words)
+                .disabled(isStarting)
+                .accessibilityIdentifier("setup.ready.runAgainOnMissed")
+            }
+            Button("Start", action: onStart)
+                .buttonStyle(.borderedProminent)
+                .disabled(!store.canStart || isStarting)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("setup.ready.start")
+        }
+    }
+
+    /// What the project's last ended run missed, with its offer, as its run strip has it (`source.recipe.run-again-on-what-was-missed`).
+    static func missed(in activity: ActivityStore?) -> ActivityDetails.MissedOffer? {
+        activity.flatMap { ProjectRunStrip(store: $0) }?.missed.flatMap { $0.offer == nil ? nil : $0 }
     }
 
     /// Start (the first yes): the export rows are kept, the answers and plan saved, then the engine

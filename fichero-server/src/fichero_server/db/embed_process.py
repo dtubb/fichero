@@ -50,9 +50,21 @@ def in_process() -> bool:
     return os.environ.get("FICHERO_EMBED_IN_PROCESS") == "1"
 
 
+def _model_files(fastembed_name: str) -> list[str]:
+    """The files fastembed loads the model from, relative to its snapshot: its ONNX file, the ONNX file's extra parts
+    (a 2 GB model's weights live beside it), its config and the tokenizer."""
+    from fastembed import TextEmbedding
+
+    for entry in TextEmbedding._list_supported_models():
+        if entry.model.lower() == fastembed_name.lower():
+            return ["config.json", "tokenizer.json", entry.model_file, *entry.additional_files]
+    return ["config.json", "tokenizer.json", "model.onnx"]
+
+
 def _cached(model_name: str, cache_dir: str) -> bool:
-    """Whether the model's files are already in the cache, so loading needs no Hub call."""
-    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+    """Whether every file of the model is in the cache, so loading needs no Hub call. A folder is not enough: a download
+    that died leaves a partial one, and the child then fails to load it offline (#6218, the M4 rerun)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
     from fichero_server.llm.local_models import _fastembed_source_repo
 
     # The pinned e5's fastembed name is an alias; its files live under the repo fastembed fetches it from
@@ -62,8 +74,17 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     source = space.source_model_name if space else model_name
     folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
-        return any(d.name.lower() == folder.lower() and os.path.isdir(os.path.join(d.path, "snapshots")) for d in os.scandir(cache_dir))
-    except OSError:
+        if space is not None:
+            _register_fastembed_model_for_space(space)
+        files = _model_files(space.fastembed_model_name if space else model_name)
+        for d in os.scandir(cache_dir):
+            snapshots = os.path.join(d.path, "snapshots")
+            if d.name.lower() == folder.lower() and os.path.isdir(snapshots):
+                # isfile follows the snapshot's link into blobs/: a link to a blob that never arrived is not a file.
+                return any(all(os.path.isfile(os.path.join(snap.path, f)) and os.path.getsize(os.path.join(snap.path, f))
+                               for f in files) for snap in os.scandir(snapshots) if snap.is_dir())
+        return False
+    except (OSError, ImportError):
         return False
 
 
@@ -78,8 +99,7 @@ def _child_env(model_name: str, cache_dir: str) -> dict[str, str]:
 
     env = {f"{scheme}_proxy": url for scheme, url in urllib.request.getproxies().items() if scheme != "no"}
     env["no_proxy"] = urllib.request.getproxies().get("no") or "localhost,127.0.0.1"
-    if _cached(model_name, cache_dir):
-        env["HF_HUB_OFFLINE"] = "1"
+    env["HF_HUB_OFFLINE"] = "1"  # the child never fetches: `RemoteEmbedder` refuses an uncached model before forking (#6218)
     env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     return env
 
@@ -130,9 +150,43 @@ def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
 
+def _let_go_of_the_engines_files(keep: int) -> None:
+    """The forked child inherits every file the engine had open, its LISTENING SOCKET among them: a child that outlives a
+    SIGKILLed engine would keep that socket live, and the next engine could not start (`engine.orphan-child-lets-go`,
+    #6176). Close everything but the standard streams and the child's own pipe end."""
+    try:
+        fds = [int(name) for name in os.listdir("/dev/fd")]
+    except OSError:  # no /dev/fd: close the likely range
+        fds = list(range(3, 1024))
+    for fd in fds:
+        if fd > 2 and fd != keep:
+            try:
+                os.close(fd)
+            except OSError:  # the directory listing's own descriptor, or one already gone
+                pass
+
+
+def _stop_lancedbs_loop() -> None:
+    """lancedb's after-fork hook starts a fresh loop thread in this child; the child never uses LanceDB, and closing the
+    engine's files closes that loop's kqueue, so its thread died with "Bad file descriptor" (#6237). Stop it first."""
+    import sys
+
+    background = sys.modules.get("lancedb.background_loop")
+    if background is None:
+        return
+    try:
+        background.LOOP.loop.call_soon_threadsafe(background.LOOP.loop.stop)
+    except RuntimeError:  # its loop already closed: nothing left to stop
+        return
+    background.LOOP.thread.join(5)
+
+
 def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[str, str]) -> None:
-    """The child: load the model, say so, then answer batches until the pipe closes."""
+    """The child: load the model, say so, then answer batches until the pipe closes or its engine is gone."""
     os.environ.update(env)
+    engine_pid = os.getppid()
+    _stop_lancedbs_loop()
+    _let_go_of_the_engines_files(conn.fileno())
     try:
         try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
             import onnxruntime
@@ -151,6 +205,9 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
         conn.send(("ready", None))
         while True:
             try:
+                while not conn.poll(2.0):  # an idle child still notices that its engine was killed (it is re-parented)
+                    if os.getppid() != engine_pid:
+                        os._exit(0)
                 texts = conn.recv()
             except EOFError:
                 break
@@ -191,6 +248,12 @@ class RemoteEmbedder:
         self._start()
 
     def _start(self) -> None:
+        self._conn = self._process = None
+        if not _cached(self.model_name, self._cache_dir):  # also under the fake-init test switch: a test fakes the cache too
+            # A forked child that downloads dies with the threads it was forked beside (LanceDB's event loop: "Bad file
+            # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
+            raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "
+                                      "search waits for it.")
         context = multiprocessing.get_context("fork")
         self._conn, child = context.Pipe(duplex=True)
         self._process = context.Process(
@@ -247,7 +310,9 @@ class RemoteEmbedder:
         return self._process.is_alive()
 
     def close(self) -> None:
-        """End the child; the engine goes on. Safe to call twice."""
+        """End the child; the engine goes on. Safe to call twice, and on one refused before any fork."""
+        if self._process is None:
+            return
         try:
             self._conn.close()
         except Exception as exc:  # noqa: BLE001 -- already closed or the pipe broke; the process is ended below

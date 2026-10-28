@@ -24,4 +24,11 @@ struct ActivityStageReadersTests {
         #expect(one.readerSentences.isEmpty)
         #expect(try stage("[]").readerSentences.isEmpty)
     }
+
+    /// #6091: a stage run on fewer pages than the project has carries Start's own count, as sent.
+    @Test func aStageCarriesStartsCountOfWhatWasDone() throws {
+        let json = #"{"steps":["read"],"card":"workflow","state":"running","note":"already done on 37 of 95 pages; runs on the other 58"}"#
+        let stage = ActivityRecipeStage(try JSONDecoder().decode(Components.Schemas.RecipeRunStep.self, from: Data(json.utf8)))
+        #expect(stage.note == "already done on 37 of 95 pages; runs on the other 58")
+    }
 }

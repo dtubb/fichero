@@ -196,6 +196,19 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     return enqueue(db, plan, documents=list(document_ids), started_by="import")
 
 
+def stages_the_run_takes(db: Any, run_id: str | None) -> set[str]:
+    """The import-time work a queued recipe run does itself, once after reading (ruling 5, #6186): the per-page embed when
+    the run has a Search stage, the names draft when it has a names stage. None for no run or a refused one (a failed row)."""
+    from fichero_server.importers.derivatives import EMBED_KIND, NLP_KIND
+
+    row = jobs.read_job(db, run_id) if run_id else None
+    if row is None or row["state"] in ("failed", "cancelled"):
+        return set()
+    cards = json.loads(row["detail"] or "{}").get("runs") or []
+    return ({EMBED_KIND} if any(c.get("card") == "embed" for c in cards) else set()) | (
+        {NLP_KIND} if any(c.get("job") == "find-names-tag-words" for c in cards) else set())
+
+
 def _why_no_recipe_on_add(db: Any) -> str | None:
     """Why an import runs no recipe at all, in words; None when it runs the recipe's plan. The one gate
     `material_arrived` and `what_runs_by_itself` share."""
@@ -241,6 +254,12 @@ def what_runs_by_itself(db: Any) -> dict[str, list[dict[str, Any]]]:
         if plan["refusals"] or not plan["runs"]:
             refusals = "; ".join(plan["refusals"]) or "nothing in this recipe can run"
             on_add.append(entry(KIND, False, f"the project's recipe cannot run on an import: {refusals}"))
+        else:  # ruling 5 (#6186): the run's Search and names stages take the import's embed and names draft
+            once = "Search and names run once at the end of the recipe's reading, not on each page added"
+            for item in on_add:
+                if (item["job"] == EMBED_KIND and any(r.get("card") == "embed" for r in plan["runs"])) or (
+                        item["job"] == NLP_KIND and any(r.get("job") == "find-names-tag-words" for r in plan["runs"])):
+                    item["runs"], item["why"] = False, once
         for run in plan["runs"]:
             on_add.append(entry(run["job"], True, "the project's recipe runs it on what an import brings",
                                 list(run.get("steps") or [])))
@@ -578,6 +597,7 @@ def request_cancel(db: Any, job_id: str) -> str:
         child = jobs.running_child(db, job_id)  # a recipe parked on a paused step run stops that run too
         jobs.cancel_waiting(db, job_id)
         if child is not None:
+            jobs.pass_stopper(job_id, child)
             try:
                 jobs.cancel_job(db, child)
             except (ValueError, KeyError):
@@ -601,6 +621,7 @@ def _stop_child_if_asked(db: Any, parent: str | None, child: str) -> bool:
     True once asked (asked once)."""
     if not _stop_asked(parent) or not jobs._still_open(db):
         return False
+    jobs.pass_stopper(parent, child)
     try:
         jobs.cancel_job(db, child)
     except KeyError:  # its row is not written yet: asked again at the next look
@@ -775,23 +796,38 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 
 def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                   started_by: str) -> tuple[str | None, str, str | None]:
-    """A read the plan placed on the project's cluster (`source.recipe.placement-by-scale`): sent there as one
-    read-at-scale run under this step, and waited on as any child; a cluster that refuses fails the step by name.
-    The person's yes is read now, not when the plan was made: pages may leave only while the project says so."""
+    """A read the plan placed on the project's cluster or on Hugging Face Jobs (`source.recipe.placement-by-scale`,
+    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step, and waited on as any
+    child; a place that refuses fails the step by name. The person's yes is read now, not when the plan was made: pages
+    may leave only while the project says so, the app allows the place, and (Hugging Face) the monthly cap is above $0."""
     from fichero_server.models.compute_requests import ReadAtScaleRequest
+    from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.remote_read import job as read_job
 
     from fichero_server.recipes import places
 
-    if not places.may_leave_to(read_project_setup(_library(db))["answers"], "acenet"):
-        return None, "failed", f"pages may not leave this Mac; this step was placed on {card['target']}"
+    on_hf = card["target"] == read_job.TARGET
+    answers = read_project_setup(_library(db))["answers"]
+    where = "Hugging Face" if on_hf else f"the cluster {card['target']}"
+    if not places.may_leave_to(answers, "huggingface" if on_hf else "acenet"):
+        return None, "failed", f"pages may not leave this Mac; this step was placed on {where}"
+    if on_hf:
+        from fichero_server.recipes.train_offers import spend_this_month
+
+        cap = spend_cap(answers)
+        if cap <= 0:
+            return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
+        spent = spend_this_month(db, cap=cap)["spent_at_most_usd"]
+        if spent >= cap:  # the cap is a ceiling on what is already sent, not only a switch (#6173)
+            return None, "failed", (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
+                                    f"has reached the ${cap:.2f} cap")
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
                                                       parent_job_id=parent), started_by=started_by)["job_id"]
     except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
-        return None, "failed", f"could not send the read to the cluster {card['target']}: {exc}"
+        return None, "failed", f"could not send the read to {where}: {exc}"
     return _wait(db, child, parent)
 
 
@@ -1500,6 +1536,9 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         # An earlier batch's worse end stands (`_settle`).
         step.update(state=before if before != "running" else "waiting", child_id=before_child)
         _settle(step, state, child, why)
+        if child is not None and all(b.get("child_id") != child for b in step.get("batch_jobs") or []):
+            # each batch's job, kept in the checkpoint: the step is timed over all of them (#6215)
+            step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
         _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
@@ -1509,7 +1548,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
 def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], job_id: str,
               scratch: dict[str, Any], started_by: str, adopt: str | None = None) -> tuple[str | None, str, str | None]:
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
-    if card.get("place") == "cluster":
+    if card.get("place") in ("cluster", "huggingface"):
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
@@ -1701,7 +1740,14 @@ def end_search_watch(db: Any, run_id: str, started_by: str) -> None:
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
-    has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
+    has one, so this and Activity are one account (#5498). A run still waiting says what it waits for. Read as
+    committed: a poll under a run's held write answers with what it has (#6178)."""
+    from fichero_server.db import read_committed
+
+    return read_committed(db, _status, db, job_id)
+
+
+def _status(db: Any, job_id: str) -> dict[str, Any]:
     row = jobs.read_job(db, job_id)
     if row is None or row["kind"] != KIND:
         raise LookupError(f"no recipe run {job_id}")
@@ -1712,6 +1758,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
+        step["note"] = card.get("note")  # Start's count of what was already done, kept on the run (#6091)
     for step in steps:
         if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
                 and step.get("card") in _CARDS_WITH_A_JOB):
@@ -1769,8 +1816,10 @@ def unfinished_steps(db: Any) -> dict[str, dict[str, str]]:
 
 
 def runs(db: Any) -> list[dict[str, Any]]:
-    """Every recipe run of the project, newest first."""
-    return [status(db, row["id"]) for row in jobs.find_jobs(db, kinds=[KIND])]
+    """Every recipe run of the project, newest first, read as committed (#6178)."""
+    from fichero_server.db import read_committed
+
+    return read_committed(db, lambda: [status(db, row["id"]) for row in jobs.find_jobs(db, kinds=[KIND])])
 
 
 def register_job_kinds() -> None:

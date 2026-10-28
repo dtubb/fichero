@@ -94,9 +94,21 @@ def test_the_pages_of_one_read_share_one_build_of_the_tree(monkeypatch):
 
     monkeypatch.setattr(activity, "get_job_tree", tree)
     monkeypatch.setattr(activity, "_PAGE_LISTS", {})
-    db = SimpleNamespace(path="/lib/P.fichero/fichero.duckdb")
+    db = SimpleNamespace(path="/lib/P.fichero/fichero.duckdb", unit_of_work_ids=lambda: [])
     first = asyncio.run(activity._run_page_list(db, "r1", "read"))
     again = asyncio.run(activity._run_page_list(db, "r1", "read"))
     other_stage = asyncio.run(activity._run_page_list(db, "r1", None))
     assert first is again and len(built) == 2, "the same read within the window builds once; another stage builds its own"
     assert len(other_stage) == 3
+
+
+def test_the_pages_read_in_sidebar_order_not_the_order_the_lanes_met_them():
+    """`recipes-run.order.done-in-order-shown` (#6186): pages read side by side finish, and are met, out of order; the grid
+    reads in sidebar order, as the project's pages are (`Database.unit_of_work_ids`). A page not in that order keeps its
+    place at the end."""
+    met = {"id": "w", "kind": "workflow", "children": [
+        _page("p10", "IMG_10", "done"), _page("gone", "IMG_X", "done"), _page("p2", "IMG_2", "running"),
+        _page("p1", "IMG_1", "waiting")]}
+    assert [p["name"] for p in page_states(met, stage=None)] == ["IMG_10", "IMG_X", "IMG_2", "IMG_1"], "the lane's order"
+    assert [p["name"] for p in page_states(met, stage=None, order=["p1", "p2", "p10"])] == [
+        "IMG_1", "IMG_2", "IMG_10", "IMG_X"]

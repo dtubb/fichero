@@ -1,11 +1,10 @@
 # Source Model — Segments and geometry — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — part of the "How Fichero represents a source" section: what a segment is, how
-> segments nest, how they are ordered and linked, and how a page can have several images.
+> Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: what a segment is, how segments nest, how they are ordered and linked, and how a page can have several images.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
+> code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first (the rulings and the words are there). The evidence is in `source-survey.md`.
 > Every behaviour below is tagged **[GAP]** with its issue. Unless "What exists today" in the foundation says
 > otherwise, everything here is design, not built. Tags and issues are added when the spec is
@@ -93,6 +92,12 @@ the forwarding notes.
   `frame_status` (the engine's word on whether its frame can be trusted), and no checksum or
   scale. The checksum and scale are this design's additions to that one record, not a second
   record of image identity (`ui/reader-overlay-frame-identity.md` owns the frame rules).
+- **The page region.** An image of a photographed or scanned page may carry a `page_region`
+  attribute: the paper's outline (four corners or a box) in fractions of the upright image, the
+  frame it was measured in, the method that found it (`vision`, `contour`, `yolo:<model>`,
+  `person`), its confidence and the settings. It is not a segment: it says where the paper is so
+  that Find Regions looks only there and Preview can draw it. An image without one reads as the
+  whole image. Owned by `image-enhancement.md` (`image.enhance.page-crop`, #6187, #6188).
 
 ### Several images of one page
 
@@ -520,6 +525,7 @@ separate segment search.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Identity and versions
+- `source.image.page-region` — **[GAP]** (#6187) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
 - `source.segment.lasting-id` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestLastingId::test_create_read_back_engine_made_id_client_id_refused`) a segment keeps its id through move, reshape, re-read and
   re-type, and an id is never given to another segment.
 - `source.segment.rerun-is-new-pass` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segmenting a page again adds a pass; nothing existing
@@ -1132,7 +1138,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   resumed run ends EXACTLY where an uninterrupted one would, a third run writes nothing and files
   no report, and progress survives a close and reopen
   (`fichero-server/tests/unit/maintenance/test_project_conversion_resume.py::TestStoppingAndResuming`).
-- `source.convert.half-done-reads-the-same` — **[BROKEN]** (#5986, release blocker: after the first converted page the conversion's CHECKPOINT is refused because a write transaction no Database records is still open, so a stop mid-conversion may leave pages unsaved; the test below is a strict xfail until it is fixed; → #4998) at every moment of a conversion,
+- `source.convert.half-done-reads-the-same` — **[OK]** (#5986: the CHECKPOINT refused after the first converted page met a transaction no Database recorded, a one-row read's result left open on an idle connection; every result is now read to the end, `fetch_one`, #6236; → #4998) at every moment of a conversion,
   every reader gets the same answer for every page as before it started, but for the ids. Pinned
   across surfaces rather than one: the page text at every point, a claim anchored by rectangle
   still revealing after its page converts, and the artifact still reporting its own boxes

@@ -131,3 +131,35 @@ def test_a_file_closed_and_opened_again_gets_its_share_back(tmp_path, monkeypatc
     again = _open(tmp_path, "a")  # a new instance, back at DuckDB's default
     assert _near(_limit(again), 16 * GIB * ds.BUDGET_FRACTION)
     again.close()
+
+
+class _RefusesANewSpillDirectory:
+    """A connection to an instance that has already spilled: DuckDB refuses to switch its temp directory then."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        if sql.startswith("SET temp_directory"):
+            import duckdb
+
+            raise duckdb.InvalidInputException("Cannot switch temporary directory after the current one has been used")
+        return self._conn.execute(sql, params) if params is not None else self._conn.execute(sql)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def test_a_refused_spill_directory_does_not_stop_the_cap_from_applying(tmp_path, monkeypatch, caplog):
+    """Ann's log (2026-10-26): "Could not cap DuckDB memory: Cannot switch temporary directory after the current one has
+    been used" every few seconds. The SET of the spill directory raised first, so the memory cap after it never ran."""
+    import duckdb
+
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 16 * GIB)
+    real = duckdb.connect(str(tmp_path / "a.duckdb"))
+    default = _limit(real)
+    with caplog.at_level("WARNING"):
+        ds.apply_memory_limit(_RefusesANewSpillDirectory(real), key="a")
+    assert _limit(real) < default, "the cap never applied"
+    assert "Could not cap DuckDB memory" not in caplog.text
+    real.close()

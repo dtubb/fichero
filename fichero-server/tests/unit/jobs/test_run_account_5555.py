@@ -273,3 +273,25 @@ def test_activity_run_account__a_running_run_says_what_it_waits_for_its_estimate
 ])
 def test_compute_run_retry_once__which_causes_pass(cause, passing):
     assert page_retry.is_passing_cause(cause) is passing
+
+
+def test_recipes_run_resume_after_crash__a_recipes_step_run_says_its_run_carries_on_and_offers_no_second_run(
+        client, test_package, workflow, pages, cloud):
+    """`recipes-run.journey.resume-after-crash` (#5357): a step run of a recipe run the engine's stop cut off is marked
+    interrupted saying its recipe run carries on from its checkpoint, and offers no Read Again of its own: the recipe
+    run, taken up again, reads the pages not done itself (was: it offered them as a second run beside the recipe's)."""
+    db = db_manager.get_database(test_package)
+    last_heard = utc_now() - timedelta(minutes=7)
+    _ghost(db, "thread-step", workflow, [p.id for p in pages], last_heard=last_heard)
+    jobs._record(db, "recipe-run", kind="run-a-recipe", subject="recipe", parent_id=None, state="running",
+                 reason=None, name="Recipe run")
+    jobs.set_parent(db, "thread-step", "recipe-run")
+
+    db_manager.close_database(test_package)
+    db_manager.get_database(test_package)  # the engine starts again and opens the project
+
+    hhmm = last_heard.astimezone().strftime("%H:%M")
+    tree = _tree(client, "thread-step")
+    assert tree["reason"] == (f"Interrupted: the engine stopped at {hhmm}, before this run finished; "
+                              "its recipe run carries on from its checkpoint")
+    assert tree["account"]["state"] == "interrupted" and tree["account"]["offer"] is None

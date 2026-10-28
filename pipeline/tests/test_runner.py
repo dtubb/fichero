@@ -175,8 +175,9 @@ def test_land_refuses_a_red_guard_a_moved_base_an_unreviewed_item_and_a_main_bas
     git(other, "add", ".")
     git(other, "-c", "user.name=M", "-c", "user.email=m@example.com", "commit", "-qm", "moved")
     git(other, "push", "-q", "origin", "HEAD:integration")
-    with pytest.raises(RuntimeError, match="has moved on"):
-        runner.land("1001")
+    moved_head = origin_head(scratch)
+    out = runner.land("1001")  # the base moved: land rebases itself (test_land_rebase.py), it no longer refuses
+    assert out["landed"] is False and origin_head(scratch) == moved_head  # the red guard also stops the rebased item
     journal.append("transition", issue=1001, key="1001", to="coding", why="test")
     with pytest.raises(RuntimeError, match="only a reviewed READY item lands"):
         runner.land("1001")
@@ -222,3 +223,15 @@ def test_land_refuses_when_a_later_verdict_at_the_same_sha_is_not_ready(scratch,
     core.verdict("1001", it["sha"], "NOT_READY", "manager", "- HIGH changed my mind")
     with pytest.raises(RuntimeError, match="no reviewer READY"):
         runner.land("1001")
+
+
+def test_a_reviewed_item_already_on_the_base_branch_is_marked_pushed_and_asks_nothing(scratch, issues, fake_coder, monkeypatch):
+    fake_coder()
+    monkeypatch.setattr(core, "next_issues", lambda count=3: ready(1001)() if "1001" not in core.state()["items"] else ready()())
+    reviewer(monkeypatch)
+    runner.run()
+    it = core.state()["items"]["1001"]
+    assert it["state"] == "reviewed"
+    monkeypatch.setattr(runner.checks, "sh", lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+    did, moved = runner.tick()
+    assert core.state()["items"]["1001"]["state"] == "pushed" and any("marked pushed" in d for d in did)

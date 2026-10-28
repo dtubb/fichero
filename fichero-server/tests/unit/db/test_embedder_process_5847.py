@@ -15,6 +15,8 @@ from fichero_server.db import embed_process
 @pytest.fixture
 def forked(monkeypatch):
     monkeypatch.delenv("FICHERO_EMBED_IN_PROCESS", raising=False)
+    monkeypatch.setattr(embed_process, "_cached", lambda *_a: True)  # the fake model is "in the cache"
+    import onnxruntime  # noqa: F401 -- as in the engine, whose real cache check loads fastembed before any fork
 
 
 def test_a_fake_model_embeds_through_the_child(forked, monkeypatch):
@@ -111,4 +113,5 @@ def test_the_child_goes_offline_when_cached_and_gets_the_parents_proxies(tmp_pat
     env = embed_process._child_env("BAAI/bge-m3-onnx", str(tmp_path))
     assert env["HF_HUB_OFFLINE"] == "1" and env["https_proxy"] == "http://p:3128"
     assert env["no_proxy"] and env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] == "YES"
-    assert "HF_HUB_OFFLINE" not in embed_process._child_env("other/model", str(tmp_path))
+    # #6218: an uncached model is refused before the fork, so the child is offline for every model, never fetching.
+    assert embed_process._child_env("other/model", str(tmp_path))["HF_HUB_OFFLINE"] == "1"

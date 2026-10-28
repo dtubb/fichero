@@ -405,6 +405,7 @@ def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     icon="checkmark.seal",
     color="purple",
     uses_llm=True,
+    requires_generative_model=True,  # its whole-page config (supports_apple_vision=False) is built at run time
     supports_batch=True,
     supports_structured_output=False,
     tested=True,  # part of the validated HTR transcription chain

@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 from dataclasses import dataclass
 import logging
 import math
 import os
 import re
+import sys
 import threading
 import time
 from pathlib import Path
@@ -180,6 +182,13 @@ class EmbeddableUnit:
 # configured model still loads the new one once.
 _EMBEDDER_CACHE: dict[str, Any] = {}
 _EMBEDDER_CACHE_LOCK = threading.Lock()
+_EMBED_WORKER_LOCK = threading.Lock()
+#: Embeds deferred by `defer_embeddings`, and the batch waiting for `flush_deferred_embeddings`, per Database: the
+#: deferring thread's (or task's) own, so another thread's save meanwhile is embedded as usual, not swallowed into a
+#: batch a rollback drops (#6236 review).
+_DEFERRED_EMBEDS: contextvars.ContextVar[dict[int, dict] | None] = contextvars.ContextVar("deferred_embeds", default=None)
+_PENDING_EMBED_FLUSH: contextvars.ContextVar[dict[int, dict] | None] = contextvars.ContextVar(
+    "pending_embed_flush", default=None)
 
 # Tables for which the legacy-embedding warning has already been emitted this
 # process. Keyed by table name; shared across all Database instances and threads
@@ -248,6 +257,10 @@ def release_idle_embedders(idle_seconds: float | None = None, reason: str = "idl
 
         gc.collect()  # the ONNX session goes with its last reference; collect now, not someday
         logger.info("model-lane: unload embedder %s (%s)", ", ".join(released), reason)
+    # The Transformers NER pipeline (~1 GB with torch) goes the same way, when that module was ever imported: nothing else frees it (## 1003)
+    ner = sys.modules.get("fichero_server.workflows.ner.providers")
+    if ner is not None:
+        released += ner.release_idle_transformers(idle_seconds=idle, reason=reason)
     return released
 
 
@@ -306,14 +319,17 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
             # and freeze the app ([[user-machine-always-useful]]). fastembed
             # otherwise defaults to all cores per call.
             threads = embed_threads()
-            if embed_process.in_process():
-                embedder = embed_process.load_text_embedding(model_name, cache_dir, threads)
-            else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
-                try:
-                    embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
-                except embed_process.EmbedderUnavailable as exc:
-                    _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
-                    raise
+            from fichero_server.core.perf import model_load
+
+            with model_load(f"embedder {model_name}"):
+                if embed_process.in_process():
+                    embedder = embed_process.load_text_embedding(model_name, cache_dir, threads)
+                else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
+                    try:
+                        embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
+                    except embed_process.EmbedderUnavailable as exc:
+                        _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
+                        raise
             _EMBEDDER_CACHE[model_name] = embedder
             logger.info(
                 "model-lane: load embedder %s (threads=%d)",
@@ -782,6 +798,10 @@ class DatabaseEmbeddingMixin:
             self.save_vectors(EMBEDDINGS_TABLE, records)
             return set(units_by_doc_id)
         except (RuntimeError, ValueError, OSError, MemoryError) as exc:
+            from fichero_server.db.embed_process import EmbedderUnavailable
+
+            if isinstance(exc, EmbedderUnavailable):  # no model to retry page by page: the caller waits for it (#6218)
+                raise
             logger.warning("Failed to batch-embed %d document(s): %s", len(docs), exc)
             embedded_ids: set[str] = set()
             for doc, _text in docs_with_text:
@@ -1813,10 +1833,15 @@ class DatabaseEmbeddingMixin:
         """
         worker = getattr(self, "_embed_worker_db", None)
         if worker is None:
-            from fichero_server.db import Database
+            # Two embed threads at once made two workers (#6220): one leaked a connection.
+            # ponytail: one process-wide lock; worker creation is once per library.
+            with _EMBED_WORKER_LOCK:
+                worker = getattr(self, "_embed_worker_db", None)
+                if worker is None:
+                    from fichero_server.db import Database
 
-            worker = Database(self.path)
-            self._embed_worker_db = worker
+                    worker = Database(self.path)
+                    self._embed_worker_db = worker
         return worker
 
     def defer_embeddings(self):
@@ -1831,14 +1856,13 @@ class DatabaseEmbeddingMixin:
 
         @contextlib.contextmanager
         def _ctx():
-            prev = getattr(self, "_deferred_embeds", None)
-            self._deferred_embeds = {"entity": [], "claim": []}
+            pending = {"entity": [], "claim": []}
+            token = _DEFERRED_EMBEDS.set({**(_DEFERRED_EMBEDS.get() or {}), id(self): pending})
             try:
                 yield self
             finally:
-                pending = self._deferred_embeds
-                self._deferred_embeds = prev
-                self._pending_embed_flush = pending
+                _DEFERRED_EMBEDS.reset(token)
+                _PENDING_EMBED_FLUSH.set({**(_PENDING_EMBED_FLUSH.get() or {}), id(self): pending})
 
         return _ctx()
 
@@ -1846,18 +1870,20 @@ class DatabaseEmbeddingMixin:
         """Embed everything collected under ``defer_embeddings`` off-thread."""
         import threading
 
-        pending = getattr(self, "_pending_embed_flush", None)
-        self._pending_embed_flush = None
+        waiting = dict(_PENDING_EMBED_FLUSH.get() or {})
+        pending = waiting.pop(id(self), None)
+        _PENDING_EMBED_FLUSH.set(waiting)
         if not pending:
             return
 
         def _flush() -> None:
             try:
                 worker = self._embed_worker()
+                # A record saved three times while deferred is embedded once, as last saved.
                 if pending["entity"]:
-                    worker.embed_entities(pending["entity"])
+                    worker.embed_entities(list({e.id: e for e in pending["entity"]}.values()))
                 if pending["claim"]:
-                    worker.embed_claims(pending["claim"])
+                    worker.embed_claims(list({c.id: c for c in pending["claim"]}.values()))
             except Exception as exc:  # embeds are best-effort; reindex recovers
                 logger.warning("Deferred embed flush failed: %s", exc)
 
@@ -1865,7 +1891,7 @@ class DatabaseEmbeddingMixin:
 
     def _schedule_embedding_task(self, records, *, label: str) -> None:
         """Run embedding work off-loop when possible; degrade to sync otherwise."""
-        deferred = getattr(self, "_deferred_embeds", None)
+        deferred = (_DEFERRED_EMBEDS.get() or {}).get(id(self))
         if deferred is not None:
             deferred[label if label in deferred else "claim"].extend(records)
             return

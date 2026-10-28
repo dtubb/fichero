@@ -340,3 +340,23 @@ def test_auto_compaction_triggers_at_interval(temp_db, monkeypatch):
 def test_compact_vectors_unknown_table_is_false(temp_db):
     results = temp_db.compact_vectors("does_not_exist")
     assert results == {"does_not_exist": False}
+
+
+def test_auto_compaction_keeps_a_tables_versions_bounded_6236(temp_db, monkeypatch):
+    """#6236: the M4 entity table had 141 live fragments but 1906 versions and 953 data files for 940 rows: optimize()
+    merged fragments yet kept every old version (its default prune is 7 days old). Compaction now prunes what no reader
+    needs past a short grace, so a table's versions and files stay bounded however many appends it takes."""
+    pytest.importorskip("lance")
+    import fichero_server.db as db_module
+
+    monkeypatch.setenv("FICHERO_VECTOR_COMPACTION_INTERVAL", "5")
+    monkeypatch.setattr(db_module, "_VECTOR_PRUNE_GRACE", __import__("datetime").timedelta(0))
+    tname = "bounded_versions_probe"
+
+    for i in range(40):
+        temp_db.save_vectors(tname, [{"id": f"v-{i}", "vector": [0.1 * i, 0.2, 0.3]}], replace=True)
+
+    table_dir = temp_db.path.parent / "vectors" / f"{tname}.lance"
+    assert len(list((table_dir / "_versions").iterdir())) < 15
+    assert len(list((table_dir / "data").iterdir())) < 15
+    assert temp_db.lance.open_table(tname).count_rows() == 40

@@ -163,6 +163,11 @@
     "prepared": null,
     "regions_found": null
    }
-  ]
+  ],
+  "missed": {
+   "words": "2 pages not done by lines and read; 2 pages not done by Export",
+   "offer": "Run again on what was missed",
+   "folder_id": null
+  }
  }
 }

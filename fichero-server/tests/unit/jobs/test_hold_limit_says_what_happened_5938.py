@@ -15,6 +15,8 @@ def _env(monkeypatch):
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")
     monkeypatch.setattr(jobs, "HOLD_LIMIT_SECONDS", 0.1)
     monkeypatch.setattr(jobs, "SLOW_CALL_SECONDS", 0.1)
+    # A call waiting on its answer is slow, never stuck: past the stuck-lane deadline it keeps the one slot too (#6213).
+    monkeypatch.setattr(jobs, "STUCK_MODEL_JOB_SECONDS", 0.1)
 
 
 def test_past_the_limit_no_other_heavy_job_starts_until_the_body_returns(db, test_package):

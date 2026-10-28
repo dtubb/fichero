@@ -24,7 +24,9 @@ def test_the_run_status_is_200_with_the_leave_out_account_after_a_run(client, db
                                                                        with_material):
     from fichero_server.llm import kraken_runtime
 
-    monkeypatch.setattr(kraken_runtime, "segment_to_geometry", lambda image_path, **kw: engine.recognize(image_path, None))
+    # Kraken stubbed at its one seam (#5689): a stub of segment_to_geometry alone left Find Lines on the real segmenter,
+    # ~5 s a page, and the run timed out under load (#6222).
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 32, "height": 32, "regions": [], "lines": []})
     _save(client, _recipe(tmp_path, LINES, LEAVE))
     job_id = _start(client)
     _finished(client, job_id)
@@ -47,7 +49,9 @@ def test_a_run_saved_with_the_account_under_left_out_still_answers(client, db, p
     from fichero_server.execution import jobs
     from fichero_server.llm import kraken_runtime
 
-    monkeypatch.setattr(kraken_runtime, "segment_to_geometry", lambda image_path, **kw: engine.recognize(image_path, None))
+    # Kraken stubbed at its one seam (#5689): a stub of segment_to_geometry alone left Find Lines on the real segmenter,
+    # ~5 s a page, and the run timed out under load (#6222).
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 32, "height": 32, "regions": [], "lines": []})
     _save(client, _recipe(tmp_path, LINES, LEAVE))
     job_id = _start(client)
     _finished(client, job_id)
@@ -84,7 +88,9 @@ def test_a_run_in_the_old_shape_is_resumed_after_a_quit_and_finishes(client, db,
     from fichero_server.recipes import leave_out
     from tests.unit.recipes.test_recipe_execution_to_spec import _wait
 
-    monkeypatch.setattr(kraken_runtime, "segment_to_geometry", lambda image_path, **kw: engine.recognize(image_path, None))
+    # Kraken stubbed at its one seam (#5689): a stub of segment_to_geometry alone left Find Lines on the real segmenter,
+    # ~5 s a page, and the run timed out under load (#6222).
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 32, "height": 32, "regions": [], "lines": []})
     real, calls = leave_out.leave_out_pages, []
 
     def dies_once(*args, **kwargs):

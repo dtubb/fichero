@@ -119,20 +119,24 @@ def queue_derivatives(
         return []
 
     docs = list(docs)
+    taken: set[str] = set()
     if arrived and docs:
         # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
         # `arrived=False` is the library-open recovery of stranded pages, which are not new.
-        from fichero_server.recipes.runner import material_arrived
+        from fichero_server.recipes.runner import material_arrived, stages_the_run_takes
 
-        material_arrived(db if db is not None else _library_db(library), [doc.id for doc in docs])
+        run_db = db if db is not None else _library_db(library)
+        taken = stages_the_run_takes(run_db, material_arrived(run_db, [doc.id for doc in docs]))
     queued = [
         doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
     ]
+    # The run's Search embeds these pages once after reading (ruling 5, #6186): no per-page embed now.
+    embed_queued = [] if EMBED_KIND in taken else queued
     # #4823: gated separately from thumbnails/embeds by the Settings ▸
     # General ▸ Ingestion toggle (default ON) -- OFF means not queued at
-    # all, never a stage that runs and no-ops.
+    # all, never a stage that runs and no-ops. The run's names stage takes it as Search takes the embed.
     nlp_queued = (
-        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() else []
+        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() and NLP_KIND not in taken else []
     )
     futures: list[Future] = []
     if not queued and not nlp_queued:
@@ -149,7 +153,7 @@ def queue_derivatives(
     # per-document visibility is its job row and the `nlp_error` field.
     queued_jobs = (
         jobs.enqueue_many(db, THUMBNAIL_KIND, queued)
-        + jobs.enqueue_many(db, EMBED_KIND, queued)
+        + jobs.enqueue_many(db, EMBED_KIND, embed_queued)
         + jobs.enqueue_many(db, NLP_KIND, nlp_queued)
     )
 
@@ -213,6 +217,15 @@ _progress: dict[str, dict[str, int]] = {}
 _queue_db_paths: dict[str, str] = {}
 
 
+def _key(library: str) -> str:
+    """One queue per library, however it is spelled: the import queued under the path it was given (`/tmp/…`), the
+    stages touched and ticked under their database's (`/private/tmp/…`), and the queue read "stalled at 0 of 86" while
+    its thumbnails landed (real run 2026-10-27)."""
+    from fichero_server.db.manager import DatabaseManager
+
+    return DatabaseManager._cache_key(library)
+
+
 def _emit_queue_activity(
     db_path: str | None, *, warning: bool, message: str, done: int, total: int
 ) -> None:
@@ -270,6 +283,7 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
     ``library`` filters to one library's queue when given (the Activity view is
     per-library); None returns every active queue.
     """
+    library = _key(library) if library is not None else None
     with _progress_lock:
         active = {
             lib: dict(state)
@@ -376,6 +390,7 @@ def _arm_stall_watchdog(library: str) -> None:
     kernel, a pool wedged on something nobody predicted — and turns silence
     into a sentence.
     """
+    library = _key(library)
     global _stall_timer
     if _stall_timer is not None:
         _stall_timer.cancel()
@@ -450,6 +465,7 @@ def _disarm_stall_watchdog() -> None:
 
 
 def _progress_add(library: str, count: int, db_path: str | None = None) -> None:
+    library = _key(library)
     with _progress_lock:
         newly_created = library not in _progress
         state = _progress.setdefault(library, {"done": 0, "total": 0, "since": utc_now()})
@@ -485,6 +501,7 @@ def _progress_expand(library: str, extra: int) -> None:
     """
     if extra <= 0:
         return
+    library = _key(library)
     with _progress_lock:
         state = _progress.get(library)
         if state is None:
@@ -501,6 +518,7 @@ def _embedding(library: str | None):
     if library is None:
         yield
         return
+    library = _key(library)
     from fichero_server.db.embeddings import embedder_loaded
 
     label = "Embedding a page" if embedder_loaded() else "Loading the search model"
@@ -528,6 +546,7 @@ def _progress_touch(library: str) -> None:
     The deadline measures silence, not completions: a slow first embed or a model load completes nothing for
     minutes while the queue is busy, and "stalled at 0 of 23" nine seconds before "completed" is a false alarm.
     """
+    library = _key(library)
     with _progress_lock:
         if library not in _progress:
             return
@@ -535,6 +554,7 @@ def _progress_touch(library: str) -> None:
 
 
 def _progress_tick(library: str) -> None:
+    library = _key(library)
     with _progress_lock:
         state = _progress.get(library)
         if state is None:
@@ -890,6 +910,18 @@ EMBED_RETRY_SECONDS = 120.0
 DOWNLOAD_RETRY_WINDOW_SECONDS = 3600.0
 
 
+def wait_for_the_search_model(db, why: str, cause: BaseException | None = None) -> None:
+    """The running embed job waits (it comes back after EMBED_RETRY_SECONDS) while the app fetches Search's model; never
+    a failed page (#6218). Raises `JobDeferred` with `why`."""
+    from fichero_server.execution import jobs
+
+    job_id = getattr(jobs._current, "job_id", None)
+    if job_id:
+        jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
+    _fetch_the_search_model(db)
+    raise jobs.JobDeferred(why) from cause
+
+
 def _fetch_the_search_model(db) -> None:
     """Search's model is missing: queue its download in the app (a row in Activity). Not while one waits or runs, not
     within the window after one failed, and not when the files are already in the cache (the load failed for another
@@ -955,15 +987,10 @@ def _embed_stage(doc_id: str, library: str) -> None:
             with _embed_gate:
                 embed_error = _embed_document_tree(doc, db, library)
         except EmbedderUnavailable as exc:
-            from fichero_server.execution import jobs
 
             # Search cannot index yet (its model is missing): the row WAITS with the sentence as its reason, and comes
             # back later; the download clears it (P2, 436). Not "done", and not a count in the document's metadata.
-            job_id = getattr(jobs._current, "job_id", None)
-            if job_id:
-                jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
-            _fetch_the_search_model(db)
-            raise jobs.JobDeferred(str(exc)) from exc
+            wait_for_the_search_model(db, str(exc), exc)
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
         # takes seconds, and saving the copy read at stage START resurrected

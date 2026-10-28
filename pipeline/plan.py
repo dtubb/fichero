@@ -14,7 +14,7 @@ from pipeline import ROOT, STATE, checks, coder, core, gh, journal
 
 MAX_BEHAVIOURS = 120  # ponytail: one call writes the whole plan; a bigger spec needs a per-section plan first
 PROPOSED = "## Proposed build order (proposed, not approved)"
-OWN = re.compile(r"^- `([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)` \[(PARTIAL|MISSING|GAP|BROKEN|OK)[^\]]*\]", re.M)
+OWN = re.compile(r"^- `([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)` (?:— )?\*{0,2}\[(PARTIAL|MISSING|GAP|BROKEN|OK)[^\]]*\]", re.M)
 TEST_REF = re.compile(r"[\w./-]*test[\w./-]*\.(?:py|swift)(?:::\w+)?", re.I)
 TOKEN = re.compile(r"`([A-Za-z_][\w./-]*(?:\(\))?)`")
 
@@ -153,6 +153,33 @@ def plan(spec: str) -> dict:
             "cost_usd": round(st["cost_usd"], 4)}
 
 
+def _milestones() -> list[str]:
+    """Every milestone title; GitHub pages at 100, so read pages until one comes back short."""
+    titles, page = [], 1
+    while True:
+        batch = gh.read("api", f"repos/{{owner}}/{{repo}}/milestones?state=all&per_page=100&page={page}")
+        titles += [x["title"] for x in batch]
+        if len(batch) < 100:
+            return titles
+        page += 1
+
+
+def _filed(ms: str, title: str, marker: str) -> int | None:
+    """The number of an issue already filed for this step (exact title, or the step's marker in its body), any state.
+    ponytail: one milestone's first 1000 issues; a bigger milestone needs paging here too."""
+    gh.cache_clear()
+    for i in gh.read("issue", "list", "--milestone", ms, "--state", "all", "--limit", "1000", "--json", "number,title,body"):
+        if i["title"] == title or marker in (i.get("body") or ""):
+            return int(i["number"])
+    return None
+
+
+def _plain(text: str) -> str:
+    """Behaviour words as plain text in an issue body: one line, and no `#` that GitHub or the feeder would read as an issue
+    number (`&num;` renders as `#`), so `Depends on: #7` written by a spec's author never adds a dependency."""
+    return " ".join(text.split()).replace("#", "&num;")
+
+
 def plan_approve(spec: str) -> dict:
     """After the owner says yes: one issue per step (milestone = the spec's, label type:feature plus `stage:<spec>-<n>` so the
     feeder runs them in step order, `Depends on: #N` between them, the behaviours, tests and an acceptance line in the body so
@@ -171,21 +198,27 @@ def plan_approve(spec: str) -> dict:
     steps = [s for st in g._parse_build_order(m.group(0).replace(PROPOSED, "## Build order", 1))["stages"] for s in st["steps"]]
     ms = (re.search(r"^> Milestone: (\S+)", text, re.M) or [None, path.stem])[1]
     todo, num = [], {s["number"]: s["issue"] for s in steps if s["issue"]}
-    if not core.DRY_RUN and ms not in [x["title"] for x in gh.read("api", "repos/{owner}/{repo}/milestones?state=all&per_page=100")]:
+    if not core.DRY_RUN and ms not in _milestones():
         gh.write("api", "repos/{owner}/{repo}/milestones", "-f", f"title={ms}", dry_run=False)
     for i, s in enumerate(steps, 1):
         if s["number"] in num:
             continue
         deps = " ".join(f"#{num[d]}" for d in s["depends_on"] if d in num)
-        body = "\n".join([f"Spec: `{spec}`, Step {s['number']} — {s['title']}.", "", *(f"- `{b}` — {say.get(b, '')[:300]}" for b in s["behaviours"]), "",
+        marker = f"<!-- plan-step: {spec} {s['number']} -->"
+        body = "\n".join([f"Spec: `{spec}`, Step {s['number']} — {s['title']}.", "", *(f"- `{b}` — {_plain(say.get(b, '')[:300])}" for b in s["behaviours"]), "",
                           "Acceptance: each behaviour above works as its spec line says, its tests pass, and the spec line is re-tagged [OK] in the same commit.",
-                          "Tests: " + ", ".join(s["tests"]), *([f"Depends on: {deps}"] if deps else [])])
-        args = ["issue", "create", "--title", f"{ms} {s['number']}: {s['title']}"[:120], "--body", body, "--label", f"type:feature,stage:{path.stem}-{i}", "--milestone", ms]
+                          "Tests: " + ", ".join(s["tests"]), *([f"Depends on: {deps}"] if deps else []), marker])
+        title = f"{ms} {s['number']}: {s['title']}"[:120]
+        args = ["issue", "create", "--title", title, "--body", body, "--label", f"type:feature,stage:{path.stem}-{i}", "--milestone", ms]
         if core.DRY_RUN:
             todo.append(gh.write(*args, dry_run=True))
             continue
-        gh.write("label", "create", f"stage:{path.stem}-{i}", "--force", "--description", f"step {i} of {path.stem}", dry_run=False)
-        num[s["number"]] = int(gh.write(*args, dry_run=False).rsplit("/", 1)[1])
+        filed = _filed(ms, title, marker)  # a crash after create left the issue on GitHub but not its number in the spec
+        if filed:
+            num[s["number"]] = filed
+        else:
+            gh.write("label", "create", f"stage:{path.stem}-{i}", "--force", "--description", f"step {i} of {path.stem}", dry_run=False)
+            num[s["number"]] = int(gh.write(*args, dry_run=False).rsplit("/", 1)[1])
         path.write_text(re.sub(rf"(?m)^(#### Step {re.escape(s['number'])} .*?)\s*$", rf"\1 (#{num[s['number']]})", path.read_text(), count=1))
     if core.DRY_RUN:
         return {"spec": spec, "dry_run": True, "would_file": len(todo), "commands": todo[:3], "milestone": ms}

@@ -16,7 +16,7 @@ import logging
 import re
 import threading
 import unicodedata
-from functools import wraps
+from functools import lru_cache, wraps
 from typing import Optional
 
 from fichero_server.db import Database
@@ -274,6 +274,7 @@ _ADMIN_PREFIXES = frozenset({
 })
 
 
+@lru_cache(maxsize=65536)  # #6236: called per stored entity per upsert
 def _fold_accents(s: str) -> str:
     """Strip diacritics so "Peña" folds onto "Pena" (#1811).
 
@@ -292,6 +293,19 @@ def _tokenise_lower(s: str) -> list[str]:
     """Split a name into lowercase alphanumeric tokens."""
     cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
     return [tok for tok in cleaned.split() if tok]
+
+
+@lru_cache(maxsize=65536)  # #6236: a tuple, so no caller can change the cached tokens
+def _folded_tokens(s: str) -> tuple[str, ...]:
+    return tuple(_tokenise_lower(_fold_accents(s)))
+
+
+@lru_cache(maxsize=65536)  # #6236
+def _match_tokens(s: str) -> frozenset[str]:
+    """The fuzzy matcher's tokens: accent-folded, lowercased, punctuation as a space, three letters or more."""
+    folded = _fold_accents(s.lower())
+    cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in folded)
+    return frozenset(tok for tok in cleaned.split() if len(tok) > 2)
 
 
 def _core_name_tokens(name: str) -> set[str]:
@@ -318,6 +332,7 @@ def _core_name_tokens(name: str) -> set[str]:
     return set(core or toks)
 
 
+@lru_cache(maxsize=65536)  # #6236
 def _normalized_match_key(name: str) -> str:
     """Conservative high-precision identity key for a name (#1811).
 
@@ -444,8 +459,8 @@ def _terminal_surname_diverges(a: str, b: str) -> bool:
     """
     from difflib import SequenceMatcher
 
-    ta = _tokenise_lower(_fold_accents(a))
-    tb = _tokenise_lower(_fold_accents(b))
+    ta = _folded_tokens(a)
+    tb = _folded_tokens(b)
     # Person-name-SHAPED only: 2-4 tokens (given + up to two surnames, maybe a
     # particle). Longer strings are verbose event/concept paraphrases whose
     # terminal words legitimately differ while naming the same thing ("…Racial
@@ -589,14 +604,9 @@ def _fuzzy_match_existing(
     # SequenceMatcher.ratio. Diacritic folding makes "Peña"/"Pena" and
     # "Bogotá"/"Bogota" score as identical instead of 0.75 (which fell
     # under the 0.78 threshold and silently created near-duplicates).
-    def _tokens(s: str) -> set[str]:
-        folded = _fold_accents(s.lower())
-        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in folded)
-        return {tok for tok in cleaned.split() if len(tok) > 2}
-
     def _single_token_suffix_noise_match(a: str, b: str) -> bool:
-        tokens_a = _tokenise_lower(_fold_accents(a))
-        tokens_b = _tokenise_lower(_fold_accents(b))
+        tokens_a = _folded_tokens(a)
+        tokens_b = _folded_tokens(b)
         if len(tokens_a) != 1 or len(tokens_b) != 1:
             return False
         left, right = tokens_a[0], tokens_b[0]
@@ -620,8 +630,11 @@ def _fuzzy_match_existing(
             ):
                 return ent
 
-    needle_tokens = _tokens(canonical_name)
-    needle_lower = _fold_accents(canonical_name.lower())
+    needle_tokens = _match_tokens(canonical_name)
+    # #6236: one matcher for the needle, and its cheap upper bounds first: a candidate whose bound can't reach the
+    # threshold or beat the best so far can't change the answer. The needle stays the FIRST sequence: ratio() is
+    # not symmetric, and near the floor the order decides the proposal.
+    matcher = SequenceMatcher(None, a=_fold_accents(canonical_name.lower()))
 
     best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
     for ent in existing:
@@ -632,16 +645,19 @@ def _fuzzy_match_existing(
         if _terminal_surname_diverges(canonical_name, ent.canonical_name):
             continue
         # Two metrics, take the max so either signal can hit threshold.
-        seq_ratio = SequenceMatcher(
-            None, needle_lower, _fold_accents(ent.canonical_name.lower())
-        ).ratio()
-        ent_tokens = _tokens(ent.canonical_name)
+        ent_tokens = _match_tokens(ent.canonical_name)
         if needle_tokens and ent_tokens:
             intersection = len(needle_tokens & ent_tokens)
             union = len(needle_tokens | ent_tokens)
             token_ratio = intersection / union if union else 0.0
         else:
             token_ratio = 0.0
+        floor = max(token_ratio, best[0])
+        matcher.set_seq2(_fold_accents(ent.canonical_name.lower()))
+        if max(threshold, floor) > matcher.real_quick_ratio() or floor >= matcher.quick_ratio():
+            seq_ratio = 0.0
+        else:
+            seq_ratio = matcher.ratio()
         score = max(seq_ratio, token_ratio)
         if score > best[0]:
             best = (score, ent)
@@ -1937,12 +1953,19 @@ def _upsert_entity_matched(
     # merely SIMILAR match below (admin qualifier, vector neighbour, SequenceMatcher) makes a new
     # entity and proposes the pair for a person; a model never decides two names are one.
     from fichero_server.knowledge.dedupe import normalize_name
+    from fichero_server.models.knowledge import derived_aliases
 
-    same_type = db.query(KnowledgeEntity, entity_type=entity_type)
+    # Only the names of every same-type row: reading each whole (its mentions and all) cost a page most of its
+    # time (#6236). ponytail: still one scan per new name; a name-key column when a type passes ~100k entities.
+    same_type = db.query_fields(KnowledgeEntity, ["id", "canonical_name", "aliases", "names", "merged_into_id"],
+                                entity_type=entity_type)
+    for row in same_type:  # as the validator derives them: a romanized form an older row's column lacks still matches
+        row.aliases = derived_aliases(row.aliases, row.names, row.canonical_name)
     key = normalize_name(canonical_name)
     if key:
-        for ent in same_type:
-            if ent.merged_into_id is None and key in {normalize_name(n) for n in [ent.canonical_name, *ent.aliases]}:
+        for row in same_type:
+            if row.merged_into_id is None and key in {normalize_name(n) for n in [row.canonical_name, *row.aliases]}:
+                ent = db.get(KnowledgeEntity, row.id)
                 if canonical_name not in [ent.canonical_name, *ent.aliases]:
                     ent.aliases = sorted({*ent.aliases, canonical_name})
                     db.save(ent)
@@ -2094,18 +2117,9 @@ def _upsert_entity_matched(
         _record_source_page(db, survivor, source_document_id)  # #1562
         return survivor.id
 
-    try:
-        from fichero_server.knowledge import entity_vectors
-
-        entity_vectors.index_entity(
-            db=db,
-            entity_id=entity.id,
-            entity_type=entity_type,
-            canonical_name=canonical_name,
-            description=description,
-        )
-    except Exception as exc:
-        logger.warning("upsert_entity: failed to index new entity vector: %s", exc)
+    # The new entity's vector: db.save above already embedded it (the post-save hook, off this thread when a loop runs).
+    # A second, synchronous index_entity here held a names page on a db.get + embed + LanceDB write per name (#6236).
+    # ponytail: a name's vector may land after the page's next name is matched; stage 1 still matches it by name.
 
     # Stage 5: write the EntityMatchCandidate row when stage 2 hit the
     # review band. The survivor is the existing entity (higher claim

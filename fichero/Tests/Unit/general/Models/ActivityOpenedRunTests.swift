@@ -27,7 +27,7 @@ struct ActivityOpenedRunTests {
 
     @Test("the log is not a list inside another scroll")
     func logIsNotAScrollOfItsOwn() throws {
-        let view = try source("Views/Activity/Detail/ActivityDetailsView.swift")
+        let view = try source("Views/Activity/Detail/ActivityDetailsLog.swift")
         let log = try #require(view.range(of: "struct ActivityDetailsLog: View"))
         let end = try #require(view.range(of: "struct ActivityDetailsLogPane"))
         let body = String(view[log.lowerBound..<end.lowerBound])
@@ -54,5 +54,43 @@ struct ActivityOpenedRunTests {
         let view = try source("Views/Activity/Detail/ActivityDetailsView.swift")
         #expect(view.contains("ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))"))
         #expect(view.contains("hidesReadAgain: !details.failedPages.isEmpty && runTarget(details).readAgainLabel != nil"))
+    }
+
+    @Test("the run's line says how many pages it reads at once and why, as the engine sends them (#6217)")
+    func pagesAtOnce() {
+        #expect(RecipeRunPagesAtOnce(count: 2, reason: nil).words == "reading 2 pages at once")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging").words == "one page at a time: the Mac is paging")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: nil).words == "one page at a time")
+        // The threads each page reads on, as the engine sends them (#6229)
+        #expect(RecipeRunPagesAtOnce(count: 2, reason: nil, threads: 2).words == "reading 2 pages at once, 2 threads each")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging", threads: 4).words
+                == "one page at a time on 4 threads: the Mac is paging")
+        #expect(RecipeRunPagesAtOnce(count: 1, reason: nil, threads: 1).words == "one page at a time on 1 thread")
+        let strip = ProjectRunStrip(jobId: "r", node: nil, job: nil, folders: nil,
+                                    pagesAtOnce: RecipeRunPagesAtOnce(count: 1, reason: "resuming after a restart"))
+        #expect(strip.detail.hasSuffix("one page at a time: resuming after a restart"))
+    }
+
+    @Test("an opened run's grey line says how many pages it reads at once while it runs, as the engine sends it (#6217)")
+    func pagesAtOnceOnTheOpenedRun() {
+        func details(_ state: ActivityJob.State) -> ActivityDetails {
+            let row = ActivityMonitorRow.job(
+                ActivityJob(id: "run-1", taskType: "run-a-recipe", name: "Recipe run", current: 1, total: 4, state: state),
+                libraryId: nil, projectName: nil)
+            return ActivityDetails(row: row, node: nil, runRow: nil, projectName: nil, startedBy: nil, machine: nil,
+                                   pagesAtOnce: RecipeRunPagesAtOnce(count: 1, reason: "the Mac is paging"))
+        }
+        #expect(details(.running).subheading.contains("one page at a time: the Mac is paging"))
+        #expect(!details(.completed).subheading.contains("one page at a time: the Mac is paging"), "an ended run reads no pages")
+    }
+
+    @Test("a stage's counts say the first pages in order while a page finished ahead of a gap (#6186)")
+    func doneInOrder() {
+        let ahead = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8, pagesDoneInOrder: 9)
+        #expect(ActivityDetails.countsWords(ahead) == "12 done · 0 failed · 8 left · first 9 in order")
+        let inOrder = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8, pagesDoneInOrder: 12)
+        #expect(ActivityDetails.countsWords(inOrder) == "12 done · 0 failed · 8 left")
+        let older = ActivityRunAccount(state: "running", pagesTotal: 20, pagesDone: 12, pagesLeft: 8)
+        #expect(ActivityDetails.countsWords(older) == "12 done · 0 failed · 8 left", "an engine without the field says nothing of order")
     }
 }

@@ -9672,6 +9672,11 @@
             "name": "folder_id",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
@@ -9695,6 +9700,16 @@
         "path_params": [],
         "query_params": [],
         "request_model": "UseInsteadRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/steps/place",
+        "operation_id": "put_step_on_a_place_api_recipes_project_steps_place_post",
+        "summary": "Put Step On A Place",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StepPlaceRequest",
         "response_model": "ProjectSetup"
       },
       {

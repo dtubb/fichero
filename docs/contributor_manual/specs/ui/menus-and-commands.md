@@ -695,6 +695,7 @@ rulings-2026-10-17). The design holds (shared components), and iOS-only tests ma
   when the engine is not running. *Test:* `Tests/Unit/general/App/SaveLogsForSupportTests.swift`
   (the collector against a temp logs folder with an over-cap engine.log; the tier gate; a source
   read that the Help group mounts the item behind the gate).
+- `help.email-logs-for-support` — **[GAP]** (#6171; owner ask 2026-10-26) **Help › Email Logs for Support…**, beside Save Logs, composes a new email to the support address the About window shows with the same zip attached (`help.save-logs-for-support` builds it): the app's logs, the ENGINE log (`engine.log`, last 20 MB) and the server's own logs, plus `about.txt`. The mail is only composed, never sent: the person reads it and presses Send. Where no mail account is set up, it saves the zip as Save Logs does and says where it is, with the address to send it to. Offered in every tier, not only dev, because the people who hit a crash are not on the dev tier (this reverses `help.save-logs-for-support`'s dev-only gate for the email item; the person sees what is attached before sending). *Test:* `Tests/Unit/general/App/EmailLogsForSupportTests.swift` (the attachment is the collector's zip; no mail account falls back to a saved zip; the item is mounted in every tier).
 
 ---
 

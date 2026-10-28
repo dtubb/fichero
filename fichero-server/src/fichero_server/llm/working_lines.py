@@ -43,6 +43,17 @@ def reads_mostly_nothing(empty: int, found: int) -> bool:
     return found > 0 and (empty == found or (found >= MOSTLY_EMPTY_MIN_LINES and empty * 2 > found))
 
 
+def empty_lines_why(blank: list[str], found: int) -> tuple[list[str], dict[str, str]]:
+    """For a Kraken read of `found` working lines that gave no text for the `blank` ones: (the lines looked at with no
+    writing, each failed line with why it stays unread). A failed page's empty lines are not 'no writing'; they say
+    the reader came back empty, so the step is partial and the summary gives that reason (#6219)."""
+    if not blank or not reads_mostly_nothing(len(blank), found):
+        return blank, {}
+    from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE, NOTHING_FOR_PAGE
+
+    return [], dict.fromkeys(blank, NOTHING_FOR_PAGE if len(blank) == found else MOSTLY_NOTHING_FOR_PAGE)
+
+
 @dataclass(frozen=True)
 class WorkingLines:
     """The page's working pass and its live lines, in the pass's reading order."""

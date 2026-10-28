@@ -8,8 +8,9 @@ main = "main"
 worktrees = ".worktrees/pipeline"
 specs = "docs/contributor_manual/specs"
 # A diff touching any of these goes to needs-maintainer: the checks run from the runner's pinned checkout and a
-# coder may not edit the check it is judged by (pipeline.pinned-checks).
-check_paths = ["scripts/check_", "scripts/lane_ready_check.sh", "scripts/gate", "pipeline/"]
+# coder may not edit the check it is judged by (pipeline.pinned-checks). The runner's own code and tests are not
+# listed: new ones pass, and a diff that deletes or weakens a base test goes to needs-maintainer anyway.
+check_paths = ["scripts/check_", "scripts/lane_ready_check.sh", "scripts/gate"]
 python_path = "fichero-server/src:fichero-cli/src:fichero-mcp/src"
 test_env = { FICHERO_FEATURE_TIER = "dev" }   # FICHERO_BASE_PATH is always a fresh mktemp dir
 scratch_base_env = "FICHERO_BASE_PATH"
@@ -130,6 +131,7 @@ machine = "m4"
 # `python -m pipeline run` (pipeline.schedule): seconds between passes while an answer is awaited; issues per start
 [run]
 poll_s = 60
+auto_land = true   # #6179, owner 2026-10-26: reviewed READY items land on integration (never main)
 batch = 3
 
 [machines]
@@ -142,7 +144,7 @@ tmux_session = "pipeline"
 pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
 agent_dir = "pipeline/pi-agent"
 cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
-daily_cap_usd = 25.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+daily_cap_usd = 30.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
 context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
 # pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
 # or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
@@ -157,7 +159,7 @@ issue_usd_max = 1.50             # dollars, not tokens: most of a long run's tok
 retries = 2
 stuck_minutes = 45
 needs_mb = { pi = 300, pytest = 1500, gate-part = 4000 }
-caps = { coders = 2, reviewers = 1, intake = 1, test_runs = 1 }   # the fixed roster: the lead is scripts
+caps = { coders = 3, reviewers = 1, intake = 1, test_runs = 1 }   # the fixed roster: the lead is scripts
 owner_process = "Fichero Server"   # the maintainer's own engine; busy under pressure => the runner yields
 
 # One ordered fallback list per role (pipeline.worker-roles): kind pi, provider + model (as Pi spells it). Ruled

@@ -557,6 +557,15 @@ def _lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) 
     return kraken_lines_known(db, page_ids) if has_bar else None
 
 
+def _hf_spent(db: Any, answers: dict[str, Any] | None) -> float:
+    """This month's Hugging Face spend, at most (`source.onboard.spend-cap`): what the plan checks a chosen Hugging Face
+    placement against the cap."""
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    return float(spend_this_month(db, cap=spend_cap(answers))["spent_at_most_usd"])
+
+
 def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
     """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
     None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
@@ -1798,12 +1807,20 @@ class ProjectSetup(BaseModel):
     recipe: Optional[dict[str, Any]] = Field(default=None, description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")
 
 
+class RedoStep(BaseModel):
+    steps: list[str] = Field(description="the step ids, Start's `redo` for this run")
+    name: str = Field(description="the run's name, as the menu shows it")
+
+
 class ProjectSetupView(ProjectSetup):
     """`GET /api/recipes/project`'s answer: the setup and, beside the answers, what the project inherits."""
 
     cloud_inherited: bool = Field(default=False, description=(
         "True when the project has not answered the cloud question and the app allows a cloud AI service, so pages may go there "
         "by inheritance; never in `answers` and never saved (`source.onboard.new-project-inherits-the-cloud-setting`)"))
+    redo_steps: list[RedoStep] = Field(default_factory=list, description=(
+        "after the first yes, the recipe's steps a folder can run again, each as Start takes it back in `redo`, with its "
+        "name; read with the setup, so the folder menu needs no Start plan (`source.recipe.step-rerun-on-folder`, #6170)"))
 
 
 def _library(db: Database) -> Path:
@@ -1878,8 +1895,21 @@ def _whole_setup(setup: dict) -> ProjectSetup:
 @router.get("/project", response_model=ProjectSetupView)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetupView:
     """The open project's saved setup answers and recipe, and whether it inherits the app's cloud setting."""
-    setup = read_project_setup(_library(db))
-    return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")))
+    return await asyncio.to_thread(_project_setup_view, db)  # off the loop (#6178): the redo steps are a Start plan
+
+
+def _project_setup_view(db: Database) -> ProjectSetupView:
+    from fichero_server.recipes.project import read_start
+    from fichero_server.recipes.start import plan_start
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    redo = []
+    if read_start(library) and setup["recipe"]:  # the started recipe's workflow runs, planned without the pages (cheap)
+        planned = plan_start(setup["recipe"], stays_local=not places.may_leave_to(setup["answers"], "cloud"))
+        redo = [RedoStep(steps=w["steps"], name=w.get("workflow") or ", ".join(w["steps"])) for w in planned["workflows"]]
+    return ProjectSetupView(**_whole_setup(setup).model_dump(), cloud_inherited=bool(setup.get("cloud_inherited")),
+                            redo_steps=redo)
 
 
 class ReviewInstruction(BaseModel):
@@ -2543,6 +2573,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.done import annotate, material, todo_counts
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
+    from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.start import estimate, place_runs, plan_start
     from fichero_server.recipes.train_offers import counted, offered, train_ahead, train_offers
 
@@ -2566,7 +2597,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                                 todo=todo_counts(db, plan, within, memo=memo))
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
-               bound_cluster=_bound_cluster(setup["answers"], clusters))
+               bound_cluster=_bound_cluster(setup["answers"], clusters),
+               hf_allowed=places.may_leave_to(setup["answers"], "huggingface"),
+               hf_cap_usd=spend_cap(setup["answers"]), hf_spent_usd=_hf_spent(db, setup["answers"]))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
@@ -2689,21 +2722,31 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
             "ready": ready["ready"], "readiness_sentence": ready.get("sentence")}
 
 
-@router.get("/project/start", response_model=StartPlan)
+@router.get("/project/start", response_model=StartPlan,
+            openapi_extra={"x-fichero-agent-defaults": {"summary": True}})
 async def get_start_plan(
     http: Request,
     folder_id: Optional[str] = Query(default=None, description=(
         "plan Start on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); omit for the whole project")),
+    summary: bool = Query(False, description=(
+        "a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), "
+        "not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it "
+        "(openapi.mcp.answers-fit-an-agent)")),
     db: Database = Depends(get_library_database),
 ) -> StartPlan:
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
         # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
-        return StartPlan(**await asyncio.to_thread(_start_plan, db, folder_id, clusters=_cluster_names(http)))
+        plan = await asyncio.to_thread(_start_plan, db, folder_id, clusters=_cluster_names(http))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if summary:
+        for step in plan.get("step_choices") or []:
+            cands = step.get("candidates") or []
+            step["candidates"] = [c for c in cands if c.get("picked") or c.get("recommended")] or cands[:1]
+    return StartPlan(**plan)
 
 
 class StartParams(BaseModel):
@@ -2713,6 +2756,8 @@ class StartParams(BaseModel):
                             "their output (`source.recipe.done-is-not-redone`)")
     folder_id: Optional[str] = Field(default=None, description="run on this folder alone "
                                      "(`source.recipe.folder-scoped-start`); null: the whole project")
+    documents: Optional[list[str]] = Field(default=None, description="run on these pages alone, as a run's `missed` "
+                                           "names them (#6170); never with `folder_id`")
     clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
                                 "Start may use, by name (the route's own, owner-only): the project's cluster binds "
                                 "only to one of them")
@@ -2727,6 +2772,9 @@ class StartRequest(BaseModel):
     folder_id: Optional[str] = Field(default=None, description=(
         "run the whole recipe on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); null: the whole project"))
+    documents: Optional[list[str]] = Field(default=None, description=(
+        "run the recipe on these pages alone, as a finished run's `missed.documents` names them "
+        "(source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`"))
     accept_unpriced: list[str] = Field(default_factory=list, description=(
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
@@ -2779,6 +2827,7 @@ async def start_project(
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         _accept_asked(db, request.accept_unpriced if request else [], folder_id, _cluster_names(http), ctx)
         registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+                                              "documents": request.documents if request else None,
                                               "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2832,6 +2881,35 @@ async def use_installed_instead(
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
     try:
         recipe = use_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["downloads"], request.model, card, now=now)
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _whole_setup(result.result)
+
+
+class StepPlaceRequest(BaseModel):
+    """Where a reading step runs (`source.recipe.step-runs-on-huggingface`, #6173)."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the recipe step's id (a reading step)")
+    place: str = Field(description="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step")
+
+
+@router.post("/project/steps/place", response_model=ProjectSetup)
+async def put_step_on_a_place(
+    request: StepPlaceRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Put a reading step on Hugging Face Jobs, or back on this Mac, through `project.save_setup` (audited, undoable)
+    (`source.recipe.step-runs-on-huggingface`). Choosing only records where it runs: Start sends pages only with the
+    project's yes, the app's Hugging Face place and a monthly cap above $0. Refused (422) for a step the recipe lacks, a
+    step that is not a reading, or another place."""
+    from fichero_server.recipes.start import set_step_place
+
+    setup = read_project_setup(_library(db))
+    try:
+        recipe = set_step_place(setup["recipe"], request.step, request.place)
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -3027,6 +3105,22 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
     if params.withdraw:
         record = None
     else:
+        if params.documents is not None and params.folder_id:
+            raise ValueError("Start takes a folder or some pages, not both")
+        if params.documents is not None:
+            from fichero_server.recipes.done import pages_for
+
+            # An import run's documents are the imported top-level ones: a PDF or a cut photograph is the
+            # project's through its pages (importers/derivatives.py).
+            project = set(pages_for(db, {}, None))
+            from fichero_server.models import Document
+
+            if any(getattr(d.doc_type, "value", d.doc_type) == "folder"
+                   for d in (db.get(Document, i) for i in params.documents) if d):
+                raise ValueError("a folder goes in folder_id, not in documents")
+            if stray := [d for d in params.documents if d not in project
+                         and not set(pages_for(db, {}, [d])) <= project]:
+                raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
@@ -3048,7 +3142,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=started_by_for(ctx), redo=params.redo,
+            "job_id": runner.enqueue(db, plan, documents=params.documents, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id),
             "folder_id": params.folder_id,
         }
@@ -3146,6 +3240,15 @@ class RecipeRunStatus(BaseModel):
         "(memory, a model loading); null when nothing waits (#5576)"))
     estimate_seconds_left: Optional[float] = Field(default=None, description=(
         "the running stage's time left at its own pace so far; null until it has done a page"))
+    seconds: Optional[float] = Field(default=None, description=(
+        "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"))
+    pages_at_once: Optional[int] = Field(default=None, description=(
+        "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"))
+    pages_at_once_reason: Optional[str] = Field(default=None, description=(
+        "which hold makes it one page at a time, in words shown as sent; null when more than one may go"))
+    threads_each: Optional[int] = Field(default=None, description=(
+        "the threads each page reads on now: the cores the run's priority gives, split by pages_at_once "
+        "(recipes-run.memory.threads-fill-the-cores, #6229); null when not running"))
 
 
 class RecipeRuns(BaseModel):
@@ -3185,7 +3288,8 @@ async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRun
     from fichero_server.recipes import runner
     from fichero_server.recipes.run_view import with_accounts
 
-    return RecipeRuns(items=[RecipeRunStatus(**await with_accounts(db, r)) for r in runner.runs(db)])
+    # Off the loop (#6178): the runs' rows wait on the transaction gate behind a run's write.
+    return RecipeRuns(items=[RecipeRunStatus(**await with_accounts(db, r)) for r in await asyncio.to_thread(runner.runs, db)])
 
 
 @router.get("/project/runs/{job_id}", response_model=RecipeRunStatus)
@@ -3197,7 +3301,7 @@ async def recipe_run_status(job_id: str, db: Database = Depends(get_library_data
     from fichero_server.recipes.run_view import with_accounts
 
     try:
-        return RecipeRunStatus(**await with_accounts(db, runner.status(db, job_id)))
+        return RecipeRunStatus(**await with_accounts(db, await asyncio.to_thread(runner.status, db, job_id)))  # off the loop (#6178)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

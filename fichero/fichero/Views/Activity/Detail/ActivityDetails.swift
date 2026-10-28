@@ -25,6 +25,9 @@ struct ActivityDetails: Equatable {
         case retryDownload(jobId: String)
         /// The steps take the next candidate of their chain (#5352).
         case useNextCandidate(steps: [String], card: String)
+        /// What a finished run missed, run again (#6170): plain Start on the run's folder (nil, the project), or on its
+        /// pages alone when it covered some (a run an import started).
+        case runAgainOnMissed(folderId: String?, documents: [String]?, label: String)
     }
 
     struct FailedPageRow: Equatable, Identifiable {
@@ -132,8 +135,10 @@ extension ActivityDetails {
         }
         // Who started it: the row's own record, else its run's (a run's steps and pages say "workflow").
         let startedBy = [node?.startedBy, tree?.startedBy].compactMap { $0 }.first { $0 != "workflow" }
+        // A recipe run's own row says how many pages it reads at once, from its status (#6217).
+        let atOnce = jobId == treeKey ? store.recipeRunPagesAtOnce[jobId] : nil
         self.init(row: row, node: node, runRow: runRow, projectName: projectName, startedBy: startedBy,
-                  machine: store.machine)
+                  machine: store.machine, pagesAtOnce: atOnce)
     }
 
     /// The details from the table's row and its node: pure, so a test can build them.
@@ -143,7 +148,8 @@ extension ActivityDetails {
         runRow: ActivityMonitorRow?,
         projectName: String?,
         startedBy: String?,
-        machine: MachineReading?
+        machine: MachineReading?,
+        pagesAtOnce: RecipeRunPagesAtOnce? = nil
     ) {
         self.row = row
         self.node = node
@@ -151,7 +157,8 @@ extension ActivityDetails {
         let owningRun = runRow?.kind == .run ? runRow : nil
 
         heading = Self.heading(row: row, node: node)
-        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started)].compactMap { value in
+        subheading = [projectName, row.model, Self.startedByWords(startedBy), Self.startedAtWords(row.started),
+                      row.phase == .running ? pagesAtOnce?.words : nil].compactMap { value in
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
@@ -268,7 +275,8 @@ extension ActivityDetails {
                 isFailed: phase == .failed,
                 counts: child.total > 0 ? "\(child.done) done · \(child.failed) failed · \(left) left" : nil,
                 timeLeft: nil,
-                waitingFor: nil
+                waitingFor: nil,
+                note: nil
             )
         }
     }

@@ -20,6 +20,8 @@ failed it (a page a step skipped because the step before failed it is that one f
 """
 from __future__ import annotations
 
+import asyncio
+
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -30,6 +32,9 @@ from fichero_server.workflows.run_progress import MAX_FAILURES_LISTED, item_erro
 
 #: How an interrupted run's reason starts; `account_state` reads a run whose reason starts so as interrupted.
 INTERRUPTED_PREFIX = "Interrupted: the engine stopped"
+#: A recipe's step run cut off by the engine's stop: the recipe run, taken up again, reads its pages not done itself, so the
+#: step run offers no second run (`recipes-run.journey.resume-after-crash`, #5357).
+RECIPE_CARRIES_ON = "its recipe run carries on from its checkpoint"
 #: How a run's reason starts when its project was closed while it ran (#5608).
 CLOSED_PREFIX = "Interrupted: the project was closed"
 #: The words the older open-time sweep wrote (`workflows/activity_store._STALE_RUN_ERROR`).
@@ -61,6 +66,9 @@ class RunAccount(BaseModel):
     pages_done: int = 0
     pages_failed: int = 0
     pages_left: int = 0
+    pages_done_in_order: int = Field(0, description=(
+        "The first N pages in sidebar order that are finished (read or failed): a page finished ahead counts when the "
+        "gap before it closes, so progress reads in order (recipes-run.order.done-in-order-shown, #6186)."))
     failures: list[PageFailure] = Field(default_factory=list,
                                         description=f"The first {MAX_FAILURES_LISTED} failed pages, with why.")
     retried: int = Field(0, description="Pages read once more after a passing cause (a model loading, memory).")
@@ -191,10 +199,13 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
         # done is every page it was given, never "0 of 92" after 1,193 names (#5706).
         done = list(range(total))
     left = max(0, total - len(done) - len(failed))
+    position = {f: i for i, f in enumerate(files)} if isinstance(files, list) else {}
+    settled = {k if isinstance(k, int) else position.get(k) for k in [*done, *failed]}  # a fan-out index, or a file
+    in_order = next((i for i in range(total) if i not in settled), total)
 
     account = RunAccount(
         state=run_state, pages_total=total, pages_done=len(done), pages_failed=len(failed), pages_left=left,
-        failures=[PageFailure(page=str(p["file"] or "?").rsplit("/", 1)[-1], document_id=p["document_id"],
+        pages_done_in_order=in_order, failures=[PageFailure(page=str(p["file"] or "?").rsplit("/", 1)[-1], document_id=p["document_id"],
                               reason=p["error"], retried=p["retried"])
                   for _k, p in sorted(((k, pages[k]) for k in failed), key=lambda kp: str(kp[0]))
                   ][:MAX_FAILURES_LISTED],
@@ -221,7 +232,8 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
         ids = [str(pages[k]["document_id"]) for k in failed if pages[k]["document_id"]]
     else:
         ids = [str(i) for i in (scope_ids or []) if i]
-    if run_state in ("done", "failed", "cancelled", "interrupted") and ids and (len(failed) or left):
+    if run_state in ("done", "failed", "cancelled", "interrupted") and ids and (len(failed) or left) \
+            and not (run_state == "interrupted" and reason and RECIPE_CARRIES_ON in reason):
         account._not_done_ids = ids
         noun = "page" if len(ids) == 1 else "pages"
         label = (f"Read the {len(ids)} {noun} that failed" if not left else f"Read the {len(ids)} {noun} not done")
@@ -269,13 +281,14 @@ def _title_failed_pages(db: Any, failures: list[PageFailure]) -> None:
     """Each failed page named as the Reader names it (`views.page_title`), never its file's basename: a PDF's
     page child is stored under a storage name (`fichero_upload_…`) that Activity would otherwise show."""
     from fichero_server.api.routes.system.views import page_title
+    from fichero_server.db import get_read
     from fichero_server.models import Document
 
     for failure in failures:
-        doc = db.get(Document, failure.document_id) if failure.document_id else None
+        doc = get_read(db, Document, failure.document_id) if failure.document_id else None
         if doc is None:
             continue  # gone since the run: the file name the run recorded is all there is
-        parent = db.get(Document, doc.parent_id) if doc.parent_id else None
+        parent = get_read(db, Document, doc.parent_id) if doc.parent_id else None
         failure.page = page_title(parent, doc, doc.sequence or 1) if parent else page_title(doc, None, doc.sequence or 1)
 
 
@@ -297,12 +310,14 @@ async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[s
     # A record from before a column existed lacks it: the account says less, it never fails (#5555).
     scope = getattr(run, "resolved_scope", None)
     scope = scope if isinstance(scope, dict) else {}
+    # Off the loop (#6176): both read the project's rows, which wait on the transaction gate behind a writer; on the loop
+    # that stalled the whole engine, health included, for seconds.
+    waiting = await asyncio.to_thread(waiting_reason, db, thread_id)
     account = build_account(status=run.status, reason=run.error, state=state, pending_writes=pending_writes or (),
                             started_at=getattr(run, "started_at", None), run_usage=getattr(run, "run_usage", None),
-                            live_peaks=_live_peaks(thread_id),
-                            waiting_reason=waiting_reason(db, thread_id),
+                            live_peaks=_live_peaks(thread_id), waiting_reason=waiting,
                             scope_ids=scope.get("resolved_ids") or scope.get("requested_ids"))
-    _title_failed_pages(db, account.failures)
+    await asyncio.to_thread(_title_failed_pages, db, account.failures)
     if account.state in ("done", "failed", "cancelled", "interrupted"):
         if len(_FINISHED) >= _FINISHED_LIMIT:
             _FINISHED.pop(next(iter(_FINISHED)))
@@ -387,6 +402,8 @@ def mark_interrupted_runs(db: Any) -> list[str]:
             heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
             words = stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)
         reason = f"{words}, before this run finished"
+        if jobs.parent_kind(db, thread_id) == "run-a-recipe":
+            reason += f"; {RECIPE_CARRIES_ON}"
         activity_store.mark_run_failed(db, thread_id, reason)
         jobs.fail_run_rows(db, thread_id, reason)
         forget(thread_id)
@@ -394,6 +411,6 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     return marked
 
 
-__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "PageFailure", "RunAccount", "RunOffer", "build_account",
+__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
            "closed_mid_run", "closing_runs", "forget", "mark_interrupted_runs", "run_account", "run_started",
            "stopped_at_words"]

@@ -37,9 +37,10 @@ REVIEWED = "transcription_review"
 
 
 def _children(db: Any, doc_id: str) -> list[Any]:
+    from fichero_server.db import query_read
     from fichero_server.models import Document
 
-    return [c for c in db.query(Document, parent_id=doc_id) if not c.deleted_at]
+    return [c for c in query_read(db, Document, parent_id=doc_id) if not c.deleted_at]
 
 
 def _is_split_page(doc: Any) -> bool:
@@ -49,11 +50,12 @@ def _is_split_page(doc: Any) -> bool:
 
 def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> list[str]:
     """The pages (or, for a split, the photographs) this card runs on now."""
+    from fichero_server.db import query_read
     from fichero_server.models import Document
 
     if card.get("job") == "split-pages":
         if documents is None:
-            docs = [d for d in db.query(Document) if not d.deleted_at
+            docs = [d for d in query_read(db, Document) if not d.deleted_at
                     and getattr(d.doc_type, "value", d.doc_type) == "file"
                     and getattr(d.file_type, "value", d.file_type) == "image"]
             return sorted(d.id for d in docs)
@@ -63,7 +65,7 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> lis
         # the material count does not see as pages).
         material = db.unit_of_work_ids()
         known = set(material)
-        split = sorted(d.id for d in db.query(Document) if not d.deleted_at and _is_split_page(d))
+        split = sorted(d.id for d in query_read(db, Document) if not d.deleted_at and _is_split_page(d))
         return material + [d for d in split if d not in known]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material

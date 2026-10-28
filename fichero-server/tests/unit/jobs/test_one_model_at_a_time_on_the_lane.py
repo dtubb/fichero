@@ -167,6 +167,30 @@ def test_on_a_16_gb_mac_kraken_after_a_served_model_stops_the_served_model(db, l
     assert [s for s in lane.swaps if s.startswith("local-model:")], lane.swaps  # the served model was stopped before Kraken loaded
 
 
+def test_on_a_16_gb_mac_kraken_and_a_vlm_are_never_loaded_at_the_same_time_across_interleaved_pages(db, lane, monkeypatch):
+    """#6000, the invariant itself: model residency is counted (a run loads its model, a release unloads it) and at no page does
+    the 16 GB Mac hold Kraken and the served VLM together, however the pages interleave and however much looks free."""
+    _memory(monkeypatch, free_gib=20, need_gib=8, physical_gib=16)
+    resident: set[str] = set()
+    seen: list[tuple[str, frozenset[str]]] = []
+
+    def loading(family):
+        def run(db_, subject):
+            resident.add(family)
+            seen.append((subject, frozenset(resident)))
+        return run
+
+    monkeypatch.setitem(jobs.KINDS, KRAKEN, jobs.Kind(run=loading("kraken"), model="kraken:blla", lane="local-ml", name="Read a page"))
+    monkeypatch.setitem(jobs.KINDS, VLM, jobs.Kind(run=loading("vlm"), model="omlx:big-vlm", lane="local-ml", name="VLM page"))
+    monkeypatch.setitem(jobs._RELEASE, "kraken", lambda reason="": resident.discard("kraken"))
+    monkeypatch.setitem(jobs._RELEASE, "local-model", lambda reason="": resident.discard("vlm") or True)
+    order = ["k1", "v1", "k2", "v2", "k3"]
+    for subject in order:
+        jobs.enqueue(db, KRAKEN if subject.startswith("k") else VLM, subject)
+    assert _wait_for(lambda: len(seen) == len(order)), f"only {[s for s, _ in seen]} ran"
+    assert all(len(held) == 1 for _, held in seen), f"two heavy models were loaded together: {seen}"
+
+
 def test_on_a_32_gb_mac_both_still_stay_when_both_fit(db, lane, monkeypatch):
     _memory(monkeypatch, free_gib=20, need_gib=2, physical_gib=32)
     jobs.enqueue(db, VLM, "v1")

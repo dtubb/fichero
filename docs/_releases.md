@@ -1,11 +1,96 @@
-### 2026.10.22
+### 2026.10.26
+
+What changed since 2026.10.24.
+
+- Several readers can read the same page side by side, and the page's text always comes from the hosted reader when one is chosen. Fichero no longer runs a reader you did not choose. (check owed)
+- Search: you choose the search model when you make a project, and the Ready page says which one will be used. Changing it later is a re-embed run that says what it will do first.
+- Review: the stage is now "Review the Reading", and it picks its instructions from the project's script, language and date. You can read and edit each pass's instructions on the review's page in Set Up. (check owed)
+- iPhone: Forget This Mac now asks the Mac to remove the phone from its device list, then forgets the pairing on the phone. (check owed on a real iPhone and Mac)
+
+**Set Up.**
+- Cancelling Set Up for a new project no longer leaves a half-made project behind.
+- The hands offered for a page follow the writing (a Spanish, Latin-script page is no longer offered Kurrent), with Palmer and Modern cursive added.
+- A stage page no longer asks you to tick a model when there is only one to choose.
+- A reader you choose for one folder is used for that folder when you press Start; folders with a reader of their own are left out of the project-wide run of that step.
+- The Catalogue's description of a folder is saved as the folder's content, and its fields become the folder's attributes.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**Activity.**
+- A run's rows name each reader of a stage that reads with several. (check owed)
+- Pages that came back blank are no longer counted as failed.
+- When memory is tight, idle models are unloaded before the work waits, and Activity can say what is loaded.
+
+**Models.**
+- Re-downloading a model, or making it global, keeps the evaluations already recorded on its card. Model cards are written safely, so a crash can no longer leave half a file.
+- Apple Vision: a step that needs a prompt it cannot take is refused once, at the start, instead of failing page by page.
+
+**Under the hood.** Fixes for the reader's WebKit probe on a sandboxed shell, tests that no longer read this Mac's live model price cache, and the engine's words reaching more error messages in Activity.
+
+**Known.** The Mac App Store (TestFlight) build of this release is held up by a crash inside Apple's upload tools in the Xcode 27.0 beta; the Mac build is available by download and update, and the iPhone TestFlight build is not affected. Without a key set, the Economy preset can no longer run its free Apple + local reading draft (it is refused at the start with the reason): say if that is not wanted.
+
+### 2026.10.24
+
+What changed since 2026.10.11. (2026.10.22 was prepared but never published; its changes are listed here too.)
+
+- A new Set Up window takes you from a first launch to a running project: name it, add your pages, say what they are, choose the stages and a model for each, check the plan, and press Start.
+- One Start runs every stage you chose, from finding lines to the catalogue, and runs again on what you add later. A stopped run, or one cut short by a quit, carries on where it left off.
+- A new Activity window: Now, Up Next and Done Today, one row per piece of work with one button, and a stage bar for each project run.
+- Two new stages: Leave Out, and Catalogue, which describes each folder.
+- Share a project with another Mac or an iPhone from Settings › Sharing, with a QR code or a link.
+
+**Set Up.** On a first launch, Set Up Fichero welcomes you, asks where AI work may run (this Mac only, unless you allow more), and offers to set up your first project. Set Up a project at any time from File › Set Up New Project… or Project › Set Up…. Its pages, in order:
+- *Your Project*: a name, and where it lives (inside Fichero, or a location you choose).
+- *Add Material*: add files or folders, and say whether to copy them, leave them in place, or move them.
+- *About the Material*: the languages and writing systems, or "Not sure", and Fichero works them out from the pages.
+- *Choose the Stages*: start from a goal, or tick the stages you want, from preparing images through finding lines, reading, translating and names to search and the catalogue. A stage that another needs stays ticked.
+- *A page for each stage*: which model does it, a try on a sample page, and Compare to see models side by side. Names lets you choose the kinds of name to find.
+- *Ready*: the plan from your answers, one numbered step each with its model, what it will cost and where it runs. Nothing runs before you press Start. If Start is greyed out, the reason is beside it.
+
+Start closes Set Up and opens the run in Activity.
+
+**One Start, every stage.** Start runs the stages in turn. Add pages or a folder later and only the new material runs. Stop, quit, or lose the engine part-way, and Start again carries on: pages already read are not read again, so a cloud reader is not paid twice for the same line.
+
+**Activity.** The window lists work in three groups: Now, Up Next, and Done Today (folded away, with Clear Failed and Clear Finished…). Each row says what it is, its state, its counts and the time left, and shows the cost when there is one. It has one button (Pause, Resume, Retry or Show), and the rest is on its menu. A project run has one bar with a segment per stage, in Set Up's order. A finished stage stays full, and a stage with failed pages is hatched. Pages are counted once, not once per stage. Show Details opens the run's own window: its stages ("12 of 40 pages"), what it made, what it skipped, and its log. When a read fails, the details give the engine's own words. A run says plainly when it is Partial, Interrupted, Stopping or Retrying.
+
+**Leave Out.** After lines are found, lines too small to read, off the page, or likely ink showing through from the other side are marked as left out, with the reason. Nothing is deleted: choose Mark as Text on a line's menu to bring it back.
+
+**Catalogue.** Each folder gets a description of the material, as long as its fields need (up to about 500 words). A folder is described again only when something in it changed.
+
+**Models for each step.** Each step names its model, and you can change it. The model finder lists your cloud models first, searches online as it opens, and Compare on These Pages shows candidates side by side, with Use This One. Kraken finds lines when it is installed. When the project allows cloud models and a key is set, Fichero picks the cheapest cloud model good enough for Translate, Correct and Catalogue, unless a local one is good enough. A project can cap its monthly cloud spend; the plan prices only the pages still to do. A model its provider has retired is not offered. On a 16 GB Mac, Fichero runs one large model at a time, and new heavy work waits while the Mac is short of memory.
+
+**Sharing and accounts.** Settings › Sharing has a switch, your devices, Add Device… (a QR code and a code that expires in 10 minutes) and Connect to Another Mac…. Invites can be revoked. Settings › Accounts lists the people who can open your library, and you can share a single folder with Share… on its row. Shared projects are marked in the sidebar and the Inspector. A stale key now says so instead of failing quietly.
+
+**Reading.** Phone photos taken sideways are read upright. Apple Vision can read single lines. Readings follow the page's reading order, with columns in the page's direction. Each line is read once, and the Inspector says who read it, with View Run. Corrections in the Reader save, the Inspector follows them, and an edit across lines is one undo.
+
+**The Inspector, Preview and Library.** Select several lines to change their hand, certainty, rights or language at once, with one undo. Delete selected lines or boxes from any view. The Preview draws every page's boxes during and after a run, and clicking a folder shows its canvas. Drag items to another project to move them (hold Option to copy). Dragging in the Inspector no longer hangs the app.
+
+**Settings.** Settings › Server is one pane with its status and Restart, and Settings › AI has a Cloud switch.
+
+**Errors.** When the engine refuses something, the app shows its words. A refused cloud request says whether you are out of credit, the key was refused, or the provider asked Fichero to slow down.
+
+**Under the hood.** Folders with accented names (ñ, é) can be added. Gemini 3's replies are read correctly. A rare engine start failure, when two parts opened the app database at once, is fixed.
+
+**Known.** A crash seen once while pinching the item strip has a fix in this build; it stays open until it is confirmed. Mac users get this release by download or by update; the Mac App Store build follows.
+
+### 2026.10.22 (not published)
 
 What changed since 2026.10.11, the day before.
 
-- Recipes choose a model for each step, and on a 16 GB Mac one large model runs at a time.
-- The engine no longer fails to start when two of its parts open the app database at once.
-- Activity shows one row per run, with a stage bar; problems show first.
-- A refused cloud request says whether it was out of credit, a refused key, or a slow-down, and what to do.
+- Recipes choose the model for each step: Fichero proposes one for the step and your pages, and you can change it. On a 16 GB Mac, Fichero keeps to what the Mac can hold at once.
+- The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does.
+- Activity shows one row per run, with a stage bar; problems show first, and a partly done run says it is partial and why.
+- When a provider refuses a request, Fichero says which of three things happened and what to do: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
+- Stalls in the engine leave one record of the threads' stacks, not a stream of them.
+
+**Models for each step.** Each step of a recipe names the model it will use. Fichero proposes one for the step from the pages in the project, and you can change it. On a 16 GB Mac, Fichero runs one large model at a time, so the Mac does not run out of memory.
+
+**Activity.** A run is one row with one stage bar. Problems show first. A partly done run says it is partial, and why.
+
+**Quotas and keys.** A refused request says which of three things happened, and what to do next: out of credit (add credit, or choose another model); the key was refused (check it in Settings › AI); or the provider asked Fichero to slow down (try again in a few minutes).
+
+**Under the hood.** The engine could, now and then, fail to start when two of its parts opened the app database at the same moment. It no longer does. Stalls leave one record of the threads' stacks.
 
 ### 2026.10.11
 
@@ -22,9 +107,6 @@ It lists what was deleted, when, by whom and where it was. Put Back returns an i
 or to Sources if that folder is gone, and says which. Empty Trash… asks first and names anything
 that was moved to another project; it is the one step that cannot be undone. Statements and names
 that rest only on pages in the Trash are hidden until the pages come back.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Undo.** ⌘Z and ⇧⌘Z act on the steps taken in the front window first, and the Edit menu names
 them ("Undo Merge"). When something you did has been changed since, by you or anyone else, Fichero

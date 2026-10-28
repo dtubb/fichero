@@ -99,7 +99,7 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
 - Make **iOS/iPad first-class**: real launch + the shared snapshot layer, not canaries.
 - Document the **Aqua-session requirement** for the Mac runner (logged-in session +
   `automationmodetool enable-automationmode-without-authentication`); never pretend headless works.
-- **XCTSkip must not read as green** — a provisioning failure fails loud (finish `harness.fail-fast-loud`).
+- **XCTSkip must not read as green** — a provisioning failure fails loud (`harness.fail-fast-loud`, pinned by `HarnessFailFastTests`); only an absent venv/repo skips.
 
 ## Rulings (design lead, 2026-09-12 — "please proceed")
 

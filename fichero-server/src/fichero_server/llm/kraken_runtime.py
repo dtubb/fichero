@@ -875,21 +875,41 @@ _INFERENCE_LOCK = _PageGate()
 PAGES_AT_ONCE_GATE_5929 = 2
 
 
+def threads_each(cores: int) -> int:
+    """The threads each page reads on: the cores shared by the pages inside the gate now (one page has them all, two
+    half each). The one rule the Kraken seam sets torch's threads by and the run's status shows (#6229)."""
+    return max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+
+
 def pages_at_once(person: bool) -> int:
-    """How many pages may be read at once (`source.read.pages-at-once-scales`): on a Mac, the performance cores (gated at two
+    """`pages_at_once_and_why`'s number."""
+    return pages_at_once_and_why(person)[0]
+
+
+def pages_at_once_and_why(person: bool) -> tuple[int, str | None]:
+    """How many pages may be read at once, and when it is one, which hold makes it so, in words the run's grey line
+    shows as sent (`recipes-run.memory.gate-shown`, #6217); None when more than one may go.
+
+    How many pages may be read at once (`source.read.pages-at-once-scales`): on a Mac, the performance cores (gated at two
     until #5929), held down by what the free memory carries (`page_fan_out`: 1.5 GB a page beyond the model, so one on an
     8 GB Mac), for a person-started run on the fast priority; one for every automatic or background run, and one on a
     cluster task or in a container (its parallelism is array tasks, `source.read.threads-fit-the-machine`)."""
     from fichero_server.core.compute_preferences import priority_for
     from fichero_server.core.cores import cores_available, is_a_mac_pipeline_host
+    from fichero_server.execution.jobs import RESUMING_WORDS, resuming_gently
     from fichero_server.execution.throttle import memory_is_busy, paging_now_on_this_mac
 
-    if priority_for(person) != "fast" or (memory_is_busy() and paging_now_on_this_mac()):  # paging now under pressure: one page at a time, whoever asked (#6075)
-        return 1
+    if resuming_gently():
+        return 1, RESUMING_WORDS
+    if memory_is_busy() and paging_now_on_this_mac():  # paging now under pressure: one page at a time, whoever asked (#6075)
+        return 1, "the Mac is paging"
+    if priority_for(person) != "fast":
+        return 1, "a run that started by itself reads in the background"
     cores, source = cores_available()
     if not is_a_mac_pipeline_host(source):
-        return 1
-    return page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+        return 1, "this machine reads one page at a time"
+    n = page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+    return n, None if n > 1 else "the free memory holds one page"
 
 
 #: The environment variables the thread pools around torch read when they load.
@@ -958,6 +978,15 @@ def _log_page(total: float) -> None:
 
 
 def _kraken_call(op: Callable[[], _T]) -> _T:
+    """`_kraken_call_once`, marked on the job's model lane as one live call: a Kraken page says nothing while it reads
+    (about 39 s on the M4, minutes on a 4-core Mac), so a job that reads pages directly (Check lines, Evaluate models)
+    is slow, not stuck, and its slot is not released beside a live read (#6213, review 2026-10-27)."""
+    jobs_module = sys.modules.get("fichero_server.execution.jobs")
+    with jobs_module._live_call() if jobs_module else contextlib.nullcontext():
+        return _kraken_call_once(op)
+
+
+def _kraken_call_once(op: Callable[[], _T]) -> _T:
     """Run one Kraken operation in-process, one at a time, off the main
     thread (callers already dispatch through `asyncio.to_thread`, same as
     every other CPU-bound provider in this engine — see `vision_base.py`).
@@ -1004,8 +1033,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority, qos, cores = set_page_priority(person)
-            # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
-            threads = max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+            threads = threads_each(cores)
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
@@ -1189,7 +1217,9 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
     logger.info("model-lane: load kraken %s %s (%s)", kind, key,
                 "replacing the one held" if held is not None else "none held")
-    with _stage("load"):
+    from fichero_server.core.perf import model_load
+
+    with _stage("load"), model_load(f"kraken {kind} {key}"):
         model = load()
     _RESIDENT[kind] = (key, model)
     return model
@@ -1229,10 +1259,19 @@ def _release_when_idle() -> None:
     _idle_timer.start()
 
 
+def _a_run_has_pages_in_flight() -> bool:
+    from fichero_server.execution import jobs
+
+    return jobs._kraken_pages_in_flight()
+
+
 def _release_if_idle() -> None:
     if not _INFERENCE_LOCK.acquire(blocking=False):
         return  # a page is running: it re-arms the timer when it ends
     try:
+        if _a_run_has_pages_in_flight():
+            _release_when_idle()  # the run is still going (a slow page is not an idle spell, #6178): look again later
+            return
         release_resident_models("idle")
     finally:
         _INFERENCE_LOCK.release()

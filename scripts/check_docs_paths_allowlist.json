@@ -25,7 +25,20 @@
     "fichero/Tests/Unit/general/Models/RecipeDesignerRenderingTests.swift": "planned test: served route cards and labels, written with the path page (step 5, #6058)",
     "fichero/Tests/Unit/general/Views/Onboarding/SetupStagePageTests.swift": "planned test: path page in the Set Up flow, written with the path page (step 5, #6058)",
     "fichero/Tests/UI/Onboarding/RecipeDesignerUITests.swift": "planned XCUITest click-around leg, run end to end once the flow is complete (step 14, #6067)",
-    "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)"
+    "fichero-server/tests/perf/test_auto_compare_bounded.py": "planned load test: auto-compare caps per run (step 7, #6060; load #4634)",
+    "fichero-server/tests/fixtures/image_enhance": "Fixtures the DRAFT spec image-enhancement.md plans (#6185); they land with Step 1.3.",
+    "fichero-server/tests/unit/jobs/test_pages_at_once_sized_from_the_machine_5931.py": "to write: pins activity.lane.pages-at-once-sized-from-the-machine (#5931), approved 2026-10-27; the builder of Step 1.8 writes it first",
+    "fichero-server/tests/unit/jobs/test_compute_fit_learned_from_runs_5931.py": "to write: pins activity.lane.fit-learned-from-runs (#5931), proposed 2026-10-27; the builder of Step 1.10 writes it first",
+    "fichero-server/tests/unit/llm/test_torch_threads_set_once_per_plan_6229.py": "to write: pins activity.lane.torch-threads-set-once-per-plan (#6229), proposed 2026-10-27; the builder of Step 1.9 writes it first",
+    "fichero-server/tests/unit/db/test_embedder_forks_before_threads_6237.py": "to write: pins activity.lane.embedder-forks-before-threads (#6237), proposed 2026-10-27; the builder of Step 1.9 writes it first",
+    "fichero-server/tests/unit/llm/test_mlx_one_model_batched_5641.py": "to write: pins activity.lane.mlx-one-model-batched-on-the-gpu (#5641), proposed 2026-10-27; the builder of Step 1.10 writes it first",
+    "fichero-server/tests/unit/recipes/test_run_records_what_it_chose_per_page_6215.py": "to write: pins activity.run.records-what-it-chose-per-page (#6215), proposed 2026-10-27; the builder of Step 1.11 writes it first",
+    "fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py": "to write: pins activity.lane.compute-shown-graphically (#6229), proposed 2026-10-27; Step 1.11",
+    "fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift": "to write: pins activity.lane.compute-shown-graphically (#6229), proposed 2026-10-27; Step 1.11",
+    "fichero-server/tests/unit/knowledge/test_names_step_writes_one_batch_per_page_6236.py": "to write: pins activity.lane.writer-batched-per-page (#6236), proposed 2026-10-27; Step 1.12",
+    "fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py": "to write: pins activity.lane.scale-out-batches-and-result-files (#6233), proposed 2026-10-27; Step 1.13",
+    "fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py": "to write: pins activity.lane.spacy-threads-one-pipeline-each (#5956), proposed 2026-10-27; Step 1.10",
+    "fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py": "to write: pins activity.lane.opencv-threads-one-page-a-task (#6192), proposed 2026-10-27; Step 1.12"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",

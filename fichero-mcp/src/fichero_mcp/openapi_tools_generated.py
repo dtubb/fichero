@@ -6622,19 +6622,21 @@ def fichero_recipes_run_summary(
 def fichero_recipes_get_start_plan(
     *,
     folder_id: Annotated[Optional[str], Field(description='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project')] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'Get Start Plan\n\nWhat Start would run on this project, or on one folder of it, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`). 422 for a folder not in the project.\n\nRoute: GET /api/recipes/project/start (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id})
+    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id, "summary": summary})
 
 
 def fichero_recipes_start_project(
     *,
     accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
+    documents: Annotated[Optional[list[Any]], Field(description="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`.")] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "folder_id": folder_id, "redo": redo}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -6645,6 +6647,15 @@ def fichero_recipes_use_installed_instead(
 ) -> Any:
     "Use Installed Instead\n\nUse the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead. With `provider`: every step pinned to the model this Mac cannot run is set to the same\nmodel at that free place the plan offers (`elsewhere[].instead`), the same way; refused (422) for a place the\nplan does not offer, a paid one included (`ai.where.fallback-free-and-asked`).\n\nRoute: POST /api/recipes/project/start/use-instead (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model, "provider": provider}))
+
+
+def fichero_recipes_put_step_on_a_place(
+    *,
+    place: Annotated[str, Field(description="`this-mac` or `huggingface-jobs`: the person's choice, kept on the step.")],
+    step: Annotated[str, Field(description="the recipe step's id (a reading step)")],
+) -> Any:
+    "Put Step On A Place\n\nPut a reading step on Hugging Face Jobs, or back on this Mac, through `project.save_setup` (audited, undoable)\n(`source.recipe.step-runs-on-huggingface`). Choosing only records where it runs: Start sends pages only with the\nproject's yes, the app's Hugging Face place and a monthly cap above $0. Refused (422) for a step the recipe lacks, a\nstep that is not a reading, or another place.\n\nRoute: POST /api/recipes/project/steps/place (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/place", json=_rt.body({"place": place, "step": step}))
 
 
 def fichero_recipes_use_candidate_for_step(
@@ -9871,6 +9882,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
+    GeneratedTool("fichero_recipes_put_step_on_a_place", "recipes", "POST", "/api/recipes/project/steps/place", fichero_recipes_put_step_on_a_place),
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
     GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),

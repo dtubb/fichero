@@ -88,13 +88,14 @@ async def _find_regions_with_kraken(files: list, documents: list, state: State) 
         raise ValueError("Detect Regions (Kraken) needs the pages as documents of the project, and some have none")
     db = db_manager.get_database(state.get("library_path", ""))
     run_id = state.get("task_id") or ""
-    # Stop ends it before the next page, and the throttle's and progress words reach the run's row, as in a recipe.
+    # Stop ends it before the next page, and the throttle's words reach the run's row; its pages done do not: this node
+    # runs a page at a time, and the stage over it counts the pages (dogfood: "Finding regions: 0 of 1 pages" on Find Lines).
     created: list[str] = []  # the artifacts this run made, so the runner tells the app which to refresh (#4890)
     account = await asyncio.to_thread(
         regions.find_regions, db, ids, run_id, "kraken:blla", provider="kraken", created=created,
         stop=lambda: cancellation_requested(run_id),
         say=(lambda words: jobs.say(db, run_id, words)) if run_id else None,
-        person=jobs.current_job_is_a_persons())
+        person=jobs.current_job_is_a_persons(), progress=False)
     if cancellation_requested(run_id):
         raise WorkflowCancelled(run_id)  # settles cancelled, never done or failed
     # `results` and `processed_count` as the node always gave them: the builder caches a result that has results and

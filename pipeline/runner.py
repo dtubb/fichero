@@ -4,6 +4,7 @@ call is a `core` function (start, review, resume_asked, retry) that spends under
 because every decision reads the journal (state()) and the one thing it records, `schedule` lines, is also read back."""
 from __future__ import annotations
 
+import subprocess
 import time
 from pathlib import Path
 
@@ -46,11 +47,25 @@ def tick() -> tuple[list[str], bool]:
             it = core.state()["items"][key]
             journal.append("note", issue=it["issue"], key=key, text=f"scheduler: {type(e).__name__}: {e}"[:500])
             did.append(f"{key}: {type(e).__name__}: {e}"[:200])
+    _adopt_landed(c, did)
+    auto_land(c, did)
     for key, it in core.state()["items"].items():
         if it["state"] == "reviewed":
             _ask_once("ready-to-land", f"{key} is reviewed READY at {it['sha'][:9]}: `python -m pipeline land {key}`")
     did += _start_new(c)
     return did, moved or any(d.startswith("start") for d in did)
+
+
+def _adopt_landed(c: dict, did: list[str]) -> None:
+    """A reviewed item whose checked sha is already on the base branch was landed by hand (a merge by the Lead, a cherry
+    pick): it is pushed, not still waiting to land. Journals the move so the closer sees it and no ready-to-land is asked."""
+    for key, it in list(core.state()["items"].items()):
+        if it["state"] in ("reviewed", "candidate", "gated") and it["sha"] and not checks.sh(
+                ["git", "merge-base", "--is-ancestor", it["sha"], c["repo"]["base"]], cwd=c["repo"]["path"]).returncode:
+            for to in ("candidate", "gated", "pushed"):
+                if (core.state()["items"][key]["state"], to) in core.ALLOWED:
+                    core._move(key, to, f"{it['sha'][:9]} is on {c['repo']['base']} (landed by hand)")
+            did.append(f"{key}: already on {c['repo']['base']}, marked pushed")
 
 
 def _step(key: str, c: dict, did: list[str]) -> bool:
@@ -140,48 +155,105 @@ def run(once: bool = False, poll_s: float | None = None) -> dict:
         time.sleep(poll)
 
 
+def _patch_id(wt, lo: str, hi: str) -> str:
+    """`git patch-id --stable` of the diff lo..hi: the same changes on another base give the same id."""
+    diff = checks.sh(["git", "diff", f"{lo}..{hi}"], cwd=wt).stdout
+    r = subprocess.run(["git", "patch-id", "--stable"], cwd=wt, input=diff, capture_output=True, text=True)
+    return r.stdout.split()[0] if r.stdout.split() else ""
+
+
+def _rebase_for_land(key: str, it: dict, wt: Path, c: dict) -> str:
+    """pipeline.land-rebases-and-reuses-the-review: rebase the branch onto the moved base. Same patch-id as the reviewed
+    diff → the check runs again and the review is reused (a READY recorded at the new head, never a new model call);
+    a changed patch goes back to review; a conflict goes back to the coder. → 'reused' | 'review' | 'conflict'."""
+    base, old = c["repo"]["base"], it["sha"]
+    before = _patch_id(wt, checks.git(wt, "merge-base", base, old), old)
+    if checks.sh(["git", "rebase", base], cwd=wt).returncode:
+        checks.sh(["git", "rebase", "--abort"], cwd=wt)
+        journal.append("retry", issue=it["issue"], key=key, text=f"{base} moved and the branch does not rebase onto it: rebase it, resolve the conflict, keep the intent")
+        core._move(key, "coding", f"rebase onto {base} conflicts: sent back")
+        return "conflict"
+    new = core._head(wt)
+    same = before != "" and before == _patch_id(wt, base, new)
+    core.check(key, locked=True, sha=new)
+    now = core.state()["items"][key]
+    if now["state"] != "checked" or not now["check_ok"]:
+        return "review"
+    if same:
+        core.verdict(key, new, "READY", "reviewer", f"reused: the rebased diff has the reviewed patch-id ({old[:9]} -> {new[:9]})")
+        return "reused"
+    return "review"
+
+
+def auto_land(c: dict, did: list[str]) -> None:
+    """pipeline.auto-land-to-integration: the first reviewed READY item with no open question on it is landed on the
+    integration branch (rebased, guarded, fast-forward), one per pass. Off unless `[run] auto_land = true`."""
+    if not c.get("run", {}).get("auto_land"):
+        return
+    s = core.state()
+    for key, it in s["items"].items():
+        if it["state"] != "reviewed" or any(q.get("key") == key for q in s["queue"].values()):
+            continue
+        try:
+            out = _land(key, apply=True)
+        except (RuntimeError, OSError) as e:
+            journal.append("note", issue=it["issue"], key=key, text=f"auto-land: {e}"[:500])
+            did.append(f"{key}: auto-land refused: {e}"[:200])
+            continue
+        did.append(f"{key}: auto-land {'pushed ' + out['sha'][:9] if out.get('landed') else 'did not land'}")
+        return
+
+
 def land(issue) -> dict:
     """reviewed READY → pushed (pipeline.nightly-gate, the manual `land` step). Refuses unless the item is reviewed READY
     by the reviewer at its live head; runs EVERY scripts/check_*.py (no skip list) in a scratch tree of that head; pushes
     that sha fast-forward to the profile's integration branch and nowhere else (never main, never a tag, never forced).
     A dry run unless `--apply` (core.DRY_RUN): it then runs the guards and says what it would push."""
     with journal.Lock("dispatch", wait=False):
-        core._require_running()
+        return _land(issue, apply=not core.DRY_RUN)
+
+
+def _land(issue, apply: bool) -> dict:
+    """`land`'s body: the caller holds the dispatch lock (the scheduler's pass, or `land`)."""
+    core._require_running()
+    key, it, s = core._item(issue)
+    c, sha = core.cfg(), it["sha"]
+    wt = Path(s["tasks"][it["task"]]["worktree"])
+    remote, _, branch = c["repo"]["base"].partition("/")
+    if it["state"] not in ("reviewed", "gated"):
+        raise RuntimeError(f"{key} is {it['state']}: only a reviewed READY item lands")
+    v = core.verdict_now(it)  # the last verdict at the checked sha counts: a later NOT_READY there beats an earlier READY
+    if not v or (v["verdict"], v["by"]) != ("READY", "reviewer"):
+        raise RuntimeError(f"{key}: no reviewer READY for {sha[:9]} (the last verdict there counts)")
+    if core._head(wt) != sha:
+        raise RuntimeError(f"{key}: the worktree head moved past the reviewed {sha[:9]}; check and review again")
+    if not branch or branch in (c["repo"]["main"], "main", "master") or branch.startswith("v"):
+        raise RuntimeError(f"the profile's base {c['repo']['base']} is not an integration branch: land refuses")
+    checks.git(wt, "fetch", "-q", remote)
+    if checks.sh(["git", "merge-base", "--is-ancestor", c["repo"]["base"], sha], cwd=wt).returncode:
+        if (how := _rebase_for_land(key, it, wt, c)) != "reused":
+            return {"issue": key, "landed": False, "text": f"rebased onto {c['repo']['base']}: {how}" if how != "conflict" else "rebase conflict: sent back to the coder"}
         key, it, s = core._item(issue)
-        c, sha = core.cfg(), it["sha"]
-        wt = Path(s["tasks"][it["task"]]["worktree"])
-        remote, _, branch = c["repo"]["base"].partition("/")
-        if it["state"] not in ("reviewed", "gated"):
-            raise RuntimeError(f"{key} is {it['state']}: only a reviewed READY item lands")
-        v = core.verdict_now(it)  # the last verdict at the checked sha counts: a later NOT_READY there beats an earlier READY
-        if not v or (v["verdict"], v["by"]) != ("READY", "reviewer"):
-            raise RuntimeError(f"{key}: no reviewer READY for {sha[:9]} (the last verdict there counts)")
-        if core._head(wt) != sha:
-            raise RuntimeError(f"{key}: the worktree head moved past the reviewed {sha[:9]}; check and review again")
-        if not branch or branch in (c["repo"]["main"], "main", "master") or branch.startswith("v"):
-            raise RuntimeError(f"the profile's base {c['repo']['base']} is not an integration branch: land refuses")
-        checks.git(wt, "fetch", "-q", remote)
-        if checks.sh(["git", "merge-base", "--is-ancestor", c["repo"]["base"], sha], cwd=wt).returncode:
-            raise RuntimeError(f"{key}: {c['repo']['base']} has moved on; rebase the branch, check and review again")
-        tree = checks.scratch_tree(wt, sha)  # the sha's own tree: check() already ran the pinned overlay over it, so the guards here are the ones that will land
-        try:  # every guard, the slow and network ones too: this is the last look before integration
-            ok, text = checks.run_rung({"glob": "{pinned}/scripts/check_*.py", "timeout_s": c.get("run", {}).get("land_guard_s", 900)}, wt, tree, c, [], None, sha)
-        finally:
-            checks.drop_tree(wt, tree)
-        journal.append("land", issue=it["issue"], key=key, sha=sha, ok=ok, apply=not core.DRY_RUN, text=text[:2000])
-        if not ok:
-            return {"issue": key, "landed": False, "text": text}
-        refspec = f"{sha}:refs/heads/{branch}"
-        if core.DRY_RUN:
-            return {"issue": key, "landed": False, "would_push": f"git push {remote} {refspec}", "text": text}
-        if it["state"] == "reviewed":
-            core._move(key, "candidate", f"all guards green at {sha[:9]}")
-            core._move(key, "gated", "guards run on the candidate head")
-        r = checks.sh(["git", "push", remote, refspec], cwd=wt)
-        if r.returncode:
-            raise RuntimeError(f"{key}: push refused ({r.stderr.strip()[-300:]}); it stays gated, `land` again after fixing")
-        core._move(key, "pushed", f"{sha[:9]} to {remote}/{branch}")
-        return {"issue": key, "landed": True, "pushed": f"{remote}/{branch}", "sha": sha}
+        sha = it["sha"]
+    tree = checks.scratch_tree(wt, sha)  # the sha's own tree: check() already ran the pinned overlay over it, so the guards here are the ones that will land
+    try:  # every guard, the slow and network ones too: this is the last look before integration
+        ok, text = checks.run_rung({"glob": "{pinned}/scripts/check_*.py", "timeout_s": c.get("run", {}).get("land_guard_s", 900)}, wt, tree, c, [], None, sha)
+    finally:
+        checks.drop_tree(wt, tree)
+    journal.append("land", issue=it["issue"], key=key, sha=sha, ok=ok, apply=apply, text=text[:2000])
+    if not ok:
+        return {"issue": key, "landed": False, "text": text}
+    refspec = f"{sha}:refs/heads/{branch}"
+    if not apply:
+        return {"issue": key, "landed": False, "would_push": f"git push {remote} {refspec}", "text": text}
+    if it["state"] == "reviewed":
+        core._move(key, "candidate", f"all guards green at {sha[:9]}")
+        core._move(key, "gated", "guards run on the candidate head")
+    r = checks.sh(["git", "push", remote, refspec], cwd=wt)
+    if r.returncode:
+        raise RuntimeError(f"{key}: push refused ({r.stderr.strip()[-300:]}); it stays gated, `land` again after fixing")
+    core._move(key, "pushed", f"{sha[:9]} to {remote}/{branch}")
+    return {"issue": key, "landed": True, "pushed": f"{remote}/{branch}", "sha": sha}
 
 
 def send_back(issue) -> dict:

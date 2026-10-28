@@ -2,6 +2,20 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.27
+What changed since 2026.10.26.
+
+- Recipe runs read several pages at once, and the run says how many pages and how many threads each. While you use the Mac an automatic page reads on half the performance cores; when the Mac is busy paging it reads one page at a time and says why.
+- A finished run offers Run again on what was missed, in Activity, on the project's run strip and beside Start on the setup page. It reads only the pages that were missed.
+- Importing the same unchanged file again no longer makes a second page or reads it again.
+- Each step of a run shows its cost beside its seconds, and the summary names the dearest step.
+- Activity, the list of runs and a run's status answer while the library is busy writing, with what was already saved.
+- Long runs no longer slow down page by page: the names step, the page grid and the status checks stay flat over an 86-page run.
+- A step that stalls is skipped with a plain reason and the run goes on; a Kraken page that is slow is no longer taken for stuck, and a page moved to the Trash while waiting is skipped.
+- A run stopped by Fichero says "Stopped", not "Stopped by you".
+- The sidebar's Delete removes a mixed or multi-library selection as one undoable step per library and leaves a row inside a folder that is also going.
+- Under the hood: the engine logs slow database statements, models loaded again mid-run, and memory use, so a slowdown can be traced.
+
 ## 2026.10.26
 What changed since 2026.10.24.
 

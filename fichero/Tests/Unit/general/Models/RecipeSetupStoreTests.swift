@@ -368,6 +368,24 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage == nil)
     }
 
+    /// WHY: the folder menu's Run a Step Again on This Folder ▸ lists the engine's `redo_steps`, read with the setup,
+    /// never a Start plan (#6170, `source.recipe.step-rerun-on-folder`); reading them alone leaves the answers as they are.
+    @Test("the steps to run again come with the project's setup")
+    func redoStepsComeWithTheSetup() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            Self.reply(request, 200, #"{"answers":null,"recipe":null,"#
+                + #""redo_steps":[{"steps":["lines","read"],"name":"Transcribe (Kraken)"}]}"#)
+        }
+        #expect(store.redoSteps.isEmpty)
+
+        await store.loadRedoSteps()
+
+        #expect(store.redoSteps.map(\.name) == ["Transcribe (Kraken)"])
+        #expect(store.redoSteps.first?.steps == ["lines", "read"])
+        #expect(store.recipe == nil && store.errorMessage == nil)
+    }
+
     /// WHY: saving writes the answers under the engine's field names, with the
     /// ingest mode in the engine's lowercase form, plus the proposed recipe. A
     /// renamed key or an upper-case "MOVE" would be saved but never read back
@@ -576,6 +594,23 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage != nil)
     }
 
+    /// WHY (#6170, the Lead's review): after the first yes the folder menu needs the steps to run again. They come
+    /// from Start's own answer, named as the setup's `redo_steps` names them; a reload of the setup from inside
+    /// start() would replace the store's list wholesale (`check_store_wholesale_reload`).
+    @Test("Start's answer gives the steps to run again, with no second read")
+    func startGivesTheRedoSteps() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            return Self.reply(request, 200, Self.planJSON(refusals: ""))
+        }
+        #expect(store.redoSteps.isEmpty)
+        #expect(await store.start())
+        #expect(!store.redoSteps.isEmpty)
+        #expect(store.redoSteps.allSatisfy { !$0.steps.isEmpty && !$0.name.isEmpty })
+        #expect(RecipesMockURLProtocol.calls == 1, "the POST alone: no setup read")
+    }
+
     /// WHY (`source.recipe.folder-scoped-start`, #5540): Run the Recipe on This Folder… must plan and start
     /// the run on that folder alone, or it would run the whole archive; and Start, with no folder, must send
     /// exactly what it sent before (no query, no body), or the whole-project run would change under it.
@@ -607,7 +642,17 @@ struct RecipeSetupStoreTests {
         #expect(store.startPlanFolderId == nil)
         #expect(await store.start())
         #expect(seen("4 POST")["bytes"] as? Int == 0, "the whole project's Start sends no body, as before")
-        #expect(RecipesMockURLProtocol.calls == 4)
+        // One step run again on the folder (#6170, `source.recipe.step-rerun-on-folder`): the folder and the step to redo.
+        #expect(await store.start(folderId: "folder-7", redo: ["lines", "read"]))
+        let again = seen("5 POST")["json"] as? [String: Any]
+        #expect(again?["folder_id"] as? String == "folder-7")
+        #expect(again?["redo"] as? [String] == ["lines", "read"])
+        // What an import's run missed, run again on its pages alone (#6170): the pages, no folder.
+        #expect(await store.start(documents: ["page-1"]))
+        let pagesAlone = seen("6 POST")["json"] as? [String: Any]
+        #expect(pagesAlone?["documents"] as? [String] == ["page-1"])
+        #expect(pagesAlone?["folder_id"] == nil)
+        #expect(RecipesMockURLProtocol.calls == 6)
     }
 
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download

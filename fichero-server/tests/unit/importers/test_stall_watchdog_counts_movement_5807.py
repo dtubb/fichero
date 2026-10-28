@@ -200,3 +200,36 @@ def test_a_hung_embed_past_the_ceiling_alarms_even_while_page_work_runs(watched,
     finally:
         derivatives._busy.pop(library, None)
     assert warnings and "stalled at 0 of 3" in warnings[0]
+
+
+def test_one_library_under_two_spellings_is_one_queue(tmp_path: Path, monkeypatch):
+    """The real run 2026-10-27: the import queued under /tmp/…, the stages touched and ticked under /private/tmp/…
+    (`str(Path(db.path).parent)`), so the watched queue never heard a thumbnail land: "stalled at 0 of 86" while they
+    landed every few seconds. Every spelling of one library is one queue."""
+    real = tmp_path / "real"
+    (real / "Lib.fichero").mkdir(parents=True)
+    (tmp_path / "link").symlink_to(real)
+    queued, staged = str(tmp_path / "link" / "Lib.fichero"), str(real / "Lib.fichero")
+    warnings: list[str] = []
+    monkeypatch.setattr(derivatives, "STALL_SECONDS", 0.3)
+    monkeypatch.setattr(derivatives, "_emit_queue_progress", lambda *a, **k: None)
+    monkeypatch.setattr(
+        derivatives, "_emit_queue_activity", lambda path, **k: warnings.append(k["message"]) if k.get("warning") else None
+    )
+    from fichero_server.execution import throttle
+
+    monkeypatch.setattr(throttle, "why_wait", lambda **k: None)
+    try:
+        derivatives._progress_add(queued, 3)
+        end = time.monotonic() + 1.0
+        while time.monotonic() < end:
+            derivatives._progress_touch(staged)
+            time.sleep(0.05)
+        assert warnings == [], "a thumbnail landing under the other spelling is movement"
+        derivatives._progress_tick(staged)
+        assert [job["current"] for job in derivatives.background_jobs_snapshot(queued)] == [1]
+        assert [job["current"] for job in derivatives.background_jobs_snapshot(staged)] == [1]
+    finally:
+        derivatives._disarm_stall_watchdog()
+        derivatives._progress.clear()
+        derivatives._queue_db_paths.clear()
