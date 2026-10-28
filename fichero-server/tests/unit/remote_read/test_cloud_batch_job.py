@@ -382,3 +382,18 @@ def test_a_batch_keeps_the_sheets_estimate_and_its_billed_cost_and_says_once_whe
     assert detail["cost_usd"] == pytest.approx(sum(b["cost_usd"] for b in detail["batches"])) and detail["cost_usd"] > 0
     over = [r for r in caplog.records if "over its estimate" in r.getMessage()]
     assert len(over) == 1 and "Anthropic" in over[0].getMessage()
+
+
+def test_a_batch_step_adopts_only_the_batch_out_for_its_own_pages(db, monkeypatch, tmp_path, project_says_yes):
+    """WHY (#6127, pipelined batches): a recipe row with one batch out for pages p1..p2 starts the next batch's step on
+    p3: it sends its own batch, never waits on the other's."""
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    first = cloud_batch.start(db, card=_card(), documents=["p1", "p2"], parent_job_id=parent, started_by="owner",
+                              pages_may_leave=True)
+    waited = []
+    cloud_batch.run_step(db, _card(), ["p3"], parent, "owner", wait=lambda db, child, p: (waited.append(child),
+                         (child, "failed", "x"))[1], replay=lambda: pytest.fail("no replay"))
+    assert waited and waited[0] != first
+    assert cloud_batch.out_under(db, parent, ["p2", "p1"]) == first

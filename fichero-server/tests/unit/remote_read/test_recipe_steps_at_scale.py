@@ -252,3 +252,23 @@ def test_a_package_made_before_stages_is_read_as_the_read_alone(tmp_path):
     (pkg / "job.json").write_text(json.dumps(job))
     outcome = runner.run_shard(pkg, 0, tmp_path / "out", reader=lambda image: [{**_found(image)[0], "text": "y"}])
     assert outcome["sources"]["d0"]["ok"] and set(outcome["sources"]["d0"]["steps"]) == {"read"}
+
+
+def test_a_step_adopts_only_the_read_out_for_its_own_pages(db, monkeypatch):
+    """WHY (`compute.recipe.step-major-batches-pipelined`, `.done-is-landed`): with a batch's read sent ahead, two reads
+    are live under one recipe row; a batch adopts the one for its pages, never the newest one under the row."""
+    import json
+
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = jobs.enqueue(db, "batch", "recipe-under-test", started_by="owner")
+    rows = {}
+    for name, pages in (("b1", ["p1", "p2"]), ("b2", ["p3", "p4"])):
+        rows[name] = jobs.enqueue_remote(db, read_job.KIND, f"read:{name}", target="huggingface-jobs", reason="x",
+                                         started_by="owner", detail=json.dumps({"request": {"scope_ids": pages}}))
+        jobs.set_parent(db, rows[name], parent)
+    assert read_job.out_under(db, parent, ["p2", "p1"]) == rows["b1"]
+    assert read_job.out_under(db, parent, ["p3", "p4"]) == rows["b2"]
+    assert read_job.out_under(db, parent, ["p5"]) is None
+    assert read_job.out_under(db, parent) == rows["b2"], "unscoped, the newest, as before"

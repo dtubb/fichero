@@ -19,7 +19,7 @@ from typing import Any, Callable
 
 from fichero_server.execution import jobs
 from fichero_server.llm import provider_batch as pb
-from fichero_server.remote_read.job import PagesMayNotLeave, _project_must_agree
+from fichero_server.remote_read.job import PagesMayNotLeave, _project_must_agree, live_child_for
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,10 @@ def start(db: Any, *, card: dict[str, Any], documents: list[str], parent_job_id:
     return job_id
 
 
-def out_under(db: Any, parent_job_id: str) -> str | None:
-    """The batch still out under a recipe's step, by its id, so a resumed recipe waits on it and never sends again."""
-    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', 'running', "
-                              "'paused') ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_job_id, KIND])
-    return row[0] if row else None
+def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -> str | None:
+    """The batch still out under a recipe's step, by its id, so a resumed recipe waits on it and never sends again; with
+    `documents`, the one out for exactly those pages."""
+    return live_child_for(db, parent_job_id, KIND, documents, lambda d: d.get("documents"))
 
 
 def _work_dir(job_id: str) -> Path:
@@ -236,7 +235,7 @@ def run_step(db: Any, card: dict[str, Any], documents: list[str], parent: str, s
     from fichero_server.recipes.project import read_project_setup
 
     register_job_kinds()
-    child = out_under(db, parent)
+    child = out_under(db, parent, documents)
     if child is None:
         may_leave = places.may_leave_to(read_project_setup(Path(db.path).parent)["answers"], "cloud")
         try:

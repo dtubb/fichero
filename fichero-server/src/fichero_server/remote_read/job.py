@@ -194,13 +194,24 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     return {"job_id": job_id, "flavor": request.flavor, "price_per_hour_usd": detail["price_per_hour_usd"]}
 
 
-def out_under(db: Any, parent_job_id: str) -> str | None:
+def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -> str | None:
     """The read still out under a recipe's step (`compute.recipe.done-is-landed`): the newest one not ended, by its id, so a
-    resumed recipe waits on it instead of sending its pages again. A paused one is waited on as it is: every pause is a
-    person's or the background pause, and is theirs to lift (review 2026-10-28)."""
-    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', 'running', "
-                              "'paused') ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_job_id, KIND])
-    return row[0] if row else None
+    resumed recipe waits on it instead of sending its pages again; with `documents`, the one out for exactly those pages
+    (a batch's read sent ahead lives beside the running one, `step-major-batches-pipelined`). A paused one is waited on as
+    it is: every pause is a person's or the background pause, and is theirs to lift (review 2026-10-28)."""
+    return live_child_for(db, parent_job_id, KIND, documents, lambda d: (d.get("request") or {}).get("scope_ids"))
+
+
+def live_child_for(db: Any, parent_job_id: str, kind: str, documents: list[str] | None,
+                   pages_of: Callable[[dict[str, Any]], list[str] | None]) -> str | None:
+    """The newest child of `kind` under the row not ended; with `documents`, the newest whose pages (`pages_of` its
+    detail) are exactly those, in any order."""
+    rows = db.execute_fetchall("SELECT id, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', "
+                               "'running', 'paused') ORDER BY created_at DESC, rowid DESC", [parent_job_id, kind])
+    for job_id, detail in rows:
+        if documents is None or set(pages_of(json.loads(detail or "{}")) or ()) == set(documents):
+            return job_id
+    return None
 
 
 def _counts(shards: dict[str, dict[str, Any]]) -> dict[str, int]:
