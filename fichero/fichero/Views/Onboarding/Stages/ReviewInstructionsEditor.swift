@@ -26,6 +26,8 @@ struct ReviewInstructionsEditor: View {
     let passes: [Components.Schemas.ReviewInstruction]
     let errorMessage: String?
     @Binding var answers: RecipeSetupAnswers.JobAnswers
+    // One pass at a time, chosen from a picker: setup shows no disclosure groups (#5481).
+    @State private var shownLens: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -36,23 +38,33 @@ struct ReviewInstructionsEditor: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(passes, id: \.lens) { pass in
-                DisclosureGroup(pass.lens.replacingOccurrences(of: "-", with: " ").capitalized) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(pass.profile)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        TextEditor(text: Binding(
-                            get: { answers.reviewText(for: pass.lens, default: pass._default) },
-                            set: { answers.setReview($0, for: pass.lens, default: pass._default) }
-                        ))
-                        .font(.body)
-                        .frame(minHeight: 140)
-                        .accessibilityIdentifier("setup.review.instructions.\(pass.lens)")
-                        Button("Reset to default") { answers.setReview("", for: pass.lens, default: pass._default) }
-                            .disabled(answers.reviewInstructions[pass.lens] == nil)
+            if !passes.isEmpty {
+                Picker("Pass", selection: Binding(
+                    get: { shownLens ?? passes[0].lens },
+                    set: { shownLens = $0 }
+                )) {
+                    ForEach(passes, id: \.lens) { pass in
+                        Text(pass.lens.replacingOccurrences(of: "-", with: " ").capitalized).tag(pass.lens)
                     }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            if let pass = passes.first(where: { $0.lens == (shownLens ?? passes.first?.lens) }) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(pass.profile)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    TextEditor(text: Binding(
+                        get: { answers.reviewText(for: pass.lens, default: pass._default) },
+                        set: { answers.setReview($0, for: pass.lens, default: pass._default) }
+                    ))
+                    .font(.body)
+                    .frame(minHeight: 140)
+                    .accessibilityIdentifier("setup.review.instructions.\(pass.lens)")
+                    Button("Reset to default") { answers.setReview("", for: pass.lens, default: pass._default) }
+                        .disabled(answers.reviewInstructions[pass.lens] == nil)
                 }
             }
             if let errorMessage {

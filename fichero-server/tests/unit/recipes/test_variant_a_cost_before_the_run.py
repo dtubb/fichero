@@ -112,7 +112,7 @@ def test_the_start_plan_route_builds_the_plan_off_the_event_loop(monkeypatch):
     assert seen and seen[0] != threading.get_ident()
 
 
-def test_a_bad_bar_in_a_non_strict_answer_skips_the_step_in_words_instead_of_raising(mac):
+def test_a_bad_bar_in_a_non_strict_answer_skips_the_step_in_words_instead_of_raising(mac):  # noqa: F811 (the imported fixture)
     from fichero_server.recipes.start import plan_start
     from tests.unit.recipes.test_certainty_bar_in_set_up_2026_10_20 import _recipe
     from tests.unit.recipes.test_disagree_needs_no_model_5812 import CORRECT as C, KRAKEN_READS, LINES
