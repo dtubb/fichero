@@ -1403,6 +1403,9 @@ def export_word_docx(
     )
 
 
+_NOT_CATALOGUE_KINDS = frozenset({"workflow", "workflow_container", "workspace", "alias"})
+
+
 def export_excel_xlsx(
     db: Database,
     output_path: str | Path,
@@ -1424,11 +1427,13 @@ def export_excel_xlsx(
         db, documents, include_unsourced=target_id is None
     )
     # Folder rows too: the catalogue step describes folders, and their attributes are part of the sheet.
+    # Not the workflow/workspace/alias nodes the documents filter drops: they are folders by doc_type only.
     folders = [
         doc for doc in (_descendants(db, root.id) if recursive else db.query(Document, parent_id=root.id))
-        if doc.doc_type == DocType.folder and doc.deleted_at is None
+        if doc.doc_type == DocType.folder and doc.deleted_at is None and doc.node_kind not in _NOT_CATALOGUE_KINDS
     ] if root is not None and root.doc_type == DocType.folder else (
-        [doc for doc in db.all(Document) if doc.doc_type == DocType.folder and doc.deleted_at is None]
+        [doc for doc in db.all(Document)
+         if doc.doc_type == DocType.folder and doc.deleted_at is None and doc.node_kind not in _NOT_CATALOGUE_KINDS]
         if root is None else []
     )
     folders.sort(key=lambda doc: (doc.parent_id or "", doc.sequence or 0, natural_key(doc.name)))
@@ -2120,6 +2125,8 @@ def _xlsx_headers(rows: list[dict[str, Any]]) -> list[str]:
         for key in row:
             if key not in headers:
                 headers.append(key)
+    # the catalogue's `attr:<key>` columns follow the fixed ones, alphabetically (first-seen order depends on the rows)
+    headers = [h for h in headers if not h.startswith("attr:")] + sorted(h for h in headers if h.startswith("attr:"))
     return headers or ["id"]
 
 

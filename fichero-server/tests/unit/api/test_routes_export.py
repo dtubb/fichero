@@ -740,7 +740,7 @@ class TestEleventySiteExport:
 
 class TestExcelExportAttributes:
     """The Documents sheet carries the catalogue's attributes, one `attr:<key>` column per key across the exported rows,
-    folder rows included (`export.excel.catalogue-attributes`)."""
+    folder rows included (`catalogue.excel-export-carries-attributes`)."""
 
     def test_attributes_are_columns_and_folders_have_rows(self, client, db, tmp_path):
         top = Document(id="attr-top", name="Top", doc_type=DocType.folder)
@@ -757,3 +757,19 @@ class TestExcelExportAttributes:
         rows = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=0)}
         assert rows[doc.id]["attr:title"] == "A letter" and rows[doc.id]["attr:creator"] == "Maria"
         assert rows[sub.id]["attr:title"] == "Box of letters" and rows[sub.id].get("attr:creator", "") == ""
+
+    def test_no_target_skips_workflow_nodes_and_sorts_attribute_columns(self, client, db, tmp_path):
+        box = Document(id="attr-box", name="Box", doc_type=DocType.folder, attributes={"title": "Box"})
+        flow = Document(id="attr-flow", name="A workflow", doc_type=DocType.folder, node_kind="workflow")
+        doc = Document(id="attr-leaf", name="Letter", parent_id=box.id, doc_type=DocType.file, file_type=FileType.text,
+                       page_content="x", attributes={"title": "A letter", "creator": "Maria", "date": "1900"})
+        for node in (box, flow, doc):
+            db.save(node)
+        output_path = tmp_path / "all.xlsx"
+        r = client.post("/api/export/excel", json={"output_path": str(output_path)})
+        assert r.status_code == 200
+        rows = read_xlsx_records(output_path, sheet_index=0)
+        assert flow.id not in {row["id"] for row in rows} and box.id in {row["id"] for row in rows}
+        columns = list(rows[0])
+        attrs = [c for c in columns if c.startswith("attr:")]
+        assert attrs == sorted(attrs) and columns[-len(attrs):] == attrs
