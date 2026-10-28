@@ -34,3 +34,9 @@ def test_each_review_step_has_its_own_pages_left(db):
 def test_a_review_by_an_unknown_model_is_not_this_steps(db):
     (page,) = _pages(db, 1, 1)
     assert done._has_review(db, page, None, None) is False
+
+
+def test_a_first_review_step_with_no_model_still_takes_a_pages_review_as_done(db):
+    (page,) = _pages(db, 1, 1)
+    assert done._has_review(db, page, None, None, "correct") is True
+    assert done._has_review(db, page, None, None, "correct-2") is False

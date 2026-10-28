@@ -404,14 +404,15 @@ def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
                for a in db.query(Artifact, document_id=doc_id))
 
 
-def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None = None) -> bool:
+def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None = None, step: str | None = None) -> bool:
     """A reviewed transcription the step saved (the correcting step's output): by the step's model when it is
     known; else by the step's own workflow, never any model's review from any earlier run (#5616: the plan said
     "already done on 184 of 203" for a Review step whose runs had done none, counting reviews from runs outside the
-    recipe)."""
+    recipe). With neither, only the first Review step (`correct`) takes a page's review as its own: a later one is not
+    done by it."""
     from fichero_server.models import Artifact
 
-    if model is None and workflow_id is None:  # nothing says whose review it is: not this step's (a second Review step)
+    if model is None and workflow_id is None and step != "correct":  # nothing says whose review it is (a second Review step)
         return False
     return any(a.artifact_type == REVIEWED and _by_the_step(a, model, workflow_id)
                for a in db.query(Artifact, document_id=doc_id))
@@ -529,7 +530,7 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
 
         return prepared(db, doc_id) is not None or doc_id in pages_a_run_did(db, job)
     if job == "correct":
-        return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
+        return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"), (card.get("steps") or [None])[0])
     if job == "find-names-tag-words":
         return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
     if job == "leave-out":
