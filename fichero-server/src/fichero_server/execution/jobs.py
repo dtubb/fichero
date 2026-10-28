@@ -1151,14 +1151,14 @@ def note_stopper(job_id: str, actor: str | None, client: str | None = None) -> N
         _STOPPED_BY[job_id] = actor
     elif client:  # the app sends no client name
         _STOPPED_BY[job_id] = "you, through " + _CLIENT_WORDS.get(client, client)
-    elif actor != "owner":  # the engine's own stop, or nobody known: names nobody (#6005)
-        _STOPPED_BY[job_id] = ""
+    else:  # the owner's own stop is recorded too, so a later engine stop's setdefault keeps it (#6240); else nobody (#6005)
+        _STOPPED_BY[job_id] = "you" if actor == "owner" else ""
 
 
 def pass_stopper(parent_id: str, child_id: str) -> None:
     """A step stopped because its run was stopped names whoever stopped the run (#6005)."""
-    if parent_id in _STOPPED_BY:
-        _STOPPED_BY[child_id] = _STOPPED_BY[parent_id]
+    if parent_id in _STOPPED_BY:  # a step someone stopped itself keeps who did (#6240)
+        _STOPPED_BY.setdefault(child_id, _STOPPED_BY[parent_id])
 
 
 _CLIENT_WORDS = {"fichero-mcp": "an agent (MCP)", "fichero-cli": "the command line"}

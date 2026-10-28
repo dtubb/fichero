@@ -109,3 +109,29 @@ def test_a_running_runs_step_stopped_at_its_next_look_says_who_stopped_the_run_6
         clear_cancellation(parent)
 
     assert jobs.read_job(db, child)["reason"] == "Stopped"
+
+
+def test_the_persons_own_stop_keeps_its_words_through_a_restore_6240(db):
+    """#6240 (1): the person's own Stop is recorded, so a restore's `stop_everything` before the job ends (its
+    setdefault names nobody) leaves "Stopped by you"."""
+    jobs._ensure(db)
+    job = jobs._insert(db, "a-plain-job", "s", None, "workflow")
+    jobs.note_stopper(job, "owner")
+
+    jobs.stop_everything(db)
+
+    assert jobs.read_job(db, job)["reason"] == "Stopped by you"
+
+
+def test_a_step_stopped_by_an_agent_keeps_its_stopper_when_the_run_is_stopped_6240(db):
+    """#6240 (2): a step child an agent stopped itself keeps "you, through an agent (MCP)" when its run is then
+    stopped by someone else (`pass_stopper` sets only a child with no stopper yet)."""
+    from fichero_server.recipes import runner
+
+    parent, child = _parent_and_step(db)
+    jobs.note_stopper(child, "owner", "fichero-mcp")
+    jobs.note_stopper(parent, "system")
+
+    assert runner.request_cancel(db, parent) == "cancelled"
+
+    assert jobs.read_job(db, child)["reason"] == "Stopped by you, through an agent (MCP)"
