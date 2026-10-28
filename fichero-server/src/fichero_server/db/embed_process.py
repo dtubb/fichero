@@ -301,7 +301,13 @@ def _seed(control: socket.socket) -> NoReturn:
             if pid == 0:
                 control.close()
                 signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-                _serve(Connection(fds[0]), *args)
+                (module, name), env, rest = args
+                os.environ.clear()
+                os.environ.update(env)  # the engine's environment as it is now, not as it was when the seed was made
+                import importlib
+
+                getattr(importlib.import_module(module), name)(Connection(fds[0]), *rest)
+                os._exit(0)
             os.close(fds[0])
             control.sendall(pid.to_bytes(8, "big"))
     except BaseException as exc:  # noqa: BLE001 -- the seed only leaves; the engine's next ask says it is gone
@@ -356,10 +362,14 @@ class _SeedWorker:
             pass
 
 
-def _ask_the_seed(seed: _Seed, args: tuple) -> tuple[Connection, _SeedWorker]:
-    """A worker forked by the seed, with `args` for `_serve`, and the engine's end of its pipe."""
+def fork_from_seed(target: tuple[str, str], args: tuple) -> tuple[Connection, _SeedWorker] | None:
+    """A worker forked by the seed, running `target` ("module", "function") with its end of a pipe and `args`, in the
+    engine's environment as it is now; and the engine's end of the pipe. None when the engine made no seed."""
+    seed = _SEED
+    if seed is None:
+        return None
     ours, theirs = socket.socketpair()
-    payload = pickle.dumps(args)
+    payload = pickle.dumps((target, dict(os.environ), args))
     try:
         with _SEED_LOCK:
             socket.send_fds(seed.control, [len(payload).to_bytes(8, "big") + payload], [theirs.fileno()])
@@ -391,13 +401,14 @@ class RemoteEmbedder:
             # descriptor", #6218): the app's download job fetches it in the engine, and the embed waits for it.
             raise EmbedderUnavailable("The search model is not downloaded yet: it is being fetched, and embedding for "
                                       "search waits for it.")
-        if _SEED is not None:  # forked by the seed, never by the running engine (#6237); it gets the engine's env as now
-            env = {**os.environ, **_child_env(self.model_name, self._cache_dir)}
-            try:
-                self._conn, self._process = _ask_the_seed(_SEED, (self.model_name, self._cache_dir, self._threads, env))
-            except (OSError, EOFError) as exc:
-                raise EmbedderUnavailable("The search model's process could not be started; embedding for search "
-                                          "will try again later.") from exc
+        try:  # forked by the seed, never by the running engine (#6237)
+            seeded = fork_from_seed((__name__, "_serve"), (self.model_name, self._cache_dir, self._threads,
+                                                           _child_env(self.model_name, self._cache_dir)))
+        except (OSError, EOFError) as exc:
+            raise EmbedderUnavailable("The search model's process could not be started; embedding for search "
+                                      "will try again later.") from exc
+        if seeded is not None:
+            self._conn, self._process = seeded
         else:  # no seed (a test, a dev server started without `main`): the engine forks it, as before
             context = multiprocessing.get_context("fork")
             self._conn, child = context.Pipe(duplex=True)
