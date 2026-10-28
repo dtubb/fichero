@@ -58944,7 +58944,13 @@
             },
             "type": "array",
             "title": "Unpriced Models",
-            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused until accepted"
+            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: listed apart, counted at an assumed price per call; pressing Start accepts them (`cloud.accept_unpriced`), never a refusal (#6259)"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "one sentence naming the unpriced models and the assumed price per call they are counted at; null when there are none"
           },
           "unpriced": {
             "type": "boolean",

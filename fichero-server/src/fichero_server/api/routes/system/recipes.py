@@ -2370,9 +2370,10 @@ class CloudCapLine(BaseModel):
     estimate_usd: Optional[float] = Field(default=None, description="this run's estimated cloud cost; null when a model has no listed price")
     over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
     unpriced_models: list[str] = Field(default_factory=list, description=(
-        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be "
-        "held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused "
-        "until accepted"))
+        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: listed apart, "
+        "counted at an assumed price per call; pressing Start accepts them (`cloud.accept_unpriced`), never a refusal (#6259)"))
+    note: Optional[str] = Field(default=None, description=(
+        "one sentence naming the unpriced models and the assumed price per call they are counted at; null when there are none"))
     unpriced: bool = Field(description="the estimate is unknown (a cloud model with no listed price): asked about, never $0")
     assumed_calls: int = Field(default=0, description="calls this month booked at the assumed price of a model with no listed price")
     assumed_usd: float = Field(default=0.0, description="what those calls were booked at: counted against the cap, listed apart")
@@ -2638,15 +2639,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     cloud_models = [(str(w.get("provider_override") or ""), str(w.get("model_override") or ""))
                     for w in plan["workflows"] if str(w.get("runs_on")).startswith("cloud") and w.get("model_override")]
     plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"), cloud_models=cloud_models)
-    if plan["cloud_cap"]["unpriced_models"]:  # asked before the run: Start records the yes (`accept_unpriced`)
-        plan["refusals"] = [*plan["refusals"], "These cloud models have no listed price, so their cost cannot be held to your "
-                            f"project's cloud spending cap: {', '.join(plan['cloud_cap']['unpriced_models'])}. Press Start and "
-                            "accept running them (counted at an assumed price, and listed apart), or choose models with a price."]
-    if plan["cloud_cap"]["over"]:  # asked before the run, not after the money is gone (#5987)
-        line = plan["cloud_cap"]
-        plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
-                            f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
-                            "Raise the cap in Set Up, or choose a cheaper model."]
+    _cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
@@ -2781,15 +2774,24 @@ class StartRequest(BaseModel):
         "(`ai.where.accept-unpriced-cloud-model`)"))
 
 
+def _cap_refusals(plan: dict) -> None:
+    """The cap's one refusal: an estimate over what the cap leaves, asked before the run, not after the money is gone (#5987).
+    A model with no listed price never refuses (#6259): the cap line lists it apart at the assumed price, and Start is the yes."""
+    line = plan["cloud_cap"]
+    if line["over"]:
+        plan["refusals"] = [*plan["refusals"], f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending, more than "
+                            f"the US${line['remaining_usd']:,.2f} your project's cap leaves this month (cap US${line['cap_usd']:,.2f}). "
+                            "Raise the cap in Set Up, or choose a cheaper model."]
+
+
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
 NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
 
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
-    """Start's yes to the cloud models with no listed price it asked about (`StartRequest.accept_unpriced`): each by
-    `cloud.accept_unpriced`, the one accept action. Only a model the plan names can be accepted here."""
-    if not accepted:
-        return
+    """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
+    every one the plan lists, since pressing Start is the yes (#6259). Each by `cloud.accept_unpriced`, the one accept action.
+    Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
@@ -2798,7 +2800,7 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
     unknown = [m for m in accepted if m not in asked]
     if unknown:
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
-    for key in accepted:
+    for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
         registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
 
