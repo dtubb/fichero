@@ -232,9 +232,9 @@ final class EngineLifecycleController {
             await finishSuccessfulConnect(backendStart: backendStart)
         } catch BackendError.portConflict(let pid) {
             handlePortConflict(pid: pid)
-        } catch BackendError.socketInUse(_, let pid, let version, let owner) {
+        } catch BackendError.socketInUse(_, let pid, let version, let owner, let contractDiffers) {
             logger.info("Another engine answers on the container socket — portConflict phase (socket)")
-            appState.engine.markSocketConflict(pid: pid, version: version, owner: owner)
+            appState.engine.markSocketConflict(pid: pid, version: version, owner: owner, contractDiffers: contractDiffers)
             backendService.status = .failed
             appState.startBackendHeartbeat()
         } catch {

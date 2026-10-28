@@ -114,4 +114,49 @@ struct EngineSocketConflictTests {
             phase: session.phase, ownership: .appManaged, accessError: nil, authBroken: false, conflict: session.conflict
         ).title == "Port 8765 Is In Use", "a held port is still worded as a port")
     }
+
+    // MARK: - #6244: the 2026.10.27 Dev Embedded smoke attached silently to a script-started engine
+
+    @Test("a conflict awaits the person's choice: the heartbeat never lowers it by probing the other engine")
+    func heartbeatLeavesAConflictAlone() throws {
+        let session = EngineSession()
+        #expect(!session.awaitsAChoice)
+        session.markSocketConflict(pid: 71, version: "2026.10.26", owner: "dev external")
+        #expect(session.awaitsAChoice)
+        session.markPortConflict(pid: nil)
+        #expect(session.awaitsAChoice)
+        session.markStarting()  // the person chose: the retry path leaves the conflict
+        #expect(!session.awaitsAChoice)
+        // The heartbeat's probe answered .ready from the other engine (same socket, same .api-key) and
+        // warmContextThenMarkReady flipped .portConflict to .ready within 5 s: no window, silent adoption.
+        let heartbeat = try String(
+            contentsOf: AppSource.root().appendingPathComponent("App/AppState/AppState+Heartbeat.swift"), encoding: .utf8)
+        let ping = try #require(heartbeat.range(of: "private func pingBackendOnce() async {"))
+        let body = heartbeat[ping.upperBound...].prefix(400)
+        #expect(body.contains("guard !engine.awaitsAChoice else { return }"),
+                "pingBackendOnce must return before probing while a conflict awaits a choice")
+    }
+
+    @Test("Use it never adopts an engine on another API contract")
+    func useItRefusesAnotherContract() {
+        #expect(EngineSocketConflict.decision(socketLive: true, holderPID: nil, pendingChoice: EmbeddedBackendService.PortConflictResolution.useIt,
+                                              contractDiffers: true) == .surface)
+        #expect(EngineSocketConflict.decision(socketLive: true, holderPID: 42, pendingChoice: EmbeddedBackendService.PortConflictResolution.stopIt,
+                                              contractDiffers: true) == .stopThenSpawn(pid: 42),
+                "Stop it still frees the socket for our own engine")
+        #expect(EngineSocketConflict.decision(socketLive: false, holderPID: nil, pendingChoice: nil,
+                                              contractDiffers: true) == .spawnOurs)
+    }
+
+    @Test("an engine on another contract is named as such, and the window does not offer Use it")
+    func anotherContractIsWorded() {
+        let other = EngineSession.Conflict.socket(pid: 71, version: "2026.10.26", owner: "dev external",
+                                                  contractDiffers: true)
+        #expect(!other.offersUseIt)
+        #expect(other.sentence.contains("built for a different version of Fichero"))
+        #expect(!other.sentence.contains("use that one"))
+        #expect(EngineSession.Conflict.socket(pid: 71, version: "2026.10.27").offersUseIt)
+        #expect(EngineSession.Conflict.port8765.offersUseIt)
+        #expect(EngineSocketConflict.LiveEngine().contractDiffers == false)
+    }
 }

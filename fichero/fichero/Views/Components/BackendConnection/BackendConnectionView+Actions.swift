@@ -117,7 +117,10 @@ extension BackendConnectionView {
 
         // Promoted to the prominent action when "Stop it" isn't offered, so the
         // conflict box always has exactly one obvious default.
-        if portConflictPID == nil {
+        // Not for an engine on another contract (#6244): Use it would only be refused.
+        if !appState.engine.conflict.offersUseIt {
+            EmptyView()
+        } else if portConflictPID == nil {
             useExistingEngineButton.buttonStyle(.borderedProminent)
         } else {
             useExistingEngineButton.buttonStyle(.bordered)
