@@ -308,7 +308,7 @@ struct RecipeCloudCapRow: View {
     }
 
     /// What the cap leaves against the estimate, in words. Pure, for the tests.
-    static func words(_ line: Components.Schemas.CloudCapLine) -> String {
+    nonisolated static func words(_ line: Components.Schemas.CloudCapLine) -> String {
         func usd(_ value: Double) -> String { value.formatted(.currency(code: "USD")) }
         let month = "\(usd(line.spentUsd)) spent this month, \(usd(line.remainingUsd)) left"
         guard let estimate = line.estimateUsd else { return "\(month). This run's cloud cost is not known yet." }
