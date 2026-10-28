@@ -507,6 +507,13 @@ final class ProjectRunStripStateTests: XCTestCase {
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .stalled), "stalled")
     }
 
+    func testAPauseInTheListShowsAsPaused_neverAsASpinningRun() {
+        // WHY (review LOW, 2026-10-28): a tree read that has not caught up still says running while the polled list says
+        // the run is paused; the strip spun for a paused run, which is what the owner sees.
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .paused), "paused")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .paused), "paused")
+    }
+
     func testOtherwiseTheNodeThenTheListDecide() {
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "paused", jobState: .running), "paused")
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .running), "running")
