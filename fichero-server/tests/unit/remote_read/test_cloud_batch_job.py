@@ -226,3 +226,66 @@ def test_a_batch_that_would_pass_the_cap_is_never_sent(db, row, monkeypatch):
     with pytest.raises(spend.CloudSpendRefusedError):
         _run(db, row, provider)
     assert provider.sent == []
+
+
+def test_the_kind_is_a_remote_row_whose_stop_cancels_at_the_provider():
+    cloud_batch.register_job_kinds()
+    kind = jobs.KINDS[cloud_batch.KIND]
+    assert (kind.lane, kind.cancel, kind.run is not None) == ("remote", cloud_batch.request_cancel, True)
+
+
+def _ended(db, child, answers):
+    """The row as the batch leaves it: its answers kept, the row done."""
+    cloud_batch.book_for(child).keep([pb.BatchLine(k, True, text=t) for k, t in answers.items()])
+    db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [child])
+    return child, "done", None
+
+
+def test_the_step_sends_one_batch_waits_on_it_and_lands_its_pages_through_the_replay(db, monkeypatch, tmp_path,
+                                                                                      project_says_yes):
+    """WHY (`compute.recipe.cloud-batch-above-threshold`, design A): the step queues one batch row under itself, waits
+    on it as on any child, then runs once more with each call answered from the batch's lines, so its pages land
+    through the step's own path; a resumed step adopts the row and never queues another."""
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    waited, answered_in_replay = [], []
+
+    def wait(db, child, parent):
+        waited.append(child)
+        return _ended(db, child, {REQS[0].key: "En la villa"})
+
+    def replay():
+        answered_in_replay.append(pb.through_the_seam(REQS[0].key, "Read.", []))
+        return "thread-replay", "done", None
+
+    out = cloud_batch.run_step(db, _card(), ["p1", "p2"], parent, "owner", wait=wait, replay=replay)
+    assert out == ("thread-replay", "done", None) and answered_in_replay == ["En la villa"]
+    assert len(waited) == 1 and jobs.parent_of(db, waited[0]) == parent
+    assert pb.through_the_seam(REQS[0].key, "Read.", []) is None, "the answers reach the replay only"
+
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [waited[0]])  # a restart mid-wait
+    cloud_batch.run_step(db, _card(), ["p1", "p2"], parent, "owner", wait=wait, replay=replay)
+    assert waited[1] == waited[0]
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 1
+
+
+def test_a_batch_that_failed_or_stopped_ends_the_step_with_no_replay(db, monkeypatch, tmp_path, project_says_yes):
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    out = cloud_batch.run_step(db, _card(), ["p1"], _parent(db), "owner",
+                               wait=lambda db, child, parent: (child, "failed", "Anthropic: no key"),
+                               replay=lambda: pytest.fail("a failed batch replays nothing"))
+    assert out[1:] == ("failed", "Anthropic: no key")
+
+
+def test_a_step_whose_pages_may_not_leave_fails_in_words_with_nothing_queued(db, monkeypatch):
+    """WHY (`.cloud-batch-consent-and-cost`): the project's no is read when the step runs, not when it was planned."""
+    from fichero_server.recipes import places
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    monkeypatch.setattr(places, "project_says_cloud", lambda answers: False)
+    out = cloud_batch.run_step(db, _card(), ["p1"], _parent(db), "owner", wait=lambda *a: pytest.fail("no wait"),
+                               replay=lambda: pytest.fail("no replay"))
+    assert out[0] is None and out[1] == "failed" and "Anthropic" in out[2]
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 0

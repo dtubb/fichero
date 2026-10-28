@@ -208,3 +208,44 @@ def request_cancel(db: Any, job_id: str) -> str:
     detail["cancel"] = True
     jobs.save_detail(db, job_id, json.dumps(detail), reason="Stopping: cancelling the batch at the provider")
     return row["state"]
+
+
+def _run_row(db: Any, subject: str) -> dict[str, int]:
+    """The row's real run: the provider's own client, and the step's calls captured below the run machinery."""
+    import asyncio
+
+    from fichero_server.remote_read.capture import capture_step
+
+    detail = _detail(db, jobs.job_id_for(db, KIND, subject))
+    return run(db, subject, client=client_for(detail["provider"]),
+               capture=lambda db, d: asyncio.run(capture_step(db, d["card"], d["documents"])))
+
+
+def register_job_kinds() -> None:
+    if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
+        jobs.register_kind(KIND, _run_row, model=None, lane="remote", name="Cloud batch", cancel=request_cancel)
+
+
+def run_step(db: Any, card: dict[str, Any], documents: list[str], parent: str, started_by: str, *,
+             wait: Callable[[Any, str, str], tuple[str | None, str, str | None]],
+             replay: Callable[[], tuple[str | None, str, str | None]]) -> tuple[str | None, str, str | None]:
+    """A recipe step sent as a batch: one row under the step (adopted on a resume), waited on as any child, then the
+    step run once more with its calls answered from the batch's lines, so each page lands through the step's own path.
+    The project's yes is read now, where the pages would leave; a refusal fails the step in words, nothing queued."""
+    from fichero_server.recipes import places
+    from fichero_server.recipes.project import read_project_setup
+
+    register_job_kinds()
+    child = out_under(db, parent)
+    if child is None:
+        may_leave = places.may_leave_to(read_project_setup(Path(db.path).parent)["answers"], "cloud")
+        try:
+            child = start(db, card=card, documents=documents, parent_job_id=parent, started_by=started_by,
+                          pages_may_leave=may_leave)
+        except (PagesMayNotLeave, ValueError) as no:
+            return None, "failed", str(no)
+    _, state, why = wait(db, child, parent)
+    if state != "done":
+        return child, state, why
+    with pb.answering(book_for(child).answers()):
+        return replay()
