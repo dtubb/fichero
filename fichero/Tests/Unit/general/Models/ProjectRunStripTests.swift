@@ -477,4 +477,26 @@ final class ProjectRunStripStateTests: XCTestCase {
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .waiting), "waiting")
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: nil), "waiting")
     }
+
+    // MARK: - activity.spinner-reflects-process-liveness (#4346)
+
+    private static func node(state: String) throws -> ActivityJobNode {
+        let json = """
+            {"id":"r1","kind":"run-a-recipe","name":"Recipe","subject":"r1","state":"\(state)","done":0,"total":0,"children":[]}
+            """
+        return ActivityJobNode(try JSONDecoder().decode(Components.Schemas.JobTree.self, from: Data(json.utf8)))
+    }
+
+    func testOnlyARunningRunSpins_aPausedWaitingOrStalledOneStaysOnTheStripStill() throws {
+        // WHY: the strip spun for any run that had not ended, so a paused run, one waiting for memory and one the
+        // engine no longer moves all looked alive and working.
+        XCTAssertTrue(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "running"), job: nil).spins)
+        for still in ["paused", "waiting", "stalled"] {
+            let strip = ProjectRunStrip(jobId: "r1", node: try Self.node(state: still), job: nil)
+            XCTAssertTrue(strip.isLive, "\(still): not ended, so not closable")
+            XCTAssertFalse(strip.spins, "\(still): no spinner")
+        }
+        XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: nil, job: nil).spins, "nothing read yet: waiting, still")
+        XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "done"), job: nil).spins)
+    }
 }
