@@ -51,3 +51,32 @@ def test_a_plan_change_sets_them_once_more(monkeypatch):
     kr._kraken_call(lambda: None)
 
     assert seen == [4, 8]
+
+
+def test_two_plans_racing_leave_the_cache_equal_to_torch_6242(monkeypatch):
+    """A plan-of-1 page sets torch to 8 and is paused before it writes the cache; a plan-of-2 page enters beside it and
+    sets 4. Whatever order they finish in, the cache must say what torch runs at, or later pages skip the reset (#6242)."""
+    plans = iter([1, 2])
+    _lane(monkeypatch, [0])
+    monkeypatch.setattr(kr, "pages_at_once", lambda person: next(plans))
+    torch_now: list[int] = []
+    in_set, resume = threading.Event(), threading.Event()
+
+    def set_num_threads(n):
+        torch_now.append(n)
+        if n == 8:  # the first page: torch is at 8, the cache not yet written
+            in_set.set()
+            resume.wait(2)
+
+    sys.modules["torch"].set_num_threads = set_num_threads
+    first = threading.Thread(target=kr._kraken_call, args=(lambda: None,))
+    first.start()
+    assert in_set.wait(2)
+    second = threading.Thread(target=kr._kraken_call, args=(lambda: None,))
+    second.start()
+    second.join(0.5)  # unguarded, the second page sets 4 and writes the cache now; guarded, it waits on the first
+    resume.set()
+    first.join(2)
+    second.join(2)
+
+    assert kr._THREADS_NOW == torch_now[-1]

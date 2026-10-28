@@ -885,6 +885,9 @@ def threads_each(cores: int, pages_at_once: int) -> int:
 #: every page inside reads on it, and it is set again only when the plan changes (#6229).
 _THREADS_NOW: int | None = None
 _THREADS_SET_ON: object = None
+#: held across the check, the set and the cache write, so two pages under different plans can't leave the cache saying
+#: one count while torch runs at the other (#6242).
+_THREADS_LOCK = threading.Lock()
 
 
 def threads_reading_now() -> int | None:
@@ -1058,9 +1061,10 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
                 import torch
 
                 # Process-wide in torch: balanced never pegs the machine, fast may. Once per plan, not per page (#6229).
-                if (_THREADS_SET_ON, _THREADS_NOW) != (torch, threads):
-                    torch.set_num_threads(threads)
-                    _THREADS_SET_ON, _THREADS_NOW = torch, threads
+                with _THREADS_LOCK:
+                    if (_THREADS_SET_ON, _THREADS_NOW) != (torch, threads):
+                        torch.set_num_threads(threads)
+                        _THREADS_SET_ON, _THREADS_NOW = torch, threads
                 try:
                     torch.set_num_interop_threads(1)  # one page at a time: no inter-op parallelism to pay for
                 except RuntimeError:
