@@ -151,6 +151,41 @@ struct RecipeRunFolders: Equatable {
     }
 }
 
+/// Which steps of a recipe run are done on one folder (`activity.run.folder-steps-done`, #5642), as the run's status
+/// carries them (`folder_steps`), each step named by the status's own stage title. The engine counts; the app only words it.
+struct RecipeFolderSteps: Equatable {
+    struct Step: Equatable {
+        let name: String
+        /// nil: the step cannot tell which pages it has done.
+        let done: Int?
+        let of: Int
+    }
+
+    let steps: [Step]
+
+    /// Each folder the status counts, by the folder's id.
+    static func byFolder(_ status: Components.Schemas.RecipeRunStatus) -> [String: RecipeFolderSteps] {
+        var out: [String: RecipeFolderSteps] = [:]
+        for folder in status.folderSteps ?? [] {
+            out[folder.folderId] = RecipeFolderSteps(steps: folder.steps.map { counted in
+                let stage = status.steps.first { $0.steps == counted.steps }
+                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, of: counted.of)
+            })
+        }
+        return out
+    }
+
+    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.of } }
+
+    /// One line a step: "Find lines and Read each line: 12 of 20 pages", "Find names: done".
+    var words: String {
+        steps.map { step in
+            guard let done = step.done else { return "\(step.name): cannot tell" }
+            return done >= step.of ? "\(step.name): done" : "\(step.name): \(done) of \(step.of) \(step.of == 1 ? "page" : "pages")"
+        }.joined(separator: "\n")
+    }
+}
+
 /// How many pages a recipe run reads at once now, and which hold makes it one (`recipes-run.memory.gate-shown`, #6217),
 /// as the run's status carries them (`pages_at_once`, `pages_at_once_reason`). The engine decides; the app only words it.
 struct RecipeRunPagesAtOnce: Equatable {

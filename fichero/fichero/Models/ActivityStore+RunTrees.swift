@@ -49,6 +49,9 @@ extension ActivityStore {
             guard let status = try await activityService.getRecipeRunStatus(jobId: jobId) else { return }
             let atOnce = RecipeRunPagesAtOnce(status)
             if recipeRunPagesAtOnce[jobId] != atOnce { recipeRunPagesAtOnce[jobId] = atOnce }
+            for (folder, steps) in RecipeFolderSteps.byFolder(status) where recipeFolderSteps[folder] != steps {
+                recipeFolderSteps[folder] = steps
+            }
             guard let folders = RecipeRunFolders(status) else { return }
             if recipeRunFolders[jobId] != folders { recipeRunFolders[jobId] = folders }
         } catch {

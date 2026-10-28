@@ -68129,6 +68129,55 @@
         ],
         "title": "FolderRenameResponse"
       },
+      "FolderStepDone": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Done",
+            "description": "its pages done in the folder; null: the step cannot tell"
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of",
+            "description": "the pages it works on in the folder, those left out (blank, a recording) not counted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "of"
+        ],
+        "title": "FolderStepDone"
+      },
+      "FolderStepsDone": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/FolderStepDone"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "steps"
+        ],
+        "title": "FolderStepsDone"
+      },
       "FolderViewInfo": {
         "properties": {
           "id": {
@@ -85084,6 +85133,14 @@
             "nullable": true,
             "title": "Folders Total",
             "description": "the folders the run goes over, a batch at a time (source.recipe.batch-at-archive-scale); null before the run started"
+          },
+          "folder_steps": {
+            "items": {
+              "$ref": "#/components/schemas/FolderStepsDone"
+            },
+            "type": "array",
+            "title": "Folder Steps",
+            "description": "each folder the run has counted, with each step's pages done there, current as each step ends on a batch (activity.run.folder-steps-done); a page in no folder is in none"
           },
           "steps": {
             "items": {

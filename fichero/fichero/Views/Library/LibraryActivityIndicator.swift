@@ -144,6 +144,8 @@ struct LibraryRowStatusMark: View {
     }
 
     @Environment(DocumentStore.self) private var documentStore
+    /// Optional: a surface outside a library's window has none.
+    @Environment(ActivityStore.self) private var activityStore: ActivityStore?
 
     var body: some View {
         if LibraryActivityIndicator.activity(for: document, in: documentStore) != .idle {
@@ -151,7 +153,17 @@ struct LibraryRowStatusMark: View {
         } else {
             switch Self.resting(for: document.status, isFolder: document.docType == .folder) {
             case .nothing:
-                EmptyView()
+                if document.docType == .folder, let steps = activityStore?.recipeFolderSteps[document.id] {
+                    // `activity.run.folder-steps-done`: which recipe steps are done on the folder, said in its tooltip.
+                    Image(systemName: steps.allDone ? "checkmark.circle" : "circle.dashed")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .help(steps.words)
+                        .accessibilityLabel(steps.allDone ? "Recipe steps done" : "Recipe steps not all done")
+                        .accessibilityValue(steps.words)
+                } else {
+                    EmptyView()
+                }
             case .queued:
                 Image(systemName: "clock")
                     .font(.caption2)

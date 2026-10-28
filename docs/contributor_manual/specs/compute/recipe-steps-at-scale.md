@@ -92,8 +92,9 @@ once, the same thresholds as a local run.
   by its id. *Test (to write):* the same file.
 - `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642, PROPOSED) Stop cancels queued and running tasks and keeps
   everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file.
-- `compute.recipe.folder-shows-steps-done` — **[GAP]** (#5642, PROPOSED) each folder shows which steps are done on it,
-  current while tasks land. *Test (to write):* the same file.
+- `compute.recipe.folder-shows-steps-done` — **[PARTIAL]** (#5642, PROPOSED) each folder shows which steps are done on it,
+  current while tasks land. Built for local steps as `activity.run.folder-steps-done` (ui/activity-and-automatic-work.md,
+  its own test); owed here: a remote stage's landed tasks counted as they land.
 - `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642, PROPOSED) each task's per-page compute record lands with
   its results and feeds the run's slow-path lines. *Test (to write):* the same file.
 

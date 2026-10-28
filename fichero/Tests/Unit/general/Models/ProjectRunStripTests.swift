@@ -431,6 +431,42 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertFalse(strip.detail.contains("Waiting: Running"), "the run's progress is not a wait: \(strip.detail)")
     }
 
+    func testEachFolder_saysWhichStepsAreDoneOnIt_fromTheRunsStatus() async throws {
+        // WHY (`activity.run.folder-steps-done`, #5642): "3 of 800 folders" says nothing about which steps a folder
+        // still needs; the engine counts each step's pages per folder on the run's status, named by its stage title.
+        let store = Self.store()
+        let tree = try Self.runningTree()
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        let step: [String: Any] = ["steps": ["lines", "read"], "card": "workflow", "state": "running",
+                                   "title": "Find lines and Read each line"]
+        let status: [String: Any] = [
+            "job_id": jobId, "state": "running", "steps": [step], "skipped": [Any](),
+            "folders_done": 0, "folders_total": 2,
+            "folder_steps": [
+                ["folder_id": "A", "steps": [["steps": ["lines", "read"], "done": 12, "of": 20],
+                                             ["steps": ["names"], "done": 1, "of": 1]]],
+                ["folder_id": "B", "steps": [["steps": ["lines", "read"], "done": 20, "of": 20],
+                                             ["steps": ["export"], "done": NSNull(), "of": 3]]]
+            ]
+        ]
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree)),
+            Stub(path: "/api/recipes/project/runs/\(jobId)", method: "GET", status: 200, body: try Self.json(status))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        let a = try XCTUnwrap(store.recipeFolderSteps["A"])
+        XCTAssertFalse(a.allDone)
+        XCTAssertEqual(a.words, "Find lines and Read each line: 12 of 20 pages\nnames: done",
+                       "a step the status has no stage for is named by its step ids")
+        let b = try XCTUnwrap(store.recipeFolderSteps["B"])
+        XCTAssertFalse(b.allDone, "a step that cannot tell is not done")
+        XCTAssertEqual(b.words, "Find lines and Read each line: done\nexport: cannot tell")
+        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, of: 1)]).allDone)
+    }
+
     func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {
         let store = Self.store()
         let tree = try Self.runningTree()
