@@ -265,6 +265,29 @@ class SlurmReadTarget(SlurmTarget):
         self._sent.setdefault(job_key, []).append(job_id)
         return f"{job_id}_{shard}"
 
+    def submit_all(self, job_key: str, shards: list[int], *, throttle: int, timeout: str = "2h") -> dict[int, str]:
+        """`compute.hpc.submit-array`: every shard still to send as ONE array (`--array=0-3%N`, the site throttling it),
+        a re-send of failed shards an array of only those (`--array=1,3`); each task tars its own results for one
+        transfer home. The far id of each shard: `<array>_<task>`, Slurm's own."""
+        from fichero_server.remote_read.slurm import describe_slurm_read
+
+        spec = describe_slurm_read(self.cluster, self._package, shards=shards, time_limit=_walltime(timeout),
+                                   throttle=throttle).spec
+        part = 'shard-$(printf %05d "$SLURM_ARRAY_TASK_ID")'
+        text = spec.sbatch_script.rstrip("\n") + f'\ntar -C "out/{part}" -cf "out/{part}.tar" .\n'
+        name = f"{self._dir(job_key)}/_fichero/read-array-{len(self._sent.get(job_key, []))}.sbatch"
+        self.shell.put_text(text, name)
+        array = self._run(["sbatch", "--parsable", name]).strip().split(";")[0]
+        if not array.isdigit():
+            raise SlurmError(f"sbatch gave no job id: {array[:100]!r}")
+        self._sent.setdefault(job_key, []).append(array)
+        return {shard: f"{array}_{shard}" for shard in shards}
+
+    def cancel_all(self, far_ids: list[str]) -> None:
+        """Stop: each array cancelled as one job, every task with it (one `scancel` an array, not one a task)."""
+        for array in dict.fromkeys(far_id.split("_")[0] for far_id in far_ids):
+            self._run(["scancel", array])
+
     def statuses(self, job_key: str) -> dict[str, FarStatus]:
         ids = ",".join(dict.fromkeys(self._sent.get(job_key, [])))
         return parse_sacct(self._run(["sacct", "-j", ids, "-X", "-P", "-n", "-o", "JobID,State"])) if ids else {}

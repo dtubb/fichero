@@ -322,14 +322,24 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     while True:
         _state, latest = _row(db, job_id)
         if latest.get("cancel") or _its_recipe_stopped(db, job_id):
-            for shard in shards.values():
-                if shard["state"] == "submitted":
+            out = [s for s in shards.values() if s["state"] == "submitted"]
+            if hasattr(target, "cancel_all"):  # a cluster's array: cancelled as one job
+                target.cancel_all([s["far_id"] for s in out])
+            for shard in out:
+                if not hasattr(target, "cancel_all"):
                     target.cancel(shard["far_id"])
-                    shard.update(state="failed", why="Stopped by you")
+                shard.update(state="failed", why="Stopped by you")
             _save(db, job_id, detail)
             raise jobs.JobCancelled("Stopped by you; the running shards were cancelled on Hugging Face")
         running = sum(1 for s in shards.values() if s["state"] == "submitted")
-        for key in sorted((k for k, s in shards.items() if s["state"] == "pending"), key=int):
+        pending = sorted((k for k, s in shards.items() if s["state"] == "pending"), key=int)
+        if pending and hasattr(target, "submit_all"):  # a cluster: one array, the site throttling it (%N), not this loop
+            fars = target.submit_all(job_id, [int(k) for k in pending], throttle=request.max_in_flight,
+                                     timeout=request.timeout)
+            for key in pending:
+                shards[key].update(state="submitted", far_id=fars[int(key)], tries=shards[key]["tries"] + 1)
+            pending = []
+        for key in pending:
             if running >= request.max_in_flight:
                 break
             far_id = target.submit(
