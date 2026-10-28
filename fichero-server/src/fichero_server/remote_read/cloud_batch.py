@@ -11,7 +11,9 @@ its end and keeps what was answered (it was billed) before the row reads Stopped
 from __future__ import annotations
 
 import json
+import logging
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,7 +21,11 @@ from fichero_server.execution import jobs
 from fichero_server.llm import provider_batch as pb
 from fichero_server.remote_read.job import PagesMayNotLeave, _project_must_agree
 
+logger = logging.getLogger(__name__)
+
 KIND = "cloud-batch"
+#: A batch still out past this long says so once (`compute.recipe.cloud-batch-slow-path-record`, #6251).
+SLOW_HOURS = 12
 POLL_FIRST, POLL_MOST = 60.0, 300.0
 #: The providers whose own batch API Fichero speaks, by the provider id a step's card names; the rest go as plain calls.
 CLIENTS = {"anthropic": ("Anthropic", pb.AnthropicBatches), "openai": ("OpenAI", pb.OpenAIBatches),
@@ -108,8 +114,11 @@ def book_for(job_id: str) -> pb.AnswerBook:
 
 
 def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str, Any]], list[pb.BatchRequest]],
-        sleep: Callable[[float], None] = time.sleep) -> dict[str, int]:
+        sleep: Callable[[float], None] = time.sleep, now: Callable[[], datetime] | None = None) -> dict[str, int]:
     """Submit what is still to answer (or adopt what is out), poll to the end, keep the answers. {answered, failed}."""
+    from fichero_server.core.timeutil import utc_now
+
+    now = now or utc_now
     job_id = jobs.job_id_for(db, KIND, subject)
     detail = _detail(db, job_id)
     book = book_for(job_id)
@@ -119,7 +128,7 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
         detail["batches"] = []
         for chunk in pb.cut_to_cap(to_send, cap_bytes=client.cap_bytes):
             ids = client.submit(detail["model"], chunk, max_tokens=detail["max_tokens"])
-            detail["batches"].append({"ids": ids, "state": "open", "requests": len(chunk)})
+            detail["batches"].append({"ids": ids, "state": "open", "requests": len(chunk), "sent_at": now().isoformat()})
             _save(db, job_id, detail, reason=f"Sent as a batch to {who}: {sum(b['requests'] for b in detail['batches'])} "
                                               "requests, answered within a day")  # on the row before anything else
     counts = {"answered": 0, "failed": 0}
@@ -134,7 +143,13 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
             if batch["state"] != "open":
                 continue
             seen = client.poll(batch["ids"])
+            at = now()
             if seen["state"] == "open":
+                sent = datetime.fromisoformat(batch["sent_at"]) if batch.get("sent_at") else None
+                if sent and (at - sent).total_seconds() > SLOW_HOURS * 3600 and not batch.get("slow_said"):
+                    batch["slow_said"] = True
+                    logger.warning("slow path: a batch to %s has waited past twelve hours (%d requests, sent %s)",
+                                   who, batch["requests"], batch["sent_at"])
                 continue
             if seen["state"] == "gone":  # past the provider's retention: its unanswered pages are asked again
                 batch["state"] = "gone"
@@ -142,7 +157,10 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
             lines = client.lines(batch["ids"])
             book.keep(lines)
             batch.update(state="ended", answered=sum(line.ok for line in lines),
-                         failed=sum(not line.ok for line in lines), why=seen.get("why"))
+                         failed=sum(not line.ok for line in lines), why=seen.get("why"), ended_at=at.isoformat(),
+                         tokens={k: sum(line.usage.get(k, 0) for line in lines) for k in ("input_tokens", "output_tokens")})
+            if batch.get("sent_at"):
+                batch["waited_hours"] = round((at - datetime.fromisoformat(batch["sent_at"])).total_seconds() / 3600, 2)
         counts = {"answered": sum(b.get("answered", 0) for b in detail["batches"]),
                   "failed": sum(b.get("failed", 0) for b in detail["batches"])}
         open_ = sum(b["state"] == "open" for b in detail["batches"])

@@ -183,3 +183,21 @@ def test_the_client_is_made_with_the_providers_own_key_and_refused_by_name_witho
     assert isinstance(cloud_batch.client_for("anthropic"), pb.AnthropicBatches)
     assert isinstance(cloud_batch.client_for("openai"), pb.OpenAIBatches)
     assert isinstance(cloud_batch.client_for("google"), pb.GeminiBatches)
+
+
+def test_each_batch_records_its_wait_and_tokens_and_a_batch_past_twelve_hours_logs_one_line(db, row, caplog):
+    """WHY (`compute.recipe.cloud-batch-slow-path-record`, #6251): a provider batch's record is its wait (sent to
+    answered) and what it was billed; a batch still out past twelve hours says so once in the log, not every poll."""
+    import logging
+    from datetime import datetime, timedelta, timezone
+
+    clock = iter(datetime(2026, 10, 28, tzinfo=timezone.utc) + timedelta(hours=h) for h in (0, 13, 14, 15, 16, 17))
+    provider = FakeProvider(polls_open=3)
+    with caplog.at_level(logging.WARNING, logger="fichero_server.remote_read.cloud_batch"):
+        cloud_batch.run(db, "batch:t", client=provider, capture=lambda db, detail: REQS, sleep=lambda s: None,
+                        now=lambda: next(clock))
+    (batch,) = json.loads(jobs.read_job(db, row)["detail"])["batches"]
+    assert batch["sent_at"].startswith("2026-10-28T00:00") and batch["waited_hours"] > 12
+    assert batch["tokens"] == {"input_tokens": 0, "output_tokens": 0}
+    slow = [r for r in caplog.records if "twelve hours" in r.getMessage()]
+    assert len(slow) == 1 and "Anthropic" in slow[0].getMessage()
