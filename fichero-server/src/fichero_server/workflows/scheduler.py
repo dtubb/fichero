@@ -152,10 +152,15 @@ class WorkflowScheduler:
 
         self._schedules: OrderedDict[str, Schedule] = OrderedDict()
         self._bg_tasks: set[asyncio.Task] = set()
+        self.db  # noqa: B018 -- the library opens at the making, as before; `db` is looked up on each use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): this outlives a close and reopen of the
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        # The library's one managed Database (#5645): its rows are `ScheduleRecord` and `ScheduleRunRecord`.
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     def _remember_schedule(self, schedule: Schedule) -> None:
         self._schedules[schedule.schedule_id] = schedule

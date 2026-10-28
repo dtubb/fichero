@@ -212,10 +212,15 @@ class BatchManager:
         # holds references into that registry, keyed by batch_id.
         self._cancel_events: dict[str, threading.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
-        # The library's one managed Database (#5645): its rows are `BatchRecord` and `BatchItemRecord`.
+        self.db  # noqa: B018 -- the library opens at the making, as before; `db` is looked up on each use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): this outlives a close and reopen of the
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     def _remember_batch(self, batch: BatchExecution) -> None:
         self._batches[batch.batch_id] = batch

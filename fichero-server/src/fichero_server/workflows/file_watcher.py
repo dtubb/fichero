@@ -247,10 +247,15 @@ class FileWatcherManager:
         ] = {}  # trigger_id -> [(event_type, path)]
         self._batch_tasks: dict[str, Any] = {}  # concurrent futures on the background loop
         self._pending_tasks: dict[str, list[asyncio.Task]] = {}
+        self.db  # noqa: B018 -- the library opens at the making, as before; `db` is looked up on each use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): this outlives a close and reopen of the
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        # The library's one managed Database (#5645): its rows are `FileTriggerRecord` and `TriggerExecutionRecord`.
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     async def start(self) -> None:
         """Start the file watcher and load existing triggers."""
