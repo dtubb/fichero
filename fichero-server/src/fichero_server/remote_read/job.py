@@ -196,15 +196,11 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
 
 def out_under(db: Any, parent_job_id: str) -> str | None:
     """The read still out under a recipe's step (`compute.recipe.done-is-landed`): the newest one not ended, by its id, so a
-    resumed recipe waits on it instead of sending its pages again. One paused (the engine stopped under it) is brought back
-    first, carrying on from its recorded shards."""
-    row = db.execute_fetchone("SELECT id, state FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', "
-                              "'running', 'paused') ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_job_id, KIND])
-    if row is None:
-        return None
-    if row[1] == "paused":
-        jobs.requeue(db, row[0], reason="Carrying on with the recipe that sent it")
-    return row[0]
+    resumed recipe waits on it instead of sending its pages again. A paused one is waited on as it is: every pause is a
+    person's or the background pause, and is theirs to lift (review 2026-10-28)."""
+    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', 'running', "
+                              "'paused') ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_job_id, KIND])
+    return row[0] if row else None
 
 
 def _counts(shards: dict[str, dict[str, Any]]) -> dict[str, int]:

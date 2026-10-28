@@ -208,8 +208,8 @@ def test_a_resumed_recipe_adopts_the_read_still_out_by_its_id_and_never_sends_it
                                                                                       project_says_yes):
     """WHY (`compute.recipe.done-is-landed`): the engine restarted while a recipe's read ran on Hugging Face; the recipe
     resumed works out its pages again and would send them again (paid twice, read twice). The run still out under the
-    step is adopted by its id and waited on; one paused by the restart is brought back first; a run that ended is not
-    adopted."""
+    step is adopted by its id and waited on; a paused one is waited on as it is, never unpaused here (every pause is a
+    person's or the background pause, and two resumes must not both requeue it); a run that ended is not adopted."""
     from fichero_server.execution import jobs
     from fichero_server.recipes import places, project, runner, train_offers
 
@@ -233,11 +233,22 @@ def test_a_resumed_recipe_adopts_the_read_still_out_by_its_id_and_never_sends_it
     jobs.set_parent(db, out, parent)
 
     assert runner._run_at_scale(db, card, ["p1"], parent, "owner") == (out, "done", None)
-    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [out])
+    db.execute("UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ?", [out])
     assert runner._run_at_scale(db, card, ["p1"], parent, "owner")[0] == out
-    assert jobs.read_job(db, out)["state"] == "waiting", "brought back before it is waited on"
+    assert jobs.read_job(db, out)["state"] == "paused", "a pause is a person's (or the background pause): it holds"
     assert waited == [out, out]
 
     db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [out])
     child, state, why = runner._run_at_scale(db, card, ["p1"], parent, "owner")
     assert (child, state) == (None, "failed") and "sent twice" in why, "an ended run is not adopted: a new one is sent"
+
+
+def test_a_package_made_before_stages_is_read_as_the_read_alone(tmp_path):
+    """WHY (review 2026-10-28): a Job submitted now ships today's runner beside a package made before stages, whose
+    job.json has no `stage`; every shard of a read queued before the change must still read, as the read alone."""
+    pkg = _package(tmp_path, ["read"], pages=1)
+    job = json.loads((pkg / "job.json").read_text())
+    del job["stage"]
+    (pkg / "job.json").write_text(json.dumps(job))
+    outcome = runner.run_shard(pkg, 0, tmp_path / "out", reader=lambda image: [{**_found(image)[0], "text": "y"}])
+    assert outcome["sources"]["d0"]["ok"] and set(outcome["sources"]["d0"]["steps"]) == {"read"}

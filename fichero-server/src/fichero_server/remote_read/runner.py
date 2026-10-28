@@ -237,7 +237,8 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[..., lis
 
     job = json.loads((package / "job.json").read_text(encoding="utf-8"))
     indices = job["shards"][shard]
-    step, longest, stage = job["step"], job["fetch"]["longest"], job["stage"]
+    # A Job sent now runs this runner beside a package made before stages (no `stage`): that package is the read alone.
+    step, longest, stage = job["step"], job["fetch"]["longest"], job.get("stage", ["read"])
     folder = out / f"shard-{shard:05d}"
     folder.mkdir(parents=True, exist_ok=True)
     outcome_path = folder / "_outcome.json"
