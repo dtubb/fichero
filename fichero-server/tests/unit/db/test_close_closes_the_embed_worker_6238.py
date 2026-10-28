@@ -53,3 +53,28 @@ def test_closing_twice_is_safe(tmp_path):
     db._embed_worker()
     db.close()
     db.close()
+
+
+def test_a_close_while_the_library_is_mid_statement_waits_for_it(tmp_path):
+    """#6247: cancelling a new project's Set Up closes its library while the material import may be mid-statement on the
+    library's own connection. The close waits for that statement (it holds the lock), as it does for the embed worker's;
+    closing a DuckDB connection under a running statement is a native crash, and the engine runs inside the app."""
+    import threading
+    import time
+
+    db = Database(tmp_path / "lib" / "fichero.duckdb")
+    conn = db.conn
+    inside, results = threading.Event(), []
+
+    def importing():
+        with db._transaction_gate, db._lock:
+            inside.set()
+            time.sleep(0.3)  # the close is asked now
+            results.append(conn.execute("SELECT 41 + 1").fetchone()[0])
+
+    thread = threading.Thread(target=importing)
+    thread.start()
+    assert inside.wait(5)
+    db.close()
+    thread.join(5)
+    assert results == [42]

@@ -8301,8 +8301,11 @@ class Database(DatabaseEmbeddingMixin):
         if worker is not None:
             with worker._transaction_gate, worker._lock:
                 worker.close()
-        self._lance_db = None
-        self.conn.close()
+        # The library's own connection likewise (#6247): a Set Up cancelled mid-import closed it under a running
+        # statement, a native crash in the app's engine.
+        with self._transaction_gate, self._lock:
+            self._lance_db = None
+            self.conn.close()
 
     def _migrate_workflow_table(self) -> None:
         """Delegate to db_migrations.migrate_workflow_table."""

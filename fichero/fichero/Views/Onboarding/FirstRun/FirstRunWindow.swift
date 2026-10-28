@@ -127,7 +127,8 @@ struct FirstRunWindow: View {
         }
         // The window's close button: a new project with no material is deleted like Cancel; one with material stays.
         .onDisappear {
-            guard !finishedSetUp, Self.cancelDeletesTheProject(in: mode), !(store?.hasMaterial ?? false) else { return }
+            guard !finishedSetUp, Self.cancelDeletesTheProject(in: mode), !(store?.hasMaterial ?? false),
+                  !(store?.isAddingMaterial ?? false) else { return }
             newProject.discard()
         }
         .sheet(item: $addProvider) { request in
