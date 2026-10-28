@@ -24,7 +24,8 @@ def sandboxed(tmp_path, monkeypatch):
 def test_the_real_documents_is_an_allowed_root(sandboxed):
     roots = path_security.ingest_allowed_roots()
     assert sandboxed / "Documents" in roots
-    assert sandboxed / "Library" / "Mobile Documents" / "com~apple~CloudDocs" in roots
+    assert path_security.path_within_any_root(sandboxed / "Library" / "Mobile Documents" / "com~apple~CloudDocs" / "a.pdf",
+                                              roots)
 
 
 def test_the_real_home_itself_is_never_a_grantable_folder(sandboxed):
@@ -32,3 +33,13 @@ def test_the_real_home_itself_is_never_a_grantable_folder(sandboxed):
         path_security.owner_folder_grant_key(sandboxed)
     with pytest.raises(path_security.OwnerFolderGrantRefused):
         path_security.owner_folder_grant_key(sandboxed / "Library")
+
+
+def test_the_real_homes_roots_are_only_the_folders_a_person_picks_from(sandboxed):
+    """The real home adds only where a person keeps files; never the real Application Support or ~/code
+    (reviewer-lane-b-3): another app's data is not an import root for the sandboxed engine."""
+    roots = path_security.ingest_allowed_roots()
+    for sub in ("Downloads", "Pictures", "Desktop", "Fichero", "Library/CloudStorage", "Library/Mobile Documents"):
+        assert sandboxed / sub in roots
+    assert sandboxed / "Library" / "Application Support" not in roots
+    assert sandboxed / "code" not in roots

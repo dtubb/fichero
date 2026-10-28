@@ -306,11 +306,19 @@ def ingest_allowed_roots() -> list[Path]:
     The two sandbox-container shapes are NOT roots: they are pattern rules on
     a single container and stay in their helpers.
     """
+    home = Path.home().resolve()
+    real = _real_home().resolve()
     return [
-        *(home / sub for home in _homes() for sub in (
+        *(home / sub for sub in (
             "Documents", "Desktop", "Fichero", "Dropbox", "code", "Library/Application Support",
             "Library/CloudStorage", "Library/Mobile Documents/com~apple~CloudDocs",
         )),
+        # The sandboxed engine's real home (#6255): only the folders a person picks files from, never another
+        # app's Application Support or a source tree.
+        *(real / sub for sub in (
+            "Documents", "Desktop", "Downloads", "Pictures", "Fichero", "Library/CloudStorage",
+            "Library/Mobile Documents",
+        ) if real != home),
         Path("/var/folders"),
         Path("/private/var/folders"),
         Path("/tmp"),
