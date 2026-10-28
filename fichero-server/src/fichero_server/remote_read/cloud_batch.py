@@ -35,26 +35,13 @@ MAX_TOKENS = 4096
 
 
 def client_for(provider: str) -> Any:
-    """The batch client over the provider's own SDK, made with its key from the Keychain (never stored, never logged)."""
+    """The batch client over the provider's own SDK, built behind the one egress gate (`llm.provider_batch_sdk`)."""
     from fichero_server import llm
 
     if provider not in CLIENTS:
         raise ValueError(f"{provider} has no batch API Fichero speaks: its pages go as plain calls")
     name, shape = CLIENTS[provider]
-    key = llm.get_api_key(provider)
-    if not key:
-        raise ValueError(f"no {name} key in Settings › AI, so no batch can be sent to {name}")
-    if provider == "anthropic":
-        import anthropic
-
-        return shape(anthropic.Anthropic(api_key=key))
-    if provider == "openai":
-        import openai
-
-        return shape(openai.OpenAI(api_key=key))
-    from google import genai
-
-    return shape(genai.Client(api_key=key))
+    return shape(llm.provider_batch_sdk(provider, name))
 
 
 def start(db: Any, *, card: dict[str, Any], documents: list[str], parent_job_id: str, started_by: str,

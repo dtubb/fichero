@@ -265,7 +265,7 @@ def test_the_steps_own_vision_calls_are_captured_and_then_answered_from_the_batc
     assert said == '["x"]' and plain == []
     assert captured == [pb.BatchRequest(key=key, prompt="Read the line.", images=(JPEG,))]
 
-    with pb.answering({key: '["En la ciudad"]'}):
+    with pb.answering({key: pb.BatchLine(key, True, text='["En la ciudad"]')}):
         assert asyncio.run(llm.vision([JPEG], "Read the line.", config)) == '["En la ciudad"]'
         with pytest.raises(RuntimeError, match="a plain call"):
             asyncio.run(llm.vision([JPEG], "Another prompt.", config))
@@ -280,10 +280,67 @@ def test_the_answers_are_kept_on_disk_so_a_resume_or_rerun_sends_no_answered_pag
     reqs = _requests(3)
     book.keep([pb.BatchLine(reqs[0].key, True, text="uno"), pb.BatchLine(reqs[1].key, False, why="Overloaded")])
     again = pb.AnswerBook(tmp_path / "answers.jsonl")  # the engine restarted
-    assert again.answers() == {reqs[0].key: "uno"}
+    assert {k: line.text for k, line in again.answers().items()} == {reqs[0].key: "uno"}
     assert [r.key for r in again.still_to_send(reqs)] == [reqs[1].key, reqs[2].key]
     again.keep([pb.BatchLine(reqs[0].key, True, text="uno")])  # landed twice: kept once
     assert len((tmp_path / "answers.jsonl").read_text().splitlines()) == 1
+
+
+def test_a_batch_answer_ends_as_a_plain_answer_does_and_its_tokens_ride_the_run_not_the_cap_again(monkeypatch):
+    """WHY (review 2, MED): a batch's answer goes through the same tail as a plain call's: its outer fences stripped,
+    the provider's finish reason on it (the read checker tells a page cut short), its tokens on the run's usage; the cap
+    already booked the batch at its batch price, so the answer is not booked again at the listed one."""
+    import asyncio
+
+    from fichero_server import llm
+    from fichero_server.llm import spend
+    from fichero_server.llm.read_guard import ModelText
+
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
+    booked, used = [], []
+    monkeypatch.setattr(spend, "note_actual", lambda usd: booked.append(usd))
+    real = llm._record_usage
+    monkeypatch.setattr(llm, "_record_usage", lambda *a, **k: (used.append(k), real(*a, **k)))
+    config = llm.LLMConfig(provider="anthropic", model="claude-opus-5-5")
+    key = llm._vision_cache_key(config, "Read the page.", [JPEG])
+    line = pb.BatchLine(key, True, text="```\nEn la villa\n```", usage={"input_tokens": 900, "output_tokens": 40},
+                        finish="max_tokens")
+    with pb.answering({key: line}):
+        said = asyncio.run(llm.vision([JPEG], "Read the page.", config))
+    assert said == "En la villa" and isinstance(said, ModelText) and said.finish_reason == "max_tokens"
+    assert [(u["input_tokens"], u["output_tokens"], u.get("method")) for u in used] == [(900, 40, "batch")]
+    assert booked == [], "booked once, by the batch, at its batch price"
+
+
+def test_the_answers_file_survives_a_torn_last_line_and_never_keeps_an_empty_answer(tmp_path):
+    """WHY (review 2, MED + LOW): a crash mid-write leaves a torn last line, which a resume skips (the page is asked
+    again) instead of failing; an empty answer is a failure shape, never kept and replayed; keep() replaces the file
+    whole under a lock, so two rows keeping at once lose nothing."""
+    import threading
+
+    path = tmp_path / "answers.jsonl"
+    reqs = _requests(40)
+    pb.AnswerBook(path).keep([pb.BatchLine(reqs[0].key, True, text="uno")])
+    with path.open("a") as handle:
+        handle.write('{"key": "' + reqs[1].key + '", "te')  # the crash
+    book = pb.AnswerBook(path)
+    assert set(book.answers()) == {reqs[0].key}
+    book.keep([pb.BatchLine(reqs[2].key, True, text="  "), pb.BatchLine(reqs[3].key, True, text="")])
+    assert set(book.answers()) == {reqs[0].key}
+    workers = [threading.Thread(target=pb.AnswerBook(path).keep, args=([pb.BatchLine(r.key, True, text="x")],))
+               for r in reqs[4:]]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    assert set(book.answers()) == {reqs[0].key} | {r.key for r in reqs[4:]}
+
+
+def test_a_lone_request_bigger_than_the_cap_is_refused_in_words():
+    """WHY (review 2, LOW): the provider would refuse the whole batch; say which page, before anything is sent."""
+    (big,) = _requests(1)
+    with pytest.raises(ValueError, match="larger than"):
+        pb.cut_to_cap([big], cap_bytes=pb.request_bytes(big) - 1)
 
 
 # --- what a batch costs, and the cap --------------------------------------------------------------------------------

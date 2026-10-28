@@ -176,6 +176,7 @@ def test_a_project_that_keeps_its_pages_here_never_sends_a_batch(db, monkeypatch
 def test_the_client_is_made_with_the_providers_own_key_and_refused_by_name_without_one(monkeypatch):
     from fichero_server import llm
 
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, *, kind: None)  # a project that said yes
     monkeypatch.setattr(llm, "get_api_key", lambda provider: None)
     with pytest.raises(ValueError, match="no Anthropic key"):
         cloud_batch.client_for("anthropic")
@@ -183,6 +184,13 @@ def test_the_client_is_made_with_the_providers_own_key_and_refused_by_name_witho
     assert isinstance(cloud_batch.client_for("anthropic"), pb.AnthropicBatches)
     assert isinstance(cloud_batch.client_for("openai"), pb.OpenAIBatches)
     assert isinstance(cloud_batch.client_for("google"), pb.GeminiBatches)
+
+    def refused(config, *, kind):
+        raise PermissionError(f"{config.provider} {kind}: this project keeps its pages here")
+
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", refused)  # the one egress gate, met before the client
+    with pytest.raises(PermissionError, match="anthropic batch: this project keeps its pages here"):
+        cloud_batch.client_for("anthropic")
 
 
 def test_each_batch_records_its_wait_and_tokens_and_a_batch_past_twelve_hours_logs_one_line(db, row, caplog):
@@ -256,7 +264,7 @@ def test_the_step_sends_one_batch_waits_on_it_and_lands_its_pages_through_the_re
         return _ended(db, child, {REQS[0].key: "En la villa"})
 
     def replay():
-        answered_in_replay.append(pb.through_the_seam(REQS[0].key, "Read.", []))
+        answered_in_replay.append(pb.through_the_seam(REQS[0].key, "Read.", []).text)
         return "thread-replay", "done", None
 
     out = cloud_batch.run_step(db, _card(), ["p1", "p2"], parent, "owner", wait=wait, replay=replay)
@@ -305,3 +313,4 @@ def test_the_plan_sends_a_cloud_read_of_a_hundred_pages_or_more_as_a_batch_and_a
                   place_runs(runs(readers={"print": {}}), 5_000, cloud_allowed=False),
                   place_runs(runs("kraken"), 5_000, cloud_allowed=False)):
         assert small[0].get("place") != "batch"
+

@@ -37,13 +37,14 @@ class BatchRequest:
 
 @dataclass(frozen=True)
 class BatchLine:
-    """One request's answer: its text and billed usage, or why it failed in the provider's words."""
+    """One request's answer: its text, billed usage and the provider's finish reason, or why it failed in its words."""
 
     key: str
     ok: bool
     text: str | None = None
     why: str | None = None
     usage: dict[str, int] = field(default_factory=dict)
+    finish: str | None = None
 
 
 def goes_as_batch(pages: int, *, waiting: bool, threshold: int = BATCH_THRESHOLD) -> bool:
@@ -62,6 +63,9 @@ def cut_to_cap(requests: list[BatchRequest], *, cap_bytes: int, max_requests: in
     size = 0
     for request in requests:
         n = request_bytes(request)
+        if n > cap_bytes:  # the provider would refuse the whole batch for it
+            raise ValueError(f"one page's request is {n:,} bytes, larger than the provider's {cap_bytes:,}-byte batch cap: "
+                             "send it as a plain call or make its picture smaller")
         if not out or size + n > cap_bytes or (max_requests and len(out[-1]) >= max_requests):
             out.append([])
             size = 0
@@ -124,7 +128,8 @@ class AnthropicBatches:
                 text = "".join(b.text for b in result.message.content if b.type == "text")
                 usage = result.message.usage
                 out.append(BatchLine(row.custom_id, True, text=text,
-                                     usage={"input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens}))
+                                     usage={"input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens},
+                                     finish=getattr(result.message, "stop_reason", None)))
             elif result.type == "errored":
                 error = result.error.error
                 out.append(BatchLine(row.custom_id, False, why=f"Anthropic: {error.type}: {error.message}"))
@@ -204,7 +209,8 @@ class OpenAIBatches:
                     usage = body.get("usage") or {}
                     out.append(BatchLine(row["custom_id"], True, text=body["choices"][0]["message"]["content"] or "",
                                          usage={"input_tokens": usage.get("prompt_tokens", 0),
-                                                "output_tokens": usage.get("completion_tokens", 0)}))
+                                                "output_tokens": usage.get("completion_tokens", 0)},
+                                         finish=body["choices"][0].get("finish_reason")))
                 elif error:
                     out.append(BatchLine(row["custom_id"], False, why=f"OpenAI: {error.get('code')}: {error.get('message')}"))
                 else:
@@ -277,7 +283,8 @@ class GeminiBatches:
                 usage = response.get("usageMetadata") or {}
                 out.append(BatchLine(row["key"], True, text="".join(p.get("text", "") for p in parts),
                                      usage={"input_tokens": usage.get("promptTokenCount", 0),
-                                            "output_tokens": usage.get("candidatesTokenCount", 0)}))
+                                            "output_tokens": usage.get("candidatesTokenCount", 0)},
+                                     finish=(response.get("candidates") or [{}])[0].get("finishReason")))
             else:
                 error = row.get("error") or row.get("status") or {}
                 out.append(BatchLine(row["key"], False, why=f"Gemini: {error.get('code')}: {error.get('message')}"))
@@ -307,7 +314,7 @@ def capturing(answer: Callable[[str, list[str]], str]) -> Iterator[list[BatchReq
 
 
 @contextlib.contextmanager
-def answering(book: dict[str, str]) -> Iterator[None]:
+def answering(book: dict[str, BatchLine]) -> Iterator[None]:
     """Vision calls inside are answered from the batch's lines by key; a key with no line goes as a plain call."""
     token = _SEAM.set(("answers", book))
     try:
@@ -316,8 +323,9 @@ def answering(book: dict[str, str]) -> Iterator[None]:
         _SEAM.reset(token)
 
 
-def through_the_seam(key: str, prompt: str, images: list[str]) -> str | None:
-    """`llm.vision`'s hook, at its cache lookup: the seam's answer for this call, or None to go on as a plain call."""
+def through_the_seam(key: str, prompt: str, images: list[str]) -> str | BatchLine | None:
+    """`llm.vision`'s hook, at its cache lookup: a capture's stand-in text, the batch's line for this call, or None to go
+    on as a plain call."""
     seam = _SEAM.get()
     if seam is None:
         return None
@@ -337,26 +345,42 @@ class AnswerBook:
 
         self.path = Path(path)
 
-    def answers(self) -> dict[str, str]:
+    def answers(self) -> dict[str, BatchLine]:
         if not self.path.exists():
             return {}
         out = {}
         for raw in self.path.read_text(encoding="utf-8").splitlines():
-            if raw.strip():
+            try:
                 row = json.loads(raw)
-                out[row["key"]] = row["text"]
+            except json.JSONDecodeError:  # a torn line (a crash mid-write, before keep() was atomic): asked again
+                continue
+            out[row["key"]] = BatchLine(row["key"], True, text=row["text"], usage=row.get("usage") or {},
+                                        finish=row.get("finish"))
         return out
 
     def keep(self, lines: list[BatchLine]) -> None:
-        known = self.answers()
-        new = [line for line in lines if line.ok and line.key not in known]
-        if not new:
-            return
+        """Add the answered lines, the file replaced whole under a lock (no torn line, no lost write). An empty answer
+        is a failure shape (a refusal, a burnt budget) and is never kept, so it is asked again."""
+        import fcntl
+        import os
+        import tempfile
+
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as handle:
-            for line in new:
-                handle.write(json.dumps({"key": line.key, "text": line.text, "usage": line.usage}) + "\n")
-            handle.flush()
+        with open(self.path.with_suffix(".lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            known = self.answers()
+            new = [line for line in lines if line.ok and (line.text or "").strip() and line.key not in known]
+            if not new:
+                return
+            rows = [*known.values(), *new]
+            fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                for line in rows:
+                    handle.write(json.dumps({"key": line.key, "text": line.text, "usage": line.usage,
+                                             "finish": line.finish}) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp, self.path)
 
     def still_to_send(self, requests: list[BatchRequest]) -> list[BatchRequest]:
         known = self.answers()

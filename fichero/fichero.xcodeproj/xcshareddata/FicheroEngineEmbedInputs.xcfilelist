@@ -397,6 +397,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/multilingual.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/orchestration_policy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/prompts.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_batch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/re_ask_lines.py
@@ -542,6 +543,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/where_it_runs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/askpass.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/capture.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/cloud_batch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/cluster_check.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py

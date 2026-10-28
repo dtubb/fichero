@@ -59,6 +59,11 @@ def _read(tmp_path, image, doc, *, save_to_db=True):
 def test_the_capture_run_writes_nothing_and_the_replay_lands_the_answer(tmp_path, monkeypatch):
     monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
     monkeypatch.setattr(llm, "get_langchain_model", lambda config: (_ for _ in ()).throw(AssertionError("a plain call")))
+    from fichero_server.observability import episodes
+
+    recorded = []
+    monkeypatch.setattr(episodes, "_append", lambda library, row: recorded.append(row))
+    episodes.set_library(str(tmp_path))  # as a run's builder does, so an episode would be written
     db, doc, image = _library(tmp_path)
     before = _state(db, doc.id)
 
@@ -67,8 +72,11 @@ def test_the_capture_run_writes_nothing_and_the_replay_lands_the_answer(tmp_path
 
     assert len(captured) == 1, "the page's one call is captured"
     assert _state(db, doc.id) == before, "the capture run left the library as it found it"
+    assert recorded == [], "no episode for a stand-in answer"
 
-    with provider_batch.answering({captured[0].key: "En la villa de Madrid"}):
+    key = captured[0].key
+    with provider_batch.answering({key: provider_batch.BatchLine(key, True, text="En la villa de Madrid")}):
         result = _read(tmp_path, image, doc)
     assert result["texts"] == ["En la villa de Madrid"]
+    assert recorded, "the replay's real answer is an episode, as any reading's is"
     assert _state(db, doc.id) != before, "the replay landed the answer through the normal path"
