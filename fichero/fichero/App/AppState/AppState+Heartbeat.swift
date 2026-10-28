@@ -89,7 +89,7 @@ extension AppState {
         if heartbeatFailureCount == 1 { hungWindow = (0, usage) }
         let decision = EngineRestartPolicy.decide(
             failures: heartbeatFailureCount - hungWindow.startFailures, workRunning: workRunning, isLocal: isLocal,
-            windowStart: hungWindow.sample, now: usage, processGone: pid != nil && usage == nil)
+            windowStart: hungWindow.sample, now: usage, processGone: pid.map(EngineWorkSample.isGone(pid:)) ?? false)
         if decision == .stillWorking {
             logger.info(
                 "Backend heartbeat: \(self.heartbeatFailureCount) missed pings, but the engine used CPU or disk — busy, not hung"
