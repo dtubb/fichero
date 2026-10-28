@@ -17,9 +17,71 @@ from typing import Any, Callable
 
 from fichero_server.execution import jobs
 from fichero_server.llm import provider_batch as pb
+from fichero_server.remote_read.job import PagesMayNotLeave, _project_must_agree
 
 KIND = "cloud-batch"
 POLL_FIRST, POLL_MOST = 60.0, 300.0
+#: The providers whose own batch API Fichero speaks, by the provider id a step's card names; the rest go as plain calls.
+CLIENTS = {"anthropic": ("Anthropic", pb.AnthropicBatches), "openai": ("OpenAI", pb.OpenAIBatches),
+           "google": ("Gemini", pb.GeminiBatches)}
+#: Room for one step's answer: the plain call's own ceiling for a page of lines.
+MAX_TOKENS = 4096
+
+
+def client_for(provider: str) -> Any:
+    """The batch client over the provider's own SDK, made with its key from the Keychain (never stored, never logged)."""
+    from fichero_server import llm
+
+    if provider not in CLIENTS:
+        raise ValueError(f"{provider} has no batch API Fichero speaks: its pages go as plain calls")
+    name, shape = CLIENTS[provider]
+    key = llm.get_api_key(provider)
+    if not key:
+        raise ValueError(f"no {name} key in Settings › AI, so no batch can be sent to {name}")
+    if provider == "anthropic":
+        import anthropic
+
+        return shape(anthropic.Anthropic(api_key=key))
+    if provider == "openai":
+        import openai
+
+        return shape(openai.OpenAI(api_key=key))
+    from google import genai
+
+    return shape(genai.Client(api_key=key))
+
+
+def start(db: Any, *, card: dict[str, Any], documents: list[str], parent_job_id: str, started_by: str,
+          pages_may_leave: bool) -> str:
+    """Queue one batch row under the recipe's step. A batch is a package that is SENT: the request's yes, the app's
+    cloud place and the project's own yes, each refusing in words with nothing queued
+    (`compute.recipe.cloud-batch-consent-and-cost`, `ai.where.one-egress-gate`)."""
+    import uuid
+
+    from fichero_server.recipes import places
+
+    provider = card["provider_override"]
+    if provider not in CLIENTS:
+        raise ValueError(f"{provider} has no batch API Fichero speaks: its pages go as plain calls")
+    name = CLIENTS[provider][0]
+    if not pages_may_leave:
+        raise PagesMayNotLeave(f"A batch sends these pages to {name}. Say yes for this project first (pages_may_leave).")
+    if (no := places.refusal("cloud")):
+        raise PagesMayNotLeave(no)
+    _project_must_agree(db, f"Sending this step to {name} as a batch")
+    detail = {"provider": provider, "model": card["model_override"], "max_tokens": MAX_TOKENS, "card": card,
+              "documents": list(documents)}
+    job_id = jobs.enqueue_remote(db, KIND, f"batch:{uuid.uuid4()}", target=provider, detail=json.dumps(detail),
+                                 reason=f"Waiting to send to {name} as a batch", started_by=started_by)
+    jobs.set_parent(db, job_id, parent_job_id)
+    return job_id
+
+
+def out_under(db: Any, parent_job_id: str) -> str | None:
+    """The batch still out under a recipe's step, by its id, so a resumed recipe waits on it and never sends again."""
+    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', 'running', "
+                              "'paused') ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_job_id, KIND])
+    return row[0] if row else None
 
 
 def _work_dir(job_id: str) -> Path:

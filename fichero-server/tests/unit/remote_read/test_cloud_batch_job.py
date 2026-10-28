@@ -118,3 +118,68 @@ def test_stop_cancels_the_batch_polls_it_to_its_end_and_keeps_what_was_answered(
         _run(db, row, provider)
     assert provider.cancelled == ["b1"]
     assert len(pb.AnswerBook(cloud_batch._work_dir(row) / "answers.jsonl").answers()) == 3
+
+
+# --- starting one: the gates, the client ------------------------------------------------------------------------
+
+def _card(provider="anthropic"):
+    return {"steps": ["read"], "card": "workflow", "job": "read-a-line", "runs_on": f"cloud:{provider}",
+            "provider_override": provider, "model_override": "claude-opus-5-5"}
+
+
+def _parent(db):
+    from fichero_server.recipes import runner
+
+    return runner.enqueue(db, {"runs": [_card()], "skipped": []}, documents=None, started_by="owner")
+
+
+def test_a_batch_needs_the_persons_yes_the_projects_yes_and_the_apps_cloud_place(db, monkeypatch, project_says_yes):
+    """WHY (`compute.recipe.cloud-batch-consent-and-cost`, `ai.where.one-egress-gate`): a provider batch is a package
+    that is SENT: the request's yes, the project's own yes and the app's cloud place, each refusing in words with
+    nothing queued."""
+    from fichero_server.recipes import places
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    with pytest.raises(cloud_batch.PagesMayNotLeave, match="yes"):
+        cloud_batch.start(db, card=_card(), documents=["p1"], parent_job_id=parent, started_by="owner",
+                          pages_may_leave=False)
+    monkeypatch.setattr(places, "allows", lambda place, _p=None: place != "cloud")
+    with pytest.raises(cloud_batch.PagesMayNotLeave, match="places"):
+        cloud_batch.start(db, card=_card(), documents=["p1"], parent_job_id=parent, started_by="owner",
+                          pages_may_leave=True)
+    monkeypatch.setattr(places, "allows", lambda place, _p=None: True)
+    with pytest.raises(ValueError, match="no batch API"):
+        cloud_batch.start(db, card=_card("openrouter"), documents=["p1"], parent_job_id=parent, started_by="owner",
+                          pages_may_leave=True)
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 0
+
+    child = cloud_batch.start(db, card=_card(), documents=["p1", "p2"], parent_job_id=parent, started_by="owner",
+                              pages_may_leave=True)
+    row = jobs.read_job(db, child)
+    detail = json.loads(row["detail"])
+    assert (row["kind"], jobs.parent_of(db, child)) == (cloud_batch.KIND, parent)
+    assert (detail["provider"], detail["model"], detail["documents"]) == ("anthropic", "claude-opus-5-5", ["p1", "p2"])
+    assert cloud_batch.out_under(db, parent) == child
+
+
+def test_a_project_that_keeps_its_pages_here_never_sends_a_batch(db, monkeypatch):
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    from fichero_server.llm import egress
+
+    monkeypatch.setattr(egress, "project_allows_leaving", lambda library: False)
+    with pytest.raises(cloud_batch.PagesMayNotLeave, match="keeps its pages"):
+        cloud_batch.start(db, card=_card(), documents=["p1"], parent_job_id=_parent(db), started_by="owner",
+                          pages_may_leave=True)
+
+
+def test_the_client_is_made_with_the_providers_own_key_and_refused_by_name_without_one(monkeypatch):
+    from fichero_server import llm
+
+    monkeypatch.setattr(llm, "get_api_key", lambda provider: None)
+    with pytest.raises(ValueError, match="no Anthropic key"):
+        cloud_batch.client_for("anthropic")
+    monkeypatch.setattr(llm, "get_api_key", lambda provider: "test-key-not-real")
+    assert isinstance(cloud_batch.client_for("anthropic"), pb.AnthropicBatches)
+    assert isinstance(cloud_batch.client_for("openai"), pb.OpenAIBatches)
+    assert isinstance(cloud_batch.client_for("google"), pb.GeminiBatches)

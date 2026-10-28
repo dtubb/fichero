@@ -208,7 +208,7 @@ twelve hours or costs more than its estimate.
 - `compute.recipe.cloud-batch-stop-cancels` — **[PARTIAL]** (built: `request_cancel` marks the row; the run cancels at the provider, polls each batch to its end, keeps the answered lines, then reads Stopped; not yet: wired into the recipe runner; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`; #5940, #5946) Stop cancels the provider batch, polls
   it to a terminal state, lands and books every succeeded line, and only then reads Stopped; Pause submits no new
   batch. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-consent-and-cost` — **[GAP]** (#5940) a provider batch needs `pages_may_leave`
+- `compute.recipe.cloud-batch-consent-and-cost` — **[PARTIAL]** (built: `cloud_batch.start` refuses without the request's yes, the app's cloud place or the project's own yes, nothing queued; the key comes from the Keychain per send and is never stored; not yet: the sheet's half price, the cap's reserve and booking; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`; #5940) a provider batch needs `pages_may_leave`
   and the project's yes through the one egress gate; the one sheet shows its half price beside the plain-call and
   local estimates, the cap reserves its worst case at submission and books real usage as lines land. *Test (to
   write):* the same file.
