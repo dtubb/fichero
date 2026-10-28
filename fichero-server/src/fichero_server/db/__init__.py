@@ -3374,6 +3374,18 @@ class Database(DatabaseEmbeddingMixin):
                     if attempt == 1:
                         raise
 
+    def count_committed(self, model: Type[T], **filters) -> int:
+        """``count``, through the dedicated READ connection (#4523): never queues on the transaction gate, so the
+        health answer counts beside a long write (#6178). Last-COMMITTED rows only; folded models are not counted here."""
+        sql_table = self._sql_table_name(model)
+        for k in filters:
+            if not _VALID_IDENTIFIER.match(k):
+                raise ValueError(f"Invalid column name: {k}")
+        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items())
+        sql = f"SELECT COUNT(*) FROM {sql_table}" + (f" WHERE {where}" if where else "")
+        rows, _ = self._read_fetch_with_columns(sql, {k: v for k, v in filters.items() if v is not None})
+        return int(rows[0][0])
+
     def query_committed(self, model: Type[T], **filters) -> list[T]:
         """``query``, but through the dedicated READ connection (#4523).
 
