@@ -174,8 +174,9 @@ twelve hours or costs more than its estimate.
   remote place run as one remote stage: the images are sent once and each step's result files return together.
   Built: the package's `stage` (the read alone, or the lines then the read) and `run_shard` running it, the read
   reading the lines found (never finding them again), `<id>.lines.xml` beside `<id>.xml`, each step's end and seconds
-  in `_outcome.json`, a rerun reading back the lines it found. Not yet: the recipe runner sending a batch's
-  same-place steps as one stage, and landing a page's lines when its read failed.
+  in `_outcome.json`, a rerun reading back the lines it found; `job.start(stage=...)` sending it once for both
+  steps, and landing a page's lines when its read failed (`lines_only`). Not yet: the recipe runner sending a
+  batch's same-place steps as one stage.
   *Test:* `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py`.
 - `compute.recipe.step-major-batches-pipelined` — **[GAP]** (#5642) inside a batch the steps run in the
   recipe's order, a model loading once per task; batch b's remote stage overlaps batch b-1's local steps; at most two

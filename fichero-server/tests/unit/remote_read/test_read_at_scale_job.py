@@ -195,7 +195,7 @@ def test_only_the_failed_shards_are_resent_and_landing_twice_changes_nothing(db,
     # The same shard's results landed again: counted, not landed.
     folder = read_job._work_dir(job_id) / "out" / "shard-00000"
     again = read_job.land_shard(db, job_id, folder, pass_name="again", actor="owner")
-    assert again == {"landed": 0, "already": 2, "unread": 0, "set_aside": 0}
+    assert again == {"landed": 0, "already": 2, "unread": 0, "set_aside": 0, "lines_only": 0}
     assert _passes(db, archive) == after
 
 

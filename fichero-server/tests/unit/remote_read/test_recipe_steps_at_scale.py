@@ -95,3 +95,66 @@ def test_a_read_alone_still_finds_its_own_lines(tmp_path):
     outcome = runner.run_shard(pkg, 0, tmp_path / "out", reader=lambda image: [{**_found(image)[0], "text": "y"}])
     assert outcome["sources"]["d0"]["ok"] and set(outcome["sources"]["d0"]["steps"]) == {"read"}
     assert not (tmp_path / "out" / "shard-00000" / "d0.lines.xml").exists()
+
+
+# --- the stage through the job: sent once, each step's files landed ----------------------------------------------
+
+from fichero_server.models import DocType, Document, FileType, Segment, SegmentPass  # noqa: E402
+from fichero_server.remote_read import job as read_job  # noqa: E402
+from fichero_server.remote_read.job import ReadAtScaleRequest  # noqa: E402
+
+from .test_read_at_scale_job import FakeHub  # noqa: E402
+
+
+class StageHub(FakeHub):
+    """Runs the real runner's stage on each shard; the read fails on the page named `unread`."""
+
+    def __init__(self, unread):
+        super().__init__()
+        self.unread, self.stages = unread, []
+
+    def fetch_part(self, job_key, part, local_dir):
+        self.stages.append(json.loads((self.package / "job.json").read_text())["stage"])
+
+        def read(image, lines):
+            if image.size == self.unread:
+                raise RuntimeError("CUDA out of memory")
+            return [{**line, "text": "En la ciudad"} for line in lines]
+
+        runner.run_shard(self.package, int(part.split("-")[1]), local_dir.parent, reader=read, lines_finder=_found)
+        return local_dir
+
+
+def test_a_stage_of_lines_and_read_lands_the_read_and_a_failed_reads_lines(db, tmp_path, monkeypatch, project_says_yes):
+    """WHY (`compute.recipe.fuse-same-place-steps`, `compute.recipe.done-is-landed`): the job sends the pages once for
+    both steps; a page read lands its read (lines and text, one pass); a page whose read failed lands the lines it got,
+    so its lines step is done and only the read is left to do."""
+    monkeypatch.setattr(read_job, "_work_dir", lambda job_id: tmp_path / "work" / job_id)
+    monkeypatch.setattr(read_job.jobs._scheduler, "wake", lambda key: None)
+    monkeypatch.setattr(read_job, "resolve_step", lambda request, bucket: {
+        "reader": "vlm", "card": request.card, "model": "/work/models/student", "prompt": "Read the line.",
+        "lines_per_call": 1, "language": "es"})
+    folder = Document(name="EAP000", doc_type=DocType.folder)
+    db.save(folder)
+    (tmp_path / "photos").mkdir()
+    pages = []
+    for i, size in enumerate([(300, 400), (320, 400)]):
+        path = tmp_path / "photos" / f"p{i}.jpg"
+        Image.new("RGB", size, (200, 200, 190)).save(path)
+        pages.append(Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path),
+                              parent_id=folder.id, sequence=i))
+        db.save(pages[-1])
+    started = read_job.start(db, ReadAtScaleRequest(scope_ids=[folder.id], reader="vlm", card="c", pages_may_leave=True),
+                             started_by="owner", target_factory=FakeHub, stage=("lines", "read"))
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [started["job_id"]])[0]
+    hub = StageHub(unread=(320, 400))
+    read_job.run(db, subject, target=hub, sleep=lambda s: None)
+
+    assert hub.stages == [["lines", "read"]]
+    (read_pass,) = db.query(SegmentPass, document_id=pages[0].id)
+    (lines_pass,) = db.query(SegmentPass, document_id=pages[1].id)
+    read_lines = [s for s in db.query(Segment, pass_id=read_pass.id) if s.kind == "line"]
+    unread_lines = [s for s in db.query(Segment, pass_id=lines_pass.id) if s.kind == "line"]
+    assert len(read_lines) == 1 and len(unread_lines) == 1
+    assert read_job.status(db, started["job_id"])["landing"] == {"landed": 1, "already": 0, "unread": 1, "set_aside": 0,
+                                                                  "lines_only": 1}

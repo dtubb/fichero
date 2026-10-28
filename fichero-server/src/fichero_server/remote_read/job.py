@@ -156,7 +156,11 @@ def cluster_target(cluster_id: str) -> Callable[[], Any]:
 
 
 def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
-          target_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
+          target_factory: Callable[[], Any] | None = None, stage: tuple[str, ...] = ("read",)) -> dict[str, Any]:
+    """Queue the run. `stage`: the steps each page goes through where it runs (`package.STAGES`): a recipe sends its
+    lines and its read placed at one place as one stage (`compute.recipe.fuse-same-place-steps`)."""
+    from fichero_server.remote_read.package import STAGES, NotSendable
+
     from fichero_server.training.hf_jobs import HfJobsTarget
 
     if not request.pages_may_leave:
@@ -170,6 +174,8 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     _project_must_agree(db, "Reading on Hugging Face" if request.target == TARGET else f"Reading on the cluster {request.target}")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
+    if tuple(stage) not in STAGES:
+        raise NotSendable(f"no stage {list(stage)!r}")
     if request.parent_job_id:
         parent = jobs.read_job(db, request.parent_job_id)
         if parent is None or parent["kind"] not in STEP_KINDS:
@@ -177,7 +183,7 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     target = (target_factory or (HfJobsTarget if request.target == TARGET else cluster_target(request.target)))()
     # no token (or key): refused here, by name
     step = resolve_step(request, bucket=getattr(target, "bucket", None))
-    detail = {"request": request.model_dump(), "step": step, "flavor": request.flavor,
+    detail = {"request": request.model_dump(), "step": step, "stage": list(stage), "flavor": request.flavor,
               "price_per_hour_usd": target.price_per_hour(request.flavor),
               "yes": {"by": started_by, "at": _now(), "to": request.target}, "phase": "waiting"}
     job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=request.target, detail=json.dumps(detail),
@@ -202,7 +208,10 @@ def _words(counts: dict[str, int], total: int) -> str:
 
 def land_shard(db: Any, job_id: str, folder: Path, *, pass_name: str, actor: str) -> dict[str, int]:
     """Land one shard's PAGE files as new passes through `format.import`. A page whose file already
-    landed is counted, not landed again; a page that no longer exists is set aside, not an error."""
+    landed is counted, not landed again; a page that no longer exists is set aside, not an error. A page whose read
+    failed after its lines step found the lines lands those lines (`lines_only`): that step is done
+    (`compute.recipe.done-is-landed`). ponytail: a later stage finds them again where it runs, as the read alone does;
+    carrying the landed lines in the package is the upgrade when that time shows in the record."""
     from fastapi import HTTPException
 
     from fichero_server.actions.registry import ActionContext, registry
@@ -211,12 +220,14 @@ def land_shard(db: Any, job_id: str, folder: Path, *, pass_name: str, actor: str
 
     outcome = json.loads((folder / "_outcome.json").read_text(encoding="utf-8"))
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), run_id=job_id)
-    counts = {"landed": 0, "already": 0, "unread": 0, "set_aside": 0}
+    counts = {"landed": 0, "already": 0, "unread": 0, "set_aside": 0, "lines_only": 0}
     for source_id, result in sorted(outcome.get("sources", {}).items()):
+        lines_only = not result.get("ok") and ((result.get("steps") or {}).get("lines") or {}).get("ok")
         if not result.get("ok"):
             counts["unread"] += 1
-            continue
-        xml = folder / f"{source_id}.xml"
+            if not lines_only:
+                continue
+        xml = folder / f"{source_id}.lines.xml" if lines_only else folder / f"{source_id}.xml"
         if existing_import(db, source_id, file_checksum(xml.read_bytes())) is not None:
             counts["already"] += 1
             continue
@@ -227,7 +238,7 @@ def land_shard(db: Any, job_id: str, folder: Path, *, pass_name: str, actor: str
                 raise
             counts["set_aside"] += 1  # its page was deleted while the job ran (`compute.land.orphans-set-aside`)
             continue
-        counts["landed"] += 1
+        counts["lines_only" if lines_only else "landed"] += 1
     return counts
 
 
@@ -258,6 +269,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         made = (build or build_read_package)(
             db, job_id=job_id, scope_ids=request.scope_ids, out_dir=work / "pkg", shard_size=request.shard_size,
             longest=request.longest, library_root=Path(db.path).parent,
+            stage=tuple(detail.get("stage") or ("read",)),  # a row queued before stages is the read alone
             step=ReadStep(**{k: v for k, v in step.items() if k in ReadStep.__dataclass_fields__}))
         detail["package"] = {"sources": len(made.sources), "shards": len(made.shards), "skipped": made.skipped}
         detail["estimate"] = {"pages": len(made.sources), "shards": len(made.shards),
@@ -266,7 +278,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         _save(db, job_id, detail, reason=f"Sending {len(made.sources)} pages in {len(made.shards)} shards")
         target.send(work / "pkg", job_id)
         detail["shards"] = {str(i): {"state": "pending", "tries": 0} for i in range(len(made.shards))}
-        detail["landing"] = {"landed": 0, "already": 0, "unread": 0, "set_aside": 0}
+        detail["landing"] = {"landed": 0, "already": 0, "unread": 0, "set_aside": 0, "lines_only": 0}
         _save(db, job_id, detail)
 
     shards: dict[str, dict[str, Any]] = detail["shards"]
