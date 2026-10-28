@@ -1403,9 +1403,10 @@ and node, not by job); a retry action for failed pages.
   list 137 rows. Built (2026-10-09): `pause_job` / `cancel_job` take the row's id
   (`derivatives`, the import's row in the project the request names; `waiting:<kind>`, `paused:<kind>`), through `job.pause` / `job.cancel`
   (`test_start_stop_mode.py`). The cheap snapshot (#5843) once listed no `paused:<kind>` row for an ordinary kind; pinned by `test_the_import_row_pauses_resumes_and_stops_its_stages` (`test_start_stop_mode.py`) and `test_the_real_snapshot_sql_runs_on_duckdb_with_watched_and_person_started_jobs` (`test_poll_pile_up_5843.py`). Not yet seen in the app.
-- `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
-  boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
-  by `activity.run.stop-reaches-in-flight-calls`; this line points there.
+- `activity.pause.cancel-long-call` — **[OK]** (→ #4402) cancel is checked at every per-item
+  boundary (`execution/cancellation.py`, `builder.py`), and a Stop no longer waits for a single long call
+  (2026-10-28); Pause still lets a page in flight finish (`activity.stop.pause-in-fan-out-keeps-mid-read-pages`).
+  Owned by `activity.run.stop-reaches-in-flight-calls`; this line points there.
 - `activity.pause.controls-are-actions` — **[PARTIAL]** (#5356) pause, resume, cancel
   and retry are audited actions, reachable from the window, MCP and the command line. Built: the
   global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`); per job, `job.pause`
@@ -1596,8 +1597,8 @@ and node, not by job); a retry action for failed pages.
 - `activity.lane.hung-call-says-so` — **[OK]** (#5874; green on the Pro, single file, 2026-10-21, r1-steps-c15: `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py::test_a_model_call_that_does_not_answer_says_so_on_its_row`; Fable runner review #16) a model call that holds the lane's slot and does not
   answer says so on its row after 60 s and at each minute after ("Waiting for the model to answer (2 min so far)"), instead of the last
   reason for up to 15 minutes. Pinned by `test_a_model_call_that_does_not_answer_says_so_on_its_row` (same file). NOT done: the 15-minute
-  hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers), and Stop does not
-  reach a call already in flight (`activity.run.stop-reaches-in-flight-calls` [BROKEN]).
+  hold limit is not yet the call's own timeout plus a margin (no per-call timeout is traced for the local servers). Stop reaching a
+  call already in flight is `activity.run.stop-reaches-in-flight-calls` [OK].
 - `activity.window.every-state-has-its-words` — **[PARTIAL]** (#5957, Fable Activity UX review; Swift, needs compile; test `fichero/Tests/Unit/general/Models/ActivityStateWordsTests.swift`) every state the engine reports has its own words and mark in Activity's list, details and stage cards: `partial` reads "Partial", `interrupted` "Interrupted", `not run` "Not run", `skipped` "Skipped". The transient states `stopping`, `pausing`, `resuming` and `retrying` stay live (with the engine's reason as their words). A state the app does not know reads "unknown state <name>" with a neutral mark, never Done, and counts in its own bucket (`ActivityRunStatus.unknown`), never as running (a green check on a state nobody read is a lie). A row part-way through Stop, Pause, Resume or Retry (engine states stopping, pausing, resuming, retrying) reads "Stopping", "Pausing", "Resuming" or "Retrying" while it stays live, never plain "Running" (## 697; test `transientStatesHaveTheirOwnWords`, Swift, needs compile).
 - `activity.window.waiting-run-reads-waiting` — **[PARTIAL]** (#5958; Swift, needs compile; test `fichero/Tests/Unit/general/Models/ActivityStateWordsTests.swift`) a run the engine reports `waiting` (or `accepted`, `queued`) is drawn waiting, with the engine's reason and no ticking timer, in the table, the details and the run strip; only `running` reads Running.
 - `activity.run.pages-counted-once` — **[PARTIAL]** (#5959, #5871; tests `fichero-server/tests/unit/jobs/test_pages_are_counted_once_5959.py`, `fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py` and `fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py`, unrun on the full run) a page is one page however many steps read it: a run's tree counts each page (document) once, and a page is done when every step that read it is done AND it has been reached by every step that has not finished (a page missing from a finished step was skipped there by design; from an unfinished step it is not done yet, so a run whose first stage is done and whose other stages have not started reads 0 of N), so a 92-page run over three stages reads "36 of 92" in the table as in the live block, never "184 of 276". A step counts its own pages. A page that failed at any step counts failed.
@@ -2103,7 +2104,7 @@ code path.
 - `activity.run.stop-reaches-economy-htr` — **[OK]** (#5375) Stop (and Pause) take effect between
   files in economy HTR: each file is read off the run's event loop and the step checks for a stop or pause before the next
   (`workflows/tools/economy_htr.py`); pinned by `fichero-server/tests/unit/workflows/test_economy_htr_stops_5375.py`.
-- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#4402; #5392 and #5375 closed) Stop ends an
+- `activity.run.stop-reaches-in-flight-calls` — **[OK]** (#4402; #5392 and #5375 closed) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
   Built (2026-10-03): Stop reaches a Kraken page still waiting for the lane: its row is cancelled
@@ -2116,9 +2117,13 @@ code path.
   the call, never outliving the slot. A stopped CLOUD call still books its cost on its row: when no usage came back it is booked as
   an estimate (kind `stopped`, `estimated`, a floor of `STOPPED_CALL_INPUT_TOKENS` = 1,000 input tokens: the provider never said
   what it billed and the prompt's size is not known at the lane), so a Stop never hides spend; when usage did come back, that is the
-  figure, and the row's log says so in words ("booked as an ESTIMATE, a floor of 1000 input tokens, not what it billed"). A callee that swallows the cancel and returns normally still ends in the stop (the guard's `fired` flag is checked after the call too). LIMIT: the cancel closes only OUR side of the request; a local model server may keep generating for a while after a Stop, so the next page on that server can queue behind the abandoned one (nothing here stops the server) (`fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py`). Still broken: a Kraken page already running is
-  waited for (C code on a thread: it cannot be interrupted, but its result is dropped and the run moves on), and economy HTR's pages
-  are not reached.
+  figure, and the row's log says so in words ("booked as an ESTIMATE, a floor of 1000 input tokens, not what it billed"). A callee that swallows the cancel and returns normally still ends in the stop (the guard's `fired` flag is checked after the call too). LIMIT: the cancel closes only OUR side of the request; a local model server may keep generating for a while after a Stop, so the next page on that server can queue behind the abandoned one (nothing here stops the server) (`fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py`). Built (2026-10-28): a Kraken page already running
+  is not waited for (C code on a thread: it cannot be interrupted): Stop raises `WorkflowCancelled` in its waiter at once, its
+  result is dropped (the page wrote nothing; its caller saves what it returns), and the page ends on the lane inside Kraken's own
+  page gate, so memory is never doubled (`jobs._stop_the_page`, both lane waiters); economy HTR's Kraken page carries its run, so
+  Stop reaches it, and its per-file catch passes a Stop or Pause on rather than calling it the file's error
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`: `test_stop_does_not_wait_for_a_page_already_running`,
+  `..._from_a_thread_either`, `test_stop_reaches_economy_htrs_kraken_page`). LIMIT: the stopped page's CPU goes on until it ends.
 - `activity.run.record-keeps-all-history` — **[OK]** (#5376) a long run's record keeps every
   step and page from the start: the event hub keeps every event but the log lines for the saved timeline
   (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
@@ -2600,6 +2605,11 @@ nothing here depends on them except where said.
 #### Step 3.2 — Started by; one surface; what it made (#5354, #5245, #1830)
 - Behaviours: `activity.window.started-by`, `activity.window.one-surface`, `activity.window.what-it-made`, `activity.delete-by-workflow-run`
 - Tests: fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Size: M
+
+#### Step 3.3 — Each folder says which steps are done on it (#5642)
+- Behaviours: `activity.run.folder-steps-done`
+- Tests: fichero-server/tests/unit/recipes/test_folder_shows_steps_done.py, fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift
 - Size: M
 
 ### Stage 4 — The Mac's own work, and the lanes' efficiency
