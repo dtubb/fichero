@@ -195,4 +195,6 @@ def test_a_package_with_no_iiif_pages_is_sent_as_it_is(tmp_path, monkeypatch):
     from fichero_server.remote_read import runner
 
     monkeypatch.setattr(runner, "prefetch", lambda *a, **k: pytest.fail("nothing to fetch"))
-    _sent_package(tmp_path, FakeShell())
+    shell = FakeShell()
+    _sent_package(tmp_path, shell)
+    assert shell.files, "the package was not put on the cluster"
