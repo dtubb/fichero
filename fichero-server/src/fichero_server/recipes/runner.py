@@ -1553,6 +1553,11 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
     if card.get("place") in ("cluster", "huggingface"):
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
+    elif card.get("place") == "batch":  # one provider batch, then the step's own run from its answers (#5940)
+        from fichero_server.remote_read import cloud_batch
+
+        child, state, why = cloud_batch.run_step(db, card, documents, job_id, started_by, wait=_wait,
+                                                 replay=lambda: _run_workflow(db, card, documents, job_id, adopt))
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
     elif card["card"] == "workflow":

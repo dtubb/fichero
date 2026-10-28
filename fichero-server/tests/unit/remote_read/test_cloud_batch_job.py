@@ -314,3 +314,26 @@ def test_the_plan_sends_a_cloud_read_of_a_hundred_pages_or_more_as_a_batch_and_a
                   place_runs(runs("kraken"), 5_000, cloud_allowed=False)):
         assert small[0].get("place") != "batch"
 
+
+
+def test_the_recipe_runner_sends_a_batch_step_to_the_batch_and_every_other_place_as_before(monkeypatch):
+    """WHY (`compute.recipe.cloud-batch-above-threshold`): the plan's `batch` place reaches the batch step, whose
+    replay is the step's own run; a step on this Mac (or with no place) runs its workflow as it always has."""
+    from fichero_server.recipes import runner
+
+    seen = []
+    monkeypatch.setattr(runner, "_run_workflow", lambda db, card, documents, parent, adopt=None:
+                        (seen.append(("workflow", card.get("place"))), ("thread-1", "done", None))[1])
+
+    def run_step(db, card, documents, parent, started_by, *, wait, replay):
+        seen.append(("batch", parent, started_by, wait is runner._wait))
+        return replay()
+
+    monkeypatch.setattr(cloud_batch, "run_step", run_step)
+    card = {**_card(), "card": "workflow"}
+    assert runner._run_card(None, {**card, "place": "batch"}, ["p1"], {}, "recipe-1", {}, "owner") == ("thread-1", "done", None)
+    assert seen == [("batch", "recipe-1", "owner", True), ("workflow", "batch")]
+    seen.clear()
+    for place in ("this-mac", None):
+        runner._run_card(None, {**card, "place": place}, ["p1"], {}, "recipe-1", {}, "owner")
+    assert seen == [("workflow", "this-mac"), ("workflow", None)]
