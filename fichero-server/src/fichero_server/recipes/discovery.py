@@ -485,12 +485,7 @@ def frontier_rank(card: Card) -> int:
 def frontier_catalog_models(provider: str) -> list[str]:
     """The newest vision model of each frontier family the price list has for `provider`, best expected first.
     ponytail: newest = the largest version numbers in the id; a date is no version."""
-    import re
-
     from fichero_server.llm.model_types import list_models_for_provider
-
-    def version(model_id: str) -> tuple[int, ...]:
-        return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)
 
     try:
         from fichero_server.llm.model_types import retired_because
@@ -503,8 +498,22 @@ def frontier_catalog_models(provider: str) -> list[str]:
     for i in range(len(FRONTIER_FAMILIES)):
         fits = [m for m in listed if _family(m) == i]
         if fits:
-            out.append(max(fits, key=version))
+            out.append(max(fits, key=_version))
     return out
+
+
+def _version(model_id: str) -> tuple[int, ...]:
+    """A model id's version numbers (claude-sonnet-4-6 -> (4, 6)); a date is no version."""
+    import re
+
+    return tuple(int(n) for n in re.findall(r"\d+", model_id.rsplit("/", 1)[-1]) if len(n) < 4)
+
+
+def _saved_as_new(model_id: str, saved: list[Any]) -> bool:
+    """Is a model of `model_id`'s family saved that is at least as new? An older one covers nothing: the current model
+    is offered beside it (#6266: a saved claude-3-5-sonnet hid claude-sonnet-4-6)."""
+    family = _family(model_id)
+    return any(m.enabled and _family(m.model_id) == family and _version(m.model_id) >= _version(model_id) for m in saved)
 
 
 def remote_reader_cards() -> list[Card]:
@@ -535,7 +544,7 @@ def remote_reader_cards() -> list[Card]:
         # frontier vision models from the vendored price list, one per family not already saved.
         covered = {_family(m.model_id) for m in saved if m.enabled}
         for model_id in frontier_catalog_models(ptype):
-            if _family(model_id) in covered or any(m.model_id == model_id for m in saved):
+            if (_family(model_id) in covered and _saved_as_new(model_id, saved)) or any(m.model_id == model_id for m in saved):
                 continue
             out.append(Card(id=f"{ptype}:{model_id}@{row.id}", pin={"cloud": ptype, "model": model_id},
                             jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
