@@ -85141,7 +85141,7 @@
             "type": "integer",
             "nullable": true,
             "title": "Threads Each",
-            "description": "the torch threads the pages read on now, as the Kraken seam last set them (the cores the run's priority gives, split by the pages inside the gate) (recipes-run.memory.threads-fill-the-cores, #6229); null when not running or no Kraken page is being read"
+            "description": "the torch threads the pages read on now, as the Kraken seam last set them (the cores the run's priority gives, split by the pages the plan lets in at once) (recipes-run.memory.threads-fill-the-cores, #6229); null when not running or no Kraken page is being read"
           }
         },
         "type": "object",

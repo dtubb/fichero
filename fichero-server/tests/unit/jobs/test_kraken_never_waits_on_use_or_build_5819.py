@@ -128,7 +128,6 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     import types
 
     from fichero_server.core import compute_preferences as prefs
-    from fichero_server.execution import throttle
     from fichero_server.llm import kraken_runtime as kr
 
     threads = []
@@ -138,6 +137,7 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     monkeypatch.setattr(kr, "assert_memory_available_for_kraken", lambda: None)
     monkeypatch.setattr(kr, "_release_when_idle", lambda: None)
     monkeypatch.setattr(kr, "bound_native_thread_pools", lambda n: None)
+    monkeypatch.setattr(kr, "pages_at_once", lambda person: 1)  # one page a plan: the priority alone sets the threads (#6229)
     monkeypatch.setattr(prefs, "stored_preferences", lambda: {"priority": "balanced", "device": "auto"})
     monkeypatch.delenv("FICHERO_COMPUTE_PRIORITY", raising=False)
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")  # off: a person's page is fast, background balanced
