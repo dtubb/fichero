@@ -361,3 +361,9 @@ class AnswerBook:
     def still_to_send(self, requests: list[BatchRequest]) -> list[BatchRequest]:
         known = self.answers()
         return [r for r in requests if r.key not in known]
+
+
+def is_capturing() -> bool:
+    """A capture run is under way: the step's tools save nothing (its answers are stand-ins)."""
+    seam = _SEAM.get()
+    return seam is not None and seam[0] == "capture"
