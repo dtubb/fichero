@@ -1151,8 +1151,10 @@ def note_stopper(job_id: str, actor: str | None, client: str | None = None) -> N
 
 def pass_stopper(parent_id: str, child_id: str) -> None:
     """A step stopped because its run was stopped names whoever stopped the run (#6005)."""
-    if parent_id in _STOPPED_BY:  # a step someone stopped itself keeps who did (#6240)
-        _STOPPED_BY.setdefault(child_id, _STOPPED_BY[parent_id])
+    # A step someone stopped itself keeps who did (#6240); the engine's "" (a restore's stop_everything reaching the step
+    # first) names nobody, so the run's stopper replaces it (#6242).
+    if parent_id in _STOPPED_BY and not _STOPPED_BY.get(child_id):
+        _STOPPED_BY[child_id] = _STOPPED_BY[parent_id]
 
 
 _CLIENT_WORDS = {"fichero-mcp": "an agent (MCP)", "fichero-cli": "the command line"}
