@@ -17,6 +17,8 @@ import traceback
 from contextlib import contextmanager
 from pathlib import Path
 
+import duckdb
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,7 +97,8 @@ def _check_spill(alarmed: set[str]) -> None:
         if key not in _temp_dirs:
             try:
                 _temp_dirs[key] = conn.cursor().execute("SELECT current_setting('temp_directory')").fetchall()[0][0]
-            except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+            except duckdb.Error as exc:  # an instance closing as we ask; the others are still read
+                logger.debug("spill check skipped %s: %s", key, exc)
                 continue
         temp_dir = _temp_dirs[key]
         spilled = sum(_size(f) for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
@@ -126,7 +129,8 @@ def _check_held_versions(alarmed: set[str]) -> None:
             held, limit = conn.cursor().execute(
                 "SELECT (SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() WHERE tag = 'TRANSACTION'), "
                 "current_setting('memory_limit')").fetchall()[0]
-        except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+        except duckdb.Error as exc:  # an instance closing as we ask; the others are still read
+            logger.debug("held-versions check skipped %s: %s", key, exc)
             continue
         limit_bytes = duckdb_session.parse_size(limit.replace(" ", ""))
         if held < limit_bytes * HELD_VERSIONS_SHARE:
