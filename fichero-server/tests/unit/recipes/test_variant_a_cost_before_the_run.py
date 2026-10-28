@@ -172,4 +172,5 @@ def test_every_route_that_returns_the_start_plan_builds_it_off_the_event_loop(mo
         await route.use_installed_instead(SimpleNamespace(card="c", provider="", model="m"), None, None)
 
     asyncio.run(go())
-    assert len(seen) == 4 and threading.get_ident() not in seen
+    # five plans: start_project builds one for its unpriced-model accept (#6259) and one for its answer, all off the loop
+    assert len(seen) == 5 and threading.get_ident() not in seen

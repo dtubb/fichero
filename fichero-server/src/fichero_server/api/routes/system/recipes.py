@@ -2818,7 +2818,7 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
-    if plan["refusals"]:  # a refused Start accepts nothing: project.start says why
+    if plan.get("refusals"):  # a refused Start accepts nothing: project.start says why
         return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
@@ -2851,10 +2851,15 @@ async def start_project(
     try:
         # The yes to a cloud model with no price is its own audited action, taken BEFORE Start's: inside Start's
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
-        _accept_asked(db, request.accept_unpriced if request else [], folder_id, _cluster_names(http), ctx)
-        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
-                                              "documents": request.documents if request else None,
-                                              "clusters": _cluster_names(http)}, ctx)
+        clusters = _cluster_names(http)
+
+        def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
+            _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx)
+            registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+                                                  "documents": request.documents if request else None,
+                                                  "clusters": clusters}, ctx)
+
+        await asyncio.to_thread(accept_then_start)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
