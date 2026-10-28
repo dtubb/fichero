@@ -94,8 +94,8 @@ def test_start_sends_the_read_to_huggingface_as_one_run_under_its_step(db, monke
     ({"cloud_allowed": True, "hf_spend_cap_usd": 10}, False, 0.0, "may not leave"),
     ({"cloud_allowed": True}, True, 0.0, "cap"),
     ({"cloud_allowed": True, "hf_spend_cap_usd": 10}, True, 10.0, "reached")])
-def test_the_step_is_refused_when_it_runs_if_the_yes_the_place_or_the_cap_is_gone(monkeypatch, answers, app_allows, spent,
-                                                                                said):
+def test_the_step_is_refused_when_it_runs_if_the_yes_the_place_or_the_cap_is_gone(db, monkeypatch, answers, app_allows,
+                                                                                spent, said):
     from fichero_server.recipes import train_offers
     from fichero_server.remote_read import job as read_job
 
@@ -103,7 +103,7 @@ def test_the_step_is_refused_when_it_runs_if_the_yes_the_place_or_the_cap_is_gon
     monkeypatch.setattr(train_offers, "spend_this_month", lambda _db, *, cap: {"spent_at_most_usd": spent})
     monkeypatch.setattr(places, "allows", lambda place, _p=None: app_allows)
     monkeypatch.setattr(read_job, "start", lambda *a, **k: pytest.fail("pages left this Mac"))
-    child, state, why = runner._run_at_scale(None, _card(), ["p1"], "run-1", "owner")
+    child, state, why = runner._run_at_scale(db, _card(), ["p1"], "run-1", "owner")  # the library: a read out is adopted first
     assert (child, state) == (None, "failed") and said in why
 
 

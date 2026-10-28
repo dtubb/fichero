@@ -202,14 +202,27 @@ def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -
     return live_child_for(db, parent_job_id, KIND, documents, lambda d: (d.get("request") or {}).get("scope_ids"))
 
 
+def _its_recipe_stopped(db: Any, job_id: str) -> bool:
+    """The recipe run this read is under was stopped, or has ended without it: a read sent ahead for its next batch
+    (`remote_read.pipeline`) is stopped with it, as its running step is, never left reading (and billing) alone."""
+    from fichero_server.execution.cancellation import cancellation_requested
+
+    parent = jobs.parent_of(db, job_id)
+    if parent is None:
+        return False
+    row = jobs.read_job(db, parent)
+    return cancellation_requested(parent) or row is None or row["state"] in ("cancelled", "failed", "done")
+
+
 def live_child_for(db: Any, parent_job_id: str, kind: str, documents: list[str] | None,
                    pages_of: Callable[[dict[str, Any]], list[str] | None]) -> str | None:
     """The newest child of `kind` under the row not ended; with `documents`, the newest whose pages (`pages_of` its
-    detail) are exactly those, in any order."""
+    detail) cover them: a read sent ahead whose first pages have landed is still the one out for the rest (a recipe's
+    batches never share a page, so it is never another batch's)."""
     rows = db.execute_fetchall("SELECT id, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', "
                                "'running', 'paused') ORDER BY created_at DESC, rowid DESC", [parent_job_id, kind])
     for job_id, detail in rows:
-        if documents is None or set(pages_of(json.loads(detail or "{}")) or ()) == set(documents):
+        if documents is None or set(documents) <= set(pages_of(json.loads(detail or "{}")) or ()):
             return job_id
     return None
 
@@ -272,6 +285,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
 
     job_id = jobs.job_id_for(db, KIND, subject)
     _state, detail = _row(db, job_id)
+    if "shards" not in detail and _its_recipe_stopped(db, job_id):  # sent ahead, its recipe stopped: nothing leaves
+        raise jobs.JobCancelled("Stopped with its recipe run, before anything was sent")
     request = ReadAtScaleRequest(**detail["request"])
     if target is None:
         try:
@@ -306,7 +321,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     total = len(shards)
     while True:
         _state, latest = _row(db, job_id)
-        if latest.get("cancel"):
+        if latest.get("cancel") or _its_recipe_stopped(db, job_id):
             for shard in shards.values():
                 if shard["state"] == "submitted":
                     target.cancel(shard["far_id"])

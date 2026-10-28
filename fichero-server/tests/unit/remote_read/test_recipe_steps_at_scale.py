@@ -228,8 +228,8 @@ def test_a_resumed_recipe_adopts_the_read_still_out_by_its_id_and_never_sends_it
                                  "skipped": []}, documents=None, started_by="owner")
     card = {"place": "huggingface", "target": "huggingface-jobs", "model_override": "catmus", "job": "read-a-line",
             "steps": ["read"]}
-    out = jobs.enqueue_remote(db, read_job.KIND, "read:out", target="huggingface-jobs", detail="{}", reason="x",
-                              started_by="owner")
+    out = jobs.enqueue_remote(db, read_job.KIND, "read:out", target="huggingface-jobs", reason="x", started_by="owner",
+                              detail=json.dumps({"request": {"scope_ids": ["p1"], "target": "huggingface-jobs"}}))
     jobs.set_parent(db, out, parent)
 
     assert runner._run_at_scale(db, card, ["p1"], parent, "owner") == (out, "done", None)

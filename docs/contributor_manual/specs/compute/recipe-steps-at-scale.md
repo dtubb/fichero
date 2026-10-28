@@ -178,9 +178,15 @@ twelve hours or costs more than its estimate.
   reading back the lines it found; landing lands the read, or a page's lines alone when its read failed
   (`lines_only`). A text step riding along joins this list when one runs remotely (ruling 1).
   *Test:* `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py`.
-- `compute.recipe.step-major-batches-pipelined` — **[GAP]** (#5642) inside a batch the steps run in the
+- `compute.recipe.step-major-batches-pipelined` — **[PARTIAL]** (#5642; built: before each batch the recipe runner
+  sends the next batch's first step ahead when it is placed on a cluster or Hugging Face (`remote_read/pipeline.py`
+  `send_ahead`, by the step's own send half `runner._send_at_scale`), at most two reads in flight per place; its turn
+  adopts it by its pages (even with some landed), before the cap is asked; a Pause or Stop sends nothing ahead, and a
+  read whose recipe stopped stops itself, sending nothing if queued and cancelling its Jobs if running; not yet: a
+  later step sent ahead once its inputs have landed, the cluster's own queue limit (`%M`) when lower than two, and a
+  real run; test: `fichero-server/tests/unit/remote_read/test_batches_pipelined.py`) inside a batch the steps run in the
   recipe's order, a model loading once per task; batch b's remote stage overlaps batch b-1's local steps; at most two
-  batches in flight per cluster or Hugging Face place. *Test (to write):* the same file.
+  batches in flight per cluster or Hugging Face place.
 - `compute.recipe.done-is-landed` — **[PARTIAL]** (#5642, #6127) a page's step is done when its result has
   landed; a rerun, resume or restart plans from the done state, sends no landed page, and adopts a task still running
   by its id. Built: a step's pages are worked out from the done state as it runs (`split_done`); a page's lines landed
