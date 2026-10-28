@@ -62,8 +62,15 @@ def start(db: Any, *, card: dict[str, Any], documents: list[str], parent_job_id:
     if (no := places.refusal("cloud")):
         raise PagesMayNotLeave(no)
     _project_must_agree(db, f"Sending this step to {name} as a batch")
+    from fichero_server.llm.spend import batch_cost_usd
+    from fichero_server.recipes.start import _TOKENS_IN, _TOKENS_OUT
+
+    # What the sheet said, by the rule it prices by (`start.estimate`), for the billed cost to be read against (#6251).
+    # ponytail: one call a page, as the sheet's read rows count; a review's passes would multiply it.
+    estimate = batch_cost_usd(provider, card["model_override"] or "", len(documents) * _TOKENS_IN,
+                              len(documents) * _TOKENS_OUT)
     detail = {"provider": provider, "model": card["model_override"], "max_tokens": MAX_TOKENS, "card": card,
-              "documents": list(documents)}
+              "documents": list(documents), "estimate_usd": estimate}
     job_id = jobs.enqueue_remote(db, KIND, f"batch:{uuid.uuid4()}", target=provider, detail=json.dumps(detail),
                                  reason=f"Waiting to send to {name} as a batch", started_by=started_by)
     jobs.set_parent(db, job_id, parent_job_id)
@@ -178,6 +185,12 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
         if open_:
             sleep(wait)
             wait = min(wait * 2, POLL_MOST)
+    detail["cost_usd"] = round(sum(b.get("cost_usd", 0.0) for b in detail["batches"]), 6)
+    estimate = detail.get("estimate_usd")
+    if estimate is not None and detail["cost_usd"] > estimate and not detail.get("over_said"):
+        detail["over_said"] = True
+        logger.warning("slow path: a batch to %s cost $%.4f, over its estimate of $%.4f (%d requests)", who,
+                       detail["cost_usd"], estimate, sum(b["requests"] for b in detail["batches"]))
     words = f"{who} answered {counts['answered']}, {counts['failed']} failed (asked again as plain calls)"
     if stopping:
         _save(db, job_id, detail, reason=f"Stopped: {words}; nothing answered is lost")

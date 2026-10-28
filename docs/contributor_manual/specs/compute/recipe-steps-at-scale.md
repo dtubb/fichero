@@ -212,11 +212,11 @@ twelve hours or costs more than its estimate.
   and the project's yes through the one egress gate; the one sheet shows its half price beside the plain-call and
   local estimates, the cap reserves its worst case at submission and books real usage as lines land. *Test (to
   write):* the same file.
-- `compute.recipe.cloud-batch-slow-path-record` — **[PARTIAL]** (#5940, #6251; built: each batch's `sent_at`,
-  `ended_at`, `waited_hours`, counts and billed tokens on the row, one log line past twelve hours; not yet: the billed
-  cost against the sheet's estimate; test: `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`) a provider batch's wait,
-  counts and billed cost land with its results; a batch past twelve hours or over its estimate logs one line. *Test
-  (to write):* the same file.
+- `compute.recipe.cloud-batch-slow-path-record` — **[OK]** (#5940, #6251; each batch's `sent_at`, `ended_at`,
+  `waited_hours`, counts and billed tokens on the row, one log line past twelve hours; the row keeps the sheet's
+  estimate (`estimate_usd`, by `start.estimate`'s rule) and the billed total (`cost_usd`), one log line when over; test:
+  `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`) a provider batch's wait, counts and billed cost land
+  with its results; a batch past twelve hours or over its estimate logs one line.
 
 ## Test matrix
 

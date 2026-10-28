@@ -355,3 +355,30 @@ def test_the_estimate_prices_a_step_that_goes_as_a_batch_at_the_batch_price(monk
     (plain,) = start.estimate([step], 99)["runs"]
     assert plain["basis"] == "the model's listed rate"
     assert batch["cost_usd"] < plain["cost_usd"] * 100 / 99
+
+
+def test_a_batch_keeps_the_sheets_estimate_and_its_billed_cost_and_says_once_when_it_cost_more(db, monkeypatch, caplog,
+                                                                                               project_says_yes):
+    """WHY (`compute.recipe.cloud-batch-slow-path-record`, #6251): the row carries what the sheet said the batch would
+    cost (the same rule `start.estimate` prices by) and what its lines were billed; over the estimate, one log line."""
+    import logging
+
+    from fichero_server.llm import spend
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    child = cloud_batch.start(db, card=_card(), documents=["p1", "p2"], parent_job_id=_parent(db), started_by="owner",
+                              pages_may_leave=True)
+    detail = json.loads(jobs.read_job(db, child)["detail"])
+    assert detail["estimate_usd"] == pytest.approx(spend.batch_cost_usd("anthropic", "claude-opus-5-5",
+                                                                       2 * start._TOKENS_IN, 2 * start._TOKENS_OUT))
+    detail["estimate_usd"] = 1e-9  # the sheet guessed low
+    jobs.save_detail(db, child, json.dumps(detail))
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: db.path.parent / job_id)
+    subject = jobs.read_job(db, child)["subject"]
+    with caplog.at_level(logging.WARNING, logger="fichero_server.remote_read.cloud_batch"):
+        cloud_batch.run(db, subject, client=FakeProvider(polls_open=0), capture=lambda db, d: REQS, sleep=lambda s: None)
+    detail = json.loads(jobs.read_job(db, child)["detail"])
+    assert detail["cost_usd"] == pytest.approx(sum(b["cost_usd"] for b in detail["batches"])) and detail["cost_usd"] > 0
+    over = [r for r in caplog.records if "over its estimate" in r.getMessage()]
+    assert len(over) == 1 and "Anthropic" in over[0].getMessage()
