@@ -24,6 +24,11 @@ struct ProjectRunStrip: Equatable {
     let failed: [ActivityDetails.Summary.Failed]
     /// What an ended run missed and its Run Again (#6170), as the engine sends it.
     var missed: ActivityDetails.MissedOffer?
+    /// The state the strip goes by (`effectiveState`); the preview seam's live strip runs.
+    var state = "running"
+    /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
+    /// (`activity.spinner-reflects-process-liveness`, #4346).
+    var spins: Bool { isLive && state == "running" }
 
     /// The strip for the store's project run, or nil when there is none.
     @MainActor
@@ -49,6 +54,7 @@ struct ProjectRunStrip: Equatable {
          pagesAtOnce: RecipeRunPagesAtOnce? = nil) {
         self.jobId = jobId
         let state = Self.effectiveState(nodeState: node?.state, jobState: job?.state)
+        self.state = state
         let ended = ["done", "failed", "cancelled"].contains(state)
         isLive = !ended
         if ended {
@@ -225,8 +231,11 @@ struct ProjectRunStripRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            if strip.isLive {
+            if strip.spins {
                 ProgressView().controlSize(.small)
+            } else if strip.isLive {
+                Image(systemName: strip.state == "paused" ? "pause.circle" : strip.state == "stalled" ? "exclamationmark.circle" : "clock")
+                    .foregroundStyle(.secondary)
             } else {
                 Image(systemName: strip.failed.isEmpty ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)

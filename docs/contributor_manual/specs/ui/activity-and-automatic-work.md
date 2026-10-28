@@ -2263,8 +2263,12 @@ How the list is laid out (a live block per project, a background group, finished
   row in place; only a real domain mutation goes to the domain stores; neither bumps
   `refreshToken`. Pinned: `ActivityStoreTests.swift`, "folded change frame does NOT bump
   refreshToken (no wholesale run reload)" (`fichero/Tests/Unit/general/Models/ActivityStoreTests.swift:177`).
-- `activity.spinner-reflects-process-liveness` — **[BROKEN]** (#4346) a spinner means the run is
-  alive and working now; after a run stops, its row has been seen keeping a spinner.
+- `activity.spinner-reflects-process-liveness` — **[PARTIAL]** (#4346) a spinner means the run is
+  alive and working now; after a run stops, its row has been seen keeping a spinner. Built (2026-10-28, Swift uncompiled
+  here): the project's run strip spins only while its run is running (`ProjectRunStrip.spins`); a paused, waiting or stalled
+  run stays on it, live and not closable, under a still symbol (`fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`,
+  `testOnlyARunningRunSpins_aPausedWaitingOrStalledOneStaysOnTheStripStill`). Owed: the observation #4346 asks for (stop a
+  running workflow and watch every Activity row settle).
 - `activity.stale-runs-settle-across-restarts` — **[PARTIAL]** (#4384, #5357) a run that died with its
   process is settled at the next launch, and a paused or resumable run is not. Built (2026-10-08): a
   paused run is not settled (`fichero-server/tests/unit/jobs/test_durable_5357.py`). Still a gap: a running run is
