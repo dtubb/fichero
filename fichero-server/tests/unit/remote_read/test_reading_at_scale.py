@@ -158,7 +158,7 @@ def test_a_thousand_canvases_through_a_429_storm_land_on_their_canvases(tmp_path
     (package / "_fichero").mkdir(parents=True)
     (package / "_fichero" / "iiif_fetch.py").write_bytes(
         (runner.Path(runner.__file__).parent.parent / "media" / "iiif_fetch.py").read_bytes())
-    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "fetch": {"longest": 400},
+    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "stage": ["read"], "fetch": {"longest": 400},
                                                   "shards": [list(range(1000))], "sources": sources}))
     server = StormyIIIFServer(canvases)
     waited: list[float] = []
@@ -198,7 +198,7 @@ def test_a_remote_page_records_the_image_uri_and_size_its_reader_saw(tmp_path):
     (package / "_fichero").mkdir(parents=True)
     (package / "_fichero" / "iiif_fetch.py").write_bytes(
         (runner.Path(runner.__file__).parent.parent / "media" / "iiif_fetch.py").read_bytes())
-    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "fetch": {"longest": 400},
+    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "stage": ["read"], "fetch": {"longest": 400},
                                                   "shards": [[0, 1]], "sources": sources}))
     server = StormyIIIFServer(canvases)
     outcome = runner.run_shard(package, 0, tmp_path / "out", reader=lambda image: [], get=server, sleep=lambda s: None)

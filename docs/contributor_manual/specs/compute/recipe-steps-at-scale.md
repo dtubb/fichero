@@ -1,10 +1,11 @@
-# A recipe's steps at scale: cloud batch, Hugging Face, ACEnet — batched, resumable — PROPOSED (#5642, #5940, #6233)
+# A recipe's steps at scale: cloud batch, Hugging Face, ACEnet — batched, resumable — APPROVED (#5642, #5940, #6233)
 
-> Manual: TBD — the user manual's "Running on a university cluster" page grows a "Sending a big run to a cloud
-> provider's batch" section once this is approved.
+> Milestone: remote-compute
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the user manual's "Running on a
+> university cluster" page grows a "Sending a big run to a cloud provider's batch" section as this is built)
 >
-> **Status: PROPOSED 2026-10-27, revised 2026-10-28 on the owner's direction, for the owner to approve.** Nothing
-> here is built by this doc. It extends `compute/hpc-runner-acenet.md` (the cluster, its rules, `SlurmTarget`),
+> **Status: APPROVED 2026-10-28** (proposed 2026-10-27, revised 2026-10-28 on the owner's direction; the owner took
+> the recommended answer to each open question, written in below as rulings). It extends `compute/hpc-runner-acenet.md` (the cluster, its rules, `SlurmTarget`),
 > `ui/activity-and-automatic-work.md` `activity.lane.scale-out-batches-and-result-files` (K tasks of S pages, the
 > retry ladder, result files, the one sheet) and `activity.run.cloud-batch` (a place per step; a step nobody is
 > waiting for goes to the provider's Batch API), and `ai/where-models-run.md` `ai.where.provider-batch-is-an-offer`
@@ -169,46 +170,64 @@ twelve hours or costs more than its estimate.
 
 ## Behaviors
 
-- `compute.recipe.fuse-same-place-steps` — **[GAP]** (#5642, PROPOSED) consecutive steps of a batch at the same
+- `compute.recipe.fuse-same-place-steps` — **[PARTIAL]** (#5642) consecutive steps of a batch at the same
   remote place run as one remote stage: the images are sent once and each step's result files return together.
-  *Test (to write):* `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py`.
-- `compute.recipe.step-major-batches-pipelined` — **[GAP]** (#5642, PROPOSED) inside a batch the steps run in the
+  Built: the package's `stage` (the read alone, or the lines then the read) and `run_shard` running it, the read
+  reading the lines found (never finding them again), `<id>.lines.xml` beside `<id>.xml`, each step's end and seconds
+  in `_outcome.json`, a rerun reading back the lines it found. Not yet: the recipe runner sending a batch's
+  same-place steps as one stage, and landing a page's lines when its read failed.
+  *Test:* `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py`.
+- `compute.recipe.step-major-batches-pipelined` — **[GAP]** (#5642) inside a batch the steps run in the
   recipe's order, a model loading once per task; batch b's remote stage overlaps batch b-1's local steps; at most two
   batches in flight per cluster or Hugging Face place. *Test (to write):* the same file.
-- `compute.recipe.done-is-landed` — **[GAP]** (#5642, #6127, PROPOSED) a page's step is done when its result has
+- `compute.recipe.done-is-landed` — **[GAP]** (#5642, #6127) a page's step is done when its result has
   landed; a rerun, resume or restart plans from the done state, sends no landed page, and adopts a task still running
   by its id. *Test (to write):* the same file.
-- `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642, PROPOSED) Stop cancels queued and running tasks and keeps
+- `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642) Stop cancels queued and running tasks and keeps
   everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file.
-- `compute.recipe.folder-shows-steps-done` — **[GAP]** (#5642, PROPOSED) each folder shows which steps are done on it,
+- `compute.recipe.folder-shows-steps-done` — **[GAP]** (#5642) each folder shows which steps are done on it,
   current while tasks land. *Test (to write):* the same file.
-- `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642, PROPOSED) each task's per-page compute record lands with
+- `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642) each task's per-page compute record lands with
   its results and feeds the run's slow-path lines. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-above-threshold` — **[GAP]** (#5940, PROPOSED) a step on a cloud model with at least the
+- `compute.recipe.cloud-batch-above-threshold` — **[GAP]** (#5940) a step on a cloud model with at least the
   threshold of pages in a run nobody is waiting for goes as one provider batch per recipe batch (cut to the provider's
   byte cap; Gemini by file when images are in it); below the threshold, or for a press a person waits on, plain calls
   as today; a page whose cache key is already answered is left out. *Test (to write):* the same file, with a fake
   provider per API shape (inline, file, inline-or-file); the builder may split the provider fakes into their own file.
-- `compute.recipe.cloud-batch-adopted-by-id` — **[GAP]** (#5940, #6127, PROPOSED) the provider's batch id is on the
+- `compute.recipe.cloud-batch-adopted-by-id` — **[GAP]** (#5940, #6127) the provider's batch id is on the
   run's row the moment it is acknowledged; a resume, restart or new run adopts an open batch by its id and never
   resubmits its pages; an id the provider has forgotten is dropped and its unlanded pages replanned. *Test (to
   write):* the same file.
-- `compute.recipe.cloud-batch-retries-failed-requests-only` — **[GAP]** (#5940, PROPOSED) a batch's succeeded lines
+- `compute.recipe.cloud-batch-retries-failed-requests-only` — **[GAP]** (#5940) a batch's succeeded lines
   land whatever the others did; its errored or expired lines mark those pages failed in the provider's words and are
   re-sent alone, as a smaller batch or plain calls, never the whole batch again. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-stop-cancels` — **[GAP]** (#5940, #5946, PROPOSED) Stop cancels the provider batch, polls
+- `compute.recipe.cloud-batch-stop-cancels` — **[GAP]** (#5940, #5946) Stop cancels the provider batch, polls
   it to a terminal state, lands and books every succeeded line, and only then reads Stopped; Pause submits no new
   batch. *Test (to write):* the same file.
-- `compute.recipe.cloud-batch-consent-and-cost` — **[GAP]** (#5940, PROPOSED) a provider batch needs `pages_may_leave`
+- `compute.recipe.cloud-batch-consent-and-cost` — **[GAP]** (#5940) a provider batch needs `pages_may_leave`
   and the project's yes through the one egress gate; the one sheet shows its half price beside the plain-call and
   local estimates, the cap reserves its worst case at submission and books real usage as lines land. *Test (to
   write):* the same file.
-- `compute.recipe.cloud-batch-slow-path-record` — **[GAP]** (#5940, PROPOSED; a new issue is needed for the record
+- `compute.recipe.cloud-batch-slow-path-record` — **[GAP]** (#5940; a new issue is needed for the record
   itself) a provider batch's wait,
   counts and billed cost land with its results; a batch past twelve hours or over its estimate logs one line. *Test
   (to write):* the same file.
 
-## Order of work (proposed, reordered 2026-10-28)
+## Test matrix
+
+| Leg | This surface? | Pins | File |
+|-----|---------------|------|------|
+| Pure rule (Swift) | n | Activity's own spec draws the run's strips and counts | — |
+| Availability (Swift) | n | — | — |
+| Backend (pytest) | y | a stage runs its steps in order, the read reading the lines found; each step's file and seconds return; a rerun does nothing again; fusing, adopt by id, Stop, the batch clients against fakes per API shape | `fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py` |
+| MCP | n | the run is read through the existing `fichero_recipes_run_status` | — |
+| CLI | n | — | — |
+| Click-around (XCUITest, Mac) | n | Activity's spec owns the window's UI test | — |
+| iPhone (iOS) | n | — | — |
+| iPad | n | — | — |
+| Load (#4634) | y | the real runs of the order of work (500 pages, then 5,000 to 10,000) with their slow-path records read afterwards | booked on the M4 through the manager, not a suite |
+
+## Order of work (reordered 2026-10-28)
 
 1. **The shared multi-step stage.** `run_shard` runs a list of steps per page (lines, then read), not only read, with
    result files per step; the recipe runner hands a batch's same-place steps to `remote_read/job.py` as one stage
@@ -224,21 +243,21 @@ twelve hours or costs more than its estimate.
    prefetch goes (`compute.hpc.submit-array`, `compute.hpc.nothing-heavy-on-a-login-node`); a rehearsal on a local
    Slurm container (`compute.hpc.rehearsed-before-a-cluster`), then one 500-page batch on ACEnet.
 
-## Open questions for the owner, with a recommendation each
+## Rulings (2026-10-28; were the open questions, each answered with its recommendation)
 
-1. **Text steps (names, embed) on the remote too, or always here?** *Recommend:* yes when they ride along: a text
+1. **Text steps (names, embed) on the remote too, or always here?** *Ruled:* yes when they ride along: a text
    step whose input is already at a remote place (it follows a remote read in the same stage) runs there in the same
    task, since the model loads once and nothing more leaves the Mac; a text step on its own (a local read, then
    names) stays here on the background lane; embedding runs where the project's embedder lives, and a cloud embedder
    batches like any cloud step. Nothing is shipped remotely for a text step alone.
-2. **Batches in flight per place.** *Recommend:* two per cluster or Hugging Face place (one running, one queued), as
+2. **Batches in flight per place.** *Ruled:* two per cluster or Hugging Face place (one running, one queued), as
    written; the cluster's queue limit (`%M`) stays the site's rule, read from the profile, and overrides two when it
    is lower. A cloud batch place is different: a batch may take a day, so two in flight would make 100,000 pages a
    hundred days; submit every packaged recipe batch up to ten open per provider, and lower it to what the provider's
    rate-limits page allows once read.
-3. **Hugging Face: Jobs only, or Inference Endpoints too?** *Recommend:* Jobs only. A model with no Job image is
+3. **Hugging Face: Jobs only, or Inference Endpoints too?** *Ruled:* Jobs only. A model with no Job image is
    either a cloud model (it goes by the provider's batch) or stays local; an Endpoint is a server to keep up, which
    the batch APIs spare us. Endpoints are out of this doc.
-4. **The cloud-batch threshold (new).** *Recommend:* 100 pages of one step on one cloud model in one run that nobody
+4. **The cloud-batch threshold (new).** *Ruled:* 100 pages of one step on one cloud model in one run that nobody
    is waiting on; below it the plain calls finish sooner than a batch is likely to and the saving is cents. Changed
    with a measurement from step 2's real runs, not a guess.

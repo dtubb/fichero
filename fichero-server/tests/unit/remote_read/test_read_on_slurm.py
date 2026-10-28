@@ -72,7 +72,7 @@ def test_iiif_pages_are_fetched_on_the_login_node_and_the_shard_reads_them_offli
     (package / "_fichero" / "iiif_fetch.py").write_bytes(
         (runner.Path(runner.__file__).parent.parent / "media" / "iiif_fetch.py").read_bytes())
     made = _package(3, shard_size=3, iiif=True)
-    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "fetch": {"longest": 800},
+    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "stage": ["read"], "fetch": {"longest": 800},
                                                   "shards": made.shards, "sources": made.sources}))
 
     def server(url, timeout):

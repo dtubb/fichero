@@ -43,7 +43,7 @@ def test_a_runner_shipped_alone_loads_the_line_cut_from_the_package(tmp_path):
     helpers.mkdir(parents=True)
     for h in pkg.SHIPPED_HELPERS:
         (helpers / h.name).write_bytes(h.read_bytes())
-    (tmp_path / "pkg" / "job.json").write_text(json.dumps({"shards": [[]], "sources": [], "step": {"reader": "x"},
+    (tmp_path / "pkg" / "job.json").write_text(json.dumps({"shards": [[]], "sources": [], "step": {"reader": "x"}, "stage": ["read"],
                                                            "fetch": {"longest": 100}}))
     code = (
         "import sys; sys.modules['fichero_server'] = None; sys.path.insert(0, sys.argv[1])\n"
