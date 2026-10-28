@@ -3218,6 +3218,17 @@ def _action_add_layer(db: Database, params: LayerChangeParams, ctx: ActionContex
                              emit_type="project.layer_added")
 
 
+class FolderStepDone(BaseModel):
+    steps: list[str]
+    done: Optional[int] = Field(default=None, description="its pages done in the folder; null: the step cannot tell")
+    of: int = Field(description="the pages it works on in the folder, those left out (blank, a recording) not counted")
+
+
+class FolderStepsDone(BaseModel):
+    folder_id: str
+    steps: list[FolderStepDone]
+
+
 class RecipeRunStatus(BaseModel):
     job_id: str
     state: str
@@ -3230,6 +3241,9 @@ class RecipeRunStatus(BaseModel):
     folders_total: Optional[int] = Field(default=None, description=(
         "the folders the run goes over, a batch at a time (source.recipe.batch-at-archive-scale); null before "
         "the run started"))
+    folder_steps: list[FolderStepsDone] = Field(default_factory=list, description=(
+        "each folder the run has counted, with each step's pages done there, current as each step ends on a batch "
+        "(activity.run.folder-steps-done); a page in no folder is in none"))
     steps: list[RecipeRunStep]
     skipped: list[SkippedStep]
     refusals: list[str] = Field(default_factory=list, description=(
