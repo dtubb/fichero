@@ -775,7 +775,7 @@ lives somewhere).
 
    | Purpose (checkbox) | Jobs it proposes (registry ids) |
    |---|---|
-   | Transcribe | `find-lines`, `read-a-line` (PROPOSED 2026-10-28, #6250: lines alone; `correct` was in this row and becomes an add-on, see `source.recipe.transcribe-is-lines-alone`) |
+   | Transcribe | `find-lines`, `read-a-line` (APPROVED 2026-10-28, #6250: lines alone; `correct` was in this row and becomes an add-on, see `source.recipe.transcribe-is-lines-alone`) |
    | People, places and things | the above + `find-names-tag-words` (entity kinds chosen on screen 6) |
    | Search my sources | the above transcribe jobs + `make-a-vector` |
    | Statements (who did what to whom) | transcribe jobs + `find-names-tag-words`, `find-statements` (subject, verb, object) |
@@ -791,7 +791,7 @@ lives somewhere).
    Jobs any purpose may add, offered on screen 7 as "Also on hand" (never hidden, as
    `source.onboard.offers-never-hides`): `prepare-the-image` (clean up images: crop, straighten,
    brighten), `split-pages`, `put-in-order` (reading order), `refine-shapes`, `read-a-page` (Read the
-   whole page, with `tie-text-to-lines`; PROPOSED #6250), `correct` (Review the reading; PROPOSED #6250),
+   whole page, with `tie-text-to-lines`; #6250), `correct` (Review the reading; #6250),
    `check`, `export`, `publish`, `train-a-model`. **Hands** (telling one writer's hand from another) has no job in the
    registry today (`recipes/seed/topics.yaml`), so setup does not offer it; see Open questions.
    The five new purposes (Statements, Translate or normalise, Gather quotations, Catalogue, Tables
@@ -3125,10 +3125,10 @@ Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block on
   offered are those of section 7b, screen 2 (the original eight, with Statements, Translate or
   normalise, Gather quotations, Catalogue my sources and Tables and forms proposed); a job not in the
   registry (hands, today) is never offered. *Test:* ticking Map places shows Find lines, Read each
-  line, Correct, Find names, Place in a gazetteer (PROPOSED #6250: without Correct, which becomes an
+  line, Correct, Find names, Place in a gazetteer (#6250: without Correct, which becomes an
   add-on; the test's expected list changes with `source.recipe.transcribe-is-lines-alone`).
 
-**Transcribe is lines alone (PROPOSED 2026-10-28, #6250; the maintainer, from testing 2026-10-27).**
+**Transcribe is lines alone (APPROVED 2026-10-28, #6250; the maintainer, from testing 2026-10-27).**
 A recipe that only finds lines and reads each one was refused for having no page step. The rules below
 make lines alone the default and the only required shape; a page reader and the reviewers are steps a
 person adds, never required; and every step says plainly what it does wherever a step is named.
@@ -4747,7 +4747,7 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
   training set until a person checks it. This refines #5217's rule (run by itself only where the
   match is known to be perfect) for the recipe step; the hand-run Align Text to Lines tool keeps its
   confirm-the-pass flow.
-- **2026-10-28 (#6250), PROPOSED, from the maintainer's testing of 2026-10-27, awaiting his approval:**
+- **2026-10-28 (#6250), APPROVED by the maintainer the same day, from his testing of 2026-10-27:**
   transcribing is lines alone by default: find the lines, then read each line (`find-lines`,
   `read-a-line`), and a recipe of those two steps is never refused for having no page step. Reading the
   whole page (tied to the found lines) and the reviewers (Review the reading, Check) are steps a person
@@ -4755,11 +4755,11 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
   Find lines, Read each line, Read the whole page, Review the reading. Behaviours:
   `source.recipe.transcribe-is-lines-alone`, `source.recipe.lines-alone-never-refused`,
   `source.recipe.page-reader-is-an-add-on`, `source.recipe.reviewers-are-add-ons`,
-  `source.recipe.steps-say-what-they-do`. Still his to rule: (1) that `correct` leaves the default of
-  every purpose, not only Transcribe (recommended: yes, it is a reviewer); (2) the label for `check`
-  (recommended: keep "Check", the maintainer named four labels and Check is not one of the four steps);
-  (3) whether choosing a page reader on a lines-only recipe adds the page step or is refused in words
-  naming the add-on (recommended: adds it, with the reader as its model).
+  `source.recipe.steps-say-what-they-do`. Ruled: (1) `correct` leaves the default of every purpose,
+  not only Transcribe; (2) `check` keeps the label "Check"; (3) choosing a page reader on a lines-only
+  recipe adds the page step, with the reader as its model, and is never refused. The maintainer adds that
+  reading the whole page may well give better results than lines alone, so the page step stays one click
+  away and a bake-off can compare the two on the project's own pages.
 - **2026-10-05 (#5477 to #5482), setup round 2:** first run asks where the project lives and saves
   into it; purposes and material are checkboxes, any combination; "nothing runs automatically" is
   its own screen; a fifth way in, Keep arranged; languages, scripts and direction are chosen, with
