@@ -2,16 +2,15 @@
 from fichero_server.db import embeddings
 
 
-def test_an_embedder_a_test_loaded_is_dropped_and_one_still_in_use_is_left_to_its_thread(monkeypatch):
+def test_an_embedder_a_test_loaded_is_dropped_and_one_still_in_use_is_left_to_its_thread(monkeypatch, request):
     """Drives the fixture's own generator, so nothing is left in use for the session (and no test is a bare setup for another)."""
     import inspect
-    import sys
 
-    fixture = inspect.unwrap(sys.modules["conftest"]._no_embedder_leaks_between_tests) \
-        if "conftest" in sys.modules else None
-    if fixture is None:
-        from tests import conftest
-        fixture = inspect.unwrap(conftest._no_embedder_leaks_between_tests)
+    # The engine's own conftest, by its file: `sys.modules["conftest"]` is whichever package-less directory's conftest
+    # loaded last (tests/unit/jobs's, run before this file), which has no such fixture.
+    conftest = next(p for p in request.config.pluginmanager.get_plugins()
+                    if str(getattr(p, "__file__", "")).endswith("fichero-server/tests/conftest.py"))
+    fixture = inspect.unwrap(conftest._no_embedder_leaks_between_tests)
     monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", dict(embeddings._EMBEDDER_CACHE))
     monkeypatch.setattr(embeddings, "_EMBEDDER_IN_USE", {"busy-test-model": 1})
     before = set(embeddings._EMBEDDER_CACHE)
