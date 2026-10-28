@@ -377,3 +377,28 @@ def test_a_batch_that_could_pass_the_cap_is_refused_before_it_is_sent_and_one_th
     spend.settle_batch(library, held, 0.012)
     assert spend.booked_usd(library) == pytest.approx(0.012)
     assert spend._RESERVED.get(library, 0) == pytest.approx(0)
+
+
+def test_the_projects_answers_never_answer_another_model_another_prompt_or_another_page(monkeypatch, tmp_path):
+    """WHY (the answers book is the project's, review 3; the manager, 2026-10-28): a batch's answer is kept under its
+    call's own key, so it answers only that model on that prompt on that page; anything else goes as its own call."""
+    import asyncio
+    import base64
+
+    from fichero_server import llm
+
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
+    monkeypatch.setattr(llm, "get_langchain_model", lambda config: (_ for _ in ()).throw(RuntimeError("its own call")))
+    opus = llm.LLMConfig(provider="anthropic", model="claude-opus-5-5")
+    key = llm._vision_cache_key(opus, "Read the page.", [JPEG])
+    book = pb.AnswerBook(tmp_path / "answers.jsonl")
+    book.keep([pb.BatchLine(key, True, text="En la villa")])
+    other_page = "data:image/jpeg;base64," + base64.b64encode(b"another page").decode()
+    with pb.answering(book.answers()):
+        assert asyncio.run(llm.vision([JPEG], "Read the page.", opus)) == "En la villa"
+        for images, prompt, config in (([JPEG], "Read the page.", llm.LLMConfig(provider="anthropic", model="claude-sonnet-5-5")),
+                                       ([JPEG], "Read the page.", llm.LLMConfig(provider="openai", model="claude-opus-5-5")),
+                                       ([JPEG], "Name the people.", opus), ([other_page], "Read the page.", opus)):
+            llm._LLM_RESULT_CACHE.clear()
+            with pytest.raises(RuntimeError, match="its own call"):
+                asyncio.run(llm.vision(images, prompt, config))
