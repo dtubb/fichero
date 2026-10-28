@@ -48,6 +48,16 @@ kill_fichero() {
   if [ -n "$pids" ]; then
     kill -9 $pids 2>/dev/null || true
   fi
+  # A source-run dev engine on the container socket (scripts/start_dev_local_engine.sh) is stopped too: the app
+  # would otherwise be offered it (Use it) and this smoke would test that engine, not the build's own (#6244).
+  pids="$(pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' || true)"
+  if [ -n "$pids" ]; then
+    echo "Stopping the external dev engine ($pids) so the build's own engine is the one tested"
+    kill $pids 2>/dev/null || true
+    for _ in {1..15}; do pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' >/dev/null || break; sleep 1; done
+    pids="$(pgrep -f 'uvicorn fichero_server.api.uds_transport:app --uds' || true)"
+    if [ -n "$pids" ]; then kill -9 $pids 2>/dev/null || true; fi
+  fi
 }
 
 probe_once() {
@@ -92,6 +102,13 @@ if ! probe_with_retry loopback "https://127.0.0.1:8765" 5; then
   cat /tmp/fichero-smoke.err >&2
   echo "--- engine.log ---" >&2
   tail -n 120 "$HOME/Library/Logs/Fichero/engine.log" >&2
+  exit 1
+fi
+
+# The engine that answered is the build's own, not an external one (#6244).
+if grep -q '"engine_owner": *"dev external"' /tmp/fichero-smoke-health.json; then
+  echo "FAIL the answering engine is an external dev engine, not this build's own:" >&2
+  cat /tmp/fichero-smoke-health.json >&2
   exit 1
 fi
 
