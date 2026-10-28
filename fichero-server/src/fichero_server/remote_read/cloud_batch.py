@@ -83,6 +83,16 @@ def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -
     return live_child_for(db, parent_job_id, KIND, documents, lambda d: d.get("documents"))
 
 
+def _ended_under(db: Any, parent_job_id: str, documents: list[str]) -> str | None:
+    """The batch under the step that ended done for these pages: a step run again after its replay failed replays its
+    answers, never queuing a second batch (review 3)."""
+    for job_id, detail in db.execute_fetchall("SELECT id, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state = "
+                                              "'done' ORDER BY created_at DESC, rowid DESC", [parent_job_id, KIND]):
+        if set(documents) <= set(json.loads(detail or "{}").get("documents") or ()):
+            return job_id
+    return None
+
+
 def _work_dir(job_id: str) -> Path:
     from fichero_server.db.paths import server_state_dir
 
@@ -102,8 +112,13 @@ def _save(db: Any, job_id: str, detail: dict[str, Any], reason: str | None = Non
     jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
 
 
-def book_for(job_id: str) -> pb.AnswerBook:
-    return pb.AnswerBook(_work_dir(job_id) / "answers.jsonl")
+def book_for(db: Any) -> pb.AnswerBook:
+    """The project's batch answers, by content key (the call's cache key), not one row's: a batch queued after a failed
+    or stopped one, or a rerun of the step, never sends a page an earlier batch answered (#6127, review 3)."""
+    import hashlib
+
+    library = str(Path(db.path).parent)
+    return pb.AnswerBook(_work_dir("answers-" + hashlib.sha256(library.encode()).hexdigest()[:16]) / "answers.jsonl")
 
 
 def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str, Any]], list[pb.BatchRequest]],
@@ -116,13 +131,18 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
     now = now or utc_now
     job_id = jobs.job_id_for(db, KIND, subject)
     detail = _detail(db, job_id)
-    book = book_for(job_id)
+    book = book_for(db)
     who = client.name
     library = str(Path(db.path).parent)
     provider, model = detail["provider"], detail["model"]
-    if not detail.get("batches"):
-        to_send = book.still_to_send(capture(db, detail))
-        detail["batches"] = []
+    detail.setdefault("batches", [])
+    for batch in detail["batches"]:  # adopted after a restart: the holds of the batches still out are held again here
+        if batch["state"] == "open" and batch.get("held_usd"):
+            spend.hold_again(library, batch["held_usd"])
+    if not detail.get("submitted"):
+        # A resume after a crash mid-submit sends the chunks never submitted, as a batch, not as plain calls (review 3).
+        # ponytail: by count, the capture being in the step's own order; keys per batch would be exact, and large.
+        to_send = book.still_to_send(capture(db, detail))[sum(b.get("requests", 0) for b in detail["batches"]):]
         for chunk in pb.cut_to_cap(to_send, cap_bytes=client.cap_bytes):
             # The cap holds the batch's worst case from now until it ends; refused in words before it is sent.
             held = spend.reserve_batch(library, provider, model, requests=len(chunk), max_tokens=detail["max_tokens"])
@@ -130,15 +150,34 @@ def run(db: Any, subject: str, *, client: Any, capture: Callable[[Any, dict[str,
                 ids = client.submit(model, chunk, max_tokens=detail["max_tokens"])
             except BaseException:
                 spend.settle_batch(library, held, 0.0)  # not sent: nothing owed
+                _release_open(library, detail)
                 raise
             detail["batches"].append({"ids": ids, "state": "open", "requests": len(chunk), "sent_at": now().isoformat(),
                                       "held_usd": held})
             _save(db, job_id, detail, reason=f"Sent as a batch to {who}: {sum(b['requests'] for b in detail['batches'])} "
                                               "requests, answered within a day")  # on the row before anything else
-    else:  # adopted after a restart: the holds of the batches still out are held again in this process
-        for batch in detail["batches"]:
-            if batch["state"] == "open" and batch.get("held_usd"):
-                spend.hold_again(library, batch["held_usd"])
+        detail["submitted"] = True
+        _save(db, job_id, detail)
+    try:
+        return _poll_to_the_end(db, job_id, detail, client, book, library, sleep, now)
+    except BaseException:
+        _release_open(library, detail)  # the hold lives in this process: a Retry holds it again on adoption
+        raise
+
+
+def _release_open(library: str, detail: dict[str, Any]) -> None:
+    from fichero_server.llm import spend
+
+    for batch in detail["batches"]:
+        if batch["state"] == "open" and batch.get("held_usd"):
+            spend.settle_batch(library, batch["held_usd"], 0.0)
+
+
+def _poll_to_the_end(db: Any, job_id: str, detail: dict[str, Any], client: Any, book: pb.AnswerBook, library: str,
+                     sleep: Callable[[float], None], now: Callable[[], datetime]) -> dict[str, int]:
+    from fichero_server.llm import spend
+
+    who, provider, model = client.name, detail["provider"], detail["model"]
     counts = {"answered": 0, "failed": 0}
     wait, stopping = POLL_FIRST, False
     while any(b["state"] == "open" for b in detail["batches"]):
@@ -235,7 +274,7 @@ def run_step(db: Any, card: dict[str, Any], documents: list[str], parent: str, s
     from fichero_server.recipes.project import read_project_setup
 
     register_job_kinds()
-    child = out_under(db, parent, documents)
+    child = out_under(db, parent, documents) or _ended_under(db, parent, documents)
     if child is None:
         may_leave = places.may_leave_to(read_project_setup(Path(db.path).parent)["answers"], "cloud")
         try:
@@ -243,8 +282,10 @@ def run_step(db: Any, card: dict[str, Any], documents: list[str], parent: str, s
                           pages_may_leave=may_leave)
         except (PagesMayNotLeave, ValueError) as no:
             return None, "failed", str(no)
-    _, state, why = wait(db, child, parent)
-    if state != "done":
-        return child, state, why
-    with pb.answering(book_for(child).answers()):
+    row = jobs.read_job(db, child)
+    if row["state"] != "done":  # an ended batch (its replay failed or was parked) is not waited on again
+        _, state, why = wait(db, child, parent)
+        if state != "done":
+            return child, state, why
+    with pb.answering(book_for(db).answers()):
         return replay()

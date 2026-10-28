@@ -7,6 +7,7 @@ its detail and the answers file are real.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -67,7 +68,7 @@ def test_the_steps_calls_go_as_one_batch_its_ids_on_the_row_before_the_first_pol
     provider = FakeProvider(db, row)
     out = _run(db, row, provider)
     assert provider.sent == [[r.key for r in REQS]] and provider.seen_ids_on_row == [{"batch_id": "b1"}]
-    book = pb.AnswerBook(cloud_batch._work_dir(row) / "answers.jsonl").answers()
+    book = cloud_batch.book_for(db).answers()
     assert set(book) == {REQS[0].key, REQS[2].key, REQS[3].key}
     assert out == {"answered": 3, "failed": 1}
     assert "1 failed" in jobs.read_job(db, row)["reason"]
@@ -77,7 +78,7 @@ def test_a_resumed_run_adopts_its_open_batch_by_id_and_a_rerun_sends_only_what_w
     """WHY (`.cloud-batch-adopted-by-id`, #6127): a run whose batch is on its row polls that batch and never submits
     again; run again after it ended, only the line that failed is sent."""
     detail = json.loads(jobs.read_job(db, row)["detail"])
-    detail["batches"] = [{"ids": {"batch_id": "b1"}, "state": "open"}]
+    detail.update(batches=[{"ids": {"batch_id": "b1"}, "state": "open"}], submitted=True)
     jobs.save_detail(db, row, json.dumps(detail))
     provider = FakeProvider()
     provider.sent = [[r.key for r in REQS]]  # what b1 held, as the provider still has it
@@ -86,7 +87,7 @@ def test_a_resumed_run_adopts_its_open_batch_by_id_and_a_rerun_sends_only_what_w
 
     again = FakeProvider()
     detail = json.loads(jobs.read_job(db, row)["detail"])
-    detail.pop("batches")
+    detail.pop("batches"), detail.pop("submitted")  # the step run again: a new submission over the same pages
     jobs.save_detail(db, row, json.dumps(detail))
     _run(db, row, again)
     assert again.sent == [[REQS[1].key]], "only the failed line is asked again"
@@ -94,7 +95,7 @@ def test_a_resumed_run_adopts_its_open_batch_by_id_and_a_rerun_sends_only_what_w
 
 def test_a_batch_the_provider_forgot_is_dropped_and_its_pages_are_left_to_be_asked_again(db, row):
     detail = json.loads(jobs.read_job(db, row)["detail"])
-    detail["batches"] = [{"ids": {"batch_id": "gone"}, "state": "open"}]
+    detail.update(batches=[{"ids": {"batch_id": "gone"}, "state": "open"}], submitted=True)
     jobs.save_detail(db, row, json.dumps(detail))
     out = _run(db, row, FakeProvider())
     assert out == {"answered": 0, "failed": 0}
@@ -117,7 +118,7 @@ def test_stop_cancels_the_batch_polls_it_to_its_end_and_keeps_what_was_answered(
     with pytest.raises(jobs.JobCancelled, match="Stopped"):
         _run(db, row, provider)
     assert provider.cancelled == ["b1"]
-    assert len(pb.AnswerBook(cloud_batch._work_dir(row) / "answers.jsonl").answers()) == 3
+    assert len(cloud_batch.book_for(db).answers()) == 3
 
 
 # --- starting one: the gates, the client ------------------------------------------------------------------------
@@ -244,7 +245,7 @@ def test_the_kind_is_a_remote_row_whose_stop_cancels_at_the_provider():
 
 def _ended(db, child, answers):
     """The row as the batch leaves it: its answers kept, the row done."""
-    cloud_batch.book_for(child).keep([pb.BatchLine(k, True, text=t) for k, t in answers.items()])
+    cloud_batch.book_for(db).keep([pb.BatchLine(k, True, text=t) for k, t in answers.items()])
     db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [child])
     return child, "done", None
 
@@ -397,3 +398,79 @@ def test_a_batch_step_adopts_only_the_batch_out_for_its_own_pages(db, monkeypatc
                          (child, "failed", "x"))[1], replay=lambda: pytest.fail("no replay"))
     assert waited and waited[0] != first
     assert cloud_batch.out_under(db, parent, ["p2", "p1"]) == first
+
+
+def test_a_rerun_after_a_failed_replay_adopts_the_ended_batch_and_never_pays_twice(db, monkeypatch, tmp_path,
+                                                                                 project_says_yes):
+    """WHY (review 3, HIGH; #6127): the batch ended and its replay failed (or was parked); Start again adopts the ended
+    batch's answers and replays, never queuing a second batch for pages already answered and paid for."""
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    waits = []
+
+    def wait(db, child, parent):
+        waits.append(child)
+        return _ended(db, child, {REQS[0].key: "x"})
+
+    cloud_batch.run_step(db, _card(), ["p1"], parent, "o", wait=wait, replay=lambda: ("t", "failed", "boom"))
+    replayed = []
+    cloud_batch.run_step(db, _card(), ["p1"], parent, "o", wait=wait,
+                         replay=lambda: (replayed.append(pb.through_the_seam(REQS[0].key, "", []).text), ("t", "done", None))[1])
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 1
+    assert len(waits) == 1 and replayed == ["x"], "the ended batch is not waited on again; its answers replay"
+
+
+def test_a_new_batch_after_a_failed_one_sends_only_what_was_never_answered(db, row, tmp_path):
+    """WHY (review 3, HIGH): the answers are the project's, by content key, not one row's: a batch row queued after a
+    failed one leaves out every page an earlier batch answered."""
+    _run(db, row, FakeProvider())  # answers REQS 0, 2, 3; 1 failed
+    second = jobs.enqueue_remote(db, cloud_batch.KIND, "batch:t2", target="anthropic", reason="Waiting",
+                                 started_by="owner", detail=json.dumps({"provider": "openai", "model": "gpt-4o",
+                                                                        "max_tokens": 2048}))
+    provider = FakeProvider()
+    cloud_batch.run(db, "batch:t2", client=provider, capture=lambda db, d: REQS, sleep=lambda s: None)
+    assert provider.sent == [[REQS[1].key]] and second
+
+
+def test_a_poll_that_raises_lets_go_of_the_hold_so_a_retry_does_not_hold_it_twice(db, row):
+    """WHY (review 3, MED): the hold lives in this process; a run that raised mid-poll leaves it held, and the Retry
+    holds it again on adoption, until the cap refuses batches that would fit."""
+    from fichero_server.llm import spend
+
+    library = str(Path(db.path).parent)
+
+    class Boom(FakeProvider):
+        def poll(self, ids):
+            raise ConnectionError("net")
+
+    for _ in range(2):
+        with pytest.raises(ConnectionError):
+            _run(db, row, Boom())
+        assert spend._RESERVED.get(library, 0) == 0
+
+
+def test_a_crash_mid_submit_sends_the_rest_as_a_batch_on_resume(db, row):
+    """WHY (review 3, LOW): the engine stopped after the first of two chunks was submitted; the resume submits the
+    second as a batch (at the batch price), not leaving its pages to go as plain calls at the full one."""
+    class Cap(FakeProvider):
+        cap_bytes = 2 * pb.request_bytes(REQS[0])
+
+    class Crash(Cap):
+        def submit(self, model, requests, *, max_tokens):
+            if self.sent:
+                raise SystemExit("the engine went away")
+            self.sent.append([r.key for r in requests])
+            return {"batch_id": "first"}
+
+    class Resumed(Cap):
+        def lines(self, ids):
+            if ids["batch_id"] == "first":
+                return [pb.BatchLine(r.key, True, text="uno") for r in REQS[:2]]
+            return super().lines(ids)
+
+    with pytest.raises(SystemExit):
+        _run(db, row, Crash(polls_open=0))
+    provider = Resumed(polls_open=0)
+    _run(db, row, provider)
+    assert provider.sent == [[REQS[2].key, REQS[3].key]], "only the chunk never submitted, as one batch"
