@@ -317,7 +317,7 @@ def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
     shell = FakeClusterShell(tmp_path / "login")
-    target = SlurmReadTarget(cluster, shell)
+    target = SlurmReadTarget(cluster, shell, get=fake_iiif)  # the archive's IIIF page is fetched by the fake
     request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
                                  pages_may_leave=True, target="r")
     started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
@@ -366,7 +366,7 @@ def test_removing_copies_refuses_anything_but_one_runs_own_folder(tmp_path):
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
     shell = FakeClusterShell(tmp_path / "login")
-    target = SlurmReadTarget(cluster, shell)
+    target = SlurmReadTarget(cluster, shell, get=fake_iiif)  # the archive's IIIF page is fetched by the fake
     for key in ("", "a/b", "..", "."):
         with pytest.raises(ValueError):
             target.remove(key)
@@ -381,7 +381,7 @@ def _cluster_run(db, archive, tmp_path, **kw):
 
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
-    target = SlurmReadTarget(cluster, FakeClusterShell(tmp_path / "login"))
+    target = SlurmReadTarget(cluster, FakeClusterShell(tmp_path / "login"), get=fake_iiif)
     request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
                                  pages_may_leave=True, target="r", **kw)
     started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)

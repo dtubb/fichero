@@ -15,7 +15,7 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from fichero_server.training.hf_jobs import CANCELLED, DONE, FAILED, RUNNING, WAITING, FarStatus
 from fichero_server.workflows.remote_jobs import HpcClusterConfig, build_ssh_command, normalize_slurm_state
@@ -227,8 +227,9 @@ class SlurmReadTarget(SlurmTarget):
 
     ponytail: `flavor` means nothing on a cluster (one GPU a task); the site's own gres is the cluster's setting."""
 
-    def __init__(self, cluster: HpcClusterConfig, shell: Shell) -> None:
+    def __init__(self, cluster: HpcClusterConfig, shell: Shell, *, get: Any = None) -> None:
         super().__init__(cluster, shell)
+        self._get = get  # how pages are fetched before a package leaves: the polite web fetch, or a test's stand-in
         self._package = None
         self._sent: dict[str, list[str]] = {}  # job_key → the Slurm job ids submitted
 
@@ -244,7 +245,7 @@ class SlurmReadTarget(SlurmTarget):
             # politely, into the package, and travel in it (`compute.hpc.nothing-heavy-on-a-login-node`).
             from fichero_server.remote_read import runner
 
-            runner.prefetch(Path(local_dir))
+            runner.prefetch(Path(local_dir), get=self._get)
         return super().send(local_dir, job_key)
 
     def submit(self, job_key: str, *, script: str = "", flavor: str = "", timeout: str = "2h",
