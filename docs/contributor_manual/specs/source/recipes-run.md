@@ -404,7 +404,8 @@ replaces the Kraken figure before #6212 is coded.
   given to the run divided by the pages inside the gate now, served on the run status beside `pages_at_once` ("2 pages at
   once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
   is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`). Built: `RecipeRunStatus.threads_each`
-  (`compute_preferences.cores_for` shared by `kraken_runtime.threads_each`, the one rule the Kraken seam also sets torch by). Left: the app's grey line says it
+  is what the pages read on now, torch's one pool as the Kraken seam last set it (`kraken_runtime.threads_reading_now`),
+  and null while no Kraken page is inside the gate (a step on another engine, or between pages; #6240). Left: the app's grey line says it
   (Swift). *Test:* `fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py`.
 
 ### 8. A restart requeues unfinished work and releases every lane
