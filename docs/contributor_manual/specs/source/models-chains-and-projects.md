@@ -775,7 +775,7 @@ lives somewhere).
 
    | Purpose (checkbox) | Jobs it proposes (registry ids) |
    |---|---|
-   | Transcribe | `find-lines`, `read-a-line`, `correct` |
+   | Transcribe | `find-lines`, `read-a-line` (PROPOSED 2026-10-28, #6250: lines alone; `correct` was in this row and becomes an add-on, see `source.recipe.transcribe-is-lines-alone`) |
    | People, places and things | the above + `find-names-tag-words` (entity kinds chosen on screen 6) |
    | Search my sources | the above transcribe jobs + `make-a-vector` |
    | Statements (who did what to whom) | transcribe jobs + `find-names-tag-words`, `find-statements` (subject, verb, object) |
@@ -790,8 +790,9 @@ lives somewhere).
 
    Jobs any purpose may add, offered on screen 7 as "Also on hand" (never hidden, as
    `source.onboard.offers-never-hides`): `prepare-the-image` (clean up images: crop, straighten,
-   brighten), `split-pages`, `put-in-order` (reading order), `refine-shapes`, `check`, `export`,
-   `publish`, `train-a-model`. **Hands** (telling one writer's hand from another) has no job in the
+   brighten), `split-pages`, `put-in-order` (reading order), `refine-shapes`, `read-a-page` (Read the
+   whole page, with `tie-text-to-lines`; PROPOSED #6250), `correct` (Review the reading; PROPOSED #6250),
+   `check`, `export`, `publish`, `train-a-model`. **Hands** (telling one writer's hand from another) has no job in the
    registry today (`recipes/seed/topics.yaml`), so setup does not offer it; see Open questions.
    The five new purposes (Statements, Translate or normalise, Gather quotations, Catalogue, Tables
    and forms) are proposed by this spec, not yet ruled (Open questions). The engine's `assemble()`
@@ -3124,7 +3125,82 @@ Purposes and layers *Spec review 2026-10-20:* of a recipe's `defaults:` block on
   offered are those of section 7b, screen 2 (the original eight, with Statements, Translate or
   normalise, Gather quotations, Catalogue my sources and Tables and forms proposed); a job not in the
   registry (hands, today) is never offered. *Test:* ticking Map places shows Find lines, Read each
-  line, Correct, Find names, Place in a gazetteer.
+  line, Correct, Find names, Place in a gazetteer (PROPOSED #6250: without Correct, which becomes an
+  add-on; the test's expected list changes with `source.recipe.transcribe-is-lines-alone`).
+
+**Transcribe is lines alone (PROPOSED 2026-10-28, #6250; the maintainer, from testing 2026-10-27).**
+A recipe that only finds lines and reads each one was refused for having no page step. The rules below
+make lines alone the default and the only required shape; a page reader and the reviewers are steps a
+person adds, never required; and every step says plainly what it does wherever a step is named.
+
+- `source.recipe.transcribe-is-lines-alone` — **[BROKEN]** (#6250) the default steps of Transcribe,
+  and the "transcribe jobs" every other purpose builds on, are `find-lines` then `read-a-line` and
+  nothing else: setup proposes them, the recipe saves them, Start runs them. Today `assemble._TRANSCRIBE`
+  (`fichero-server/src/fichero_server/recipes/assemble.py:17`) is `("find-lines", "read-a-line", "correct")`,
+  so every purpose proposes a Correct step by default; Edit a corpus (`("find-lines", "read-a-line")`) is
+  already the shape this rule makes the default. *Test (to write, red first):* assembling [transcribe]
+  gives exactly find-lines, read-a-line; [map-places] gives find-lines, read-a-line, find-names-tag-words,
+  place-in-a-gazetteer; no purpose adds `correct`, `read-a-page` or `check` by itself. A project saved
+  before this rule keeps its Correct step (a recipe change never changes a person's recipe by itself,
+  Rulings 2026-10-01).
+- `source.recipe.lines-alone-never-refused` — **[BROKEN]** (#6250) a recipe of `find-lines` and
+  `read-a-line` (with or without the add-ons below) is never refused for lacking a page step, by the
+  recipe check, Start's plan, a stage try, Use This from a comparison, or choosing a model for a step.
+  The job chain already passes (`jobs.unmet_inputs`: a line reader takes `lines`, which Find lines gives);
+  the refusals that key on a missing `read-a-page` step are: (a) `bakeoff.use_this`,
+  `fichero-server/src/fichero_server/recipes/bakeoff.py:619` — "this project's recipe has no read-a-page
+  step to set a reader for" when a page reader is chosen from a comparison; (b) `start.use_candidate`,
+  `fichero-server/src/fichero_server/recipes/start.py:1289`, with `discovery.does_the_step`,
+  `fichero-server/src/fichero_server/recipes/discovery.py:2250` — a page reader on this Mac "does not do
+  the step" `read-a-line`, and with no `read-a-page` step in the recipe there is nowhere to put it. Under
+  this rule either press on a lines-only recipe **adds the Read the whole page step** (the add-on below,
+  tied to the lines) with that reader as its model, and says so in one sentence; it never says a step is
+  missing. The builder confirms which refusal the maintainer met and pins each with its own red-first
+  test. *Test (to write):* `recipes check` on a find-lines + read-a-line recipe lists no problem; Start's
+  plan for it has two runs and no refusal; Use This with a page reader's row on it adds the page step
+  rather than refusing; use-candidate with a local vision model on its line step adds the page step.
+- `source.recipe.page-reader-is-an-add-on` — **[GAP]** (#6250) **Read the whole page** (`read-a-page`) is
+  an optional step a person adds in Set Up (under Also on hand), in the Recipe Designer or on the recipe
+  card; no purpose proposes it. It **needs the lines step** (`find-lines`) in the recipe: it reads the
+  page at once and its output is tied to the found lines (`tie-text-to-lines` runs as part of it, as
+  Rulings 2026-10-04 (#5444) say: automatic above the match threshold, doubtful lines flagged), so each
+  line knows its words and the page can be corrected and trained line by line. Adding it to a recipe
+  with no Find lines step adds Find lines too and says so. It may stand beside Read each line (two
+  readings of each line, the disagreement worked out as `source.disagree.built-in-with-two-readers`) or
+  alone with Find lines (a vision reader for hard pages). A page reader on this Mac is listed on this
+  step only (Recipe Designer ruling B, `designer.filter.ruling-b-every-local-page-reader`); one that runs
+  elsewhere also reads the line step's lines (`source.find.one-candidate-source`), unchanged. *Test (to
+  write):* a recipe of find-lines, read-a-page passes the check and its plan ties text to lines; adding
+  read-a-page to a recipe without find-lines yields find-lines, read-a-page; the step is in no purpose's
+  proposal.
+- `source.recipe.reviewers-are-add-ons` — **[GAP]** (#6250) the reviewers are optional steps a person
+  adds, never required and never proposed by a purpose: **Review the reading** (`correct`: a second model
+  checks each line's reading against the picture and proposes corrections beside it) and **Check**
+  (`check`: a teacher's verdicts on a layer). Each **needs a reading to review**: a recipe that adds one
+  with no Read each line or Read the whole page step is told so in one sentence naming the step to add
+  (`jobs.unmet_inputs` already says this for the chain: `correct` takes `line_readings`, `check` takes a
+  reading). Set Up's Read question "Have a second model check the reading?" stays the way a person adds
+  Review the reading there (default no, `stages.py` Read stage); its candidates stay listed with the way
+  to turn it on when it is not in the plan (`source.recipe.kraken-reads-cloud-corrects-unsure`,
+  `step_choices.py:167`). *Test (to write):* [transcribe] answered "no second model" has no correct step;
+  answered yes it has find-lines, read-a-line, correct; a recipe of find-lines, correct fails the check
+  naming Read each line or Read the whole page.
+- `source.recipe.steps-say-what-they-do` — **[GAP]** (#6250) every place a step is named uses one plain
+  label for what it does, the same in Set Up, the Recipe Designer, the recipe card, Start's plan and
+  Activity: **Find lines** (`find-lines`), **Read each line** (`read-a-line`), **Read the whole page**
+  (`read-a-page`), **Review the reading** (`correct`); while running, Activity says **Finding the lines**,
+  **Reading each line**, **Reading the whole page**, **Reviewing the reading**. One source: the job's
+  topic title (`fichero-server/src/fichero_server/recipes/seed/topics.yaml`, `title:`), which Start's
+  plan already uses (`source.onboard.ready-speaks-plainly`, `start.step_names`). Today the words differ
+  by surface: topics say "Read a page" and "Correct"; the stage page says "Read lines", "Read pages",
+  "Correct" (`fichero-server/src/fichero_server/recipes/step_choices.py:17`, `_STAGE_WORDS`); the runner's
+  progress says "Reading the lines", "Reading the pages", "Correcting the readings"
+  (`fichero-server/src/fichero_server/recipes/runner.py:1668`, `_DOING`); Activity's stage table groups
+  all four under one "Read" (`fichero/fichero/Views/Activity/Detail/ActivityDetails+RunStages.swift`,
+  mirrored from `recipes/stages.py:77`), so a person cannot tell which step is which. The stage keeps
+  its name (Read) as the group; each step row under it carries its own label. *Test (to write):* the
+  purposes endpoint, the stage page's choices, the plan's step names and a run's progress lines all
+  name the four steps with these labels and no other; a step id or job id never shows.
 - `source.onboard.job-detail-screens` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen, as ruled that day (every ticked job its own screen):** each ticked job adds one screen after What it is, in step order (`SetupPage.pages`), with its topic's paragraph and example; Entities asks its kinds (default people and places), Translate or normalise how far, Map places which gazetteer, saved as `answers.job_answers`; an unticked job adds none; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Built 2026-10-07 (engine): the names step reads its kinds (`source.onboard.auto.job-answers-read`). Not built: the gazetteer and translate steps reading theirs; translate's target language, the gazetteer's region and period, catalogue fields, table columns.* a ticked job that needs an answer the
   engine cannot work out gets one short screen of its own after What it is, and only then: entity
   kinds (checkboxes; default people and places), translate or normalise (into which language, how
@@ -4671,6 +4747,19 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
   training set until a person checks it. This refines #5217's rule (run by itself only where the
   match is known to be perfect) for the recipe step; the hand-run Align Text to Lines tool keeps its
   confirm-the-pass flow.
+- **2026-10-28 (#6250), PROPOSED, from the maintainer's testing of 2026-10-27, awaiting his approval:**
+  transcribing is lines alone by default: find the lines, then read each line (`find-lines`,
+  `read-a-line`), and a recipe of those two steps is never refused for having no page step. Reading the
+  whole page (tied to the found lines) and the reviewers (Review the reading, Check) are steps a person
+  adds; never required, never proposed by a purpose. Every surface that names a step says what it does:
+  Find lines, Read each line, Read the whole page, Review the reading. Behaviours:
+  `source.recipe.transcribe-is-lines-alone`, `source.recipe.lines-alone-never-refused`,
+  `source.recipe.page-reader-is-an-add-on`, `source.recipe.reviewers-are-add-ons`,
+  `source.recipe.steps-say-what-they-do`. Still his to rule: (1) that `correct` leaves the default of
+  every purpose, not only Transcribe (recommended: yes, it is a reviewer); (2) the label for `check`
+  (recommended: keep "Check", the maintainer named four labels and Check is not one of the four steps);
+  (3) whether choosing a page reader on a lines-only recipe adds the page step or is refused in words
+  naming the add-on (recommended: adds it, with the reader as its model).
 - **2026-10-05 (#5477 to #5482), setup round 2:** first run asks where the project lives and saves
   into it; purposes and material are checkboxes, any combination; "nothing runs automatically" is
   its own screen; a fifth way in, Keep arranged; languages, scripts and direction are chosen, with
