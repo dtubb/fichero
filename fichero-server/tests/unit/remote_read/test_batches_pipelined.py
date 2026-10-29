@@ -162,23 +162,40 @@ def test_the_recipe_runner_sends_the_second_batch_ahead_while_it_runs_the_first(
     assert [e for e in events if e[0] == "ahead"] == [events[0]], "the last batch sends nothing ahead"
 
 
-@pytest.mark.parametrize("state", ["failed", "done"])
-def test_a_recipe_set_aside_or_ended_does_not_cancel_the_read_it_is_paying_for(db, recipe, state):
-    """WHY (#5540, review 4 MED): the recipe row is set aside as failed after its restarts, but its shards run (and bill)
-    on the far side; only a Stop (or a cancelled row) ends them, a failure never does."""
+def _submitted_read(db, recipe, state):
     ahead = pipeline.send_ahead(db, recipe["id"], recipe["detail"], _batch("p1"), None, "owner")
     subject = jobs.read_job(db, ahead)["subject"]
     detail = json.loads(jobs.read_job(db, ahead)["detail"])
     detail["shards"] = {"0": {"state": "submitted", "far_id": "job-0", "tries": 1}}
     jobs.save_detail(db, ahead, json.dumps(detail))
     db.execute("UPDATE jobs SET state = ? WHERE id = ?", [state, recipe["id"]])
+    return subject
+
+
+def test_a_recipe_that_ends_failed_cancels_the_read_sent_ahead_for_its_next_batch(db, recipe):
+    """WHY (#5540, review 9 MED): the runner's halted path ends the recipe 'failed' with the next batch's read out; it
+    would bill to the end and never be adopted. Restarts no longer set a recipe with a far-side child aside."""
+    subject = _submitted_read(db, recipe, "failed")
+    cancelled = []
+
+    class Place:
+        def cancel(self, far_id):
+            cancelled.append(far_id)
+
+    with pytest.raises(jobs.JobCancelled):
+        read_job.run(db, subject, target=Place(), sleep=lambda s: None)
+    assert cancelled == ["job-0"]
+
+
+def test_a_recipe_that_is_done_does_not_cancel_a_read_still_running(db, recipe):
+    subject = _submitted_read(db, recipe, "done")
 
     class Polled(Exception):
         pass
 
     class Place:
         def cancel(self, far_id):
-            pytest.fail("a failed recipe cancelled the read")
+            pytest.fail("a done recipe cancelled the read")
 
         def statuses(self, job_id):
             raise Polled  # past the stop check: the read went on polling

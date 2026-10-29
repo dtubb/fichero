@@ -187,6 +187,22 @@ twelve hours or costs more than its estimate.
   real run; test: `fichero-server/tests/unit/remote_read/test_batches_pipelined.py`) inside a batch the steps run in the
   recipe's order, a model loading once per task; batch b's remote stage overlaps batch b-1's local steps; at most two
   batches in flight per cluster or Hugging Face place.
+- `compute.recipe.failed-or-stopped-cancels-its-sent-read` — **[OK]** (#5540) a read sent ahead for a recipe's next batch is
+  cancelled on the far side when its recipe ends failed (the runner's halted path leaves it out) or is Stopped; a
+  recipe that is done does not cancel a read still running. A recipe whose far-side child never finishes is bounded
+  only by far-side limits: the provider's ~24 h expiry, or the Hugging Face / Slurm time limits; a person's Stop ends it.
+  *Test:* `fichero-server/tests/unit/remote_read/test_batches_pipelined.py`
+  (`test_a_recipe_that_ends_failed_cancels_the_read_sent_ahead_for_its_next_batch`,
+  `test_a_recipe_that_is_done_does_not_cancel_a_read_still_running`).
+- `compute.recipe.restart-never-sets-aside-far-side-work` — **[OK]** (#5540) a restart never sets aside a cloud-batch
+  row, nor a recipe run with a far-side child still out: they are picked up again, so the shards or batch it pays for
+  keep being followed. *Test:* `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`
+  (`test_resume_leaves_a_batch_and_a_recipe_with_one_out_running_after_every_restart`).
+- `compute.recipe.failed-batch-row-with-open-batch-is-adopted` — **[OK]** (#5540) a failed batch row with a provider batch
+  still open is adopted and put back to waiting, so no second batch is sent; one with nothing open is not adopted.
+  *Test:* `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`
+  (`test_a_batch_row_set_aside_as_failed_with_a_batch_still_open_is_followed_never_sent_twice`,
+  `test_a_failed_batch_row_with_nothing_open_is_not_adopted`).
 - `compute.recipe.done-is-landed` — **[PARTIAL]** (#5642, #6127) a page's step is done when its result has
   landed; a rerun, resume or restart plans from the done state, sends no landed page, and adopts a task still running
   by its id. Built: a step's pages are worked out from the done state as it runs (`split_done`); a page's lines landed

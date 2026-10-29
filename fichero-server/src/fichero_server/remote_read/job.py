@@ -204,16 +204,17 @@ def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -
 
 def _its_recipe_stopped(db: Any, job_id: str, *, ended: bool = False) -> bool:
     """The recipe run this read is under was stopped: a read sent ahead for its next batch (`remote_read.pipeline`) is
-    stopped with it, as its running step is, never left reading (and billing) alone. A recipe row set aside as failed
-    after its restarts does not stop it: the shards run and bill there, and a failure never ends a run (#5540). With
-    `ended`, a recipe that failed or is done counts too: nothing has been sent yet, so there is nothing to pay for."""
+    stopped with it, as its running step is, never left reading (and billing) alone. A recipe that ended failed counts
+    (the runner's halted path leaves the next batch's read out, and it would bill to the end unadopted); restarts no
+    longer set aside a recipe with a far-side child out (#5540), so a failed row is a real end. A done one does not
+    stop a running read. With `ended`, a done recipe counts too: nothing has been sent yet, so there is nothing to pay for."""
     from fichero_server.execution.cancellation import cancellation_requested
 
     parent = jobs.parent_of(db, job_id)
     if parent is None:
         return False
     row = jobs.read_job(db, parent)
-    return cancellation_requested(parent) or row is None or row["state"] in (("cancelled", "failed", "done") if ended else ("cancelled",))
+    return cancellation_requested(parent) or row is None or row["state"] in (("cancelled", "failed", "done") if ended else ("cancelled", "failed"))
 
 
 def live_child_for(db: Any, parent_job_id: str, kind: str, documents: list[str] | None,
