@@ -194,10 +194,28 @@ ATTRIBUTE_FIELDS = {
 }
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 # "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
-_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)(?!\s+de\s)")
-_UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|\$)"  # what a number with a dot in it counts, when it is not a year
-# Spanish "1.918" = 1918, only 1.8xx-2.0xx and never an amount: "1.900 pesos", "$ 1.900"
-_THOUSANDS = re.compile(r"(?<![\d$])(?<!\$ )(1\.[89]\d{2}|2\.0\d{2})(?![\d.])(?!\s*" + _UNIT + ")", re.I)
+# ... and a short end year is read only when nothing follows it but punctuation or a joining word: "1910 - 12 hojas" is not 1912
+_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)(?=\s*(?:$|[.,;:)\]\"\u201d]|(?:y|e|o|and|or)\b|[-\u2013\u2014/]))")
+_UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|\$)"  # what a dropped-1 number counts, when it is not a year
+# Spanish "1.918" = 1918, only in a date context (an allow-list: everything else with a dot stays a number, "pesos 1.918"):
+_DOTTED = r"(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)(?![.,]\d)"
+_MONTHS_ES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
+_AFTER_DE = re.compile(r"(\b(?:\d{1,2}|" + _MONTHS_ES + r")\s+(?:de|del)\s+)(" + _DOTTED + ")", re.I)  # "Marzo 4 de 1.918", "4 de marzo de 1.918"
+_NEXT_TO_ANO = re.compile(r"(\baños?\s+(?:de\s+)?)(" + _DOTTED + r")|(" + _DOTTED + r")(?=\s+años?\b)", re.I)
+_WHOLE_SIDE = re.compile(r"[\s.,\[\]()?]*(" + _DOTTED + r")[\s.,\[\]()?]*")  # nothing but punctuation around it
+_SIDE_SPLIT = re.compile(r"(;|\s+-\s+|[\u2013\u2014]|\s+(?:to|hasta)\s+)")
+
+
+def _dedot(text: str) -> str:
+    """The dotted years of a Dates text without the dot: after "de"/"del" that follows a day or month, a whole side of a range or
+    ";" part, or next to "año(s)"; any other dotted number ("pesos 1.918", "1.900 kilos", "1.918,50") is left as it is."""
+    drop = lambda year: year.replace(".", "")  # noqa: E731
+    text = _AFTER_DE.sub(lambda m: m.group(1) + drop(m.group(2)), text)
+    text = _NEXT_TO_ANO.sub(lambda m: (m.group(1) + drop(m.group(2))) if m.group(2) else drop(m.group(3)), text)
+    parts = _SIDE_SPLIT.split(text)
+    return "".join(drop(part) if i % 2 == 0 and _WHOLE_SIDE.fullmatch(part) else part for i, part in enumerate(parts))
+
+
 # "del 914", "de 914", "a 914", "al 914": a year with the 1 dropped is named as a date, never as a bare number
 _DROPPED_ONE = re.compile(r"\b(?:del|de|al|a)\s+([89]\d{2})(?![\d.])(?!\s*" + _UNIT + ")", re.I)
 _NUMBER_BEFORE = re.compile(r"(?<![\d.])\d{1,3}\s*$|\b(?:folios?|fojas?|hojas?|ff?\.)\s*$", re.I)  # "1 a 914", "folios 1 a 914"
@@ -243,7 +261,7 @@ def _spoken_years(dates: str) -> list[str]:
 def _years(dates: str) -> list[str]:
     """The years a Dates field names, digits or Spanish words; a short end of a range ("1850-60", "1850/60") is the year it
     ends: 1860."""
-    dates = _THOUSANDS.sub(lambda m: m.group(1).replace(".", ""), dates)
+    dates = _dedot(dates)
     years = _YEAR.findall(dates) + _spoken_years(dates)
     for start, tail in _SHORT_END.findall(dates):
         end = int(start[:2] + tail)
@@ -253,6 +271,10 @@ def _years(dates: str) -> list[str]:
         if not _NUMBER_BEFORE.search(dates[:found.start()]) and any(abs(year - int(y)) <= 30 for y in years):
             years.append(str(year))
     return years
+
+
+#: The attributes one reading of the Dates field writes together: a person's hold on one is a hold on all.
+DATE_KEYS = ("catalogue_dates", "catalogue_date_start", "catalogue_date_end", "catalogue_date_normalised")
 
 
 def _date_range(dates: str) -> tuple[str, str] | None:
@@ -271,7 +293,7 @@ def _edtf_side(side: str, fallback: str) -> str:
     from fichero_server.histdate import parse_historical_date
 
     unsure = bool(re.search(r"\?|incierto|uncertain", side, re.I))
-    text = re.sub(r"\?|\[?(?:incierto|uncertain)\]?", "", _THOUSANDS.sub(lambda m: m.group(1).replace(".", ""), side)).strip(" .,;")
+    text = re.sub(r"\?|\[?(?:incierto|uncertain)\]?", "", _dedot(side)).strip(" .,;")
     text = re.sub(r"([^\W\d]+\s+\d{1,2})\s+de\s+(\d{4})", r"\1 \2", text)  # "Mayo 8 de 1906": month first, as histdate reads it
     read = parse_historical_date(text)
     if read is None:

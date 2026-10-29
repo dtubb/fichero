@@ -188,3 +188,42 @@ def test_undo_leaves_content_changed_since_promote(db):
     back = _promoted_then(db, lambda folder: setattr(folder, "page_content", "A person rewrote this."))
     assert back.page_content == "A person rewrote this."
     assert "catalogue_content_from" in back.metadata  # the key that goes with the content stays with it
+
+
+DATES_OLD = "Title: Wheat letters.\nDates: 1776."
+DATES_NEW = "Title: Wheat letters.\nDates: 1780 - 1790."
+
+
+def _promote_dates_then(db, edit):
+    box, art = _described_folder(db, DATES_OLD)
+    art.content = DATES_NEW
+    db.save(art)
+    audit_id = _promote(db, folder_id=box).audit_id
+    folder = db.get(Document, box)
+    edit(folder)
+    db.save(folder)
+    undo_set(db, [audit_id], CTX)
+    return db.get(Document, box)
+
+
+def test_undo_keeps_the_dates_group_when_a_person_edited_the_text(db):
+    back = _promote_dates_then(db, lambda f: f.attributes.update({"catalogue_dates": "about 1785"}))
+    assert back.attributes["catalogue_dates"] == "about 1785"
+    assert (back.attributes["catalogue_date_start"], back.attributes["catalogue_date_end"]) == ("1780", "1790")
+    assert back.attributes["catalogue_date_normalised"] == "1780/1790"
+    from fichero_server.workflows.attribute_sources import SOURCES
+
+    assert back.metadata[SOURCES]["catalogue_dates"] == {"by": "person"}  # a plain edit carries a person's source
+
+
+def test_undo_keeps_the_dates_group_when_a_person_confirmed_the_dates(db):
+    from fichero_server.workflows.attribute_sources import SOURCES
+
+    def confirm(folder):
+        sources = dict(folder.metadata[SOURCES])
+        sources["catalogue_dates"] = {**sources["catalogue_dates"], "accepted_by": "someone"}
+        folder.metadata = {**folder.metadata, SOURCES: sources}
+
+    back = _promote_dates_then(db, confirm)
+    assert back.attributes["catalogue_dates"] == "1780 - 1790."
+    assert back.attributes["catalogue_date_start"] == "1780" and back.attributes["catalogue_date_normalised"] == "1780/1790"

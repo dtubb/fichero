@@ -134,3 +134,24 @@ def test_several_dates_and_ranges_run_from_the_earliest_to_the_latest():
     dates = "Marzo 4 de 1.918; Julio 31 de 1914 – Noviembre 30 de 1917"
     assert _span(dates) == ("1914", "1918")
     assert _norm(dates) == "1914-07-31/1918-03-04"
+
+
+def test_a_dotted_number_is_a_year_only_in_a_date_context():
+    assert _span("pesos 1.918; 1910") == ("1910", "1910")
+    assert _span("la suma de 1.895 en 1910") == ("1910", "1910")
+    assert _span("1910, 1.918,50 pesos") == ("1910", "1910")
+    for unit in ("kilos", "USD", "libras"):
+        assert _span(f"1910, 1.900 {unit}") == ("1910", "1910")
+    assert _span("1910 (1.950 m2)") == ("1910", "1910")
+    assert _span("Marzo 4 de 1.918") == ("1918", "1918")  # after "de" that follows a day
+    assert _span("4 de marzo de 1.918") == ("1918", "1918")  # ... or a month
+    assert _span("1.918; 1910") == ("1910", "1918")  # a whole ";" part
+    assert _span("años 1.909") == ("1909", "1909")  # next to "año(s)"
+    assert _span("1.909 años") == ("1909", "1909")
+
+
+def test_a_short_end_year_is_read_only_before_punctuation_or_a_joining_word():
+    assert _span("1910 - 12 hojas") == ("1910", "1910")
+    assert _span("1910 - 12 folios") == ("1910", "1910")
+    assert _span("1850-60.") == ("1850", "1860")
+    assert _span("1850-60; 1870") == ("1850", "1870")

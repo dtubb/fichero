@@ -1112,6 +1112,7 @@ def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx:
 def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
     """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
     from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.recipes import catalogue_step
     from fichero_server.workflows.attribute_sources import BY_PERSON, SOURCES
 
     for folder_id, was in params.before.items():
@@ -1127,10 +1128,18 @@ def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, 
             for key in was.get("metadata_added") or []:
                 meta.pop(key, None)
         after = was.get("attributes_after") or {}
-        for key in {*(was.get("attributes") or {}), *(was.get("attributes_added") or {}), *(was.get("sources") or {}),
-                    *(was.get("sources_added") or [])}:
-            if (sources.get(key) or {}).get("by") == BY_PERSON or (key in after and attrs.get(key) != after[key]):
-                continue  # a person's value, or edited since promote: left alone
+        promoted = {*(was.get("attributes") or {}), *(was.get("attributes_added") or {}), *(was.get("sources") or {}),
+                    *(was.get("sources_added") or [])}
+        held_by_person = {k for k in promoted if (sources.get(k) or {}).get("by") == BY_PERSON or (sources.get(k) or {}).get("accepted_by")}
+        edited = {k for k in promoted - held_by_person if k in after and attrs.get(k) != after[k]}
+        keep = held_by_person | edited
+        if keep & set(catalogue_step.DATE_KEYS):  # the dates are read together: keeping one keeps them all
+            keep |= promoted & set(catalogue_step.DATE_KEYS)
+        for key in promoted:
+            if key in keep:
+                if key in edited | (keep - held_by_person):  # a plain edit carries a person's source, not promote's
+                    sources[key] = {"by": BY_PERSON}
+                continue
             for held, name in ((attrs, "attributes"), (sources, "sources")):
                 held.update({key: v for k, v in (was.get(name) or {}).items() if k == key})
                 if key in (was.get(f"{name}_added") or []):
