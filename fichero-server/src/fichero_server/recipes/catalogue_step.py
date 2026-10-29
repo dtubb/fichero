@@ -205,22 +205,23 @@ _DOTTED_AFTER = (  # (prefix, year): "Marzo 4 de 1.918", "4 de marzo de 1.918", 
     re.compile(r"(\b(?:\d{1,2}|" + _MONTHS_ES + r")\s+(?:de|del)\s+)(" + _DOTTED + ")", re.I),
     re.compile(r"(\b(?:" + _MONTHS_ES + r")\s+)(" + _DOTTED + ")", re.I),
     re.compile(r"(\ben\s+)(" + _DOTTED + ")", re.I),
-    # "Bogot\u00e1, 1.918": a capitalised place word, then the year (a unit word is no place)
-    re.compile(r"(\b(?!(?i:" + _UNIT + r")\b)[A-Z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1][A-Za-z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+,?\s+)(" + _DOTTED + ")"),
     re.compile(r"(\baños?\s+(?:de\s+)?)(" + _DOTTED + ")", re.I),  # "año de 1.910", "del año 1.915"
 )
 _BEFORE_ANO = re.compile(r"(" + _DOTTED + r")(?=\s+años?\b)", re.I)
 # a whole side: nothing but punctuation, or "de"/"del", around it
 _WHOLE_SIDE = re.compile(r"[\s.,\[\]()?]*(?:(?:de|del)\s+)?(" + _DOTTED + r")[\s.,\[\]()?]*", re.I)
+# ... and in a range, a side that starts with it and goes on after a comma or bracket ("1.909 - 1.918, 120 folios")
+_SIDE_START = re.compile(r"[\s.\[(?]*(?:(?:de|del)\s+)?(" + _DOTTED + r")(?=\s*[,;.)\]]|\s*\()", re.I)
 _SIDE_SPLIT = re.compile(r"(;|\s+-\s+|(?<=\d)-(?=\d)|[\u2013\u2014]|\s+(?:to|hasta|a|al)\s+)")
 
 
-_HAS_UNIT = re.compile(r"\b(?:pesos|reales|folios|fojas|hojas|varas|centavos|usd|kilos?|libras|m2|arrobas)\b|\$", re.I)
+# a range is money when a unit directly follows its last number ("de 1.850 a 1.900 pesos"), not when it follows another ("120 folios")
+_MONEY_END = re.compile(r"\W*(?:de\s+)?\d[\d.,]*\s*" + _UNIT + r"(?!\w)", re.I)
 
 
 def _dedot(text: str) -> str:
-    """`_dedot_part` for each ";" part; a part with a range whose side carries a unit ("de 1.850 a 1.900 pesos") has no year."""
-    return ";".join(part if len(sides := _SIDE_SPLIT.split(part)) > 1 and any(_HAS_UNIT.search(x) for x in sides[::2])
+    """`_dedot_part` for each ";" part; a part that is a money range ("de 1.850 a 1.900 pesos") has no year."""
+    return ";".join(part if len(sides := _SIDE_SPLIT.split(part)) > 1 and _MONEY_END.match(sides[-1])
                     else _dedot_part(part) for part in text.split(";"))
 
 
@@ -232,8 +233,11 @@ def _dedot_part(text: str) -> str:
         text = pattern.sub(lambda m: m.group(1) + drop(m.group(2)), text)
     text = _BEFORE_ANO.sub(lambda m: drop(m.group(1)), text)
     parts = _SIDE_SPLIT.split(text)
-    return "".join(_WHOLE_SIDE.sub(lambda m: m.group(0).replace(m.group(1), drop(m.group(1))), part)
-                   if i % 2 == 0 and _WHOLE_SIDE.fullmatch(part) else part for i, part in enumerate(parts))
+    out = []
+    for i, part in enumerate(parts):
+        found = (_WHOLE_SIDE.fullmatch(part) or (_SIDE_START.match(part) if len(parts) > 1 else None)) if i % 2 == 0 else None
+        out.append(part[:found.start(1)] + drop(found.group(1)) + part[found.end(1):] if found else part)
+    return "".join(out)
 
 
 # "del 914", "de 914", "a 914", "al 914": a year with the 1 dropped is named as a date, never as a bare number
