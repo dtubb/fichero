@@ -2035,8 +2035,12 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
     before = read_project_setup(library)
     # A part left out is kept; a part sent as null is removed (#5584).
     sent = params.model_fields_set
-    write_project_setup(library, params.answers if "answers" in sent else before.get("answers"),
-                        params.recipe if "recipe" in sent else before.get("recipe"))
+    recipe = params.recipe if "recipe" in sent else before.get("recipe")
+    if recipe and before.get("recipe"):
+        from fichero_server.recipes.bakeoff import drop_readers_of_changed_models
+
+        recipe = drop_readers_of_changed_models(before["recipe"], recipe)
+    write_project_setup(library, params.answers if "answers" in sent else before.get("answers"), recipe)
     after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
