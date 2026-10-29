@@ -1458,13 +1458,17 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
 
         kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
         blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
-        if blank and redo.intersection(card["steps"]):
+        asked = bool(redo.intersection(card["steps"]))
+        taken_in = set(detail.get("blank_bypassed") or [])  # read by an earlier redo step of this run (#6271)
+        if blank and (asked or taken_in.intersection(blank)):
             # A redo reads what sorting called blank: a skip is never silent and a person can always have a page
-            # read. A page a person called blank stays out.
+            # read; the later page steps of the same run read those pages too. A page a person called blank stays out.
             from fichero_server.models import Document as _Doc
 
-            read = [d for d in blank if ((getattr(db.get(_Doc, d), "attributes", None) or {}).get(sorting.SET_BY)
-                                         != sorting.BY_PERSON)]
+            read = [d for d in blank if (asked or d in taken_in) and
+                    ((getattr(db.get(_Doc, d), "attributes", None) or {}).get(sorting.SET_BY) != sorting.BY_PERSON)]
+            if asked:
+                detail["blank_bypassed"] = sorted(taken_in.union(read))
             for d in read:
                 kinds.pop(d, None)
             blank = [d for d in blank if d not in read]

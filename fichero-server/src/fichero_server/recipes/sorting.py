@@ -4,8 +4,7 @@ A page's kind (handwriting, print, typescript, blank) is the document attribute 
 who set it: `sorting` (this job) or `person` (a change through the document update route). A person's kind is never
 overwritten, and a kind already set is not worked out again, except a `blank` sorting set: it is looked at again on
 every run, so a page an older rule took for blank is read (#5705: a written recto, sorted blank under the ink
-measure #5676 replaced, was left out of every later run). A page with live lines on its working pass is never
-blank, and a blank sorting set on it goes (#6271: a redo of find-lines lined it; read-a-line dropped it again).
+measure #5676 replaced, was left out of every later run).
 
 * **blank** is Find the Documents' blank-verso rule (`finddocs.job.blank_versos`, #5579): one code path for the
   pages a run leaves unread.
@@ -45,10 +44,6 @@ def kinds(db: Any, page_ids: list[str], materials: list[str]) -> dict[str, str]:
             out[pid] = str(attrs[KIND])
     unsorted = [pid for pid in page_ids if pid not in out and docs[pid] is not None]
     blanks = blank_versos(db, unsorted) if unsorted else set()
-    if blanks:  # a page with live lines is not blank: Kraken found writing there (#6271), whatever its ink says
-        from fichero_server.recipes.done import pages_with_lines
-
-        blanks -= pages_with_lines(db, list(blanks))
     machine = next((m for m in ("print", "typescript") if m in materials), "print")
     for pid in unsorted:
         doc = docs[pid]
