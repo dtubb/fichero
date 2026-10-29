@@ -1549,9 +1549,11 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             here[index]["state"] = states[index] = "done"
             if step["state"] == "waiting":
                 left = len(step.get("left_out") or [])  # the run's total for the step, not this batch's; left out is not done (#6271)
+                total_done = step.get("already_done") or 0  # likewise the run's total, not this batch's
+                cause = "as blank" if card.get("job") in _NOT_ON_BLANK_VERSOS else "as too uncertain for names"
                 step.update(state="done", child_id=None, why=(
-                    f"nothing to run: {left} page{'' if left == 1 else 's'} left out, the rest already done" if left and already
-                    else f"nothing to run: all {left} page{'' if left == 1 else 's'} left out as blank" if left
+                    f"nothing to run: {left} page{'' if left == 1 else 's'} left out, the rest already done" if left and total_done
+                    else f"nothing to run: all {left} page{'' if left == 1 else 's'} left out {cause}" if left
                     else "already done on every page"))
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
