@@ -634,6 +634,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyri
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSansSyriacWestern.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices_local.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v2.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v3.md

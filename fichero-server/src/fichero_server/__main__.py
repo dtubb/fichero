@@ -253,6 +253,11 @@ def _main(argv: list[str] | None = None):
         runpy.run_module(run_module, run_name="__main__")
         return
 
+    # The search embedder's worker is forked from a seed made NOW, before any thread of ours exists (#6237).
+    from fichero_server.db import embed_process
+
+    embed_process.start_seed()
+
     # Survive a client that hangs up mid-write (readiness probe cancel, a
     # connection closed right after a 401) instead of dying with SIGPIPE. Set
     # before anything binds a socket. See _ignore_sigpipe for the full cascade.

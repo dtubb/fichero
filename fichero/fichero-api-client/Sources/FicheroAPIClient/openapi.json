@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.10.26"
+    "version": "2026.10.28"
   },
   "paths": {
     "/api/clients": {
@@ -58944,7 +58944,13 @@
             },
             "type": "array",
             "title": "Unpriced Models",
-            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: their cost cannot be held to the cap, so Start asks first (send them as `accept_unpriced`, or use the accept action); calls to them are refused until accepted"
+            "description": "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: listed apart, counted at an assumed price per call; pressing Start accepts them (`cloud.accept_unpriced`), never a refusal (#6259)"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "one sentence naming the unpriced models and the assumed price per call they are counted at; null when there are none"
           },
           "unpriced": {
             "type": "boolean",
@@ -68123,6 +68129,55 @@
         ],
         "title": "FolderRenameResponse"
       },
+      "FolderStepDone": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Done",
+            "description": "its pages done in the folder; null: the step cannot tell"
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of",
+            "description": "the pages it works on in the folder, those left out (blank, a recording) not counted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "of"
+        ],
+        "title": "FolderStepDone"
+      },
+      "FolderStepsDone": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/FolderStepDone"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "steps"
+        ],
+        "title": "FolderStepsDone"
+      },
       "FolderViewInfo": {
         "properties": {
           "id": {
@@ -71668,6 +71723,12 @@
             "type": "boolean",
             "title": "Reads Material",
             "description": "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)",
+            "default": false
+          },
+          "needs_a_model": {
+            "type": "boolean",
+            "title": "Needs A Model",
+            "description": "whether the job runs a model a person can choose: setup offers the model finder beside its step (#6258)",
             "default": false
           }
         },
@@ -85079,6 +85140,14 @@
             "title": "Folders Total",
             "description": "the folders the run goes over, a batch at a time (source.recipe.batch-at-archive-scale); null before the run started"
           },
+          "folder_steps": {
+            "items": {
+              "$ref": "#/components/schemas/FolderStepsDone"
+            },
+            "type": "array",
+            "title": "Folder Steps",
+            "description": "each folder the run has counted, with each step's pages done there, current as each step ends on a batch (activity.run.folder-steps-done); a page in no folder is in none"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/RecipeRunStep"
@@ -95054,6 +95123,14 @@
             "type": "array",
             "title": "Refusals",
             "description": "Start is refused while this is not empty"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "what Start changed in the saved recipe to fit the person's kept choices, one sentence each: a page reader adds the Read the whole page step, a choice for a step the recipe no longer has is dropped; never a refusal (#6259)"
           },
           "waiting": {
             "items": {

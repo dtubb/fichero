@@ -9,7 +9,8 @@ extension FirstRunWindow {
     /// was added; Set Up… on an existing project only closes (its unsaved answers go) (#6117).
     func cancel() {
         guard Self.cancelDeletesTheProject(in: mode), newProject.created != nil else { return finish() }
-        if store?.hasMaterial ?? false {
+        // Pages still coming in count as material (#6247): deleting without asking closed the project under its import.
+        if (store?.hasMaterial ?? false) || (store?.isAddingMaterial ?? false) {
             confirmingCancel = true
         } else {
             discardAndClose()

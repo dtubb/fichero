@@ -54,6 +54,10 @@ struct TerminationDeadlinePolicy: Equatable {
     /// The quit-path budget: ~2s of grace, half a second to observe the kill.
     static let quit = TerminationDeadlinePolicy(gracefulDeadline: 2, killGrace: 0.5, pollInterval: 0.05)
 
+    /// The restart budget (`engine.restart-waits-for-the-work`, #6176): 30 s for the engine to stop by itself before a
+    /// kill, so a restart never SIGKILLs a process still writing. A gone process ends the wait at once.
+    static let restart = TerminationDeadlinePolicy(gracefulDeadline: 30, killGrace: 0.5, pollInterval: 0.25)
+
     /// Total wall-clock ceiling on a teardown — grace plus kill observation.
     var totalDeadline: TimeInterval { gracefulDeadline + killGrace }
 

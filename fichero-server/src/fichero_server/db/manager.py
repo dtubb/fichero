@@ -382,10 +382,11 @@ class DatabaseManager:
         _stop_jobs(package_str)
 
         with self._lock:
-            keys = [k for k in self._databases if k == package_str]
-            for key in keys:
-                self._databases.pop(key).close()
-                logger.info(f"Closed database connection: {package_str}")
+            closing = [self._databases.pop(k) for k in [k for k in self._databases if k == package_str]]
+        # Outside the manager's lock: a close waits for the statement in flight (#6247), and other libraries open meanwhile.
+        for db in closing:
+            db.close()
+            logger.info(f"Closed database connection: {package_str}")
 
     def quiesce_database(
         self,
@@ -624,10 +625,11 @@ class DatabaseManager:
         _stop_conversion(None)
         _stop_jobs(None)
         with self._lock:
-            for cache_key, db in list(self._databases.items()):
+            while self._databases:
+                # Out of the table first, as close_database does: a lookup mid-close must open a new one, not get this
+                cache_key, db = self._databases.popitem()
                 db.close()
                 logger.info(f"Closed database: {cache_key}")
-            self._databases.clear()
             logger.info("All database connections closed")
 
 

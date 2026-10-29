@@ -21,7 +21,6 @@ from fichero_server.execution.chaining import (
     OutputMapping,
     ChainStepCondition,
     ChainEventType,
-    ChainExecutor,
     ChainExecutionResult,
     ChainProgressEvent,
     ChainStepResult,
@@ -299,7 +298,7 @@ class PaleographyPresetResponse(BaseModel):
 MAX_TRACKED_EXECUTIONS = 1000
 MAX_EVENTS_PER_EXECUTION = 100
 _running_executions: dict[str, ChainExecutionResult] = {}
-_running_executors: dict[str, ChainExecutor] = {}
+_running_executors: dict[str, _ChainStepsCanceller] = {}
 _execution_events: dict[str, list[ChainProgressEvent]] = {}
 _execution_order: list[str] = []  # Track insertion order for LRU eviction
 
@@ -771,9 +770,8 @@ async def cancel_chain_execution(execution_id: str) -> ChainCancelResponse:
 # Step-wise Chain Execution (workflow bar, 2026-08-30)
 # =============================================================================
 #
-# The legacy /execute endpoint runs a chain through the standalone
-# ChainExecutor/WorkflowExecutor path: no thread ids, no SSE, no activity
-# records, no per-step model overrides. The workflow bar's staged chain needs
+# The legacy ChainExecutor (retired, #4949) ran a chain with no thread ids,
+# no SSE, no activity records, no per-step model overrides. The workflow bar's staged chain needs
 # each step to be a REAL workflow run — the same machinery as
 # /api/workflow-execution/execute — so /execute-steps runs the chain's steps
 # IN LIST ORDER, one full workflow execution per step, sequential because
@@ -832,7 +830,7 @@ def stop_chain(execution_id: str) -> None:
         result.status = ChainStepStatus.CANCELLED
 
 
-# Passthrough seams (same pattern as chaining.py's WorkflowExecutor, #3950):
+# Passthrough seams (#3950):
 # deferred imports kept as MODULE attributes so tests can patch
 # `fichero_server.api.routes.workflow.chains.<name>` and the call sites
 # resolve the patched global.

@@ -1026,7 +1026,19 @@ def _embed_stage(doc_id: str, library: str) -> None:
         _progress_tick(library)
 
 
+#: One page's names draft at a time: the import's NLP job and a run's `read-names-again` can reach one page at once on
+#: two lanes, and each saw no `nlp_processed_at` and drafted the same text. ponytail: striped in-process locks (a
+#: hash collision only serialises two pages); the engine is one process, a second process would need a row claim.
+_NLP_PAGE_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
 def _nlp_stage(doc_id: str, library: str, *, after_correction: bool = False) -> None:
+    # Keyed by the page alone: the two callers spell the library differently (`_library_of(db)`, `db.path.parent`).
+    with _NLP_PAGE_LOCKS[hash(doc_id) % len(_NLP_PAGE_LOCKS)]:
+        _nlp_stage_one_page(doc_id, library, after_correction=after_correction)
+
+
+def _nlp_stage_one_page(doc_id: str, library: str, *, after_correction: bool = False) -> None:
     """Free NLP draft pass for one document (#4823): NER + SVO, written
     through the same KG writer the LLM extraction tools use, so curation
     rules apply automatically. See ``importers/nlp_draft.py`` for the design

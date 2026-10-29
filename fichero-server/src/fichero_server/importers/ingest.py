@@ -514,6 +514,14 @@ def ingest_file(
         # MOVE becomes destructive only after every database write for this
         # file commits. If extraction, page creation, embedding, or commit
         # fails, the source remains available for a safe retry (#4203).
+        # A new project's Set Up holds the move until Start (#6245): the copy is kept and the source stays put.
+        if mode == IngestMode.MOVE and package_path is not None and "source_path" in doc.metadata:
+            from fichero_server.recipes.project import holds_moves
+
+            if holds_moves(Path(package_path)):
+                doc.metadata["move_pending"] = True
+                db.save(doc)
+                mode = IngestMode.COPY
         if mode == IngestMode.MOVE:
             def delete_original() -> None:
                 try:
@@ -1389,7 +1397,7 @@ def ingest_folder(
     create_collection: bool = True,
     extract_text: bool = True,
     auto_embed: bool = True,
-    on_progress: Callable[[int, int], None] | None = None,
+    on_progress: Callable[..., None] | None = None,
     on_document: "Callable[[Document], None] | None" = None,
     should_cancel: Callable[[], bool] | None = None,
     db: "Database | None" = None,
@@ -1408,7 +1416,8 @@ def ingest_folder(
         auto_embed: Create embeddings for search
         on_progress: Progress callback (current, total) — invoked after every
             file (successful, skipped, or failed) so the caller can advance a
-            progress bar.
+            progress bar; and with ``fetching=`` (a share below 1 of the
+            current file) while a cloud placeholder comes down (#6248).
         on_document: Per-document callback invoked once for each persisted
             folder, file, or failed-file stub. The folder
             ingest route uses this to emit a ``document.created`` change event
@@ -1611,6 +1620,22 @@ def ingest_folder(
                     if on_progress:
                         on_progress(i + 1, total)
                     continue
+                # Brought down within a bound before any read (#6248, Box Drive): a read of an online-only file
+                # could block until the app gave up on the whole import. Not down in time: this file fails, named.
+                from fichero_server.importers import dataless
+
+                fetch_started = time.monotonic()
+
+                def still_downloading(_words: str, i: int = i) -> None:
+                    # The app fails an import whose status stood still for 300 s (IngestStallWatchdog): the progress
+                    # moves inside this file's share while it comes down, the engine's bound ends a fetch that hangs.
+                    if on_progress:
+                        waited = time.monotonic() - fetch_started
+                        on_progress(i, total, fetching=waited / (waited + 60))
+
+                if not_fetched := dataless.fetch_first([str(file_path)], say=still_downloading,
+                                                       min_timeout=dataless._MIN_TIMEOUT_SECONDS):
+                    raise dataless.DatalessSourceError(not_fetched[str(file_path)])
             checksum = _file_checksum(file_path)
             source_key = str(file_path)
             if (source_key, checksum) in existing_hashes:

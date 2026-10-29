@@ -12,9 +12,11 @@ from typing import Any
 
 #: The steps with a choice of model: the readers, Correct, and the two text steps (spaCy, Apple Intelligence, a model of the person's own,
 #: a cloud model: `source.onboard.step-candidates-on-the-plan`, Test 13).
-CHOICE_JOBS = ("read-a-line", "read-a-page", "correct", "translate-transliterate-normalise", "find-names-tag-words", "find-statements",
+CHOICE_JOBS = ("find-lines", "read-a-line", "read-a-page", "correct", "translate-transliterate-normalise", "find-names-tag-words", "find-statements",
                "describe-for-the-catalogue")
-_STAGE_WORDS = {"read-a-line": "Read lines", "read-a-page": "Read pages", "correct": "Correct",
+# One label a step, the job's topic title (`source.recipe.steps-say-what-they-do`, #6250).
+_STAGE_WORDS = {"find-lines": "Find lines", "read-a-line": "Read each line", "read-a-page": "Read the whole page",
+                "correct": "Review the reading",
                 "translate-transliterate-normalise": "Translate", "find-names-tag-words": "Find names",
                 "find-statements": "Find statements", "describe-for-the-catalogue": "Catalogue"}
 

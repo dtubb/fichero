@@ -97,11 +97,11 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
         {"model_id": "gpt-3.5-turbo"},
     ],
     "anthropic": [
-        {"model_id": "claude-3-5-sonnet-latest", "is_recommended": True},
-        {"model_id": "claude-3-5-haiku-latest", "is_recommended": True},
-        {"model_id": "claude-3-opus-latest"},
-        {"model_id": "claude-3-sonnet-20240229"},
-        {"model_id": "claude-3-haiku-20240307"},
+        # Anthropic's current models (models overview, fetched 2026-10-28, #6259); priced in model_prices_local.json.
+        {"model_id": "claude-sonnet-5-5", "is_recommended": True, "supports_vision": True},
+        {"model_id": "claude-haiku-5-5", "is_recommended": True, "supports_vision": True},
+        {"model_id": "claude-opus-5-5", "is_recommended": True, "supports_vision": True},
+        {"model_id": "claude-fable-5-1", "supports_vision": True},
     ],
     "google": [
         {

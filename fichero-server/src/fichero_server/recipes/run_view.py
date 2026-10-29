@@ -154,9 +154,7 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str
         now = utc_now()
 
         wf = list(dict.fromkeys(b["child_id"] for c, bs in jobs_of.items() if cards[c] == "workflow" for b in bs))
-        rows = (db.execute_fetchall(f"SELECT id, progress_timeline FROM {records.RUNS} "  # the timeline only, never the log
-                                    f"WHERE id IN ({', '.join('?' * len(wf))})", wf, committed=True) if wf else [])
-        timelines = {r[0]: r[1] for r in rows}  # one read for every batch of every step
+        timelines = records.progress_timelines(db, wf)  # one read for every batch of every step
 
         def pages_of(child: str, card: Any) -> list[float]:
             timeline = timelines.get(child) if card == "workflow" else None
@@ -274,7 +272,7 @@ class SkippedStep(BaseModel):
 
 #: The verb a stage's offer says (#5706: "Read the 92 pages not done" on a names step).
 _OFFER_VERBS = {"find-names-tag-words": "Find names on", "work-out-dates": "Work out dates on",
-                "find-statements": "Find statements on", "correct": "Correct",
+                "find-statements": "Find statements on", "correct": "Review",
                 "prepare-the-image": "Prepare", "split-into-entries": "Split into entries"}
 
 

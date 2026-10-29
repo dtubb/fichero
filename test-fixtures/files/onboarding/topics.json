@@ -93,7 +93,7 @@
   {
    "id": "read-a-page",
    "kind": "job",
-   "title": "Read a page",
+   "title": "Read the whole page",
    "short": "Reads a whole page at once, usually with a vision model.",
    "long": "Strong on hard pages, but it does not keep where each line was.",
    "example": null,
@@ -111,7 +111,7 @@
   {
    "id": "correct",
    "kind": "job",
-   "title": "Correct",
+   "title": "Review the reading",
    "short": "A second model checks each reading against the picture and proposes corrections, kept as new readings beside the first.",
    "long": "It can be limited to the lines the first reader was unsure of, which saves time and money on long runs.",
    "example": null,

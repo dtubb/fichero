@@ -212,10 +212,15 @@ class BatchManager:
         # holds references into that registry, keyed by batch_id.
         self._cancel_events: dict[str, threading.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
-        # The library's one managed Database (#5645): its rows are `BatchRecord` and `BatchItemRecord`.
+        self.db  # noqa: B018 -- the library opens at the making, as before; `db` is looked up on each use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): this outlives a close and reopen of the
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     def _remember_batch(self, batch: BatchExecution) -> None:
         self._batches[batch.batch_id] = batch
@@ -283,12 +288,13 @@ class BatchManager:
 
         def _save():
             # One transaction: a batch and its items are never saved half (the old store wrote them one by one).
-            with self.db.transaction():
-                self.db.save(BatchRecord(
+            db = self.db  # once: a close mid-block must not open a second Database outside the transaction (#6238)
+            with db.transaction():
+                db.save(BatchRecord(
                     id=batch.batch_id, workflow_id=batch.workflow_id, status=batch.status.value,
                     max_concurrent=batch.max_concurrent, created_at=batch.created_at, started_at=batch.started_at,
                     completed_at=batch.completed_at, error_message=batch.error_message))
-                self.db.save_many([
+                db.save_many([
                     BatchItemRecord(id=BatchItemRecord.key(batch.batch_id, item.thread_id), batch_id=batch.batch_id,
                                     thread_id=item.thread_id, item_index=item.item_index, inputs=item.inputs,
                                     status=item.status.value, error=item.error, started_at=item.started_at,
@@ -773,12 +779,13 @@ class BatchManager:
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
 
         def _delete():
-            with self.db.transaction():  # the batch and its items go together, or not at all
-                for item in self.db.query(BatchItemRecord, batch_id=batch_id):
-                    self.db.delete(item)
-                record = self.db.get(BatchRecord, batch_id)
+            db = self.db  # once: a close mid-block must not open a second Database outside the transaction (#6238)
+            with db.transaction():  # the batch and its items go together, or not at all
+                for item in db.query(BatchItemRecord, batch_id=batch_id):
+                    db.delete(item)
+                record = db.get(BatchRecord, batch_id)
                 if record is not None:
-                    self.db.delete(record)
+                    db.delete(record)
 
         await asyncio.to_thread(_delete)
 

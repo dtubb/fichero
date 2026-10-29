@@ -169,6 +169,14 @@ def by_hand(job: str) -> dict[str, str]:
             "fix": BY_HAND_FIX.get(job, _NO_TOOL_YET)}
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
+#: What a cloud reader sends a page (#6265). Gemini (direct or via OpenRouter), measured: the page picture in two calls (~13k and
+#: ~43k input tokens, ~400 out; $0.0143 a page on Flash-Lite against the text assumption's $0.00075). Anthropic's documented rule:
+#: an image is resized to a 1568 px long edge and costs min(w*h/750, ~1600) tokens, so the cap, in the same two calls plus a prompt.
+#: Any other provider takes the measured figure (the safe, dear side).
+#: ponytail: per provider, not per model; a project's own past `LLM usage` for the model would refine it.
+PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT = 56_000, 400
+ANTHROPIC_PAGE_READ_TOKENS_IN = 2 * 1_600 + 400
+PAGE_READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
 CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
 
@@ -1302,8 +1310,15 @@ def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now
 
     if not recipe:
         raise ValueError("this project has no recipe yet: run setup first")
+    from fichero_server.recipes.recipe import PAGE_STEP, add_page_step
+
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
+    on_lines = step is not None and step.get("job") == "read-a-line" and not does_the_step(card, "read-a-line")
+    if PAGE_STEP in card.jobs and (on_lines or (step is None and step_id == PAGE_STEP)):
+        # A page reader the line step cannot take goes on the page step, added when the recipe has none (#6250, #6259).
+        step = add_page_step(out, card.pin, card.runs_on)[0]
+        step_id = step["id"]
     if step is None:
         raise ValueError(f"this project's recipe has no step {step_id!r}")
     if card.cannot_run_because.startswith("retired:"):  # #6096 (the Claude placeholder stays choosable before its row exists)
@@ -1500,7 +1515,7 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
 def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
              catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`). `todo`: per job, the pages
-    still to do (`done.todo_counts`); a run is priced on those, not on pages it has already done.
+    still to do (`done.todo_counts`, by step id); a run is priced on those, not on pages it has already done.
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
@@ -1511,7 +1526,7 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
     all_pages = pages
     for w in workflows:
         runs_on = str(w["runs_on"])
-        pages = (todo or {}).get(w.get("job"), all_pages)
+        pages = (todo or {}).get(w["steps"][0] if w.get("steps") else w.get("job"), all_pages)
         review = w.get("job") == "correct"
         # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
         # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
@@ -1519,7 +1534,8 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         bar = certainty_bar(w) if review else None
         to_send, send_kind, send_basis = lines_to_send(bar, pages, lines_known) if bar is not None else (None, None, None)
         cost = (_priced_lines(w, to_send) if to_send is not None
-                else _priced(w, pages * calls) if calls is not None else None)
+                else _priced(w, pages * calls, *(_page_read_tokens(w) if w.get("job") in PAGE_READ_JOBS else ()))
+                if calls is not None else None)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         if runs_on.startswith("cloud") and calls is not None and goes_as_provider_batch(w, pages):
             from fichero_server.llm.spend import batch_cost_usd
@@ -1551,14 +1567,21 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
 
 
-def _priced(run: dict[str, Any], calls: int) -> float | None:
+def _page_read_tokens(run: dict[str, Any]) -> tuple[int, int]:
+    """(in, out) tokens of one page read by this cloud run: Claude's capped image, else the measured figure."""
+    named = f"{run.get('provider_override') or ''}/{run.get('model_override') or ''}".lower()
+    return (ANTHROPIC_PAGE_READ_TOKENS_IN if "anthropic" in named or "claude" in named else PAGE_READ_TOKENS_IN,
+            PAGE_READ_TOKENS_OUT)
+
+
+def _priced(run: dict[str, Any], calls: int, tokens_in: int = _TOKENS_IN, tokens_out: int = _TOKENS_OUT) -> float | None:
     """What `calls` model calls of `run` cost. Only this Mac is free by its own word; a cloud call is priced by the
     model's listed rate; any other place (a cluster, a person's other machine) is unpriced, never $0 (#5590)."""
     from fichero_server.workflows.model_comparison import estimate_cost
 
     runs_on = str(run["runs_on"])
     if runs_on.startswith("cloud"):
-        return estimate_cost(run["model_override"] or "", calls * _TOKENS_IN, calls * _TOKENS_OUT,
+        return estimate_cost(run["model_override"] or "", calls * tokens_in, calls * tokens_out,
                              provider=run["provider_override"] or "")
     return 0.0 if runs_on in ("this-mac", "") else None
 

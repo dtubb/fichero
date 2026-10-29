@@ -57,7 +57,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, NoReturn
 
 from fichero_server.core.background_compute import set_background_qos, set_utility_qos
 from fichero_server.core.failure_text import MissingInWords
@@ -1275,8 +1275,8 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
 
     With `run_id`, Stop on that run reaches the page while it is still WAITING for the lane:
     its row is cancelled ("Stopped by you") and `WorkflowCancelled` is raised, the runner's
-    signal for a stop, not a failure. A page already running is waited for (the call has no
-    way to be interrupted yet)."""
+    signal for a stop, not a failure. A page already running is not waited for: its result is
+    dropped and it ends on the lane (`_stop_the_page`)."""
     from fichero_server.core.no_model_in_get import forbid_in_get
 
     forbid_in_get("model work")
@@ -1324,9 +1324,36 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
     return PageStopped(said)  # skip this page; the run goes on
 
 
+#: Running pages whose run's Stop dropped them (`_stop_the_page`), job id -> (reason, its future): the row ends
+#: cancelled, not done. The lane pops an entry as the page ends, whatever its end.
+_DROPPED_PAGES: dict[str, tuple[str, Future]] = {}
+
+
+def _note_dropped(job_id: str, reason: str, future: Future) -> None:
+    """Note a dropped page. A page that ended between the withdraw and this note was popped before it landed: any entry
+    whose future is done is such a one (a future is done only after its row is written), so it goes here.
+    ponytail: pruned on the next Stop, not at once; bounded by the pages one Stop drops."""
+    for stale in [j for j, (_r, f) in _DROPPED_PAGES.items() if f.done()]:
+        _DROPPED_PAGES.pop(stale, None)
+    _DROPPED_PAGES[job_id] = (reason, future)
+
+
+def _stop_the_page(db: "Database", future: Future, run_id: str) -> NoReturn:
+    """Its run's Stop: a page still waiting is withdrawn (its row "Stopped by you"); a page already running is not waited
+    for (`activity.run.stop-reaches-in-flight-calls`, #4402: a Kraken page is C code on a thread and cannot be
+    interrupted). Its result is dropped, the page wrote nothing (its caller saves what it returns), and it goes on to its
+    end on the lane, inside Kraken's own page gate (`kraken_runtime._INFERENCE_LOCK`), so memory is never doubled."""
+    from fichero_server.execution.cancellation import WorkflowCancelled
+
+    reason = _run_stopped(run_id)
+    if not _scheduler.withdraw(db, future, reason=reason):
+        _note_dropped(future.job_id, reason or "Stopped by you", future)  # type: ignore[attr-defined]
+    raise WorkflowCancelled(run_id)
+
+
 def _wait_for_lane_blocking(db: "Database", future: Future, run_id: str | None) -> Any:
     """`_wait_for_lane` for a thread: poll, and while the job still WAITS let a Stop, a Pause or a closed project
-    withdraw it. A page already running is waited for. Without this a closed project or a Stop left the thread
+    withdraw it; a Stop does not wait for a page already running (`_stop_the_page`). Without this a closed project or a Stop left the thread
     hung for good (review 424)."""
     from concurrent.futures import CancelledError, TimeoutError as FutureTimeout
 
@@ -1337,10 +1364,8 @@ def _wait_for_lane_blocking(db: "Database", future: Future, run_id: str | None) 
             pass
         except CancelledError:
             raise _withdrawn(db, future, run_id) from None
-        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
-            from fichero_server.execution.cancellation import WorkflowCancelled
-
-            raise WorkflowCancelled(run_id)
+        if run_id and _stop_requested(run_id):
+            _stop_the_page(db, future, run_id)
         if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
             raise JobCancelled(CLOSED_BEFORE_RUN)
         if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
@@ -1363,10 +1388,8 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
             if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
                 raise _withdrawn(db, future, run_id)
             return signal.result()
-        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
-            from fichero_server.execution.cancellation import WorkflowCancelled
-
-            raise WorkflowCancelled(run_id)
+        if run_id and _stop_requested(run_id):
+            _stop_the_page(db, future, run_id)
         if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
             raise JobCancelled(CLOSED_BEFORE_RUN)
         if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
@@ -3686,6 +3709,9 @@ class _Scheduler:
             _episode_library_path.reset(library_token)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
+        dropped = _DROPPED_PAGES.pop(job_id, None)  # on every end, the deferred one too: never left behind
+        if dropped is not None and state in ("waiting", "running"):  # its run stopped: it ends, never back to waiting
+            state, reason = "cancelled", dropped[0]
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
@@ -3701,6 +3727,8 @@ class _Scheduler:
                     lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
+        if dropped is not None and state == "done":  # its run stopped and dropped what it read: it did not finish
+            state, reason = "cancelled", dropped[0]
         current = db_manager.open_database(key)
         if current is not None:  # the same project, reopened while it ran: the row is written on the connection it has now
             current.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",

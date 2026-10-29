@@ -38,6 +38,26 @@ final class EmbeddingChangeStore {
         }
     }
 
+    /// The Search step's choice, while the project holds no vectors (`PUT /api/search/embedding`, the audited
+    /// `search.set_embedding_model`, #6249): kept for the project. With vectors the engine refuses it: the change is the run.
+    func choose(_ model: String) async {
+        guard current?.model != model else { return }
+        errorMessage = nil
+        do {
+            switch try await client.api.putEmbeddingChoiceApiSearchEmbeddingPut(body: .json(.init(model: model))) {
+            case .ok(let success):
+                current = try success.body.json
+            case .unprocessableContent:
+                errorMessage = "The engine would not use that search model for this project."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not choose the search model (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not choose the search model: \(error.localizedDescription)"
+        }
+    }
+
     /// What changing to `model` would do, said before anything runs (`GET /api/search/embedding/change-plan`).
     func loadPlan(for model: String) async {
         plan = nil

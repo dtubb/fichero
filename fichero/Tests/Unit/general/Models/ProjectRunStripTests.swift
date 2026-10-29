@@ -431,6 +431,42 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertFalse(strip.detail.contains("Waiting: Running"), "the run's progress is not a wait: \(strip.detail)")
     }
 
+    func testEachFolder_saysWhichStepsAreDoneOnIt_fromTheRunsStatus() async throws {
+        // WHY (`activity.run.folder-steps-done`, #5642): "3 of 800 folders" says nothing about which steps a folder
+        // still needs; the engine counts each step's pages per folder on the run's status, named by its stage title.
+        let store = Self.store()
+        let tree = try Self.runningTree()
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        let step: [String: Any] = ["steps": ["lines", "read"], "card": "workflow", "state": "running",
+                                   "title": "Find lines and Read each line"]
+        let status: [String: Any] = [
+            "job_id": jobId, "state": "running", "steps": [step], "skipped": [Any](),
+            "folders_done": 0, "folders_total": 2,
+            "folder_steps": [
+                ["folder_id": "A", "steps": [["steps": ["lines", "read"], "done": 12, "of": 20],
+                                             ["steps": ["names"], "done": 1, "of": 1]]],
+                ["folder_id": "B", "steps": [["steps": ["lines", "read"], "done": 20, "of": 20],
+                                             ["steps": ["export"], "done": NSNull(), "of": 3]]]
+            ]
+        ]
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree)),
+            Stub(path: "/api/recipes/project/runs/\(jobId)", method: "GET", status: 200, body: try Self.json(status))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        let a = try XCTUnwrap(store.recipeFolderSteps["A"])
+        XCTAssertFalse(a.allDone)
+        XCTAssertEqual(a.words, "Find lines and Read each line: 12 of 20 pages\nnames: done",
+                       "a step the status has no stage for is named by its step ids")
+        let b = try XCTUnwrap(store.recipeFolderSteps["B"])
+        XCTAssertFalse(b.allDone, "a step that cannot tell is not done")
+        XCTAssertEqual(b.words, "Find lines and Read each line: done\nexport: cannot tell")
+        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, of: 1)]).allDone)
+    }
+
     func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {
         let store = Self.store()
         let tree = try Self.runningTree()
@@ -471,10 +507,39 @@ final class ProjectRunStripStateTests: XCTestCase {
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .stalled), "stalled")
     }
 
+    func testAPauseInTheListShowsAsPaused_neverAsASpinningRun() {
+        // WHY (review LOW, 2026-10-28): a tree read that has not caught up still says running while the polled list says
+        // the run is paused; the strip spun for a paused run, which is what the owner sees.
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "running", jobState: .paused), "paused")
+        XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .paused), "paused")
+    }
+
     func testOtherwiseTheNodeThenTheListDecide() {
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: "paused", jobState: .running), "paused")
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .running), "running")
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: .waiting), "waiting")
         XCTAssertEqual(ProjectRunStrip.effectiveState(nodeState: nil, jobState: nil), "waiting")
+    }
+
+    // MARK: - activity.spinner-reflects-process-liveness (#4346)
+
+    private static func node(state: String) throws -> ActivityJobNode {
+        let json = """
+            {"id":"r1","kind":"run-a-recipe","name":"Recipe","subject":"r1","state":"\(state)","done":0,"total":0,"children":[]}
+            """
+        return ActivityJobNode(try JSONDecoder().decode(Components.Schemas.JobTree.self, from: Data(json.utf8)))
+    }
+
+    func testOnlyARunningRunSpins_aPausedWaitingOrStalledOneStaysOnTheStripStill() throws {
+        // WHY: the strip spun for any run that had not ended, so a paused run, one waiting for memory and one the
+        // engine no longer moves all looked alive and working.
+        XCTAssertTrue(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "running"), job: nil).spins)
+        for still in ["paused", "waiting", "stalled"] {
+            let strip = ProjectRunStrip(jobId: "r1", node: try Self.node(state: still), job: nil)
+            XCTAssertTrue(strip.isLive, "\(still): not ended, so not closable")
+            XCTAssertFalse(strip.spins, "\(still): no spinner")
+        }
+        XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: nil, job: nil).spins, "nothing read yet: waiting, still")
+        XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "done"), job: nil).spins)
     }
 }

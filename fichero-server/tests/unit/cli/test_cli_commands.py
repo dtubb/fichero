@@ -6,6 +6,7 @@ without a live backend.
 
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 import json
 
 import pytest
@@ -698,7 +699,7 @@ def _patch_client(monkeypatch):
     FakeClient.instances = []
     monkeypatch.setattr(cli, "FicheroClient", FakeClient)
     # Make `workflow run --wait` polling instant.
-    monkeypatch.setattr(cli.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli.time, "sleep", sleep_here(lambda _seconds: None))
     yield
 
 

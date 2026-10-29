@@ -39,19 +39,6 @@ struct SetupWhereItLivesFields: View {
             }
             .setupRadioGroup()
             .disabled(store.created != nil)
-            LabeledContent("Search model") {
-                Picker("Search model", selection: $store.embeddingModel) {
-                    ForEach(store.embeddingChoices) { choice in
-                        Text(choice.recommended ? "\(choice.name) (recommended)" : choice.name).tag(choice.model)
-                    }
-                }
-                .labelsHidden()
-                .disabled(store.created != nil)
-            }
-            Text((store.embeddingChoices.first { $0.model == store.embeddingModel }?.blurb ?? "")
-                 + " Changing it later means embedding every page again.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
             if let url = store.projectURL {
                 Text(url.path)
                     .font(.caption)
@@ -111,7 +98,7 @@ struct ProjectIntakeChoice: View {
             .setupRadioGroup()
             .labelsHidden()
             if store.ingestMode == .move {
-                Label("Your original files will be removed from where they are now.",
+                Label("Your original files will be removed from where they are now, when you press Start.",
                       systemImage: "exclamationmark.triangle")
                     .font(.body)
                     .foregroundStyle(.orange)
@@ -160,6 +147,8 @@ struct RecipeMaterialSourceFields: View {
             }
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.body)
+            } else if let there = store.materialAlreadyThere {
+                Label(there, systemImage: "checkmark.circle").font(.body)
             }
             if let syncFolders, let path = store.tiedFolderPath, let folder = syncFolders.folder(atPath: path) {
                 SyncedFolderSection(store: syncFolders, folder: folder)

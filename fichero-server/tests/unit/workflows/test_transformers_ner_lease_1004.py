@@ -3,6 +3,7 @@ a Stop that lands while the model loads must not leave the pipeline held for goo
 pipelines must not end while a new load believes it is running."""
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 import asyncio
 import threading
 import time
@@ -55,7 +56,7 @@ def test_a_stop_that_lands_while_the_model_loads_leaves_it_free_to_release(monke
 def test_the_idle_thread_that_decides_to_end_is_no_longer_the_running_one(monkeypatch):
     """The window: the thread has seen an empty cache and is about to return, a load starts, sees the thread alive, and starts none.
     So the decision to end and the forgetting of the thread are one step under the lock."""
-    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    monkeypatch.setattr(providers.time, "sleep", sleep_here(lambda s: None))
     sentinel = threading.Thread(target=lambda: None)
     monkeypatch.setattr(providers, "_TRANSFORMERS_RELEASER", sentinel)
     providers._release_transformers_when_idle()  # the cache is empty: it ends

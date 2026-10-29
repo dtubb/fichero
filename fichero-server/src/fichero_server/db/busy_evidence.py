@@ -17,6 +17,8 @@ import traceback
 from contextlib import contextmanager
 from pathlib import Path
 
+import duckdb
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,7 +97,8 @@ def _check_spill(alarmed: set[str]) -> None:
         if key not in _temp_dirs:
             try:
                 _temp_dirs[key] = conn.cursor().execute("SELECT current_setting('temp_directory')").fetchall()[0][0]
-            except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+            except duckdb.Error as exc:  # an instance closing as we ask; the others are still read
+                logger.debug("spill check skipped %s: %s", key, exc)
                 continue
         temp_dir = _temp_dirs[key]
         spilled = sum(_size(f) for f in Path(temp_dir).glob("*") if f.is_file()) if temp_dir else 0
@@ -126,7 +129,8 @@ def _check_held_versions(alarmed: set[str]) -> None:
             held, limit = conn.cursor().execute(
                 "SELECT (SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() WHERE tag = 'TRANSACTION'), "
                 "current_setting('memory_limit')").fetchall()[0]
-        except Exception:  # noqa: BLE001 -- an instance closing as we ask; the others are still read
+        except duckdb.Error as exc:  # an instance closing as we ask; the others are still read
+            logger.debug("held-versions check skipped %s: %s", key, exc)
             continue
         limit_bytes = duckdb_session.parse_size(limit.replace(" ", ""))
         if held < limit_bytes * HELD_VERSIONS_SHARE:
@@ -163,11 +167,18 @@ def _check_rss(said: set[float]) -> None:
                        "kept grows with the run", peak / 1024**3, max(passed) * 100, total / 1024**3)
 
 
-def _tick(alarmed: set[str], rss_said: set[float], *, slow: bool) -> None:
-    _check_rss(rss_said)  # getrusage: no DuckDB
-    _check_spill(alarmed)  # the disk, and one scalar setting once per instance
+def _tick(alarmed: set[str], rss_said: set[float], *, slow: bool, failed: set[str]) -> None:
+    checks = [("RSS", lambda: _check_rss(rss_said)),  # getrusage: no DuckDB
+              ("spill", lambda: _check_spill(alarmed))]  # the disk, and one scalar setting once per instance
     if slow:  # a statement is past the threshold: the held versions are the likeliest why, worth the one read
-        _check_held_versions(alarmed)
+        checks.append(("held-versions", lambda: _check_held_versions(alarmed)))
+    for name, check in checks:  # one failing check never stops the others
+        try:
+            check()
+        except Exception as exc:  # noqa: BLE001 -- a watchdog that dies says nothing ever again
+            if f"{name}: {exc}" not in failed:  # said once per check and kind of failure, not every second
+                failed.add(f"{name}: {exc}")
+                logger.warning("The DuckDB %s check failed: %s", name, exc)
 
 
 def _watch() -> None:
@@ -186,11 +197,6 @@ def _watch() -> None:
             reported.add(token)
             new_slow = True
             logger.warning("slow DuckDB statement: %.1fs on %s: %s\n%s", now - started, thread, sql[:500], _all_stacks())
-        try:
-            # Once per slow statement, on the tick it is first said: every read of duckdb_memory() can fail a CHECKPOINT
-            # beside it (reviewer b23: 1 in 900 rounds when it ran every tick a statement stayed slow).
-            _tick(alarmed, rss_said, slow=new_slow)
-        except Exception as exc:  # noqa: BLE001 -- a watchdog that dies says nothing ever again
-            if str(exc) not in failed:  # said once per kind of failure, not every second
-                failed.add(str(exc))
-                logger.warning("The DuckDB held-versions check failed: %s", exc)
+        # Once per slow statement, on the tick it is first said: every read of duckdb_memory() can fail a CHECKPOINT
+        # beside it (reviewer b23: 1 in 900 rounds when it ran every tick a statement stayed slow).
+        _tick(alarmed, rss_said, slow=new_slow, failed=failed)

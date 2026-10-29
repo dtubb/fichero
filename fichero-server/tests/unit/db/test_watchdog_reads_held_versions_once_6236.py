@@ -41,3 +41,18 @@ def test_a_temp_file_deleted_mid_glob_is_skipped(monkeypatch, tmp_path):
     alarmed: set[str] = set()
     busy_evidence._check_spill(alarmed)  # raised FileNotFoundError before
     assert "spill:k" in alarmed
+
+
+def test_one_check_failing_lets_the_others_run_and_is_named(monkeypatch, caplog):
+    """Reviewer (lane C): a non-DuckDB error in the spill check aborted the whole tick, and the warning said held-versions."""
+    reads = []
+    monkeypatch.setattr(busy_evidence, "_check_rss", lambda said: None)
+    monkeypatch.setattr(busy_evidence, "_check_spill", lambda alarmed: (_ for _ in ()).throw(PermissionError("temp dir")))
+    monkeypatch.setattr(busy_evidence, "_check_held_versions", lambda alarmed: reads.append(1))
+    failed: set[str] = set()
+    with caplog.at_level("WARNING", logger=busy_evidence.logger.name):
+        busy_evidence._tick(set(), set(), slow=True, failed=failed)
+        busy_evidence._tick(set(), set(), slow=True, failed=failed)
+    assert reads == [1, 1], "held versions not read after the spill check failed"
+    said = [r.getMessage() for r in caplog.records if "check failed" in r.getMessage()]
+    assert said == ["The DuckDB spill check failed: temp dir"], said

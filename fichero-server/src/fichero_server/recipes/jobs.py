@@ -107,7 +107,7 @@ _job("find-signs", {"page_image"}, {"signs"}, "lines", _BOXES, ("model",), needs
 _job("find-a-tables-cells", {"regions"}, {"table_cells"}, "lines", _BOXES, ("model",), needs_a_model=True)
 _job("read-a-line", {"lines"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt"), needs_a_model=True)
 _job("read-a-page", {"page_image"}, {"page_reading"}, "reading", _TEXT, ("model", "prompt"), needs_a_model=True)
-_job("tie-text-to-lines", {"page_reading", "lines"}, {"line_readings"}, "reading", _TEXT, needs_a_model=False)
+_job("tie-text-to-lines", {"page_reading", "lines"}, {"line_readings"}, "reading", _TEXT, ("model",), needs_a_model=True)
 _job("correct", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt", "only_below_confidence"), needs_a_model=True)
 # Each line read by several readers, or one sampled N times at a temperature; every reading kept (#5665).
 _job("find-where-readers-disagree", {"lines"}, {"line_readings"}, "reading", _TEXT,

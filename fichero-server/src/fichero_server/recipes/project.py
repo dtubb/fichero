@@ -9,12 +9,15 @@ as before. Nothing here runs anything: saving is not Start (`source.project.auto
 """
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from fichero_server.recipes.recipe import _walk_forbidden
+
+logger = logging.getLogger(__name__)
 
 FOLDER = "recipe"
 _FILES = {"recipe": "recipe.yaml", "answers": "setup.yaml"}
@@ -94,6 +97,43 @@ def write_start(library: Path, record: dict[str, Any] | None) -> None:
         path.unlink(missing_ok=True)
     else:
         _write_yaml(path, record)
+
+
+def holds_moves(library: Path) -> bool:
+    """Set Up chose Move and Start has not been pressed (#6245): an import copies and leaves the source where it is
+    until Start, so a project deleted or cancelled mid-setup never leaves the person's files displaced."""
+    import yaml
+
+    path = _path(library, "answers")
+    if not path.is_file() or read_start(library) is not None:
+        return False
+    answers = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return str(answers.get("ingest_mode") or "").lower() == "move"
+
+
+def finish_held_moves(db: Any) -> int:
+    """Start's half of #6245: delete the source of every file Set Up held (`move_pending`), once Start commits.
+    Returns how many were held."""
+    from fichero_server.models import Document
+
+    # ponytail: one walk of the project's documents, only when Set Up chose Move; a metadata index if Start slows.
+    held = [d for d in db.query(Document) if (d.metadata or {}).get("move_pending")]
+    sources = []
+    for doc in held:
+        doc.metadata.pop("move_pending")
+        db.save(doc)
+        if doc.metadata.get("source_path"):
+            sources.append(Path(doc.metadata["source_path"]))
+
+    def delete_sources() -> None:
+        for source in sources:
+            try:
+                source.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning("Start could not finish moving %s: %s", source, exc)
+
+    db.add_after_commit_hook(delete_sources)
+    return len(held)
 
 
 #: The jobs proposed for the material already in the project when a layer is added later

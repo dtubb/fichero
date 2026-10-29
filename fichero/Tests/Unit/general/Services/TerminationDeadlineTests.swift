@@ -13,6 +13,15 @@ import XCTest
 /// clock that reads zero or backwards are all pinned here without spawning a
 /// subprocess.
 final class TerminationDeadlineTests: XCTestCase {
+    /// engine.restart-waits-for-the-work (#6176): a restart asks the engine to stop and waits 30 s before a kill,
+    /// so a process still writing is never SIGKILLed; quit keeps its 2 s.
+    func testARestartWaitsThirtySecondsBeforeAKill_quitStaysQuick() {
+        let restart = TerminationDeadlinePolicy.restart
+        XCTAssertEqual(restart.action(elapsed: 29.9, childHasExited: false, hasEscalated: false), .waitMore)
+        XCTAssertEqual(restart.action(elapsed: 30, childHasExited: false, hasEscalated: false), .escalateToSIGKILL)
+        XCTAssertEqual(restart.action(elapsed: 3, childHasExited: true, hasEscalated: false), .replyNow)
+        XCTAssertEqual(TerminationDeadlinePolicy.quit.gracefulDeadline, 2)
+    }
 
     private let policy = TerminationDeadlinePolicy(
         gracefulDeadline: 2,

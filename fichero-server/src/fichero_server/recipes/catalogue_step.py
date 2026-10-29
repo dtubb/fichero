@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import logging
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +26,16 @@ def _is_folder(doc: Any) -> bool:
 
 
 def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
-    """The folders above these pages (all the way up), deepest first; each once. The documents are read once, not one
-    read a page and a parent."""
+    """The folders above these pages (all the way up), deepest first; each once. Reads the pages and then each level of
+    their parents, a read a level, not the library (#6268)."""
     from fichero_server.models import Document
 
-    nodes = {d.id: d for d in db.query(Document)}
+    nodes: dict[str, Any] = {}
+    todo = set(page_ids)
+    while todo:
+        for doc in db.query_in(Document, "id", todo):
+            nodes[doc.id] = doc
+        todo = {d.parent_id for d in nodes.values() if d.parent_id and d.parent_id not in nodes} - todo
     seen: dict[str, Any] = {}
     for page_id in page_ids:
         node = nodes.get(page_id)
@@ -181,30 +187,86 @@ _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 _SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)")
 
 
+_ONES = {w: n for n, w in enumerate("uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince".split(), 1)}
+_ONES.update(dieciseis=16, diecisiete=17, dieciocho=18, diecinueve=19, veinte=20, treinta=30, cuarenta=40, cincuenta=50,
+             sesenta=60, setenta=70, ochenta=80, noventa=90, cien=100, ciento=100, doscientos=200, trescientos=300,
+             cuatrocientos=400, quinientos=500, seiscientos=600, setecientos=700, ochocientos=800, novecientos=900)
+_ONES.update({f"veinti{w}": 20 + n for w, n in list(_ONES.items())[:9]})
+_RANGE = re.compile(r"\s*[\u2013\u2014]\s*|\s+-\s+|\s+(?:to|hasta)\s+")
+
+
+def _spoken_years(dates: str) -> list[str]:
+    """Years written as Spanish words ("mil novecientos seis" = 1906, "dos mil veinticuatro" = 2024)."""
+    years = []
+    for side in _RANGE.split(dates):  # a range's second date must not run on into the first one's number words
+        words = re.sub(r"[^a-z ]", " ", unicodedata.normalize("NFD", side.lower()).encode("ascii", "ignore").decode()).split()
+        for i, word in enumerate(words):
+            if word != "mil":
+                continue
+            year, used = (2000 if words[i - 1:i] == ["dos"] else 1000), 0
+            for part in words[i + 1:]:
+                if part != "y" and part not in _ONES:
+                    break
+                year, used = year + _ONES.get(part, 0), used + 1
+            if used and 1000 <= year <= 2099:  # "mil pesos" is money, not the year 1000
+                years.append(str(year))
+    return years
+
+
 def _years(dates: str) -> list[str]:
-    """The four-digit years a Dates field names; a short end of a range ("1850-60", "1850/60") is the year it ends: 1860."""
-    years = _YEAR.findall(dates)
+    """The years a Dates field names, digits or Spanish words; a short end of a range ("1850-60", "1850/60") is the year it
+    ends: 1860."""
+    years = _YEAR.findall(dates) + _spoken_years(dates)
     for start, tail in _SHORT_END.findall(dates):
         end = int(start[:2] + tail)
         years.append(str(end + 100 if end < int(start) else end))  # "1899-01" ends in 1901, not 1801
     return years
 
 
+def _date_range(dates: str) -> tuple[str, str] | None:
+    """(start, end) years of a Dates field, or None when a range's first side names no year: the end then stands alone, and
+    to put it down as the start too (1918 for "... seis - ... 1918") says something the text does not (#6270)."""
+    sides = _RANGE.split(dates, maxsplit=1)
+    if len(sides) == 2 and not _years(sides[0]):
+        return None
+    years = _years(dates)
+    return (min(years), max(years)) if years else None
+
+
+_LABEL = re.compile(r"(?:^|(?<=[.;!?]\s)|(?<=\n))\s*(" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Scope and content", "Description"])) + r")\s*:", re.M)
+
+
+def _one_field(chunk: str) -> str:
+    """A field's own text: it ends at a blank line, or at the end of its line unless the line breaks mid-list (ends in ; or ,)
+    or the next line carries on in lower case; the unlabelled text after it is not part of it."""
+    lines = chunk.split("\n")
+    kept = [lines[0]]
+    for line in lines[1:]:
+        if not line.strip() or not (kept[-1].rstrip().endswith((";", ",")) or line.lstrip()[:1].islower()):
+            break
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def parse_fields(text: str) -> dict[str, Any]:
-    """The folder attributes in a description's labelled lines (#6141): `{attribute key: value}`, a list for creators and access
+    """The folder attributes in a description's labelled fields (#6141): `{attribute key: value}`, a list for creators and access
     points (split at semicolons), and the Dates field also as ISO 8601 years (`catalogue_date_start`, `catalogue_date_end`: the
-    earliest and latest four-digit year it names, none when it names none). A field the text lacks is not in the result."""
+    earliest and latest year it names; none when it names none, or when a range's first year cannot be read). A label starts a
+    field on its own line or inline after a sentence ("... 1918. Access points: ..."): the field before it ends there (#6270).
+    A field the text lacks is not in the result."""
     found: dict[str, Any] = {}
-    for line in text.splitlines():
-        label, sep, value = line.partition(":")
-        entry = ATTRIBUTE_FIELDS.get(label.strip())
-        value = value.strip().rstrip(".") if entry and entry[1] else value.strip()
-        if not sep or entry is None or not value:
-            continue
-        key, is_list = entry
-        found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
-    if years := _years(found.get("catalogue_dates", "")):
-        found["catalogue_date_start"], found["catalogue_date_end"] = min(years), max(years)
+    marks = list(_LABEL.finditer(text))
+    for mark, after in zip(marks, [*marks[1:], None]):
+        if mark.group(1) not in ATTRIBUTE_FIELDS:
+            continue  # prose fields stay in the content, but they end the field before them
+        key, is_list = ATTRIBUTE_FIELDS[mark.group(1)]
+        value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
+        value = value.rstrip(".") if is_list else value
+        if value:
+            found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
+    if dates := found.get("catalogue_dates"):
+        if span := _date_range(dates):
+            found["catalogue_date_start"], found["catalogue_date_end"] = span
     return found
 
 

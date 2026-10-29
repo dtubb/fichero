@@ -157,7 +157,7 @@ def test_before_the_first_yes_the_added_layer_runs_with_the_whole_recipe(client,
     clears the proposal, so the names are not run a second time."""
     plan = _add(client, layers=["entities"]).json()
     assert [run["steps"] for run in plan["runs"]] == [["find-lines"], ["leave-out"], ["read-a-line"], [NAMES]]  # Leave Out sits between the two, so each is its own run; Correct off (#5677)
-    assert any("Correct" in line for line in plan["left_off"])
+    assert any("Review the reading" in line for line in plan["left_off"])
     assert plan["proposed"]["layers"] == ["entities"]
     assert _start(client)["proposed"] is None
 

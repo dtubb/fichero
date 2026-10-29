@@ -195,9 +195,10 @@ twelve hours or costs more than its estimate.
   *Test:* the same file.
 - `compute.recipe.stop-keeps-what-landed` — **[GAP]** (#5642) Stop cancels queued and running tasks and keeps
   everything landed, landing results that arrive after it; Pause submits nothing new. *Test (to write):* the same file.
-- `compute.recipe.folder-shows-steps-done` — **[GAP]** (#5642) each folder shows which steps are done on it,
-  current while tasks land. *Test (to write):* the same file.
-- `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642) each task's per-page compute record lands with
+- `compute.recipe.folder-shows-steps-done` — **[PARTIAL]** (#5642, PROPOSED) each folder shows which steps are done on it,
+  current while tasks land. Built for local steps as `activity.run.folder-steps-done` (ui/activity-and-automatic-work.md,
+  its own test); owed here: a remote stage's landed tasks counted as they land.
+- `compute.recipe.task-compute-record-landed` — **[GAP]** (#5642, PROPOSED) each task's per-page compute record lands with
   its results and feeds the run's slow-path lines. *Test (to write):* the same file.
 - `compute.recipe.cloud-batch-above-threshold` — **[PARTIAL]** (#5940; built: `llm/provider_batch.py` `goes_as_batch`, `cut_to_cap`, one client per API shape over the provider's own SDK, each against a fake of that SDK: Anthropic inline, OpenAI by file, Gemini by file (its inline answers come back by position, not key), `tests/unit/llm/test_provider_batches.py`; the plan places a cloud read of 100 pages or more as `batch` (`start.place_runs`), `cloud_batch.run_step` queues one row, waits and replays the step from the answers, the capture runs below the run machinery (`remote_read/capture.py`, `tests/unit/remote_read/test_capture_run.py`), and a batch-only model passes the preflight inside a batch; the recipe runner's `_run_card` sends a `batch` step there, pinned end to end through the scheduler and the replay (`test_capture_run.py`); not yet: a real run on a provider) a step on a cloud model with at least the
   threshold of pages in a run nobody is waiting for goes as one provider batch per recipe batch (cut to the provider's

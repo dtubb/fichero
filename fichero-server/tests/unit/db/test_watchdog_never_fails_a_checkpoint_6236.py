@@ -14,8 +14,9 @@ def test_alter_and_checkpoint_beside_the_watchdogs_tick(tmp_path):
 
     def ticks():
         alarmed: set[str] = set()
+        said: set[str] = set()  # _tick says each failed check once (it takes the set since ede07c528); a missing arg killed this thread unseen
         while not stop.is_set():
-            busy_evidence._tick(alarmed, set(), slow=False)
+            busy_evidence._tick(alarmed, set(), slow=False, failed=said)
 
     prober = threading.Thread(target=ticks, daemon=True)
     prober.start()

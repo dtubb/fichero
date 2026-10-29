@@ -314,11 +314,17 @@ class ActivityStore:
     """Activity events and workflow runs of one library, through its one managed Database (#5645)."""
 
     def __init__(self, db_path: str):
-        """The store for the library whose database file is `db_path`."""
+        """The store for the library whose database file is `db_path`, opened now as it always was."""
+        self.db_path = db_path
+        self.db  # noqa: B018 -- the open (and its on-open work) happens at the store's making, not its first use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): a store outlives a close and reopen of its
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        self.db_path = db_path
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""

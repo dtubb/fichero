@@ -597,6 +597,8 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     else at its best-ranked row's; the step and the override record it (#5722)."""
     import copy
 
+    from fichero_server.recipes.recipe import PAGE_STEP, add_page_step
+
     if not recipe:
         raise BakeoffRefused("this project has no recipe yet: run setup first")
     name = reader_name(card) or "That reader"
@@ -617,6 +619,8 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("job") == table["step"]), None)
+    if step is None and table["step"] == PAGE_STEP:  # a page reader on a lines-only recipe adds the page step (#6250, #6259)
+        step = add_page_step(out, card.pin, card.runs_on)[0]
     if step is None:
         raise BakeoffRefused(f"this project's recipe has no {table['step']} step to set a reader for")
     because = (f"chosen in the comparison on your pages: found {row['lines_found']} of {row['lines_checked']} "
@@ -643,6 +647,21 @@ def keep_saved_overrides(stored: dict[str, Any] | None, sent: dict[str, Any]) ->
     Use This's rules nor bring an undone one back. Changes `sent` in place (`source.project.setup-saves-what-is-sent`,
     Fable review #6)."""
     sent["overrides"] = list((stored or {}).get("overrides") or [])
+    return sent
+
+
+def drop_readers_of_changed_models(stored: dict[str, Any] | None, sent: dict[str, Any]) -> dict[str, Any]:
+    """The recipe a save sends, with no per-kind `readers` on a reading step whose model the save changed and whose
+    readers are still the stored ones: a reader the person saves replaces the whole reader set, as a Use This does
+    (#6121), or the rules' Apple Vision still reads the handwriting beside the model chosen (#6269). Readers that differ
+    from the stored ones are a fresh rules proposal (Set Up assembling again sends a new model with new readers), so they
+    stay. A step the saved recipe lacks keeps its readers. Changes `sent` in place."""
+    before = {s.get("id"): s for s in (stored or {}).get("steps") or []}
+    for step in sent.get("steps") or []:
+        old = before.get(step.get("id"))
+        if step.get("job") in ("read-a-line", "read-a-page") and old is not None \
+                and old.get("model") != step.get("model") and old.get("readers") == step.get("readers"):
+            step.pop("readers", None)
     return sent
 
 

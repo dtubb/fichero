@@ -26,7 +26,7 @@ def _run(monkeypatch, cards, work, pages=None, redo=(), detail=None, stopped=lam
 
     for name, value in {"_step_pages": pages_now, "_blocked": lambda *a: None,
                         "_await_downloads": lambda *a: None, "_stop_asked": lambda *a: stopped(),
-                        "_wait_out_a_pause": lambda *a: None, "_after_the_step": lambda *a, **k: None,
+                        "_wait_out_a_pause": lambda *a: None, "_after_the_step": lambda *a, **k: None, "_recount_on_the_folder": lambda *a: None,
                         "_let_go_after_the_last_served_step": lambda *a: None,
                         "_run_card": lambda db, card, *a, **k: (card["steps"][0], *work(card))}.items():
         if name not in keep:

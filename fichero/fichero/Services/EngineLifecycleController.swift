@@ -67,6 +67,7 @@ final class EngineLifecycleController {
         appState.onSupervisedBackendDropped = { [weak self] in
             await self?.handleSupervisedBackendDropped()
         }
+        appState.enginePID = { [weak self] in self?.backendService.backendPID }
     }
 
     /// Kick the engine once at app launch. Called from
@@ -91,7 +92,7 @@ final class EngineLifecycleController {
     /// guard so a second drop detected while a restart is already in flight is
     /// a no-op (the heartbeat can't re-fire the hook through `markStarting`).
     private var isHandlingSupervisedDrop = false
-    static let supervisedAutoRestartAttempts = 3
+    static let supervisedAutoRestartAttempts = 5
 
     func handleSupervisedBackendDropped() async {
         // Only the spawning strategy can auto-restart. A debugExternal /
@@ -139,9 +140,9 @@ final class EngineLifecycleController {
                 logger.info("Supervised backend drop: auto-restart recovered on attempt \(attempt) (#4064)")
                 return // recovered — no modal
             }
-            // Backoff before the next attempt: 1s, 2s, 4s.
+            // Backoff before the next attempt: 10 s doubling, capped at 5 minutes (#6176).
             if attempt < maxAttempts {
-                let backoffSeconds = 1 << (attempt - 1)
+                let backoffSeconds = EngineRestartPolicy.backoffSeconds(afterAttempt: attempt)
                 logger.info("Supervised backend drop: backing off for \(backoffSeconds)s before retry (#4064)")
                 try? await Task.sleep(for: .seconds(backoffSeconds))
             }
@@ -231,9 +232,9 @@ final class EngineLifecycleController {
             await finishSuccessfulConnect(backendStart: backendStart)
         } catch BackendError.portConflict(let pid) {
             handlePortConflict(pid: pid)
-        } catch BackendError.socketInUse(_, let pid, let version, let owner) {
+        } catch BackendError.socketInUse(_, let pid, let version, let owner, let contractDiffers) {
             logger.info("Another engine answers on the container socket — portConflict phase (socket)")
-            appState.engine.markSocketConflict(pid: pid, version: version, owner: owner)
+            appState.engine.markSocketConflict(pid: pid, version: version, owner: owner, contractDiffers: contractDiffers)
             backendService.status = .failed
             appState.startBackendHeartbeat()
         } catch {
@@ -248,7 +249,7 @@ final class EngineLifecycleController {
         // starts. Awaited, not blocking: the respawn still needs the port
         // released first, but Retry must not beachball the window (#4291).
         if restart {
-            await backendService.stopAndAwaitExit()
+            await backendService.stopAndAwaitExit(policy: .restart)
         }
         LaunchProfile.milestone("engine spawn requested")
         try await backendService.start()

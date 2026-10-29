@@ -247,10 +247,15 @@ class FileWatcherManager:
         ] = {}  # trigger_id -> [(event_type, path)]
         self._batch_tasks: dict[str, Any] = {}  # concurrent futures on the background loop
         self._pending_tasks: dict[str, list[asyncio.Task]] = {}
+        self.db  # noqa: B018 -- the library opens at the making, as before; `db` is looked up on each use
+
+    @property
+    def db(self) -> Any:
+        """The library's managed Database, looked up on each use (#6238): this outlives a close and reopen of the
+        library, and the Database it was built with is closed for good after it."""
         from fichero_server.db.manager import database_for_file
 
-        # The library's one managed Database (#5645): its rows are `FileTriggerRecord` and `TriggerExecutionRecord`.
-        self.db = database_for_file(db_path)
+        return database_for_file(self.db_path)
 
     async def start(self) -> None:
         """Start the file watcher and load existing triggers."""
@@ -716,12 +721,13 @@ class FileWatcherManager:
         from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
 
         def _delete():
-            with self.db.transaction():
-                for execution in self.db.query(TriggerExecutionRecord, trigger_id=trigger_id):
-                    self.db.delete(execution)
-                record = self.db.get(FileTriggerRecord, trigger_id)
+            db = self.db  # once: a close mid-block must not open a second Database outside the transaction (#6238)
+            with db.transaction():
+                for execution in db.query(TriggerExecutionRecord, trigger_id=trigger_id):
+                    db.delete(execution)
+                record = db.get(FileTriggerRecord, trigger_id)
                 if record is not None:
-                    self.db.delete(record)
+                    db.delete(record)
 
         await asyncio.to_thread(_delete)
 

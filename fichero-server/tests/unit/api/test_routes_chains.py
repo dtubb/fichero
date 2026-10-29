@@ -14,7 +14,6 @@ from fichero_server.api.routes.workflow import chains as chain_routes
 from fichero_server.execution.chaining import (
     chain_store,
     ChainExecutionResult,
-    ChainStepResult,
     ChainStepStatus,
 )
 
@@ -535,3 +534,12 @@ class TestChainOpenAPISchema:
             in execution_status["properties"]["final_outputs"]["description"]
         )
         assert execution_status["properties"]["final_files"]["items"]["type"] == "string"
+
+
+def test_the_legacy_chain_executor_is_retired():
+    """`activity.legacy-chain-retired` (#4949): a chain runs only through the one runner (`/execute` and `/execute-steps`
+    above); the old executor, with no thread ids, no stream and no Activity record, is gone, not kept beside it."""
+    from fichero_server.execution import chaining
+
+    assert not hasattr(chaining, "ChainExecutor")
+    assert not hasattr(chaining, "WorkflowExecutor"), "its passthrough to the standalone executor goes with it"

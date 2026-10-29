@@ -139,7 +139,7 @@
    "id": "correct",
    "job": "correct",
    "topic": "correct",
-   "title": "Correct",
+   "title": "Review the reading",
    "sentence": "A second model checks each reading against the picture and proposes corrections, kept as new readings beside the first.",
    "model": {
     "hf": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",

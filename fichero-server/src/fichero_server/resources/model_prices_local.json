@@ -1,0 +1,187 @@
+{
+ "_about": "Prices for models the vendored LiteLLM map does not have yet, copied from each provider's published price page on the date fetched, never guessed. A row LiteLLM's map has wins over the row here (model_types._price_table). US$ per token. Anthropic ids from https://platform.claude.com/docs/en/about-claude/models/overview and https://platform.claude.com/docs/en/models/fable-5/overview (#6259).",
+ "claude-fable-5-1": {
+  "input_cost_per_token": 1e-05,
+  "output_cost_per_token": 5e-05,
+  "litellm_provider": "anthropic",
+  "mode": "chat",
+  "supports_vision": true,
+  "cache_read_input_token_cost": 2.5e-07,
+  "max_input_tokens": 1000000,
+  "max_output_tokens": 128000,
+  "max_tokens": 128000,
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "fetched": "2026-10-28"
+ },
+ "claude-fable-5": {
+  "input_cost_per_token": 1e-05,
+  "output_cost_per_token": 5e-05,
+  "litellm_provider": "anthropic",
+  "mode": "chat",
+  "supports_vision": true,
+  "cache_read_input_token_cost": 1e-06,
+  "max_input_tokens": 1000000,
+  "max_output_tokens": 128000,
+  "max_tokens": 128000,
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "fetched": "2026-10-28"
+ },
+ "claude-opus-5-5": {
+  "input_cost_per_token": 4e-06,
+  "output_cost_per_token": 2e-05,
+  "litellm_provider": "anthropic",
+  "mode": "chat",
+  "supports_vision": true,
+  "cache_read_input_token_cost": 2.0000000000000002e-07,
+  "max_input_tokens": 1000000,
+  "max_output_tokens": 128000,
+  "max_tokens": 128000,
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "fetched": "2026-10-28"
+ },
+ "claude-sonnet-5-5": {
+  "input_cost_per_token": 2e-06,
+  "output_cost_per_token": 1e-05,
+  "litellm_provider": "anthropic",
+  "mode": "chat",
+  "supports_vision": true,
+  "cache_read_input_token_cost": 1.0000000000000001e-07,
+  "max_input_tokens": 1000000,
+  "max_output_tokens": 128000,
+  "max_tokens": 128000,
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "fetched": "2026-10-28"
+ },
+ "claude-haiku-5-5": {
+  "input_cost_per_token": 1.0000000000000001e-07,
+  "output_cost_per_token": 5e-07,
+  "litellm_provider": "anthropic",
+  "mode": "chat",
+  "supports_vision": true,
+  "cache_read_input_token_cost": 1e-08,
+  "max_input_tokens": 1000000,
+  "max_output_tokens": 128000,
+  "max_tokens": 128000,
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "fetched": "2026-10-28",
+  "note": "the price for prompts up to 100,000 tokens; over 100,000 the page lists $0.50 in and $2.50 out a million, not modelled here"
+ },
+ "gemini-3.1-flash-lite": {
+  "input_cost_per_token": 2.5e-07,
+  "output_cost_per_token": 1.5e-06,
+  "litellm_provider": "gemini",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://ai.google.dev/gemini-api/docs/pricing",
+  "fetched": "2026-10-28"
+ },
+ "gemini-3.5-flash-lite": {
+  "input_cost_per_token": 3e-07,
+  "output_cost_per_token": 2.5e-06,
+  "litellm_provider": "gemini",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://ai.google.dev/gemini-api/docs/pricing",
+  "fetched": "2026-10-28"
+ },
+ "gemini-3-flash-preview": {
+  "input_cost_per_token": 5e-07,
+  "output_cost_per_token": 3e-06,
+  "litellm_provider": "gemini",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://ai.google.dev/gemini-api/docs/pricing",
+  "fetched": "2026-10-28"
+ },
+ "gemini-3.1-pro-preview": {
+  "input_cost_per_token": 2e-06,
+  "output_cost_per_token": 1.2e-05,
+  "litellm_provider": "gemini",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://ai.google.dev/gemini-api/docs/pricing",
+  "fetched": "2026-10-28",
+  "note": "the price for prompts up to 200,000 tokens; over 200,000 the page lists $4.00 in and $18.00 out a million, not modelled here"
+ },
+ "openrouter/anthropic/claude-fable-5.1": {
+  "input_cost_per_token": 1e-05,
+  "output_cost_per_token": 5e-05,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/anthropic/claude-fable-5": {
+  "input_cost_per_token": 1e-05,
+  "output_cost_per_token": 5e-05,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/anthropic/claude-opus-5.5": {
+  "input_cost_per_token": 4e-06,
+  "output_cost_per_token": 2e-05,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/anthropic/claude-sonnet-5.5": {
+  "input_cost_per_token": 2e-06,
+  "output_cost_per_token": 1e-05,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/anthropic/claude-haiku-5.5": {
+  "input_cost_per_token": 1.0000000000000001e-07,
+  "output_cost_per_token": 5e-07,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/google/gemini-3.1-flash-lite": {
+  "input_cost_per_token": 2.5e-07,
+  "output_cost_per_token": 1.5e-06,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/google/gemini-3.5-flash-lite": {
+  "input_cost_per_token": 3e-07,
+  "output_cost_per_token": 2.5e-06,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/google/gemini-3-flash-preview": {
+  "input_cost_per_token": 5e-07,
+  "output_cost_per_token": 3e-06,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ },
+ "openrouter/google/gemini-3.1-pro-preview": {
+  "input_cost_per_token": 2e-06,
+  "output_cost_per_token": 1.2e-05,
+  "litellm_provider": "openrouter",
+  "mode": "chat",
+  "supports_vision": true,
+  "source": "https://openrouter.ai/api/v1/models",
+  "fetched": "2026-10-28"
+ }
+}

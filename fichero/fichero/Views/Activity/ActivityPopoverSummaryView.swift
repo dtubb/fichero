@@ -7,9 +7,17 @@ struct ActivityPopoverSummaryView: View {
     let summary: ActivityPopoverSummary
     /// A failure's row was pressed: open Activity's details for that job.
     var openDetails: (String) -> Void = { _ in }
+    /// The engine is not answering its health pings: busy, said, never acted on (#6176).
+    var engineBusy: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let engineBusy {
+                Label(engineBusy, systemImage: "hourglass")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("activity.popover.engineBusy")
+            }
             ForEach(summary.blocks) { block in
                 ActivityPopoverBlockView(block: block)
             }

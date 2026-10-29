@@ -64,6 +64,11 @@
     "mb": 2012.7,
     "note": "first recorded run"
   },
+  "mem::session::tests/unit/db,tests/unit/seams": {
+    "commit": "c5b98fc6c",
+    "mb": 2351.1,
+    "note": "first recorded run"
+  },
   "mem::session::tests/unit/llm/test_lang_detect.py": {
     "commit": "9c137cfd0",
     "mb": 226.7,
@@ -72,6 +77,16 @@
   "queries.DELETE./api/activity/cleanup": {
     "commit": "107c1c884",
     "count": 5,
+    "note": "first recorded run"
+  },
+  "queries.DELETE./api/libraries/{lib:path}/entity-types/{entity_type_key}": {
+    "commit": "c5b98fc6c",
+    "count": 1,
+    "note": "first recorded run"
+  },
+  "queries.DELETE./api/registry/{library_path:path}": {
+    "commit": "c5b98fc6c",
+    "count": 2,
     "note": "first recorded run"
   },
   "queries.DELETE./api/workflows/{workflow_id}": {
@@ -124,6 +139,11 @@
     "count": 0,
     "note": "tightened from 1 queries"
   },
+  "queries.GET./api/documents/{doc_id}/children": {
+    "commit": "c5b98fc6c",
+    "count": 1,
+    "note": "first recorded run"
+  },
   "queries.GET./api/entities": {
     "commit": "5dac20b82",
     "count": 1,
@@ -134,14 +154,54 @@
     "count": 0,
     "note": "first recorded run"
   },
+  "queries.GET./api/libraries/{lib:path}/entity-types": {
+    "commit": "c5b98fc6c",
+    "count": 1,
+    "note": "first recorded run"
+  },
   "queries.GET./api/registry": {
     "commit": "18917fe1f",
     "count": 1,
     "note": "tightened from 180 queries"
   },
+  "queries.GET./api/registry/open": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/registry/unicode-collisions": {
+    "commit": "c5b98fc6c",
+    "count": 3,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/search/embedding": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/search/embedding/change-plan": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/search/embedding/models": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/segments/document/{doc_id}": {
+    "commit": "c5b98fc6c",
+    "count": 10,
+    "note": "first recorded run"
+  },
   "queries.GET./api/storage/thumbnail/{doc_id}": {
     "commit": "5dac20b82",
     "count": 7,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/workflow-execution/runs": {
+    "commit": "c5b98fc6c",
+    "count": 1,
     "note": "first recorded run"
   },
   "queries.GET./api/workflows": {
@@ -164,14 +224,39 @@
     "count": 8,
     "note": "tightened from 10 queries"
   },
+  "queries.POST./api/libraries/{lib:path}/entity-types": {
+    "commit": "c5b98fc6c",
+    "count": 3,
+    "note": "first recorded run"
+  },
   "queries.POST./api/library": {
-    "commit": "5dac20b82",
-    "count": 197,
-    "note": "tightened from 401 queries"
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "tightened from 197 queries"
+  },
+  "queries.POST./api/registry/add": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.POST./api/registry/unicode-collisions/merge": {
+    "commit": "c5b98fc6c",
+    "count": 2339,
+    "note": "first recorded run"
   },
   "queries.POST./api/search": {
     "commit": "107c1c884",
     "count": 14,
+    "note": "first recorded run"
+  },
+  "queries.POST./api/search/embedding/change": {
+    "commit": "c5b98fc6c",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.POST./api/storage/snapshots": {
+    "commit": "c5b98fc6c",
+    "count": 6,
     "note": "first recorded run"
   },
   "queries.POST./api/workflow-execution/execute": {
@@ -179,9 +264,19 @@
     "count": 1,
     "note": "first recorded run"
   },
+  "queries.POST./api/workflow-execution/runs/delete": {
+    "commit": "c5b98fc6c",
+    "count": 10,
+    "note": "first recorded run"
+  },
   "queries.POST./api/workflows/{workflow_id}/duplicate": {
     "commit": "c2e0cb61d",
     "count": 5,
+    "note": "first recorded run"
+  },
+  "queries.PUT./api/search/embedding": {
+    "commit": "c5b98fc6c",
+    "count": 0,
     "note": "first recorded run"
   },
   "test::tests/contracts/test_docs_coverage.py::test_every_public_openapi_path_is_documented_or_allowlisted": {
@@ -9189,6 +9284,81 @@
     "ms": 27.3,
     "note": "tightened from 40.2 ms"
   },
+  "test::tests/unit/db/test_a_derivative_is_never_seen_half_written.py::test_a_reader_during_the_write_sees_no_thumbnail_and_then_a_whole_one": {
+    "commit": "c5b98fc6c",
+    "ms": 46.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_made_thumbnail_is_a_hit_6019.py::test_a_made_thumbnail_is_found_next_time": {
+    "commit": "c5b98fc6c",
+    "ms": 81.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_snapshot_waits_for_a_write.py::test_a_managed_transaction_held_past_the_wait_is_named_in_the_refusal": {
+    "commit": "c5b98fc6c",
+    "ms": 320.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_snapshot_waits_for_a_write.py::test_a_managed_transaction_is_waited_for_not_checkpointed_inside": {
+    "commit": "c5b98fc6c",
+    "ms": 531.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_snapshot_waits_for_a_write.py::test_a_write_held_past_the_wait_is_refused_by_name_and_leaves_nothing": {
+    "commit": "c5b98fc6c",
+    "ms": 540.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_snapshot_waits_for_a_write.py::test_a_write_that_finishes_during_the_wait_is_in_the_snapshot": {
+    "commit": "c5b98fc6c",
+    "ms": 554.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_a_snapshot_waits_for_a_write.py::test_the_route_answers_409_with_the_reason_not_500": {
+    "commit": "c5b98fc6c",
+    "ms": 879.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_a_deleted_run_stays_deleted_and_a_cut_short_fold_finishes_once": {
+    "commit": "c5b98fc6c",
+    "ms": 434.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_a_library_with_the_old_tables_opens_with_every_run_and_event": {
+    "commit": "c5b98fc6c",
+    "ms": 317.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_a_new_library_has_no_old_activity_tables": {
+    "commit": "c5b98fc6c",
+    "ms": 123.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_a_node_flush_appends_and_the_log_reads_as_one": {
+    "commit": "c5b98fc6c",
+    "ms": 177.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_an_engine_that_opens_a_library_first_thing_marks_its_unfinished_runs": {
+    "commit": "c5b98fc6c",
+    "ms": 3337.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_rows_an_older_engine_writes_after_the_fold_are_said_not_copied": {
+    "commit": "c5b98fc6c",
+    "ms": 424.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_the_activity_list_reads_a_light_row": {
+    "commit": "c5b98fc6c",
+    "ms": 244.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_activity_store_folded_5645.py::test_the_store_holds_no_connection_of_its_own": {
+    "commit": "c5b98fc6c",
+    "ms": 258.0,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_app_db_devices_expires_at_migration.py::test_legacy_devices_table_is_migrated_with_expires_at": {
     "commit": "e123a8a43",
     "ms": 42.8,
@@ -9197,6 +9367,56 @@
   "test::tests/unit/db/test_app_db_devices_expires_at_migration.py::test_migration_is_idempotent": {
     "commit": "e123a8a43",
     "ms": 64.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_check_that_fails_is_said_and_the_library_still_opens": {
+    "commit": "c5b98fc6c",
+    "ms": 361.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_fold_cut_short_finishes_on_the_next_open_without_doubling": {
+    "commit": "c5b98fc6c",
+    "ms": 237.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_library_whose_old_batches_table_is_gone_after_the_fold_still_opens": {
+    "commit": "c5b98fc6c",
+    "ms": 344.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_library_with_the_old_tables_opens_with_every_batch_and_item": {
+    "commit": "c5b98fc6c",
+    "ms": 205.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_new_batch_inserts_its_items_plainly": {
+    "commit": "c5b98fc6c",
+    "ms": 197.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_a_new_library_has_nothing_to_fold": {
+    "commit": "c5b98fc6c",
+    "ms": 160.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_an_old_library_with_batches_but_no_items_table_folds_its_batches": {
+    "commit": "c5b98fc6c",
+    "ms": 173.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_rows_an_older_engine_writes_after_the_fold_are_said_not_copied": {
+    "commit": "c5b98fc6c",
+    "ms": 339.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_the_fold_runs_once_and_a_deleted_batch_never_comes_back": {
+    "commit": "c5b98fc6c",
+    "ms": 274.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_batch_store_folded_5645.py::test_the_store_uses_the_managed_connection_not_its_own": {
+    "commit": "c5b98fc6c",
+    "ms": 215.9,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_canonical_knowledge_routes.py::TestCanonicalAPIContract::test_claim_api_matches_model": {
@@ -9399,9 +9619,104 @@
     "ms": 65.2,
     "note": "first recorded run"
   },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_a_document_with_no_narrative_artifact_is_never_read": {
+    "commit": "c5b98fc6c",
+    "ms": 106.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_a_file_target_is_described_but_its_text_left_and_reported": {
+    "commit": "c5b98fc6c",
+    "ms": 113.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_a_library_opened_on_new_code_migrates_once_through_the_real_open": {
+    "commit": "c5b98fc6c",
+    "ms": 377.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_a_person_edited_folder_is_never_touched": {
+    "commit": "c5b98fc6c",
+    "ms": 101.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_an_artifact_with_no_run_is_marked_as_the_migrations": {
+    "commit": "c5b98fc6c",
+    "ms": 111.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_an_existing_description_holding_the_text_is_not_doubled": {
+    "commit": "c5b98fc6c",
+    "ms": 116.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_an_overwritten_folder_gets_a_description_reading_its_text_cleared_and_logged": {
+    "commit": "c5b98fc6c",
+    "ms": 339.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_running_twice_changes_nothing_the_second_time": {
+    "commit": "c5b98fc6c",
+    "ms": 129.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_catalogue_narrative_migration.py::test_the_open_report_names_what_moved_and_what_was_left": {
+    "commit": "c5b98fc6c",
+    "ms": 128.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_changing_the_embedding_model_is_a_re_embed_run_6122.py::test_a_stopped_run_is_carried_on_and_embeds_no_page_twice": {
+    "commit": "c5b98fc6c",
+    "ms": 151.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_changing_the_embedding_model_is_a_re_embed_run_6122.py::test_the_other_open_connections_see_the_new_model_without_being_told": {
+    "commit": "c5b98fc6c",
+    "ms": 155.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_changing_the_embedding_model_is_a_re_embed_run_6122.py::test_the_routes_show_the_plan_then_queue_the_one_reindex_job": {
+    "commit": "c5b98fc6c",
+    "ms": 214.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_changing_the_embedding_model_is_a_re_embed_run_6122.py::test_the_run_builds_in_a_shadow_keeps_search_on_the_old_vectors_then_swaps_whole": {
+    "commit": "c5b98fc6c",
+    "ms": 99.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_changing_the_embedding_model_is_a_re_embed_run_6122.py::test_the_same_model_is_the_in_place_rebuild_not_a_second_path": {
+    "commit": "c5b98fc6c",
+    "ms": 121.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_a_close_while_an_embed_is_mid_statement_waits_for_it_and_its_next_statement_fails_cleanly": {
+    "commit": "c5b98fc6c",
+    "ms": 497.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_a_close_while_the_library_is_mid_statement_waits_for_it": {
+    "commit": "c5b98fc6c",
+    "ms": 400.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_closing_a_library_closes_the_embed_worker_it_opened": {
+    "commit": "c5b98fc6c",
+    "ms": 190.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_closing_twice_is_safe": {
+    "commit": "c5b98fc6c",
+    "ms": 163.9,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_data_layer_deps.py::TestIntegration::test_duckdb_parquet_lancedb": {
     "commit": "e123a8a43",
     "ms": 29.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_data_layer_deps.py::TestLangGraph::test_import": {
+    "commit": "c5b98fc6c",
+    "ms": 297.5,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_data_layer_deps.py::TestPyArrow::test_parquet_roundtrip": {
@@ -9420,9 +9735,9 @@
     "note": "tightened from 180.2 ms"
   },
   "test::tests/unit/db/test_db.py::TestFiledEntityFold::test_refile_entity_moves_document_node": {
-    "commit": "18917fe1f",
-    "ms": 229.2,
-    "note": "tightened from 266.1 ms"
+    "commit": "c5b98fc6c",
+    "ms": 196.4,
+    "note": "tightened from 229.2 ms"
   },
   "test::tests/unit/db/test_db.py::TestFiledEntityFold::test_save_filed_entity_creates_document_node": {
     "commit": "18917fe1f",
@@ -9440,9 +9755,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_db.py::TestLanceDB::test_save_and_search_vectors": {
-    "commit": "18917fe1f",
-    "ms": 35.2,
-    "note": "tightened from 43.7 ms"
+    "commit": "c5b98fc6c",
+    "ms": 30.0,
+    "note": "tightened from 35.2 ms"
   },
   "test::tests/unit/db/test_db.py::TestLanceDB::test_save_embedding_serializes_delete_add_sequence": {
     "commit": "e123a8a43",
@@ -9514,6 +9829,11 @@
     "ms": 460.3,
     "note": "tightened from 634.6 ms"
   },
+  "test::tests/unit/db/test_db_batch_and_compaction.py::test_auto_compaction_keeps_a_tables_versions_bounded_6236": {
+    "commit": "c5b98fc6c",
+    "ms": 1089.8,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_db_batch_and_compaction.py::test_auto_compaction_triggers_at_interval": {
     "commit": "18917fe1f",
     "ms": 74.6,
@@ -9525,13 +9845,38 @@
     "note": "tightened from 206.9 ms"
   },
   "test::tests/unit/db/test_db_batch_and_compaction.py::test_embed_many_embeds_batch_and_is_searchable": {
-    "commit": "e123a8a43",
-    "ms": 71.8,
+    "commit": "c5b98fc6c",
+    "ms": 40.4,
+    "note": "tightened from 71.8 ms"
+  },
+  "test::tests/unit/db/test_db_batch_and_compaction.py::test_save_many_does_not_deadlock_against_an_ambient_transaction_on_another_thread": {
+    "commit": "c5b98fc6c",
+    "ms": 317.9,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_db_batch_and_compaction.py::test_save_many_keeps_large_multi_statement_batch_atomic": {
     "commit": "e123a8a43",
     "ms": 102.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_deferred_embeds_are_the_callers_own.py::test_another_threads_save_during_a_deferred_page_is_embedded_not_deferred": {
+    "commit": "c5b98fc6c",
+    "ms": 185.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_duckdb_returns_timestamptz.py::test_a_timezone_aware_timestamp_reaches_python": {
+    "commit": "c5b98fc6c",
+    "ms": 142.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embed_batch_and_bg_tasks.py::test_new_vector_table_never_pins_known_columns_to_null": {
+    "commit": "c5b98fc6c",
+    "ms": 103.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embed_batch_and_bg_tasks.py::test_save_vectors_survives_a_null_typed_legacy_column": {
+    "commit": "c5b98fc6c",
+    "ms": 114.5,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_embed_batch_and_bg_tasks.py::test_schedule_embedding_task_semaphore_limits_concurrency[asyncio]": {
@@ -9542,6 +9887,146 @@
   "test::tests/unit/db/test_embed_batch_size.py::test_embed_claims_filters_none": {
     "commit": "e123a8a43",
     "ms": 453.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embed_once_per_text_version_5954.py::test_a_batch_and_a_single_page_that_share_a_page_embed_it_once": {
+    "commit": "c5b98fc6c",
+    "ms": 214.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embed_once_per_text_version_5954.py::test_two_doors_asking_for_the_same_page_at_once_embed_it_once": {
+    "commit": "c5b98fc6c",
+    "ms": 217.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_child_does_not_outlive_the_engine_6176.py::test_a_killed_engines_embedder_child_exits_and_lets_go_of_the_listening_socket": {
+    "commit": "c5b98fc6c",
+    "ms": 967.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_child_stops_lancedbs_loop_6237.py::test_the_embedder_child_leaves_no_dead_lancedb_loop_6237": {
+    "commit": "c5b98fc6c",
+    "ms": 2986.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_a_bad_request_does_not_end_the_seed": {
+    "commit": "c5b98fc6c",
+    "ms": 42.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_a_killed_seed_falls_back_to_a_direct_fork": {
+    "commit": "c5b98fc6c",
+    "ms": 96.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_a_stuck_vision_call_still_kills_its_seeded_worker_and_the_next_one_reads": {
+    "commit": "c5b98fc6c",
+    "ms": 575.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_a_worker_that_crashes_is_asked_of_the_seed_again": {
+    "commit": "c5b98fc6c",
+    "ms": 57.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_apple_visions_worker_is_the_seeds_child_too": {
+    "commit": "c5b98fc6c",
+    "ms": 43.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_forks_before_threads_6237.py::test_the_worker_is_the_seeds_child_not_the_engines": {
+    "commit": "c5b98fc6c",
+    "ms": 40.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_model_missing_defers_the_job.py::test_the_embed_job_waits_with_the_sentence_as_its_reason": {
+    "commit": "c5b98fc6c",
+    "ms": 121.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_a_child_that_crashes_mid_batch_is_restarted_then_fails_in_words": {
+    "commit": "c5b98fc6c",
+    "ms": 52.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_a_child_that_dies_between_batches_is_replaced_on_the_next_embed": {
+    "commit": "c5b98fc6c",
+    "ms": 53.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_a_fake_model_embeds_through_the_child": {
+    "commit": "c5b98fc6c",
+    "ms": 25.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_an_init_that_runs_over_is_killed_and_fails_in_words": {
+    "commit": "c5b98fc6c",
+    "ms": 522.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_health_answers_under_a_second_beside_a_slow_model_init": {
+    "commit": "c5b98fc6c",
+    "ms": 3033.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedder_process_5847.py::test_the_watchdog_is_armed_at_startup_and_rearmed_by_the_heartbeat": {
+    "commit": "c5b98fc6c",
+    "ms": 302.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_a_change_of_the_default_model_in_the_environment_is_seen_without_reopening": {
+    "commit": "c5b98fc6c",
+    "ms": 100.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_an_e5_projects_search_step_runs_and_a_step_naming_the_other_model_is_skipped": {
+    "commit": "c5b98fc6c",
+    "ms": 30.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_create_library_keeps_the_choice_and_refuses_an_unsupported_model": {
+    "commit": "c5b98fc6c",
+    "ms": 296.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_entity_and_claim_vectors_count_as_vectors_so_the_model_is_not_switched_under_them": {
+    "commit": "c5b98fc6c",
+    "ms": 47.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_the_choice_route_changes_an_empty_project_and_refuses_one_that_holds_vectors": {
+    "commit": "c5b98fc6c",
+    "ms": 100.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_chosen_per_project_6122.py::test_the_models_route_lists_every_supported_model_with_its_blurb_before_any_project_exists": {
+    "commit": "c5b98fc6c",
+    "ms": 40.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_model_only_while_needed.py::test_a_database_that_embedded_does_not_keep_the_model_alive": {
+    "commit": "c5b98fc6c",
+    "ms": 249.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_model_only_while_needed.py::test_a_model_in_use_is_never_released_under_its_embed": {
+    "commit": "c5b98fc6c",
+    "ms": 125.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_model_only_while_needed.py::test_a_model_nobody_used_for_the_idle_spell_is_released_and_loads_again_when_needed": {
+    "commit": "c5b98fc6c",
+    "ms": 495.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_model_only_while_needed.py::test_a_model_used_recently_is_kept": {
+    "commit": "c5b98fc6c",
+    "ms": 126.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_embedding_model_only_while_needed.py::test_the_model_is_released_by_itself_after_the_idle_spell": {
+    "commit": "c5b98fc6c",
+    "ms": 639.4,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_embedding_outcomes_are_reported.py::TestEmbedRecordsWhyItDidNotEmbed::test_a_raising_backend_records_an_infrastructure_failure": {
@@ -9624,6 +10109,131 @@
     "ms": 132.8,
     "note": "tightened from 147.7 ms"
   },
+  "test::tests/unit/db/test_every_used_model_is_declared.py::test_every_model_the_engine_stores_is_declared": {
+    "commit": "c5b98fc6c",
+    "ms": 4794.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_every_used_model_is_declared.py::test_the_scan_sees_what_it_must": {
+    "commit": "c5b98fc6c",
+    "ms": 4976.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_fresh_library_open_statements_6221.py::test_a_fresh_library_reads_back_none_of_the_tables_it_created": {
+    "commit": "c5b98fc6c",
+    "ms": 92.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_fresh_library_open_statements_6221.py::test_a_library_opened_again_still_reconciles_its_columns": {
+    "commit": "c5b98fc6c",
+    "ms": 191.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_fresh_open_invariant.py::TestEveryDeclaredObjectExistsAtOpen::test_opening_twice_keeps_every_declared_index": {
+    "commit": "c5b98fc6c",
+    "ms": 201.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_get_app_db_once_across_threads.py::test_two_threads_at_once_make_one_app_database": {
+    "commit": "c5b98fc6c",
+    "ms": 210.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_get_committed_read_path.py::TestGetCommitted::test_recovers_after_read_cursor_loss": {
+    "commit": "c5b98fc6c",
+    "ms": 83.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_heic_support.py::TestItActuallyRenders::test_a_corrupt_heic_fails_without_taking_down_the_renderer": {
+    "commit": "c5b98fc6c",
+    "ms": 61.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_idle_fetchone_pins_no_undo_6236.py::test_a_one_row_read_left_idle_keeps_no_undo[get_committed]": {
+    "commit": "c5b98fc6c",
+    "ms": 15109.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_idle_fetchone_pins_no_undo_6236.py::test_a_one_row_read_left_idle_keeps_no_undo[second_database_execute_fetchone]": {
+    "commit": "c5b98fc6c",
+    "ms": 15282.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_idle_fetchone_pins_no_undo_6236.py::test_a_one_row_read_left_idle_keeps_no_undo[second_database_get]": {
+    "commit": "c5b98fc6c",
+    "ms": 15036.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_idle_fetchone_pins_no_undo_6236.py::test_a_one_row_read_left_idle_keeps_no_undo[second_database_just_opened]": {
+    "commit": "c5b98fc6c",
+    "ms": 14828.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_index_repair_one_thread_at_a_time.py::test_the_repair_runs_one_thread_at_a_time_per_project": {
+    "commit": "c5b98fc6c",
+    "ms": 60.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnExistingLibraryIsWidenedOnOpen::test_a_column_the_model_does_not_call_an_int_is_left_alone": {
+    "commit": "c5b98fc6c",
+    "ms": 114.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnExistingLibraryIsWidenedOnOpen::test_an_integer_column_is_widened_and_then_accepts_the_big_value": {
+    "commit": "c5b98fc6c",
+    "ms": 101.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnExistingLibraryIsWidenedOnOpen::test_the_rows_that_were_already_there_are_unchanged": {
+    "commit": "c5b98fc6c",
+    "ms": 101.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnExistingLibraryIsWidenedOnOpen::test_widening_twice_changes_nothing_the_second_time": {
+    "commit": "c5b98fc6c",
+    "ms": 214.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnIndexNoLongerBlocksTheWidening::test_a_large_value_now_saves_on_the_indexed_column": {
+    "commit": "c5b98fc6c",
+    "ms": 115.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnIndexNoLongerBlocksTheWidening::test_an_indexed_table_is_widened_behind_its_index_and_the_index_comes_back": {
+    "commit": "c5b98fc6c",
+    "ms": 126.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnIndexNoLongerBlocksTheWidening::test_the_library_still_opens_and_saves": {
+    "commit": "c5b98fc6c",
+    "ms": 117.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestAnIndexNoLongerBlocksTheWidening::test_the_widening_is_reported_and_names_the_column": {
+    "commit": "c5b98fc6c",
+    "ms": 114.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestTheExemptionListIsCompleteAndJudged::test_the_blocked_set_is_exactly_the_judged_list": {
+    "commit": "c5b98fc6c",
+    "ms": 92.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestTheTypeMap::test_a_fresh_library_holds_a_genuinely_large_number": {
+    "commit": "c5b98fc6c",
+    "ms": 89.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestTheTypeMap::test_a_fresh_library_stores_the_value_that_failed": {
+    "commit": "c5b98fc6c",
+    "ms": 98.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_int_columns_are_bigint.py::TestTheTypeMap::test_the_conversion_report_stores_real_disk_numbers": {
+    "commit": "c5b98fc6c",
+    "ms": 87.3,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_knowledge_models.py::TestAttributionDuckDBRoundTrip::test_round_trip_all_new_fields": {
     "commit": "18917fe1f",
     "ms": 1318.6,
@@ -9649,10 +10259,15 @@
     "ms": 184.2,
     "note": "tightened from 208.6 ms"
   },
-  "test::tests/unit/db/test_legacy_lance_migration.py::TestLegacyLanceMigration::test_fallback_strips_field_when_add_columns_raises": {
-    "commit": "e123a8a43",
-    "ms": 44.9,
+  "test::tests/unit/db/test_lance_connection_race_6122.py::test_a_reset_by_another_thread_after_the_connect_does_not_hand_the_caller_none": {
+    "commit": "c5b98fc6c",
+    "ms": 107.0,
     "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_legacy_lance_migration.py::TestLegacyLanceMigration::test_fallback_strips_field_when_add_columns_raises": {
+    "commit": "c5b98fc6c",
+    "ms": 27.8,
+    "note": "tightened from 44.9 ms"
   },
   "test::tests/unit/db/test_legacy_lance_migration.py::TestLegacyLanceMigration::test_fresh_table_stamp_persists_without_migration": {
     "commit": "e123a8a43",
@@ -9664,10 +10279,25 @@
     "ms": 33.3,
     "note": "first recorded run"
   },
-  "test::tests/unit/db/test_library_entity_types.py::TestAddLibraryEntityType::test_add_returns_created_entry": {
-    "commit": "e123a8a43",
-    "ms": 45.9,
+  "test::tests/unit/db/test_library_bootstrap.py::test_a_new_library_is_bootstrapped_with_only_its_sources_folder": {
+    "commit": "c5b98fc6c",
+    "ms": 106.9,
     "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_library_bootstrap.py::test_a_user_made_inbox_folder_is_ordinary_content": {
+    "commit": "c5b98fc6c",
+    "ms": 366.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_library_bootstrap.py::test_reopening_a_library_never_grows_anything": {
+    "commit": "c5b98fc6c",
+    "ms": 728.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_library_entity_types.py::TestAddLibraryEntityType::test_add_returns_created_entry": {
+    "commit": "c5b98fc6c",
+    "ms": 39.3,
+    "note": "tightened from 45.9 ms"
   },
   "test::tests/unit/db/test_library_entity_types.py::TestAddLibraryEntityType::test_add_then_get_returns_it": {
     "commit": "e123a8a43",
@@ -9675,9 +10305,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_library_entity_types.py::TestAddLibraryEntityType::test_add_with_enabled_false": {
-    "commit": "e123a8a43",
-    "ms": 44.0,
-    "note": "first recorded run"
+    "commit": "c5b98fc6c",
+    "ms": 39.0,
+    "note": "tightened from 44.0 ms"
   },
   "test::tests/unit/db/test_library_entity_types.py::TestAddLibraryEntityType::test_duplicate_key_is_idempotent_not_error": {
     "commit": "e123a8a43",
@@ -9714,9 +10344,19 @@
     "ms": 48.5,
     "note": "tightened from 58.1 ms"
   },
+  "test::tests/unit/db/test_library_identity_migration.py::test_database_read_library_uuid_is_the_persistence_layer_entry_point": {
+    "commit": "c5b98fc6c",
+    "ms": 100.1,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_library_registry.py::TestGlobalRegistryHeaderless::test_add_deduplicates_nfd_and_nfc_library_paths": {
     "commit": "e123a8a43",
     "ms": 86.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_library_registry.py::TestGlobalRegistryHeaderless::test_add_seeds_no_inbox": {
+    "commit": "c5b98fc6c",
+    "ms": 226.5,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_library_registry.py::TestGlobalRegistryHeaderless::test_add_seeds_single_root_inbox": {
@@ -9774,29 +10414,109 @@
     "ms": 76.7,
     "note": "tightened from 108.8 ms"
   },
+  "test::tests/unit/db/test_library_registry.py::TestLibraryAutoRegistration::test_a_real_library_IS_registered_with_its_package_name": {
+    "commit": "c5b98fc6c",
+    "ms": 125.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_library_registry.py::TestLibraryAutoRegistration::test_a_staging_package_is_created_but_NOT_registered": {
+    "commit": "c5b98fc6c",
+    "ms": 116.2,
+    "note": "first recorded run"
+  },
   "test::tests/unit/db/test_library_registry.py::TestLibraryRegistryEndpoints::test_add_library_invalid_path": {
     "commit": "e123a8a43",
     "ms": 62.3,
     "note": "first recorded run"
   },
-  "test::tests/unit/db/test_read_path_queries.py::test_claims_list_query_count_does_not_scale_with_row_count": {
-    "commit": "e123a8a43",
-    "ms": 11333.9,
+  "test::tests/unit/db/test_new_rows_in_a_transaction_stay_small.py::test_saving_an_existing_row_still_updates_it": {
+    "commit": "c5b98fc6c",
+    "ms": 108.7,
     "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_new_rows_in_a_transaction_stay_small.py::test_two_hundred_new_documents_in_one_transaction_hold_little_memory": {
+    "commit": "c5b98fc6c",
+    "ms": 349.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_node_levels.py::TestRefusals::test_deleted_children_are_not_resurrected": {
+    "commit": "c5b98fc6c",
+    "ms": 27.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_open_migrations_serialised.py::test_an_open_inside_an_open_of_the_same_library_does_not_hang": {
+    "commit": "c5b98fc6c",
+    "ms": 190.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_open_migrations_serialised.py::test_opens_at_once_on_a_fresh_library_record_no_migration_failure": {
+    "commit": "c5b98fc6c",
+    "ms": 442.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_open_migrations_serialised.py::test_two_embed_threads_share_one_worker_database": {
+    "commit": "c5b98fc6c",
+    "ms": 168.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_opening_a_library_is_not_per_entity.py::test_a_slow_open_step_names_itself": {
+    "commit": "c5b98fc6c",
+    "ms": 91.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_opening_a_library_is_not_per_entity.py::test_one_library_opening_does_not_block_another": {
+    "commit": "c5b98fc6c",
+    "ms": 1731.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_opening_a_library_is_not_per_entity.py::test_reopening_looks_up_filed_entities_only_and_clears_an_unfiled_mirror": {
+    "commit": "c5b98fc6c",
+    "ms": 1580.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_opening_a_library_is_not_per_entity.py::test_reopening_rewrites_only_the_workflow_mirrors_that_changed": {
+    "commit": "c5b98fc6c",
+    "ms": 316.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_page_line_map_table.py::test_a_library_from_before_gains_the_table_when_it_opens_not_when_a_page_renders": {
+    "commit": "c5b98fc6c",
+    "ms": 232.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_page_line_map_table.py::test_the_line_map_is_a_declared_table": {
+    "commit": "c5b98fc6c",
+    "ms": 95.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_query_where_extra_sql_is_constant.py::test_every_query_where_call_passes_a_constant_extra_sql": {
+    "commit": "c5b98fc6c",
+    "ms": 2593.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_read_path_queries.py::test_claims_list_query_count_does_not_scale_with_row_count": {
+    "commit": "c5b98fc6c",
+    "ms": 9869.6,
+    "note": "tightened from 11333.9 ms"
   },
   "test::tests/unit/db/test_read_path_queries.py::test_documents_list_query_count_does_not_scale_with_row_count": {
-    "commit": "e123a8a43",
-    "ms": 320.1,
-    "note": "first recorded run"
+    "commit": "c5b98fc6c",
+    "ms": 180.5,
+    "note": "tightened from 320.1 ms"
   },
   "test::tests/unit/db/test_read_path_queries.py::test_entities_list_query_count_does_not_scale_with_row_count": {
-    "commit": "e123a8a43",
-    "ms": 13888.1,
-    "note": "first recorded run"
+    "commit": "c5b98fc6c",
+    "ms": 8974.6,
+    "note": "tightened from 13888.1 ms"
   },
   "test::tests/unit/db/test_read_path_queries.py::test_library_tree_children_query_count_does_not_scale_with_row_count": {
-    "commit": "e123a8a43",
-    "ms": 382.0,
+    "commit": "c5b98fc6c",
+    "ms": 170.8,
+    "note": "tightened from 382.0 ms"
+  },
+  "test::tests/unit/db/test_reading_migration.py::TestAnOldLibraryOpensTwiceAndNothingMoves::test_the_one_existing_reading_reads_unchanged_with_every_new_field_empty": {
+    "commit": "c5b98fc6c",
+    "ms": 222.2,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_reset_ai_defaults.py::TestResetAIDefaults::test_bootstrap_and_reset_share_the_factory_table": {
@@ -9807,6 +10527,176 @@
   "test::tests/unit/db/test_reset_ai_defaults.py::TestResetAIDefaults::test_reset_repopulates_with_apple_baseline": {
     "commit": "e123a8a43",
     "ms": 26.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_rss_and_spill_logged_6236.py::test_spill_says_once_per_instance": {
+    "commit": "c5b98fc6c",
+    "ms": 93.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_rtf_repair_is_a_product_action.py::TestItDoesNotBreakWhatItTouches::test_an_rtf_document_is_left_alone": {
+    "commit": "c5b98fc6c",
+    "ms": 135.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_rtf_repair_is_a_product_action.py::TestItDoesNotBreakWhatItTouches::test_running_it_twice_changes_nothing_the_second_time": {
+    "commit": "c5b98fc6c",
+    "ms": 128.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_rtf_repair_is_a_product_action.py::TestItRecordsWhatItChanged::test_every_change_is_logged_with_its_before_state": {
+    "commit": "c5b98fc6c",
+    "ms": 193.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_rtf_repair_is_a_product_action.py::TestYouCanPutItBack::test_rollback_restores_the_rows_exactly": {
+    "commit": "c5b98fc6c",
+    "ms": 331.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_run_log_lines_5711.py::test_a_flush_writes_its_new_lines_not_the_whole_log": {
+    "commit": "c5b98fc6c",
+    "ms": 39.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_run_log_lines_5711.py::test_a_mixed_library_reads_every_log_the_same_before_and_after_the_tidy": {
+    "commit": "c5b98fc6c",
+    "ms": 52.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_run_log_lines_5711.py::test_opening_a_library_with_10k_runs_from_before_moves_nothing_and_queues_the_tidy": {
+    "commit": "c5b98fc6c",
+    "ms": 319.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_run_log_lines_5711.py::test_the_log_reads_as_it_always_did": {
+    "commit": "c5b98fc6c",
+    "ms": 25.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_run_log_lines_5711.py::test_the_tidy_steps_aside_when_the_throttle_holds_and_carries_on_later": {
+    "commit": "c5b98fc6c",
+    "ms": 28.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_failed_run_can_be_deleted_after_the_engine_was_killed": {
+    "commit": "c5b98fc6c",
+    "ms": 364.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_library_damaged_before_the_fix_is_repaired_once": {
+    "commit": "c5b98fc6c",
+    "ms": 376.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_new_library_opens_without_rebuilding": {
+    "commit": "c5b98fc6c",
+    "ms": 283.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_pages_segments_are_listed_after_the_engine_was_killed": {
+    "commit": "c5b98fc6c",
+    "ms": 465.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_any_first_opener_rebuilds_after_a_crash": {
+    "commit": "c5b98fc6c",
+    "ms": 1627.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_duckdb_still_writes_stale_indexes_after_a_replay": {
+    "commit": "c5b98fc6c",
+    "ms": 124.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_every_engine_open_goes_through_connect_utc": {
+    "commit": "c5b98fc6c",
+    "ms": 2520.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_saved_is_found_after_a_crash.py::test_the_activity_store_opening_first_finds_a_crashed_runs_rows": {
+    "commit": "c5b98fc6c",
+    "ms": 238.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_scheduler_store_folded_5645.py::test_a_deleted_schedule_never_comes_back_and_a_cut_short_fold_finishes": {
+    "commit": "c5b98fc6c",
+    "ms": 384.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_scheduler_store_folded_5645.py::test_a_library_with_the_old_tables_opens_with_every_schedule_and_run": {
+    "commit": "c5b98fc6c",
+    "ms": 280.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_scheduler_store_folded_5645.py::test_rows_an_older_engine_writes_after_the_fold_are_said_not_copied": {
+    "commit": "c5b98fc6c",
+    "ms": 251.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_scheduler_store_folded_5645.py::test_the_scheduler_holds_no_connection_of_its_own": {
+    "commit": "c5b98fc6c",
+    "ms": 209.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_search_model_downloads_in_the_app.py::test_a_database_error_while_queueing_the_download_still_defers_the_embed": {
+    "commit": "c5b98fc6c",
+    "ms": 63.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_search_model_downloads_in_the_app.py::test_a_refused_embed_is_done_once_the_model_arrives": {
+    "commit": "c5b98fc6c",
+    "ms": 110.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestOldLibraryWithRealResearchData::test_a_real_pre_migration_library_with_real_data_migrates_clean": {
+    "commit": "c5b98fc6c",
+    "ms": 1776.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestOldLibraryWithRealResearchData::test_opening_a_real_library_twice_touches_no_pre_existing_row": {
+    "commit": "c5b98fc6c",
+    "ms": 1741.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestSchemaArrivesAtOpen::test_opening_an_old_library_twice_adds_the_tables_and_indexes_touches_no_row": {
+    "commit": "c5b98fc6c",
+    "ms": 239.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestSchemaArrivesAtOpen::test_the_seam_still_returns_the_same_provisional_segments_as_before": {
+    "commit": "c5b98fc6c",
+    "ms": 56.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestSequenceMigrationOnAnExistingForwardingTable::test_a_pre_sequence_note_has_a_null_sequence_after_open": {
+    "commit": "c5b98fc6c",
+    "ms": 127.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_segment_migration.py::TestVersionColumnMigrationOnAnExistingSegmentsTable::test_a_pre_version_column_segment_reads_back_as_version_one_and_is_updatable": {
+    "commit": "c5b98fc6c",
+    "ms": 270.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_slow_statement_watchdog_6236.py::test_a_fast_statement_logs_nothing": {
+    "commit": "c5b98fc6c",
+    "ms": 319.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_slow_statement_watchdog_6236.py::test_a_statement_past_the_threshold_logs_its_sql_thread_and_every_stack": {
+    "commit": "c5b98fc6c",
+    "ms": 1507.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_slow_statement_watchdog_6236.py::test_undo_held_by_an_open_transaction_is_said_once_beside_a_slow_statement": {
+    "commit": "c5b98fc6c",
+    "ms": 1644.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_slow_statement_watchdog_6236.py::test_undo_under_the_share_says_nothing": {
+    "commit": "c5b98fc6c",
+    "ms": 1134.8,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_snapshot_include_files_hardening.py::test_restore_db_only_snapshot_leaves_current_files_untouched": {
@@ -9823,6 +10713,256 @@
     "commit": "18917fe1f",
     "ms": 175.8,
     "note": "tightened from 208.6 ms"
+  },
+  "test::tests/unit/db/test_snapshot_keeps_project_models.py::test_a_card_rewritten_after_the_snapshot_leaves_the_snapshots_card_alone": {
+    "commit": "c5b98fc6c",
+    "ms": 298.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_keeps_project_models.py::test_a_project_with_no_models_snapshots_as_before": {
+    "commit": "c5b98fc6c",
+    "ms": 225.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_keeps_project_models.py::test_a_snapshot_copies_the_projects_models_card_and_weights": {
+    "commit": "c5b98fc6c",
+    "ms": 321.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_keeps_project_models.py::test_deleting_the_projects_model_leaves_the_snapshots_weights": {
+    "commit": "c5b98fc6c",
+    "ms": 258.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_keeps_project_models.py::test_restore_brings_back_a_lost_model_and_keeps_one_trained_since": {
+    "commit": "c5b98fc6c",
+    "ms": 253.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestASnapshotOfAnOpenLibrary::test_a_snapshot_can_be_taken_at_all": {
+    "commit": "c5b98fc6c",
+    "ms": 350.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestASnapshotOfAnOpenLibrary::test_the_parquet_sidecar_is_written_too": {
+    "commit": "c5b98fc6c",
+    "ms": 278.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestASnapshotOfAnOpenLibrary::test_the_restore_source_is_a_real_database_not_an_empty_one": {
+    "commit": "c5b98fc6c",
+    "ms": 255.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestASnapshotOfAnOpenLibrary::test_the_rows_that_were_open_are_in_the_snapshot": {
+    "commit": "c5b98fc6c",
+    "ms": 282.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestTheCopyIsTakenUnderTheWriteLock::test_a_library_with_no_managed_connection_is_still_copied": {
+    "commit": "c5b98fc6c",
+    "ms": 135.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestTheCopyIsTakenUnderTheWriteLock::test_the_checkpoint_comes_before_the_copy_and_neither_releases": {
+    "commit": "c5b98fc6c",
+    "ms": 115.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestTheCopyIsTakenUnderTheWriteLock::test_the_copy_happens_while_the_connection_lock_is_held": {
+    "commit": "c5b98fc6c",
+    "ms": 118.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestTheCopyIsTakenUnderTheWriteLock::test_the_copy_it_makes_is_openable_and_complete": {
+    "commit": "c5b98fc6c",
+    "ms": 156.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_snapshot_while_library_is_open.py::TestTheDestructiveCallersRefuse::test_it_returns_a_snapshot_on_an_open_library": {
+    "commit": "c5b98fc6c",
+    "ms": 240.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[Allograph]": {
+    "commit": "c5b98fc6c",
+    "ms": 243.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[AuthoritySnapshot]": {
+    "commit": "c5b98fc6c",
+    "ms": 215.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[CampaignMembership]": {
+    "commit": "c5b98fc6c",
+    "ms": 230.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[Campaign]": {
+    "commit": "c5b98fc6c",
+    "ms": 236.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[DeclaredSign]": {
+    "commit": "c5b98fc6c",
+    "ms": 240.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[EditorialFact]": {
+    "commit": "c5b98fc6c",
+    "ms": 223.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[EntityMergeAudit]": {
+    "commit": "c5b98fc6c",
+    "ms": 227.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[HandAttribution]": {
+    "commit": "c5b98fc6c",
+    "ms": 247.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[Hand]": {
+    "commit": "c5b98fc6c",
+    "ms": 235.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[KnowledgeGraphInclusion]": {
+    "commit": "c5b98fc6c",
+    "ms": 214.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[KnowledgePredictionReview]": {
+    "commit": "c5b98fc6c",
+    "ms": 224.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[LetterformDescription]": {
+    "commit": "c5b98fc6c",
+    "ms": 236.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[LibrarySetting]": {
+    "commit": "c5b98fc6c",
+    "ms": 208.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[MigrationRunRecord]": {
+    "commit": "c5b98fc6c",
+    "ms": 231.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[NoteLink]": {
+    "commit": "c5b98fc6c",
+    "ms": 218.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[ReadingCampaigns]": {
+    "commit": "c5b98fc6c",
+    "ms": 250.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[Rendition]": {
+    "commit": "c5b98fc6c",
+    "ms": 234.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_a_library_from_before_gains_it_on_open_not_on_first_save[RightsRecord]": {
+    "commit": "c5b98fc6c",
+    "ms": 226.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[Allograph]": {
+    "commit": "c5b98fc6c",
+    "ms": 94.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[AuthoritySnapshot]": {
+    "commit": "c5b98fc6c",
+    "ms": 84.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[CampaignMembership]": {
+    "commit": "c5b98fc6c",
+    "ms": 84.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[Campaign]": {
+    "commit": "c5b98fc6c",
+    "ms": 89.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[DeclaredSign]": {
+    "commit": "c5b98fc6c",
+    "ms": 100.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[EditorialFact]": {
+    "commit": "c5b98fc6c",
+    "ms": 96.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[EntityMergeAudit]": {
+    "commit": "c5b98fc6c",
+    "ms": 86.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[HandAttribution]": {
+    "commit": "c5b98fc6c",
+    "ms": 133.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[Hand]": {
+    "commit": "c5b98fc6c",
+    "ms": 110.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[KnowledgeGraphInclusion]": {
+    "commit": "c5b98fc6c",
+    "ms": 83.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[KnowledgePredictionReview]": {
+    "commit": "c5b98fc6c",
+    "ms": 99.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[LetterformDescription]": {
+    "commit": "c5b98fc6c",
+    "ms": 87.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[LibrarySetting]": {
+    "commit": "c5b98fc6c",
+    "ms": 81.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[MigrationRunRecord]": {
+    "commit": "c5b98fc6c",
+    "ms": 83.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[NoteLink]": {
+    "commit": "c5b98fc6c",
+    "ms": 93.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[ReadingCampaigns]": {
+    "commit": "c5b98fc6c",
+    "ms": 88.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[Rendition]": {
+    "commit": "c5b98fc6c",
+    "ms": 81.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_source_model_tables_are_declared.py::test_declared_and_there_on_a_fresh_open[RightsRecord]": {
+    "commit": "c5b98fc6c",
+    "ms": 115.4,
+    "note": "first recorded run"
   },
   "test::tests/unit/db/test_storage.py::TestThumbnailGeneration::test_ensure_thumbnail_caps_long_edge_at_max_dimension": {
     "commit": "18917fe1f",
@@ -9872,6 +11012,11 @@
   "test::tests/unit/db/test_storage_snapshots.py::test_snapshot_copies_offsite_when_configured": {
     "commit": "e123a8a43",
     "ms": 536.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_storage_snapshots.py::test_snapshot_copies_the_database_under_one_lock": {
+    "commit": "c5b98fc6c",
+    "ms": 275.8,
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_storage_snapshots.py::test_snapshot_export_uses_read_only_duckdb_connection": {
@@ -9955,19 +11100,124 @@
     "note": "first recorded run"
   },
   "test::tests/unit/db/test_task_workers_threading.py::test_workers_under_concurrent_write_never_raise_threading_error[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 1122.5,
-    "note": "first recorded run"
+    "commit": "c5b98fc6c",
+    "ms": 42.1,
+    "note": "tightened from 1122.5 ms"
   },
   "test::tests/unit/db/test_thumbnail_alias_sync.py::TestConcurrentCallsDoNotRace::test_many_threads_syncing_the_same_alias": {
-    "commit": "18917fe1f",
-    "ms": 268.0,
-    "note": "tightened from 301.0 ms"
+    "commit": "c5b98fc6c",
+    "ms": 218.9,
+    "note": "tightened from 268.0 ms"
   },
   "test::tests/unit/db/test_thumbnail_alias_sync.py::TestConcurrentCallsDoNotRace::test_the_alias_is_readable_throughout_concurrent_syncs": {
     "commit": "18917fe1f",
     "ms": 78.1,
     "note": "tightened from 113.3 ms"
+  },
+  "test::tests/unit/db/test_thumbnail_timing_6020.py::test_a_2000px_jpg_thumbnail_is_made_and_found_timed_for_information": {
+    "commit": "c5b98fc6c",
+    "ms": 425.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_thumbnail_timing_6020.py::test_the_hit_check_does_not_wait_for_a_writer_holding_the_gate": {
+    "commit": "c5b98fc6c",
+    "ms": 27.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_connection_opening_during_the_swap_waits_for_it_and_never_rolls_it_back": {
+    "commit": "c5b98fc6c",
+    "ms": 369.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_death_at_any_step_is_finished_or_undone_when_the_library_is_next_opened[choice-written-True]": {
+    "commit": "c5b98fc6c",
+    "ms": 59.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_death_at_any_step_is_finished_or_undone_when_the_library_is_next_opened[live-moved-False]": {
+    "commit": "c5b98fc6c",
+    "ms": 56.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_death_at_any_step_is_finished_or_undone_when_the_library_is_next_opened[marked-False]": {
+    "commit": "c5b98fc6c",
+    "ms": 53.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_death_at_any_step_is_finished_or_undone_when_the_library_is_next_opened[next-moved-False]": {
+    "commit": "c5b98fc6c",
+    "ms": 54.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_death_at_any_step_is_finished_or_undone_when_the_library_is_next_opened[verified-True]": {
+    "commit": "c5b98fc6c",
+    "ms": 61.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_failure_at_any_step_puts_the_old_vectors_and_the_old_model_back[choice-written]": {
+    "commit": "c5b98fc6c",
+    "ms": 66.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_failure_at_any_step_puts_the_old_vectors_and_the_old_model_back[live-moved]": {
+    "commit": "c5b98fc6c",
+    "ms": 55.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_failure_at_any_step_puts_the_old_vectors_and_the_old_model_back[marked]": {
+    "commit": "c5b98fc6c",
+    "ms": 39.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_failure_at_any_step_puts_the_old_vectors_and_the_old_model_back[next-moved]": {
+    "commit": "c5b98fc6c",
+    "ms": 49.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_a_shadow_of_another_model_is_not_carried_on": {
+    "commit": "c5b98fc6c",
+    "ms": 169.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_entities_and_claims_are_embedded_once_per_change": {
+    "commit": "c5b98fc6c",
+    "ms": 260.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_the_choice_and_the_vectors_change_together_the_choice_file_is_never_half_written": {
+    "commit": "c5b98fc6c",
+    "ms": 75.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_vector_swap_is_crash_safe_6122.py::test_the_next_run_after_a_death_does_not_delete_the_only_copy": {
+    "commit": "c5b98fc6c",
+    "ms": 116.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_watchdog_never_fails_a_checkpoint_6236.py::test_alter_and_checkpoint_beside_the_watchdogs_tick": {
+    "commit": "c5b98fc6c",
+    "ms": 147.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_watchdog_reads_held_versions_once_6236.py::test_held_versions_read_once_per_slow_statement": {
+    "commit": "c5b98fc6c",
+    "ms": 3508.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_watcher_store_folded_5645.py::test_a_deleted_trigger_never_comes_back_and_a_cut_short_fold_finishes": {
+    "commit": "c5b98fc6c",
+    "ms": 335.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_watcher_store_folded_5645.py::test_a_library_with_the_old_tables_opens_with_every_trigger_and_run": {
+    "commit": "c5b98fc6c",
+    "ms": 262.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/db/test_watcher_store_folded_5645.py::test_the_watcher_holds_no_connection_of_its_own": {
+    "commit": "c5b98fc6c",
+    "ms": 218.3,
+    "note": "first recorded run"
   },
   "test::tests/unit/importers/test_cloud_link_import.py::test_cli_import_box_links_invokes_importer": {
     "commit": "e123a8a43",
@@ -13544,6 +14794,16 @@
     "ms": 1271.1,
     "note": "first recorded run"
   },
+  "test::tests/unit/seams/test_change_event_seam.py::test_every_kg_writing_tool_emits_a_change_event": {
+    "commit": "c5b98fc6c",
+    "ms": 12451.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/seams/test_change_event_seam.py::test_kg_writer_emits_a_change_event": {
+    "commit": "c5b98fc6c",
+    "ms": 11683.9,
+    "note": "first recorded run"
+  },
   "test::tests/unit/seams/test_change_event_seam.py::test_progress_events_are_not_mistaken_for_change_events": {
     "commit": "18917fe1f",
     "ms": 1327.4,
@@ -13552,6 +14812,11 @@
   "test::tests/unit/seams/test_change_event_seam.py::test_the_sweep_has_something_to_scan": {
     "commit": "e123a8a43",
     "ms": 6199.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/seams/test_discarded_result_seam.py::test_embed_result_is_never_discarded": {
+    "commit": "c5b98fc6c",
+    "ms": 4730.4,
     "note": "first recorded run"
   },
   "test::tests/unit/seams/test_discarded_result_seam.py::test_justified_discards_are_still_real_and_reasoned": {
@@ -13584,6 +14849,11 @@
     "ms": 150.3,
     "note": "first recorded run"
   },
+  "test::tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py::test_no_mcp_or_client_module_can_launch_an_engine": {
+    "commit": "c5b98fc6c",
+    "ms": 170.0,
+    "note": "first recorded run"
+  },
   "test::tests/unit/seams/test_optional_callback_seam.py::test_allowlist_has_no_stale_entries": {
     "commit": "e123a8a43",
     "ms": 394.6,
@@ -13597,6 +14867,11 @@
   "test::tests/unit/seams/test_optional_callback_seam.py::test_the_sweep_has_something_to_scan": {
     "commit": "e123a8a43",
     "ms": 367.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/seams/test_retired_geometry_field_seam.py::test_no_construction_names_a_retired_geometry_field": {
+    "commit": "c5b98fc6c",
+    "ms": 6399.4,
     "note": "first recorded run"
   },
   "test::tests/unit/seams/test_state_channel_seam.py::test_allowlist_has_no_stale_entries": {

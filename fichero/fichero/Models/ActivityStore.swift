@@ -167,6 +167,10 @@ final class ActivityStore: ChangeEventConsumer {
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
     var recipeRunFolders: [String: RecipeRunFolders] = [:]
+    /// Which recipe steps are done on each folder (`activity.run.folder-steps-done`, #5642), keyed by the folder's id:
+    /// read from the same status as the run's folders, a folder patched only when its count changed.
+    /// ponytail: one dictionary, so a patch re-reads every folder row's mark; a store per folder if that shows.
+    var recipeFolderSteps: [String: RecipeFolderSteps] = [:]
     /// How many pages a running recipe run reads at once and why (`recipes-run.memory.gate-shown`, #6217), keyed by the
     /// run's id: read from the same status as its folders; removed when the status no longer says.
     var recipeRunPagesAtOnce: [String: RecipeRunPagesAtOnce] = [:]

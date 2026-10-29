@@ -7,6 +7,7 @@ build, and held by battery, memory and heat; memory and heat hold everything. Th
 """
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 import re
 import threading
 import time
@@ -79,7 +80,7 @@ def test_every_caller_gives_the_same_hold_slow_or_fast_answer(mac, monkeypatch, 
         if action == "hold":  # the signal clears while it waits
             mac.update(idle=600.0, build=False, battery=False, pressure=1, thermal=0)
 
-    monkeypatch.setattr(regions.time, "sleep", sleep)
+    monkeypatch.setattr(regions.time, "sleep", sleep_here(sleep))
     db = SimpleNamespace(path=tmp_path / "lib" / "x.duckdb",
                          get=lambda *_a: SimpleNamespace(path=str(tmp_path / "none.jpg"), id="d", name="n", metadata={}))
     regions.find_regions(db, ["a", "b"], "run", "m", provider="yolo", say=lambda _w: None)

@@ -94,6 +94,8 @@ NOT_A_STARTER = {
     "scripts/verify_python.sh": "boots on a base path from mktemp -d",
     "fichero-server/scripts/test_engine_harness.py": "boots on its own temp dir",
     "fichero-server/scripts/start_tailscale_backend.sh": "execs start_fichero_server.sh, which is guarded",
+    "scripts/smoke-release-embedded-backend.sh": "launches the installed app (its embedded engine is the app's); "
+                                                 "it only pgreps/stops a dev engine on the container socket",
 }
 STARTS_AN_ENGINE = re.compile(r"uvicorn|[\"' ]-m[\"',]* *[\"']?fichero_server|start_backend|fichero_server\.api\.\w+:app")
 
