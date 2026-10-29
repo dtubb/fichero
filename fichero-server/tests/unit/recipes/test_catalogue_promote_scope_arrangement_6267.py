@@ -214,6 +214,7 @@ def test_undo_keeps_the_dates_group_when_a_person_edited_the_text(db):
     from fichero_server.workflows.attribute_sources import SOURCES
 
     assert back.metadata[SOURCES]["catalogue_dates"] == {"by": "person"}  # a plain edit carries a person's source
+    assert back.metadata[SOURCES]["catalogue_date_start"]["by"] == "machine"  # a sibling kept with it keeps the run's source
 
 
 def test_undo_keeps_the_dates_group_when_a_person_confirmed_the_dates(db):

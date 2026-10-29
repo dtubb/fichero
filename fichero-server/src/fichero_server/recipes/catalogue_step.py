@@ -196,24 +196,33 @@ _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 # "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
 # ... and a short end year is read only when nothing follows it but punctuation or a joining word: "1910 - 12 hojas" is not 1912
 _SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)(?=\s*(?:$|[.,;:)\]\"\u201d]|(?:y|e|o|and|or)\b|[-\u2013\u2014/]))")
-_UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|\$)"  # what a dropped-1 number counts, when it is not a year
-# Spanish "1.918" = 1918, only in a date context (an allow-list: everything else with a dot stays a number, "pesos 1.918"):
-_DOTTED = r"(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)(?![.,]\d)"
+_UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|usd|kilos?|libras|m2|arrobas|\$)"  # what a number counts, when it is no year
+# Spanish "1.918" = 1918, only in a date context (an allow-list: everything else with a dot stays a number, "pesos 1.918");
+# a unit after it ("1.918 pesos", "2 de 1.918 pesos") makes it a number in every context:
+_DOTTED = r"(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)(?![.,]\d)(?!\s*" + _UNIT + r"(?!\w))"
 _MONTHS_ES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
-_AFTER_DE = re.compile(r"(\b(?:\d{1,2}|" + _MONTHS_ES + r")\s+(?:de|del)\s+)(" + _DOTTED + ")", re.I)  # "Marzo 4 de 1.918", "4 de marzo de 1.918"
-_NEXT_TO_ANO = re.compile(r"(\baños?\s+(?:de\s+)?)(" + _DOTTED + r")|(" + _DOTTED + r")(?=\s+años?\b)", re.I)
-_WHOLE_SIDE = re.compile(r"[\s.,\[\]()?]*(" + _DOTTED + r")[\s.,\[\]()?]*")  # nothing but punctuation around it
-_SIDE_SPLIT = re.compile(r"(;|\s+-\s+|[\u2013\u2014]|\s+(?:to|hasta)\s+)")
+_DOTTED_AFTER = (  # (prefix, year): "Marzo 4 de 1.918", "4 de marzo de 1.918", "marzo 1.918", "en 1.912"
+    re.compile(r"(\b(?:\d{1,2}|" + _MONTHS_ES + r")\s+(?:de|del)\s+)(" + _DOTTED + ")", re.I),
+    re.compile(r"(\b(?:" + _MONTHS_ES + r")\s+)(" + _DOTTED + ")", re.I),
+    re.compile(r"(\ben\s+)(" + _DOTTED + ")", re.I),
+    re.compile(r"(\baños?\s+(?:de\s+)?)(" + _DOTTED + ")", re.I),  # "año de 1.910", "del año 1.915"
+)
+_BEFORE_ANO = re.compile(r"(" + _DOTTED + r")(?=\s+años?\b)", re.I)
+# a whole side: nothing but punctuation, or "de"/"del", around it
+_WHOLE_SIDE = re.compile(r"[\s.,\[\]()?]*(?:(?:de|del)\s+)?(" + _DOTTED + r")[\s.,\[\]()?]*", re.I)
+_SIDE_SPLIT = re.compile(r"(;|\s+-\s+|(?<=\d)-(?=\d)|[\u2013\u2014]|\s+(?:to|hasta|a|al)\s+)")
 
 
 def _dedot(text: str) -> str:
     """The dotted years of a Dates text without the dot: after "de"/"del" that follows a day or month, a whole side of a range or
     ";" part, or next to "año(s)"; any other dotted number ("pesos 1.918", "1.900 kilos", "1.918,50") is left as it is."""
     drop = lambda year: year.replace(".", "")  # noqa: E731
-    text = _AFTER_DE.sub(lambda m: m.group(1) + drop(m.group(2)), text)
-    text = _NEXT_TO_ANO.sub(lambda m: (m.group(1) + drop(m.group(2))) if m.group(2) else drop(m.group(3)), text)
+    for pattern in _DOTTED_AFTER:
+        text = pattern.sub(lambda m: m.group(1) + drop(m.group(2)), text)
+    text = _BEFORE_ANO.sub(lambda m: drop(m.group(1)), text)
     parts = _SIDE_SPLIT.split(text)
-    return "".join(drop(part) if i % 2 == 0 and _WHOLE_SIDE.fullmatch(part) else part for i, part in enumerate(parts))
+    return "".join(_WHOLE_SIDE.sub(lambda m: m.group(0).replace(m.group(1), drop(m.group(1))), part)
+                   if i % 2 == 0 and _WHOLE_SIDE.fullmatch(part) else part for i, part in enumerate(parts))
 
 
 # "del 914", "de 914", "a 914", "al 914": a year with the 1 dropped is named as a date, never as a bare number

@@ -1137,7 +1137,7 @@ def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, 
             keep |= promoted & set(catalogue_step.DATE_KEYS)
         for key in promoted:
             if key in keep:
-                if key in edited | (keep - held_by_person):  # a plain edit carries a person's source, not promote's
+                if key in edited:  # a plain edit carries a person's source, not promote's; kept siblings keep promote's
                     sources[key] = {"by": BY_PERSON}
                 continue
             for held, name in ((attrs, "attributes"), (sources, "sources")):
