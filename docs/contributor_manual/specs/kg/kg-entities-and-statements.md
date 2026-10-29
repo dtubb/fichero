@@ -91,14 +91,18 @@ native graph, timeline and map views.
 
 ### A. Extraction: which model, versioned, costed, never twice
 
-- `kg.names.model-step-is-the-source` — **[PARTIAL]** (#6283, #6285) the names a folder's
-  catalogue and authority sheets rest on come from the names step a person chose (a text model
-  or a tagger named on the step card), run on the folder's pages. The free import draft is a
-  separate layer: it is marked as the draft on every row, never counts as done for a chosen
-  step, and is taken back on a page when the chosen step writes that page (its draft entities
-  that nothing else touched are removed through `entity.take_back_run`'s rule; a person's
-  decision on a draft row stays). Built: the step, the draft, the take-back action. Not built:
-  the draft as a layer the done-check and the tables tell apart; the take-back on write.
+- `kg.names.one-canonical-set` — **[PARTIAL]** (#6283, #6285; owner ruling 2026-10-29) a name
+  may come from the tagger (spaCy, where it is good enough), from the model a person chose (such
+  as Sonnet), or from a person; whatever made it, it is a PROPOSAL until it is resolved into the
+  project's one canonical set of names by accept, merge or reject. There is one set: a superseded
+  proposal (a draft name the model step or a person has since resolved on the same page) is
+  resolved into its canonical entity or removed, never kept as parallel data; a tagger's draft
+  never counts as done for a chosen model step; and a person's decision on any row stays
+  whatever runs later. Built: the step, the import draft, `entity.take_back_run`, the merge and
+  reject paths. Not built: the draft told apart from a canonical name by the done-check and the
+  tables; its resolution when the model step writes the same page; the "no drafts left lying
+  around" check (a names step ends with every proposal on its pages resolved or listed as to
+  review).
 - `kg.names.prompt-is-versioned` — **[GAP]** (#6278) the names prompt and the statements prompt
   are entries in the prompt registry (`llm/prompts.py`), with a version; a shipped version is
   never edited in place; every entity and claim a run writes records the prompt id and version
@@ -116,6 +120,13 @@ native graph, timeline and map views.
   events; a date is returned as a value with the stretch it came from, never as a name; money
   and offices as typed values are the later work #5546 names. Built: the five sections, the
   date gate; not built: institution as a stated subtype, money.
+- `kg.names.tagger-is-a-seed` — **[GAP]** (#5536, #5545; owner ruling 2026-10-29) the bundled
+  Spanish tagger is assessed on the project's check set before it is offered as a names source;
+  on B12 it is not good enough (the review, section 4.1: offices as people, given names as
+  places, cut surnames, a hundred names a page), so by default it runs only as a free seed whose
+  names are proposals into the canonical set and never the catalogue's names by themselves; a
+  project where it measures well on the check set may choose it as the step's source; a tagger
+  fine-tuned on the project's confirmed names (#5536) is measured the same way.
 - `kg.names.gate` — **[OK]** a name saved is somebody or somewhere: a whole-name date or a bare
   role word is refused, a name is never trimmed, a role word never refuses a longer name
   (`svo_quality.usable_entity_name`; `source.job.find-names.not-a-date-or-a-role`). *Test:*
@@ -219,21 +230,25 @@ parallel at `../source/attributes-and-prototypes.md` (on branch `spec/export-cat
 present at origin/integration when this was written, so its field names are to be aligned at
 approval).
 
-- `kg.attr.folder-names-are-attributes` — **[GAP]** (#6283, #5365, #6087) a folder carries
-  three list attributes, people, places and institutions, each entry the preferred form of a
-  confirmed name in the folder's scope (a name verified by a person, or, where the project
-  allows, a name a run found that no person has rejected, marked as proposed); the attributes
-  are written by the engine from the knowledge graph when a name's state or form changes in
-  that scope, never typed by a model; a person can add or remove an entry, which is a decision
-  on the name. The catalogue's "Access points" field is no longer a second model-written
-  list: the folder description's access points are read as PROPOSED names into the graph (a
-  mention on the description, not on a page) and the field itself is the three attributes.
+- `kg.attr.folder-names-are-attributes` — **[GAP]** (#6283, #5365, #6087; owner ruling
+  2026-10-29) a folder carries three list attributes, `catalogue_people`, `catalogue_places` and
+  `catalogue_institutions`, each entry the canonical name of an entity in the folder's scope; at
+  `folder.promote_catalogue` the description's access points are TYPED BY THE GRAPH into the three,
+  with no model call: each access point is matched to a canonical entity in the folder's scope
+  (exact or same-name-written-alike, else a proposal into the canonical set, section A), takes
+  that entity's type and canonical name, and an access point that matches nothing is kept in its
+  list as a proposed name; the attributes are rewritten by the engine when a name's state, type
+  or form changes in that scope; a person can add or remove an entry, which is a decision on the
+  name. The free-text `catalogue_access_points` attribute is superseded by the three and retired
+  by the promote migration.
 - `kg.attr.entry-shows-state` — **[GAP]** (#6283) each entry in the folder's lists shows
   whether it is confirmed or proposed, how many pages name it in this folder, and opens the
   name's lens; the Excel and catalogue exports print confirmed entries, and proposed ones only
   when asked, marked.
-- `kg.attr.authority-sheet` — **[GAP]** (#5380) one authority sheet per name in a project,
-  read from the entity: preferred form and the rule that chose it, every form as written with
+- `kg.attr.authority-sheet` — **[GAP]** (#5380; owner ruling 2026-10-29) the authority sheets
+  come from the catalogue rows: one sheet per distinct entry across the folders'
+  `catalogue_people`, `catalogue_places` and `catalogue_institutions`, headed by the graph's
+  canonical name, read from the entity: the canonical form and the rule that chose it, every form as written with
   its folders and pages, type, roles and dates as attested (from its statements), the folders
   where it is named, links to authorities (proposed, confirmed), and a quality line (forms
   unresolved, likely duplicates, no link). It is `project-gazetteer-and-names.md`'s entry; no
@@ -310,7 +325,7 @@ values alone; never a batch rewrite of a person's work.
 
 | Fact | The record | Copies today | Migration |
 |---|---|---|---|
-| A name (person, place, organisation, event): preferred form, forms as written, type, state, maker | `KnowledgeEntity` (`names`, `curation_state`, `attribution_chain`) | the per-document `entities` artifact (`workflows/tools/entities.py`, `importers/manifest_import.py`) read by the app's `ArtifactEntityStore` for list rows and table cells; the folder's `catalogue_access_points` attribute; the catalogue tool's people and places tables (`_build_data_from_claims`); `aliases` beside `names` | artifact names become page-scoped entities through `upsert_entity`, then the artifact and the app store go; access points become proposals (section D); the catalogue tables read `document_entity_ids`; `aliases` derived from `names` |
+| A name (person, place, organisation, event): preferred form, forms as written, type, state, maker | `KnowledgeEntity` (`names`, `curation_state`, `attribution_chain`) | the per-document `entities` artifact (`workflows/tools/entities.py`, `importers/manifest_import.py`) read by the app's `ArtifactEntityStore` for list rows and table cells; the folder's `catalogue_access_points` attribute (superseded by `catalogue_people`, `catalogue_places`, `catalogue_institutions`, typed by the graph at promote); the catalogue tool's people and places tables (`_build_data_from_claims`); `aliases` beside `names` | artifact names become page-scoped entities through `upsert_entity`, then the artifact and the app store go; access points become proposals (section D); the catalogue tables read `document_entity_ids`; `aliases` derived from `names` |
 | A name's tie to a page: which stretch of which line | the mention: `source_supports` entry with its `source_anchor` on the segment (#5488) | `source_document_ids` on the entity; the alias scan's `entity_ids` on every claim; `pages_with_names` reading `source_document_ids` for the done-check | `source_document_ids` derived from the mentions (kept as a column only as a cache the engine fills); `entity_ids` recomputed as the names whose mention lies in the claim's span; the done-check reads mentions by run |
 | A statement: subject, verb, object, line, maker | `KnowledgeClaim` (`subject_entity_id`, the role ids, `source_segment_id`, span) | the dated rows with the date as subject; the `claim_text_en` glosses; the parser's English "is" rows | dates become values (section C); glosses stay display-only; English rows pruned by the standing rule |
 | A date | on the page (`document_date`) or on the statement (`date_values`, `time_start`) | the `dates` artifact (`workflows/tools/date_extract.py`); `catalogue_dates`, `catalogue_date_start`, `catalogue_date_end`, `catalogue_date_normalised` on the folder | the artifact derived or retired (#5597); the folder's date attributes derived from its pages' and statements' dates by `folder.promote_catalogue`, a person's value kept |
@@ -362,8 +377,8 @@ values alone; never a batch rewrite of a person's work.
 - Tests: fichero-server/tests/unit/llm/test_names_statements_prompts_versioned.py, fichero-server/tests/unit/recipes/test_names_never_twice_same_model_and_prompt.py
 - Size: S
 
-#### Step 1.2 — The draft is a layer, never done, taken back on write (#6285, #4869)
-- Behaviours: `kg.names.model-step-is-the-source`, `kg.names.says-who-made-it`
+#### Step 1.2 — One canonical set: a draft is a proposal, resolved, never left beside (#6285, #4869)
+- Behaviours: `kg.names.one-canonical-set`, `kg.names.says-who-made-it`
 - Tests: fichero-server/tests/unit/recipes/test_draft_never_counts_as_done.py, fichero-server/tests/unit/kg/test_draft_taken_back_when_model_writes_page.py, fichero-server/tests/unit/kg/test_entity_says_who_made_it_to_spec.py
 - Depends on: 1.1
 - Size: M
@@ -375,7 +390,7 @@ values alone; never a batch rewrite of a person's work.
 - Size: M
 
 #### Step 1.4 — The check set and the measured step (#5545)
-- Behaviours: `kg.names.measured`, `kg.names.cost-shown-first`
+- Behaviours: `kg.names.measured`, `kg.names.cost-shown-first`, `kg.names.tagger-is-a-seed`
 - Tests: fichero-server/tests/unit/recipes/test_names_check_set_precision_recall.py, fichero-server/tests/unit/recipes/test_names_paths_offer_the_chooser.py
 - Depends on: 1.1
 - Size: M
@@ -500,16 +515,15 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
 
 ## Open questions for the owner (at most eight, each with a recommendation)
 
-1. **Retire the catalogue's access-points list and the per-document `entities` artifact outright, or keep them as proposal sources?**
-   Recommendation: proposals only (a mention on the folder description, a page-scoped entity
-   from the artifact), migrated once and retired; the three attributes are the field. One list of
-   people per folder, one record per name.
+1. **Answered** (owner 2026-10-29): the access points are typed by the graph into the three
+   attributes at promote; the free-text list is superseded. Still open for the per-document
+   `entities` artifact: retire it after a one-time migration into page-scoped proposals?
+   Recommendation: yes.
 2. **Which names count for the catalogue by default: confirmed only, or confirmed plus
    unrejected proposals marked as proposed?** Recommendation: confirmed plus proposed, marked,
    for the working catalogue; confirmed only in anything exported or published.
-3. **Should the names step rerun at cost on pages that already have the free draft?**
-   Recommendation: yes, always, when a person chose a model step: the draft never counts as
-   done, and its pages are taken back as the model writes them.
+3. **Answered** (owner 2026-10-29): a draft never counts as done; the chosen model step runs
+   on its pages and the draft's names are resolved into the canonical set, not left beside it.
 4. **The per-folder proposal budget.** Recommendation: about one group per ten names, ranked
    by what it joins, the rest visible under "similar, not proposed"; a person can ask for more.
 5. **Given-name gender variants and father-and-son pairs (#6280):** never proposed as one?
@@ -527,7 +541,19 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
 
 ## Rulings
 
-None yet; the owner approves this spec.
+**Owner, 2026-10-29** (relayed; decided):
+- Names may come from the tagger where it is good enough, from the chosen model, or from a person.
+- A person edits them into ONE canonical set. Every draft, from any source, is a proposal resolved
+  into the canonical entities by accept, merge or reject; a superseded draft does not persist as
+  parallel data (`kg.names.one-canonical-set`).
+- The bundled Spanish tagger is assessed for this archive; on B12 it is very noisy and belongs, by
+  default, as a free seed or proposal only (`kg.names.tagger-is-a-seed`).
+- At promote, the catalogue's access points are typed by the graph into `catalogue_people`,
+  `catalogue_places` and `catalogue_institutions`, with no model call
+  (`kg.attr.folder-names-are-attributes`).
+- The authority sheets come from the catalogue rows, with the graph's canonical name
+  (`kg.attr.authority-sheet`). The export spec being written on `spec/export-catalogue` points here
+  for the canonical-names design.
 
 ## Future (ideas, not scheduled)
 
