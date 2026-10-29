@@ -2404,6 +2404,7 @@ is the answer; the grey line says both.
   the same way (`embed_process.fork_from_seed`, a named target run in the engine's environment as it is now; its stuck
   call still kills it and the next one is the seed's child again; same test file). *Not built:* a run in the shipped
   engine (owed: the M4 e2e with Search, booked).
+- `activity.lane.ort-telemetry-off-before-fork` — **[BUILT]** (#6286) the engine sets `ORT_DISABLE_TELEMETRY=1` (assigned, not defaulted) when `db/embed_process` is imported, before the seed forks and before anything imports onnxruntime (fastembed in the embed worker, kreuzberg). ORT's telemetry starts a Network.framework path monitor on import, which SIGSEGVs in a forked child (the 2026.10.28 M1 Air crash). Test: `tests/unit/db/test_onnxruntime_telemetry_off_in_forks_6286.py`.
 - `activity.lane.spacy-threads-one-pipeline-each` — **[PARTIAL]** (#5956, #6236; proposed 2026-10-27, revised the same
   day from the explorer's measurement) spaCy pages run on threads, each thread with its own copy of the pipeline, never
   two threads on one `Language` object (not thread-safe: two pages on the one cached pipeline crashed, hence today's
