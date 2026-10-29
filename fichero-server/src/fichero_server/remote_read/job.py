@@ -202,16 +202,18 @@ def out_under(db: Any, parent_job_id: str, documents: list[str] | None = None) -
     return live_child_for(db, parent_job_id, KIND, documents, lambda d: (d.get("request") or {}).get("scope_ids"))
 
 
-def _its_recipe_stopped(db: Any, job_id: str) -> bool:
-    """The recipe run this read is under was stopped, or has ended without it: a read sent ahead for its next batch
-    (`remote_read.pipeline`) is stopped with it, as its running step is, never left reading (and billing) alone."""
+def _its_recipe_stopped(db: Any, job_id: str, *, ended: bool = False) -> bool:
+    """The recipe run this read is under was stopped: a read sent ahead for its next batch (`remote_read.pipeline`) is
+    stopped with it, as its running step is, never left reading (and billing) alone. A recipe row set aside as failed
+    after its restarts does not stop it: the shards run and bill there, and a failure never ends a run (#5540). With
+    `ended`, a recipe that failed or is done counts too: nothing has been sent yet, so there is nothing to pay for."""
     from fichero_server.execution.cancellation import cancellation_requested
 
     parent = jobs.parent_of(db, job_id)
     if parent is None:
         return False
     row = jobs.read_job(db, parent)
-    return cancellation_requested(parent) or row is None or row["state"] in ("cancelled", "failed", "done")
+    return cancellation_requested(parent) or row is None or row["state"] in (("cancelled", "failed", "done") if ended else ("cancelled",))
 
 
 def live_child_for(db: Any, parent_job_id: str, kind: str, documents: list[str] | None,
@@ -285,7 +287,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
 
     job_id = jobs.job_id_for(db, KIND, subject)
     _state, detail = _row(db, job_id)
-    if "shards" not in detail and _its_recipe_stopped(db, job_id):  # sent ahead, its recipe stopped: nothing leaves
+    if "shards" not in detail and _its_recipe_stopped(db, job_id, ended=True):  # sent ahead, its recipe stopped: nothing leaves
         raise jobs.JobCancelled("Stopped with its recipe run, before anything was sent")
     request = ReadAtScaleRequest(**detail["request"])
     if target is None:
@@ -330,7 +332,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                     target.cancel(shard["far_id"])
                 shard.update(state="failed", why="Stopped by you")
             _save(db, job_id, detail)
-            raise jobs.JobCancelled("Stopped by you; the running shards were cancelled on Hugging Face")
+            where = "Hugging Face" if request.target == TARGET else f"the cluster {request.target}"
+            raise jobs.JobCancelled(f"Stopped by you; the running shards were cancelled on {where}")
         running = sum(1 for s in shards.values() if s["state"] == "submitted")
         pending = sorted((k for k, s in shards.items() if s["state"] == "pending"), key=int)
         if pending and hasattr(target, "submit_all"):  # a cluster: one array, the site throttling it (%N), not this loop

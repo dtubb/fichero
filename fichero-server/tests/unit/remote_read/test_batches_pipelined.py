@@ -160,3 +160,46 @@ def test_the_recipe_runner_sends_the_second_batch_ahead_while_it_runs_the_first(
     runs = [e for e in events if e[0] == "run"]
     assert len(runs) == 2 and events[0] == ("ahead", runs[1][1]), (events, out)
     assert [e for e in events if e[0] == "ahead"] == [events[0]], "the last batch sends nothing ahead"
+
+
+@pytest.mark.parametrize("state", ["failed", "done"])
+def test_a_recipe_set_aside_or_ended_does_not_cancel_the_read_it_is_paying_for(db, recipe, state):
+    """WHY (#5540, review 4 MED): the recipe row is set aside as failed after its restarts, but its shards run (and bill)
+    on the far side; only a Stop (or a cancelled row) ends them, a failure never does."""
+    ahead = pipeline.send_ahead(db, recipe["id"], recipe["detail"], _batch("p1"), None, "owner")
+    subject = jobs.read_job(db, ahead)["subject"]
+    detail = json.loads(jobs.read_job(db, ahead)["detail"])
+    detail["shards"] = {"0": {"state": "submitted", "far_id": "job-0", "tries": 1}}
+    jobs.save_detail(db, ahead, json.dumps(detail))
+    db.execute("UPDATE jobs SET state = ? WHERE id = ?", [state, recipe["id"]])
+
+    class Polled(Exception):
+        pass
+
+    class Place:
+        def cancel(self, far_id):
+            pytest.fail("a failed recipe cancelled the read")
+
+        def statuses(self, job_id):
+            raise Polled  # past the stop check: the read went on polling
+
+    with pytest.raises(Polled):
+        read_job.run(db, subject, target=Place(), sleep=lambda s: None)
+
+
+def test_a_recipe_stopped_says_where_the_shards_were_cancelled(db, recipe):
+    """WHY (review 4 LOW): a cluster's array or a recipe's stop is not 'cancelled on Hugging Face'."""
+    ahead = pipeline.send_ahead(db, recipe["id"], recipe["detail"], _batch("p1"), None, "owner")
+    subject = jobs.read_job(db, ahead)["subject"]
+    detail = json.loads(jobs.read_job(db, ahead)["detail"])
+    detail["shards"] = {"0": {"state": "submitted", "far_id": "job-0", "tries": 1}}
+    detail["request"]["target"] = "acenet"
+    jobs.save_detail(db, ahead, json.dumps(detail))
+    request_cancellation(recipe["id"])
+
+    class Cluster:
+        def cancel_all(self, ids):
+            pass
+
+    with pytest.raises(jobs.JobCancelled, match="cancelled on the cluster acenet"):
+        read_job.run(db, subject, target=Cluster(), sleep=lambda s: None)
