@@ -117,7 +117,18 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
   `::test_promote_is_undone_to_what_the_folder_held`.
 - `catalogue.excel-export-prints-description-once` — **[OK]** (#6267) in the Excel export a folder whose content is its catalogue
   description (`catalogue_content_from` set) does not also append its `catalogue.*` artifacts to its text, so the description prints once. The
-  Markdown and site exports are unchanged. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_a_promoted_folders_description_prints_once`.
+  Markdown, Word and site exports are unchanged. *Tests:* `fichero-server/tests/unit/api/test_routes_export.py::TestCatalogueTextOnlyDroppedInExcel::test_word_and_site_text_are_unchanged`, `::test_word_export_still_prints_both`, `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_a_promoted_folders_description_prints_once`.
+- `catalogue.promote-reaches-every-depth-and-undo-is-narrow` — **[OK]** (#6267) `folder.promote_catalogue` with `recursive` walks every folder
+  below the one given, at any depth. Its undo puts back the content (and queues the re-embed search needs, as saving the content did) and only the
+  metadata and attribute keys promote changed; a key edited since stays. *Tests:* `fichero-server/tests/unit/recipes/test_catalogue_promote_scope_arrangement_6267.py::test_recursive_promote_reaches_every_depth`,
+  `fichero-server/tests/unit/recipes/test_catalogue_promote_scope_arrangement_6267.py::test_undo_restores_content_queues_a_reembed_and_leaves_other_keys`.
+- `catalogue.language-is-a-code-not-a-prefix` — **[OK]** (#6267) the Spanish `[incierto]` marker applies for `es`, `es-CO`, `spa` or `Spanish`, not for a
+  language that merely starts with those letters ("estonian"). *Test:* `fichero-server/tests/unit/recipes/test_catalogue_promote_scope_arrangement_6267.py::test_a_language_code_is_matched_not_a_prefix`.
+- `catalogue.fields-parse-risk` — **[KNOWN LIMIT]** (#6267) a label is found by its text, so a sentence in a field that happens to begin with a label word and
+  a colon ("Dates: are torn away", "Access points: rivers ...") starts a new field there. The prompt asks the model for the labels on their own lines; a
+  field with prose of that shape is read wrongly until the labels are structured (no test: the limit is the spec).
+- `catalogue.excel-carries-the-normalised-date` — **[OK]** (#6270) `catalogue_date_normalised` is an `attr:` column of the Excel Documents sheet like the
+  other attributes. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestCatalogueTextOnlyDroppedInExcel::test_excel_has_the_normalised_date_column`.
 - `catalogue.promote-reparses-with-the-current-parser` — **[OK]** (#6267) `folder.promote_catalogue` re-parses the saved description with the
   current parser and overwrites the folder's `catalogue_*` attributes an earlier run wrote (a value a person set is never touched); the undo puts the
   old values back. *Test:* `.../test_catalogue_promote_scope_arrangement_6267.py::test_promote_overwrites_a_machine_value_the_old_parser_got_wrong_and_undo_restores_it`.
@@ -128,7 +139,7 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
 - `catalogue.a-rerun-is-the-next-version` — **[OK]** (#6267) a folder described again saves its `catalogue.narrative` as version n+1 citing the earlier as
   `source_artifact_id`; the latest (version, then time) is what promote reads and what the Excel export prints. *Test:* `::test_a_rerun_is_version_two_and_promote_reads_the_latest`.
 - `catalogue.excel-claims-and-entities-reach-their-pages` — **[OK]** (#6267) in the Excel export a claim with no page label shows its page's name in
-  `source_page_label`, and an entity's `source_document_ids` also lists the documents whose claims name it. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExport::test_claims_have_a_page_label_and_entities_reach_their_documents`.
+  `source_page_label`, and an entity's `source_document_ids` also lists the documents whose claims name it. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_claims_have_a_page_label_and_entities_reach_their_documents`.
 - `catalogue.excel-export-carries-attributes` — **[OK]** (owner goal 2026-10-28) `POST /api/export/excel`'s Documents sheet has one
   `attr:<key>` column per attribute key across the exported rows, and folder rows (the catalogue describes folders) beside the
   documents; `document_count` counts both. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`.

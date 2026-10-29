@@ -811,3 +811,40 @@ class TestExcelExportAttributes:
         assert page.id in str(entities[entity.id]["source_document_ids"])
         listed = client.get(f"/api/entities/{entity.id}/documents").json()
         assert [item["document_id"] for item in listed["items"]] == [page.id]
+
+
+class TestCatalogueTextOnlyDroppedInExcel:
+    """`catalogue.excel-export-prints-description-once`: the Word export and the site search keep a promoted folder's
+    artifacts in its text; only the Excel export drops them."""
+
+    def _box(self, db):
+        box = Document(id="word-box", name="Box", doc_type=DocType.folder, page_content="The wheat description.",
+                       metadata={"catalogue_content_from": "art-1"})
+        db.save(box)
+        db.save(Artifact(document_id=box.id, artifact_type="catalogue.narrative", content="The wheat description."))
+        return box
+
+    def test_word_and_site_text_are_unchanged(self, db):
+        from fichero_server.export_service import _document_text
+
+        box = self._box(db)
+        assert _document_text(db, box).count("The wheat description.") == 2
+        assert _document_text(db, box, once=True).count("The wheat description.") == 1
+
+    def test_word_export_still_prints_both(self, db, tmp_path):
+        import zipfile
+
+        from fichero_server.export_service import export_word_docx
+
+        box = self._box(db)
+        out = tmp_path / "w.docx"
+        export_word_docx(db, out, documents=[box], include_knowledge_graph=False)
+        assert zipfile.ZipFile(out).read("word/document.xml").decode().count("The wheat description.") == 2
+
+    def test_excel_has_the_normalised_date_column(self, client, db, tmp_path):
+        db.save(Document(id="nd-box", name="Box", doc_type=DocType.folder,
+                         attributes={"catalogue_date_normalised": "1906/1918-02-19"}))
+        out = tmp_path / "nd.xlsx"
+        assert client.post("/api/export/excel", json={"output_path": str(out)}).status_code == 200
+        rows = {r["id"]: r for r in read_xlsx_records(out, sheet_index=0)}
+        assert rows["nd-box"]["attr:catalogue_date_normalised"] == "1906/1918-02-19"

@@ -115,3 +115,44 @@ def test_a_rerun_is_version_two_and_promote_reads_the_latest(db, monkeypatch):
     arts = sorted(db.query(Artifact, document_id=box.id), key=lambda a: a.version)
     assert [a.version for a in arts] == [1, 2] and arts[1].source_artifact_id == arts[0].id
     assert catalogue_step._latest(db, box.id).id == arts[1].id
+
+
+def _folder_with_old_text(db, parent_id=None, name="Box"):
+    box = Document(name=name, doc_type=DocType.folder, parent_id=parent_id)
+    db.save(box)
+    db.save(Artifact(document_id=box.id, artifact_type=catalogue_step.ARTIFACT_TYPE, content=NEW, provider="p", model="m"))
+    return box.id
+
+
+def test_recursive_promote_reaches_every_depth(db):
+    top = _folder_with_old_text(db, name="Top")
+    mid = _folder_with_old_text(db, top, "Mid")
+    low = _folder_with_old_text(db, mid, "Low")
+    assert set(_promote(db, folder_id=top).result["promoted"]) == {top, mid, low}
+    assert db.get(Document, low).attributes["catalogue_title"] == "Wheat letters."
+    assert _promote(db, folder_id=top, recursive=False).result["promoted"] == []
+
+
+def test_undo_restores_content_queues_a_reembed_and_leaves_other_keys(db, monkeypatch):
+    box, art = _described_folder(db)
+    art.content = NEW
+    db.save(art)
+    queued: list = []
+    monkeypatch.setattr("fichero_server.actions.page_text_cache.queue_reembed", lambda _db, ids: queued.append(ids))
+    audit_id = _promote(db, folder_id=box).audit_id
+    folder = db.get(Document, box)
+    folder.attributes = {**folder.attributes, "mine": "kept"}  # a later edit to a key promote never touched
+    folder.metadata = {**folder.metadata, "note": "kept"}
+    db.save(folder)
+    queued.clear()
+    undo_set(db, [audit_id], CTX)
+    back = db.get(Document, box)
+    assert back.page_content == OLD and [box] in queued
+    assert "catalogue_scope_content" not in back.attributes and back.attributes["mine"] == "kept"
+    assert back.metadata["note"] == "kept"
+
+
+def test_a_language_code_is_matched_not_a_prefix():
+    text = "Condition: bien [uncertain]."
+    assert "[incierto]" in catalogue_step.parse_fields(text, "es-CO")["catalogue_condition"]
+    assert "[uncertain]" in catalogue_step.parse_fields(text, "estonian")["catalogue_condition"]

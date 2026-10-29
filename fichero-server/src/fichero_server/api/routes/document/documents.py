@@ -1077,7 +1077,7 @@ class PromoteCatalogueParams(BaseModel):
 
 
 class UnpromoteCatalogueParams(BaseModel):
-    before: dict[str, dict[str, Any]] = Field(description="each folder's content, metadata and attributes before")
+    before: dict[str, dict[str, Any]] = Field(description="each folder's content and the metadata and attribute keys promote changed, as they were")
 
 
 def _invert_promote_catalogue(before: dict | None, after: dict | None, ctx: "ActionContext"):
@@ -1097,7 +1097,7 @@ def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx:
         top = db.get(Document, params.folder_id)
         if top is None:
             raise ValueError(f"No folder {params.folder_id}")
-        folders = [top, *(catalogue_step._below(db, top.id)[0] if params.recursive else [])]
+        folders = [top, *(catalogue_step.folders_below(db, top.id) if params.recursive else [])]
     before: dict[str, dict] = {}
     for folder in folders:
         was = catalogue_step.promote_folder(db, folder)
@@ -1111,11 +1111,26 @@ def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx:
 @action("folder.unpromote_catalogue", UnpromoteCatalogueParams, domains=["document"])
 def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
     """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
+    from fichero_server.actions.page_text_cache import queue_reembed
+
     for folder_id, was in params.before.items():
         folder = db.get(Document, folder_id)
-        if folder is not None:
-            folder.page_content, folder.metadata, folder.attributes = was["page_content"], was["metadata"], was["attributes"]
-            db.save(folder)
+        if folder is None:
+            continue
+        for name in ("metadata", "attributes"):  # only the keys promote changed; a later edit to another key stays
+            held = dict(getattr(folder, name) or {})
+            held.update(was.get(name) or {})
+            for key in was.get(f"{name}_added") or []:
+                held.pop(key, None)
+            setattr(folder, name, held)
+        if "page_content" in was:
+            folder.page_content = was["page_content"]
+        db.save(folder)
+        if "page_content" in was:
+            try:
+                queue_reembed(db, [folder_id])  # search reads the content, as after put_in_content
+            except Exception:  # noqa: BLE001 -- the content is back; search catches up on the next re-embed
+                logger.exception("could not queue the re-embed of folder %s", folder_id)
     ids = list(params.before)
     return {"put_back": ids}, ChangeSpec(domains=["document"], target_ids=ids, emit_type="document.updated",
                                          document_ids=ids, emit_fn=_emit_document_change_spec)

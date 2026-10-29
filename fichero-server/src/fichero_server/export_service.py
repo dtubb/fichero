@@ -1447,7 +1447,7 @@ def export_excel_xlsx(
             "file_type": doc.file_type.value if doc.file_type else "",
             "path": doc.path,
             "sequence": doc.sequence,
-            "transcription": _document_text(db, doc),
+            "transcription": _document_text(db, doc, once=True),
             "metadata": doc.metadata,
             "created_at": doc.created_at,
             "updated_at": doc.updated_at,
@@ -1847,13 +1847,14 @@ def render_markdown_text(title: str, sections: list[tuple[str | None, str]]) -> 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _document_text(db: Database, doc: Document) -> str:
+def _document_text(db: Database, doc: Document, *, once: bool = False) -> str:
+    """`once` (the Excel export only): a promoted folder's `catalogue.*` artifacts are not printed beside its content."""
     parts = []
     if doc.page_content and doc.page_content.strip():
         parts.append(doc.page_content.strip())
     elif page_text := _page_child_text(db, doc):
         parts.append(page_text)
-    promoted = "catalogue_content_from" in (doc.metadata or {})  # the description is already the content (#6267)
+    promoted = once and "catalogue_content_from" in (doc.metadata or {})  # the description is already the content (#6267)
     artifacts = _text_artifacts(db, doc.id)
     latest = max((a for a in artifacts if a.artifact_type == "catalogue.narrative"),
                  key=lambda a: (a.version, a.created_at), default=None)

@@ -66,6 +66,14 @@ def _below(db: Any, folder_id: str) -> tuple[list[Any], list[Any]]:
     return folders, leaves
 
 
+def folders_below(db: Any, folder_id: str) -> list[Any]:
+    """Every folder under the folder at any depth, live ones only."""
+    found = []
+    for sub in _below(db, folder_id)[0]:
+        found += [sub, *folders_below(db, sub.id)]
+    return found
+
+
 def coverage(leaves: list[Any]) -> str:
     """A digest of what a folder covers: each node under it and its reading, so any added or changed page changes it."""
     h = hashlib.sha1()
@@ -305,7 +313,7 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
         key, is_list = ATTRIBUTE_FIELDS[label]
         value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
-        if str(language or "").lower().startswith(("es", "span")):  # ponytail: Spanish only; other languages when asked
+        if re.split(r"[-_]", str(language or "").lower())[0] in ("es", "spa", "spanish"):  # ponytail: Spanish only; other languages when asked
             for english, spanish in _SPANISH_MARKERS.items():
                 value = value.replace(english, spanish)
         if value:
@@ -339,7 +347,7 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
 def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
     """Put the folder's latest saved description in its content and attributes again, with no model call (the same
     `put_in_content` and `put_in_attributes` a run uses): for a folder described before a field existed.
-    Returns what the folder held before (content, metadata, attributes) when this changed it, for an undo; else None."""
+    Returns, for an undo, what this changed: the content if it changed, and the earlier value of each metadata and attribute key it changed (`*_added`: keys it added); None when nothing changed."""
     art = _latest(db, folder.id)
     if art is None or not (art.content or "").strip():
         return None
@@ -356,7 +364,17 @@ def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
         logger.exception("could not queue the re-embed of folder %s", folder.id)
     put_in_attributes(db, folder.id, art.content, art.id, run_id=art.run_id, provider=art.provider, model=art.model,
                       language=(art.data or {}).get("language"))
-    return dict(zip(("page_content", "metadata", "attributes"), was)) if state() != was else None
+    now = state()
+    if now == was:
+        return None
+    undo: dict[str, Any] = {}
+    if now[0] != was[0]:
+        undo["page_content"] = was[0]
+    for name, old, new in (("metadata", was[1], now[1]), ("attributes", was[2], now[2])):
+        changed = [k for k in {*old, *new} if old.get(k) != new.get(k)]
+        undo[name] = {k: old[k] for k in changed if k in old}  # only what promote changed, so the undo leaves the rest
+        undo[f"{name}_added"] = [k for k in changed if k not in old]
+    return undo
 
 
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
