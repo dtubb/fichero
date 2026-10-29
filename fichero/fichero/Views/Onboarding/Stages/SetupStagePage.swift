@@ -46,6 +46,10 @@ struct SetupStagePage: View {
             whoRunsIt
             // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
+            if stage.id == "prepare-images" {
+                Divider()
+                PrepareImagesCard(store: store)
+            }
             if !stage.questions.isEmpty {
                 Divider()
                 ForEach(stage.questions, id: \.key) { question in

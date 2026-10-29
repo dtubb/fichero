@@ -985,6 +985,10 @@ def mark_blank_impl(db: Database, document_id: str, blank: bool) -> ImageEditCha
 
     _get_or_404_document(db, document_id)
     mark_blank(db, document_id, blank, who="person", reason="marked by a person" if blank else "unhidden by a person")
+    if not blank:  # shown again: through the steps it skipped
+        from fichero_server.media.blank_page import queue_unhidden
+
+        queue_unhidden(db, document_id)
     return _get_chain(db, document_id)
 
 

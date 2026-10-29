@@ -26,6 +26,14 @@ extension RecipeSetupStore {
         }
     }
 
+    /// What the Prepare Images card shows beside its questions (`GET /api/recipes/prepare-images/facts`): read again each
+    /// time the page opens, since the sample pages are the project's current ones.
+    func loadPrepareFacts() async {
+        if case .ok(let success)? = try? await client.api.prepareImagesFactsApiRecipesPrepareImagesFactsGet() {
+            prepareFacts = try? success.body.json
+        }
+    }
+
     /// The chosen stages, in the engine's order: one page each.
     var chosenStageIds: [String] { stageChoice?.chosenInOrder ?? [] }
 

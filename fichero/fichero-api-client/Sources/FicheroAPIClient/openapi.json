@@ -15314,6 +15314,28 @@
         }
       }
     },
+    "/api/recipes/prepare-images/facts": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Facts",
+        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
+        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareImagesFacts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/samples": {
       "get": {
         "tags": [
@@ -82253,6 +82275,58 @@
           "reason"
         ],
         "title": "PredictionUncertaintySpan"
+      },
+      "PrepareImagesFacts": {
+        "properties": {
+          "suggestions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PrepareSuggestion"
+            },
+            "type": "object",
+            "title": "Suggestions",
+            "description": "by question key: the answers five sample pages suggest (three of five agree)"
+          },
+          "estimate": {
+            "type": "string",
+            "title": "Estimate",
+            "description": "the time line under the questions: the seed figure, marked as an estimate"
+          },
+          "how_it_works": {
+            "type": "string",
+            "title": "How It Works",
+            "description": "the engine's sentence naming the operations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimate",
+          "how_it_works"
+        ],
+        "title": "PrepareImagesFacts"
+      },
+      "PrepareSuggestion": {
+        "properties": {
+          "value": {
+            "title": "Value",
+            "description": "the suggested answer"
+          },
+          "agree": {
+            "type": "string",
+            "title": "Agree",
+            "description": "how many of the sample pages agree, e.g. \"3 of 5\""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "agree",
+          "why"
+        ],
+        "title": "PrepareSuggestion"
       },
       "PresetModelSpec": {
         "properties": {

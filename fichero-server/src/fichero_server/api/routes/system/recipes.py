@@ -540,6 +540,34 @@ async def list_stages(request: Request) -> SetupStageList:
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
 
+class PrepareSuggestion(BaseModel):
+    value: Any = Field(description="the suggested answer")
+    agree: str = Field(description='how many of the sample pages agree, e.g. "3 of 5"')
+    why: str
+
+
+class PrepareImagesFacts(BaseModel):
+    suggestions: dict[str, PrepareSuggestion] = Field(
+        default_factory=dict, description="by question key: the answers five sample pages suggest (three of five agree)")
+    estimate: str = Field(description="the time line under the questions: the seed figure, marked as an estimate")
+    how_it_works: str = Field(description="the engine's sentence naming the operations")
+
+
+@router.get("/prepare-images/facts", response_model=PrepareImagesFacts)
+async def prepare_images_facts(db: Database = Depends(get_library_database)) -> PrepareImagesFacts:
+    """What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,
+    `prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line."""
+    import asyncio
+
+    from fichero_server.recipes import topics
+    from fichero_server.recipes.prepare_suggest import estimate, suggest
+
+    suggestions = await asyncio.to_thread(suggest, db)
+    return PrepareImagesFacts(suggestions={k: PrepareSuggestion(**v) for k, v in suggestions.items()},
+                              estimate=estimate(len(db.unit_of_work_ids())),
+                              how_it_works=topics.how_it_works("prepare-the-image"))
+
+
 def _where_facts(request: Request) -> tuple[float, bool, list[str]]:
     """(this Mac's memory in GB, whether a Hugging Face account is set up, the clusters set up here this caller may see),
     for the places each candidate lists (#5976). Never the network."""

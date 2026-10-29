@@ -509,6 +509,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/page_crop.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/placement.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_suggest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/regions.py

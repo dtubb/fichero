@@ -108,6 +108,8 @@ final class RecipeSetupStore {
     private(set) var purposeOptions: [Components.Schemas.PurposeInfo] = []
     /// The stages of Set Up, from the engine, in pipeline order (`GET /api/recipes/stages`, section 7c/7d).
     var stages: [Components.Schemas.SetupStage] = []
+    /// The Prepare Images card's suggestions, time line and sentence, from the engine (`loadPrepareFacts`).
+    var prepareFacts: Components.Schemas.PrepareImagesFacts?
     /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
     var stageChoice: SetupStageChoice?
     /// When, where and in which hand the material was written (section 7d, About the material).

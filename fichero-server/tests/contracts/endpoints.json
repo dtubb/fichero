@@ -9519,6 +9519,16 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/prepare-images/facts",
+        "operation_id": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "summary": "Prepare Images Facts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PrepareImagesFacts"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project",
         "operation_id": "get_project_setup_api_recipes_project_get",
         "summary": "Get Project Setup",

@@ -94,3 +94,12 @@ def unhide(db: Any, doc_id: str) -> str:
     for the caller to queue through the steps it skipped."""
     mark_blank(db, doc_id, False, who="person", reason="unhidden by a person")
     return doc_id
+
+
+def queue_unhidden(db: Any, doc_id: str) -> dict[str, int]:
+    """An unhidden page goes through the steps it skipped: the page operations, then the contrast step if it is faded
+    (`prep.check.blank-mark-is-a-correction`). One page, so it is run here; the account says what each did."""
+    from fichero_server.recipes.page_crop import crop_pages
+    from fichero_server.recipes.prepare import prepare_pages
+
+    return {**crop_pages(db, [doc_id], "unhide", prepare=True), **prepare_pages(db, [doc_id], "unhide")}

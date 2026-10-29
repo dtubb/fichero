@@ -144,7 +144,8 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
                        "correct": ("review_lenses", "lenses"),
                        "work-out-dates": ("calendars", "calendars"),
-                       "find-regions": ("layout", "layout")}
+                       "find-regions": ("layout", "layout"),
+                       "prepare-the-image": ("the_paper", "paper")}
 #: Setup's answer to "send the second model only the lines Kraken is unsure of?": "whole-page" or the bar, 0 to 1.
 CERTAINTY_BAR_ANSWER, WHOLE_PAGE = "review_certainty_bar", "whole-page"
 #: Job answers whose empty list says "none of them", never "not answered".
@@ -522,6 +523,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
+            if job == "prepare-the-image":  # the optional operations the paper answer switches on
+                entry["paper"] = list(settings.get("paper") or [])
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:
