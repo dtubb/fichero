@@ -47,6 +47,9 @@ class PageFound:
     method: str = "contour"
     #: What was left out beside the paper: `{"kind": "ruler" | "colour card", "box": [x, y, w, h]}`, fractions of the image.
     furniture: tuple[dict[str, Any], ...] = ()
+    #: The paper's four corners, top-left, top-right, bottom-right, bottom-left, fractions of the image (`prep.square.*`
+    #: warps from them). A box-shaped finder fills the box's corners.
+    quad: tuple[tuple[float, float], ...] = ()
 
     def pixels(self, width: int, height: int) -> tuple[int, int, int, int]:
         """left, top, right, bottom in pixels of an image `width` x `height`."""
@@ -54,8 +57,50 @@ class PageFound:
         return round(x * width), round(y * height), round((x + w) * width), round((y + h) * height)
 
 
-def find_page(image: Any) -> PageFound | None:
-    """The page's box on a PIL image, or None when no piece looks like a page (the caller keeps the whole frame)."""
+#: Vision's outline is trusted at or above this; below it the contour finder answers (`prep.page.opencv-default-yolo-optional`).
+VISION_MIN = 0.5
+#: Vision is shown the image at this long side: the corners are fractions, so the size does not change the answer.
+VISION_SIDE = 1400
+
+
+def find_page(image: Any, *, vision: bool = True) -> PageFound | None:
+    """The page on a PIL image: Apple Vision's outline first, then the contour finder; None when neither finds a page
+    (the caller keeps the whole frame). Neither alters the original. ponytail: no YOLO page card yet (4.1 trains it)."""
+    contour = find_page_contour(image)
+    outline = find_page_vision(image) if vision else None
+    if outline is None:
+        return contour
+    if contour is not None and not outline.furniture:  # Vision names no ruler or card; the contour finder saw them
+        outline = PageFound(outline.box, outline.confidence, outline.method, contour.furniture, outline.quad)
+    return outline
+
+
+def find_page_vision(image: Any) -> PageFound | None:
+    """Apple Vision's document outline of a PIL image (the upright frame), or None where it is unavailable, unsure or
+    the outline is the whole frame."""
+    import tempfile
+    from pathlib import Path
+
+    from fichero_server.media.page_split import detect_document_outline
+
+    small = image.convert("RGB")
+    if max(small.size) > VISION_SIDE:
+        small.thumbnail((VISION_SIDE, VISION_SIDE))
+    with tempfile.TemporaryDirectory() as scratch:
+        shot = Path(scratch) / "page.jpg"
+        small.save(shot, quality=90)
+        outline = detect_document_outline(str(shot))
+    if outline is None or outline.confidence < VISION_MIN or not outline.quad:
+        return None
+    xs, ys = [p[0] for p in outline.quad], [p[1] for p in outline.quad]
+    box = (max(0.0, min(xs)), max(0.0, min(ys)), min(1.0, max(xs)) - max(0.0, min(xs)), min(1.0, max(ys)) - max(0.0, min(ys)))
+    if box[2] * box[3] > 0.97:
+        return None
+    return PageFound(box, round(outline.confidence, 3), "vision", quad=tuple(outline.quad))
+
+
+def find_page_contour(image: Any) -> PageFound | None:
+    """The contour finder: the page's box on a PIL image, or None when no piece looks like a page."""
     import cv2
 
     rgb = np.asarray(image.convert("RGB"))
@@ -106,7 +151,24 @@ def find_page(image: Any) -> PageFound | None:
     if (x1 - x0) * (y1 - y0) > 0.97 * h * w:
         return None  # the whole frame: nothing was left out
     return PageFound((x0 / w, y0 / h, (x1 - x0) / w, (y1 - y0) / h), round(fill, 3),
-                     furniture=tuple(_furniture(mask, (x0, y0, x1, y1))))
+                     furniture=tuple(_furniture(mask, (x0, y0, x1, y1))),
+                     quad=_quad(piece[y0:y1, x0:x1], x0, y0, w, h))
+
+
+def _quad(piece: np.ndarray, x0: int, y0: int, w: int, h: int) -> tuple[tuple[float, float], ...]:
+    """The piece's four corners (top-left, top-right, bottom-right, bottom-left) as fractions of the whole image: the
+    largest contour's four-corner polygon, else its minimum-area rectangle."""
+    import cv2
+
+    contours, _ = cv2.findContours(piece.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    big = max(contours, key=cv2.contourArea)
+    poly = cv2.approxPolyDP(big, 0.02 * cv2.arcLength(big, True), True)
+    pts = poly.reshape(-1, 2).astype(np.float32) if len(poly) == 4 else cv2.boxPoints(cv2.minAreaRect(big))
+    pts = pts + np.array([x0, y0], dtype=np.float32)
+    # Order by sum and difference of coordinates: top-left has the smallest sum, bottom-right the largest.
+    s, d = pts.sum(axis=1), pts[:, 0] - pts[:, 1]
+    ordered = [pts[np.argmin(s)], pts[np.argmax(d)], pts[np.argmax(s)], pts[np.argmin(d)]]
+    return tuple((round(float(px) / w, 5), round(float(py) / h, 5)) for px, py in ordered)
 
 
 def _furniture(mask: np.ndarray, page: tuple[int, int, int, int]) -> list[dict[str, Any]]:

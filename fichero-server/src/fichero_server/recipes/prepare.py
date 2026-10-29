@@ -142,8 +142,10 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
         if not BLANK_BELOW <= spread < FADED_BELOW:
             account["clear"] += 1  # clear enough, or blank: nothing to raise
             continue
-        relative = Path("files") / ROLE / f"{doc.id}.png"
         with Image.open(path) as image:
+            # A JPEG stays a JPEG (a PNG of a photograph is 2.4x the file, #5386); any other source is written as PNG.
+            jpeg = image.format == "JPEG"
+            relative = Path("files") / ROLE / f"{doc.id}.{'jpg' if jpeg else 'png'}"
             # The original's own pixels and orientation tag: the same frame, so the lines found on it are the page's.
             exif = image.getexif()
             base = image if image.mode in ("RGB", "L") else image.convert("RGB")
@@ -151,7 +153,7 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
             out = ImageOps.autocontrast(base, cutoff=1)
             shown_width, shown_height = upright_size(image)  # the size in the frame the page is shown in
         (library / relative).parent.mkdir(parents=True, exist_ok=True)
-        out.save(library / relative, format="PNG", exif=exif)
+        out.save(library / relative, **({"format": "JPEG", "quality": 95} if jpeg else {"format": "PNG"}), exif=exif)
         db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
                           pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
                           producer_tool="prepare-the-image",

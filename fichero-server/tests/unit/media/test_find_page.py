@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from fichero_server.media.find_page import find_page
+from fichero_server.media import find_page as find_page_module
+from fichero_server.media.find_page import find_page_contour as find_page
 
 W, H = 1600, 1200
 PAPER = (222, 208, 176)
@@ -56,3 +57,38 @@ def test_the_ruler_and_the_colour_card_are_named_as_furniture():
     """WHY: Leave Out gives a line on the ruler the reason `ruler`, not just `off the page` (#6198)."""
     kinds = {f["kind"] for f in find_page(scan()).furniture}
     assert kinds == {"ruler", "colour card"}, kinds
+
+
+def test_the_page_comes_with_its_four_corners():
+    """WHY: squaring a lopsided page (`prep.square.*`) warps from the corners, so the finder must hand them over."""
+    found = find_page(scan())
+    assert len(found.quad) == 4
+    (tlx, tly), (trx, try_), (brx, bry), (blx, bly) = found.quad
+    tol = 0.02
+    assert abs(tlx - PAGE[0] / W) < tol and abs(tly - PAGE[1] / H) < tol  # top-left first
+    assert abs(brx - PAGE[2] / W) < tol and abs(bry - PAGE[3] / H) < tol
+    assert trx > tlx and bly > tly and brx > blx and bry > try_  # clockwise from the top-left
+
+
+def _vision(monkeypatch, outline):
+    from fichero_server.media import page_split
+
+    monkeypatch.setattr(page_split, "detect_document_outline", lambda path: outline)
+
+
+def test_vision_answers_first_and_the_contour_finder_when_it_does_not(monkeypatch):
+    """WHY (`prep.page.opencv-default-yolo-optional`): Vision is the default; with no Vision answer the page is still found."""
+    from fichero_server.media.page_split import Outline
+
+    quad = ((0.2, 0.2), (0.9, 0.2), (0.9, 0.9), (0.2, 0.9))
+    _vision(monkeypatch, Outline((0, 0, 10, 10), 0.9, "apple-vision", quad))
+    got = find_page_module.find_page(scan())
+    assert got.method == "vision" and got.quad == quad and got.box == (0.2, 0.2, 0.7, 0.7)
+    assert {f["kind"] for f in got.furniture} == {"ruler", "colour card"}  # Vision names none; the contour pass did
+
+    _vision(monkeypatch, None)
+    got = find_page_module.find_page(scan())
+    assert got.method == "contour" and len(got.quad) == 4
+
+    _vision(monkeypatch, Outline((0, 0, 10, 10), 0.3, "apple-vision", quad))  # unsure: not trusted
+    assert find_page_module.find_page(scan()).method == "contour"

@@ -1,6 +1,6 @@
 """Page crop: find the paper on each page's image and record it (`image.enhance.page-crop-writes-page-box`, #6188, #6198).
 
-Writes two things and changes no pixel of the original: the document's `page_box` metadata (`[x, y, w, h]`, fractions of
+Writes two things and changes no pixel of the original: the document's `page_box` and `page_region` metadata (the outline, its method and confidence) (`[x, y, w, h]`, fractions of
 the UPRIGHT image: the box Leave Out and Find Regions read) and a `crop` rendition of the paper with its `transform`, so
 the person can see it, switch to it, and move the box. A box a person drew or moved (`page_box_by: "person"`) is never
 replaced by a finder's. The finder is `media.find_page` (no model); a page it is not sure of keeps the whole frame.
@@ -55,13 +55,19 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             continue
         account["pages"] += 1
         found = find_page(image)
-        if found is None or found.confidence < MIN_CONFIDENCE or found.box[2] * found.box[3] < MIN_SHARE:
+        # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
+        unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
+        if found is None or unsure or found.box[2] * found.box[3] < MIN_SHARE:
             account["whole"] += 1
             continue
         box = [round(v, 5) for v in found.box]
         registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {
             "page_box": box, "page_box_by": found.method, "page_box_confidence": found.confidence,
-            "page_furniture": list(found.furniture)}}}, ctx)
+            "page_furniture": list(found.furniture),
+            # The attribute of `segments-and-geometry.md`: the outline, how it was found, the frame it is measured in.
+            "page_region": {"quad": [list(p) for p in found.quad], "box": box, "method": found.method,
+                            "confidence": found.confidence, "frame": "upright",
+                            "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}}}, ctx)
         left, top, right, bottom = found.pixels(*image.size)
         with tempfile.TemporaryDirectory() as scratch:
             crop_file = Path(scratch) / f"{Path(path).stem}_page.png"

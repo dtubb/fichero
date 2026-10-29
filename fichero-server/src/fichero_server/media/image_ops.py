@@ -27,17 +27,13 @@ def detect_deskew_angle(image: Image.Image) -> float:
 
 def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     """Find the non-border content rectangle using a local threshold."""
-    gray = image.convert("L")
-    pixels = gray.load()
-    xs, ys = [], []
-    for y in range(gray.height):
-        for x in range(gray.width):
-            if pixels[x, y] > 20:
-                xs.append(x)
-                ys.append(y)
-    if not xs:
+    import numpy as np
+
+    mask = np.asarray(image.convert("L")) > 20
+    if not mask.any():
         return 0, 0, image.width, image.height
-    left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+    cols, rows = np.flatnonzero(mask.any(axis=0)), np.flatnonzero(mask.any(axis=1))
+    left, top, right, bottom = int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1
     return left, top, right - left, bottom - top
 
 
@@ -246,6 +242,37 @@ def apply_fuzzy_clean(
     return cleaned
 
 
+#: The two contrast profiles of the legacy `enhance.DocumentEnhancer` (clip, tile, gain, lift): handwriting and typescript.
+CLAHE_PROFILES = {"handwritten": (2.2, 8, 1.1, -5.0), "typescript": (1.6, 16, 1.0, 0.0)}
+#: Params that make `contrast` the CLAHE step; a chain row with only `factor` keeps the old PIL contrast.
+_CLAHE_PARAMS = {"clip", "tile", "gain", "lift", "profile"}
+
+
+def apply_clahe_contrast(image: Image.Image, *, profile: str = "handwritten", clip: float | None = None,
+                         tile: int | None = None, gain: float | None = None, lift: float | None = None) -> Image.Image:
+    """Local contrast on the lightness channel: LAB, CLAHE on L, then L x gain + lift (`image.enhance.contrast-clahe`,
+    #6190). Ported from the legacy `enhance.py` step 1 (handwritten: clip 2.2, tile 8, x1.1 -5; typescript: clip 1.6,
+    tile 16). The colour channels are untouched, so a page stays the colour it was. OpenCV is bundled; without it the
+    page is returned unchanged."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return image
+    d_clip, d_tile, d_gain, d_lift = CLAHE_PROFILES.get(profile, CLAHE_PROFILES["handwritten"])
+    clip, tile = d_clip if clip is None else float(clip), d_tile if tile is None else int(tile)
+    gain, lift = d_gain if gain is None else float(gain), d_lift if lift is None else float(lift)
+    alpha = image.getchannel("A") if image.mode in {"RGBA", "LA"} else None
+    lab = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2LAB)
+    light = cv2.createCLAHE(clipLimit=clip, tileGridSize=(tile, tile)).apply(lab[:, :, 0])
+    lab[:, :, 0] = cv2.convertScaleAbs(light, alpha=gain, beta=lift)
+    out = Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+    if alpha is not None:
+        out = out.convert("RGBA")
+        out.putalpha(alpha)
+    return out
+
+
 def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     """Apply one saved image-edit operation; shared by preview and consumers."""
     name = str(op.get("op", "")).strip().lower()
@@ -293,6 +320,8 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return ImageOps.flip(image)
     if name == "brightness":
         return ImageEnhance.Brightness(image).enhance(float(params.get("factor", 1.0)))
+    if name == "contrast" and _CLAHE_PARAMS & params.keys():
+        return apply_clahe_contrast(image, **{k: params[k] for k in _CLAHE_PARAMS if k in params})
     if name == "contrast":
         return ImageEnhance.Contrast(image).enhance(float(params.get("factor", 1.0)))
     if name == "sharpen":

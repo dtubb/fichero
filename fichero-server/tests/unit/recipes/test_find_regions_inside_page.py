@@ -58,6 +58,8 @@ def test_kraken_gets_only_the_page_and_every_line_is_in_the_whole_images_frame(d
     assert BOX[0] <= x and x + w <= BOX[0] + BOX[2] + 1e-6, "inside the page, in whole-image fractions"
     assert abs(x - (0.3 + 20 / W)) < 1e-6 and abs(y - (0.1 + 20 / H)) < 1e-6
     assert account["cropped"] == 1 and 0.4 < account["area_saved"] < 0.6
+    # the summary's line counts: one line, inside the page, none off it (`prep.page.kraken-time-saved-is-reported`)
+    assert (account["lines_inside"], account["lines_outside"]) == (1, 0) and account["seconds"] >= 0
 
 
 def test_without_a_page_box_the_whole_image_is_read_as_before(db, tmp_path, monkeypatch):

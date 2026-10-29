@@ -178,6 +178,9 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                 account["cropped"] = account.get("cropped", 0) + 1
                 account["area_saved"] = account.get("area_saved", 0.0) + 1 - float(box[2]) * float(box[3])
                 account["seconds"] = account.get("seconds", 0.0) + time.monotonic() - page_started
+                inside, outside = _lines_by_page_box(found_geometry, box)
+                account["lines_inside"] = account.get("lines_inside", 0) + inside
+                account["lines_outside"] = account.get("lines_outside", 0) + outside
         finally:
             if rendered is not None:
                 Path(rendered).unlink(missing_ok=True)
@@ -192,6 +195,24 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     if say is not None and progress and documents and not (stop is not None and stop()):
         say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account
+
+
+def _lines_by_page_box(found_geometry: Any, box: list[float]) -> tuple[int, int]:
+    """Lines whose centre is inside / outside the page box (`prep.page.kraken-time-saved-is-reported`): after a crop none
+    are outside; the figure is there so the run summary shows it, and a regression shows up as a number."""
+    from fichero_server.media.ocr_geometry import OCRGeometryLevel
+
+    x, y, w, h = (float(v) for v in box)
+    inside = outside = 0
+    for b in found_geometry.boxes:
+        if b.level is not OCRGeometryLevel.LINE:
+            continue
+        cx, cy = b.bbox[0] + b.bbox[2] / 2, b.bbox[1] + b.bbox[3] / 2
+        if x <= cx <= x + w and y <= cy <= y + h:
+            inside += 1
+        else:
+            outside += 1
+    return inside, outside
 
 
 def _find_the_page(db: Any, doc: Any, run_id: str) -> Any:

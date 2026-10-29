@@ -96,6 +96,18 @@ class FactorOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class ContrastOperationRequest(BaseModel):
+    """`factor` is the old PIL contrast; any of the rest makes it the CLAHE step (`image.enhance.contrast-clahe`)."""
+
+    factor: float = Field(1.0, ge=0.0, le=10.0)
+    clip: float | None = Field(None, ge=1.0, le=4.0)
+    tile: int | None = Field(None, ge=4, le=16)
+    gain: float | None = Field(None, ge=0.8, le=1.4)
+    lift: float | None = Field(None, ge=-20.0, le=20.0)
+    profile: Literal["handwritten", "typescript"] | None = None
+    page: int = Field(1, ge=1)
+
+
 class FuzzyCleanOperationRequest(BaseModel):
     despeckle_radius: int = Field(3, ge=1, le=25)
     background_clean: bool = True
@@ -111,7 +123,7 @@ _OPERATION_MODELS = {
     "crop": CropOperationRequest, "rotate": RotateOperationRequest,
     "straighten": StraightenOperationRequest, "enhance": EnhanceOperationRequest,
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
-    "brightness": FactorOperationRequest, "contrast": FactorOperationRequest,
+    "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
     "denoise": DenoiseOperationRequest,
 }
