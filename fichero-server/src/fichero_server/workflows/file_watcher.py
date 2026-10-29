@@ -721,12 +721,13 @@ class FileWatcherManager:
         from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
 
         def _delete():
-            with self.db.transaction():
-                for execution in self.db.query(TriggerExecutionRecord, trigger_id=trigger_id):
-                    self.db.delete(execution)
-                record = self.db.get(FileTriggerRecord, trigger_id)
+            db = self.db  # once: a close mid-block must not open a second Database outside the transaction (#6238)
+            with db.transaction():
+                for execution in db.query(TriggerExecutionRecord, trigger_id=trigger_id):
+                    db.delete(execution)
+                record = db.get(FileTriggerRecord, trigger_id)
                 if record is not None:
-                    self.db.delete(record)
+                    db.delete(record)
 
         await asyncio.to_thread(_delete)
 

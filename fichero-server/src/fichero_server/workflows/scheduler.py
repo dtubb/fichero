@@ -617,12 +617,13 @@ class WorkflowScheduler:
         from fichero_server.models.schedules import ScheduleRecord, ScheduleRunRecord
 
         def _delete():
-            with self.db.transaction():  # the schedule and its runs go together, or not at all
-                for run in self.db.query(ScheduleRunRecord, schedule_id=schedule_id):
-                    self.db.delete(run)
-                record = self.db.get(ScheduleRecord, schedule_id)
+            db = self.db  # once: a close mid-block must not open a second Database outside the transaction (#6238)
+            with db.transaction():  # the schedule and its runs go together, or not at all
+                for run in db.query(ScheduleRunRecord, schedule_id=schedule_id):
+                    db.delete(run)
+                record = db.get(ScheduleRecord, schedule_id)
                 if record is not None:
-                    self.db.delete(record)
+                    db.delete(record)
 
         await asyncio.to_thread(_delete)
 

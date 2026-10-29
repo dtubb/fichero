@@ -1550,7 +1550,9 @@ class Database(DatabaseEmbeddingMixin):
         """Replace a DuckDB connection poisoned by a prior FatalException. Never one this Database closed: DuckDB's
         "closed" reads as invalidated, and reopening it brought a closed library back behind its holder (#6238)."""
         if self.__dict__.get("_closed_for_good"):
+            logger.warning("DuckDB connection for %s was closed for good: refusing to reopen it (#6238)", self.path)
             raise duckdb.ConnectionException(f"Connection already closed: the library {self.path} was closed")
+        logger.warning("DuckDB connection for %s: reopening it", self.path)
         try:
             self.conn.close()
         except Exception:
@@ -1933,7 +1935,7 @@ class Database(DatabaseEmbeddingMixin):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
                             logger.warning(
-                                "DuckDB connection for %s was invalidated; reopening and retrying: %s",
+                                "DuckDB connection for %s was invalidated; see the next line for what was done: %s",
                                 self.path, str(exc).splitlines()[0][:300],
                             )
                             self._reconnect_after_invalidated()
@@ -2121,7 +2123,7 @@ class Database(DatabaseEmbeddingMixin):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
                             logger.warning(
-                                "DuckDB connection for %s was invalidated; reopening and retrying: %s",
+                                "DuckDB connection for %s was invalidated; see the next line for what was done: %s",
                                 self.path, str(exc).splitlines()[0][:300],
                             )
                             self._reconnect_after_invalidated()
@@ -2198,7 +2200,7 @@ class Database(DatabaseEmbeddingMixin):
                 # cannot discard uncommitted work.
                 logger.warning(
                     "DuckDB connection for %s was invalidated at transaction "
-                    "start; reopening and retrying",
+                    "start; see the next line for what was done",
                     self.path,
                 )
                 self._reconnect_after_invalidated()
@@ -2572,7 +2574,7 @@ class Database(DatabaseEmbeddingMixin):
                 if self._is_invalidated_error(exc):
                     logger.warning(
                         "DuckDB connection for %s was invalidated during "
-                        "save_many; reopening and retrying",
+                        "save_many; see the next line for what was done",
                         self.path,
                     )
                     self._reconnect_after_invalidated()
@@ -7967,7 +7969,7 @@ class Database(DatabaseEmbeddingMixin):
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
                             logger.warning(
-                                "DuckDB connection for %s was invalidated during schema reconciliation; reopening and retrying",
+                                "DuckDB connection for %s was invalidated during schema reconciliation; see the next line for what was done",
                                 self.path,
                             )
                             self._reconnect_after_invalidated()
