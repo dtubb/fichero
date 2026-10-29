@@ -2588,6 +2588,18 @@ def _folders_covering(db: Database, page_ids: list[str]) -> int:
     return len(folders_to_describe(db, page_ids)[0]) if page_ids else 0
 
 
+def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
+    """Where a step's per-kind readers differ from the step's own model, said in words: no refusal, no silent switch (#6269)."""
+    out = []
+    for run in runs:
+        for kind, reader in (run.get("readers") or {}).items():
+            if reader.get("model_override") != run.get("model_override"):
+                why = reader.get("note") or "the rules chose it for this kind of page"
+                out.append(f"{kind} pages are read by {reader.get('model_override')}, not {run.get('model_override') or 'the default'}"
+                           f" ({', '.join(run.get('steps') or [])}): {why}")
+    return out
+
+
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
                 ) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
@@ -2637,7 +2649,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    plan["notes"] = notes
+    plan["notes"] = [*notes, *_reader_notes(plan["workflows"])]
     from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
     from fichero_server.recipes.answers import spend_cap
