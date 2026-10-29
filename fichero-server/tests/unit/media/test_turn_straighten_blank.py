@@ -126,3 +126,26 @@ def test_page_crop_prepare_turns_and_straightens_in_renditions(db, tmp_path, mon
     db.save(doc2)
     crop_pages(db, [doc2.id], "run-2")
     assert {r.role for r in db.query(Rendition, document_id=doc2.id)} == {"crop"}
+
+
+def _graph_paper(ink=False):
+    img = Image.new("RGB", (900, 1200), (238, 236, 224))
+    d = ImageDraw.Draw(img)
+    for x in range(0, 900, 30):
+        d.line([(x, 0), (x, 1200)], fill=(150, 180, 205), width=2)
+    for y in range(0, 1200, 30):
+        d.line([(0, y), (900, y)], fill=(150, 180, 205), width=2)
+    if ink:
+        for i in range(6):
+            d.text((60, 100 + i * 60), "Entered the camp at noon and wrote", fill=(25, 25, 40))
+            d.rectangle([60, 130 + i * 60, 420, 136 + i * 60], fill=(25, 25, 40))
+    return img
+
+
+def test_a_blank_graph_paper_page_is_blank_and_a_written_one_is_not():
+    """`prep.blank-pages-marked`: ink under 0.2 % after the ruling mask."""
+    from fichero_server.media.blank_page import ink_share, is_blank
+
+    assert is_blank(_graph_paper(ink=False)), ink_share(_graph_paper(ink=False))
+    assert not is_blank(_graph_paper(ink=True)), ink_share(_graph_paper(ink=True))
+    assert is_blank(Image.new("RGB", (900, 1200), (238, 236, 224)))

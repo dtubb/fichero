@@ -115,6 +115,13 @@ class SquareOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class MarkBlankOperationRequest(BaseModel):
+    """A page marked blank (hidden, skipped) or not blank (`prep.check.blank-mark-is-a-correction`)."""
+
+    blank: bool
+    page: int = Field(1, ge=1)
+
+
 class FuzzyCleanOperationRequest(BaseModel):
     despeckle_radius: int = Field(3, ge=1, le=25)
     background_clean: bool = True
@@ -132,7 +139,7 @@ _OPERATION_MODELS = {
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
     "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
-    "denoise": DenoiseOperationRequest, "square": SquareOperationRequest,
+    "denoise": DenoiseOperationRequest, "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 

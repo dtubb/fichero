@@ -21,12 +21,13 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                prepare: bool = False) -> dict[str, int]:
     """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
     Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
-    `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `no_image`."""
+    `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`."""
     from PIL import Image
 
     from fichero_server.actions.registry import ActionContext, registry
     import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.update)
     from fichero_server.importers.ingest import _copy_to_library
+    from fichero_server.media.blank_page import is_blank, mark_blank
     from fichero_server.media.find_page import find_page
     from fichero_server.media.upright import upright
     from fichero_server.models import Document, NodeRegion, Rendition
@@ -37,7 +38,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
 
     library = Path(db.path).parent
     ctx = ActionContext(actor="page-crop", run_id=run_id, library_path=str(library), is_bootstrap=True)
-    account = {"pages": 0, "cropped": 0, "whole": 0, "kept": 0, "no_image": 0}
+    account = {"pages": 0, "cropped": 0, "whole": 0, "kept": 0, "no_image": 0, "blank": 0}
     for doc_id in documents:
         if stop is not None and stop():
             break
@@ -56,6 +57,10 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             account["no_image"] += 1
             continue
         account["pages"] += 1
+        if prepare and meta.get("blank") is None and is_blank(image):  # a page with no ink: hidden and skipped, kept
+            mark_blank(db, doc.id, True, who=f"run {run_id}", reason="no ink beyond its ruling")
+            account["blank"] += 1
+            continue
         found = find_page(image)
         # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
         unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE

@@ -310,6 +310,8 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             resample=Image.Resampling.BICUBIC,
             fillcolor="white",
         )
+    if name == "mark_blank":  # a page's blank mark changes no pixel (`media.blank_page`)
+        return image
     if name == "square":  # the page warped to a rectangle from its four corners (`media.square_page`)
         from fichero_server.media.square_page import square_page
 

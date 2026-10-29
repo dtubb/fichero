@@ -431,6 +431,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/reanchor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/mcp/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/mcp/manager.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/blank_page.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/find_page.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/flatten_curve.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geo.py
