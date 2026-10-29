@@ -393,6 +393,9 @@ def _blank_by(db: Any, page: str) -> str | None:
     return "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
 
 
+_PAGE_IMAGE_JOBS = ("find-lines", "read-a-line", "read-a-page")
+
+
 def _called_blank(db: Any, page: str) -> bool:
     return _blank_by(db, page) is not None
 
@@ -623,14 +626,18 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
     """Per job, the pages a run would still do (`split_done`, as `annotate` counts them), for the estimate to price: a done
     page is not paid for twice. A card that cannot tell, or was asked to redo, is every page and is left out."""
     out: dict[str, int] = {}
+    taken = False  # an earlier page-image step is redone: it reads the pages sorting called blank, and so do the later ones
     for card in plan.get("runs", []):
-        if card.get("card") != "workflow" or (redo and redo.intersection(card["steps"])):
+        redone = bool(redo and redo.intersection(card["steps"]))
+        in_run = taken and card.get("job") in _PAGE_IMAGE_JOBS
+        taken = taken or (redone and card.get("job") in _PAGE_IMAGE_JOBS)
+        if card.get("card") != "workflow" or redone:
             continue
         pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
-            if card.get("job") in ("find-lines", "read-a-line", "read-a-page"):  # a normal run leaves blank ones out (#6271)
-                todo = [p for p in todo if not _called_blank(db, p)]
+            if card.get("job") in _PAGE_IMAGE_JOBS:  # a normal run leaves blank ones out (#6271)
+                todo = [p for p in todo if _blank_by(db, p) is None or (in_run and _blank_by(db, p) == "sorting")]
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
@@ -640,19 +647,23 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
+    taken = False  # as in `todo_counts`
     for card in plan.get("runs", []):
+        in_run = taken and card.get("job") in _PAGE_IMAGE_JOBS
+        taken = taken or bool(redo and redo.intersection(card["steps"]) and card.get("job") in _PAGE_IMAGE_JOBS)
         pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
-        if done is not None and card.get("job") in ("find-lines", "read-a-line", "read-a-page"):
+        if done is not None and card.get("job") in _PAGE_IMAGE_JOBS:
             by = [_blank_by(db, p) for p in todo]  # pages called blank before; not looked at again here (#6271)
-            sorted_out, marked = by.count("sorting"), by.count("person")
+            sorted_out, marked = (0 if in_run else by.count("sorting")), by.count("person")  # the redo's pages stay in
             if sorted_out or marked:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
                 said = [f"{sorted_out} left out as blank by sorting (redo them to read anyway)" if sorted_out else "",
                         f"{marked} you marked blank" if marked else ""]
-                card["note"] = (f"runs on {len(todo) - sorted_out - marked} of {len(pages)} pages; "
+                card["note"] = ((f"already done on {done}; " if done else "")
+                                + f"runs on {len(todo) - sorted_out - marked} of {len(pages)} pages; "
                                 + "; ".join(x for x in said if x))
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
             from fichero_server.recipes.catalogue_step import folders_to_describe

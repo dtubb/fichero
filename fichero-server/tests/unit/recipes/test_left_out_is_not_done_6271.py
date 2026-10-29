@@ -177,3 +177,91 @@ def test_a_redo_of_find_lines_then_read_a_line_in_the_same_run_reads_the_page_an
     sent.clear()
     go([])
     assert not sent  # the next normal run leaves them out again
+
+
+def test_a_redo_of_find_lines_keeps_the_sorting_blank_pages_in_the_note_and_price_of_read_a_line(client, db, tmp_path):
+    """The run's later page steps read the pages the redo took in (`detail.blank_bypassed`): their plan note and price
+    must not leave them out. A page a person called blank stays out."""
+    from fichero_server.recipes import done
+
+    every, find = _blank_split(db, tmp_path)
+    read = {"steps": ["read-a-line"], "job": "read-a-line", "card": "workflow", "workflow_id": "w", "model_override": None}
+    plan = {"runs": [find, read]}
+    done.annotate(db, plan, within=set(every), redo={"find-lines"})
+
+    assert "left out as blank by sorting" not in read["note"], read["note"]
+    assert "1 you marked blank" in read["note"] and f"runs on {len(every) - 1} of {len(every)} pages" in read["note"]
+    assert done.todo_counts(db, plan, within=set(every), redo={"find-lines"})["read-a-line"] == len(every) - 1
+    assert done.todo_counts(db, plan, within=set(every))["read-a-line"] == len(every) - 3  # no redo: left out as before
+
+
+def test_the_plan_note_still_says_what_is_already_done_when_it_leaves_pages_out(client, db, tmp_path, monkeypatch):
+    from fichero_server.recipes import done
+
+    every, card = _blank_split(db, tmp_path)
+    monkeypatch.setattr(done, "split_done", lambda db_, card_, pages, memo=None: (pages[2:], 2))
+    done.annotate(db, {"runs": [card]}, within=set(every))
+
+    assert card["note"].startswith("already done on 2; runs on "), card["note"]
+
+
+def test_nothing_to_run_counts_the_done_pages_of_the_whole_run_not_the_last_batch(client, db, tmp_path, jobs_run_by_the_test,
+                                                                                    monkeypatch):
+    """The step carries two pages done from before this batch (a resumed run's checkpoint) and this batch has only a
+    left-out page: 'the rest already done' is true of the run (`total_done`); counting only the batch's own it would
+    read 'all 1 page left out'."""
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    one = sorted(ids.values())[0]
+
+    def pages_of(db_, card, step, batch, tree, detail):
+        step["already_done"] = 2  # earlier batches', not this one's
+        return [], {"left_out": [{"page_id": one}]}, {}
+
+    monkeypatch.setattr(runner, "_step_pages", pages_of)
+    card = {"steps": ["find-lines"], "job": "find-lines", "card": "workflow", "workflow": "w", "workflow_id": "w",
+            "provider_override": None, "model_override": None, "takes": ["images"], "gives": ["lines"]}
+
+    step = _run(db, card, [one])
+
+    assert step["why"] == "nothing to run: 1 page left out, the rest already done", step["why"]
+
+
+def test_the_pages_a_redo_took_in_survive_a_resume_of_the_same_run(client, db, tmp_path, jobs_run_by_the_test, monkeypatch):
+    """`detail.blank_bypassed` is saved with the run's detail: a run whose read-a-line step did not finish, resumed,
+    still reads the sorting-blank pages the redo of find-lines took in."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    versos = sorted(finddocs_job.blank_versos(db, list(ids.values())))
+    for pid in versos:
+        doc = db.get(Document, pid)
+        doc.attributes = {sorting.KIND: sorting.BLANK, sorting.SET_BY: sorting.BY_SORTING}
+        db.save(doc)
+    sent: dict[str, list] = {}
+    monkeypatch.setattr(runner, "_run_workflow", lambda db_, card, documents, parent, adopt=None:
+                        (sent.setdefault(card["job"], []).append(list(documents)), ("thread", "done", None))[1])
+    cards = [{"steps": [job], "job": job, "card": "workflow", "workflow": "w", "workflow_id": "w",
+              "provider_override": None, "model_override": None, "takes": ["images"], "gives": ["lines"]}
+             for job in ("find-lines", "read-a-line")]
+    job_id = runner.enqueue(db, {"runs": cards, "skipped": []}, documents=versos, started_by="owner", redo=["find-lines"])
+    _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
+    runner.run(db, subject)
+    detail = json.loads(jobs.read_job(db, job_id)["detail"])
+    assert set(detail["blank_bypassed"]) == set(versos)
+
+    detail["batches_done"], detail["batch_states"] = 0, ["done", None]  # stopped in the batch: read-a-line did not finish
+    detail["steps"][1]["state"] = "waiting"
+    jobs.save_detail(db, job_id, json.dumps(detail))
+    sent.clear()
+    runner.run(db, subject)
+
+    assert set(sent["read-a-line"][0]) == set(versos) and "find-lines" not in sent
