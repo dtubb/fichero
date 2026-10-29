@@ -884,6 +884,8 @@ LEAVE_OUT_QUESTION = "leave_out"
 CORRECT_QUESTION = "correct_with_a_second_model"
 #: "Add another model to review in turn?" (#6257): a second `correct` step, `correct-2`, after the first.
 ANOTHER_CORRECT_QUESTION = "correct_with_another_model"
+#: How the second reviewer takes the first's work: in-turn (the default), compare, or both (#6257, `tool_context.REVIEW_MODES`).
+SECOND_REVIEW_MODE_QUESTION = "second_review_mode"
 
 
 def correct_available(card: Card | None) -> bool:
@@ -1147,6 +1149,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             second_choice = _choose(job, others, a)
             second: dict[str, Any] = {"id": f"{job}-2", "job": job, **_topic(job), **_chosen(second_choice)}
             second["title"] = f"{second.get('title') or job} again"
+            mode = a.job_answers.get(SECOND_REVIEW_MODE_QUESTION)
+            if mode not in (None, "", "in-turn"):  # in turn is what a step with no mode does
+                second["settings"] = {"review_mode": mode}
             second["uses_cloud"] = str(second.get("runs_on") or "").startswith("cloud")
             if second_choice.card is None:
                 notes.append(f"{second['id']}: {second_choice.gap}")

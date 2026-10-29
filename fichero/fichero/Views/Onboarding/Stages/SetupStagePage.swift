@@ -48,7 +48,8 @@ struct SetupStagePage: View {
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
             if !stage.questions.isEmpty {
                 Divider()
-                ForEach(stage.questions, id: \.key) { question in
+                // The second review's mode is asked beside that step's model picker, once there is a second step.
+                ForEach(stage.questions.filter { $0.key != RecipeSetupStore.secondReviewModeQuestion }, id: \.key) { question in
                     SetupStageQuestionField(
                         question: question,
                         store: store,

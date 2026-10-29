@@ -39,6 +39,8 @@ class ToolContext:
     statement: str = ""
     #: True when the page has no segments and `text` is its text as one block, with no boxes.
     plain: bool = False
+    #: A second review that settles (`review_mode` both, #6257): the first review's version of each line it changed.
+    first_review: dict[str, str] = field(default_factory=dict)
 
 
 def _maker(reading: Any) -> str:
@@ -68,10 +70,40 @@ def _grouped_into_lines(rows: list[tuple[str, Any, Any, str]], shapes: dict[str,
     return [(line_id, line, reading, " ".join(texts)) for line_id, line, reading, texts in grouped.values()]
 
 
+#: How a second Review the reading model takes the first's work (#6257, owner 2026-10-29): `in-turn` reviews the first's
+#: result (what a page's reading is once the first review is on it); `compare` reviews the reading the first review
+#: started from, on its own; `both` is given that reading and the first review's version of it, reviews it itself and settles the two.
+IN_TURN, COMPARE, BOTH = "in-turn", "compare", "both"
+REVIEW_MODES = (IN_TURN, COMPARE, BOTH)
+
+
+def reading_before_reviews(db: Any, reading: Any) -> Any:
+    """The reading a line had before any review changed it: a review's correction names the reading it corrects
+    (`derived_from_representation_id`), so walk back while the reading came from a review's artifact. The reading
+    itself when no review made it, or when the trail is broken (never a guess)."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    current, seen = reading, set()
+    while current is not None and current.id not in seen:
+        seen.add(current.id)
+        artifact = db.get(Artifact, current.derived_from_artifact_id) if current.derived_from_artifact_id else None
+        if artifact is None or artifact.artifact_type != "transcription_review":
+            return current
+        parent = db.get(ContentRepresentation, current.derived_from_representation_id) \
+            if current.derived_from_representation_id else None
+        if parent is None:
+            return reading
+        current = parent
+    return reading
+
+
 def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None, *,
-                 confidence: bool = False) -> ToolContext:
+                 confidence: bool = False, review_mode: str = IN_TURN) -> ToolContext:
     """The compact lines for `segment_ids` on one page (None: the whole page). With `confidence`, each line
-    also states the machine's certainty about its reading (`-` when none was stated), after the maker."""
+    also states the machine's certainty about its reading (`-` when none was stated), after the maker. With a
+    `review_mode` other than in-turn, a line a review changed is shown as it was before (`reading_before_reviews`)."""
+    if review_mode not in REVIEW_MODES:
+        raise ValueError(f"a review's mode is {', '.join(REVIEW_MODES)}; not {review_mode!r}")
     from fichero_server.api.routes.document.segment_readings import document_text
     from fichero_server.models import ContentRepresentation, Segment
 
@@ -95,11 +127,16 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
         )
     }
     rows: list[tuple[str, Any, Any, str]] = []  # (segment id, its row, its reading, its text)
+    first_review: dict[str, str] = {}
     for span in derived.spans:
         if span.representation_id is None or (wanted is not None and not in_scope(span.segment_id)):
             continue
-        rows.append((span.segment_id, shapes.get(span.segment_id), readings.get(span.representation_id),
-                     derived.text[span.start:span.end].replace("\n", " ")))
+        reading, text = readings.get(span.representation_id), derived.text[span.start:span.end].replace("\n", " ")
+        before = reading_before_reviews(db, reading) if review_mode != IN_TURN else reading
+        if before is not reading and before is not None and before.content.strip() != text.strip():
+            first_review[span.segment_id] = text
+            reading, text = before, before.content.replace("\n", " ")
+        rows.append((span.segment_id, shapes.get(span.segment_id), reading, text))
     rows = _grouped_into_lines(rows, shapes)
     lines, ids = [], []
     for segment_id, row, reading, text in rows:
@@ -121,8 +158,8 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
         f"{len(lines)} line(s) of {where}, {characters} characters, from pass {derived.pass_id} in reading order"
         if lines else f"no reading on {where} yet: the tool works from the picture alone"
     )
-    return ToolContext(text="\n".join(lines), segment_ids=ids, characters=characters,
-                       pass_id=derived.pass_id, statement=statement)
+    return ToolContext(text="\n".join(lines), segment_ids=ids, characters=characters, pass_id=derived.pass_id,
+                       statement=statement, first_review=first_review if review_mode == BOTH else {})
 
 
 def _text_without_segments(db: Any, document_id: str) -> tuple[str, str]:
@@ -150,16 +187,24 @@ def as_prompt_context(context: ToolContext, *, confidence: bool = False) -> str:
         return f"The page's existing text ({context.statement}):\n{context.text}"
     if not context.segment_ids:
         return f"This page has {context.statement}."
+    settle = ""
+    if context.first_review:
+        settle = (
+            "\n\nAnother reviewer already changed these lines (id | its version). Review the reading above yourself, "
+            "then settle each of these between your version and theirs: answer with the one you judge right, and mark "
+            "the line `uncertain` when you cannot settle it, so a person can look:\n"
+            + "\n".join(f"{i} | {t}" for i, t in context.first_review.items()))
     return (
         "The page's existing reading, one line per segment: id | x y w h (fractions of the page) | "
         f"who made it | {'how sure the machine was (0 to 1, - if not stated) | ' if confidence else ''}text. "
         f"A person's line outranks a machine's. ({context.statement}.)\n"
-        + context.text
+        + context.text + settle
     )
 
 
 def with_page_context(
-    context: str | list | None, documents: list, files: list, library_path: str, *, confidence: bool = False
+    context: str | list | None, documents: list, files: list, library_path: str, *, confidence: bool = False,
+    review_mode: str = IN_TURN
 ) -> str | list | None:
     """A vision tool's per-file context: what is WIRED IN wins (a draft from the step before is the
     thing to work on); a file with nothing wired gets its page's lines. files[i] pairs with
@@ -181,7 +226,7 @@ def with_page_context(
         if wired or not doc_id:
             out.append(wired or None)
             continue
-        built = tool_context(db, str(doc_id), confidence=confidence)
+        built = tool_context(db, str(doc_id), confidence=confidence, review_mode=review_mode)
         log.info("page context for %s: %s", doc_id, built.statement)   # says what it sends
         out.append(as_prompt_context(built, confidence=confidence))
     return out

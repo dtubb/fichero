@@ -54,6 +54,13 @@ REVIEW_CONFIG = {
         "description": "The pass this review makes (abbreviations, orthography, names-and-dates): with no prompt set, its prompt is built from the project and its profile; recorded with the corrections",
         "x-group": "advanced",
     },
+    "review_mode": {
+        "type": "string",
+        "enum": ["in-turn", "compare", "both"],
+        "default": "in-turn",
+        "description": "A second review's way with the first (#6257): in-turn reviews the first's result; compare reviews the reading the first started from, on its own; both is given that reading and the first's version and settles them, marking what it cannot as uncertain",
+        "x-group": "advanced",
+    },
     "skip_if_artifact_exists": {
         "type": "boolean",
         "default": True,
@@ -465,7 +472,8 @@ async def transcribe_review(
         # newest transcription -- what `_existing_transcription_context` sent, and the lines too.
         from fichero_server.tool_context import with_page_context
 
-        prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
+        prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True,
+                                       review_mode=inputs.get("review_mode") or "in-turn")
     prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 

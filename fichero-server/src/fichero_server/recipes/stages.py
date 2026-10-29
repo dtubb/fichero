@@ -84,6 +84,12 @@ STAGES: tuple[Stage, ...] = (
           # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
           (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),
            Question("correct_with_another_model", "Add another model to review the reading after the first?", "yes-no", default=False),
+           # How the second model takes the first's work (#6257, owner 2026-10-29): it matters only once another model is added.
+           Question("second_review_mode", "How should the second model review?", "one",
+                    (("in-turn", "In turn: it reviews the first model's result"),
+                     ("compare", "Compare: it reviews the same reading on its own, and where they differ is flagged"),
+                     ("both", "Both: it reviews on its own, then settles the two and flags what it cannot settle")),
+                    default="in-turn", read_by_a_step=True),
            # Kraken, then a model for the unsure lines (variant A, #5894): the bar the step reads as `only_below_confidence`.
            Question("review_certainty_bar", "Send the second model only the lines Kraken is unsure of?", "one",
                     (("whole-page", "No: it checks the whole page"), ("0.5", "Only lines under 0.5 sure"),

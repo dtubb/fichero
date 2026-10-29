@@ -95,6 +95,23 @@ struct SetupStagesTests {
         #expect(SetupStagePage.answer(to: asked, in: RecipeSetupAnswers.JobAnswers()) == .yesNo(false), "the engine's answer shows")
     }
 
+    @Test("source.recipe.second-reviewer: the mode picker reads the engine's question, in turn by default, and saves the choice under its key")
+    func secondReviewMode() throws {
+        let question = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "second_review_mode", "ask": "How should the second model review?", "kind": "one",
+         "options": [{"id": "in-turn", "title": "In turn"}, {"id": "compare", "title": "Compare"},
+                     {"id": "both", "title": "Both"}],
+         "default": "in-turn", "answer": "in-turn", "read_by_a_step": true}
+        """.utf8))
+        var answers = RecipeSetupAnswers.JobAnswers()
+        #expect(SetupStagePage.answer(to: question, in: answers) == .text("in-turn"), "in turn until the person chooses")
+        answers[question: RecipeSetupStore.secondReviewModeQuestion] = .text("both")
+        #expect(SetupStagePage.answer(to: question, in: answers) == .text("both"))
+        let saved = try JSONSerialization.jsonObject(with: JSONEncoder().encode(answers)) as? [String: Any]
+        #expect(saved?["second_review_mode"] as? String == "both", "an answer no typed field names is saved under the engine's key")
+        #expect(RecipeSetupStore.secondReviewStepId == "correct-2")
+    }
+
     @Test("source.onboard.stages.goals-are-shortcuts: a goal ticks its stages; a stage unticked afterwards stays so")
     func goalsAreShortcuts() {
         var choice = choice()

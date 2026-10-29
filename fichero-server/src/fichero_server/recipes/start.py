@@ -696,6 +696,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Kraken reads, the model re-reads only the lines Kraken was under this sure of (variant A).
             entry["tool_config"] = {**entry.get("tool_config", {}), "transcribe_review": {
                 "only_below_confidence": float(settings["only_below_confidence"])}}
+        if job == "correct" and settings.get("review_mode") not in (None, "in-turn"):
+            # The second reviewer's way with the first's work (#6257): compare, or both; in turn is what it does unasked.
+            entry["tool_config"] = {**entry.get("tool_config", {}),
+                                    "transcribe_review": {**(entry.get("tool_config") or {}).get("transcribe_review", {}),
+                                                          "review_mode": settings["review_mode"]}}
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
