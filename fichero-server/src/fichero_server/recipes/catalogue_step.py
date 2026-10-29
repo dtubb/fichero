@@ -242,6 +242,31 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     return (min(years), max(years)) if years else None
 
 
+def _edtf_side(side: str, fallback: str) -> str:
+    """One side of a Dates field as EDTF at the precision the text supports, read by histdate (#1470's parser; Spanish months
+    included); a side it cannot read is the year the span found. `?` marks an uncertain date, `~` an approximate one."""
+    from fichero_server.histdate import parse_historical_date
+
+    text = _THOUSANDS.sub(r"\1\2", side).strip(" .,;")
+    read = parse_historical_date(text)
+    if read is None:
+        return fallback + ("?" if re.search(r"\?|incierto|uncertain", side, re.I) else "")
+    precision, iso = read.meta.get("precision"), str(read.meta.get("converted_gregorian_iso"))
+    if precision == "circa":
+        return iso[:4] + "~"
+    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if re.search(r"\?|incierto|uncertain", side, re.I) else "")
+
+
+def _date_normalised(dates: str, span: tuple[str, str]) -> str:
+    """The Dates field as an EDTF interval ("1906-03/1918-02-19"), one date when both ends are the same."""
+    sides = _RANGE.split(dates, maxsplit=1)
+    first, last = (sides[0], sides[1]) if len(sides) == 2 else (dates, dates)
+    start, end = (_edtf_side(first, span[0]), _edtf_side(last, span[1]))
+    if len(sides) == 1 and (start[:4] != span[0] or end[:4] != span[1]):
+        start, end = span  # several years in one side ("1906, 1918", "1850-60"): the span, at year precision
+    return start if start == end else f"{start}/{end}"
+
+
 _MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, "Description") if " " in label]
 # A label starts a field on its own line or after a sentence's end or closing mark ("... [uncertain] Condition:" too); a
 # label of several words ("Access points") is specific enough to start one after any space.
@@ -288,6 +313,7 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     if dates := found.get("catalogue_dates"):
         if span := _date_range(dates):
             found["catalogue_date_start"], found["catalogue_date_end"] = span
+            found["catalogue_date_normalised"] = _date_normalised(dates, span)
     return found
 
 
@@ -303,7 +329,7 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     if doc is None:
         return []
     values = parse_fields(text, language)
-    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end"]
+    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", "catalogue_date_normalised"]
     gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
                                     provider=provider, model=model, said=text)

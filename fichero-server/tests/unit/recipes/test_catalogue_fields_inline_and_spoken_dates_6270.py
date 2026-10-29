@@ -65,3 +65,31 @@ def test_a_year_in_digits_and_words_gives_one_year():
 def test_a_three_digit_year_with_the_one_dropped_ends_the_range_only_beside_a_full_year():
     assert _span("1906 – del 914") == ("1906", "1914")
     assert _span("1850, folio 914") == ("1850", "1850")  # 1914 is 64 years from 1850: not a year
+
+
+def _norm(dates: str) -> str:
+    return parse_fields(f"Dates: {dates}")["catalogue_date_normalised"]
+
+
+def test_normalised_date_of_a_year_then_a_day():
+    got = parse_fields("Dates: 1913 - 19 de febrero de 1918")
+    assert got["catalogue_date_normalised"] == "1913/1918-02-19"
+    assert got["catalogue_dates"] == "1913 - 19 de febrero de 1918"  # the original text stays
+
+
+def test_normalised_date_of_spanish_thousands_years():
+    assert _norm("1.909 - 1.918") == "1909/1918"
+
+
+def test_normalised_date_of_one_year_written_twice_is_one_date():
+    assert _norm("1.909 – febrero de mil novecientos nueve") == "1909"
+
+
+def test_normalised_date_of_a_dropped_one_year():
+    assert _norm("1906 – del 914") == "1906/1914"
+
+
+def test_normalised_date_keeps_month_precision_and_marks_approximate_and_uncertain():
+    assert _norm("marzo de 1906 - 19 de febrero de 1918") == "1906-03/1918-02-19"
+    assert _norm("c. 1850") == "1850~"
+    assert _norm("1906? - 1918") == "1906?/1918"
