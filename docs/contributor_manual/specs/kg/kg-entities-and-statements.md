@@ -386,6 +386,15 @@ own build stage (Stage 6). The lenses below are the data they read.
   the date never as subject; built: the engine renderer; not built: the app calling it
   (`kg-readable-representation.md`).
 
+### F2. Before building
+
+- `kg.build.step-zero-checks-the-map` — **[GAP]** (#6283; owner, 2026-10-29) before any other
+  step, a builder confirms the review's map (`agent-work/status/briefs/kg-review-2026-10-29.md`,
+  sections 2 to 7: what is built and where, what is stale, how extraction runs) against the
+  current code and a real library, read-only, and corrects this spec's tags and the review where
+  they are wrong, in one commit, before building on them; the test pins that every module and
+  route the spec names exists and that the duplicate stores of section G are the ones in the code.
+
 ### G. One source of truth: the record for each fact, and the copy it retires
 
 The rule: a fact is written once, in its record; a copy is either derived from the record by the
@@ -440,6 +449,13 @@ values alone; never a batch rewrite of a person's work.
   Claims table and the Inspector's knowledge section reading them, the artifact store retired.
 
 ## Build order
+
+### Stage 0 — Check what is running today
+
+#### Step 0.1 — The review's map confirmed against the code and the data (#6283)
+- Behaviours: `kg.build.step-zero-checks-the-map`
+- Tests: fichero-server/tests/unit/kg/test_kg_spec_map_matches_code.py
+- Size: S
 
 ### Stage 1 — Names a person can review (engine first)
 
