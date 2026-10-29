@@ -12,7 +12,9 @@
 > fold-in of legacy milestone #168's sixteen issues is PASS 2 — a fold plan follows this
 > spec's own behaviors, no issues moved yet). **Section T (the tools) added 2026-10-29** from the
 > owner's direction and the review `agent-work/status/briefs/imgprep-review-2026-10-29.md`: one tool
-> set, one icon table, direct manipulation on the picture. The automatic step the tools correct is
+> set, one icon table, direct manipulation on the picture; revised the same day for the owner's second
+> ruling (perspective corners on Crop, the full enhancement suite in Adjust with sliders and before/after,
+> blank pages hidden and unhidden). The automatic step the tools correct is
 > `../source/image-preparation.md` (`prep.*`); the pixel methods behind the sliders are
 > `../source/image-enhancement.md` (`image.enhance.*`).
 > Tags: **[OK]** behaves this way today · **[PARTIAL]** implemented, not fully verified/tested
@@ -181,13 +183,13 @@ accessibility label, text beside the icon everywhere else.
 
 | Tool | SF Symbol | Does | On the picture |
 | --- | --- | --- | --- |
-| Crop | `crop` | the page box: four corner handles and edge handles over the photograph, seeded by the automatic page outline (`prep.find-the-page`), solid when applied, dashed when proposed; a *Find Page* button in its bar re-runs the finder; Return applies, Escape cancels; no aspect presets (pages are not photos) | yes |
+| Crop | `crop` | the page box: four corner handles and edge handles over the photograph, seeded by the automatic page outline's quad (`prep.find-the-page`), solid when applied, dashed when proposed; the corners move independently, so a lopsided page shows as a quadrilateral and Return squares it (`prep.square.perspective-from-the-quad`, `prep.square.corner-handles-correct-it`); a *Find Page* button in its bar re-runs the finder; Return applies, Escape cancels; no aspect presets (pages are not photos) | yes |
 | Rotate Left · Rotate Right | `rotate.left` · `rotate.right` | lossless quarter turns; the chain row shows the glyph of the turn made (left, right, or `arrow.triangle.2.circlepath` for 180) | immediate |
 | Straighten | `level` | a horizontal dial under the picture (as Photos), −15° to 15°, a grid overlay while dragging, *Auto* fills the dial from `detect_deskew_angle`; the angle is written on the row; this absorbs today's `angle` popover | yes |
 | Split | `rectangle.split.2x1` | a vertical gutter line with a drag handle, seeded by the automatic gutter (`prep.split-at-the-gutter`), dashed when proposed; drag to move, Return to cut; *Don't split* keeps the page whole | yes |
-| Mark | `ruler` | a menu: *Ruler*, *Colour Card*, *Blank Page*; the first two draw a region (`segments-and-geometry.md`, kind `ruler` or `colour card`) by marquee, which Leave Out reads and the layout detector learns from; *Blank Page* toggles the page's blank mark (`prep.check.blank-mark-is-a-correction`); the glyph for a colour-card region is `swatchpalette`, for blank `doc` | yes |
-| Auto Enhance | `wand.and.stars` | one click: the `contrast` step at its defaults (`image.enhance.contrast-clahe`), as the wand means in Photos | immediate |
-| Adjust | `slider.horizontal.3` | a popover of sliders, one per pixel step from `image-enhancement.md`: Contrast (clip, sharpen, yellow), Stains, Ruling, Show-through; each slider previews live on the picture and the row records the values; this is the only place `slider.horizontal.3` appears | live |
+| Mark | `ruler` | a menu: *Ruler*, *Colour Card*, *Blank Page*; the first two draw a region (`segments-and-geometry.md`, kind `ruler` or `colour card`) by marquee, which Leave Out reads and the layout detector learns from; *Blank Page* toggles the page's blank mark, which hides it in the item view and skips it in later steps, and *Unhide* on a hidden page clears it (`prep.check.blank-mark-is-a-correction`, `prep.blank-pages-hidden-in-the-item-view`); the glyph for a colour-card region is `swatchpalette`, for blank `doc` | yes |
+| Auto Enhance | `wand.and.stars` | one click: `contrast`, `yellowing` (auto) and `sharpen` at their defaults (`image.enhance.contrast-clahe`), as the wand means in Photos | immediate |
+| Adjust | `slider.horizontal.3` | a popover of sections, one per step of the suite in `image-enhancement.md` ("The suite, step by step"), in the recipe's order: **Contrast** (Strength, Detail, Gain, Lift; Handwritten/Typescript), **Yellowing** (Strength, Auto), **Stains** (Strength, Size), **Ruling** (Colour, Strength), **Show-through** (Strength, Method A/B, Whole page/By region), **Denoise** (Radius, Specks), **Sharpen** (Amount, Radius), **Binarise** (Method, Block, Offset), **Flatten** (on/off, Strength: the gutter dewarp, `prep.flatten.curve-toward-the-gutter`); each section has an on/off switch and a *Reset* to the recipe's values; every slider previews live on the picture, the Before hold shows the original and a wipe compares; Apply writes one row per switched-on step with the values; this is the only place `slider.horizontal.3` appears | live |
 | Undo · Revert | `arrow.uturn.backward` · `arrow.counterclockwise` | once each, in the toolbar; the panel's row keeps its `minus.circle` for removing one step and loses its Revert | — |
 | Before | `eye` | press and hold to see the original (as Photos); release to see the edits; replaces the Original/Edited segment | — |
 | Compare | `rectangle.righthalf.inset.filled.arrow.right` | toggles the wipe; Side-by-Side is dropped (the wipe shows both; the glyph is needed by Split) | yes |
@@ -206,11 +208,12 @@ as *Note*, where it is reached the same way.
 
 - `preview.edit.tool.one-icon-table` — **[GAP]** (#1420) every place a tool or its step is shown (toolbar, chain row, Add Step, batch sheet, the Set Up worklist) draws the glyph from `ImageEditOperation.icon`; a Swift test asserts the table has no two ops sharing a glyph and that the toolbar's buttons use it. Today three tables disagree (`ImageEditingService.swift:39-55`, `ImageEditorView+Toolbar.swift`, `ImageEditChainPanel+Steps.swift`).
 - `preview.edit.tool.set-is-exactly-this` — **[GAP]** (#1420) the toolbar holds Crop, Rotate Left, Rotate Right, Straighten, Split, Mark, Auto Enhance, Adjust, Undo, Revert, Before, Compare and (with a selection) Apply to Selection, each once, each with a help tag and an accessibility label; Remove Background, Despeckle, Segment and the `angle` popover are gone from it; a Swift availability test lists the identifiers.
-- `preview.edit.tool.crop-is-a-page-box` — **[GAP]** (#6188) Crop is always visible; selecting it shows the page box with handles seeded from `page_region` (solid) or the proposal (dashed) or the whole frame; dragging and Return write a `crop` row with the box, `method: person`; *Find Page* re-runs `prep.find-the-page` and reseeds.
+- `preview.edit.tool.crop-is-a-page-box` — **[GAP]** (#6188) Crop is always visible; selecting it shows the page box with handles seeded from `page_region`'s quad (solid) or the proposal (dashed) or the whole frame; dragging an edge keeps a rectangle, dragging a corner alone makes a quadrilateral; Return writes a `crop` row with the box, `method: person`, and, when the quad is not a rectangle, a `square` row with the corners so the engine warps it (`prep.square.corner-handles-correct-it`); *Find Page* re-runs `prep.find-the-page` and reseeds.
 - `preview.edit.tool.straighten-is-a-dial` — **[GAP]** (#6190) Straighten shows a dial and a grid; *Auto* fills it; the row records the angle; the live preview is `LiveEditPreview`'s existing `CIFilter.straighten`.
 - `preview.edit.tool.split-is-a-gutter-line` — **[GAP]** (#5382) Split shows the gutter line seeded from the automatic plan; drag and Return cut (`preview.edit.crop-and-split-are-reversible`); *Don't split* writes the decision so the worklist drops the page.
-- `preview.edit.tool.mark-ruler-card-blank` — **[GAP]** (#6198) Mark's Ruler and Colour Card draw regions with those kinds; Blank Page toggles the mark; the regions are read by Leave Out (`image.enhance.leave-out-reads-the-page-box`) and exported as detector labels (`prep.yolo.fine-tune-from-corrected-regions`).
-- `preview.edit.tool.adjust-previews-live-before-after` — **[GAP]** (#6190) every Adjust slider previews on the picture while dragging and the Before gesture shows the original at any time; on Apply the engine's render replaces the preview; the row records the values. Built: the live path for the three PIL sliders (`LiveEditPreview.swift`, #3673). Missing: the new steps, the Before gesture.
+- `preview.edit.tool.mark-ruler-card-blank` — **[GAP]** (#6198) Mark's Ruler and Colour Card draw regions with those kinds; Blank Page toggles the mark, which hides the page in the item view and skips it in later steps, and Unhide clears it from the editor or the item view's hidden line (`prep.blank-pages-hidden-in-the-item-view`); the regions are read by Leave Out (`image.enhance.leave-out-reads-the-page-box`) and exported as detector labels (`prep.yolo.fine-tune-from-corrected-regions`).
+- `preview.edit.tool.adjust-previews-live-before-after` — **[GAP]** (#6190; owner 2026-10-29) Adjust holds one section per step of the enhancement suite (Contrast, Yellowing, Stains, Ruling, Show-through, Denoise, Sharpen, Binarise, Flatten), each with its switch, its sliders from the step's params model and a Reset; every slider previews on the picture while dragging (Core Image where a filter matches, else the engine's preview of the one pending step at reduced size within 300 ms) and the Before gesture shows the original at any time; on Apply the engine's render replaces the preview; one row per switched-on step records the values. Built: the live path for the three PIL sliders (`LiveEditPreview.swift`, #3673). Missing: the new steps, the Before gesture, the engine-side pending preview.
+- `preview.edit.tool.adjust-sections-match-the-suite` — **[GAP]** (#6185) a Swift test walks the engine's step registry (from the OpenAPI schema of the params models) and asserts Adjust has a section for every pixel step and no section for a step the engine lacks, so the editor and the recipe cannot drift (`image.enhance.every-step-is-a-recipe-step-and-an-editor-control`).
 - `preview.edit.tool.proposal-is-the-tools-handles` — **[GAP]** (#5382) a page opened from the Set Up worklist (`prep.check.worklist-of-proposals-and-a-sample`) comes up with the proposing tool selected and its dashed handles shown; Return accepts, a drag corrects; either writes the `who: person` row (`prep.check.correction-replaces-the-runs-row`).
 - `preview.edit.tool.compare-is-hold-and-wipe` — **[GAP]** (#4872) Before is press-and-hold; Compare toggles the wipe; the Side-by-Side mode and the Original/Edited segment are removed (`preview.edit.compare-modes-single-side-by-side-wipe` is superseded by this line).
 - `preview.edit.tool.retired-ops-still-render` — **[GAP]** (#6190) a chain carrying `remove_background`, `fuzzy_clean`, `segment` or a legacy `enhance` renders to the same pixels as before and shows its row; no new row of those kinds is written by the app.
@@ -222,16 +225,22 @@ as *Note*, where it is reached the same way.
 - Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditToolSetTests.swift, fichero-server/tests/unit/media/test_retired_ops_render_unchanged.py
 - Size: M
 
-#### Step T.2 — Crop, Straighten and Split on the picture
+#### Step T.2 — Crop with corners, Straighten and Split on the picture
 - Behaviours: `preview.edit.tool.crop-is-a-page-box`, `preview.edit.tool.straighten-is-a-dial`, `preview.edit.tool.split-is-a-gutter-line`
 - Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditDirectToolsTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
 - Depends on: T.1
 - Size: M
 
-#### Step T.3 — Mark, Adjust and the proposal handles
-- Behaviours: `preview.edit.tool.mark-ruler-card-blank`, `preview.edit.tool.adjust-previews-live-before-after`, `preview.edit.tool.proposal-is-the-tools-handles`
+#### Step T.3 — Mark, blanks hidden, and the proposal handles
+- Behaviours: `preview.edit.tool.mark-ruler-card-blank`, `preview.edit.tool.proposal-is-the-tools-handles`
 - Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditMarkAdjustTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
 - Depends on: T.2
+- Size: M
+
+#### Step T.4 — Adjust: the whole suite with sliders and before/after (#6190, #6185)
+- Behaviours: `preview.edit.tool.adjust-previews-live-before-after`, `preview.edit.tool.adjust-sections-match-the-suite`
+- Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditAdjustControlsTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
+- Depends on: T.3
 - Size: M
 
 ## PASS 2 — the fold (legacy milestone #168, 16 issues, every body read fresh)

@@ -519,25 +519,61 @@ this reaches the app until the whole programme is done.
 ### Lines the segmenter missed: a check after Find Lines (added 2026-10-29, #6185; design, not built)
 
 On the Istmina scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
-the border. The owner's direction (2026-10-29, paraphrased): after Find Lines, a step looks at the page
-image beside the lines that were found and says where there is writing with no line. It is a **check**,
-in the sense of `checking.md`: it proposes, a person or the recipe decides, nothing is deleted.
+the border. It also misses **words inside the reading order**: a line box that stops short of its last
+words, a few words dropped from the middle of a line, a short line between two long ones. The owner's
+direction (2026-10-29, paraphrased, with the second ruling of the same day): after Find Lines, a step
+looks at the page image beside the lines that were found and says where there is writing with no line,
+**and where a line's box does not cover all its words**; the dropped words inside the reading order
+matter at least as much as the marginalia. It is a **check**, in the sense of `checking.md`: it proposes,
+a person or the recipe decides, nothing is deleted.
+
+**Asked in Set Up, per project.** The Prepare Images card asks "Check for missed lines and words?" with a
+suggested answer from the five-page sample (`prep.setup.three-questions-suggested-from-a-sample`): yes
+when the sample's Find Lines leaves over 3 % of the ink outside the line boxes on three of the five pages,
+or when any sample line reads under 60 % of the page's characters per width; without a sample, yes for
+handwriting and no for typescript. The answer is stored per folder like the others.
+
+**Runs wherever a model can.** The checker is a recipe step like Read: its card lists the places it can
+run (`source.onboard.model-search-says-where-it-runs-and-what-it-needs`: this Mac, the cloud provider
+of a cloud model, a cluster, Hugging Face Jobs), the project's and the app's places cap it
+(`source.onboard.places-cap-projects`), and the per-step override chooses among them
+(`source.onboard.step-choice-overrides-the-pick`). Its default is the Read step's own place and, when
+the Read step's model is a vision model, the same model; otherwise the local vision model. No new runner
+and no new placement rule: the checker goes where the reader goes.
 
 **Who looks.** A vision model is given the page image (the working rendition, `image.enhance.working-rendition-once`)
-with the found lines drawn on it, and the same lines as a compact list, and answers with the boxes of
-text that has no line, each with a word of reason (`marginal note`, `faint ink`, `near the ruler`,
-`near the border`, `between lines`). Each box becomes a **proposed line segment** in a new pass named for
-the checker (`source.segment.rerun-is-new-pass`), with `confidence` and `proposed: true`; the person's
-accept or redraw is a verdict (`source.check.verdict-recorded`) and the accepted line enters the working
-pass. Where the model answers that most of the page is unlined, it proposes **a page-level read** instead
+with the found lines drawn on it, and the same lines as a compact list with each line's reading where
+there is one, and answers with two kinds of box: text that has no line, each with a word of reason
+(`marginal note`, `faint ink`, `near the ruler`, `near the border`, `between lines`), and **a line whose
+box or reading misses words** (`dropped words`, with the words it sees that the reading lacks and the
+extent the box should have). A no-line box becomes a **proposed line segment** in a new pass named for
+the checker (`source.segment.rerun-is-new-pass`), with `confidence` and `proposed: true`; a dropped-words
+answer becomes a **proposed correction of the existing line**: its box widened to the extent the model
+gives (the shape the existing correct-line route writes, `segments_correct_line`) and a re-read of that line queued, shown in the Check
+lens beside the old reading. The person's accept or redraw is a verdict
+(`source.check.verdict-recorded`) and the accepted line, or the widened line and its new reading,
+enters the working pass. Where the model answers that most of the page is unlined, it proposes **a page-level read** instead
 (`read-a-page`, then `tie-text-to-lines`), and the recipe offers that in one press.
 
-**Scoped first, free.** Before any model is called, the engine measures, with no model, how much ink
-lies outside every line box: the page's ink mask (the dark pixels of the contrast rendition, or the
-original) minus the union of the line boxes grown by a margin, as a fraction of all ink. Pages above a
-threshold (default 3 %, set per project) are **under-segmented** and are the step's default scope;
-the Set Up card shows how many pages that is, and the person can widen it to every page or narrow it to
-a selection. The ink-outside figure is written on the page so the Check lens can sort by it.
+**Scoped first, free, by two measures.** Before any model is called, the engine measures with no model:
+
+1. *Ink outside the boxes* (lines missed): the page's ink mask (the dark pixels of the contrast
+   rendition, or the original) minus the union of the line boxes grown by a margin, as a fraction of all
+   ink. Pages over the threshold (default 3 %, set per project) are **under-segmented**.
+2. *Words dropped inside a line*, two signals, each named for what it needs:
+   - **ink the words do not cover**, when the Apple Vision word pass ran on the page
+     (`source.words.packed-per-line`): the ink inside a line box minus the union of that line's word
+     boxes grown by a margin, as a fraction of the line's ink; a line over 15 % is a **dropped-words
+     candidate**. It needs the word boxes and nothing else.
+   - **characters against width**, when the line has a reading: the reading's character count per
+     1,000 px of box width against the page's median; a line under 60 % of the median, or a line whose
+     reading ends more than one word's width short of the box's right edge (the last word's box, when
+     the words ran), is a dropped-words candidate. It needs a reading, so it runs after Read on the
+     sample and on every page as readings arrive, and is honest that it finds nothing on an unread page.
+
+Pages with an under-segmented figure or any dropped-words candidate are the step's default scope; the
+Set Up card shows how many pages that is, and the person can widen it to every page or narrow it to a
+selection. Both figures are written on the page and the line so the Check lens can sort by them.
 
 **Cost first.** The step is priced before it runs like every cloud step (`source.onboard.estimate-before-start`):
 pages in scope times the model's listed rate for one image and a short answer; free when the model is
@@ -563,8 +599,12 @@ separate segment search.
 
 Identity and versions
 - `source.image.page-region` — **[GAP]** (#6187) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
+- `source.segment.check-lines.asked-in-set-up-per-project` — **[GAP]** (#6185; owner 2026-10-29) the Prepare Images card asks "Check for missed lines and words?" per project and folder, suggested yes when the five-page sample's Find Lines leaves over 3 % ink outside on three of five pages or any sample line reads under 60 % of the page's characters per width, else no; the answer switches the step on in the Start plan (`prep.setup.what-runs-by-itself`).
+- `source.segment.check-lines.runs-where-the-reader-runs` — **[GAP]** (#6185; owner 2026-10-29) the checker is a recipe step with the same placement as every other: its card lists this Mac, a cloud provider, a cluster and Hugging Face Jobs as `where_it_runs` does, the app's and the project's places cap it, the per-step override chooses, and the default is the Read step's place and (when that model is a vision model) its model, else the local vision model; a project capped to this Mac sends nothing out and says so.
 - `source.segment.check-lines.ink-outside-measured-free` — **[GAP]** (#6185) after Find Lines, with no model, each page records the fraction of its ink outside every line box (grown by a margin); pages above the project's threshold (default 3 %) are under-segmented and are the check's default scope; the count is shown in Set Up and the figure sorts the Check lens.
-- `source.segment.check-lines.model-proposes-missing-lines` — **[GAP]** (#6185, #5404) a vision model is given the working rendition with the found lines drawn on it and the line list, and answers with boxes of text that has no line, each with a reason (marginal note, faint ink, near the ruler, near the border, between lines); each box is a proposed line segment in a new pass named for the checker, with confidence; accept or redraw is a verdict and the accepted line joins the working pass; a page the model calls mostly unlined is offered a page-level read (`read-a-page`, `tie-text-to-lines`) in one press.
+- `source.segment.check-lines.dropped-words-measured-free` — **[GAP]** (#6185; owner 2026-10-29) with no model, each line records two figures where their inputs exist: the fraction of the line's ink that its Vision word boxes (grown) do not cover, when the word pass ran (`source.words.packed-per-line`); and the reading's characters per 1,000 px of box width against the page's median, plus whether the reading ends more than a word's width short of the box, when the line has a reading. A line over 15 % uncovered ink, under 60 % of the median, or ending short is a dropped-words candidate and puts its page in scope; a page with neither words nor readings records nothing and is scoped by ink-outside alone. On a fixture line whose box covers four of six words both figures flag it.
+- `source.segment.check-lines.model-proposes-missing-lines` — **[GAP]** (#6185, #5404) a vision model is given the working rendition with the found lines drawn on it and the line list with readings, and answers with boxes of text that has no line, each with a reason (marginal note, faint ink, near the ruler, near the border, between lines); each box is a proposed line segment in a new pass named for the checker, with confidence; accept or redraw is a verdict and the accepted line joins the working pass; a page the model calls mostly unlined is offered a page-level read (`read-a-page`, `tie-text-to-lines`) in one press.
+- `source.segment.check-lines.model-proposes-dropped-words` — **[GAP]** (#6185; owner 2026-10-29) the same answer names lines whose box or reading misses words (`dropped words`, the missing words, the extent the box should have); each becomes a proposed correction of that line (its box widened as the existing correct-line route does) with a re-read of the widened line queued on the Read step's model, shown in the Check lens beside the old reading; accept is a verdict that puts the widened line and the new reading in the working pass; reject keeps the old line and never trains. On the four-of-six fixture the proposal widens the box over the two missed words.
 - `source.segment.check-lines.cost-shown-first` — **[GAP]** (#6185) the step is priced before it runs: pages in scope times the model's rate for one image and a short answer, free when local; the sheet shows the count, the model, the figure and its basis, and the scope can be widened to every page or narrowed to a selection.
 - `source.segment.check-lines.never-twice` — **[GAP]** (#6185, #6127) a page already checked by the same model with the same rendition hash and the same line list is not sent again; the stored answer is reused; a changed line list is a new input.
 - `source.segment.check-lines.corrections-train` — **[GAP]** (#6185, #5513) an accepted or redrawn proposed line is a person's line in the working pass and enters the Kraken training set like any other; a rejected proposal is a verdict and never trains.
@@ -1265,7 +1305,7 @@ picture to the shape.
 - **Answered** (design lead 2026-10-04, by the existing design): (3) A tool is given only the working pass's reading (ruled 2026-09-26, "What a tool is given"), and the maker tag is built as `provenance_kind`.
 - **Answered** (design lead 2026-10-04, applying the spec's lean): (4) Sending the same scope to more than one model is several calls, one per model, fanned out.
 
-- **Open (2026-10-29), check the lines:** which model checks by default, and the threshold. Recommended: the project's cloud reader when one is chosen (it already sees the page), else the local vision model; 3 % ink outside the line boxes as the default scope, shown as a count the person can widen.
+- **Ruled 2026-10-29 (owner, paraphrased), check the lines:** asked per project in Set Up with a suggested default; runs wherever a model can run, through the same placement as the other steps; must catch words dropped inside the reading order, not only marginalia, so a second free measure (uncovered ink inside the line, or characters against width) scopes it beside the ink-outside measure. The default model is the Read step's when it is a vision model, else the local vision model; 3 % ink outside, 15 % uncovered ink and 60 % of the characters-per-width median are the thresholds, each per project. Nothing is open.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.tool.each-model-gets-its-own-call` **[GAP]** (#5026): when the same scope goes to more than one model, each model gets its own call, fanned out, never one combined call.
