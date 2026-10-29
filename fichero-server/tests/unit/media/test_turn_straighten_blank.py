@@ -188,3 +188,51 @@ def test_a_vision_warning_from_the_turn_read_never_opens_the_app_database(monkey
     monkeypatch.setattr(vision_base, "apple_vision_ocr_with_geometry", fails)
     assert read_lines(Image.new("RGB", (40, 40), "white")) == []
     assert opened == []
+
+
+def _pencil_scan(width, height, entries, grey=175, stroke=3):
+    """A big scan of plain paper with `entries` short pencil lines of handwriting-like strokes (thin, lightish)."""
+    img = Image.new("RGB", (width, height), (238, 236, 224))
+    d = ImageDraw.Draw(img)
+    for i in range(entries):
+        y = 400 + i * 260
+        x = 300
+        for _ in range(14):  # a word: a run of short slanted strokes
+            d.line([(x, y), (x + 40, y - 70)], fill=(grey,) * 3, width=stroke)
+            d.line([(x + 40, y - 70), (x + 80, y)], fill=(grey,) * 3, width=stroke)
+            x += 110
+    return img
+
+
+def test_written_pages_are_never_called_blank_at_scan_size():
+    """Review finding: shrinking to 900 px averaged thin pencil below the contrast cut and hid pages with writing."""
+    from fichero_server.media.blank_page import blank_verdict
+
+    assert blank_verdict(_pencil_scan(3000, 4200, 0)) == "blank"
+    for entries in (2, 3, 4, 6):
+        assert blank_verdict(_pencil_scan(3000, 4200, entries)) != "blank", entries
+    assert blank_verdict(_pencil_scan(3000, 4200, 4, grey=195, stroke=2)) != "blank"  # faint, thin pencil
+
+
+def test_the_ink_share_is_of_the_paper_not_the_mount():
+    """A page on a big dark-less table: the same writing is a larger share of the page box than of the whole picture."""
+    from fichero_server.media.blank_page import ink_share
+
+    img = Image.new("RGB", (3000, 3000), (238, 236, 224))
+    d = ImageDraw.Draw(img)
+    for i in range(3):
+        d.line([(400 + 200 * i, 500), (440 + 200 * i, 560)], fill=(60, 60, 60), width=5)
+    assert ink_share(img, [0.1, 0.1, 0.3, 0.3]) > 3 * ink_share(img)
+
+
+def test_the_text_read_is_asked_only_when_the_ink_alone_would_hide_the_page():
+    from fichero_server.media.blank_page import blank_verdict
+
+    asked = []
+
+    def reads():
+        asked.append(1)
+        return True
+
+    assert blank_verdict(_graph_paper(ink=True), reads) == "ink" and asked == []
+    assert blank_verdict(_graph_paper(ink=False), reads) == "unsure" and asked == [1]

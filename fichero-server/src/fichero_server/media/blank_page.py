@@ -10,6 +10,7 @@ skipped. The original is never changed.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -20,48 +21,74 @@ INK_MAX = 0.002
 #: page is unsure: three short pen strokes on a ruled ledger page are about 0.0005, and a page hidden by mistake is
 #: never read, so unsure becomes a proposal and the page stays.
 INK_SURE = 0.0002
-WORK_SIDE = 900
-#: A dark mark must be this much darker than the paper around it; a mark smaller than this many pixels is dust.
+#: Ink is measured at this long side at most (memory), never the 900 px the paper's light is estimated at: shrinking a
+#: scan to 900 px averaged thin pencil strokes below the contrast cut and hid pages with writing (review 2026-10-29).
+WORK_SIDE = 4000
+PAPER_SIDE = 900
+#: A dark mark must be this much darker than the paper around it; a page is hidden as blank only when nothing is there
+#: even at the fainter cut (pencil, a faded pen), where show-through and stains still stay under it.
 CONTRAST = 40
-SPECK = 12
-#: Ruling is a dark line at least this share of the picture's side long and not more than RULE_THICK pixels thick.
+CONTRAST_FAINT = 25
+#: A mark is dust unless it is at least this long, as a share of the picture's long side, and a few pixels in area.
+SPECK_EXTENT = 0.004
+SPECK_AREA = 4
+#: Ruling is a dark line at least this share of the picture's side long; it is taken out RULE_THICK-at-900-px thick.
 RULE_LENGTH = 0.12
 RULE_THICK = 5
 
 
-def ink_share(image: Any) -> float:
-    """The share of the page's pixels that are ink once ruled lines and specks are taken out (0.0 to 1.0)."""
+def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRAST) -> float:
+    """The share of the page's pixels that are ink once ruled lines and specks are taken out (0.0 to 1.0). `box`
+    (`[x, y, w, h]`, fractions of the picture) is the page found in it: the share is of the paper, not of the mount."""
     import cv2
 
     gray = np.asarray(image.convert("L"))
+    if box is not None:
+        rows, cols = gray.shape
+        x, y, w, h = box
+        gray = gray[round(y * rows):max(round((y + h) * rows), round(y * rows) + 1),
+                    round(x * cols):max(round((x + w) * cols), round(x * cols) + 1)]
     scale = min(1.0, WORK_SIDE / max(gray.shape))
     if scale < 1:
         gray = cv2.resize(gray, (round(gray.shape[1] * scale), round(gray.shape[0] * scale)), interpolation=cv2.INTER_AREA)
     h, w = gray.shape
-    paper = cv2.medianBlur(gray, 2 * max(7, round(0.03 * max(h, w))) + 1)  # the page's own light, ink included
-    dark = ((paper.astype(np.int16) - gray) > CONTRAST).astype(np.uint8)
+    # The page's own light, ink included, estimated on a small copy and laid back at full size.
+    small_scale = min(1.0, PAPER_SIDE / max(h, w))
+    small = gray if small_scale >= 1 else cv2.resize(
+        gray, (round(w * small_scale), round(h * small_scale)), interpolation=cv2.INTER_AREA)
+    paper = cv2.medianBlur(small, 2 * max(7, round(0.03 * max(small.shape))) + 1)
+    if paper.shape != gray.shape:
+        paper = cv2.resize(paper, (w, h), interpolation=cv2.INTER_LINEAR)
+    dark = (cv2.subtract(paper, gray) > contrast).astype(np.uint8)  # saturating: ink only where darker than the paper
     long_side = max(5, round(RULE_LENGTH * max(h, w)))
     ruling = cv2.bitwise_or(
         cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (long_side, 1))),
         cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, long_side))))
-    ruling = cv2.dilate(ruling, np.ones((RULE_THICK, RULE_THICK), np.uint8))
+    thick = max(RULE_THICK, round(max(h, w) / PAPER_SIDE))  # a scan's ruling halo is thicker, in pixels
+    ruling = cv2.dilate(ruling, np.ones((thick, thick), np.uint8))
     ink = cv2.bitwise_and(dark, cv2.bitwise_not(ruling) & 1)
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink)
-    kept = sum(int(stats[i, cv2.CC_STAT_AREA]) for i in range(1, count) if stats[i, cv2.CC_STAT_AREA] >= SPECK)
+    count, _, stats, _ = cv2.connectedComponentsWithStats(ink)
+    reach = SPECK_EXTENT * max(h, w)
+    kept = sum(int(stats[i, cv2.CC_STAT_AREA]) for i in range(1, count)
+               if stats[i, cv2.CC_STAT_AREA] >= SPECK_AREA
+               and max(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]) >= reach)
     return kept / (h * w)
 
 
-def is_blank(image: Any) -> bool:
-    return ink_share(image) < INK_MAX
+def is_blank(image: Any, box: list[float] | None = None) -> bool:
+    return ink_share(image, box) < INK_MAX
 
 
-def blank_verdict(image: Any, has_lines: bool = False) -> str:
+def blank_verdict(image: Any, has_lines: bool | Callable[[], bool] = False, box: list[float] | None = None) -> str:
     """`blank` only when sure (ink under INK_SURE and no text line found on the page); `unsure` when the ink is under
-    INK_MAX but not that little, or a line was found; else `ink`."""
-    share = ink_share(image)
+    INK_MAX but not that little, or a line was found; else `ink`. `has_lines` may be a function, asked only when the ink
+    alone would call the page blank (a text read costs seconds); `box` is the page's box, the share being of the paper."""
+    share = ink_share(image, box)
     if share >= INK_MAX:
         return "ink"
-    return "unsure" if (share >= INK_SURE or has_lines) else "blank"
+    if share >= INK_SURE or ink_share(image, box, CONTRAST_FAINT) >= INK_SURE:
+        return "unsure"
+    return "unsure" if (has_lines() if callable(has_lines) else has_lines) else "blank"
 
 
 def mark_blank(db: Any, doc_id: str, blank: bool, *, who: str, reason: str = "") -> None:

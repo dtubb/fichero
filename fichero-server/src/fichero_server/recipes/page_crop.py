@@ -31,7 +31,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     from fichero_server.media.blank_page import blank_verdict
     from fichero_server.media.find_page import find_page
     from fichero_server.media.upright import upright
-    from fichero_server.models import Document, NodeRegion, Rendition, Segment
+    from fichero_server.models import Document, NodeRegion, Rendition
     from fichero_server.models.anchors import RegionConfidence
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
@@ -58,10 +58,16 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             account["no_image"] += 1
             continue
         account["pages"] += 1
+        found = find_page(image)
+        # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
+        unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
+        trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
         if prepare and meta.get("blank") is None:
-            # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal.
-            has_lines = any(s.deleted_at is None for s in db.query(Segment, document_id=doc.id))
-            verdict = blank_verdict(image, has_lines)
+            # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
+            # share of the paper found (not the mount around it); a text read is the last word, asked only when the ink
+            # alone would hide the page, because lines do not exist yet on a first run (Find Lines comes after).
+            verdict = blank_verdict(image, lambda: _has_text(db, doc.id, image),
+                                    list(found.box) if trusted else None)
             if verdict == "blank":
                 # Through the action layer: audited, and Undo restores the page (`image.mark_blank`).
                 registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True, "who": f"run {run_id}",
@@ -74,10 +80,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     "blank": {"reason": "very little ink beyond its ruling, or text lines found: kept, not hidden",
                               "by": f"run {run_id}"}}}}}, ctx)
                 account["blank_proposed"] = account.get("blank_proposed", 0) + 1
-        found = find_page(image)
-        # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
-        unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
-        if found is None or unsure or found.box[2] * found.box[3] < MIN_SHARE:
+        if not trusted:
             account["whole"] += 1
             continue
         box = [round(v, 5) for v in found.box]
@@ -104,6 +107,16 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
         if prepare:
             _prepare(db, doc, image, found, run_id, library)
     return account
+
+
+def _has_text(db: Any, doc_id: str, image: Any) -> bool:
+    """Whether the page has a text line: one Find Lines already found, or one Apple Vision reads now (Vision absent: none)."""
+    from fichero_server.media.turn_by_text import read_lines
+    from fichero_server.models import Segment
+
+    if any(s.deleted_at is None for s in db.query(Segment, document_id=doc_id)):
+        return True
+    return bool(read_lines(image, str(db.path)))
 
 
 def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Path, note: str, box: list[float],
