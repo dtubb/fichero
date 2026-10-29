@@ -103,3 +103,81 @@ def test_a_name_on_many_pages_is_one_step_not_one_per_page(client, db):
     db.save(entity)
     assert len(entity.attribution_chain) == 1
     assert _todo(db, pages) == ([], 5)
+
+
+# --- an older entry that names no page counts for the pages its run covered (#6285) ---
+
+
+def _run(db, run_id, pages):
+    """The workflow run's record, with the pages the server resolved it to (what `pages_a_run_did` cannot see for a
+    run that was not a recipe step)."""
+    from datetime import datetime, timezone
+
+    from fichero_server.db import activity_records as records
+
+    records.upsert_run(db, thread_id=run_id, workflow_id="w", workflow_name="names", python_code=None, execution_log=None,
+                       workflow_snapshot=None, node_name_map=None, progress_timeline=None, diagram_mermaid=None,
+                       status="completed", started_at=datetime.now(timezone.utc),
+                       resolved_scope={"resolved_ids": list(pages), "resolved_count": len(pages)}, estimated_cost=None)
+
+
+def _library_with_old_sonnet_entry(db, run_id):
+    """10 pages, spaCy drafts on all; one common name carries an older Sonnet entry that names no page."""
+    pages = [_page(db, f"p{i}") for i in range(10)]
+    entity = KnowledgeEntity(canonical_name="Pedro", source_document_ids=pages)
+    entity.add_attribution(run_attribution("anthropic", SONNET, run_id))  # older: names no page
+    for page in pages:
+        entity.add_attribution({**run_attribution("spacy", "es_core_news_sm", "import"), "document_id": page})
+    db.save(entity)
+    return pages
+
+
+def test_an_older_entry_naming_no_page_counts_only_for_the_pages_its_run_covered(client, db):
+    pages = _library_with_old_sonnet_entry(db, "run-old")
+    _run(db, "run-old", pages[:1])
+    todo, finished = _todo(db, pages)
+    assert (len(todo), finished) == (9, 1)
+    assert pages[0] not in todo
+
+
+def test_an_older_entry_whose_run_cannot_be_found_counts_for_all_the_entitys_pages(client, db):
+    pages = _library_with_old_sonnet_entry(db, "run-gone")
+    assert _todo(db, pages) == ([], 10)
+    pages = _library_with_old_sonnet_entry(db, None)
+    assert _todo(db, pages) == ([], 10)
+
+
+def test_an_older_entry_of_a_recipe_step_run_is_done_for_the_folder_and_not_rerun(client, db, monkeypatch):
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.models import Workflow
+
+    db.save(Workflow(id="w3", name="names", model=SONNET))
+    pages = _library_with_old_sonnet_entry(db, "run-step")
+    _run(db, "run-step", pages[:4])
+    card = {k: v for k, v in CARD.items() if k != "model_override"} | {"workflow_id": "w3"}
+    detail = json.dumps({"runs": [card], "steps": [{"ran_on": pages[:4]}]})
+    monkeypatch.setattr(jobs, "find_jobs", lambda *a, **k: [{"id": "j"}])
+    monkeypatch.setattr(jobs, "read_job", lambda *a, **k: {"detail": detail})
+    todo, finished = _todo(db, pages, card)
+    assert (len(todo), finished) == (6, 4)
+    assert not set(pages[:4]) & set(todo)
+
+
+# --- the free layer is told by the card's provider, or its workflow's, in any case (#6285) ---
+
+
+def test_a_card_with_no_override_whose_workflow_is_spacy_in_mixed_case_is_the_free_layer(client, db):
+    from fichero_server.models import Workflow
+
+    db.save(Workflow(id="w4", name="names", provider="SpaCy_NER", model="es_core_news_sm"))
+    card = {"steps": ["find-names"], "job": "find-names-tag-words", "card": "workflow", "workflow_id": "w4"}
+    assert done.names_model(db, card) is None
+    page = _page(db, "free2")
+    _entity(db, page, run_attribution("spacy", "es_core_news_sm", "import"))
+    assert _todo(db, [page], card) == ([], 1)
+
+
+def test_a_card_override_in_mixed_case_is_the_free_layer(client, db):
+    assert done.names_model(db, {**CARD, "provider_override": "SpaCy"}) is None

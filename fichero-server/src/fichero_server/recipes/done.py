@@ -530,28 +530,59 @@ def names_model(db: Any, card: dict[str, Any]) -> str | None:
     from fichero_server.workflows.tools.extract_entities_only import _LOCAL_NER_PROVIDERS
 
     model = effective_model(db, card)
-    return None if not model or card.get("provider_override") in _LOCAL_NER_PROVIDERS else model
+    provider = card.get("provider_override")
+    if not provider and card.get("workflow_id"):  # no choice of its own: the workflow's provider is the one it runs with
+        from fichero_server.models import Workflow
+
+        workflow = db.get(Workflow, card["workflow_id"])
+        provider = workflow.provider if workflow is not None else None
+    return None if not model or str(provider or "").strip().lower() in _LOCAL_NER_PROVIDERS else model
+
+
+def pages_a_workflow_run_covered(db: Any, run_id: str | None) -> set[str] | None:
+    """The pages the server resolved a workflow run to (its record's `resolved_scope`, whoever started it: a recipe step or not);
+    None when that cannot be told: no run id, no record, a run from before the scope was kept, or a scope cut short."""
+    if not run_id:
+        return None
+    from fichero_server.db import activity_records as records
+
+    row = records.get_run(db, str(run_id))
+    scope = row[records.RUN_COLUMNS.index("resolved_scope")] if row is not None else None
+    if isinstance(scope, str):
+        scope = json.loads(scope) if scope else None
+    if not isinstance(scope, dict) or scope.get("resolution_error") or scope.get("resolved_ids_truncated"):
+        return None
+    ids = scope.get("resolved_ids")
+    return {str(i) for i in ids} if isinstance(ids, list) and ids else None
 
 
 def pages_with_names(db: Any, model: str | None = None) -> set[str]:
     """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names step has been over.
     With `model` (a real model, #6127: same input + same model = reuse, a free spaCy draft is not that model's pass): only
-    the pages that model named (the attribution says which page), or that a person named. An entity with no extractor, or an
-    older entry of `model` naming no page, counts for all the entity's pages."""
+    the pages that model named (the attribution says which page), or that a person named. An entity with no extractor counts
+    for all its pages (written before #4869: a false done is cheaper than paying twice). An older entry of `model` naming no
+    page counts for the pages ITS RUN covered (#6285); only a run that cannot be found counts for all the entity's pages."""
     from fichero_server.models import KnowledgeEntity
 
     if model is None:
         return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
-    forms, out = _forms(model), set()
+    forms, out, covered = _forms(model), set(), {}
     for e in db.query(KnowledgeEntity):
         steps = [(getattr(a.role, "value", a.role), a.label, a.document_id, getattr(a, "document_ids", None) or [])
                  for a in e.attribution_chain]
         extractors = [(label, doc, more) for role, label, doc, more in steps if role == "extractor"]
-        # A person's names, an entity no extractor is recorded on (older than #4869, or written with no attribution), and an
-        # older entry of this model that names no page count for all the entity's pages: only a free draft is not this model's.
-        if (any(role == "editor" for role, *_ in steps) or not extractors
-                or any(label in forms and not doc for label, doc, _ in extractors)):
+        # A person's names and an entity no extractor is recorded on (older than #4869, or written with no attribution) count
+        # for all the entity's pages: only a free draft is not this model's.
+        if any(role == "editor" for role, *_ in steps) or not extractors:
             out.update(e.source_document_ids or [])
+        # An older entry of this model naming no page counts for the pages its run covered; for all the entity's pages only
+        # when the run cannot be found (the folder it ran on is not every page the name was found on, #6285).
+        for run_id in {getattr(a, "run_id", None) for a in e.attribution_chain
+                       if a.label in forms and not a.document_id and getattr(a.role, "value", a.role) == "extractor"}:
+            if run_id not in covered:
+                covered[run_id] = pages_a_workflow_run_covered(db, run_id)
+            ran = covered[run_id]
+            out.update((e.source_document_ids or []) if ran is None else set(e.source_document_ids or []) & ran)
         for label, doc, more in extractors:
             if label in forms:
                 out.update(d for d in (doc, *more) if d)
