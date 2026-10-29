@@ -346,5 +346,4 @@ enhanced files.
 
 1. **Method B's gain fit** (verso subtraction): one global gain, or per tile? Start global; tile only if
    the sample shows uneven show-through.
-2. **The two GHC_B16 sample pages** are not on the drive (`Fichero GHG/GHG` is empty on 2026-10-26); the
-   measure in `image.enhance.prompt-and-cleanup-measured-2x2` waits on them as fixtures.
+(Not a decision: the two GHC_B16 sample pages are not on the drive (`Fichero GHG/GHG` was empty on 2026-10-26); the measure in `image.enhance.prompt-and-cleanup-measured-2x2` waits on them as fixtures.)

@@ -516,6 +516,43 @@ this reaches the app until the whole programme is done.
   is decided for each result, not each page: a machine run after conversion adds a new block,
   which the next edit converts. A second edit never converts the same result twice.
 
+### Lines the segmenter missed: a check after Find Lines (added 2026-10-29, #6185; design, not built)
+
+On the Istmina scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
+the border. The owner's direction (2026-10-29, paraphrased): after Find Lines, a step looks at the page
+image beside the lines that were found and says where there is writing with no line. It is a **check**,
+in the sense of `checking.md`: it proposes, a person or the recipe decides, nothing is deleted.
+
+**Who looks.** A vision model is given the page image (the working rendition, `image.enhance.working-rendition-once`)
+with the found lines drawn on it, and the same lines as a compact list, and answers with the boxes of
+text that has no line, each with a word of reason (`marginal note`, `faint ink`, `near the ruler`,
+`near the border`, `between lines`). Each box becomes a **proposed line segment** in a new pass named for
+the checker (`source.segment.rerun-is-new-pass`), with `confidence` and `proposed: true`; the person's
+accept or redraw is a verdict (`source.check.verdict-recorded`) and the accepted line enters the working
+pass. Where the model answers that most of the page is unlined, it proposes **a page-level read** instead
+(`read-a-page`, then `tie-text-to-lines`), and the recipe offers that in one press.
+
+**Scoped first, free.** Before any model is called, the engine measures, with no model, how much ink
+lies outside every line box: the page's ink mask (the dark pixels of the contrast rendition, or the
+original) minus the union of the line boxes grown by a margin, as a fraction of all ink. Pages above a
+threshold (default 3 %, set per project) are **under-segmented** and are the step's default scope;
+the Set Up card shows how many pages that is, and the person can widen it to every page or narrow it to
+a selection. The ink-outside figure is written on the page so the Check lens can sort by it.
+
+**Cost first.** The step is priced before it runs like every cloud step (`source.onboard.estimate-before-start`):
+pages in scope times the model's listed rate for one image and a short answer; free when the model is
+local. The sheet says the count, the model and the figure, and the basis.
+
+**Never twice.** A page already checked by the same model with the same lines and the same image is
+not sent again: the result is keyed by model, rendition hash and the hash of the line list, and a later
+run reuses it (owner ruling 2026-10-25, #6127; `never-rerun-a-model-pass`). A changed line list is a new
+input and may be checked again.
+
+**Corrections train the segmenter.** An accepted or redrawn proposed line is a person's line in the
+working pass, so it enters the Kraken training set like any other (`training/kraken_set.py`,
+`formats-and-training.md`), and the pages it came from are the ones that teach the segmenter what it
+missed. A rejected proposal is a verdict too and never trains.
+
 ### Finding segments across a project
 
 "Every line in hand B", "every instance of this sign" and a search result that lands on a
@@ -526,6 +563,11 @@ separate segment search.
 
 Identity and versions
 - `source.image.page-region` — **[GAP]** (#6187) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
+- `source.segment.check-lines.ink-outside-measured-free` — **[GAP]** (#6185) after Find Lines, with no model, each page records the fraction of its ink outside every line box (grown by a margin); pages above the project's threshold (default 3 %) are under-segmented and are the check's default scope; the count is shown in Set Up and the figure sorts the Check lens.
+- `source.segment.check-lines.model-proposes-missing-lines` — **[GAP]** (#6185, #5404) a vision model is given the working rendition with the found lines drawn on it and the line list, and answers with boxes of text that has no line, each with a reason (marginal note, faint ink, near the ruler, near the border, between lines); each box is a proposed line segment in a new pass named for the checker, with confidence; accept or redraw is a verdict and the accepted line joins the working pass; a page the model calls mostly unlined is offered a page-level read (`read-a-page`, `tie-text-to-lines`) in one press.
+- `source.segment.check-lines.cost-shown-first` — **[GAP]** (#6185) the step is priced before it runs: pages in scope times the model's rate for one image and a short answer, free when local; the sheet shows the count, the model, the figure and its basis, and the scope can be widened to every page or narrowed to a selection.
+- `source.segment.check-lines.never-twice` — **[GAP]** (#6185, #6127) a page already checked by the same model with the same rendition hash and the same line list is not sent again; the stored answer is reused; a changed line list is a new input.
+- `source.segment.check-lines.corrections-train` — **[GAP]** (#6185, #5513) an accepted or redrawn proposed line is a person's line in the working pass and enters the Kraken training set like any other; a rejected proposal is a verdict and never trains.
 - `source.segment.lasting-id` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestLastingId::test_create_read_back_engine_made_id_client_id_refused`) a segment keeps its id through move, reshape, re-read and
   re-type, and an id is never given to another segment.
 - `source.segment.rerun-is-new-pass` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segmenting a page again adds a pass; nothing existing
@@ -1222,6 +1264,8 @@ picture to the shape.
 - **Answered** (design lead 2026-10-04, applying the spec's lean): (2) A character stretch inside one reading is addressed by the anchor's text-position form, with no new segment.
 - **Answered** (design lead 2026-10-04, by the existing design): (3) A tool is given only the working pass's reading (ruled 2026-09-26, "What a tool is given"), and the maker tag is built as `provenance_kind`.
 - **Answered** (design lead 2026-10-04, applying the spec's lean): (4) Sending the same scope to more than one model is several calls, one per model, fanned out.
+
+- **Open (2026-10-29), check the lines:** which model checks by default, and the threshold. Recommended: the project's cloud reader when one is chosen (it already sees the page), else the local vision model; 3 % ink outside the line boxes as the default scope, shown as a count the person can widen.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.tool.each-model-gets-its-own-call` **[GAP]** (#5026): when the same scope goes to more than one model, each model gets its own call, fanned out, never one combined call.

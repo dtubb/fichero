@@ -182,3 +182,13 @@ batch sheet), the automatic result shown as a proposal a person adjusts rather t
 replaces the picture. Compare collapses to one gesture (press and hold to see the original, as Photos) and
 one wipe. Remove Background, Despeckle, Segment and the second Rotate leave the toolbar: the first becomes
 Crop's dark-mount method, the second folds into Stains, the third does nothing, the fourth is Straighten.
+
+## 5. Added 2026-10-29: lines the segmenter missed
+
+Kraken misses marginalia, faint ink and text near the ruler or border on the Istmina scans. Nothing
+today measures how much ink lies outside the line boxes, and nothing proposes a line a person can
+accept. Specified in `docs/contributor_manual/specs/source/segments-and-geometry.md`, section "Lines the
+segmenter missed" (`source.segment.check-lines.*`): a free ink-outside measure scopes the step to
+under-segmented pages; a vision model proposes the missing boxes or a page-level read; the cost is shown
+first; the result is keyed by model, rendition and line list and never re-asked (#6127); accepted lines
+train the segmenter through the existing Kraken set builder. No issue exists yet; the lines cite #6185.
