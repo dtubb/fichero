@@ -842,9 +842,13 @@ class TestCatalogueTextOnlyDroppedInExcel:
         assert zipfile.ZipFile(out).read("word/document.xml").decode().count("The wheat description.") == 2
 
     def test_excel_has_the_normalised_date_column(self, client, db, tmp_path):
-        db.save(Document(id="nd-box", name="Box", doc_type=DocType.folder,
-                         attributes={"catalogue_date_normalised": "1906/1918-02-19"}))
+        from fichero_server.recipes import catalogue_step
+
+        db.save(Document(id="nd-box", name="Box", doc_type=DocType.folder))
+        catalogue_step.put_in_attributes(db, "nd-box", "Title: Box.\nDates: 1913 - 19 de febrero de 1918.", "art-1",
+                                         run_id="r1", provider="p", model="m")
         out = tmp_path / "nd.xlsx"
         assert client.post("/api/export/excel", json={"output_path": str(out)}).status_code == 200
         rows = {r["id"]: r for r in read_xlsx_records(out, sheet_index=0)}
-        assert rows["nd-box"]["attr:catalogue_date_normalised"] == "1906/1918-02-19"
+        assert rows["nd-box"]["attr:catalogue_date_normalised"] == "1913/1918-02-19"
+        assert rows["nd-box"]["attr:catalogue_date_start"] == "1913"

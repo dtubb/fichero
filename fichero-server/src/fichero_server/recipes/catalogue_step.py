@@ -195,8 +195,12 @@ ATTRIBUTE_FIELDS = {
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 # "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
 _SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)(?!\s+de\s)")
-_THOUSANDS = re.compile(r"(?<!\d)([12])\.(\d{3})(?!\d)")  # Spanish "1.918" = 1918
-_DROPPED_ONE = re.compile(r"(?<!\d)([89]\d{2})(?!\d)")  # "914" = 1914, "814" = 1814
+_UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|\$)"  # what a number with a dot in it counts, when it is not a year
+# Spanish "1.918" = 1918, only 1.8xx-2.0xx and never an amount: "1.900 pesos", "$ 1.900"
+_THOUSANDS = re.compile(r"(?<![\d$])(?<!\$ )(1\.[89]\d{2}|2\.0\d{2})(?![\d.])(?!\s*" + _UNIT + ")", re.I)
+# "del 914", "de 914", "a 914", "al 914": a year with the 1 dropped is named as a date, never as a bare number
+_DROPPED_ONE = re.compile(r"\b(?:del|de|al|a)\s+([89]\d{2})(?![\d.])(?!\s*" + _UNIT + ")", re.I)
+_NUMBER_BEFORE = re.compile(r"(?<![\d.])\d{1,3}\s*$|\b(?:folios?|fojas?|hojas?|ff?\.)\s*$", re.I)  # "1 a 914", "folios 1 a 914"
 
 
 _ONES = {w: n for n, w in enumerate("uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince".split(), 1)}
@@ -205,6 +209,17 @@ _ONES.update(dieciseis=16, diecisiete=17, dieciocho=18, diecinueve=19, veinte=20
              cuatrocientos=400, quinientos=500, seiscientos=600, setecientos=700, ochocientos=800, novecientos=900)
 _ONES.update({f"veinti{w}": 20 + n for w, n in list(_ONES.items())[:9]})
 _RANGE = re.compile(r"\s*[\u2013\u2014]\s*|\s+-\s+|\s+(?:to|hasta)\s+")
+_DAY_AL = re.compile(r"(?<=\d)\s+al\s+(?=\d)")  # "19 al 25 de mayo de 1910"
+
+
+def _sides(dates: str) -> list[str]:
+    """A Dates field's one or two sides of a range; a bare day before "al" takes the month and year of the day after it."""
+    sides = _RANGE.split(dates, maxsplit=1)
+    if len(sides) == 1:
+        sides = _DAY_AL.split(dates, maxsplit=1)
+        if len(sides) == 2 and re.fullmatch(r"\s*\d{1,2}\s*", sides[0]) and (rest := re.match(r"\s*\d{1,2}\s+(.*\d{4}.*)", sides[1])):
+            sides[0] = f"{sides[0].strip()} {rest.group(1)}"
+    return sides
 
 
 def _spoken_years(dates: str) -> list[str]:
@@ -228,14 +243,14 @@ def _spoken_years(dates: str) -> list[str]:
 def _years(dates: str) -> list[str]:
     """The years a Dates field names, digits or Spanish words; a short end of a range ("1850-60", "1850/60") is the year it
     ends: 1860."""
-    dates = _THOUSANDS.sub(r"\1\2", dates)
+    dates = _THOUSANDS.sub(lambda m: m.group(1).replace(".", ""), dates)
     years = _YEAR.findall(dates) + _spoken_years(dates)
     for start, tail in _SHORT_END.findall(dates):
         end = int(start[:2] + tail)
         years.append(str(end + 100 if end < int(start) else end))  # "1899-01" ends in 1901, not 1801
-    for short in _DROPPED_ONE.findall(dates):  # only next to a full year within 30 years: "914" beside 1906
-        year = 1000 + int(short)
-        if any(abs(year - int(y)) <= 30 for y in years):
+    for found in _DROPPED_ONE.finditer(dates):  # only next to a full year within 30 years: "914" beside 1906
+        year = 1000 + int(found.group(1))
+        if not _NUMBER_BEFORE.search(dates[:found.start()]) and any(abs(year - int(y)) <= 30 for y in years):
             years.append(str(year))
     return years
 
@@ -243,7 +258,7 @@ def _years(dates: str) -> list[str]:
 def _date_range(dates: str) -> tuple[str, str] | None:
     """(start, end) years of a Dates field, or None when a range's first side names no year: the end then stands alone, and
     to put it down as the start too (1918 for "... seis - ... 1918") says something the text does not (#6270)."""
-    sides = _RANGE.split(dates, maxsplit=1)
+    sides = _sides(dates)
     if len(sides) == 2 and not _years(sides[0]):
         return None
     years = _years(dates)
@@ -252,27 +267,31 @@ def _date_range(dates: str) -> tuple[str, str] | None:
 
 def _edtf_side(side: str, fallback: str) -> str:
     """One side of a Dates field as EDTF at the precision the text supports, read by histdate (#1470's parser; Spanish months
-    included); a side it cannot read is the year the span found. `?` marks an uncertain date, `~` an approximate one."""
+    included); a side it cannot read is the year the span found. `?` marks an uncertain date, `~` an approximate one, `%` both."""
     from fichero_server.histdate import parse_historical_date
 
-    text = _THOUSANDS.sub(r"\1\2", side).strip(" .,;")
+    unsure = bool(re.search(r"\?|incierto|uncertain", side, re.I))
+    text = re.sub(r"\?|\[?(?:incierto|uncertain)\]?", "", _THOUSANDS.sub(lambda m: m.group(1).replace(".", ""), side)).strip(" .,;")
     text = re.sub(r"([^\W\d]+\s+\d{1,2})\s+de\s+(\d{4})", r"\1 \2", text)  # "Mayo 8 de 1906": month first, as histdate reads it
     read = parse_historical_date(text)
     if read is None:
-        return fallback + ("?" if re.search(r"\?|incierto|uncertain", side, re.I) else "")
+        return fallback + ("?" if unsure else "")
     precision, iso = read.meta.get("precision"), str(read.meta.get("converted_gregorian_iso"))
     if precision == "circa":
-        return iso[:4] + "~"
-    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if re.search(r"\?|incierto|uncertain", side, re.I) else "")
+        return iso[:4] + ("%" if unsure else "~")
+    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if unsure else "")
 
 
 def _date_normalised(dates: str, span: tuple[str, str]) -> str:
-    """The Dates field as an EDTF interval ("1906-03/1918-02-19"), one date when both ends are the same."""
-    sides = _RANGE.split(dates, maxsplit=1)
+    """The Dates field as an EDTF interval ("1906-03/1918-02-19"), one date when both ends are the same. Its years are always
+    the span's: a side that reads to other years than the span found (a number the parser took for a year) is the span's year."""
+    sides = _sides(dates)
     first, last = (sides[0], sides[1]) if len(sides) == 2 else (dates, dates)
     start, end = (_edtf_side(first, span[0]), _edtf_side(last, span[1]))
-    if len(sides) == 1 and (start[:4] != span[0] or end[:4] != span[1]):
-        start, end = span  # several years in one side ("1906, 1918", "1850-60"): the span, at year precision
+    if len(sides) == 2 and start.strip("?~%") > end.strip("?~%"):
+        start, end = end, start  # "1918 - 1906" is the interval 1906/1918
+    if (start[:4], end[:4]) != span:
+        start, end = span  # several years in one side ("1906, 1918", "1850-60"), or a side that disagrees: the span, as years
     return start if start == end else f"{start}/{end}"
 
 
@@ -368,13 +387,19 @@ def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
     now = state()
     if now == was:
         return None
+    from fichero_server.workflows.attribute_sources import SOURCES
+
     undo: dict[str, Any] = {}
     if now[0] != was[0]:
-        undo["page_content"] = was[0]
-    for name, old, new in (("metadata", was[1], now[1]), ("attributes", was[2], now[2])):
+        undo["page_content"], undo["page_content_after"] = was[0], now[0]
+    plain = lambda meta: {k: v for k, v in meta.items() if k != SOURCES}  # noqa: E731
+    old_sources, new_sources = (dict(m.get(SOURCES) or {}) for m in (was[1], now[1]))
+    for name, old, new in (("metadata", plain(was[1]), plain(now[1])), ("attributes", was[2], now[2]),
+                           ("sources", old_sources, new_sources)):
         changed = [k for k in {*old, *new} if old.get(k) != new.get(k)]
         undo[name] = {k: old[k] for k in changed if k in old}  # only what promote changed, so the undo leaves the rest
         undo[f"{name}_added"] = [k for k in changed if k not in old]
+    undo["attributes_after"] = {k: now[2].get(k) for k in {*undo["attributes"], *undo["attributes_added"]}}
     return undo
 
 

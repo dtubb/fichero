@@ -98,3 +98,33 @@ def test_normalised_date_keeps_month_precision_and_marks_approximate_and_uncerta
 def test_normalised_date_keeps_a_day_written_after_the_month():
     assert _norm("Mayo 8 de 1906 – Diciembre 5 de 1918") == "1906-05-08/1918-12-05"
     assert _norm("8 de mayo de 1906 – 5 de diciembre de 1918") == "1906-05-08/1918-12-05"
+
+
+def test_amounts_with_a_dot_are_not_years():
+    assert _span("1906-1918; 1.500 pesos") == ("1906", "1918")
+    assert _span("2.000 pesos, 1910") == ("1910", "1910")
+    assert _span("1906 - 1910, 1.200 folios") == ("1906", "1910")
+    assert _span("1906 - 1910, 1.900 pesos") == ("1906", "1910")
+    assert _span("1906 - 1910, $ 1.900") == ("1906", "1910")
+    assert _norm("1906 - 1910, 1.200 folios") == "1906/1910"  # the normalised years are the span's
+
+
+def test_a_three_digit_number_in_a_folio_or_money_phrase_is_not_a_year():
+    assert _span("1906 - 1910 (folios 1-914)") == ("1906", "1910")
+    assert _span("1906 - 1910 (folios 1 a 914)") == ("1906", "1910")
+    assert _span("885 pesos 1890") == ("1890", "1890")
+    assert _span("1906 - 1910, de 914 pesos") == ("1906", "1910")
+
+
+def test_a_reversed_range_is_ordered_in_the_interval():
+    assert _norm("1918 - 1906") == "1906/1918"
+
+
+def test_al_joins_two_days_of_one_month():
+    assert _span("19 al 25 de mayo de 1910") == ("1910", "1910")
+    assert _norm("19 al 25 de mayo de 1910") == "1910-05-19/1910-05-25"
+
+
+def test_approximate_and_uncertain_is_percent():
+    assert _norm("ca. 1906?") == "1906%"
+    assert _norm("ca. 1906") == "1906~"

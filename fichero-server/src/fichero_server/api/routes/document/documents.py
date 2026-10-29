@@ -1112,21 +1112,36 @@ def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx:
 def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
     """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
     from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.workflows.attribute_sources import BY_PERSON, SOURCES
 
     for folder_id, was in params.before.items():
         folder = db.get(Document, folder_id)
         if folder is None:
             continue
-        for name in ("metadata", "attributes"):  # only the keys promote changed; a later edit to another key stays
-            held = dict(getattr(folder, name) or {})
-            held.update(was.get(name) or {})
-            for key in was.get(f"{name}_added") or []:
-                held.pop(key, None)
-            setattr(folder, name, held)
-        if "page_content" in was:
+        # content a person (or anything) changed since promote is theirs: it stays, and so do the keys that go with it
+        content_ours = "page_content" not in was or folder.page_content == was.get("page_content_after")
+        meta, attrs = dict(folder.metadata or {}), dict(folder.attributes or {})
+        sources = dict(meta.get(SOURCES) or {})
+        if content_ours:
+            meta.update(was.get("metadata") or {})
+            for key in was.get("metadata_added") or []:
+                meta.pop(key, None)
+        after = was.get("attributes_after") or {}
+        for key in {*(was.get("attributes") or {}), *(was.get("attributes_added") or {}), *(was.get("sources") or {}),
+                    *(was.get("sources_added") or [])}:
+            if (sources.get(key) or {}).get("by") == BY_PERSON or (key in after and attrs.get(key) != after[key]):
+                continue  # a person's value, or edited since promote: left alone
+            for held, name in ((attrs, "attributes"), (sources, "sources")):
+                held.update({key: v for k, v in (was.get(name) or {}).items() if k == key})
+                if key in (was.get(f"{name}_added") or []):
+                    held.pop(key, None)
+        if sources or SOURCES in meta:
+            meta[SOURCES] = sources
+        folder.metadata, folder.attributes = meta, attrs
+        if "page_content" in was and content_ours:
             folder.page_content = was["page_content"]
         db.save(folder)
-        if "page_content" in was:
+        if "page_content" in was and content_ours:
             try:
                 queue_reembed(db, [folder_id])  # search reads the content, as after put_in_content
             except Exception:  # noqa: BLE001 -- the content is back; search catches up on the next re-embed

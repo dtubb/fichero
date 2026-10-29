@@ -156,3 +156,35 @@ def test_a_language_code_is_matched_not_a_prefix():
     text = "Condition: bien [uncertain]."
     assert "[incierto]" in catalogue_step.parse_fields(text, "es-CO")["catalogue_condition"]
     assert "[uncertain]" in catalogue_step.parse_fields(text, "estonian")["catalogue_condition"]
+
+
+def _promoted_then(db, edit):
+    box, art = _described_folder(db)
+    art.content = NEW
+    db.save(art)
+    audit_id = _promote(db, folder_id=box).audit_id
+    folder = db.get(Document, box)
+    edit(folder)
+    db.save(folder)
+    undo_set(db, [audit_id], CTX)
+    return db.get(Document, box)
+
+
+def test_undo_leaves_a_value_a_person_set_after_promote_and_other_sources(db):
+    from fichero_server.workflows.attribute_sources import BY_PERSON, SOURCES
+
+    def edit(folder):
+        folder.attributes = {**folder.attributes, "catalogue_scope_content": "My own scope."}
+        folder.metadata = {**folder.metadata, SOURCES: {**folder.metadata[SOURCES], "catalogue_scope_content": {"by": BY_PERSON}}}
+
+    back = _promoted_then(db, edit)
+    assert back.attributes["catalogue_scope_content"] == "My own scope."
+    assert back.metadata[SOURCES]["catalogue_scope_content"] == {"by": BY_PERSON}
+    assert "catalogue_arrangement" not in back.attributes  # promote's other keys are put back
+    assert back.metadata[SOURCES]["catalogue_title"]["by"] == "machine"  # a key promote did not change keeps its source
+
+
+def test_undo_leaves_content_changed_since_promote(db):
+    back = _promoted_then(db, lambda folder: setattr(folder, "page_content", "A person rewrote this."))
+    assert back.page_content == "A person rewrote this."
+    assert "catalogue_content_from" in back.metadata  # the key that goes with the content stays with it
