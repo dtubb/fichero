@@ -116,6 +116,17 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
 - `catalogue.excel-export-prints-description-once` — **[OK]** (#6267) in the Excel export a folder whose content is its catalogue
   description (`catalogue_content_from` set) does not also append its `catalogue.*` artifacts to its text, so the description prints once. The
   Markdown and site exports are unchanged. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_a_promoted_folders_description_prints_once`.
+- `catalogue.promote-reparses-with-the-current-parser` — **[OK]** (#6267) `folder.promote_catalogue` re-parses the saved description with the
+  current parser and overwrites the folder's `catalogue_*` attributes an earlier run wrote (a value a person set is never touched); the undo puts the
+  old values back. *Test:* `.../test_catalogue_promote_scope_arrangement_6267.py::test_promote_overwrites_a_machine_value_the_old_parser_got_wrong_and_undo_restores_it`.
+- `catalogue.labels-start-a-field-after-a-closing-mark` — **[OK]** (#6267) a multi-word label (Access points, Creator and hands, Language and script,
+  Scope and content) starts its field after any space, and any label after a closing bracket or quote, so a name list is never the Condition. In a Spanish
+  description the English `[uncertain]` marker is `[incierto]` in the attribute (the description's own text still carries it until a new prompt version).
+  *Tests:* `::test_access_points_after_a_closing_bracket_are_not_the_condition`, `::test_the_english_uncertain_marker_is_spanish_in_a_spanish_attribute`.
+- `catalogue.a-rerun-is-the-next-version` — **[OK]** (#6267) a folder described again saves its `catalogue.narrative` as version n+1 citing the earlier as
+  `source_artifact_id`; the latest (version, then time) is what promote reads and what the Excel export prints. *Test:* `::test_a_rerun_is_version_two_and_promote_reads_the_latest`.
+- `catalogue.excel-claims-and-entities-reach-their-pages` — **[OK]** (#6267) in the Excel export a claim with no page label shows its page's name in
+  `source_page_label`, and an entity's `source_document_ids` also lists the documents whose claims name it. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExport::test_claims_have_a_page_label_and_entities_reach_their_documents`.
 - `catalogue.excel-export-carries-attributes` — **[OK]** (owner goal 2026-10-28) `POST /api/export/excel`'s Documents sheet has one
   `attr:<key>` column per attribute key across the exported rows, and folder rows (the catalogue describes folders) beside the
   documents; `document_count` counts both. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`.

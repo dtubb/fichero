@@ -1456,6 +1456,14 @@ def export_excel_xlsx(
         }
         for doc in [*folders, *documents]
     ]
+    # An entity's documents are those it is sourced from and those whose claims name it; a claim's page label falls back
+    # to its page's name (#6267).
+    claim_docs: dict[str, set[str]] = {}
+    for claim in claims:
+        for entity_id in claim.entity_ids or []:
+            if claim.source_document_id:
+                claim_docs.setdefault(entity_id, set()).add(claim.source_document_id)
+    source_names = {d.id: d.name for d in db.query_in(Document, "id", {c.source_document_id for c in claims if c.source_document_id})}
     entity_rows = [
         {
             "id": entity.id,
@@ -1463,7 +1471,8 @@ def export_excel_xlsx(
             "entity_type": entity.entity_type.value,
             "aliases": entity.aliases,
             "description": entity.description,
-            "source_document_ids": entity.source_document_ids,
+            "source_document_ids": [*entity.source_document_ids,
+                                    *sorted(claim_docs.get(entity.id, set()) - set(entity.source_document_ids))],
             "metadata": entity.metadata,
             "created_at": entity.created_at,
             "updated_at": entity.updated_at,
@@ -1475,7 +1484,7 @@ def export_excel_xlsx(
             "id": claim.id,
             "text": claim.text,
             "source_document_id": claim.source_document_id,
-            "source_page_label": claim.source_page_label,
+            "source_page_label": claim.source_page_label or source_names.get(claim.source_document_id, ""),
             "source_excerpt": claim.source_excerpt,
             "claim_type": claim.claim_type.value if claim.claim_type else "",
             "epistemic_status": (
@@ -1845,7 +1854,12 @@ def _document_text(db: Database, doc: Document) -> str:
     elif page_text := _page_child_text(db, doc):
         parts.append(page_text)
     promoted = "catalogue_content_from" in (doc.metadata or {})  # the description is already the content (#6267)
-    for artifact in _text_artifacts(db, doc.id):
+    artifacts = _text_artifacts(db, doc.id)
+    latest = max((a for a in artifacts if a.artifact_type == "catalogue.narrative"),
+                 key=lambda a: (a.version, a.created_at), default=None)
+    for artifact in artifacts:
+        if artifact.artifact_type == "catalogue.narrative" and artifact is not latest:
+            continue  # a rerun's older description is not printed beside the latest
         if promoted and artifact.artifact_type.startswith("catalogue."):
             continue
         parts.append(f"{artifact.artifact_type}: {artifact.content.strip()}")

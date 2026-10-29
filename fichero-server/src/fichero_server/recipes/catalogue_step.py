@@ -80,7 +80,7 @@ def _latest(db: Any, folder_id: str) -> Any | None:
 
     rows = [a for a in db.query(Artifact, document_id=folder_id) or []
             if a.artifact_type == ARTIFACT_TYPE and not getattr(a, "deleted_at", None)]
-    return max(rows, key=lambda a: a.created_at, default=None)
+    return max(rows, key=lambda a: (a.version, a.created_at), default=None)
 
 
 def _material(db: Any, folder: Any, child_folders: list[Any], leaves: list[Any]) -> str:
@@ -234,7 +234,14 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     return (min(years), max(years)) if years else None
 
 
-_LABEL = re.compile(r"(?:^|(?<=[.;!?]\s)|(?<=\n))\s*(" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Description"])) + r")\s*:", re.M)
+_MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, "Description") if " " in label]
+# A label starts a field on its own line or after a sentence's end or closing mark ("... [uncertain] Condition:" too); a
+# label of several words ("Access points") is specific enough to start one after any space.
+_LABEL = re.compile(
+    r"(?:(?:^|(?<=[.;!?\]\)\"\u201d]\s)|(?<=\n))\s*(?P<a>" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Description"]))
+    + r")|(?<=\s)(?P<b>" + "|".join(map(re.escape, _MULTI_WORD)) + r"))\s*:", re.M)
+#: The markers the readings carry in English, in the language of a description written in Spanish.
+_SPANISH_MARKERS = {"[uncertain]": "[incierto]", "[illegible]": "[ilegible]"}
 
 
 def _one_field(chunk: str) -> str:
@@ -249,20 +256,25 @@ def _one_field(chunk: str) -> str:
     return "\n".join(kept)
 
 
-def parse_fields(text: str) -> dict[str, Any]:
+def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     """The folder attributes in a description's labelled fields (#6141): `{attribute key: value}`, a list for creators and access
     points (split at semicolons), and the Dates field also as ISO 8601 years (`catalogue_date_start`, `catalogue_date_end`: the
     earliest and latest year it names; none when it names none, or when a range's first year cannot be read). A label starts a
     field on its own line or inline after a sentence ("... 1918. Access points: ..."): the field before it ends there (#6270).
-    A field the text lacks is not in the result."""
+    A field the text lacks is not in the result. In a Spanish description the English `[uncertain]` marker the prompt asks
+    the model to keep is put in Spanish in the attribute (the prompt itself needs a new version to stop it: held)."""
     found: dict[str, Any] = {}
     marks = list(_LABEL.finditer(text))
     for mark, after in zip(marks, [*marks[1:], None]):
-        if mark.group(1) not in ATTRIBUTE_FIELDS:
+        label = mark.group("a") or mark.group("b")
+        if label not in ATTRIBUTE_FIELDS:
             continue  # Description is prose: it stays in the content, but ends the field before it
-        key, is_list = ATTRIBUTE_FIELDS[mark.group(1)]
+        key, is_list = ATTRIBUTE_FIELDS[label]
         value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
+        if str(language or "").lower().startswith(("es", "span")):  # ponytail: Spanish only; other languages when asked
+            for english, spanish in _SPANISH_MARKERS.items():
+                value = value.replace(english, spanish)
         if value:
             found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
     if dates := found.get("catalogue_dates"):
@@ -272,7 +284,7 @@ def parse_fields(text: str) -> dict[str, Any]:
 
 
 def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, run_id: str | None, provider: str,
-                      model: str) -> list[str]:
+                      model: str, language: str | None = None) -> list[str]:
     """The description's fields as the folder's attributes, through the one attribute path (#6141): each value cites this run
     and its artifact; a value a person set is never overwritten, and a value an earlier run wrote that this description no
     longer has is taken away. Returns the keys written."""
@@ -282,7 +294,7 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     doc = db.get(Document, folder_id)
     if doc is None:
         return []
-    values = parse_fields(text)
+    values = parse_fields(text, language)
     every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end"]
     gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
@@ -308,7 +320,8 @@ def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
         put_in_content(db, folder.id, art.content, art.id)
     except ReembedNotQueued:  # the content stands; search catches up on the next re-embed
         logger.exception("could not queue the re-embed of folder %s", folder.id)
-    put_in_attributes(db, folder.id, art.content, art.id, run_id=art.run_id, provider=art.provider, model=art.model)
+    put_in_attributes(db, folder.id, art.content, art.id, run_id=art.run_id, provider=art.provider, model=art.model,
+                      language=(art.data or {}).get("language"))
     return dict(zip(("page_content", "metadata", "attributes"), was)) if state() != was else None
 
 
@@ -347,7 +360,9 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         art = Artifact(document_id=folder.id, artifact_type=ARTIFACT_TYPE, content=text,
                        data={"covers": covers, "pages": len(leaves), "flags": flags, "max_words": max_words,
                              "language": written_in},
-                       provider=config.provider, model=config.model, run_id=run_id)
+                       provider=config.provider, model=config.model, run_id=run_id,
+                       version=old.version + 1 if old is not None else 1,
+                       source_artifact_id=old.id if old is not None else None)  # a rerun is the next version
         db.save(art)
         _describe_container(db, folder.id, text, art.id, [old.id] if old is not None else [],
                             run_id=run_id, library_path=library_path)
@@ -356,7 +371,8 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         except ReembedNotQueued as exc:  # the content stands; a failed get or save is NOT this and still fails the step
             logger.exception("could not queue the re-embed of folder %s", folder.id)
             account["flags"].append(f"{folder.name}: its description is saved, but search was not told: {exc}")
-        put_in_attributes(db, folder.id, text, art.id, run_id=run_id, provider=config.provider, model=config.model)
+        put_in_attributes(db, folder.id, text, art.id, run_id=run_id, provider=config.provider, model=config.model,
+                          language=written_in)
         account["described"] += 1
         account["flags"].extend(f"{folder.name}: {f}" for f in flags)
     return account

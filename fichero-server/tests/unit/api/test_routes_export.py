@@ -791,3 +791,23 @@ class TestExcelExportAttributes:
         rows = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=0)}
         assert rows[box.id]["transcription"].count("The wheat description.") == 1
         assert rows[other.id]["transcription"].count("The wheat description.") == 1  # no content: the artifact is its text
+
+
+    def test_claims_have_a_page_label_and_entities_reach_their_documents(self, client, db, tmp_path):
+        """`catalogue.excel-claims-and-entities-reach-their-pages` (#6267): a claim without a page label gets its page's
+        name; an entity row lists the documents its claims come from."""
+        page = Document(id="reach-page", name="Page 7", doc_type=DocType.file, file_type=FileType.text, page_content="x")
+        entity = KnowledgeEntity(id="reach-entity", canonical_name="Maria", entity_type=EntityType.person)
+        claim = KnowledgeClaim(id="reach-claim", text="Maria signed.", source_document_id=page.id,
+                               entity_ids=[entity.id], claim_type=ClaimType.fact)
+        for node in (page, entity, claim):
+            db.save(node)
+        output_path = tmp_path / "reach.xlsx"
+        r = client.post("/api/export/excel", json={"output_path": str(output_path)})
+        assert r.status_code == 200, r.text
+        claims = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=2)}
+        assert claims[claim.id]["source_page_label"] == "Page 7"
+        entities = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=1)}
+        assert page.id in str(entities[entity.id]["source_document_ids"])
+        listed = client.get(f"/api/entities/{entity.id}/documents").json()
+        assert [item["document_id"] for item in listed["items"]] == [page.id]
