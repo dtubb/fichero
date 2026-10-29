@@ -102,6 +102,7 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
   prototypes and their fields.
 - `catalogue.export-standards` — **[GAP]** (#5365) fields export to EAD (ISAD(G)), Dublin Core, CSV and
   Excel, and IIIF manifest metadata.
+- `catalogue.fields-parse-wherever-written` — **[OK]** (#6270, engine) each labelled field of the model's answer lands in its own attribute even when the model writes it inline after another ("... de mayo de 1918. Access points: A; B": the access points are a list, not the end of Condition), and a prose label (Scope and content, Description) ends the field before it. The numeric years agree with the Dates text: a year written in Spanish words ("mil novecientos seis" = 1906) counts, and a range whose first year cannot be read has no `catalogue_date_start` or `catalogue_date_end` rather than the end year as both. Test: `fichero-server/tests/unit/recipes/test_catalogue_fields_inline_and_spoken_dates_6270.py`.
 - `catalogue.excel-export-carries-attributes` — **[OK]** (owner goal 2026-10-28) `POST /api/export/excel`'s Documents sheet has one
   `attr:<key>` column per attribute key across the exported rows, and folder rows (the catalogue describes folders) beside the
   documents; `document_count` counts both. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`.
