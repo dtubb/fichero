@@ -52,5 +52,4 @@ def test_the_plan_says_how_many_pages_it_leaves_out_as_blank(client, db, tmp_pat
     card = {"steps": ["find-lines"], "job": "find-lines", "card": "workflow", "workflow_id": "w", "model_override": None}
     plan = {"runs": [card]}
     done.annotate(db, plan, within=set(every))
-    assert card["left_out_blank"] == len(versos)
     assert f"{len(versos)} left out as blank" in card["note"] and "runs on all" not in card["note"]

@@ -640,7 +640,6 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         if done is not None and card.get("job") in ("find-lines", "read-a-line", "read-a-page"):
             left = sum(1 for p in todo if _called_blank(db, p))  # pages sorted blank before; not looked at again here (#6271)
             if left:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
-                card["left_out_blank"] = left
                 card["note"] = (f"runs on {len(todo) - left} of {len(pages)} pages; {left} left out as blank "
                                 f"(redo them to read anyway)")
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
