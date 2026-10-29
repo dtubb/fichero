@@ -5311,6 +5311,42 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("clear-column-choice")
+    def documents_clear_column_choice_delete(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Clear Column Choice (DELETE /api/documents/{doc_id}/column-choice)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-column-choice")
+    def documents_put_column_choice_put(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        hide: Optional[list[str]] = typer.Option(None, '--hide', help='Column keys left out of the table and the export. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        only_kind: Optional[str] = typer.Option(None, '--only-kind', help="Show this prototype's columns only."),
+    ) -> None:
+        """Put Column Choice (PUT /api/documents/{doc_id}/column-choice)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            payload = _build_json_payload({
+                "hide": hide,
+                "only_kind": only_kind,
+            }, {
+                "hide": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Hide', 'description': 'Column keys left out of the table and the export.', 'x-cli-required': False},
+                "only_kind": {'type': 'string', 'nullable': True, 'title': 'Only Kind', 'description': "Show this prototype's columns only.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("duplicate")
     def documents_duplicate_post(
         ctx: typer.Context,
@@ -5605,6 +5641,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}/restore"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-scope-template")
+    def documents_get_scope_template_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Get Scope Template (GET /api/documents/{doc_id}/template)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/template"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-view")

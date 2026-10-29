@@ -2436,6 +2436,24 @@ def fichero_documents_get_children(
     return _rt.call("GET", f"/api/documents/{doc_id}/children", params={"level": level, "limit": limit, "sort_by": sort_by, "sort_direction": sort_direction, "summary": summary})
 
 
+def fichero_documents_clear_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    'Clear Column Choice\n\nRoute: DELETE /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/documents/{doc_id}/column-choice")
+
+
+def fichero_documents_put_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    hide: Annotated[Optional[list[Any]], Field(description='Column keys left out of the table and the export.')] = None,
+    only_kind: Annotated[Optional[str], Field(description="Show this prototype's columns only.")] = None,
+) -> Any:
+    'Put Column Choice\n\nRoute: PUT /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", f"/api/documents/{doc_id}/column-choice", json=_rt.body({"hide": hide, "only_kind": only_kind}))
+
+
 def fichero_documents_duplicate(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -2605,6 +2623,14 @@ def fichero_documents_restore(
 ) -> Any:
     "Restore Document\n\nPut Back (`safety.trash.put-back`): the item and what was deleted with it return to its\nold folder, or to the project's Sources folder when that folder is in the Trash or gone. The\nanswer says where, in words.\n\nRoute: POST /api/documents/{doc_id}/restore (toolset `documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/documents/{doc_id}/restore")
+
+
+def fichero_documents_get_scope_template(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Get Scope Template\n\nThe columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.\n\nRoute: GET /api/documents/{doc_id}/template (toolset `documents`; reads)."
+    return _rt.call("GET", f"/api/documents/{doc_id}/template")
 
 
 def fichero_documents_get_view(
@@ -9434,6 +9460,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_get_ancestors", "documents", "GET", "/api/documents/{doc_id}/ancestors", fichero_documents_get_ancestors),
     GeneratedTool("fichero_documents_export_annotations_jsonld", "documents", "GET", "/api/documents/{doc_id}/annotations.jsonld", fichero_documents_export_annotations_jsonld),
     GeneratedTool("fichero_documents_get_children", "documents", "GET", "/api/documents/{doc_id}/children", fichero_documents_get_children),
+    GeneratedTool("fichero_documents_clear_column_choice", "documents", "DELETE", "/api/documents/{doc_id}/column-choice", fichero_documents_clear_column_choice),
+    GeneratedTool("fichero_documents_put_column_choice", "documents", "PUT", "/api/documents/{doc_id}/column-choice", fichero_documents_put_column_choice),
     GeneratedTool("fichero_documents_duplicate", "documents", "POST", "/api/documents/{doc_id}/duplicate", fichero_documents_duplicate),
     GeneratedTool("fichero_documents_get_effective_attributes", "documents", "GET", "/api/documents/{doc_id}/effective-attributes", fichero_documents_get_effective_attributes),
     GeneratedTool("fichero_formats_export_document_page", "formats", "GET", "/api/documents/{doc_id}/export/{format_name}", fichero_formats_export_document_page),
@@ -9453,6 +9481,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_purge", "documents", "DELETE", "/api/documents/{doc_id}/purge", fichero_documents_purge),
     GeneratedTool("fichero_documents_related", "documents", "GET", "/api/documents/{doc_id}/related", fichero_documents_related),
     GeneratedTool("fichero_documents_restore", "documents", "POST", "/api/documents/{doc_id}/restore", fichero_documents_restore),
+    GeneratedTool("fichero_documents_get_scope_template", "documents", "GET", "/api/documents/{doc_id}/template", fichero_documents_get_scope_template),
     GeneratedTool("fichero_documents_get_view", "documents", "GET", "/api/documents/{doc_id}/view", fichero_documents_get_view),
     GeneratedTool("fichero_documents_get_workflow_runs", "documents", "GET", "/api/documents/{doc_id}/workflow-runs", fichero_documents_get_workflow_runs),
     GeneratedTool("fichero_documents_patch_workspace_items", "documents", "PATCH", "/api/documents/{doc_id}/workspace", fichero_documents_patch_workspace_items),

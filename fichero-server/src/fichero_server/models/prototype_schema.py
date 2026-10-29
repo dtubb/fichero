@@ -86,6 +86,10 @@ class AttributeDecl(BaseModel):
     format: str | None = None
     #: A computed column's source (no stored value).
     source: str | None = None
+    #: Month names per language for the ``Mes`` of a date ``format`` (declaration data, not code).
+    months: dict[str, list[str]] = Field(default_factory=dict)
+    #: A child prototype hides a column it inherits without removing the parent's declaration.
+    hidden: bool = False
 
     def heading(self, key: str, language: str | None = None) -> str:
         """The column heading: the language's label, else any label, else the old label, else the key."""
