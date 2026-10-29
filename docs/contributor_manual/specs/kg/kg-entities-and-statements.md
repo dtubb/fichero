@@ -272,12 +272,37 @@ approval).
 - `kg.attr.authority-sheet-export` — **[GAP]** (#5380, #5603) the sheets export as one row per
   name (CSV and Excel, the catalogue's authority sheets), as Linked Places for places, and in
   the RDF export with authority URIs; the export reads the same record the views do.
+- `kg.attr.person-fields` — **[GAP]** (#5380, #6283; owner's team workbook, 2026-10-29) a
+  canonical person entity carries, as attributes written once and read by every view: the
+  catalogue form `catalogue_name` (surnames, comma, given names, the "Nombre compuesto" of the
+  team's Personas sheet), `given_names`, `surnames`, a role or kinship note `role_note` (a
+  priest, a widow of, a son of, an office), and a free `comment`; the canonical name stays the
+  entity's `canonical_name`, the catalogue form is derived from the two name fields unless a
+  person sets it. The Personas sheet's columns (Nombre compuesto, Nombres, Apellidos, Información
+  adicional, Comentarios) are these attributes, and the sheet is a view of the entities.
+- `kg.attr.place-fields` — **[GAP]** (#5380, #5123; owner's team workbook, 2026-10-29) a canonical
+  place entity carries the form as found (`canonical_name`, the sheet's "Lugar (control)"), a
+  corrected display form `display_name` (the sheet's "Lugar"), a `place_type` from a fixed list
+  (country, department, province, municipality, city, town, neighbourhood, river, other; the
+  project may extend it), a `parent_place_id` link to the place it sits inside, and a `comment`.
+  The Lugares sheet's columns are these attributes; the parent is a link, never a typed-again
+  name.
+- `kg.attr.sheets-are-views` — **[GAP]** (#5380, #5603) the Personas and Lugares sheets, the
+  folders' `catalogue_people`, `catalogue_places` and `catalogue_institutions`, the authority
+  sheets and the Excel export's entity rows are VIEWS of the same canonical entities: an edit in
+  any of them (in the app or by importing a corrected sheet) is a decision on the entity and
+  reaches every other view; a subject term list (the team's Tema sheet) is a folder attribute of
+  the catalogue spec, not an entity.
 - `kg.attr.links-proposed-per-type` — **[GAP]** (#4758, #3528) Wikidata and GeoNames candidates
   are proposed for places, Wikidata and the project's own list for people and organisations,
   from the authority sheet, confirmed by a person, kept apart from what the pages say
   (`kg-enrichment.md`, `gazetteer.links-proposed-confirmed`).
 
 ### E. Review lenses
+
+The Mac review surfaces themselves (layout, verbs in place, keyboard flow, the flagged group,
+progress) are a first-class spec of their own, `../ui/review-names-and-statements.md`, with its
+own build stage (Stage 6). The lenses below are the data they read.
 
 - `kg.lens.folder-names` — **[GAP]** (#4978, #2020, #4885) selecting a folder (or box, or
   project) and the Entities kind shows that scope's names in three lists, people, places and
@@ -480,14 +505,14 @@ values alone; never a batch rewrite of a person's work.
 - Size: M
 
 #### Step 3.2 — The authority sheet and its export (#5380, #5603)
-- Behaviours: `kg.attr.authority-sheet`, `kg.attr.authority-sheet-export`, `kg.lens.one-name`
+- Behaviours: `kg.attr.authority-sheet`, `kg.attr.authority-sheet-export`, `kg.lens.one-name`, `kg.attr.person-fields`, `kg.attr.place-fields`
 - Tests: fichero-server/tests/unit/api/test_authority_sheet_route.py, fichero-server/tests/unit/api/test_authority_sheet_export_rows.py, fichero/Tests/Unit/general/Views/Reader/AuthoritySheetInReaderTests.swift
 - Depends on: 3.1
 - Size: M
 
 #### Step 3.3 — Links proposed per type (#4758, #3528)
-- Behaviours: `kg.attr.links-proposed-per-type`
-- Tests: fichero-server/tests/unit/kg/test_authority_links_proposed_per_type.py
+- Behaviours: `kg.attr.links-proposed-per-type`, `kg.attr.sheets-are-views`
+- Tests: fichero-server/tests/unit/kg/test_authority_links_proposed_per_type.py, fichero-server/tests/unit/api/test_person_and_place_sheets_are_views_of_entities.py
 - Depends on: 3.2
 - Size: S
 
@@ -523,6 +548,8 @@ values alone; never a batch rewrite of a person's work.
 - Size: M
 
 ### Stage 5 — Graph views on reviewed names
+
+(Stage 6, the review surfaces, is in `../ui/review-names-and-statements.md`; it depends on stages 1 and 2.)
 
 #### Step 5.1 — Named edge rules with evidence; GEXF and GraphML out (#5032, #5034)
 - Behaviours: `kg.graph.edge-rule-is-named`, `kg.graph.export-first`
@@ -597,7 +624,10 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
   `catalogue_places` and `catalogue_institutions`, with no model call
   (`kg.attr.folder-names-are-attributes`).
 - The authority sheets come from the catalogue rows, with the graph's canonical name
-  (`kg.attr.authority-sheet`).
+  (`kg.attr.authority-sheet`); the team's Personas and Lugares sheets give the person and place
+  fields the canonical entities carry (`kg.attr.person-fields`, `kg.attr.place-fields`,
+  `kg.attr.sheets-are-views`). How a person reviews is a first-class UX question:
+  `../ui/review-names-and-statements.md`.
 - Merges are proposed, never automatic unless unmistakable: identical after accents and marked
   abbreviations are normalised, same type, on the same pages or folder
   (`kg.resolve.unmistakable-auto-merge`). Anything unclear, such as a gender variant of a given
