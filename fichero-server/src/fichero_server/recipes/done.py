@@ -649,8 +649,9 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
     taken = False  # as in `todo_counts`
     for card in plan.get("runs", []):
-        in_run = taken and card.get("job") in _PAGE_IMAGE_JOBS
-        taken = taken or bool(redo and redo.intersection(card["steps"]) and card.get("job") in _PAGE_IMAGE_JOBS)
+        redone = bool(redo and redo.intersection(card["steps"]) and card.get("job") in _PAGE_IMAGE_JOBS)
+        in_run = (taken or redone) and card.get("job") in _PAGE_IMAGE_JOBS  # the redone step reads them too
+        taken = taken or redone
         pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
