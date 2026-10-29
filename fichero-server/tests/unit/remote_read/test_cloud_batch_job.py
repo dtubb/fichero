@@ -343,18 +343,19 @@ def test_the_recipe_runner_sends_a_batch_step_to_the_batch_and_every_other_place
 def test_the_estimate_prices_a_step_that_goes_as_a_batch_at_the_batch_price(monkeypatch):
     """WHY (`compute.recipe.cloud-batch-consent-and-cost`): the sheet shows what the person will be billed: a step the
     plan sends as a batch at the batch price, said so; under 100 pages, the listed rate, as before."""
-    from fichero_server.llm import spend
     from fichero_server.recipes import start
 
-    monkeypatch.setattr(start, "_TOKENS_IN", 1000)
-    monkeypatch.setattr(start, "_TOKENS_OUT", 100)
+    # A page read sends the page image (`source.onboard.estimate-counts-the-image`, #6265), batch or not: Claude's capped
+    # image is 3,600 tokens in and 400 out a page. 100 pages: 360,000 in, 40,000 out; Sonnet 4.5 lists $3 / $15 a million
+    # tokens, so $1.08 + $0.60 = $1.68 at the list rate, and exactly half of it, $0.84, at the batch price.
     step = {"workflow": "Transcribe HTR", "steps": ["read"], "job": "read-a-page", "runs_on": "cloud:anthropic",
             "provider_override": "anthropic", "model_override": "claude-sonnet-4-5"}
     (batch,) = start.estimate([step], 100)["runs"]
     assert batch["basis"] == "the batch price, answered within a day"
-    assert batch["cost_usd"] == pytest.approx(spend.batch_cost_usd("anthropic", "claude-sonnet-4-5", 100_000, 10_000))
+    assert batch["cost_usd"] == pytest.approx(0.84, abs=1e-9)
     (plain,) = start.estimate([step], 99)["runs"]
     assert plain["basis"] == "the model's listed rate"
+    assert plain["cost_usd"] == pytest.approx(99 * 0.0168, abs=1e-9)
     assert batch["cost_usd"] < plain["cost_usd"] * 100 / 99
 
 
