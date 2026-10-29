@@ -1458,6 +1458,16 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
 
         kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
         blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
+        if blank and redo.intersection(card["steps"]):
+            # A redo reads what sorting called blank: a skip is never silent and a person can always have a page
+            # read. A page a person called blank stays out.
+            from fichero_server.models import Document as _Doc
+
+            read = [d for d in blank if ((getattr(db.get(_Doc, d), "attributes", None) or {}).get(sorting.SET_BY)
+                                         != sorting.BY_PERSON)]
+            for d in read:
+                kinds.pop(d, None)
+            blank = [d for d in blank if d not in read]
         if blank:
             documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
             scratch["blank_versos"] = len(blank)
@@ -1538,7 +1548,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
             if step["state"] == "waiting":
-                left = len(scratch.get("left_out") or [])  # pages left out are not pages done (#6271)
+                left = len(step.get("left_out") or [])  # the run's total for the step, not this batch's; left out is not done (#6271)
                 step.update(state="done", child_id=None, why=(
                     f"nothing to run: {left} page{'' if left == 1 else 's'} left out, the rest already done" if left and already
                     else f"nothing to run: all {left} page{'' if left == 1 else 's'} left out as blank" if left

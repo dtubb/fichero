@@ -53,3 +53,51 @@ def test_the_plan_says_how_many_pages_it_leaves_out_as_blank(client, db, tmp_pat
     plan = {"runs": [card]}
     done.annotate(db, plan, within=set(every))
     assert f"{len(versos)} left out as blank" in card["note"] and "runs on all" not in card["note"]
+
+
+def _blank_run(db, tmp_path, monkeypatch, by, redo):
+    """Run find-lines over the blank versos, each marked blank `by`; returns (pages sent, the step)."""
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    versos = sorted(finddocs_job.blank_versos(db, list(ids.values())))
+    for pid in versos:
+        doc = db.get(Document, pid)
+        doc.attributes = {sorting.KIND: sorting.BLANK, sorting.SET_BY: by}
+        db.save(doc)
+    sent: list = []
+    monkeypatch.setattr(runner, "_run_workflow",
+                        lambda db_, card, documents, parent, adopt=None: (sent.append(list(documents)), ("thread", "done", None))[1])
+    card = {"steps": ["find-lines"], "job": "find-lines", "card": "workflow", "workflow": "w", "workflow_id": "w",
+            "provider_override": None, "model_override": None, "takes": ["images"], "gives": ["lines"]}
+    job_id = runner.enqueue(db, {"runs": [card], "skipped": []}, documents=versos, started_by="owner", redo=redo)
+    _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
+    return versos, sent, runner.run(db, subject)["steps"][0]
+
+
+def test_a_redo_reads_the_pages_sorting_called_blank(client, db, tmp_path, jobs_run_by_the_test, monkeypatch):
+    from fichero_server.recipes import sorting
+
+    versos, sent, _step = _blank_run(db, tmp_path, monkeypatch, sorting.BY_SORTING, ["find-lines"])
+
+    assert sent and set(sent[0]) == set(versos)
+
+
+def test_a_redo_still_leaves_out_a_page_a_person_called_blank(client, db, tmp_path, jobs_run_by_the_test, monkeypatch):
+    from fichero_server.recipes import sorting
+
+    versos, sent, step = _blank_run(db, tmp_path, monkeypatch, sorting.BY_PERSON, ["find-lines"])
+
+    assert not sent
+    assert {e["page_id"] for e in step["left_out"]} == set(versos)
+
+
+def test_a_normal_run_leaves_sorting_blank_pages_out_and_says_so(client, db, tmp_path, jobs_run_by_the_test, monkeypatch):
+    from fichero_server.recipes import sorting
+
+    versos, sent, step = _blank_run(db, tmp_path, monkeypatch, sorting.BY_SORTING, [])
+
+    assert not sent and {e["page_id"] for e in step["left_out"]} == set(versos)
