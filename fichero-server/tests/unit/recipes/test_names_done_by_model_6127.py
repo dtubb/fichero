@@ -6,6 +6,8 @@ the other pages carried the import-time spaCy draft (es_core_news_sm), which cou
 
 from __future__ import annotations
 
+import pytest
+
 from fichero_server.models import DocType, Document, FileType, KnowledgeEntity
 from fichero_server.recipes import done
 from fichero_server.workflows.tools._entity_writer import run_attribution
@@ -108,7 +110,7 @@ def test_a_name_on_many_pages_is_one_step_not_one_per_page(client, db):
 # --- an older entry that names no page counts for the pages its run covered (#6285) ---
 
 
-def _run(db, run_id, pages):
+def _run(db, run_id, pages, status="completed"):
     """The workflow run's record, with the pages the server resolved it to (what `pages_a_run_did` cannot see for a
     run that was not a recipe step)."""
     from datetime import datetime, timezone
@@ -117,7 +119,7 @@ def _run(db, run_id, pages):
 
     records.upsert_run(db, thread_id=run_id, workflow_id="w", workflow_name="names", python_code=None, execution_log=None,
                        workflow_snapshot=None, node_name_map=None, progress_timeline=None, diagram_mermaid=None,
-                       status="completed", started_at=datetime.now(timezone.utc),
+                       status=status, started_at=datetime.now(timezone.utc),
                        resolved_scope={"resolved_ids": list(pages), "resolved_count": len(pages)}, estimated_cost=None)
 
 
@@ -135,6 +137,27 @@ def _library_with_old_sonnet_entry(db, run_id):
 def test_an_older_entry_naming_no_page_counts_only_for_the_pages_its_run_covered(client, db):
     pages = _library_with_old_sonnet_entry(db, "run-old")
     _run(db, "run-old", pages[:1])
+    todo, finished = _todo(db, pages)
+    assert (len(todo), finished) == (9, 1)
+    assert pages[0] not in todo
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled", "stopped"])
+def test_a_run_that_did_not_complete_does_not_mark_its_unreached_pages_done(client, db, status):
+    """Sonnet read page 1 and the run died / was stopped at page 2: its scope was all 10 pages, but 8 were never read.
+    The older entry names no page, so none of the scope counts: 10 to do, 0 done."""
+    pages = _library_with_old_sonnet_entry(db, "run-died")
+    _run(db, "run-died", pages, status=status)
+    todo, finished = _todo(db, pages)
+    assert (len(todo), finished) == (10, 0)
+
+
+def test_a_page_a_failed_run_named_stays_done_and_the_rest_are_read_again(client, db):
+    pages = _library_with_old_sonnet_entry(db, "run-died")
+    other = KnowledgeEntity(canonical_name="Ana", source_document_ids=[pages[0]])
+    other.add_attribution({**run_attribution("anthropic", SONNET, "run-died"), "document_id": pages[0]})
+    db.save(other)
+    _run(db, "run-died", pages, status="failed")
     todo, finished = _todo(db, pages)
     assert (len(todo), finished) == (9, 1)
     assert pages[0] not in todo

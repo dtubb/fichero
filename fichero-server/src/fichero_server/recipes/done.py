@@ -540,18 +540,22 @@ def names_model(db: Any, card: dict[str, Any]) -> str | None:
 
 
 def pages_a_workflow_run_covered(db: Any, run_id: str | None) -> set[str] | None:
-    """The pages the server resolved a workflow run to (its record's `resolved_scope`, whoever started it: a recipe step or not);
-    None when that cannot be told: no run id, no record, a run from before the scope was kept, or a scope cut short."""
+    """The pages the server resolved a workflow run to (its record's `resolved_scope`, whoever started it: a recipe step or not),
+    for a COMPLETED run only: a failed or stopped run read an unknown part of its scope, so none of it counts (its unreached pages
+    are read again; the pages it named stay done by their own entries). None when that cannot be told: no run id, no record, a
+    run from before the scope was kept, or a scope cut short."""
     if not run_id:
         return None
     from fichero_server.db import activity_records as records
 
-    row = records.get_run(db, str(run_id))
-    scope = row[records.RUN_COLUMNS.index("resolved_scope")] if row is not None else None
+    row = records.get_run_scope(db, str(run_id))
+    scope = row[0] if row is not None else None
     if isinstance(scope, str):
         scope = json.loads(scope) if scope else None
     if not isinstance(scope, dict) or scope.get("resolution_error") or scope.get("resolved_ids_truncated"):
         return None
+    if row[1] != "completed":
+        return set()
     ids = scope.get("resolved_ids")
     return {str(i) for i in ids} if isinstance(ids, list) and ids else None
 
