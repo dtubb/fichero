@@ -58,7 +58,7 @@ def test_spanish_thousands_punctuation_is_read_as_a_year():
 
 
 def test_a_year_in_digits_and_words_gives_one_year():
-    assert _span("año 1.909 – mil novecientos nueve") == ("1909", "1909")
+    assert _span("1.909 – febrero de mil novecientos nueve") == ("1909", "1909")
     assert _span("mil ochocientos noventa") == ("1890", "1890")
 
 
@@ -82,7 +82,7 @@ def test_normalised_date_of_spanish_thousands_years():
 
 
 def test_normalised_date_of_one_year_written_twice_is_one_date():
-    assert _norm("año 1.909 – mil novecientos nueve") == "1909"
+    assert _norm("1.909 – febrero de mil novecientos nueve") == "1909"
 
 
 def test_normalised_date_of_a_dropped_one_year():
@@ -160,7 +160,10 @@ NOT_YEARS = ["pesos 1.918", "1.918 pesos", "$1.918", "1.918,50", "suma de 1.895"
              "de 1.850 a 1.900 pesos", "1.850-1.900 reales", "1.850 - 1.900 pesos", "1.900 a 1.950 pesos", "1.918 - 1.920 pesos",
              "1.909 a 1.918 reales", "Suma 1.918", "Total 1.900", "Valor 1.912", "Importe 1.850", "Folio 1.910", "Saldo 1.850",
              "Cuenta 1.906", "Recibo 1.912", "Partida 1.850", "Total, 1.900",
-             "pesos 1.850 a 1.900", "1.850 a 1.900 ($)", "1.850 a 1.900 de pesos", "Suma de 1.850 a 1.900", "valor de 1.850 a 1.900"]
+             "marzo 1.900 (pesos)", "marzo 1.900 en pesos", "marzo 1.900 d\u00f3lares", "marzo 1.900 ps", "marzo 1.900 kg",
+             "marzo 1.900 toneladas", "marzo 1.900 cabezas", "marzo 1.900 reses", "marzo 1.900 metros", "marzo 1.900 hect\u00e1reas",
+             "marzo 1.900 fanegadas", "en marzo 1.850 de pesos", "mayo de 1.900 a 1.950 pesos",
+             "a\u00f1os 1.900 a 1.950 cabezas de ganado", "pesos 1.850 a 1.900", "1.850 a 1.900 ($)", "1.850 a 1.900 de pesos", "Suma de 1.850 a 1.900", "valor de 1.850 a 1.900"]
 ONLY_THE_YEAR = {"885 pesos 1890": "1890", "1910 - 12 hojas": "1910", "1910 \u2013 25 fojas": "1910"}  # the count adds no year
 YEARS = {"Marzo 4 de 1.918": ("1918", "1918"), "4 de marzo de 1.918": ("1918", "1918"), "marzo 1.918": ("1918", "1918"),
          "a\u00f1o de 1.910": ("1910", "1910"), "del a\u00f1o 1.915": ("1915", "1915"),
@@ -170,9 +173,12 @@ YEARS = {"Marzo 4 de 1.918": ("1918", "1918"), "4 de marzo de 1.918": ("1918", "
 #: Known gaps (#6283): a dotted year with no month or "a\u00f1o" before it is not read, as it cannot be told from an amount.
 KNOWN_GAPS = ["1.909 - 1.918", "1.909-1.918", "1.909 a 1.918", "en 1.912", "de 1.918", "Bogot\u00e1, 1.918",
               "1.906 - 1.918 [120 folios]", "1.909 - 1.918, 120 folios"]
+B12_FORMS = {"1.909 \u2013 febrero de mil novecientos nueve": ("1909", "1909"), "1.909 \u2013 mil novecientos nueve": ("1909", "1909")}
 
 
 def test_money_and_counts_give_no_year_and_real_dates_are_read():
+    for text, span in B12_FORMS.items():  # the dotted side is unread; the other side's date stands
+        assert _span(text) == span and _norm(text) == "1909", text
     for text in KNOWN_GAPS:
         assert "catalogue_date_start" not in parse_fields(f"Dates: {text}"), text
     for text in NOT_YEARS:

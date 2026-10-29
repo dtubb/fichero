@@ -201,13 +201,24 @@ _UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|usd|kilos?|libras|m2
 # Any other dotted number ("pesos 1.918", "1.850 a 1.900") stays a number, and so does one a unit follows ("marzo 1.918 pesos").
 _MONTHS_ES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
 _DOTTED_YEAR = re.compile(
-    r"(\b(?:(?:" + _MONTHS_ES + r")\s+(?:\d{1,2}\s+)?|años?\s+)(?:de\s+|del\s+)?)"
-    r"((?:1\.[89]\d{2}|2\.0\d{2}))(?!\d)(?![.,]\d)(?!\s*" + _UNIT + r"(?!\w))", re.I)
+    r"(\b(?:(?:" + _MONTHS_ES + r")\s+(?:\d{1,2}\s+)?|años?\s+)(?:de\s+|del\s+)?)((?:1\.[89]\d{2}|2\.0\d{2}))(?!\d)(?![.,]\d)", re.I)
+# what may follow it (and the last number of a range it starts: "1.900 a 1.950"): the end, punctuation, a joining word, or a
+# "de <month>"; anything else ("pesos", "en pesos", "cabezas") makes the whole range an amount, so no year in it is read
+_RANGE_TAIL = re.compile(r"\s*(?:a|al|hasta|[-\u2013\u2014])\s*(?:de\s+)?\d[\d.,]*")
+_FOLLOW = re.compile(r"\s*(?:$|[,;.:)\]\u2013\u2014/-]|(?:y|e|a|al|hasta)\b|de\s+(?:" + _MONTHS_ES + r")\b|\((?!\s*" + _UNIT + r"))", re.I)
+# a number written like a dotted year, in a range side: the side is not "a side with no year" (see `_date_range`)
+_DOTTED_LIKE = re.compile(r"(?<!\d)(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)")
 
 
 def _dedot(text: str) -> str:
-    """The dotted years of a Dates text without the dot (only straight after a month name or "año(s)")."""
-    return _DOTTED_YEAR.sub(lambda m: m.group(1) + m.group(2).replace(".", ""), text)
+    """The dotted years of a Dates text without the dot (only straight after a month name or "año(s)", and only when nothing
+    but an allowed follower comes after it or the range it starts)."""
+    def one(m: re.Match) -> str:
+        tail = _RANGE_TAIL.match(text, m.end())
+        if not _FOLLOW.match(text, tail.end() if tail else m.end()):
+            return m.group(0)
+        return m.group(1) + m.group(2).replace(".", "")
+    return _DOTTED_YEAR.sub(one, text)
 
 
 # "del 914", "de 914", "a 914", "al 914": a year with the 1 dropped is named as a date, never as a bare number
@@ -275,8 +286,8 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     """(start, end) years of a Dates field, or None when a range's first side names no year: the end then stands alone, and
     to put it down as the start too (1918 for "... seis - ... 1918") says something the text does not (#6270)."""
     sides = _sides(dates)
-    if len(sides) == 2 and not _years(sides[0]):
-        return None
+    if len(sides) == 2 and not _years(sides[0]) and not _DOTTED_LIKE.search(sides[0]):
+        return None  # (a side that is only a dotted number is not read, but the other side's date stands: "1.909 - mil novecientos nueve")
     years = _years(dates)
     return (min(years), max(years)) if years else None
 
