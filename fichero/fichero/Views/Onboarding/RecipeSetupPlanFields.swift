@@ -234,6 +234,13 @@ struct RecipeStartFields: View {
             if let plan = store.startPlan {
                 Text("For the pages already here: \(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
                     .font(.headline)
+                // The project's cloud cap beside the estimate, set here (`ai.where.cloud-spend-cap`).
+                if let cap = plan.cloudCap { RecipeCloudCapRow(store: store, line: cap) }
+                // What Start changed in the saved recipe to fit kept choices (a page reader added the page step, a stale
+                // choice dropped): said once, never a refusal (`source.recipe.page-reader-is-an-add-on`, #6259).
+                ForEach(plan.notes ?? [], id: \.self) { note in
+                    Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                }
                 // In words, never the engine's raw message (section 7d, `source.onboard.ready.words-not-engine-errors`).
                 // A refusal that names a step sits in that step's box (#5840), so only the others are here.
                 let stepIds = Set((store.recipe?.steps ?? []).map(\.id))
@@ -271,6 +278,51 @@ struct RecipeStartFields: View {
     static func cost(_ value: Double?) -> String {
         guard let value else { return "price unknown" }
         return value == 0 ? "free, runs on this Mac" : value.formatted(.currency(code: "USD"))
+    }
+}
+
+/// The cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943): the engine's `cloud_cap` line in
+/// words, and the cap to set (`answers.cloud_spend_cap_usd`). Saved, then the plan is read again: it says whether Start asks.
+struct RecipeCloudCapRow: View {
+    @Bindable var store: RecipeSetupStore
+    let line: Components.Schemas.CloudCapLine
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Cloud spend a month, at most")
+                // The engine refuses a cap below $0, so the field never holds one.
+                TextField("10", value: Binding(get: { store.cloudSpendCapUsd ?? line.capUsd },
+                                               set: { store.cloudSpendCapUsd = $0.map { max($0, 0) } }),
+                          format: .currency(code: "USD"))
+                    .multilineTextAlignment(.trailing).frame(maxWidth: 90)
+                    .focused($focused)
+                    .onSubmit { Task { await save() } }
+                    .onChange(of: focused) { _, isFocused in if !isFocused { Task { await save() } } }
+                    .accessibilityIdentifier("setup.cloudCap")
+            }
+            Text(Self.words(line)).font(.caption).foregroundStyle(line.over ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let note = line.note {  // e.g. a model with no listed price is run at an assumed one (#6259)
+                Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func save() async {
+        guard store.recipe != nil, store.cloudSpendCapUsd != nil, store.cloudSpendCapUsd != line.capUsd else { return }
+        if await store.save() { await store.loadStartPlan(folderId: store.startPlanFolderId) }
+    }
+
+    /// What the cap leaves against the estimate, in words. Pure, for the tests.
+    nonisolated static func words(_ line: Components.Schemas.CloudCapLine) -> String {
+        func usd(_ value: Double) -> String { value.formatted(.currency(code: "USD")) }
+        let month = "\(usd(line.spentUsd)) spent this month, \(usd(line.remainingUsd)) left"
+        guard let estimate = line.estimateUsd else { return "\(month). This run's cloud cost is not known yet." }
+        return line.over
+            ? "\(month). This run may cost \(usd(estimate)), more than that: Start asks first."
+            : "\(month). This run may cost \(usd(estimate))."
     }
 }
 

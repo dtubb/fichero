@@ -47,6 +47,24 @@ def test_jobs_say_which_read_the_material(client):
     assert {j for j, reads in jobs.items() if reads} == {"read-a-line", "read-a-page"}
 
 
+#: Setup's step rows the owner found with no choice of model (#6254, #6258): each runs a model a person can choose.
+MODEL_STEPS = ("find-lines", "read-a-line", "correct", "find-names-tag-words", "find-statements",
+               "translate-transliterate-normalise", "describe-for-the-catalogue", "split-into-entries")
+
+
+def test_every_model_step_says_it_needs_a_model_and_the_finder_lists_more_than_one(client):
+    """Setup offers the finder beside a step by the registry's `needs_a_model`, never a list kept in the app (it named
+    only the readers, Find Regions and Correct, so Find names showed spaCy alone). The finder answers each with more
+    than one model the engine can run; a job that runs no model says so."""
+    jobs = {j["id"]: j["needs_a_model"] for j in client.get("/api/recipes/jobs").json()["items"]}
+    assert all(jobs[j] for j in MODEL_STEPS), {j: jobs[j] for j in MODEL_STEPS}
+    assert not jobs["put-in-order"]
+    for job in MODEL_STEPS[2:]:  # the text steps (the line finder's list is the bundled Kraken where nothing else runs)
+        listed = client.get("/api/recipes/candidates", params={"job": job, "scripts": "Latn", "languages": "es",
+                                                               "cloud_allowed": True, "worth_only": True}).json()["items"]
+        assert len(listed) > 1, (job, [i["id"] for i in listed])
+
+
 def test_any_candidate_becomes_the_steps_reader_audited_and_undoable(client, db, pages, mac):
     """"Use for This Step" on any candidate: the step reads with it, kept as the project's override (as use-instead
     and Use This keep theirs); the Start plan then offers its download; one undo restores the step."""
@@ -72,7 +90,7 @@ def test_any_candidate_becomes_the_steps_reader_audited_and_undoable(client, db,
 
 
 def test_use_candidate_refuses_in_words(client, db, pages, mac):
-    """A card Fichero has not found, a step the recipe lacks, or a card that does not do the step's job is refused."""
+    """A card Fichero has not found, or a step the recipe lacks, is refused; a page reader on the line step adds the page step."""
     _save(client, _recipe(None, LINES, READ), cloud_allowed=False)
     page_only = next(i for i in _candidates(client) if "read-a-line" not in i["jobs"])
     post = lambda body: client.post("/api/recipes/project/steps/use-candidate", json=body)  # noqa: E731
@@ -80,5 +98,7 @@ def test_use_candidate_refuses_in_words(client, db, pages, mac):
     assert r.status_code == 422 and "not a model Fichero has found" in r.json()["detail"]
     r = post({"step": "nope", "card": page_only["id"]})
     assert r.status_code == 422 and "no step 'nope'" in r.json()["detail"]
+    # A page reader on the line step is no longer refused: it adds the page step (#6250 ruling 3, #6259).
     r = post({"step": "read", "card": page_only["id"]})
-    assert r.status_code == 422 and "does not do the step 'read'" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert "read-a-page" in [s["job"] for s in r.json()["recipe"]["steps"]]

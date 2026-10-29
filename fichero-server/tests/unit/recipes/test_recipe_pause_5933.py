@@ -9,6 +9,7 @@ unread.
 from __future__ import annotations
 
 
+from tests._this_thread import sleep_here
 import pytest
 
 from fichero_server.execution import jobs
@@ -82,7 +83,7 @@ def test_a_joined_run_that_pauses_parks_the_recipe_too(monkeypatch):
 
     answers = iter([("running", None), ("paused", None), ("paused", None)])
     monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: next(answers))
-    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(runner.time, "sleep", sleep_here(lambda seconds: None))
     monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
     monkeypatch.setattr(engine_runner, "_get_workflow_state", lambda thread: {"workflow_name": "Read"})
     with pytest.raises(runner.ParkedOnStepRun):
@@ -107,7 +108,7 @@ def test_taking_up_a_parked_recipe_adopts_its_run_still_paused_it_parks_again_en
     from fichero_server.api.routes.workflow import chains
 
     monkeypatch.setattr(runner, "_stop_asked", lambda job: False)
-    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(runner.time, "sleep", sleep_here(lambda seconds: None))
     monkeypatch.setattr(chains, "_step_run_outcome", lambda thread: ("paused", None))
     with pytest.raises(runner.ParkedOnStepRun):
         runner._run_workflow(None, {}, [], "recipe-1", adopt="thread-9")  # still paused: park again, start nothing new

@@ -7,12 +7,14 @@ parent KILL the child; the next call starts a new one. Nothing is left stuck, th
 timed out fails in words.
 
 Forked, not exec'd, for the reason `db/embed_process.py` gives: the shipped engine has no Python of its own, and re-execing
-its sandboxed stub hangs. The parent already has the ObjC runtime loaded (importing `vision_base` pulls in Quartz, as
-`media/quartz_warm` and the page renderers do), so the child is started with OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES, as
-the embedder's is; whether real Vision survives that fork is checked on the M4. `FICHERO_APPLE_VISION_START=spawn` execs a
+its sandboxed stub hangs. The child is forked from the seed the engine made at its start, before any thread
+(`embed_process.fork_from_seed`, #6237), so it inherits no thread of the running engine; without a seed (a test) the engine
+forks it itself. The app launches the engine with OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES, and the child sets it too;
+whether real Vision survives that fork is checked on the M4. `FICHERO_APPLE_VISION_START=spawn` execs a
 child instead (a dev engine, which has a Python). The parent never imports `Vision` itself: only the child runs the calls.
 
-This module imports nothing heavy, so the gate can load it without the ObjC runtime.
+This module imports nothing heavy itself, but its package (`workflows.tools`) loads PyObjC: a seed child that imports it
+fresh needs OBJC_DISABLE_INITIALIZE_FORK_SAFETY set at the engine's launch, as the app sets it.
 """
 from __future__ import annotations
 
@@ -93,6 +95,14 @@ class VisionWorker:
 
     def _start(self) -> None:
         method = os.environ.get("FICHERO_APPLE_VISION_START", "fork")
+        if method != "spawn":  # forked by the seed made at the engine's start, never by the running engine (#6237)
+            from fichero_server.db.embed_process import fork_from_seed
+
+            seeded = fork_from_seed((__name__, "_serve"), ())
+            if seeded is not None:
+                self._conn, self._process = seeded
+                self.starts += 1
+                return
         context = multiprocessing.get_context("spawn" if method == "spawn" else "fork")
         self._conn, child = context.Pipe(duplex=True)
         self._process = context.Process(target=_serve, args=(child,), daemon=True)

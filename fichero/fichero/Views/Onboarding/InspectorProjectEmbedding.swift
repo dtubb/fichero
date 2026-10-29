@@ -92,3 +92,55 @@ struct EmbeddingChangeSheet: View {
 #Preview("Change embedding model") {
     EmbeddingChangeSheet(store: EmbeddingChangeStore(client: FicheroClient(libraryPath: nil)), done: {})
 }
+
+/// The Search step's one "Search model" menu (`search.embedding.chosen-at-project-creation`, #6249): chosen once, here,
+/// and kept for the project. While the project holds no vectors a pick is saved at once (`EmbeddingChangeStore.choose`);
+/// after that the model is said and changing it is the re-embed run, with its plan first.
+struct SetupSearchModelField: View {
+    let client: FicheroClient
+    @State private var store: EmbeddingChangeStore?
+    @State private var changing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let store, let current = store.current {
+                if current.changeable {
+                    LabeledContent("Search model") {
+                        Picker("Search model", selection: Binding(get: { current.model },
+                                                                  set: { model in Task { await store.choose(model) } })) {
+                            ForEach(store.choices) { choice in
+                                Text(choice.recommended ? "\(choice.name) (recommended)" : choice.name).tag(choice.model)
+                            }
+                        }
+                        .labelsHidden()
+                        .accessibilityIdentifier("setup.search.model")
+                    }
+                } else {
+                    HStack {
+                        Text("Search model: \(EmbeddingModelChoice.name(of: current.model, in: store.choices))")
+                        Button("Change…") { changing = true }.controlSize(.small)
+                    }
+                }
+                Text(Self.blurb(model: current.model, in: store.choices))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let error = store.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(.orange)
+                }
+            }
+        }
+        .task {
+            let made = EmbeddingChangeStore(client: client)
+            store = made
+            await made.load()
+        }
+        .sheet(isPresented: $changing) {
+            if let store { EmbeddingChangeSheet(store: store, done: { changing = false }) }
+        }
+    }
+
+    /// The chosen model's one line and what a later change costs. Pure, for the tests.
+    static func blurb(model: String, in choices: [EmbeddingModelChoice]) -> String {
+        let line = choices.first { $0.model == model }?.blurb ?? ""
+        return (line.isEmpty ? "" : line + " ") + "Changing it later means embedding every page again."
+    }
+}

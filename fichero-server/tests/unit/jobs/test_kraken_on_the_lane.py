@@ -297,6 +297,38 @@ def test_economy_htr_reads_its_kraken_page_on_the_lane(test_package, tmp_path, m
     assert _rows(db) == [("read-a-line", "p.png", "kraken:kraken-mccatmus", "done", None)]
 
 
+def test_stop_reaches_economy_htrs_kraken_page(test_package, tmp_path, monkeypatch):
+    """WHY (#4402, `activity.run.stop-reaches-in-flight-calls`): economy HTR handed its Kraken page to the lane with no
+    run, so Stop never reached it; and its per-file catch would have turned the stop into the file's error."""
+    import fichero_server.llm.kraken_runtime as kraken_runtime
+    from fichero_server.execution.cancellation import (
+        WorkflowCancelled, clear_cancellation, request_cancellation)
+    from fichero_server.workflows.tools.economy_htr import economy_htr_file
+
+    started, gate = threading.Event(), threading.Event()
+
+    def reading(image_path, model_path):
+        started.set()
+        gate.wait(10)
+        return {"lines": [{"text": "vecino"}]}
+
+    monkeypatch.setattr(kraken_runtime, "recognize_lines", reading)
+    monkeypatch.setattr(kraken_runtime, "resolve_recognition_model",
+                        lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
+    png = _png(tmp_path / "p.png")
+    with concurrent.futures.ThreadPoolExecutor(1) as pool:
+        page = pool.submit(economy_htr_file, str(png), backend="kraken", kraken_model_path="kraken-mccatmus",
+                           library_path=str(test_package), run_id="run-economy")
+        try:
+            assert started.wait(10)
+            request_cancellation("run-economy")
+            with pytest.raises(WorkflowCancelled):
+                page.result(3)
+        finally:
+            gate.set()
+            clear_cancellation("run-economy")
+
+
 class TestStopReachesAPageWaitingForTheLane:
     @pytest.mark.asyncio
     async def test_stop_cancels_a_waiting_page_and_ends_the_step_as_stopped(self, test_package, tmp_path, monkeypatch):
@@ -333,10 +365,13 @@ class TestStopReachesAPageWaitingForTheLane:
             "cancelled", "Stopped by you")
 
     @pytest.mark.asyncio
-    async def test_a_page_already_running_is_waited_for(self, db, test_package):
-        """WHY: a Kraken call cannot be interrupted midway yet (#4402); stopping must not leave
-        it orphaned, writing into a run that thinks it has ended. The waiter keeps its result."""
-        from fichero_server.execution.cancellation import clear_cancellation, request_cancellation
+    async def test_stop_does_not_wait_for_a_page_already_running(self, db, test_package):
+        """WHY (#4402, `activity.run.stop-reaches-in-flight-calls`): a Kraken page is C code on a thread and cannot be
+        interrupted, and Stop waited for it (39 s on the M4, minutes on a 4-core Mac). The run now stops at once and the
+        page's result is dropped (the page wrote nothing: its caller saves what it returns); the page goes on to its end
+        on the lane, inside Kraken's own page gate, so memory is never doubled."""
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, clear_cancellation, request_cancellation)
 
         started, gate = threading.Event(), threading.Event()
 
@@ -350,10 +385,71 @@ class TestStopReachesAPageWaitingForTheLane:
         try:
             await asyncio.to_thread(started.wait, 10)
             request_cancellation("run-busy")
-            await asyncio.sleep(0.6)
-            assert not waiting.done()
+            with pytest.raises(WorkflowCancelled):
+                await asyncio.wait_for(waiting, 3)
+            row = "SELECT state FROM jobs WHERE subject = 'busy'"
+            assert db.execute_fetchone(row) == ("running",), "the page goes on to its end on the lane"
             gate.set()
-            assert await asyncio.wait_for(waiting, 10) == "lines"
+            for _ in range(100):
+                if db.execute_fetchone(row) != ("running",):
+                    break
+                await asyncio.sleep(0.05)
+            assert db.execute_fetchone(row) == ("cancelled",), "its result was dropped: the page did not finish"
         finally:
             gate.set()
             clear_cancellation("run-busy")
+
+    @pytest.mark.asyncio
+    async def test_a_dropped_page_that_is_then_deferred_ends_cancelled_never_waiting(self, db, test_package):
+        """WHY (#4402): a page Stop dropped that then raises JobDeferred must not go back to waiting (and later end done)."""
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, clear_cancellation, request_cancellation)
+
+        started, gate = threading.Event(), threading.Event()
+
+        def page():
+            started.set()
+            gate.wait(10)
+            raise jobs.JobDeferred("later")
+
+        waiting = asyncio.ensure_future(jobs.run_on_lane(
+            str(test_package), "find-lines", "busy-deferred", model="kraken:blla", fn=page, run_id="run-deferred"))
+        try:
+            await asyncio.to_thread(started.wait, 10)
+            request_cancellation("run-deferred")
+            with pytest.raises(WorkflowCancelled):
+                await asyncio.wait_for(waiting, 3)
+            gate.set()
+            row = "SELECT state FROM jobs WHERE subject = 'busy-deferred'"
+            for _ in range(100):
+                if db.execute_fetchone(row) != ("running",):
+                    break
+                await asyncio.sleep(0.05)
+            assert db.execute_fetchone(row) == ("cancelled",)
+        finally:
+            gate.set()
+            clear_cancellation("run-deferred")
+
+    def test_stop_does_not_wait_for_a_running_page_from_a_thread_either(self, db, test_package):
+        """The same for a synchronous caller (a recipe step's page, `run_on_lane_blocking`)."""
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, clear_cancellation, request_cancellation)
+
+        started, gate = threading.Event(), threading.Event()
+
+        def page():
+            started.set()
+            gate.wait(10)
+            return "lines"
+
+        with concurrent.futures.ThreadPoolExecutor(1) as pool:
+            waiting = pool.submit(jobs.run_on_lane_blocking, str(test_package), "find-lines", "busy-thread",
+                                  model="kraken:blla", fn=page, run_id="run-busy-thread")
+            try:
+                assert started.wait(10)
+                request_cancellation("run-busy-thread")
+                with pytest.raises(WorkflowCancelled):
+                    waiting.result(3)
+            finally:
+                gate.set()
+                clear_cancellation("run-busy-thread")

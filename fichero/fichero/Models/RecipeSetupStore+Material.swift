@@ -8,6 +8,18 @@ extension RecipeSetupStore {
     /// (Your Material's Continue waits for it, #5813).
     var hasMaterial: Bool { materialAdded != nil || (countedPages ?? 0) > 0 }
 
+    /// What the project already holds, said on Add Material so a project with its pages is not asked for them again
+    /// (#6252): "This project already has 12 pages (…). Adding more is optional." Nil while it holds none.
+    var materialAlreadyThere: String? {
+        Self.materialAlreadyThere(pages: countedPages, counted: startPlan?.estimate.counted)
+    }
+
+    static func materialAlreadyThere(pages: Int?, counted: String?) -> String? {
+        guard let pages, pages > 0 else { return nil }
+        let what = counted.map { " (\($0))" } ?? ""
+        return "This project already has \(pages) \(pages == 1 ? "page" : "pages")\(what). Adding more is optional."
+    }
+
     /// What a "no material yet" refusal says while this Set Up has already added something: the engine counts no page
     /// until the import lands, so the person is told the pages are on their way, not that there are none (review 208).
     static let pagesStillComingIn = "Your pages are still coming in; try again in a moment."
@@ -66,6 +78,9 @@ extension RecipeSetupStore {
         guard !urls.isEmpty else { return }
         isAddingMaterial = true
         defer { isAddingMaterial = false }
+        // Move is held until Start (#6245): the answer is saved first, so the engine copies and leaves the files where
+        // they are; a project deleted before Start never takes them with it.
+        if ingestMode == .move, !(await save()) { return }
         // Before the copy starts, off the main actor: a big folder is walked without stalling the window.
         copySpace = nil
         if ingestMode == .copy {

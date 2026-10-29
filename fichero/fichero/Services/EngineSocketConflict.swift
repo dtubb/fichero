@@ -22,12 +22,15 @@ enum EngineSocketConflict {
         case surface
     }
 
+    /// `contractDiffers`: the live engine speaks another API contract than this app (#6244), so Use it is
+    /// never taken -- the conflict stays up and the window offers only Stop it / Quit.
     static func decision(
-        socketLive: Bool, holderPID: Int?, pendingChoice: EmbeddedBackendService.PortConflictResolution?
+        socketLive: Bool, holderPID: Int?, pendingChoice: EmbeddedBackendService.PortConflictResolution?,
+        contractDiffers: Bool = false
     ) -> Decision {
         guard socketLive else { return .spawnOurs }
         switch pendingChoice {
-        case .useIt: return .adoptExisting
+        case .useIt: return contractDiffers ? .surface : .adoptExisting
         case .stopIt: return holderPID.map { .stopThenSpawn(pid: $0) } ?? .surface
         case nil: return .surface
         }
@@ -60,14 +63,22 @@ enum EngineSocketConflict {
         /// The app the engine runs from (`engine_owner`): a bundle path such as "/Applications/Fichero.app",
         /// or "dev external" for a script-started engine (7c00a47ed).
         var owner: String?
+        /// Its `contract` is not this app's (`ContractCompatibility`), or it did not say one (#6244).
+        var contractDiffers = false
+
+        /// Its health did not answer or did not decode: nothing named, and never adopted.
+        static let unreadable = LiveEngine(contractDiffers: true)
     }
 
-    /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid.
+    /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid. An engine
+    /// whose health cannot be read (an old schema, a timeout, not a 200) is taken for another contract (#6244): Use it
+    /// is never offered for an engine nothing is known of.
     @MainActor static func liveEngine(socketPath: String) async -> LiveEngine {
         let client = FicheroClient(transportMode: .uds(path: socketPath))
         guard let response = try? await client.api.healthCheckApiHealthGet(.init()),
-              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return LiveEngine() }
-        return LiveEngine(version: health.backendVersion, pid: health.enginePid, owner: health.engineOwner)
+              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return .unreadable }
+        return LiveEngine(version: health.backendVersion, pid: health.enginePid, owner: health.engineOwner,
+                          contractDiffers: ContractCompatibility.mismatch(engine: health.contract) != nil)
     }
 }
 
@@ -75,18 +86,28 @@ enum EngineSocketConflict {
 /// Nonisolated: `BackendError.errorDescription` words it too.
 nonisolated enum EngineConflict: Equatable, Sendable {
     case port8765
-    case socket(pid: Int?, version: String?, owner: String? = nil)
+    case socket(pid: Int?, version: String?, owner: String? = nil, contractDiffers: Bool = false)
 
     /// One sentence naming the other engine as far as it is known -- never an invented version or pid.
+    /// Use it is offered only for an engine this app can talk to (#6244).
+    var offersUseIt: Bool {
+        if case .socket(_, _, _, true) = self { return false }
+        return true
+    }
+
     var sentence: String {
         switch self {
         case .port8765:
             return "Another process is already using port 8765."
-        case .socket(let pid, let version, let owner):
+        case .socket(let pid, let version, let owner, let contractDiffers):
             var named = "Another Fichero engine"
             if let version { named += " (version \(version))" }
             if let pid { named += ", PID \(pid)," }
             if let from = Self.ownerPhrase(owner) { named += " " + from }
+            if contractDiffers {
+                return named + " is already running on this Mac, built for a different version of Fichero than this "
+                    + "app, so Fichero can't use it or start a second one over it: quit the other Fichero first."
+            }
             return named + " is already running on this Mac. Fichero will not start a second one over it: "
                 + "use that one, or quit the other Fichero first."
         }

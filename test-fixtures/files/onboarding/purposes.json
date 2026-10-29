@@ -16,7 +16,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     }
    ],
    "parent": null
@@ -37,7 +37,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "make-a-vector",
@@ -62,7 +62,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "translate-transliterate-normalise",
@@ -87,7 +87,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "find-names-tag-words",
@@ -128,7 +128,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "find-names-tag-words",
@@ -153,7 +153,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "find-names-tag-words",
@@ -182,7 +182,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "find-names-tag-words",
@@ -211,7 +211,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "pull-out-passages",
@@ -236,7 +236,7 @@
     },
     {
      "id": "correct",
-     "title": "Correct"
+     "title": "Review the reading"
     },
     {
      "id": "find-names-tag-words",

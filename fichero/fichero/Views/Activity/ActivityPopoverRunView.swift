@@ -160,7 +160,7 @@ struct ActivityPopoverRunningRow: View {
             .init(id: "s1", title: "Find lines", state: "Done", done: 91, total: 91, isRunning: false, isFailed: false),
             .init(id: "s2", title: "Transcribe (Kraken)", state: "Running", done: 36, total: 91,
                   isRunning: true, isFailed: false),
-            .init(id: "s3", title: "Correct", state: "Waiting: the model lane", done: 0, total: 91,
+            .init(id: "s3", title: "Review the reading", state: "Waiting: the model lane", done: 0, total: 91,
                   isRunning: true, isFailed: false),
             .init(id: "s4", title: "Write a kept export", state: "Waiting for the stage before it", done: 0, total: 0,
                   isRunning: false, isFailed: false)

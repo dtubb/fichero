@@ -17,6 +17,8 @@ UI already polls, rather than pretending they are the same underneath.
 
 from __future__ import annotations
 
+from fichero_server.core.failure_text import MissingInWords
+
 import asyncio
 import re
 from typing import Any
@@ -358,7 +360,7 @@ class LocalModelInstallCoordinator:
             return await self._start_thread_install(
                 model_id, "whisper", self._install_whisper
             )
-        raise KeyError(f"No local runtime installs model: {model_id}")
+        raise MissingInWords(f"No local runtime installs model: {model_id}")
 
     def _kraken_bundled_job(self) -> ManagedModelDownloadJob:
         """#4959: Kraken is bundled, so there is no install job to run — a

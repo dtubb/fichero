@@ -24,6 +24,11 @@ struct ProjectRunStrip: Equatable {
     let failed: [ActivityDetails.Summary.Failed]
     /// What an ended run missed and its Run Again (#6170), as the engine sends it.
     var missed: ActivityDetails.MissedOffer?
+    /// The state the strip goes by (`effectiveState`); the preview seam's live strip runs.
+    var state = "running"
+    /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
+    /// (`activity.spinner-reflects-process-liveness`, #4346).
+    var spins: Bool { isLive && state == "running" }
 
     /// The strip for the store's project run, or nil when there is none.
     @MainActor
@@ -49,6 +54,7 @@ struct ProjectRunStrip: Equatable {
          pagesAtOnce: RecipeRunPagesAtOnce? = nil) {
         self.jobId = jobId
         let state = Self.effectiveState(nodeState: node?.state, jobState: job?.state)
+        self.state = state
         let ended = ["done", "failed", "cancelled"].contains(state)
         isLive = !ended
         if ended {
@@ -83,13 +89,14 @@ struct ProjectRunStrip: Equatable {
 
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
     /// `fetchRunTree`), so a run that has ended can still look running there while the jobs list, polled, already says it ended
-    /// or stalled: an end or a stall in the list wins over a tree that has not caught up. Pure, tested without a store.
+    /// or stalled: an end, a stall or a pause in the list wins over a tree that has not caught up. Pure, tested without a store.
     nonisolated static func effectiveState(nodeState: String?, jobState: ActivityJob.State?) -> String {
         if let nodeState, ["done", "failed", "cancelled"].contains(nodeState) { return nodeState }
         switch jobState {
         case .completed: return "done"
         case .failed: return "failed"
         case .stalled: return "stalled"
+        case .paused: return "paused"  // a pause in the list wins over a tree still saying running: a paused run never spins
         default: return nodeState ?? (jobState == .running ? "running" : "waiting")
         }
     }
@@ -142,6 +149,41 @@ struct RecipeRunFolders: Equatable {
     /// where it would say nothing the stage does not.
     var words: String? {
         total > 1 ? "\(done) of \(total) folders" : nil
+    }
+}
+
+/// Which steps of a recipe run are done on one folder (`activity.run.folder-steps-done`, #5642), as the run's status
+/// carries them (`folder_steps`), each step named by the status's own stage title. The engine counts; the app only words it.
+struct RecipeFolderSteps: Equatable {
+    struct Step: Equatable {
+        let name: String
+        /// nil: the step cannot tell which pages it has done.
+        let done: Int?
+        let of: Int
+    }
+
+    let steps: [Step]
+
+    /// Each folder the status counts, by the folder's id.
+    static func byFolder(_ status: Components.Schemas.RecipeRunStatus) -> [String: RecipeFolderSteps] {
+        var out: [String: RecipeFolderSteps] = [:]
+        for folder in status.folderSteps ?? [] {
+            out[folder.folderId] = RecipeFolderSteps(steps: folder.steps.map { counted in
+                let stage = status.steps.first { $0.steps == counted.steps }
+                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, of: counted.of)
+            })
+        }
+        return out
+    }
+
+    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.of } }
+
+    /// One line a step: "Find lines and Read each line: 12 of 20 pages", "Find names: done".
+    var words: String {
+        steps.map { step in
+            guard let done = step.done else { return "\(step.name): cannot tell" }
+            return done >= step.of ? "\(step.name): done" : "\(step.name): \(done) of \(step.of) \(step.of == 1 ? "page" : "pages")"
+        }.joined(separator: "\n")
     }
 }
 
@@ -225,8 +267,11 @@ struct ProjectRunStripRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            if strip.isLive {
+            if strip.spins {
                 ProgressView().controlSize(.small)
+            } else if strip.isLive {
+                Image(systemName: strip.state == "paused" ? "pause.circle" : strip.state == "stalled" ? "exclamationmark.circle" : "clock")
+                    .foregroundStyle(.secondary)
             } else {
                 Image(systemName: strip.failed.isEmpty ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)

@@ -401,10 +401,11 @@ replaces the Kraken figure before #6212 is coded.
   The lane admits pages by the gate and a page's work reads its image only once admitted (the node hands a path,
   never a bitmap). Test: fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py.
 - `recipes-run.memory.threads-fill-the-cores` — **[PARTIAL]** (#6229) a page's torch threads are the performance cores
-  given to the run divided by the pages inside the gate now, served on the run status beside `pages_at_once` ("2 pages at
+  given to the run divided by the pages the plan lets in at once (set once per plan, `activity.lane.torch-threads-set-once-per-plan`), served on the run status beside `pages_at_once` ("2 pages at
   once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
   is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`). Built: `RecipeRunStatus.threads_each`
-  (`compute_preferences.cores_for` shared by `kraken_runtime.threads_each`, the one rule the Kraken seam also sets torch by). Left: the app's grey line says it
+  is what the pages read on now, torch's one pool as the Kraken seam last set it (`kraken_runtime.threads_reading_now`),
+  and null while no Kraken page is inside the gate (a step on another engine, or between pages; #6240). Left: the app's grey line says it
   (Swift). *Test:* `fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py`.
 
 ### 8. A restart requeues unfinished work and releases every lane
@@ -552,6 +553,10 @@ replaces the Kraken figure before #6212 is coded.
   fichero-server/tests/unit/core/test_model_load_logged.py,
   fichero-server/tests/unit/db/test_rss_and_spill_logged_6236.py,
   fichero-server/tests/unit/db/test_watchdog_never_fails_a_checkpoint_6236.py.
+- `recipes-run.timing.watchdog-checks-stand-alone` — **[OK]** (#6236; 9bb7c0381) each of the watchdog's checks on
+  its every-second tick runs on its own: one failing (a DuckDB error or any other) does not stop the others, and its
+  warning names the check that failed, never another. *Test:*
+  `fichero-server/tests/unit/db/test_watchdog_reads_held_versions_once_6236.py`.
 - `recipes-run.engine.thumbnails-cheap-and-off-the-lane` — **[PARTIAL]** (#6193) a thumbnail of a 10.7 MP TIFF
   costs under 2 s with a reduced-size decode and a bounded peak, and thumbnails never take the model lane,
   so the thumbnails-first hold is short by construction (dogfood: 1.6 s a page alone, 60 to 120 s a page

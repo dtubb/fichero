@@ -85,14 +85,13 @@ db/storage_snapshots.py::_load_all_snapshot_records 1
 db/storage_snapshots.py::run_due_scheduled_snapshots 1
 db/storage_snapshots.py::snapshot_library 1
 errors.py::log_and_recover.decorator.wrapper 1
-execution/chaining.py::ChainExecutor._emit_event 1
 execution/runner.py::_estimate_run_cost 2
 execution/runner.py::_run_workflow_body 4
 execution/runner.py::_run_workflow_body._close_in_flight_steps 1
 execution/runner.py::_run_workflow_body._finalize_documents 2
 importers/derivatives.py::_emit_queue_activity 1
 importers/derivatives.py::_emit_queue_progress 1
-importers/derivatives.py::_nlp_stage 1
+importers/derivatives.py::_nlp_stage_one_page 1
 importers/ingest.py::_create_pdf_page_children 3
 importers/ingest.py::_extract_file_metadata 1
 importers/ingest.py::_extract_image_metadata 1
@@ -173,7 +172,7 @@ workflows/subworkflow.py::validate_sub_workflow_references.refs_for 1
 workflows/task_workers.py::TaskWorkersMixin._do_reindex 1
 workflows/task_workers.py::TaskWorkersMixin._do_repair 1
 workflows/task_workers.py::TaskWorkersMixin._do_vector_repair 2
-workflows/tools/_entity_writer.py::_upsert_entity_matched 3
+workflows/tools/_entity_writer.py::_upsert_entity_matched 2
 workflows/tools/_workflow_change_emit.py::emit_workflow_artifact_changes 1
 workflows/tools/_workflow_change_emit.py::emit_workflow_artifact_changes_for_db 1
 workflows/tools/_workflow_change_emit.py::emit_workflow_citation_changes 1

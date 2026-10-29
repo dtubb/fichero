@@ -102,6 +102,9 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
   prototypes and their fields.
 - `catalogue.export-standards` — **[GAP]** (#5365) fields export to EAD (ISAD(G)), Dublin Core, CSV and
   Excel, and IIIF manifest metadata.
+- `catalogue.excel-export-carries-attributes` — **[OK]** (owner goal 2026-10-28) `POST /api/export/excel`'s Documents sheet has one
+  `attr:<key>` column per attribute key across the exported rows, and folder rows (the catalogue describes folders) beside the
+  documents; `document_count` counts both. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`.
 
 ## Test matrix
 

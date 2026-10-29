@@ -1,14 +1,14 @@
 {
   "release.app_binary": {
-    "bytes": 296516176,
-    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
+    "bytes": 297052112,
+    "note": "2026.10.28 accepted (2026-10-28, lead on the manager's word, owner to be told): +536 KB (+0.18%) of Swift from one night's lanes: setup and Start views, the engine supervisor and socket-conflict handling; same kind as edda6899d"
   },
   "release.app_bundle": {
-    "bytes": 3657400375,
-    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
+    "bytes": 3658546961,
+    "note": "2026.10.28 accepted (2026-10-28): +1.1 MB (+0.03%), the app binary's growth; engine unchanged"
   },
   "release.dmg": {
-    "bytes": 1287519677,
-    "note": "2026.10.26 release build accepted by the owner (2026-10-26): MLX + YOLO ship inside the engine since 2026-10-09 (d2a4fcf98, 3b8e40e3b); 2026.10.24 was already this size"
+    "bytes": 1287074584,
+    "note": "2026.10.28 accepted (2026-10-28): 1,287,074,584 bytes, 0.03% under the 2026.10.26 figure"
   }
 }

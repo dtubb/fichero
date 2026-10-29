@@ -27,6 +27,10 @@ STOPPED_WHILE_RUNNING = ("check", "check-lines", "tie-text-to-lines", "read-at-s
 def held(db):
     jobs.set_paused(True)  # nothing runs: the controls are what is tested, not the work
     yield db
+    # A retried job is left waiting. Unpaused with it still there, its real work started while this library closed and
+    # ran on beside the next test's setup, which errored on one kind or another in a whole tests/unit/jobs run (#6238).
+    for (job_id,) in db.execute_fetchall("SELECT id FROM jobs WHERE state IN ('waiting', 'paused')"):
+        jobs.cancel_waiting(db, job_id)
     jobs.set_paused(False)
 
 

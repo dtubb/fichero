@@ -97,6 +97,17 @@ extension BackendConnectionView {
         .disabled(backendService.isStarting)
     }
 
+    /// The pre-flight again, with no choice made: spawns ours if the other engine has gone, else the same conflict.
+    var tryAgainButton: some View {
+        Button {
+            Task { await onRetry?() }
+        } label: {
+            Label("Try Again", systemImage: "arrow.clockwise")
+                .lineLimit(1)
+        }
+        .disabled(backendService.isStarting)
+    }
+
     @ViewBuilder
     var portConflictActions: some View {
         // "Stop it" needs a PID to SIGTERM. The App Store build cannot learn one
@@ -117,7 +128,15 @@ extension BackendConnectionView {
 
         // Promoted to the prominent action when "Stop it" isn't offered, so the
         // conflict box always has exactly one obvious default.
-        if portConflictPID == nil {
+        // Not for an engine on another contract (#6244): Use it would only be refused. Try Again runs the pre-flight
+        // once more (the heartbeat leaves a conflict alone), so quitting the other Fichero is enough to go on.
+        if !appState.engine.conflict.offersUseIt {
+            if portConflictPID == nil {
+                tryAgainButton.buttonStyle(.borderedProminent)
+            } else {
+                tryAgainButton.buttonStyle(.bordered)
+            }
+        } else if portConflictPID == nil {
             useExistingEngineButton.buttonStyle(.borderedProminent)
         } else {
             useExistingEngineButton.buttonStyle(.bordered)

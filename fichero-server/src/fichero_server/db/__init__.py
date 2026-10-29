@@ -3374,6 +3374,18 @@ class Database(DatabaseEmbeddingMixin):
                     if attempt == 1:
                         raise
 
+    def count_committed(self, model: Type[T], **filters) -> int:
+        """``count``, through the dedicated READ connection (#4523): never queues on the transaction gate, so the
+        health answer counts beside a long write (#6178). Last-COMMITTED rows only; folded models are not counted here."""
+        sql_table = self._sql_table_name(model)
+        for k in filters:
+            if not _VALID_IDENTIFIER.match(k):
+                raise ValueError(f"Invalid column name: {k}")
+        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items())
+        sql = f"SELECT COUNT(*) FROM {sql_table}" + (f" WHERE {where}" if where else "")
+        rows, _ = self._read_fetch_with_columns(sql, {k: v for k, v in filters.items() if v is not None})
+        return int(rows[0][0])
+
     def query_committed(self, model: Type[T], **filters) -> list[T]:
         """``query``, but through the dedicated READ connection (#4523).
 
@@ -5712,9 +5724,12 @@ class Database(DatabaseEmbeddingMixin):
             stamp = (package / "embedding.json").stat().st_mtime_ns
         except OSError:
             stamp = None
-        if self._lance_db is not None and getattr(self, "_lance_stamp", stamp) != stamp:
-            self._lance_db = None
-        if self._lance_db is None:
+        # The connection is held in a local and returned from it: another thread on this Database may reset the
+        # attribute (its stamp changed) between our connect and our return, and the caller got None (#6122).
+        connection = self._lance_db
+        if connection is not None and getattr(self, "_lance_stamp", stamp) != stamp:
+            connection = self._lance_db = None
+        if connection is None:
             import lancedb
 
             from fichero_server.db.vector_swap import package_lock, recover
@@ -5723,12 +5738,12 @@ class Database(DatabaseEmbeddingMixin):
                 if getattr(self, "_embedding_space_override", None) is None:  # not a re-embed run's own shadow folder
                     recover(package, self._lance_path)
                 self._lance_path.mkdir(parents=True, exist_ok=True)
-                self._lance_db = lancedb.connect(str(self._lance_path))
+                connection = self._lance_db = lancedb.connect(str(self._lance_path))
                 try:
                     self._lance_stamp = (package / "embedding.json").stat().st_mtime_ns
                 except OSError:
                     self._lance_stamp = None
-        return self._lance_db
+        return connection
 
     def _lance_tables(self) -> list[str]:
         """Return LanceDB table names across API versions."""
@@ -8279,9 +8294,18 @@ class Database(DatabaseEmbeddingMixin):
         return type_map.get(python_type, "VARCHAR")
 
     def close(self) -> None:
-        """Release database and vector-store handles."""
-        self._lance_db = None
-        self.conn.close()
+        """Release database and vector-store handles, and the embedding worker's own connection to this file (#6238: it
+        stayed open after the library closed). The worker is closed under its gate and lock, so a statement an embed has
+        in flight finishes first; the embed's next statement fails with DuckDB's closed-connection error."""
+        worker = self.__dict__.pop("_embed_worker_db", None)
+        if worker is not None:
+            with worker._transaction_gate, worker._lock:
+                worker.close()
+        # The library's own connection likewise (#6247): a Set Up cancelled mid-import closed it under a running
+        # statement, a native crash in the app's engine.
+        with self._transaction_gate, self._lock:
+            self._lance_db = None
+            self.conn.close()
 
     def _migrate_workflow_table(self) -> None:
         """Delegate to db_migrations.migrate_workflow_table."""

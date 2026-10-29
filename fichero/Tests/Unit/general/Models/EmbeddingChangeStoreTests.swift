@@ -43,6 +43,11 @@ private final class EmbeddingRoutesURLProtocol: URLProtocol {
             json = status == 200
                 ? #"{"status":"started","job_id":"j1","message":"Embedding 3 pages. Search keeps the old vectors until it finishes."}"#
                 : #"{"detail":"This project already searches with intfloat/multilingual-e5-large."}"#
+        case ("PUT", "/api/search/embedding"):
+            json = #"""
+                {"model":"intfloat/multilingual-e5-large","models":["BAAI/bge-m3","intfloat/multilingual-e5-large"],
+                 "vectors":0,"changeable":true}
+                """#
         case ("POST", "/api/library"):
             json = #"{"path":"/tmp/P.fichero","created":true,"tables_initialized":true}"#
         default:
@@ -88,13 +93,18 @@ struct EmbeddingChangeStoreTests {
         #expect(EmbeddingModelChoice.name(of: "intfloat/multilingual-e5-large", in: store.choices) == "e5-large")
     }
 
-    @Test("the creation menu reads the same list and keeps a choice the engine still offers")
-    func creationMenuReadsIt() async {
-        let project = NewProjectStore(libraryManager: LibraryManager.shared)
-        project.embeddingModel = "intfloat/multilingual-e5-large"
-        await project.loadEmbeddingChoices(client: makeClient())
-        #expect(project.embeddingChoices.map(\.name) == ["bge-m3", "e5-large"])
-        #expect(project.embeddingModel == "intfloat/multilingual-e5-large")
+    @Test("#6249: the Search step's pick is saved for the project (PUT /api/search/embedding), and says what a change costs")
+    func theSearchStepSavesThePick() async throws {
+        let store = EmbeddingChangeStore(client: makeClient())
+        await store.load()
+        await store.choose("intfloat/multilingual-e5-large")
+        let put = try #require(EmbeddingRoutesURLProtocol.seen.last { $0.method == "PUT" })
+        #expect(put.url.path == "/api/search/embedding")
+        let body = try #require(try JSONSerialization.jsonObject(with: put.body) as? [String: Any])
+        #expect(body["model"] as? String == "intfloat/multilingual-e5-large")
+        #expect(store.current?.model == "intfloat/multilingual-e5-large" && store.errorMessage == nil)
+        #expect(SetupSearchModelField.blurb(model: "BAAI/bge-m3", in: store.choices)
+            == "From the engine. Changing it later means embedding every page again.")
     }
 
     @Test("the plan is asked for the chosen model and said in words before anything runs")

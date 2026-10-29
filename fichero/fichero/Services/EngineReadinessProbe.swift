@@ -297,8 +297,40 @@ struct EngineReadinessProbe {
         await Self.fetchHealth(api: client.api)
     }
 
+    /// How long the health GET may take before it counts as a missed ping (`engine.restart-waits-for-the-work`, #6176).
+    /// Without it a hung engine held each ping for the transport's 60 s request deadline.
+    nonisolated static let healthTimeout: Duration = .seconds(2)
+
+    /// `work`'s answer if it comes within `limit`, else `fallback`; the late work is cancelled (both transports,
+    /// AsyncHTTPClient and URLSession, end a request on cancellation).
+    nonisolated static func answerWithin<T: Sendable>(
+        _ limit: Duration, orElse fallback: T, _ work: @escaping @Sendable () async -> T
+    ) async -> T {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask { await work() }
+            group.addTask {
+                try? await Task.sleep(for: limit)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first ?? fallback
+        }
+    }
+
     @concurrent
     nonisolated private static func fetchHealth(api: Client) async -> HealthObservation {
+        let observed: HealthObservation? = await answerWithin(healthTimeout, orElse: nil) {
+            await fetchHealthUnbounded(api: api)
+        }
+        guard let observed else {
+            probeLogger.info("health probe: no answer within 2 s (a missed ping)")
+            return HealthObservation(status: nil, nonce: nil, pid: nil)
+        }
+        return observed
+    }
+
+    nonisolated private static func fetchHealthUnbounded(api: Client) async -> HealthObservation {
         do {
             let response = try await api.healthCheckApiHealthGet(.init())
             switch response {

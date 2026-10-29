@@ -131,6 +131,12 @@ def _price_table() -> dict[str, dict[str, Any]]:
             table = json.loads(ref.read_text(encoding="utf-8"))
         # LiteLLM ships a schema-documentation entry alongside the real rows.
         table.pop("sample_spec", None)
+        # Rows for models LiteLLM's map does not have yet, from the providers' price pages with the date fetched (#6259);
+        # LiteLLM's own row wins once it has one.
+        local = importlib_resources.files("fichero_server.resources") / "model_prices_local.json"
+        for key, row in json.loads(local.read_text(encoding="utf-8")).items():
+            if not key.startswith("_"):
+                table.setdefault(key, row)
         _PRICE_TABLE = table
     return _PRICE_TABLE
 
@@ -149,6 +155,15 @@ def _resolve_entry(model: str) -> dict[str, Any] | None:
 #: users" for gemini-2.5-flash, the cheapest Gemini on the list, so every page failed).
 RETIRED_MODELS: dict[str, str] = {
     "gemini-2.5-flash": "Google: no longer available to new users (2026-10, #6096)",
+    # Anthropic's model deprecations page, fetched 2026-10-28 (#6259): requests to a retired model fail.
+    "claude-3-5-sonnet-latest": "Anthropic: retired October 28, 2025",
+    "claude-3-5-sonnet-20241022": "Anthropic: retired October 28, 2025",
+    "claude-3-5-haiku-latest": "Anthropic: retired February 19, 2026",
+    "claude-3-5-haiku-20241022": "Anthropic: retired February 19, 2026",
+    "claude-3-opus-latest": "Anthropic: retired January 5, 2026",
+    "claude-3-opus-20240229": "Anthropic: retired January 5, 2026",
+    "claude-3-sonnet-20240229": "Anthropic: retired July 21, 2025",
+    "claude-3-haiku-20240307": "Anthropic: retired April 20, 2026",
 }
 
 

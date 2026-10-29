@@ -111,9 +111,17 @@ final class EngineSession {
 
     /// Another Fichero engine answers on the container socket (`EngineSocketConflict`): the same
     /// in-window decision as a held port, worded for what it is.
-    func markSocketConflict(pid: Int?, version: String?, owner: String? = nil) {
-        conflict = .socket(pid: pid, version: version, owner: owner)
+    func markSocketConflict(pid: Int?, version: String?, owner: String? = nil, contractDiffers: Bool = false) {
+        conflict = .socket(pid: pid, version: version, owner: owner, contractDiffers: contractDiffers)
         phase = .portConflict(pid: pid)
+    }
+
+    /// A conflict is up and only the person's choice (Stop it / Use it / Quit, through the one retry path)
+    /// ends it. The heartbeat leaves it alone (#6244): its probe dials the same socket the other engine
+    /// answers, with the same `.api-key`, so a "recovery" there was a silent adoption.
+    var awaitsAChoice: Bool {
+        if case .portConflict = phase { return true }
+        return false
     }
 
     /// What holds things up in `.portConflict` (`EngineConflict`).

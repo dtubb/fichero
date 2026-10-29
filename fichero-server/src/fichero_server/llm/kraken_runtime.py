@@ -875,10 +875,26 @@ _INFERENCE_LOCK = _PageGate()
 PAGES_AT_ONCE_GATE_5929 = 2
 
 
-def threads_each(cores: int) -> int:
-    """The threads each page reads on: the cores shared by the pages inside the gate now (one page has them all, two
-    half each). The one rule the Kraken seam sets torch's threads by and the run's status shows (#6229)."""
-    return max(1, cores // max(1, _INFERENCE_LOCK.pages_inside()))
+def threads_each(cores: int, pages_at_once: int) -> int:
+    """The threads each page reads on under a plan of `pages_at_once`: the cores shared by the pages the plan lets in,
+    never by the pages inside now (`activity.lane.torch-threads-set-once-per-plan`, #6229)."""
+    return max(1, cores // max(1, pages_at_once))
+
+
+#: torch's threads as the Kraken seam last set them, and the torch they were set on: one pool for the whole process, so
+#: every page inside reads on it, and it is set again only when the plan changes (#6229).
+_THREADS_NOW: int | None = None
+_THREADS_SET_ON: object = None
+#: held across the check, the set and the cache write, so two pages under different plans can't leave the cache saying
+#: one count while torch runs at the other (#6242).
+_THREADS_LOCK = threading.Lock()
+
+
+def threads_reading_now() -> int | None:
+    """The threads the pages inside the gate read on now, for the run's status (#6240); None while no Kraken page is
+    inside (a step on another engine, or between pages)."""
+    # ponytail: process-wide, so a non-Kraken run beside another run's Kraken page shows that page's threads
+    return _THREADS_NOW if _INFERENCE_LOCK.pages_inside() else None
 
 
 def pages_at_once(person: bool) -> int:
@@ -1010,6 +1026,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
     allowed = pages_at_once(person)  # two for a person's run when memory holds two, else one
 
     def _throttled() -> None:
+        global _THREADS_NOW, _THREADS_SET_ON
         _WANTED.set(wanted)
         _PAGE.clear()  # this page's notes: each page's own thread keeps its own
         try:
@@ -1033,7 +1050,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority, qos, cores = set_page_priority(person)
-            threads = threads_each(cores)
+            threads = threads_each(cores, allowed)
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
@@ -1043,8 +1060,11 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
             try:
                 import torch
 
-                # Process-wide in torch: balanced never pegs the machine, fast may.
-                torch.set_num_threads(threads)
+                # Process-wide in torch: balanced never pegs the machine, fast may. Once per plan, not per page (#6229).
+                with _THREADS_LOCK:
+                    if (_THREADS_SET_ON, _THREADS_NOW) != (torch, threads):
+                        torch.set_num_threads(threads)
+                        _THREADS_SET_ON, _THREADS_NOW = torch, threads
                 try:
                     torch.set_num_interop_threads(1)  # one page at a time: no inter-op parallelism to pay for
                 except RuntimeError:

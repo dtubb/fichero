@@ -142,41 +142,15 @@ _READ_CHUNK = 8 * 1024 * 1024
 
 
 def _materialize(path: Path, reason: str) -> None:
-    """Fault the file's bytes in by reading it, bounded by a size-scaled
-    deadline, then verify the placeholder is actually gone."""
-    import time
-
-    size = getattr(path.stat(), "st_size", 0) or 0
-    deadline = time.monotonic() + max(
-        _MIN_TIMEOUT_SECONDS, size / _ASSUMED_BYTES_PER_SECOND
-    )
-    logger.info(
-        "Downloading cloud placeholder before import: %s (%d bytes; %s)",
-        path, size, reason,
-    )
-    try:
-        with path.open("rb") as fh:
-            while fh.read(_READ_CHUNK):
-                if time.monotonic() > deadline:
-                    raise DatalessSourceError(
-                        f"{path.name} has no local bytes and the download did "
-                        f"not finish in time ({size} bytes). Download it in "
-                        f"Finder (keep it downloaded) and import again."
-                    )
-    except OSError as exc:
+    """Bring the file's bytes down through the bounded fetch (`fetch_first`): the read that triggers the download runs
+    on its own thread, so an online-only Box or iCloud file whose read blocks never holds the import past its bound
+    (a size-scaled deadline, #6248)."""
+    logger.info("Downloading cloud placeholder before import: %s (%s)", path, reason)
+    if not_fetched := fetch_first([str(path)], min_timeout=_MIN_TIMEOUT_SECONDS):
+        logger.warning("Not downloaded: %s (%s)", path, not_fetched[str(path)])
         raise DatalessSourceError(
-            f"{path.name} has no local bytes and downloading it failed "
-            f"({exc}). Download it in Finder (keep it downloaded) and "
-            f"import again."
-        ) from exc
-
-    still = dataless_reason(path)
-    if still is not None:
-        logger.warning("Still dataless after a full read: %s (%s)", path, still)
-        raise DatalessSourceError(
-            f"{path.name} has no local bytes: {still}. Fichero tried to "
-            f"download it, but the bytes still are not local. Download it in "
-            f"Finder (keep it downloaded) and import again."
+            f"{not_fetched[str(path)]}: it has no local bytes. Download it in Finder (keep it downloaded) and import "
+            "again."
         )
     logger.info("Downloaded and importing: %s", path)
 
@@ -195,6 +169,15 @@ NOT_FETCHED: dict[str, str] = {}
 
 def _size_words(count: int) -> str:
     return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
+
+
+def cloud_name(path: Path) -> str:
+    """Whose cloud a placeholder is in, for the words: Box, OneDrive... for a File Provider folder
+    (~/Library/CloudStorage/Box-Box), else iCloud (#6248)."""
+    parts = Path(path).parts
+    if "CloudStorage" in parts[:-1]:
+        return parts[parts.index("CloudStorage") + 1].split("-")[0]
+    return "iCloud"
 
 
 def request_download(path: Path) -> None:
@@ -267,7 +250,8 @@ def fetch_first(paths: list[str], *, say=lambda words: None, fetch=None, min_tim
         return failed
     total = len(evicted)
     plural = "s" if total != 1 else ""
-    say(f"Downloading {total} page{plural} from iCloud: 0 of {total}")
+    where = cloud_name(evicted[0][0])
+    say(f"Downloading {total} page{plural} from {where}: 0 of {total}")
     deadlines, bounds = {}, {}
     for path, size in evicted:
         fetch(path)
@@ -283,9 +267,9 @@ def fetch_first(paths: list[str], *, say=lambda words: None, fetch=None, min_tim
                 NOT_FETCHED.pop(str(path), None)
             elif now() > deadlines[path]:
                 pending.discard(path)
-                failed[str(path)] = (f"{path.name} is in iCloud and did not download in {int(bounds[path])} s "
+                failed[str(path)] = (f"{path.name} is in {cloud_name(path)} and did not download in {int(bounds[path])} s "
                                      "(no network?)")
-        say(f"Downloading {total} page{plural} from iCloud: {done} of {total}")
+        say(f"Downloading {total} page{plural} from {where}: {done} of {total}")
         if pending:
             sleep(_FETCH_POLL_SECONDS)
     NOT_FETCHED.update(failed)

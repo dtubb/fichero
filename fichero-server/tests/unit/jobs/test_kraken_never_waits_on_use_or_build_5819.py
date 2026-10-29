@@ -6,6 +6,7 @@ The throttle's real probes with the Mac's signals faked; the pages have no image
 """
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 from types import SimpleNamespace
 
 import pytest
@@ -24,7 +25,7 @@ def mac(monkeypatch):
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
     monkeypatch.setattr(throttle, "a_build_is_running", lambda: throttle.BUILD_REASON if state["build"] else None)
-    monkeypatch.setattr(regions.time, "sleep", lambda seconds: state["sleeps"].append(seconds))
+    monkeypatch.setattr(regions.time, "sleep", sleep_here(lambda seconds: state["sleeps"].append(seconds)))
     return state
 
 
@@ -62,7 +63,7 @@ def test_memory_still_holds_a_person_started_run(mac, monkeypatch, tmp_path):
         if calls["n"] == 2:
             mac["pressure"] = 1
 
-    monkeypatch.setattr(regions.time, "sleep", clears_after_two_sleeps)
+    monkeypatch.setattr(regions.time, "sleep", sleep_here(clears_after_two_sleeps))
     account, _ = _find_lines(monkeypatch, tmp_path, person=True, pages=1)
     assert mac["sleeps"] == [regions.WAIT_POLL_SECONDS] * 2 and account["no_image"] == 1  # held, then went on
 
@@ -83,7 +84,7 @@ def test_battery_still_holds_background_work(mac, monkeypatch, tmp_path):
         calls["n"] += 1
         mac["battery"] = False
 
-    monkeypatch.setattr(regions.time, "sleep", plugged_in_after_one_wait)
+    monkeypatch.setattr(regions.time, "sleep", sleep_here(plugged_in_after_one_wait))
     account, _ = _find_lines(monkeypatch, tmp_path, person=False, pages=1)
     assert mac["sleeps"] == [regions.WAIT_POLL_SECONDS] and account["no_image"] == 1  # waited for the charger, then went
 
@@ -128,7 +129,6 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     import types
 
     from fichero_server.core import compute_preferences as prefs
-    from fichero_server.execution import throttle
     from fichero_server.llm import kraken_runtime as kr
 
     threads = []
@@ -138,6 +138,7 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     monkeypatch.setattr(kr, "assert_memory_available_for_kraken", lambda: None)
     monkeypatch.setattr(kr, "_release_when_idle", lambda: None)
     monkeypatch.setattr(kr, "bound_native_thread_pools", lambda n: None)
+    monkeypatch.setattr(kr, "pages_at_once", lambda person: 1)  # one page a plan: the priority alone sets the threads (#6229)
     monkeypatch.setattr(prefs, "stored_preferences", lambda: {"priority": "balanced", "device": "auto"})
     monkeypatch.delenv("FICHERO_COMPUTE_PRIORITY", raising=False)
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")  # off: a person's page is fast, background balanced
@@ -150,3 +151,27 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     from fichero_server.core.background_compute import cpu_count, embed_threads
 
     assert threads == [cpu_count(), max(1, embed_threads())]  # fast, then balanced
+
+
+def test_another_threads_sleep_is_not_this_runs_wait(mac, monkeypatch, tmp_path):
+    """Order-dependent before: the fake replaced time.sleep for every thread, so a lane thread an earlier test left
+    running counted its own sleeps as this run's waiting."""
+    import threading
+    import time
+
+    stop = threading.Event()
+
+    def lane():  # a thread an earlier test left behind, sleeping between claims
+        while not stop.is_set():
+            time.sleep(0.01)
+
+    thread = threading.Thread(target=lane, daemon=True)
+    thread.start()
+    try:
+        mac.update(build=True, idle=1.0)
+        for _ in range(20):  # let the lane sleep while the run goes
+            _find_lines(monkeypatch, tmp_path, person=True)
+    finally:
+        stop.set()
+        thread.join(5)
+    assert mac["sleeps"] == []

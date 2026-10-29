@@ -36,6 +36,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
@@ -187,7 +188,7 @@ def trocr_transcribe_lines(
 
 
 def kraken_transcribe_page(image_path: str, model_path: str, *, library_path: str | None = None,
-                           page_subject: str | None = None) -> str:
+                           page_subject: str | None = None, run_id: str | None = None) -> str:
     """Full-page kraken run: baseline segmentation + recognition.
 
     ``model_path`` is either a catalog model id ("kraken-mccatmus",
@@ -211,7 +212,7 @@ def kraken_transcribe_page(image_path: str, model_path: str, *, library_path: st
     payload = run_on_lane_blocking(
         library_path, "read-a-line", page_subject or Path(image_path).name,
         model=f"kraken:{_catalog_id or resolved_path}",
-        fn=lambda: kraken_runtime.recognize_lines(image_path, resolved_path),
+        fn=lambda: kraken_runtime.recognize_lines(image_path, resolved_path), run_id=run_id or None,
     )
     lines = payload.get("lines") or []
     return "\n".join(str(line.get("text") or "") for line in lines).strip()
@@ -231,6 +232,7 @@ def economy_htr_file(
     min_line_confidence: float = 0.0,
     keep_crops_dir: str = "",
     library_path: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Transcribe one image; returns {text, lines, backend, error}."""
     source = Path(file_path)
@@ -244,7 +246,8 @@ def economy_htr_file(
             raise ValueError(f"Unsupported input file type: {source.suffix}")
 
         if backend == "kraken":
-            text = kraken_transcribe_page(str(source), kraken_model_path, library_path=library_path)
+            # With its run: Stop reaches the page on the lane (#4402, `activity.run.stop-reaches-in-flight-calls`).
+            text = kraken_transcribe_page(str(source), kraken_model_path, library_path=library_path, run_id=run_id)
             return {"source": str(source), "text": text, "lines": [], "backend": backend, "error": None}
 
         from fichero_server.workflows.tools.vision_base import (
@@ -285,6 +288,8 @@ def economy_htr_file(
                     "lines": lines, "backend": backend, "error": None}
 
         raise ValueError(f"Unknown backend: {backend}")
+    except (WorkflowCancelled, WorkflowPaused):
+        raise  # the run's Stop or Pause, not this file's error
     except Exception as exc:
         logger.warning("economy_htr failed for %s: %s", source, exc)
         return {"source": str(source), "text": "", "lines": [], "backend": backend, "error": str(exc)}
@@ -337,7 +342,7 @@ async def economy_htr(inputs: dict[str, Any], state: State, llm_config: LLMConfi
         if pause_requested(run_id):
             raise WorkflowPaused(run_id)
         results.append(await asyncio.to_thread(
-            economy_htr_file, file_path, **options, library_path=state.get("library_path")))
+            economy_htr_file, file_path, **options, library_path=state.get("library_path"), run_id=run_id))
 
     records = []
     for index, result in enumerate(results):

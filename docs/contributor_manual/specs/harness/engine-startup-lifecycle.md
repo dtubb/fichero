@@ -230,6 +230,16 @@ very engine spawn those tests exist to exercise.
   over a live one refuses to start, 7c00a47ed, bugs lane). The owning app (`engine_owner`) is named too:
   "from Fichero.app in /Applications", or "started from a script". `EngineSocketConflictTests` ran
   green 2026-09-28.
+- `engine.conflict-waits-for-the-choice` — **[PARTIAL]** (#6244, 2026-10-28) a conflict (socket or
+  port) stays up until the person chooses: the 5 s heartbeat does not probe while it is up
+  (`EngineSession.awaitsAChoice`), because its probe dials the same socket with the same `.api-key`
+  and a "ready" there adopted the other engine silently (the 2026.10.27 Dev Embedded smoke attached to
+  a script-started 2026.10.26 engine with no window). Use it is not offered, and not taken, for an
+  engine whose health `contract` is not this app's, names none, or whose health cannot be read at all: the
+  window says it is built for a different version of Fichero and offers Stop it (with a pid), Try Again
+  (the pre-flight once more: ours starts if the other has gone) and Quit. Pinned by `EngineSocketConflictTests`
+  (heartbeatLeavesAConflictAlone, useItRefusesAnotherContract, anotherContractIsWorded); uncompiled
+  until the Lead's build.
 - `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4570, #4896) the sweep that
   terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
   `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's

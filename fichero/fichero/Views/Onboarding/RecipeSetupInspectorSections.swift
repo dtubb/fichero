@@ -166,7 +166,7 @@ struct InspectorProjectLayers: View {
                 reasons: ["ships inside the app"], layer: "lines"
             ),
             .init(
-                id: "correct", job: "correct", title: "Correct",
+                id: "correct", job: "correct", title: "Review the reading",
                 sentence: "A language model corrects the reading.",
                 reasons: [], gap: "no local corrector knows es",
                 problem: .init(kind: "no-model-for-language", sentence: "No correcting model here knows Spanish yet.",

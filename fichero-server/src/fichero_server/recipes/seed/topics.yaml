@@ -109,7 +109,7 @@ topics:
       your own corrected pages.
   - id: read-a-page
     kind: job
-    title: Read a page
+    title: Read the whole page
     short: Reads a whole page at once, usually with a vision model.
     long: Strong on hard pages, but it does not keep where each line was.
   - id: tie-text-to-lines
@@ -120,7 +120,7 @@ topics:
       This is what lets a page read by a vision model be corrected and trained on line by line.
   - id: correct
     kind: job
-    title: Correct
+    title: Review the reading
     short: >-
       A second model checks each reading against the picture and proposes corrections, kept as new
       readings beside the first.

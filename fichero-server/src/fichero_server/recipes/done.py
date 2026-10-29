@@ -197,7 +197,7 @@ def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
     if _has_lines(db, doc_id, model):
         return True
     by_model = {a.id for a in db.query(Artifact, document_id=doc_id) if model is None or a.model == model}
-    return bool(by_model) and any(r.segment_id and r.derived_from_artifact_id in by_model
+    return bool(by_model) and any(r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_model
                                   for r in db.query(ContentRepresentation, document_id=doc_id))
 
 
@@ -214,7 +214,7 @@ def pages_with_readings(db: Any, pages: list[str]) -> set[str]:
             have.add(a.document_id)
         artifacts.setdefault(a.document_id, set()).add(a.id)
     for r in db.query_in(ContentRepresentation, "document_id", list(artifacts)):
-        if r.segment_id and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
+        if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
             have.add(r.document_id)
     return have
 
@@ -230,7 +230,8 @@ def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, in
     lines = [x for x in db.query(Segment, document_id=doc_id) if x.kind == "line" and x.deleted_at is None]
     if not lines:
         return 0, 0, 0
-    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
+    # A reading taken back is no reading, as the reader counts it (`working_lines.unread_by`, #6264).
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at}
     blank = [x for x in lines if x.id not in read and isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
              and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, ""))]
     return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
@@ -258,7 +259,7 @@ def pages_with_line_readings(db: Any, pages: list[str], model: str | None) -> se
         if model is None or a.model == model:
             by_model.setdefault(a.document_id, set()).add(a.id)
     for r in db.query_in(ContentRepresentation, "document_id", list(by_model)):
-        if r.segment_id and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
+        if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
             have.add(r.document_id)
     return have
 
@@ -275,7 +276,7 @@ def lines_states(db: Any, pages: list[str], model: str | None = None) -> dict[st
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
     for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
-        if r.segment_id:
+        if r.segment_id and not r.retracted_at:  # a reading taken back is no reading (#6264)
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, tuple[int, int, int]] = {}
     for doc_id, found in lines.items():
@@ -311,7 +312,7 @@ def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
     for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
-        if r.segment_id:
+        if r.segment_id and not r.retracted_at:
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, PageLines] = {}
     for page in pages:
@@ -389,7 +390,7 @@ def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
     from fichero_server.models import ContentRepresentation
     from fichero_server.models.segments import Segment
 
-    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at}
     return {x.id: (x.metadata or {}).get("unread_reason") or NOT_ANSWERED for x in db.query(Segment, document_id=doc_id)
             if x.kind == "line" and x.deleted_at is None and x.id not in read
             and not isinstance((x.metadata or {}).get("read_no_writing"), dict)}
@@ -403,13 +404,16 @@ def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
                for a in db.query(Artifact, document_id=doc_id))
 
 
-def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None = None) -> bool:
+def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None = None, step: str | None = None) -> bool:
     """A reviewed transcription the step saved (the correcting step's output): by the step's model when it is
     known; else by the step's own workflow, never any model's review from any earlier run (#5616: the plan said
     "already done on 184 of 203" for a Review step whose runs had done none, counting reviews from runs outside the
-    recipe)."""
+    recipe). With neither, only the first Review step (`correct`) takes a page's review as its own: a later one is not
+    done by it."""
     from fichero_server.models import Artifact
 
+    if model is None and workflow_id is None and step != "correct":  # nothing says whose review it is (a second Review step)
+        return False
     return any(a.artifact_type == REVIEWED and _by_the_step(a, model, workflow_id)
                for a in db.query(Artifact, document_id=doc_id))
 
@@ -526,7 +530,7 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
 
         return prepared(db, doc_id) is not None or doc_id in pages_a_run_did(db, job)
     if job == "correct":
-        return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
+        return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"), (card.get("steps") or [None])[0])
     if job == "find-names-tag-words":
         return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
     if job == "leave-out":
@@ -612,7 +616,7 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         pages = [p for p in pages_for(db, card, None) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
-            out[card["job"]] = len(todo)
+            out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
 

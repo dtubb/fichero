@@ -15,6 +15,7 @@ this Mac that drops the connection mid-file:
 
 from __future__ import annotations
 
+from tests._this_thread import sleep_here
 import http.server
 import json
 import threading
@@ -93,7 +94,7 @@ def serve():
 def quick(monkeypatch):
     """Pauses between tries recorded, not waited; small reads so a stop is heard quickly."""
     paused: list[float] = []
-    monkeypatch.setattr(model_downloads.time, "sleep", paused.append)
+    monkeypatch.setattr(model_downloads.time, "sleep", sleep_here(paused.append))
     monkeypatch.setattr(model_downloads, "CHUNK_BYTES", 65536)
     return paused
 

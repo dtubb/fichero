@@ -103,6 +103,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var place: String?
     /// The most the project may spend on Hugging Face a month; 0 offers only (`answers.hf_spend_cap_usd`, #5769).
     var hfSpendCapUsd: Double?
+    /// The most the project's cloud calls may cost a month; nil is the engine's US$10 (`answers.cloud_spend_cap_usd`, #5943).
+    var cloudSpendCapUsd: Double?
     /// Whether working copies may stay on a cluster for re-runs; nil follows pages-may-leave (`answers.copies_may_stay_on_cluster`).
     var copiesMayStayOnCluster: Bool?
 
@@ -239,8 +241,9 @@ struct RecipeSetupAnswers: Codable, Equatable {
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
          automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil,
          period: String? = nil, hands: [String]? = nil, place: String? = nil,
-         hfSpendCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil) {
+         hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil) {
         self.hfSpendCapUsd = hfSpendCapUsd
+        self.cloudSpendCapUsd = cloudSpendCapUsd
         self.copiesMayStayOnCluster = copiesMayStayOnCluster
         self.period = period
         self.hands = hands
@@ -264,6 +267,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
         case period, hands, place
         case hfSpendCapUsd = "hf_spend_cap_usd"
+        case cloudSpendCapUsd = "cloud_spend_cap_usd"
         case copiesMayStayOnCluster = "copies_may_stay_on_cluster"
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"

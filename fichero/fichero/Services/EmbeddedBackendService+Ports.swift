@@ -499,7 +499,8 @@ extension EmbeddedBackendService {
         let other = await EngineSocketConflict.liveEngine(socketPath: path)
         let holderPID = mayStop ? other.pid : nil
         switch EngineSocketConflict.decision(
-            socketLive: true, holderPID: holderPID, pendingChoice: pendingPortConflictResolution
+            socketLive: true, holderPID: holderPID, pendingChoice: pendingPortConflictResolution,
+            contractDiffers: other.contractDiffers
         ) {
         case .spawnOurs:
             return nil
@@ -520,7 +521,9 @@ extension EmbeddedBackendService {
             return nil
         case .surface:
             pendingPortConflictResolution = nil
-            throw BackendError.socketInUse(path: path, pid: holderPID, version: other.version, owner: other.owner)
+            throw BackendError.socketInUse(
+                path: path, pid: holderPID, version: other.version, owner: other.owner,
+                contractDiffers: other.contractDiffers)
         }
     }
 }

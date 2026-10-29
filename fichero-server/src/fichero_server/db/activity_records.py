@@ -311,3 +311,12 @@ def run_workflow_name(db: Any, run_id: str) -> Optional[str]:
     """The workflow a run ran, by name (the Inspector's 'who read it' names the step), or None for no such run."""
     row = db.execute_fetchone("SELECT workflow_name FROM workflowrunrecords WHERE id = ?", [run_id])
     return row[0] if row else None
+
+
+def progress_timelines(db: Any, run_ids: list[str]) -> dict[str, Any]:
+    """Each run's progress timeline by id -- the timeline only, never the log. Runs not found are absent."""
+    if not run_ids:
+        return {}
+    rows = db.execute_fetchall(f"SELECT id, progress_timeline FROM {RUNS} "
+                               f"WHERE id IN ({', '.join('?' * len(run_ids))})", run_ids, committed=True)
+    return {r[0]: r[1] for r in rows}

@@ -1091,6 +1091,57 @@ def _add(step: dict[str, Any], scratch: dict[str, Any]) -> None:
             step[key] = value
 
 
+def _count_on_the_folder(detail: dict[str, Any], batch: dict[str, Any], index: int, done: int | None, of: int) -> None:
+    """`activity.run.folder-steps-done`: this batch's count of step `index` on its folder (done None: the step cannot
+    tell), kept on the run's detail as the step goes and folded into the folder's own as the batch ends
+    (`_fold_the_batch`); a resumed batch keeps the counts of the steps it finished. A poll reads it, never the pages."""
+    if batch["folder"] is None or not of:  # a page in no folder has no folder row
+        return
+    here = detail.get("batch_counts")
+    if not here or here["folder"] != batch["folder"]:
+        here = detail["batch_counts"] = {"folder": batch["folder"], "steps": [None] * len(detail["runs"])}
+    here["steps"][index] = [done, of]
+
+
+def _summed(held: list | None, more: list) -> list:
+    """Two batches' counts of each step on a folder, added; a step that cannot tell on either cannot tell."""
+    if held is None:
+        return more
+    return [b if a is None else a if b is None else [None if None in (a[0], b[0]) else a[0] + b[0], a[1] + b[1]]
+            for a, b in zip(held, more)]
+
+
+def _recount_on_the_folder(db: Any, detail: dict[str, Any], batch: dict[str, Any], index: int, step: dict[str, Any],
+                           documents: list[str], state: str, already: int | None) -> None:
+    """A step's end on a batch, recounted on the pages it ran on as they now stand (`done.split_done`): the pages it did,
+    not the pages it was handed. Once a step a batch (at most `BATCH_PAGE_LIMIT` pages), never a poll's."""
+    from fichero_server.recipes.done import split_done
+
+    _todo, did = split_done(db, detail["runs"][index], documents, own=set(step.get("ran_on") or []))
+    did = did if did is not None else (len(documents) if state == "done" else None)
+    _count_on_the_folder(detail, batch, index, None if None in (already, did) else (already or 0) + did,
+                         (already or 0) + len(documents))
+
+
+def _fold_the_batch(detail: dict[str, Any]) -> None:
+    here = detail.pop("batch_counts", None)
+    if here:
+        held = detail.setdefault("folder_steps", {})
+        held[here["folder"]] = _summed(held.get(here["folder"]), here["steps"])
+
+
+def folder_steps(detail: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each folder the run has counted, with each step's pages done of the pages it works on there."""
+    held = dict(detail.get("folder_steps") or {})
+    here = detail.get("batch_counts")
+    if here:
+        held[here["folder"]] = _summed(held.get(here["folder"]), here["steps"])
+    cards = detail.get("runs", [])
+    return [{"folder_id": folder, "steps": [{"steps": card["steps"], "done": n[0], "of": n[1]}
+                                            for card, n in zip(cards, counts) if n]}
+            for folder, counts in held.items()]
+
+
 def _folders_words(detail: dict[str, Any]) -> str:
     """`activity.run.progress-per-folder`: "3 of 800 folders done"."""
     total = detail.get("folders_total") or 0
@@ -1178,6 +1229,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
             break
         detail["batches_done"], detail["batch_states"] = number + 1, [None] * len(cards)
         detail["folders_done"] += 1 if batch["last"] and batch["units"] else 0
+        _fold_the_batch(detail)
         halted = _halted(cards, steps)
         jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running the recipe: {_folders_words(detail)}")
         if halted:  # a step that did nothing on batch after batch: its model is broken, not a page (#5540)
@@ -1479,6 +1531,9 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             documents, scratch, kinds = early.documents, early.scratch, early.kinds
         else:
             documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+        already = scratch.get("already_done", 0)
+        if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
+            _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1498,8 +1553,11 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         done_notes.pop(job_id, None)
         if card.get("job") in PAGE_NOTED_JOBS:
             # Each page the step finishes is noted on the run's detail as it finishes (`done.page_finished`), saved at once.
-            def _noted(key: str, step: dict[str, Any] = step) -> None:
+            def _noted(key: str, step: dict[str, Any] = step, index: int = index) -> None:
                 step.setdefault("ran_on", []).append(key)
+                counted = (detail.get("batch_counts") or {}).get("steps") or []
+                if index < len(counted) and counted[index] and counted[index][0] is not None:
+                    counted[index][0] += 1  # the folder's count is current page by page
                 jobs.save_detail(db, job_id, json.dumps(detail))
 
             done_notes[job_id] = _noted
@@ -1540,6 +1598,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             # each batch's job, kept in the checkpoint: the step is timed over all of them (#6215)
             step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
+        if card["card"] not in ("publish", "catalogue"):
+            _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
         _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
@@ -1665,8 +1725,8 @@ RAN_ON_JOBS = frozenset({"find-names-tag-words", "prepare-the-image"})
 #: The steps that note each page as they finish it (`done.page_finished`): Leave Out and Names.
 PAGE_NOTED_JOBS = frozenset({"find-names-tag-words", "leave-out"})
 #: What a step is doing, by its last job, as the run's line says it (#5685).
-_DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
-          "correct": "Correcting the readings", "find-names-tag-words": "Finding names",
+_DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading each line",
+          "read-a-page": "Reading the whole page", "correct": "Reviewing the reading", "find-names-tag-words": "Finding names",
           "find-statements": "Finding statements", "prepare-the-image": "Preparing the images",
           "find-regions": "Finding regions", "split-pages": "Splitting the pages"}
 _READERS = {"kraken": "Kraken", "apple": "Apple Vision", "spacy": "spaCy"}
@@ -1788,7 +1848,8 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "steps": steps, "awaited": detail.get("awaited") or [], "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
-            "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total")}
+            "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
+            "folder_steps": folder_steps(detail)}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

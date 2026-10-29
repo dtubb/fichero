@@ -1017,10 +1017,11 @@ async def ingest_folder(
         # lands in a terminal task state.
         bg_db = None
 
-        def on_progress(current: int, total: int):
+        def on_progress(current: int, total: int, fetching: float = 0.0):
+            # fetching: the share of the current file's slot while it comes down from Box or iCloud (#6248)
             _tasks[task_id]["processed"] = current
             _tasks[task_id]["total"] = total
-            _tasks[task_id]["progress"] = current / total if total > 0 else 1.0
+            _tasks[task_id]["progress"] = (current + fetching) / total if total > 0 else 1.0
             elapsed = time.monotonic() - _tasks[task_id]["started_at"]
             _tasks[task_id]["files_per_second"] = current / elapsed if elapsed > 0 else 0.0
 

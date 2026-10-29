@@ -7,6 +7,7 @@ Tests the simple Pythonic interface for:
 - Parquet export/import
 """
 
+from tests._this_thread import sleep_here
 import asyncio
 
 import pytest
@@ -160,7 +161,7 @@ class TestDatabaseConcurrencySafety:
         fake_conn = ConflictThenSuccess()
         sleeps: list[float] = []
         monkeypatch.setattr(temp_db, "conn", fake_conn)
-        monkeypatch.setattr(db_module.time, "sleep", sleeps.append)
+        monkeypatch.setattr(db_module.time, "sleep", sleep_here(sleeps.append))
 
         result = temp_db._execute("UPDATE documents SET name = ? WHERE id = ?", ["b", "a"])
 
@@ -203,7 +204,7 @@ class TestDatabaseConcurrencySafety:
             def fake_sleep(delay: float) -> None:
                 sleeps.append((delay, threading.get_ident()))
 
-            monkeypatch.setattr(db_module.time, "sleep", fake_sleep)
+            monkeypatch.setattr(db_module.time, "sleep", fake_sleep)  # the sleep is on the worker thread: sleep_here would miss it
             result = await asyncio.to_thread(
                 temp_db._execute,
                 "UPDATE documents SET name = ? WHERE id = ?",
@@ -241,7 +242,7 @@ class TestDatabaseConcurrencySafety:
 
         fake_conn = AlwaysConflict()
         monkeypatch.setattr(temp_db, "conn", fake_conn)
-        monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+        monkeypatch.setattr(db_module.time, "sleep", sleep_here(lambda _delay: None))
 
         with pytest.raises(RuntimeError, match="write conflict did not resolve"):
             temp_db._execute("UPDATE documents SET name = 'blocked'")

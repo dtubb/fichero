@@ -17,12 +17,6 @@ final class NewProjectStore {
     }
 
     var name = "Untitled Project"
-    /// The model the project searches with, chosen here and kept (`search.embedding.chosen-at-project-creation`);
-    /// changing it later is a re-embed run (`EmbeddingChangeStore`).
-    var embeddingModel = EmbeddingModelChoice.defaultModel
-    /// The models the menu offers: the engine's list with its one lines once read (`GET /api/search/embedding/models`,
-    /// library-free, #6144), the built-in one until then or when the engine cannot be reached.
-    private(set) var embeddingChoices = EmbeddingModelChoice.all
     var place: Place = .insideFichero
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -39,19 +33,18 @@ final class NewProjectStore {
     /// Moves the package to the Trash (recoverable, never an unlink). A seam for the test.
     private let trash: (URL) throws -> Void
 
+    /// Hands the engine the save panel's grant for a chosen folder before it is asked to open the project there
+    /// (#6255: a project outside the app's container was refused, 403 failed_check=roots). A seam for the test.
+    private let grantFolder: (URL) async throws -> Void
+
     init(libraryManager: LibraryManager,
          openInEngine: ((LibraryManager.LibraryReference) async throws -> Void)? = nil,
-         trash: ((URL) throws -> Void)? = nil) {
+         trash: ((URL) throws -> Void)? = nil,
+         grantFolder: ((URL) async throws -> Void)? = nil) {
         self.libraryManager = libraryManager
         self.trash = trash ?? { try LibraryManager.trashPackage(at: $0) }
         self.openInEngine = openInEngine
-    }
-
-    /// Read the engine's list of search models; a choice it no longer offers falls back to the first (the recommended).
-    func loadEmbeddingChoices(client: FicheroClient) async {
-        guard let listed = await EmbeddingModelChoice.fetch(client: client) else { return }
-        embeddingChoices = listed
-        if !listed.contains(where: { $0.model == embeddingModel }), let first = listed.first { embeddingModel = first.model }
+        self.grantFolder = grantFolder ?? { try await FolderAccessManager.shared.saveBookmarkIfDirectory($0) }
     }
 
     /// The name as a file name: what a folder cannot hold is replaced, and an empty name is
@@ -109,10 +102,13 @@ final class NewProjectStore {
         defer { isCreating = false }
         do {
             let project = try libraryManager.createProject(at: url)
+            // After createProject (it gives the grants an engine client), before the engine opens the package.
+            if case .chosen = place { try await grantFolder(folder) }
             if let openInEngine {
                 try await openInEngine(project)
             } else {
-                try await project.apiClient.initializeLibrary(path: project.url.path, embeddingModel: embeddingModel)
+                // No search model here: it is chosen at the Search step (`search.embedding.chosen-at-project-creation`, #6249).
+                try await project.apiClient.initializeLibrary(path: project.url.path)
             }
             created = project
             return project

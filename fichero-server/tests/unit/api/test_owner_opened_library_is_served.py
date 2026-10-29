@@ -44,7 +44,7 @@ def home_project(tmp_path, monkeypatch, app_db):
     monkeypatch.setattr(
         path_security,
         "ingest_allowed_roots",
-        lambda: [root for root in real_roots() if not fake_home.resolve().is_relative_to(root)],
+        lambda: [root for root in real_roots() if not fake_home.resolve().is_relative_to(root.resolve())],
     )
     monkeypatch.setattr(path_security, "_OPENED_PACKAGES", set())
 

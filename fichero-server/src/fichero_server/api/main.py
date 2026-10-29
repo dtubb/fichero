@@ -1999,7 +1999,8 @@ def _health_sync(
             )
         try:
             db = db_manager.get_database(x_fichero_library_path)
-            doc_count = db.count(Document, deleted_at=None)
+            # The committed count, never behind a writer's transaction gate (`engine.health-answers-under-load`, #6178).
+            doc_count = db.count_committed(Document, deleted_at=None)
             return _with_server_proof(
                 HealthResponse(
                     status="healthy",

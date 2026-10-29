@@ -597,6 +597,8 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     else at its best-ranked row's; the step and the override record it (#5722)."""
     import copy
 
+    from fichero_server.recipes.recipe import PAGE_STEP, add_page_step
+
     if not recipe:
         raise BakeoffRefused("this project has no recipe yet: run setup first")
     name = reader_name(card) or "That reader"
@@ -617,6 +619,8 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("job") == table["step"]), None)
+    if step is None and table["step"] == PAGE_STEP:  # a page reader on a lines-only recipe adds the page step (#6250, #6259)
+        step = add_page_step(out, card.pin, card.runs_on)[0]
     if step is None:
         raise BakeoffRefused(f"this project's recipe has no {table['step']} step to set a reader for")
     because = (f"chosen in the comparison on your pages: found {row['lines_found']} of {row['lines_checked']} "

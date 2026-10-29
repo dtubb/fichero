@@ -28,7 +28,9 @@ extension AppState {
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
     }
 
-    private func pingBackendOnce() async {
+    func pingBackendOnce() async {
+        // #6244: never lower a conflict by probing the engine that caused it (`EngineSession.awaitsAChoice`).
+        guard !engine.awaitsAChoice else { return }
         // Health-200 alone is NOT "online" (#2864): a leftover engine can answer
         // health yet reject our token. The shared readiness probe (#3106) does
         // health + authenticated registry in one, over the pinned transport.
@@ -76,6 +78,29 @@ extension AppState {
         return sentence
     }
 
+    /// Activity's busy line while health pings go unanswered (`engine.restart-waits-for-the-work`); nil otherwise.
+    var engineBusySentence: String? {
+        isBackendRunning ? EngineRestartPolicy.busySentence(failures: heartbeatFailureCount) : nil
+    }
+
+    /// DEAD (the process is gone) restarts now; HUNG needs the whole silent window with no CPU and no disk (#6176).
+    private func judgeMissedPing(workRunning: Bool) -> EngineRestartPolicy.Decision {
+        let isLocal = BackendHost.appDefault.isLocal
+        let pid = isLocal ? enginePID?() : nil
+        let usage = pid.flatMap { EngineWorkSample.read(pid: $0) }
+        if heartbeatFailureCount == 1 { hungWindow = (0, usage) }
+        let decision = EngineRestartPolicy.decide(
+            failures: heartbeatFailureCount - hungWindow.startFailures, workRunning: workRunning, isLocal: isLocal,
+            windowStart: hungWindow.sample, now: usage, processGone: pid.map(EngineWorkSample.isGone(pid:)) ?? false)
+        if decision == .stillWorking {
+            logger.info(
+                "Backend heartbeat: \(self.heartbeatFailureCount) missed pings, but the engine used CPU or disk — busy, not hung"
+            )
+            hungWindow = (heartbeatFailureCount, usage)
+        }
+        return decision
+    }
+
     func noteHeartbeatFailure(reason: String) async {
         heartbeatFailureCount += 1
         // A BUSY engine is not a dead engine (2026-08-09): heavy ingest
@@ -98,9 +123,8 @@ extension AppState {
                 """
             )
         }
-        guard EngineRestartPolicy.shouldRestart(
-            failures: heartbeatFailureCount, workRunning: workRunning, isLocal: BackendHost.appDefault.isLocal)
-        else { return }
+        let decision = judgeMissedPing(workRunning: workRunning)
+        guard decision == .restartDead || decision == .restartHung else { return }
         // The active endpoint has stopped answering. Before declaring the paired
         // host unreachable, walk its OTHER known endpoints (LAN → tailnet), each
         // over its own per-endpoint trust and never localhost (#3098). Only when
@@ -123,8 +147,9 @@ extension AppState {
         switch Self.supervisedDropOutcome(for: EngineConfig.engineProvisioningStrategy()) {
         case .autoRestart:
             if let onDropped = onSupervisedBackendDropped {
-                ConnectionPresentation.lastRestartReason = Self.takeRestartSentence(
-                    failures: heartbeatFailureCount, busyWithImport: importsRunning)
+                ConnectionPresentation.lastRestartReason = decision == .restartDead
+                    ? "Fichero's engine stopped, so the app is restarting it."
+                    : Self.takeRestartSentence(failures: heartbeatFailureCount, busyWithImport: importsRunning)
                 logger.warning(
                     """
                     Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures \

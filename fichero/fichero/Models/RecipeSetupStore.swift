@@ -90,6 +90,8 @@ final class RecipeSetupStore {
     }
     /// The Hugging Face spend cap a month the person set; nil is the engine's $0 (`source.onboard.spend-cap`, #5769).
     var spendCapUsd: Double?
+    /// The cloud spend cap a month the person set; nil is the engine's US$10 (`ai.where.cloud-spend-cap`, #5943).
+    var cloudSpendCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -498,7 +500,8 @@ final class RecipeSetupStore {
                            cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
-                           hfSpendCapUsd: spendCapUsd, copiesMayStayOnCluster: copiesMayStay)
+                           hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
+                           copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -540,6 +543,7 @@ final class RecipeSetupStore {
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }
         spendCapUsd = saved.hfSpendCapUsd
+        cloudSpendCapUsd = saved.cloudSpendCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
@@ -877,11 +881,11 @@ extension RecipeSetupStore {
         jobs[job]?.readsMaterial ?? false
     }
 
-    /// Whether the finder is offered beside a step: a step that reads material, and the two other steps that run a chosen
-    /// model, Find Regions and Correct (`source.find.every-model-step-has-a-finder`, Set Up review item 1).
-    /// ponytail: the two ids are named here until the registry carries `offers_finder` on `JobInfo` (engine, then regenerate).
+    /// Whether the finder is offered beside a step: every step whose job runs a model a person can choose, by the
+    /// registry's `needs_a_model` (`source.find.every-model-step-has-a-finder`; #6258: Find names, Find statements,
+    /// Translate, Catalogue and Entries had none, so they showed only their own model).
     func offersFinder(_ job: String) -> Bool {
-        readsMaterial(job) || ["find-regions", "correct"].contains(job)
+        readsMaterial(job) || jobs[job]?.needsAModel == true
     }
 
     /// What explains a job: its topic in the registry, or nil when the job names
