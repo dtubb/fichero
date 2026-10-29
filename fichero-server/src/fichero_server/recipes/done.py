@@ -496,7 +496,7 @@ def pages_a_run_did(db: Any, job: str, model: str | None = None) -> set[str]:
         found = jobs.read_job(db, row["id"]) or {}
         detail = json.loads(found.get("detail") or "{}")
         for card, step in zip(detail.get("runs") or [], detail.get("steps") or []):
-            if card.get("job") == job and (model is None or str(card.get("model_override") or "") in _forms(model)):
+            if card.get("job") == job and (model is None or str(effective_model(db, card) or "") in _forms(model)):
                 out.update(step.get("ran_on") or [])
     return out
 
@@ -536,21 +536,25 @@ def names_model(db: Any, card: dict[str, Any]) -> str | None:
 def pages_with_names(db: Any, model: str | None = None) -> set[str]:
     """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names step has been over.
     With `model` (a real model, #6127: same input + same model = reuse, a free spaCy draft is not that model's pass): only
-    the pages that model named (the attribution says which page), or that a person named. An older entry that names no
-    page counts for the entity's pages only when `model` is the only extractor the entity has."""
+    the pages that model named (the attribution says which page), or that a person named. An entity with no extractor, or an
+    older entry of `model` naming no page, counts for all the entity's pages."""
     from fichero_server.models import KnowledgeEntity
 
     if model is None:
         return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
     forms, out = _forms(model), set()
     for e in db.query(KnowledgeEntity):
-        steps = [(getattr(a.role, "value", a.role), a.label, a.document_id) for a in e.attribution_chain]
-        if any(role == "editor" for role, _, _ in steps):
+        steps = [(getattr(a.role, "value", a.role), a.label, a.document_id, getattr(a, "document_ids", None) or [])
+                 for a in e.attribution_chain]
+        extractors = [(label, doc, more) for role, label, doc, more in steps if role == "extractor"]
+        # A person's names, an entity no extractor is recorded on (older than #4869, or written with no attribution), and an
+        # older entry of this model that names no page count for all the entity's pages: only a free draft is not this model's.
+        if (any(role == "editor" for role, *_ in steps) or not extractors
+                or any(label in forms and not doc for label, doc, _ in extractors)):
             out.update(e.source_document_ids or [])
-        out.update(doc for role, label, doc in steps if role == "extractor" and label in forms and doc)
-        extractors = [(label, doc) for role, label, doc in steps if role == "extractor"]
-        if any(label in forms and not doc for label, doc in extractors) and all(label in forms for label, _ in extractors):
-            out.update(e.source_document_ids or [])
+        for label, doc, more in extractors:
+            if label in forms:
+                out.update(d for d in (doc, *more) if d)
     return out
 
 

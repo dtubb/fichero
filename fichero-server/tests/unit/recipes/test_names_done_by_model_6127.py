@@ -63,3 +63,43 @@ def test_one_entity_on_two_pages_is_done_only_where_sonnet_read(client, db):
     entity.add_attribution({**run_attribution("anthropic", SONNET, "run1"), "document_id": read})
     db.save(entity)
     assert _todo(db, [drafted, read]) == ([drafted], 1)
+
+
+def test_an_entity_with_no_extractor_is_done(client, db):
+    page = _page(db, "bare")
+    db.save(KnowledgeEntity(canonical_name="Sin Autor", source_document_ids=[page]))
+    assert _todo(db, [page]) == ([], 1)
+
+
+def test_an_older_entry_of_the_model_stays_done_after_a_later_draft(client, db):
+    a, b = _page(db, "a"), _page(db, "b")
+    entity = KnowledgeEntity(canonical_name="Pedro", source_document_ids=[a, b])
+    entity.add_attribution(run_attribution("anthropic", SONNET, "run1"))  # older: names no page
+    entity.add_attribution({**run_attribution("spacy", "es_core_news_sm", "import"), "document_id": a})
+    db.save(entity)
+    assert _todo(db, [a, b]) == ([], 2)
+
+
+def test_a_run_of_a_workflows_model_counts_for_a_card_that_names_it_by_the_workflow(client, db, monkeypatch):
+    """The card the run saved carries no model_override; its workflow's model is the one it read with (as `names_model`)."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.models import Workflow
+
+    db.save(Workflow(id="w2", name="names", model=SONNET))
+    card = {k: v for k, v in CARD.items() if k != "model_override"} | {"workflow_id": "w2"}
+    detail = json.dumps({"runs": [card], "steps": [{"ran_on": ["p1"]}]})
+    monkeypatch.setattr(jobs, "find_jobs", lambda *a, **k: [{"id": "j"}])
+    monkeypatch.setattr(jobs, "read_job", lambda *a, **k: {"detail": detail})
+    assert done.pages_a_run_did(db, "find-names-tag-words", done.names_model(db, card)) == {"p1"}
+
+
+def test_a_name_on_many_pages_is_one_step_not_one_per_page(client, db):
+    pages = [_page(db, f"p{i}") for i in range(5)]
+    entity = KnowledgeEntity(canonical_name="Pedro", source_document_ids=pages)
+    for page in pages:
+        entity.add_attribution({**run_attribution("anthropic", SONNET, "run1"), "document_id": page})
+    db.save(entity)
+    assert len(entity.attribution_chain) == 1
+    assert _todo(db, pages) == ([], 5)
