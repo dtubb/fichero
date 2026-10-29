@@ -54,11 +54,11 @@ def test_a_number_before_de_month_is_a_day_not_a_short_end_year():
 
 
 def test_spanish_thousands_punctuation_is_read_as_a_year():
-    assert _span("1.909 - 1.918") == ("1909", "1918")
+    assert _span("marzo 1.909 - abril 1.918") == ("1909", "1918")
 
 
 def test_a_year_in_digits_and_words_gives_one_year():
-    assert _span("1.909 – febrero de mil novecientos nueve") == ("1909", "1909")
+    assert _span("año 1.909 – mil novecientos nueve") == ("1909", "1909")
     assert _span("mil ochocientos noventa") == ("1890", "1890")
 
 
@@ -78,11 +78,11 @@ def test_normalised_date_of_a_year_then_a_day():
 
 
 def test_normalised_date_of_spanish_thousands_years():
-    assert _norm("1.909 - 1.918") == "1909/1918"
+    assert _norm("marzo 1.909 - abril 1.918") == "1909-03/1918-04"
 
 
 def test_normalised_date_of_one_year_written_twice_is_one_date():
-    assert _norm("1.909 – febrero de mil novecientos nueve") == "1909"
+    assert _norm("año 1.909 – mil novecientos nueve") == "1909"
 
 
 def test_normalised_date_of_a_dropped_one_year():
@@ -143,11 +143,9 @@ def test_a_dotted_number_is_a_year_only_in_a_date_context():
     for unit in ("kilos", "USD", "libras"):
         assert _span(f"1910, 1.900 {unit}") == ("1910", "1910")
     assert _span("1910 (1.950 m2)") == ("1910", "1910")
-    assert _span("Marzo 4 de 1.918") == ("1918", "1918")  # after "de" that follows a day
-    assert _span("4 de marzo de 1.918") == ("1918", "1918")  # ... or a month
-    assert _span("1.918; 1910") == ("1910", "1918")  # a whole ";" part
+    assert _span("Marzo 4 de 1.918") == ("1918", "1918")  # after a month and a day
+    assert _span("4 de marzo de 1.918") == ("1918", "1918")  # ... or "de" after a month
     assert _span("años 1.909") == ("1909", "1909")  # next to "año(s)"
-    assert _span("1.909 años") == ("1909", "1909")
 
 
 def test_a_short_end_year_is_read_only_before_punctuation_or_a_joining_word():
@@ -160,20 +158,18 @@ def test_a_short_end_year_is_read_only_before_punctuation_or_a_joining_word():
 NOT_YEARS = ["pesos 1.918", "1.918 pesos", "$1.918", "1.918,50", "suma de 1.895", "1.900 USD", "(1.950 m2)", "folios 1-914",
              "12 hojas", "2 de 1.918 pesos", "10 de 1.950 pesos", "1 de 1.900 hojas",
              "de 1.850 a 1.900 pesos", "1.850-1.900 reales", "1.850 - 1.900 pesos", "1.900 a 1.950 pesos", "1.918 - 1.920 pesos",
-             "1.909 a 1.918 reales",
-             *[f"{w} 1.9{n}" for w, n in [("Suma", "18"), ("Total", "00"), ("Valor", "12"), ("Importe", "50"), ("Folio", "10"), ("Saldo", "50"),
-                                          ("Cuenta", "06"), ("Recibo", "12"), ("Partida", "50")]], "Total, 1.900"]
+             "1.909 a 1.918 reales", "Suma 1.918", "Total 1.900", "Valor 1.912", "Importe 1.850", "Folio 1.910", "Saldo 1.850",
+             "Cuenta 1.906", "Recibo 1.912", "Partida 1.850", "Total, 1.900",
+             "pesos 1.850 a 1.900", "1.850 a 1.900 ($)", "1.850 a 1.900 de pesos", "Suma de 1.850 a 1.900", "valor de 1.850 a 1.900"]
 ONLY_THE_YEAR = {"885 pesos 1890": "1890", "1910 - 12 hojas": "1910", "1910 \u2013 25 fojas": "1910"}  # the count adds no year
-YEARS = {"Marzo 4 de 1.918": ("1918", "1918"), "4 de marzo de 1.918": ("1918", "1918"), "1.909 - 1.918": ("1909", "1918"),
-         "1.909-1.918": ("1909", "1918"), "1.909 a 1.918": ("1909", "1918"),
+YEARS = {"Marzo 4 de 1.918": ("1918", "1918"), "4 de marzo de 1.918": ("1918", "1918"), "marzo 1.918": ("1918", "1918"),
+         "a\u00f1o de 1.910": ("1910", "1910"), "del a\u00f1o 1.915": ("1915", "1915"),
          "Marzo 4 de 1.918; Julio 31 de 1914 \u2013 Noviembre 30 de 1917": ("1914", "1918"),
-         "a\u00f1o de 1.910": ("1910", "1910"), "del a\u00f1o 1.915": ("1915", "1915"), "en 1.912": ("1912", "1912"),
-         "marzo 1.918": ("1918", "1918"), "de 1.918": ("1918", "1918"), "1906 - 18": ("1906", "1918"),
-         "1906-18": ("1906", "1918"), "1906/18": ("1906", "1918"), "1906 y 1910": ("1906", "1910"),
-         "1.909 - 1.918, 120 folios": ("1909", "1918"), "1.909-1.918 (25 fojas)": ("1909", "1918"),
+         "1906 - 18": ("1906", "1918"), "1906-18": ("1906", "1918"), "1906/18": ("1906", "1918"), "1906 y 1910": ("1906", "1910"),
          "Marzo 4 de 1.918 - Abril 2 de 1.918, 30 hojas": ("1918", "1918")}
-#: Known gap (#6283): a capitalised place before a dotted year is not read, as it cannot be told from "Total 1.900".
-KNOWN_GAPS = ["Bogot\u00e1, 1.918", "Quibd\u00f3 1.918"]
+#: Known gaps (#6283): a dotted year with no month or "a\u00f1o" before it is not read, as it cannot be told from an amount.
+KNOWN_GAPS = ["1.909 - 1.918", "1.909-1.918", "1.909 a 1.918", "en 1.912", "de 1.918", "Bogot\u00e1, 1.918",
+              "1.906 - 1.918 [120 folios]", "1.909 - 1.918, 120 folios"]
 
 
 def test_money_and_counts_give_no_year_and_real_dates_are_read():
