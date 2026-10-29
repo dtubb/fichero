@@ -137,6 +137,24 @@ def _cap_description(text: str) -> str:
     return head + sep + " " + cut_to_cap(tail.strip(), MAX_WORDS)
 
 
+def unread_pages(db: Any, leaves: list[Any], run_pages: list[str], failed_ids: Any = ()) -> list[Any]:
+    """The pages of a folder a reading step failed to read (#6275). Only a page the reading steps were due to read counts: one
+    of the run's own pages (`done.pages_for`'s material, so never a photograph or PDF that holds cut pages), that is not called
+    blank (`done._blank_by`, the same call the reading steps make), and that has a line not left out (Leave Out marks a line
+    `is_furniture`). Such a page is unread when it has no text; a page whose read failed in this run is unread too
+    (`done.failed_reads`), and so is a page the run itself noted failed (`failed_ids`, kept by the runner as each step ends).
+    A blank verso, a left-out page, an excluded page or a parent node never counts."""
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import _blank_by, failed_reads
+
+    mine = {d.id: d for d in leaves if d.id in set(run_pages)}
+    with_a_line = {s.document_id for s in db.query_in(Segment, "document_id", list(mine))
+                   if s.kind == "line" and not s.deleted_at and not s.is_furniture}
+    failed = {page for page, _why in failed_reads(db, list(with_a_line))} | set(failed_ids)
+    return [d for d in mine.values() if _blank_by(db, d.id) is None
+            and (d.id in failed or (d.id in with_a_line and not (d.page_content or "").strip()))]
+
+
 def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
     """(the folders above these pages a run would describe, how many are already described): `describe_folders`'s own rule,
     read without running it. A folder with no reading under it is neither."""
@@ -449,10 +467,11 @@ def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
 
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
                      stop: Any = lambda: False, language: str | None = None,
-                     max_words: int = FOLDER_DESCRIPTION_MAX_WORDS, whole_folders_only: bool = False) -> dict[str, Any]:
+                     max_words: int = FOLDER_DESCRIPTION_MAX_WORDS, whole_folders_only: bool = False,
+                     failed_ids: Any = ()) -> dict[str, Any]:
     """Describe the folders above `page_ids`, deepest first (a folder's subfolders are described before it). A folder
-    whose coverage matches its saved description is left. With `whole_folders_only` (a reading step failed), a folder with any
-    page that has no text is left too and named in `skipped`. The account: described / unchanged / no_text / skipped / failed."""
+    whose coverage matches its saved description is left. With `whole_folders_only` (a reading step failed), a folder with a
+    page due to be read and not read (`unread_pages`) is left too and named in `skipped`. The account: described / unchanged / no_text / skipped / failed."""
     from fichero_server.llm.lang_detect import configured_primary_language, resolve_output_language
     from fichero_server.models import Artifact
     from fichero_server.workflows.tools.catalogue import _describe_container
@@ -468,9 +487,9 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         if old is not None and (old.data or {}).get("covers") == covers:
             account["unchanged"] += 1
             continue
-        unread = sum(1 for d in leaves if not (d.page_content or "").strip())
-        if whole_folders_only and unread:
-            account["skipped"].append(f"{folder.name} ({unread} of {len(leaves)} pages have no text)")
+        unread = unread_pages(db, leaves, page_ids, failed_ids) if whole_folders_only else []
+        if unread:
+            account["skipped"].append(f"{folder.name} ({len(unread)} of {len(leaves)} pages not read)")
             continue
         if not any((d.page_content or "").strip() for d in leaves):
             account["no_text"] += 1

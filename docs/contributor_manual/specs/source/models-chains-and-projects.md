@@ -2930,7 +2930,7 @@ Projects
   it, can be given one folder node (`folder_id`): the plan, its estimate and each step's "already done on N of M
   pages" then cover only that folder's live pages, those of its folders inside it included, and the run started
   from it touches no page outside it. With no folder it is the whole project, as before. The engine works out the
-  folder's pages; a folder that is not in the project is refused (422), and one with no pages refuses Start.
+  folder's pages; a folder that is not in the project is refused (422), and one with no pages refuses Start. A folder's run takes the Catalogue step over that folder's pages alone (not the project's), so the folders it describes are that folder, those inside it, and the folders above it that cover them (`catalogue_step.folders_covering`); a folder trashed after Start leaves the step no pages and no crash (tests: `test_a_folder_scoped_run_catalogues_only_that_folder`, `test_a_folder_trashed_after_the_run_began_leaves_the_catalogue_no_pages_and_no_crash` in `tests/unit/recipes/test_catalogue_counts_its_folders_when_it_starts_6275.py`, #6275). The Publish step still exports the whole project on a folder's run (not built: follow-up).
   App **[PARTIAL]** (built 2026-10-10, not yet seen in a build: `RunRecipeOnFolderMenuItem`, `RecipeFolderScope`,
   `RecipeSetupStore.loadStartPlan(folderId:)`/`start(folderId:)`; tested in
   `MenuTerminologyBoundaryTests.testRunTheRecipeOnThisFolderIsOneComponent`, `testRecipeFolderScope`,
