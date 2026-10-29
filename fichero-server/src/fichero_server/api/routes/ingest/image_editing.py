@@ -108,6 +108,13 @@ class ContrastOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class SquareOperationRequest(BaseModel):
+    """The page's four corners, top-left clockwise, in fractions of the upright image (`prep.square.*`)."""
+
+    quad: list[tuple[float, float]] = Field(min_length=4, max_length=4)
+    page: int = Field(1, ge=1)
+
+
 class FuzzyCleanOperationRequest(BaseModel):
     despeckle_radius: int = Field(3, ge=1, le=25)
     background_clean: bool = True
@@ -125,7 +132,7 @@ _OPERATION_MODELS = {
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
     "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
-    "denoise": DenoiseOperationRequest,
+    "denoise": DenoiseOperationRequest, "square": SquareOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 

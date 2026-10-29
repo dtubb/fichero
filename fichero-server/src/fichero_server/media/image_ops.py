@@ -300,6 +300,10 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             resample=Image.Resampling.BICUBIC,
             fillcolor="white",
         )
+    if name == "square":  # the page warped to a rectangle from its four corners (`media.square_page`)
+        from fichero_server.media.square_page import square_page
+
+        return square_page(image, params["quad"])[0]
     if name == "crop":
         base = ImageOps.exif_transpose(image) if bool(params.get("auto_orient", True)) else image
         missing = {key for key in ("left", "top", "width", "height") if key not in params}

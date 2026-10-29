@@ -150,9 +150,20 @@ def find_page_contour(image: Any) -> PageFound | None:
     fill = float(box.mean())
     if (x1 - x0) * (y1 - y0) > 0.97 * h * w:
         return None  # the whole frame: nothing was left out
+    # The box is trimmed by rows and columns, which cuts the pointed corners of a tilted page; the corners come from the
+    # whole piece with a ruler's thin attachment opened away instead.
+    size = max(3, round(0.03 * max(h, w)) | 1)
+    opened = cv2.morphologyEx(piece.astype(np.uint8), cv2.MORPH_OPEN,
+                              cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))).astype(bool)
+    quad = _quad(opened if opened.any() else piece[y0:y1, x0:x1], 0 if opened.any() else x0, 0 if opened.any() else y0, w, h)
+    # A page photographed at an angle fills little of its upright box but all of its own quad: the confidence is the
+    # paper's share of the larger of the two (a ragged guess still scores low in both).
+    xs, ys = [p[0] * w for p in quad], [p[1] * h for p in quad]
+    area = 0.5 * abs(sum(xs[i] * ys[(i + 1) % 4] - xs[(i + 1) % 4] * ys[i] for i in range(4)))
+    if area > 0:
+        fill = max(fill, min(1.0, float(piece.sum()) / area))
     return PageFound((x0 / w, y0 / h, (x1 - x0) / w, (y1 - y0) / h), round(fill, 3),
-                     furniture=tuple(_furniture(mask, (x0, y0, x1, y1))),
-                     quad=_quad(piece[y0:y1, x0:x1], x0, y0, w, h))
+                     furniture=tuple(_furniture(mask, (x0, y0, x1, y1))), quad=quad)
 
 
 def _quad(piece: np.ndarray, x0: int, y0: int, w: int, h: int) -> tuple[tuple[float, float], ...]:

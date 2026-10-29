@@ -81,4 +81,32 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                           producer_run_id=run_id, note=f"the page found by the {found.method} finder",
                           transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, method=found.method)))
         account["cropped"] += 1
+        _square(db, doc, image, found, run_id, library)
     return account
+
+
+def _square(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path) -> None:
+    """A page whose quad is not a rectangle gets a `squared` rendition, the homography on its row (`prep.square.*`); a
+    rectangular page writes nothing."""
+    import tempfile
+
+    from fichero_server.importers.ingest import _copy_to_library
+    from fichero_server.media.square_page import quad_is_rectangular, square_page
+    from fichero_server.models import NodeRegion, Rendition
+    from fichero_server.models.anchors import RegionConfidence
+
+    if not found.quad or quad_is_rectangular(found.quad, image.size):
+        return
+    squared, homography = square_page(image, found.quad)
+    with tempfile.TemporaryDirectory() as scratch:
+        squared_file = Path(scratch) / f"{doc.id}_squared.png"
+        squared.save(squared_file)
+        stored = _copy_to_library(squared_file, library)
+    for old in db.query(Rendition, document_id=doc.id):
+        if old.role == "squared" and old.producer_tool == PRODUCER:
+            db.delete(old)
+    db.save(Rendition(document_id=doc.id, role="squared", path=str(stored), is_primary=False,
+                      pixel_width=squared.width, pixel_height=squared.height, producer_tool=PRODUCER,
+                      producer_run_id=run_id, note="the page squared from its four corners",
+                      transform=NodeRegion(rect=[round(v, 5) for v in found.box], confidence=RegionConfidence.measured,
+                                           method="square", homography=homography, quad=[list(p) for p in found.quad])))
