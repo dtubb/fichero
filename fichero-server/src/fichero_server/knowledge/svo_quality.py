@@ -156,44 +156,26 @@ def is_date_only(text: str | None) -> bool:
     return len(words) > 1 and words[0] in ("de", "del") and any(w in _MONTHS for w in words)
 
 
-#: Words that start a place or body name; one left alone after a trim is no complete name.
-_GENERIC_PLACE_WORDS = frozenset("calle plaza puerto colonia villa barrio avenida pueblo ciudad rio hacienda cerro paseo camino".split())
+_ORDINALS = frozenset("segundo tercero cuarto quinto sexto septimo octavo noveno decimo".split())
 
 
-def _is_date_tail(words: list[str]) -> bool:
-    """``[d] [de] month [de] [year]`` with at least one number: "7 de agosto", "de agosto de 1910", "julio 25"."""
-    i = 0
-    if i < len(words) and _is_number(words[i]):
-        i += 1
-    if i < len(words) and words[i] in ("de", "del"):
-        i += 1
-    if i >= len(words) or words[i] not in _MONTHS:
-        return False
-    i += 1
-    if i < len(words) and words[i] in ("de", "del"):
-        i += 1
-    rest = words[i:]
-    return all(_is_number(w) for w in rest) and (bool(rest) or _is_number(words[0]))
-
-
-def _complete_name(words: list[str]) -> bool:
-    """Whether ``words`` (folded) stand as a name on their own: not ending on a number, a filler or a bare
-    generic word ("Calle", "Puerto"), and not made only of those."""
-    if not words or words[-1] in _DATE_FILLER or words[-1] in _GENERIC_PLACE_WORDS or _is_number(words[-1]):
-        return False
-    return any(w not in _GENERIC_PLACE_WORDS and w not in _GENERIC_BODY_WORDS and w not in _DATE_FILLER for w in words)
+def _starts_a_person(word: str) -> bool:
+    """Whether the word after a role word begins a person's name, not "del Tribunal", "de Hacienda", "Primero"
+    or "1.º"."""
+    return word.isalpha() and not (
+        word in _DATE_FILLER or word in _ORDINALS or word in _GENERIC_BODY_WORDS or _is_number(word)
+    )
 
 
 def usable_entity_name(name: str, entity_type: Any) -> str | None:
     """The name to save as an entity of ``entity_type``, or ``None`` when it names nothing.
 
     Refuses a date (a lone month only for a non-person: "Mayo" is a surname), a bare role or kind-of-body word,
-    and an organisation that is a person's title and name. A date tail ("de agosto de 1910", "julio 25") is
-    trimmed off only from a complete name: "Calle 7 de Agosto" and "Puerto Mayo 1910" stay whole. A person is
-    never refused for a month in the name ("Julio Cesar", "Juan Mayo"); a stray month beats a lost person."""
+    and an organisation that is a role word followed directly by a person's name. A name is never trimmed:
+    "Colegio 20 de Julio" and "Calle 7 de Agosto" stay whole, a stray date beats a cut name. A person is
+    never refused for a month in the name ("Julio Cesar", "Juan Mayo")."""
     kind = getattr(entity_type, "value", entity_type)
     text = (name or "").strip()
-    words = text.split()
     folded = fold(text).split()
     if not folded or is_date_only(text):
         return None
@@ -201,12 +183,8 @@ def usable_entity_name(name: str, entity_type: Any) -> str | None:
         return None
     if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
         return None
-    if kind == "organization" and len(folded) > 1 and folded[0] in _ROLE_WORDS:
+    if kind == "organization" and len(folded) > 1 and folded[0] in _ROLE_WORDS and _starts_a_person(folded[1]):
         return None
-    if kind in {"location", "organization"} and len(folded) == len(words):
-        for start in range(1, len(words)):
-            if _is_date_tail(folded[start:]) and _complete_name(folded[:start]):
-                return " ".join(words[:start])
     return text or None
 
 
@@ -228,13 +206,28 @@ class LineJoin:
 
 def _is_mid_word_break(before: str, after: str) -> bool:
     """A hyphen at a line end is a word cut in two when both sides are lowercase letters and the pieces are not
-    function words: "Ene-"+"ro" is one word, "señor-"+"que" is two (the hyphen is dropped, a space kept)."""
+    function words: "Ene-"+"ro" and "Mi-"+"guel" are one word, "señor-"+"que" is two (the hyphen is dropped, a
+    space kept). Only a whole separate word after the break is tested, never the piece before it."""
     head = re.search(r"([^\W\d_]+)-$", before)
     tail = re.match(r"[^\W\d_]+", after)
     if not head or not tail or not before[-2].islower() or not after[0].islower():
         return False
-    piece, rest = head.group(1).casefold(), tail.group(0).casefold()
-    return piece not in _FUNCTION_WORDS and rest not in _FUNCTION_WORDS and len(piece) + len(rest) <= 25
+    piece, rest = head.group(1), tail.group(0)
+    whole_word = not after[tail.end():tail.end() + 1].isalpha()
+    if whole_word and rest.casefold() in _FUNCTION_WORDS:
+        return False  # "señor-" / "que": a separate word, not the rest of this one
+    return len(piece) + len(rest) <= 25
+
+
+def _clusters(line: str) -> list[tuple[int, int]]:
+    """``line`` cut into a character and the combining marks after it, so NFC can map back to the original."""
+    out: list[tuple[int, int]] = []
+    for i, ch in enumerate(line):
+        if out and unicodedata.combining(ch):
+            out[-1] = (out[-1][0], i + 1)
+        else:
+            out.append((i, i + 1))
+    return out
 
 
 def join_page(text: str) -> LineJoin:
@@ -251,8 +244,10 @@ def join_page(text: str) -> LineJoin:
     pos = 0
     previous = ""
     for raw in text.split("\n"):
-        line = raw.strip()
+        stripped = raw.strip()
         lead = len(raw) - len(raw.lstrip())
+        clusters = _clusters(stripped)
+        line = "".join(unicodedata.normalize("NFC", stripped[a:b]) for a, b in clusters)  # NFC: "Go\u0301-" is "Gó-"
         if not line:
             if out:
                 pending = "\n\n"
@@ -277,12 +272,14 @@ def join_page(text: str) -> LineJoin:
         pending = ""
         for j in range(pos, pos + lead + 1):
             start[j] = end[j] = len(out)
-        for k, ch in enumerate(line):
-            j = pos + lead + k
-            start[j] = len(out)
-            out.append(ch)
-            end[j + 1] = len(out)
-        hyphen_at = pos + lead + len(line) - 1
+        for a, b in clusters:
+            composed = unicodedata.normalize("NFC", stripped[a:b])
+            for j in range(pos + lead + a, pos + lead + b):
+                start[j] = len(out)
+                end[j] = len(out) + len(composed) if j > pos + lead + a else end[j]
+            out.extend(composed)
+            end[pos + lead + b] = len(out)
+        hyphen_at = pos + lead + len(stripped) - 1
         for j in range(hyphen_at + 1, min(pos + len(raw) + 1, len(text) + 1)):
             start[j] = end[j] = len(out)
         previous = line

@@ -129,10 +129,7 @@ def inspector(
     doc_claims = db.query_in(KnowledgeClaim, "source_document_id", list(doc_ids))
 
     # Entities of the scope: one rule with the /entities list and the rollup count (`document_entity_ids`).
-    entities = [
-        e for e in (db.get(KnowledgeEntity, eid) for eid in document_entity_ids(db, doc_ids, doc_claims))
-        if e is not None
-    ]
+    entities = db.query_in(KnowledgeEntity, "id", list(document_entity_ids(db, doc_ids, doc_claims)))
     entities.sort(key=lambda e: e.canonical_name)
 
     # Annotations on this document — equality filter pushed to SQL instead
@@ -315,9 +312,7 @@ def document_outline(
 
     from fichero_server.api.routes.entity.entities import document_entity_ids
 
-    entities = [
-        e for e in (db.get(KnowledgeEntity, eid) for eid in document_entity_ids(db, doc_ids, claims)) if e is not None
-    ]
+    entities = db.query_in(KnowledgeEntity, "id", list(document_entity_ids(db, doc_ids, claims)))
     rows.append(
         DocumentOutlineRow(
             id=f"{document_id}:annotations",

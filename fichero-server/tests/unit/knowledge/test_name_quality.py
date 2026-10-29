@@ -1,5 +1,7 @@
 """Names that are not entities, dates as subjects, and the line-join statements read from (synthetic Spanish)."""
 
+import unicodedata
+
 import pytest
 
 from fichero_server.knowledge.svo_quality import (
@@ -43,11 +45,55 @@ def test_a_person_that_is_wholly_a_date_is_refused():
     assert usable_entity_name("De Diciembre", "person") is None
 
 
-def test_a_date_tail_is_trimmed_only_from_a_complete_name():
-    assert usable_entity_name("Plaza Mayor de Valdoro 7 de Agosto", "location") == "Plaza Mayor de Valdoro"
-    assert usable_entity_name("Hacienda La Palma de Agosto de 1910", "location") == "Hacienda La Palma"
-    assert usable_entity_name("Calle 7 de Agosto", "location") == "Calle 7 de Agosto"
-    assert usable_entity_name("Calle 7 de Agosto 1910", "location") == "Calle 7 de Agosto 1910"  # keep, never "Calle"
+@pytest.mark.parametrize("name", [
+    "Colegio 20 de Julio", "Escuela 7 de Agosto", "Parque 20 de Julio", "Batallón Primero de Mayo",
+    "Sociedad 20 de Julio", "Calle 7 de Agosto", "Plaza Mayor de Valdoro 7 de Agosto",
+    "Juzgado de Valdoro julio 25",
+])
+def test_a_name_is_never_trimmed(name):
+    for kind in ("location", "organization"):
+        assert usable_entity_name(name, kind) == name
+
+
+@pytest.mark.parametrize("name", [
+    "Fiscal del Tribunal Superior", "Administrador de Hacienda Nacional", "Notario Primero del Circuito",
+    "Juez 1.º del Circuito",
+])
+def test_an_organisation_with_a_role_word_but_no_person_survives(name):
+    assert usable_entity_name(name, "organization") == name
+
+
+def test_a_role_word_and_a_person_is_not_an_organisation():
+    assert usable_entity_name("Juez Pedro Gómez", "organization") is None
+
+
+@pytest.mark.parametrize("broken,whole", [
+    ("Mi-\nguel Soto", "Miguel Soto"), ("Se-\nrrano", "Serrano"), ("Lo-\nrenzo", "Lorenzo"),
+    ("el se-\nñor", "el señor"), ("el no-\ntario", "el notario"),
+])
+def test_a_short_syllable_before_the_hyphen_rejoins(broken, whole):
+    assert join_lines(broken) == whole
+
+
+def test_a_function_word_after_the_break_stays_a_separate_word():
+    assert join_lines("el señor-\nque") == "el señor que"
+    assert join_lines("Ma-\nnuel que") == "Manuel que"
+
+
+def test_nfd_text_joins_like_nfc_and_offsets_point_into_the_original():
+    page = unicodedata.normalize("NFD", "Pedro Gó-\nmez firmó\nel auto")
+    joined = join_page(page)
+    assert joined.text == "Pedro Gómez firmó el auto"
+    firmo = unicodedata.normalize("NFD", "firmó")
+    start = page.index(firmo)
+    a, b = joined.spans_in_joined([(start, start + len(firmo))])[0]
+    assert joined.text[a:b] == "firmó"
+    start = page.index("auto")
+    a, b = joined.spans_in_joined([(start, start + 4)])[0]
+    assert joined.text[a:b] == "auto"
+    start = page.index(unicodedata.normalize("NFD", "Gó"))
+    a, b = joined.spans_in_joined([(start, start + 3)])[0]  # "Gó" is 3 chars in NFD
+    assert joined.text[a:b] == "Gó"
 
 
 @pytest.mark.parametrize("subject", ["Mayo", "Abril", "Primero de Mayo", "Cinco"])
@@ -58,11 +104,6 @@ def test_a_lone_month_or_number_word_is_not_a_date_subject(subject):
 
 def test_a_month_next_to_a_day_or_year_is_a_date():
     assert is_date_only("7 de agosto") and is_date_only("Mayo 1910")
-
-
-def test_a_date_fused_onto_a_name_is_trimmed_off():
-    assert usable_entity_name("Juzgado de Valdoro julio veinticinco", "organization") == "Juzgado de Valdoro"
-    assert usable_entity_name("Juzgado de Valdoro julio 25", "organization") == "Juzgado de Valdoro"
 
 
 @pytest.mark.parametrize("text", ["1918-06-06", "De Diciembre", "el 1.º de enero", "veinticinco de julio de 1918"])

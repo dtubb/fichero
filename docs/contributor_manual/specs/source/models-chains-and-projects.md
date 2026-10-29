@@ -2738,18 +2738,19 @@ Jobs and chains
   a date ("Enero" as a place, "De Diciembre", "7 de agosto de 1910"), a bare title or kind of body ("Agente",
   "Agencia"), and an organisation that is a title and a person's name ("Perito Avaluador Lucas Pardo") are not saved.
   A person is never dropped for a month in the name ("Julio Cesar", "Juan Mayo", "Pedro Abril", "Mayo"): only a
-  name that is wholly a date is refused. A date fused onto a place or body ("Juzgado de Valdoro julio 25") is
-  trimmed off only after a complete name, and never leaves a bare generic word ("Calle Agosto 7", "Puerto Mayo 1910"
-  and "Calle 7 de Agosto" stay whole), whichever of the
-  model or the parser gave it (`svo_quality.usable_entity_name`, in `extract_entities_only.py`); the names prompt
+  name that is wholly a date is refused. A name is never trimmed: a date that follows it ("Colegio 20 de Julio", "Calle 7 de Agosto",
+  "Juzgado de Valdoro julio 25") stays in the name, since a stray date beats a cut name, whichever of the
+  model or the parser gave it. An organisation is refused for a role word only when a person's name follows it
+  ("Juez Pedro Gómez"; "Fiscal del Tribunal Superior" stays) (`svo_quality.usable_entity_name`, in
+  `extract_entities_only.py`); the names prompt
   says so too. *Test:* `fichero-server/tests/unit/knowledge/test_name_quality.py`.
 - `source.job.find-statements.not-a-date-or-swapped` — **[OK]** a statement's subject is who does the verb: a date is
   never one (`claim_rejection`; a lone month or number word, "Mayo" or "Primero de Mayo", is a name, a date only
   next to a day or year), a dated statement with no subject goes to the one person or organisation named in
   its words, as a claim carrying the date, and stays a dated timeline row when none or several are named
   (`extract_svo_only._attach_date_subjects`, matched on whole words: "Ana" is not in "Mariana"); the page is read as
-  running text, so an object is never cut at a line break: a hyphen is rejoined only mid-word ("Ene-ro"; "señor-
-  que" stays two words), a blank line stays a paragraph break, and each statement still rests on the page's own line
+  running text, so an object is never cut at a line break: a hyphen is rejoined only mid-word ("Ene-ro", "Mi-guel"; "señor-
+  que" stays two words; text is NFC-normalised first), a blank line stays a paragraph break, and each statement still rests on the page's own line
   through an offset map (`svo_quality.join_page`, `LineJoin`). Geometry-based paragraph breaks are not used yet.
   The names and statements prompts are still inline strings, not entries in the versioned prompt registry
   (`llm/prompts.py`); moving them there, with the version recorded on results, is open. The prompt says the subject is the actor, not
