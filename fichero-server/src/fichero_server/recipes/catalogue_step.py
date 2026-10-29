@@ -118,7 +118,7 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
     from fichero_server.llm.catalogue_lint import enforce
     from fichero_server.llm.prompts import get_prompt
 
-    system = get_prompt("catalogue", "folder_description", version=3).render(output_language=language, max_words=max_words)
+    system = get_prompt("catalogue", "folder_description", version=4).render(output_language=language, max_words=max_words)
 
     async def call(note: str = "") -> str:
         return (await chat_with_fallback(material, config=config, system=system + ("\n\n" + note if note else ""),
@@ -192,6 +192,9 @@ ATTRIBUTE_FIELDS = {
     "Condition": ("catalogue_condition", False), "Access points": ("catalogue_access_points", True),
     "Scope and content": ("catalogue_scope_content", False), "Arrangement": ("catalogue_arrangement", False),
 }
+#: Labels that end the field before them but are no attribute of their own: the prose, and the model's EDTF reading of the
+#: Dates (`catalogue.export.dates-prompt-returns-edtf`), which `check_date` weighs against the parser's.
+_BOUNDARY_LABELS = ("Description", "Dates EDTF")
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 # "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
 # ... and a short end year is read only when nothing follows it but punctuation or a joining word: "1910 - 12 hojas" is not 1912
@@ -292,21 +295,62 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     return (min(years), max(years)) if years else None
 
 
+def _fold(text: str) -> str:
+    """Lower case without accents, the same length as `text` (so a match here is a place in the original)."""
+    return "".join(unicodedata.normalize("NFD", c)[0] for c in text).lower()
+
+
+_DAYS = {w: n for w, n in _ONES.items() if n <= 31}
+_DAYS.update({"primero": 1, "primer": 1, "un": 1, "una": 1, "veintiun": 21, "veintiuna": 21,
+              "treinta y uno": 31, "treinta y un": 31, "treinta y una": 31})
+_DAYS.update({f"veinte y {w}": 20 + n for w, n in list(_ONES.items())[:9]})  # "veinte y cinco" beside "veinticinco"
+_BY_LENGTH = lambda words: "|".join(sorted(map(re.escape, words), key=len, reverse=True))  # noqa: E731
+_SPOKEN_YEAR = re.compile(r"\b(?:dos\s+)?mil(?:(?:\s+y)?\s+(?:" + _BY_LENGTH(_ONES) + r")\b)+")
+_SPOKEN_DAY = re.compile(r"\b(?:a\s+los\s+)?(" + _BY_LENGTH(_DAYS) + r"|\d{1,2})(?:\s+dias)?\s+(?:del\s+mes\s+de|de)\s+(?=(?:"
+                         + _MONTHS_ES + r")\b)")
+_APPROX = re.compile(r"\b(?:a\s+)?(?:mediados|principios|comienzos|fines|finales)\s+de\s+")
+
+
+def _digits_for_words(text: str) -> str:
+    """A date's year and day written in Spanish words as digits, for histdate: "a los ocho días del mes de mayo de mil
+    novecientos nueve" is "8 de mayo de 1909"; "primero de enero de mil ochocientos noventa" is "1 de enero de 1890"."""
+    def year(m: re.Match) -> str:
+        words = _fold(m.group(0)).split()
+        total = 2000 if words[0] == "dos" else 1000
+        total += sum(_ONES.get(w, 0) for w in words[words.index("mil") + 1:])
+        return str(total) if 1000 <= total <= 2099 else m.group(0)
+
+    def swap(pattern: re.Pattern, replace: Any, text: str) -> str:
+        folded, out, at = _fold(text), [], 0
+        for m in pattern.finditer(folded):
+            out += [text[at:m.start()], replace(m)]
+            at = m.end()
+        return "".join(out) + text[at:]
+
+    text = swap(_SPOKEN_YEAR, year, text)
+    return swap(_SPOKEN_DAY, lambda m: f"{_DAYS.get(m.group(1)) or int(m.group(1))} de ", text)
+
+
 def _edtf_side(side: str, fallback: str) -> str:
     """One side of a Dates field as EDTF at the precision the text supports, read by histdate (#1470's parser; Spanish months
-    included); a side it cannot read is the year the span found. `?` marks an uncertain date, `~` an approximate one, `%` both."""
+    included; days, months and years in words are put in digits first). A side it cannot read is the year the span found.
+    `?` marks an uncertain date, `~` an approximate one ("circa", "a mediados de"), `%` both."""
     from fichero_server.histdate import parse_historical_date
 
     unsure = bool(re.search(r"\?|incierto|uncertain", side, re.I))
+    approx = bool(_APPROX.search(_fold(side)))
     text = re.sub(r"\?|\[?(?:incierto|uncertain)\]?", "", _dedot(side)).strip(" .,;")
+    text = re.sub(r"(?<=\d)\s*[\u00b0\u00ba]\.?", "", _APPROX.sub("", _digits_for_words(text)))  # "1° de mayo": the ordinal sign
+    text = re.sub(r"^(?:el|en|a|de)\s+(?=\d)", "", text.strip(), flags=re.I)  # "el 1 de mayo de 1910": histdate reads the date alone
     text = re.sub(r"([^\W\d]+\s+\d{1,2})\s+de\s+(\d{4})", r"\1 \2", text)  # "Mayo 8 de 1906": month first, as histdate reads it
     read = parse_historical_date(text)
+    mark = lambda circa: ("%" if unsure else "~") if circa or approx else ("?" if unsure else "")  # noqa: E731
     if read is None:
-        return fallback + ("?" if unsure else "")
+        return fallback + mark(False)
     precision, iso = read.meta.get("precision"), str(read.meta.get("converted_gregorian_iso"))
     if precision == "circa":
-        return iso[:4] + ("%" if unsure else "~")
-    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if unsure else "")
+        return iso[:4] + mark(True)
+    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + mark(False)
 
 
 def _plain(edtf: str) -> str:
@@ -322,6 +366,10 @@ def _pair(part: str) -> tuple[str, str] | None:
     sides = _sides(part)
     first, last = (sides[0], sides[1]) if len(sides) == 2 else (part, part)
     start, end = _edtf_side(first, low), _edtf_side(last, high)
+    if len(sides) == 2 and _plain(start) == low and _plain(end) != high and end[:4] == low:
+        start = end  # the first side is only the year the span found (unread, as a dotted year is): the date the other side reads stands
+    elif len(sides) == 2 and _plain(end) == high and _plain(start) != low and start[:4] == high:
+        end = start
     if len(sides) == 2 and _plain(start) > _plain(end):
         start, end = end, start  # "1918 - 1906" is the interval 1906/1918
     return (start, end) if (start[:4], end[:4]) == (low, high) else (low, high)  # a side that disagrees: the years found
@@ -339,11 +387,11 @@ def _date_normalised(dates: str, span: tuple[str, str]) -> str:
     return start if start == end else f"{start}/{end}"
 
 
-_MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, "Description") if " " in label]
+_MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, *_BOUNDARY_LABELS) if " " in label]
 # A label starts a field on its own line or after a sentence's end or closing mark ("... [uncertain] Condition:" too); a
 # label of several words ("Access points") is specific enough to start one after any space.
 _LABEL = re.compile(
-    r"(?:(?:^|(?<=[.;!?\]\)\"\u201d]\s)|(?<=\n))\s*(?P<a>" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Description"]))
+    r"(?:(?:^|(?<=[.;!?\]\)\"\u201d]\s)|(?<=\n))\s*(?P<a>" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, *_BOUNDARY_LABELS]))
     + r")|(?<=\s)(?P<b>" + "|".join(map(re.escape, _MULTI_WORD)) + r"))\s*:", re.M)
 #: The markers the readings carry in English, in the language of a description written in Spanish.
 _SPANISH_MARKERS = {"[uncertain]": "[incierto]", "[illegible]": "[ilegible]"}
@@ -373,7 +421,7 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     for mark, after in zip(marks, [*marks[1:], None]):
         label = mark.group("a") or mark.group("b")
         if label not in ATTRIBUTE_FIELDS:
-            continue  # Description is prose: it stays in the content, but ends the field before it
+            continue  # Description is prose and Dates EDTF the model's reading: each ends the field before it
         key, is_list = ATTRIBUTE_FIELDS[label]
         value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
@@ -389,6 +437,55 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     return found
 
 
+_EDTF = re.compile(r"-?\d{4}(?:-\d{2}(?:-\d{2})?)?[?~%]?(?:/-?\d{4}(?:-\d{2}(?:-\d{2})?)?[?~%]?)?")
+DATE_KEY = "catalogue_date_normalised"
+#: How the parser's and the model's readings of the Dates stood against each other, kept on the value's source.
+AGREE, PARSER_ONLY, MODEL_ONLY, DISAGREE = "agree", "parser-only", "model-only", "disagree"
+
+
+def model_date(text: str) -> tuple[str, str] | None:
+    """(EDTF, the words it was read from) in the description's `Dates EDTF:` field (prompt v4), or None when the model gave
+    none or something that is no EDTF date: a model's guess in another shape is not a reading."""
+    mark = next((m for m in re.finditer(r"(?m)^[ \t]*Dates EDTF[ \t]*:[ \t]*(.*)$", text)), None)
+    if mark is None:
+        return None
+    value, _, rest = mark.group(1).strip().partition(" ")
+    if not _EDTF.fullmatch(value):
+        return None
+    return value, rest.strip(" []\"\u201c\u201d\u00ab\u00bb.")
+
+
+def check_date(parser: str | None, model: tuple[str, str] | None) -> tuple[str | None, str | None]:
+    """(the value to write, how the two stood): agree writes the model's EDTF, checked; only one reading stands as read; two
+    that differ (after the `?~%` marks) write nothing and leave both to a person. (None, None) when neither read a date."""
+    if parser and model:
+        if _plain(parser) == _plain(model[0]):
+            return model[0], AGREE
+        return None, DISAGREE
+    if model:
+        return model[0], MODEL_ONLY
+    return (parser, PARSER_ONLY) if parser else (None, None)
+
+
+def date_problems(doc: Any) -> list[str]:
+    """The date clauses of Problemas for a folder, read from what it holds and never stored (`catalogue.export.problems-column`)."""
+    from fichero_server.workflows import attribute_sources as sources
+
+    attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+    source = sources.sources(doc).get(DATE_KEY) or {}
+    seen = source.get("date_check") or {}
+    value, out = attrs.get(DATE_KEY), []
+    if seen.get("verdict") == DISAGREE and sources.pending(doc, DATE_KEY):
+        out.append(f"fecha: el analizador leyó {seen.get('parser')}, el modelo {seen.get('model')}")
+    elif seen.get("verdict") == MODEL_ONLY and value:
+        out.append("fecha: leída por el modelo, sin comprobar")
+    elif not value and attrs.get("catalogue_dates"):
+        out.append(f"fecha sin normalizar: \u00ab{attrs['catalogue_dates']}\u00bb")
+    if value and re.search(r"[?~%]", str(value)):
+        out.append("fecha incierta")
+    return out
+
+
 def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, run_id: str | None, provider: str,
                       model: str, language: str | None = None) -> list[str]:
     """The description's fields as the folder's attributes, through the one attribute path (#6141): each value cites this run
@@ -401,11 +498,41 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     if doc is None:
         return []
     values = parse_fields(text, language)
-    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", "catalogue_date_normalised"]
+    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", DATE_KEY]
     gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
                                     provider=provider, model=model, said=text)
-    return sources.write_answers_from_run(db, doc, {k: (v, source) for k, v in {**values, **gone}.items()})
+    answers = {k: (v, source) for k, v in {**values, **gone}.items()}
+    answers.update(_date_answer(doc, values.get(DATE_KEY), model_date(text), source))
+    return sources.write_answers_from_run(db, doc, answers)
+
+
+def _date_answer(doc: Any, parser: str | None, model: tuple[str, str] | None, source: dict) -> dict[str, tuple[Any, dict]]:
+    """The normalised date's answer after the parser and the model are weighed (`check_date`): the value, with the check on its
+    source; a disagreement writes none (the cell stays empty) and keeps the model's reading as a pending proposal. A date
+    a person set is not touched (`write_answers_from_run` leaves it) and no proposal is made over it."""
+    from fichero_server.workflows import attribute_sources as sources
+
+    value, verdict = check_date(parser, model)
+    if verdict is None:
+        return {}
+    seen = {"verdict": verdict, "parser": parser, "model": model[0] if model else None}
+    if model:
+        seen["words"] = model[1]
+    cited = {**source, "date_check": seen, "cites": {"kind": "words", "words": model[1]} if model and model[1] else None}
+    if sources.machine_may_set(doc, DATE_KEY):  # a person's date keeps the field: no proposal over it, none cleared
+        meta = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
+        waiting = {k: v for k, v in sources.proposals(doc).items() if k != DATE_KEY}
+        if verdict == DISAGREE and model:
+            from fichero_server.core.timeutil import utc_now
+
+            before = sources.pending(doc, DATE_KEY) or {}
+            same = (before.get("value"), before.get("parser")) == (model[0], parser)  # the same disagreement again: unchanged
+            waiting[DATE_KEY] = {"value": model[0], "state": sources.PROPOSED_STATE, "source": cited, "parser": parser,
+                                 "proposed_at": before["proposed_at"] if same else utc_now().isoformat()}
+        meta.pop(sources.PROPOSED, None)
+        doc.metadata = {**meta, **({sources.PROPOSED: waiting} if waiting else {})}
+    return {DATE_KEY: (value, cited)}
 
 
 def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:

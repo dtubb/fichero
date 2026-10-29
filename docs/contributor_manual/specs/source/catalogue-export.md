@@ -424,17 +424,17 @@ every kept export. The Word transcript streams one folder at a time into the zip
   "Marzo/1892" for a month, "1892" for a year, empty when there is none; `?` and `~` are dropped and
   noted in Problemas; the month names come from the declaration, not the code; `catalogue_dates` text is
   never parsed at export. Test: fichero-server/tests/unit/export/test_catalogue_sheet_dates.py.
-- `catalogue.export.dates-prompt-returns-edtf` — **[GAP]** (#6282, #6270) the next catalogue prompt
+- `catalogue.export.dates-prompt-returns-edtf` — **[OK]** (#6282, #6270) the next catalogue prompt
   version asks for each Dates value as text AND as EDTF with the words it was read from; the answer
   lands as `catalogue_dates` and a machine proposal for `catalogue_date_normalised` citing the run,
   the model and the words; shipped prompt versions are not edited; described folders are not rerun.
   Test: fichero-server/tests/unit/recipes/test_catalogue_dates_prompt_edtf.py.
-- `catalogue.export.dates-parser-reads-words` — **[GAP]** (#6282, #6270) the parser reads days and
+- `catalogue.export.dates-parser-reads-words` — **[OK]** (#6282, #6270) the parser reads days and
   months written in Spanish words beside the years it already reads ("a los ocho días del mes de mayo
   de mil novecientos nueve" → 1909-05-08; "primero de enero de mil ochocientos noventa" →
   1890-01-01; "a mediados de mayo de 1910" → 1910-05~), at write and at every promote, with no model.
   Test: fichero-server/tests/unit/recipes/test_catalogue_dates_in_words.py.
-- `catalogue.export.dates-parser-checks-the-model` — **[GAP]** (#6282) agreement writes the value with
+- `catalogue.export.dates-parser-checks-the-model` — **[OK]** (#6282) agreement writes the value with
   the run as source and the parser as check; a model-only reading stands and is noted in Problemas; a
   parser-only reading stands; a disagreement leaves the cell empty, keeps the model's EDTF as the
   pending proposal and puts both readings in Problemas; a person's edit of the normalised cell wins
