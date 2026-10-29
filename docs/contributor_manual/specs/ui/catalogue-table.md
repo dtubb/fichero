@@ -72,8 +72,10 @@ write, the audited `classification.patch` for the column menu, and in the app th
   folder with no pages is still a row.
 - **Columns** are the rows' effective prototype's columns (`../source/attributes-and-prototypes.md`,
   "A template is a prototype's columns"), headed by the labels in the project's metadata language with
-  the other label language on hover; rows of mixed kinds show the union, grouped under each kind's
-  name; rows with no kind show every `catalogue_*` key.
+  the other label language on hover; rows of mixed kinds show the union by default, grouped under each
+  kind's name, and a person can narrow it for this scope (`proto.template.per-scope-column-choice`:
+  hide columns or show one kind's only, saved with the scope, followed by Export); rows with no kind
+  show every `catalogue_*` key.
 - **Cells** are `{value, origin, from, by, model, run_id, accepted_by, computed}` from one engine read
   shared with the export, so a cell renders the same string the export writes (dates included).
   `origin` is here, inherited, default or empty, and `from` names the node or prototype it came from.
@@ -96,7 +98,9 @@ write, the audited `classification.patch` for the column menu, and in the app th
   their rendered string), filter by text in any column, and by state: proposed, accepted, person's,
   inherited, empty, with problems. A filter and sort are remembered per project
   (`structured.view.saved-views-on-folders`).
-- **Columns menu**: show, hide, reorder, rename a heading, add an attribute column, change the join or
+- **Columns menu**: two kinds of change, told apart in the menu. "For this view": hide or show
+  columns, or show one kind's columns only, which is the per-scope column choice and touches no
+  prototype. "For the kind": reorder, rename a heading, add an attribute column, change the join or
   date format: each is `classification.patch` on the rows' effective prototype; a built-in is copied
   to a project-owned child on the first change and the change lands there
   (`proto.template.edit-copies-a-builtin`), so the export follows. Set kind… on a row or a selection
@@ -153,12 +157,17 @@ write, the audited `classification.patch` for the column menu, and in the app th
   dataset query, paged; the grid fetches the next page on scroll. Test:
   fichero-server/tests/unit/api/test_dataset_query_folders.py,
   fichero/Tests/Unit/general/Views/Library/CatalogueTablePagingTests.swift.
-- `catalogue.table.column-menu-edits-the-prototype` — **[GAP]** (#6282) show, hide, reorder, rename,
-  add an attribute column, change a join or date format call `classification.patch` on the rows'
-  effective prototype; a built-in is copied to a project-owned child on the first change; the export
-  then follows; ⌘Z undoes the patch; Set kind… and Clear kind on a row or selection call
+- `catalogue.table.column-menu-edits-the-prototype` — **[GAP]** (#6282) reorder, rename, add an
+  attribute column, change a join or date format call `classification.patch` on the rows' effective
+  prototype; a built-in is copied to a project-owned child on the first change; the export then
+  follows; ⌘Z undoes the patch; Set kind… and Clear kind on a row or selection call
   `document.assign_prototype`. Test: fichero-server/tests/unit/api/test_prototype_edit_copies_builtin.py,
   fichero/Tests/Unit/general/Views/Library/CatalogueTableColumnMenuTests.swift.
+- `catalogue.table.per-scope-column-choice` — **[GAP]** (#6282) "For this view" hides or shows
+  columns or one kind's columns only; it is saved with the scope, touches no prototype, the table's
+  Export follows it, clearing it returns to the union, and ⌘Z undoes it. Test:
+  fichero/Tests/Unit/general/Views/Library/CatalogueTableColumnMenuTests.swift,
+  fichero-server/tests/unit/api/test_scope_column_choice.py.
 - `catalogue.table.export-what-you-see` — **[GAP]** (#6282) the table's Export button exports the
   table's scope with the rows' effective prototype through the workbook route and a save panel; a
   fixture project's table cells and its exported sheet 1 agree cell for cell; a second item exports the
@@ -188,8 +197,8 @@ sheet end to end).
 - Depends on: 1.2
 - Size: M
 #### Step 2.2 — The column menu, Set kind and Export
-- Behaviours: `catalogue.table.column-menu-edits-the-prototype`, `catalogue.table.export-what-you-see`
-- Tests: fichero/Tests/Unit/general/Views/Library/CatalogueTableColumnMenuTests.swift, fichero-server/tests/unit/export/test_catalogue_table_matches_export.py
+- Behaviours: `catalogue.table.column-menu-edits-the-prototype`, `catalogue.table.per-scope-column-choice`, `catalogue.table.export-what-you-see`
+- Tests: fichero/Tests/Unit/general/Views/Library/CatalogueTableColumnMenuTests.swift, fichero-server/tests/unit/api/test_scope_column_choice.py, fichero-server/tests/unit/export/test_catalogue_table_matches_export.py
 - Depends on: 2.1
 - Size: M
 
@@ -204,7 +213,9 @@ origins and the exported sheet compared cell for cell.
 1. The table's columns are the effective prototype of the rows shown, following the cascade; the
    column menu edits that prototype; there is no template setting of its own.
 2. The table is the dataset Sheet given folders and a prototype, not a new view mode.
+3. Mixed kinds show the union of columns by default; a person narrows it per scope; good default
+   prototypes (a shared parent) keep kinds on the same columns.
 
 ## Open questions for the owner
 
-None of its own; see `../source/attributes-and-prototypes.md` (mixed kinds in one scope).
+None open.

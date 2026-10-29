@@ -595,7 +595,7 @@ in words, one typed by a person including a corrected date, one undescribed with
 with the thirteen cells each row should render and the one-folder Word transcript; the team's
 workbook is never a fixture.
 
-## Rulings (owner, 2026-10-29; decided)
+## Rulings (owner, 2026-10-29; decided; the owner approved this spec the same afternoon. Status flips to APPROVED when the test matrix is filled and the manual section exists, as the guardrails require)
 
 1. **Access points** are typed by the knowledge graph at promote, with no model, into
    `catalogue_people`, `catalogue_places` and `catalogue_institutions`; anything unmatched goes to
@@ -624,5 +624,5 @@ workbook is never a fixture.
 
 ## Open questions for the owner
 
-None new here. The one open question of the foundation (mixed kinds in one scope) is in
-`attributes-and-prototypes.md`; which names count in a working catalogue is the KG spec's question 2.
+None open here. Mixed kinds in one scope is decided in `attributes-and-prototypes.md` (ruling 7);
+which names count in a working catalogue is the KG spec's question 2.

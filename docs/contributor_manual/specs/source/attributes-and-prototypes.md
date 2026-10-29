@@ -189,11 +189,16 @@ three keys; `llm/language_policy.py` is the resolver both call (`source.resolve.
   are template data.
 - **A scope's template.** The table and the export show rows (folders, or a prototype's units) from
   a scope. The template is the effective prototype of the rows: when every row has the same
-  effective prototype, its columns; when they differ, the columns of each prototype in order of the
-  first row that has it, each row filling the columns its own prototype has and leaving the rest
-  empty, with the prototype's name as a group heading in the table. "Todos los atributos" (every
-  `catalogue_*` key seen, alphabetically) is what rows with NO effective prototype get, and stays
-  today's export.
+  effective prototype, its columns; when they differ, by default the UNION: the columns of each
+  prototype in order of the first row that has it, each row filling the columns its own prototype
+  has and leaving the rest empty, with the prototype's name as a group heading in the table. A person
+  may narrow that for a scope (a per-scope column choice: which columns, or which kind's columns, are
+  shown and exported; saved with the scope like a saved view, never a change to any prototype). The
+  design aim is that mixed scopes are rare: kinds that share columns do so through a common parent
+  prototype (a letter and a court file are both children of `eap_digital_folder`, adding fields, not
+  replacing them), so the union is the parent's columns plus a few, and the shipped prototypes are
+  built that way. "Todos los atributos" (every `catalogue_*` key seen, alphabetically) is what rows
+  with NO effective prototype get, and stays today's export.
 - **Changing columns changes the prototype.** Hiding, renaming, reordering or adding a column in the
   table's column menu is the audited `classification.patch` on the rows' effective prototype. A
   built-in prototype is read-only: the first change makes a project-owned prototype whose
@@ -266,9 +271,13 @@ table extraction asks the questions of the unit's effective prototype), never on
 - `proto.template.columns-are-the-prototype` — **[GAP]** (#6282) a template is the effective
   declarations of a prototype in `order`, each an attribute column (labels per language, type, join,
   date format) or a computed column with a `source` from the fixed vocabulary; the template of a
-  scope is the effective prototype of its rows, the union in first-seen order when they differ, and
-  "every catalogue key, alphabetically" when they have none. Test:
-  fichero-server/tests/unit/models/test_prototype_template.py.
+  scope is the effective prototype of its rows, the union in first-seen order when they differ (a
+  column a child prototype inherits from a shared parent appears once), and "every catalogue key,
+  alphabetically" when they have none. Test: fichero-server/tests/unit/models/test_prototype_template.py.
+- `proto.template.per-scope-column-choice` — **[GAP]** (#6282) a person may narrow a scope's columns
+  (hide columns, or show one kind's columns only); the choice is saved with the scope as a view, not
+  on any prototype, the export of that scope follows it, clearing it returns to the union, and ⌘Z
+  undoes it. Test: fichero-server/tests/unit/api/test_scope_column_choice.py.
 - `proto.template.labels-per-language-and-order` — **[GAP]** (#6282) a declaration carries
   `order`, `labels: {language: text}`, `help: {language: text}`, `join`, `name_order`, `format`,
   `inherits`, per-language labels on `options` and, for a computed column, `source`; the old single
@@ -307,8 +316,8 @@ table extraction asks the questions of the unit's effective prototype), never on
 - Depends on: 1.1
 - Size: M
 #### Step 1.3 — Templates from prototypes and the shipped EAP prototypes
-- Behaviours: `proto.template.columns-are-the-prototype`, `proto.shipped.eap-prototypes`
-- Tests: fichero-server/tests/unit/models/test_prototype_template.py, fichero-server/tests/unit/models/test_shipped_prototypes.py
+- Behaviours: `proto.template.columns-are-the-prototype`, `proto.template.per-scope-column-choice`, `proto.shipped.eap-prototypes`
+- Tests: fichero-server/tests/unit/models/test_prototype_template.py, fichero-server/tests/unit/api/test_scope_column_choice.py, fichero-server/tests/unit/models/test_shipped_prototypes.py
 - Depends on: 1.2
 - Size: M
 
@@ -348,9 +357,10 @@ overriding it; the effective prototype and the origin of every value asserted pe
    people surname first in the revised sheet, person and place authority records with their own
    columns, and a controlled Tema list. Each is template data on the prototype or an attribute on
    the record, never a hand edit.
+7. (Afternoon) Mixed kinds in one scope show the union of their columns by default, and a person can
+   narrow it with a per-scope column choice. The design aim is that kinds share columns through good
+   default prototypes (a common parent), so the union is rarely more than the parent's columns.
 
 ## Open questions for the owner
 
-1. **When the rows of one scope have different kinds, show the union of their columns with a group
-   heading per kind (recommended), or only the columns of the scope folder's own kind?** The union
-   loses nothing and the export writes it the same way; the alternative hides a row's fields.
+None open.
