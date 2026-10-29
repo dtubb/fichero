@@ -48,14 +48,20 @@ def _is_split_page(doc: Any) -> bool:
     return getattr(doc.doc_type, "value", doc.doc_type) == "chunk" and bool(meta.get("split_source_id"))
 
 
-def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> list[str]:
-    """The pages (or, for a split, the photographs) this card runs on now."""
+def _documents(db: Any, within: set[str] | None) -> list[Any]:
+    """Every document, or only those `within` (one folder's): the plan for a folder reads the folder, not the library (#6268)."""
     from fichero_server.db import query_read
     from fichero_server.models import Document
 
+    return query_read(db, Document) if within is None else db.query_in(Document, "id", within)
+
+
+def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:
+    """The pages (or, for a split, the photographs) this card runs on now; with `within`, only a folder's."""
+
     if card.get("job") == "split-pages":
         if documents is None:
-            docs = [d for d in query_read(db, Document) if not d.deleted_at
+            docs = [d for d in _documents(db, within) if not d.deleted_at
                     and getattr(d.doc_type, "value", d.doc_type) == "file"
                     and getattr(d.file_type, "value", d.file_type) == "image"]
             return sorted(d.id for d in docs)
@@ -65,8 +71,8 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> lis
         # the material count does not see as pages).
         material = db.unit_of_work_ids()
         known = set(material)
-        split = sorted(d.id for d in query_read(db, Document) if not d.deleted_at and _is_split_page(d))
-        return material + [d for d in split if d not in known]
+        split = sorted(d.id for d in _documents(db, within) if not d.deleted_at and _is_split_page(d))
+        return [i for i in material if within is None or i in within] + [d for d in split if d not in known]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material
         out.extend([c.id for c in _children(db, doc_id)] or [doc_id])
@@ -109,12 +115,10 @@ def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
     folder's, `runner.folder_scope`; `source.recipe.folder-scoped-start`)."""
     from collections import Counter
 
-    from fichero_server.models import Document
 
-    ids = [i for i in pages_for(db, {}, None) if within is None or i in within]
-    docs = {d.id: d for d in db.query(Document)
-            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")
-            and (within is None or d.id in within)}
+    ids = [i for i in pages_for(db, {}, None, within) if within is None or i in within]
+    docs = {d.id: d for d in _documents(db, within)
+            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")}
     counted: Counter[str] = Counter()
     for doc_id in ids:
         doc = docs.get(doc_id)
@@ -613,7 +617,7 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
     for card in plan.get("runs", []):
         if card.get("card") != "workflow" or (redo and redo.intersection(card["steps"])):
             continue
-        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
+        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
@@ -626,7 +630,7 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
     for card in plan.get("runs", []):
-        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
+        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         _todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"

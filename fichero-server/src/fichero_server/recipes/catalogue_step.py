@@ -26,11 +26,16 @@ def _is_folder(doc: Any) -> bool:
 
 
 def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
-    """The folders above these pages (all the way up), deepest first; each once. The documents are read once, not one
-    read a page and a parent."""
+    """The folders above these pages (all the way up), deepest first; each once. Reads the pages and then each level of
+    their parents, a read a level, not the library (#6268)."""
     from fichero_server.models import Document
 
-    nodes = {d.id: d for d in db.query(Document)}
+    nodes: dict[str, Any] = {}
+    todo = set(page_ids)
+    while todo:
+        for doc in db.query_in(Document, "id", todo):
+            nodes[doc.id] = doc
+        todo = {d.parent_id for d in nodes.values() if d.parent_id and d.parent_id not in nodes} - todo
     seen: dict[str, Any] = {}
     for page_id in page_ids:
         node = nodes.get(page_id)
