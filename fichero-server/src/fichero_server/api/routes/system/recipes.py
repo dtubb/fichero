@@ -2869,6 +2869,9 @@ async def start_project(
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         clusters = _cluster_names(http)
 
+        if request and request.documents is not None and folder_id:  # said first: the accept's plan would call the folder unknown
+            raise ValueError("Start takes a folder or some pages, not both")
+
         def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx)
             registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
