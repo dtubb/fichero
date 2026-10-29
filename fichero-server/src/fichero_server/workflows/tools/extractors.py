@@ -3375,7 +3375,7 @@ def _write_kg_rows(
             # container_id here is the per-page target_doc_id (#1562) —
             # scope the entity to the page it was extracted from.
             source_document_id=container_id,
-            asserted_by=run_attribution(provider, model, run_id) if (provider or model) else None,
+            asserted_by=run_attribution(provider, model, run_id, container_id) if (provider or model) else None,
         )
         if entity_id is None:
             continue

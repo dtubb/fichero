@@ -16,7 +16,9 @@ redo the step:
   clear (#5706);
 * correcting: a page with a reviewed transcription (the paleographer's review) saved by the step's own model;
 * finding names: a page some entity names as a page it was found on (#5584), or one a finished run's names
-  step ran on (#5706): a page whose text names no one is done once looked at.
+  step ran on (#5706): a page whose text names no one is done once looked at. When the step chose a real model, only
+  names that model made on the page, or a person's, count, and only that model's runs (#6127): the free spaCy draft
+  made at import is not done for it.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -476,8 +478,14 @@ def effective_model(db: Any, card: dict[str, Any]) -> str | None:
     return (workflow.model or None) if workflow is not None else None
 
 
-def pages_a_run_did(db: Any, job: str) -> set[str]:
-    """The pages a finished recipe run's step of this job ran on and ended well (`runner.RAN_ON_JOBS`, #5706)."""
+def _forms(model: str) -> set[str]:
+    """A model as a card names it ("provider/model" or bare) and as a run records it (bare)."""
+    return {model, model.rpartition("/")[2]}
+
+
+def pages_a_run_did(db: Any, job: str, model: str | None = None) -> set[str]:
+    """The pages a finished recipe run's step of this job ran on and ended well (`runner.RAN_ON_JOBS`, #5706); with `model`,
+    only runs whose step chose that model (#6127: a free step's run is no run of a real model's)."""
     import json
 
     from fichero_server.execution import jobs
@@ -488,7 +496,7 @@ def pages_a_run_did(db: Any, job: str) -> set[str]:
         found = jobs.read_job(db, row["id"]) or {}
         detail = json.loads(found.get("detail") or "{}")
         for card, step in zip(detail.get("runs") or [], detail.get("steps") or []):
-            if card.get("job") == job:
+            if card.get("job") == job and (model is None or str(card.get("model_override") or "") in _forms(model)):
                 out.update(step.get("ran_on") or [])
     return out
 
@@ -517,12 +525,33 @@ def judged_key(db: Any, doc_id: str) -> str:
     return f"{doc_id}@{found.pass_row.id if found is not None else 'none'}"
 
 
-def pages_with_names(db: Any) -> set[str]:
-    """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names
-    step has been over."""
+def names_model(db: Any, card: dict[str, Any]) -> str | None:
+    """The real model a names step chose; None for the free NLP layer (spaCy) or when the step names none (#6127)."""
+    from fichero_server.workflows.tools.extract_entities_only import _LOCAL_NER_PROVIDERS
+
+    model = effective_model(db, card)
+    return None if not model or card.get("provider_override") in _LOCAL_NER_PROVIDERS else model
+
+
+def pages_with_names(db: Any, model: str | None = None) -> set[str]:
+    """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names step has been over.
+    With `model` (a real model, #6127: same input + same model = reuse, a free spaCy draft is not that model's pass): only
+    the pages that model named (the attribution says which page), or that a person named. An older entry that names no
+    page counts for the entity's pages only when `model` is the only extractor the entity has."""
     from fichero_server.models import KnowledgeEntity
 
-    return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+    if model is None:
+        return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+    forms, out = _forms(model), set()
+    for e in db.query(KnowledgeEntity):
+        steps = [(getattr(a.role, "value", a.role), a.label, a.document_id) for a in e.attribution_chain]
+        if any(role == "editor" for role, _, _ in steps):
+            out.update(e.source_document_ids or [])
+        out.update(doc for role, label, doc in steps if role == "extractor" and label in forms and doc)
+        extractors = [(label, doc) for role, label, doc in steps if role == "extractor"]
+        if any(label in forms and not doc for label, doc in extractors) and all(label in forms for label, _ in extractors):
+            out.update(e.source_document_ids or [])
+    return out
 
 
 def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
@@ -548,7 +577,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "correct":
         return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"), (card.get("steps") or [None])[0])
     if job == "find-names-tag-words":
-        return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
+        model = names_model(db, card)
+        return doc_id in pages_with_names(db, model) or doc_id in pages_a_run_did(db, job, model)
     if job == "leave-out":
         return judged_key(db, doc_id) in pages_a_run_did(db, job)
     if job == "translate-transliterate-normalise":  # the page holds the reading this run writes (its level, or its translation)
@@ -581,7 +611,8 @@ def _split_done(db: Any, card: dict[str, Any], pages: list[str],
     if card.get("job") not in KNOWS_DONE:
         return pages, None
     if card.get("job") == "find-names-tag-words":  # one read of the entities, not one per page
-        named = pages_with_names(db) | pages_a_run_did(db, "find-names-tag-words")
+        model = names_model(db, card)
+        named = pages_with_names(db, model) | pages_a_run_did(db, "find-names-tag-words", model)
         todo = [p for p in pages if p not in named and p not in own]
         return todo, len(pages) - len(todo)
     if card.get("job") == "leave-out":  # judged on the pass it has now: a page whose lines were found again is judged again

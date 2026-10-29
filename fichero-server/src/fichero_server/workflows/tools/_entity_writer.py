@@ -1762,12 +1762,14 @@ def follow_merge_chain(db: Database, entity_id: str) -> str:
     raise MergeChainError(f"merge chain from {entity_id!r} is longer than {_MAX_MERGE_CHAIN}: {seen}")
 
 
-def run_attribution(provider: Optional[str], model: Optional[str], run_id: Optional[str]) -> dict:
-    """The `extractor` entry a model run writes on what it finds."""
+def run_attribution(provider: Optional[str], model: Optional[str], run_id: Optional[str],
+                    document_id: Optional[str] = None) -> dict:
+    """The `extractor` entry a model run writes on what it finds; `document_id`: the page it found it on, so a page's
+    names can be told from the same name's other pages (`recipes.done.pages_with_names`, #6127)."""
     from fichero_server.core.timeutil import utc_now
 
     return {"role": "extractor", "name": provider, "label": model, "run_id": run_id, "basis": "inferred",
-            "at": utc_now().isoformat()}
+            "document_id": document_id, "at": utc_now().isoformat()}
 
 
 def upsert_entity(
