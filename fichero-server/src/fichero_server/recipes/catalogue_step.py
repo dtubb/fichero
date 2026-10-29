@@ -282,16 +282,33 @@ def _edtf_side(side: str, fallback: str) -> str:
     return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if unsure else "")
 
 
-def _date_normalised(dates: str, span: tuple[str, str]) -> str:
-    """The Dates field as an EDTF interval ("1906-03/1918-02-19"), one date when both ends are the same. Its years are always
-    the span's: a side that reads to other years than the span found (a number the parser took for a year) is the span's year."""
-    sides = _sides(dates)
-    first, last = (sides[0], sides[1]) if len(sides) == 2 else (dates, dates)
-    start, end = (_edtf_side(first, span[0]), _edtf_side(last, span[1]))
-    if len(sides) == 2 and start.strip("?~%") > end.strip("?~%"):
+def _plain(edtf: str) -> str:
+    return edtf.strip("?~%")
+
+
+def _pair(part: str) -> tuple[str, str] | None:
+    """(start, end) EDTF of one date or range, None when it names no year."""
+    years = _years(part)
+    if not years:
+        return None
+    low, high = min(years), max(years)
+    sides = _sides(part)
+    first, last = (sides[0], sides[1]) if len(sides) == 2 else (part, part)
+    start, end = _edtf_side(first, low), _edtf_side(last, high)
+    if len(sides) == 2 and _plain(start) > _plain(end):
         start, end = end, start  # "1918 - 1906" is the interval 1906/1918
+    return (start, end) if (start[:4], end[:4]) == (low, high) else (low, high)  # a side that disagrees: the years found
+
+
+def _date_normalised(dates: str, span: tuple[str, str]) -> str:
+    """The Dates field as an EDTF interval ("1906-03/1918-02-19"), one date when both ends are the same. Dates and ranges
+    separated by ";" run from the earliest to the latest. Its years are always the span's: if they disagree, the span as years."""
+    pairs = [pair for part in dates.split(";") if (pair := _pair(part))]
+    if not pairs:
+        return span[0] if span[0] == span[1] else f"{span[0]}/{span[1]}"
+    start, end = min((p[0] for p in pairs), key=_plain), max((p[1] for p in pairs), key=_plain)
     if (start[:4], end[:4]) != span:
-        start, end = span  # several years in one side ("1906, 1918", "1850-60"), or a side that disagrees: the span, as years
+        start, end = span
     return start if start == end else f"{start}/{end}"
 
 

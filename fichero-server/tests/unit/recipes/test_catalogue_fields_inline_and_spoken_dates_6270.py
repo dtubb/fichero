@@ -128,3 +128,9 @@ def test_al_joins_two_days_of_one_month():
 def test_approximate_and_uncertain_is_percent():
     assert _norm("ca. 1906?") == "1906%"
     assert _norm("ca. 1906") == "1906~"
+
+
+def test_several_dates_and_ranges_run_from_the_earliest_to_the_latest():
+    dates = "Marzo 4 de 1.918; Julio 31 de 1914 – Noviembre 30 de 1917"
+    assert _span(dates) == ("1914", "1918")
+    assert _norm(dates) == "1914-07-31/1918-03-04"
