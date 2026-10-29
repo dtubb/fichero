@@ -53,6 +53,8 @@ def _documents(db: Any, within: set[str] | None) -> list[Any]:
     from fichero_server.db import query_read
     from fichero_server.models import Document
 
+    # Not query_in_committed (#6178): pages_for also runs inside a run's own transaction (runner.py), whose uncommitted
+    # pages a committed read would not see.
     return query_read(db, Document) if within is None else db.query_in(Document, "id", within)
 
 

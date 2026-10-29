@@ -2594,9 +2594,8 @@ def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
     for run in runs:
         for kind, reader in (run.get("readers") or {}).items():
             if reader.get("model_override") != run.get("model_override"):
-                why = reader.get("note") or "the rules chose it for this kind of page"
-                out.append(f"{kind} pages are read by {reader.get('model_override')}, not {run.get('model_override') or 'the default'}"
-                           f" ({', '.join(run.get('steps') or [])}): {why}")
+                out.append(f"{kind} pages are read by {reader.get('note') or reader.get('model_override')}, not the step's "
+                           f"{run.get('model_override') or 'default model'} ({', '.join(run.get('steps') or [])})")
     return out
 
 

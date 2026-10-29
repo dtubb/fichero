@@ -9,5 +9,5 @@ def test_a_kind_read_by_another_model_is_named_and_a_same_model_kind_is_not():
            "readers": {"handwriting": {"model_override": "apple-vision", "note": "Apple Vision"},
                        "print": {"model_override": "claude-sonnet-4-6"}}}
     (note,) = _reader_notes([run])
-    assert "handwriting pages are read by apple-vision, not claude-sonnet-4-6" in note and "Apple Vision" in note
+    assert "handwriting pages are read by Apple Vision, not the step's claude-sonnet-4-6 (read)" in note
     assert _reader_notes([{"model_override": "x"}]) == []
