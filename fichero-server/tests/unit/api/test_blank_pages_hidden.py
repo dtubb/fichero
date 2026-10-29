@@ -63,3 +63,26 @@ def test_the_edit_chain_accepts_the_blank_row():
     ops = _validate_operations([{"op": "mark_blank", "params": {"blank": True}, "who": "person"}])
     image = Image.new("RGB", (10, 10), "white")
     assert apply_operation(image, ops[0]) is image  # it changes no pixel
+
+
+def test_a_page_excluded_for_another_reason_is_still_a_unit_of_work(db, tmp_path):
+    """Review finding: pages excluded before blank marking existed (a person's curation, the B12 libraries) stay among what
+    a run counts, samples and runs; only a page hidden as blank leaves, and so does a blank-hidden page cut from a photograph."""
+    from fichero_server.media.blank_page import mark_blank
+    from fichero_server.recipes.done import pages_for
+
+    curated, _ = _page(db, tmp_path, "curated.png", _graph_paper(ink=True))
+    curated.exclude_from_processing = True  # no blank mark: a person's own curation
+    db.save(curated)
+    blank, _ = _page(db, tmp_path, "blank.png", _graph_paper(ink=False))
+    mark_blank(db, blank.id, True, who="run run-1")
+    plain, _ = _page(db, tmp_path, "plain.png", _graph_paper(ink=True))
+    cut = Document(name="cut.png", doc_type=DocType.chunk, file_type=FileType.image, path=str(tmp_path / "plain.png"),
+                   metadata={"split_source_id": plain.id}, exclude_from_processing=True)
+    db.save(cut)
+    mark_blank(db, cut.id, True, who="run run-1")
+
+    assert set(db.unit_of_work_ids()) == {curated.id, plain.id}
+    assert set(pages_for(db, {}, None)) == {curated.id, plain.id}, "a blank-hidden cut page is not added back"
+    mark_blank(db, blank.id, False, who="person")
+    assert blank.id in db.unit_of_work_ids()

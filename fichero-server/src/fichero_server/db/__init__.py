@@ -5559,8 +5559,11 @@ class Database(DatabaseEmbeddingMixin):
     #: node, or a diary entry split from a page (#5581) is not a page to read, and a page's entries do not make it
     #: a file with pages.
     _UNIT_OF_WORK_WHERE = (
-        # An excluded page (a blank one, or one a person left out) is never a unit of work: curation is a promise.
-        "d.deleted_at IS NULL AND COALESCE(d.exclude_from_processing, FALSE) = FALSE "
+        # A page hidden as blank (`media.blank_page.mark_blank`: excluded AND `metadata.blank.blank` true) is never a unit of
+        # work. A page excluded for any other reason stays one, as it was before blank marking existed: no migration, and
+        # pages a person excluded in earlier libraries are still counted, sampled and run.
+        "d.deleted_at IS NULL AND NOT (COALESCE(d.exclude_from_processing, FALSE) "
+        "AND COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true') "
         "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")

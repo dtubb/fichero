@@ -45,7 +45,8 @@ def _children(db: Any, doc_id: str) -> list[Any]:
 
 def _is_split_page(doc: Any) -> bool:
     meta = doc.metadata if isinstance(doc.metadata, dict) else {}
-    return getattr(doc.doc_type, "value", doc.doc_type) == "chunk" and bool(meta.get("split_source_id"))
+    hidden_blank = bool(getattr(doc, "exclude_from_processing", False)) and (meta.get("blank") or {}).get("blank") is True
+    return getattr(doc.doc_type, "value", doc.doc_type) == "chunk" and bool(meta.get("split_source_id")) and not hidden_blank
 
 
 def _documents(db: Any, within: set[str] | None) -> list[Any]:
