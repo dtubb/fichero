@@ -73,3 +73,19 @@ def test_without_a_page_box_the_whole_image_is_read_as_before(db, tmp_path, monk
 
     assert seen == [(W, H)] and account.get("cropped", 0) == 0
     assert len(_lines(db, page)) == 2  # the ruler is found as a line: what the page box saves
+
+
+def test_find_regions_never_runs_the_page_finder_itself(db, tmp_path, monkeypatch):
+    """Review finding: Find Regions ran the finder on every page with no box, changing every default run and repeating the
+    work when unsure. Finding the page is Prepare Images' job; Find Regions only uses the box it left."""
+    from fichero_server.recipes import page_crop
+    from fichero_server.recipes.regions import find_regions
+
+    def refuse(*_a, **_k):
+        raise AssertionError("find_regions must not look for the page")
+
+    monkeypatch.setattr(page_crop, "crop_pages", refuse)
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub([]))
+    page = _page(db, tmp_path, None)
+
+    assert find_regions(db, [page.id], "run-1", "blla", provider="kraken")["pages"] == 1

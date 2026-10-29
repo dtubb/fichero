@@ -159,8 +159,6 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             except (ValueError, OSError):  # the page is not in the file, or the render failed: nothing to look at
                 account["no_image"] += 1
                 continue
-        if doc is not None and rendered is None and "page_box" not in (doc.metadata or {}):
-            doc = _find_the_page(db, doc, run_id)  # the paper first, so the finder reads only it (#6189)
         try:  # the rendered temp file goes whatever happens to the page from here on
             try:
                 with Image.open(path) as image:
@@ -213,19 +211,6 @@ def _lines_by_page_box(found_geometry: Any, box: list[float]) -> tuple[int, int]
         else:
             outside += 1
     return inside, outside
-
-
-def _find_the_page(db: Any, doc: Any, run_id: str) -> Any:
-    """Record the page's box when the document has none and the classical finder is sure (`recipes.page_crop`); the document
-    as it is now. A page that cannot be looked at, or that fills its frame, is read whole, as before."""
-    from fichero_server.models import Document
-    from fichero_server.recipes.page_crop import crop_pages
-
-    try:
-        crop_pages(db, [doc.id], run_id)
-    except Exception:  # noqa: BLE001  (finding the page is an aid: its failure never fails Find Regions)
-        return doc
-    return db.get(Document, doc.id) or doc
 
 
 def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: str, model: str, run_id: str,
