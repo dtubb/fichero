@@ -25,3 +25,15 @@ def test_photographs_is_off_unless_the_person_says_so(client, with_material):
 def test_photographs_with_nothing_to_line_or_read_adds_nothing(client, with_material):
     jobs = _jobs(_assemble(client, photographs=True))
     assert "split-pages" not in jobs and "prepare-the-image" not in jobs
+
+
+def test_the_prepare_step_is_off_by_default_and_a_person_can_take_it_out(client, with_material):
+    """Review finding (Stage 2 HIGH 2): the step now runs the page operations on every page, so it must have an off switch:
+    it is in the plan only when photographs is answered yes (default off) or a sample shows faded pages, and Ready's
+    Take Out (`removed_jobs`) removes it even then; proposing the plan again does not bring it back."""
+    assert "prepare-the-image" not in _jobs(_assemble(client, purposes=["transcribe"]))
+    on = _assemble(client, purposes=["transcribe"], photographs=True)
+    assert "prepare-the-image" in _jobs(on)
+    off = _assemble(client, purposes=["transcribe"], photographs=True, removed_jobs=["prepare-the-image"])
+    assert "prepare-the-image" not in _jobs(off)
+    assert [t["job"] for t in off["removed"]] == ["prepare-the-image"]
