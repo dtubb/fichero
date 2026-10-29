@@ -149,7 +149,9 @@ class ClassificationCreateRequest(BaseModel):
     attributes: dict = {}
 
 
-def _validate_prototype_schema(dimension: ClassificationDimension, attributes: dict | None) -> None:
+def _validate_prototype_schema(
+    dimension: ClassificationDimension, attributes: dict | None, *, db: Database | None = None, key: str | None = None
+) -> None:
     """422 on an unknown attribute type/role in a prototype declaration.
 
     Loud at SAVE time (datasets Stage 1): a silently dropped or mistyped
@@ -162,6 +164,10 @@ def _validate_prototype_schema(dimension: ClassificationDimension, attributes: d
 
     try:
         validate_prototype_attributes(attributes)
+        if db is not None and key:
+            from fichero_server.models.node_prototypes import check_level_defaults
+
+            check_level_defaults(db, key, attributes)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -181,7 +187,7 @@ def create_value_impl(
                 409,
                 f"{request.dimension.value}={request.key} already exists",
             )
-    _validate_prototype_schema(request.dimension, request.attributes)
+    _validate_prototype_schema(request.dimension, request.attributes, db=db, key=request.key)
     value = ClassificationValue(**request.model_dump(), is_builtin=False)
     db.save(value)
     return value
@@ -228,7 +234,7 @@ def patch_value_impl(
     if value is None:
         raise HTTPException(404, f"Value not found: {value_id}")
     if request.attributes is not None:
-        _validate_prototype_schema(value.dimension, request.attributes)
+        _validate_prototype_schema(value.dimension, request.attributes, db=db, key=value.key)
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
     value.updated_at = utc_now()

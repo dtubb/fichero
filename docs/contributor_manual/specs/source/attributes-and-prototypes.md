@@ -245,7 +245,7 @@ table extraction asks the questions of the unit's effective prototype), never on
   the node's level (`subfolders`, `pages`, `regions`, `lines`, `entries`), else none; a node's own
   kind restarts the chain beneath it; clearing it inherits again; the resolver returns the rule that
   fired and the ancestor. Test: fichero-server/tests/unit/models/test_prototype_cascade_kind.py.
-- `proto.kind.declared-defaults-for-beneath` — **[GAP]** (#5365) a prototype's attributes may declare
+- `proto.kind.declared-defaults-for-beneath` — **[OK]** (#5365) a prototype's attributes may declare
   `subfolders`, `pages`, `regions`, `lines` as prototype keys; an unknown key or a cycle through them
   is refused at save with words; `entries` keeps its meaning. Test:
   fichero-server/tests/unit/models/test_prototype_schema.py.
@@ -278,7 +278,7 @@ table extraction asks the questions of the unit's effective prototype), never on
   (hide columns, or show one kind's columns only); the choice is saved with the scope as a view, not
   on any prototype, the export of that scope follows it, clearing it returns to the union, and ⌘Z
   undoes it. Test: fichero-server/tests/unit/api/test_scope_column_choice.py.
-- `proto.template.labels-per-language-and-order` — **[GAP]** (#6282) a declaration carries
+- `proto.template.labels-per-language-and-order` — **[OK]** (#6282) a declaration carries
   `order`, `labels: {language: text}`, `help: {language: text}`, `join`, `name_order`, `format`,
   `inherits`, per-language labels on `options` and, for a computed column, `source`; the old single
   `label` reads as the metadata language's; a label is never shown as the key when one exists. Test:

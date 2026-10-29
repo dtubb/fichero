@@ -63,3 +63,39 @@ def resolve_prototype_attributes(db, key: str) -> dict[str, Any]:
     for proto in reversed(chain):
         merged.update(proto.attributes)
     return merged
+
+
+def check_level_defaults(db, key: str, attributes: dict[str, Any]) -> None:
+    """Refuse, in words, a ``subfolders``/``pages``/... default naming an unknown prototype or closing a cycle.
+
+    ``attributes`` is the prototype being saved (``key``); the rest are read from ``db``.
+    """
+    from .prototype_schema import level_defaults
+
+    own = level_defaults(attributes)
+    for level, target in own.items():
+        if target != key and _prototype_by_key(db, target) is None:
+            raise ValueError(f"{level!r} names the unknown prototype {target!r}")
+
+    def targets(proto_key: str) -> set[str]:
+        if proto_key == key:
+            return set(own.values())
+        proto = _prototype_by_key(db, proto_key)
+        if proto is None:
+            return set()
+        try:
+            return set(level_defaults(resolve_prototype_attributes(db, proto_key)).values())
+        except PrototypeResolutionError:
+            return set(level_defaults(proto.attributes).values())
+
+    # Depth-first from this prototype's targets: reaching `key` again is a cycle.
+    stack, seen = list(own.values()), set()
+    while stack:
+        cur = stack.pop()
+        if cur == key:
+            raise ValueError(f"The nodes-beneath defaults of {key!r} form a cycle")
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(targets(cur))
+
