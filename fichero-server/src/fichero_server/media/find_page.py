@@ -27,9 +27,9 @@ MIN_AREA = 0.08
 #: A piece on an edge, thinner than this share of the image's short side, is furniture (a ruler), not a page.
 STRIP_THIN = 0.12
 #: A row or column of the box with less than this share of page pixels is trimmed off the box.
-TRIM_BELOW = 0.5
+TRIM_BELOW = 0.25
 #: Lab distance from the paper's colour under which a pixel of the piece still counts as paper (at least).
-PAPER_TOLERANCE = 22.0
+PAPER_TOLERANCE = 40.0
 #: A piece beside the page smaller than this share of the image is dust, not furniture.
 CARD_MIN_AREA = 0.004
 #: A colour card is a filled rectangle: its pixels fill at least this share of its box, and it is at most 4:1.
@@ -95,7 +95,7 @@ def find_page(image: Any) -> PageFound | None:
     centre = lab[by + bh // 4: by + 3 * bh // 4, bx + bw // 4: bx + 3 * bw // 4].reshape(-1, 3)
     paper = np.median(centre, axis=0)
     spread = np.percentile(np.linalg.norm(centre - paper, axis=1), 70)
-    piece = piece & (np.linalg.norm(lab - paper, axis=2) < max(PAPER_TOLERANCE, 1.5 * spread))
+    piece = piece & (np.linalg.norm(lab - paper, axis=2) < max(PAPER_TOLERANCE, 2.5 * spread))
     if not piece.any():
         return None
     x0, y0, x1, y1 = _trim(piece)
