@@ -70,6 +70,10 @@ class WordExportRequest(BaseModel):
         default=True,
         description="Append relevant knowledge graph entities and claims",
     )
+    include_images: bool = Field(
+        default=True,
+        description="Embed each page's scan; false prints no image and no note, and never opens the scan files",
+    )
 
 
 class WordExportResponse(BaseModel):
@@ -364,6 +368,7 @@ async def export_word_route(
             overwrite=request.overwrite,
             package_path=x_fichero_library_path,
             include_knowledge_graph=request.include_knowledge_graph,
+            include_images=request.include_images,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -498,10 +498,15 @@ every kept export. The Word transcript streams one folder at a time into the zip
   header rows frozen, then the sheets in the order above, every cell text); CSV is one file per sheet,
   UTF-8 with a byte-order mark, every field quoted, CRLF; both carry accents and ñ unchanged. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.word-transcript-include-images` — **[OK]** (#6287) `POST /api/export/word` takes
+  `include_images` (default true, so the Reader's export is unchanged); false prints neither image nor
+  "Image not included" note and never resolves or opens the scan files. Test:
+  fichero-server/tests/unit/api/test_export_word_transcript_options.py
+  (`test_images_off_has_no_media_and_no_note`, `test_images_off_never_touches_a_missing_scan`,
+  `test_request_model_default_includes_images`, `test_default_and_true_embed_images`).
 - `catalogue.export.word-transcript-options` — **[GAP]** (#6287) `POST /api/export/word` takes
-  `include_images` (off prints neither image nor note), `page_break_per_page`, and lists the folder's
-  blank pages once at its end as image ranges instead of a body per blank page, using the same range
-  function as Problemas; the Reader's export keeps today's defaults. Test:
+  `page_break_per_page`, and lists the folder's blank pages once at its end as image ranges instead of
+  a body per blank page, using the same range function as Problemas. Test:
   fichero-server/tests/unit/api/test_export_word_transcript_options.py.
 - `catalogue.export.word-transcript-per-folder` — **[GAP]** (#6287) `per: folder` returns a zip of one
   .docx per folder in the scope, or writes them into a named kept export's folder; the kept-export
