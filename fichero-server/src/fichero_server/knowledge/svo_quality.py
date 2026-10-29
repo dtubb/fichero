@@ -126,7 +126,7 @@ _UNITS = frozenset(
     "eis diecisiete dieciocho diecinueve veinte treinta y primero primer mil novecientos".split()
 )
 _DATE_FILLER = frozenset("de del el la los dia dias ano anos a".split())
-#: Titles of people: alone they name nobody, and in front of a name they make a person, not an organisation.
+#: Titles of people: alone they name nobody.
 _ROLE_WORDS = frozenset(
     "agente perito avaluador avaluadores juez alcalde secretario escribano notario testigo apoderado albacea "
     "curador tutor comisionado visitador recaudador administrador alguacil fiscal procurador sindico regidor "
@@ -156,22 +156,12 @@ def is_date_only(text: str | None) -> bool:
     return len(words) > 1 and words[0] in ("de", "del") and any(w in _MONTHS for w in words)
 
 
-_ORDINALS = frozenset("segundo tercero cuarto quinto sexto septimo octavo noveno decimo".split())
-
-
-def _starts_a_person(word: str) -> bool:
-    """Whether the word after a role word begins a person's name, not "del Tribunal", "de Hacienda", "Primero"
-    or "1.º"."""
-    return word.isalpha() and not (
-        word in _DATE_FILLER or word in _ORDINALS or word in _GENERIC_BODY_WORDS or _is_number(word)
-    )
-
-
 def usable_entity_name(name: str, entity_type: Any) -> str | None:
     """The name to save as an entity of ``entity_type``, or ``None`` when it names nothing.
 
-    Refuses a date (a lone month only for a non-person: "Mayo" is a surname), a bare role or kind-of-body word,
-    and an organisation that is a role word followed directly by a person's name. A name is never trimmed:
+    Refuses a date (a lone month only for a non-person: "Mayo" is a surname) and a bare role or kind-of-body
+    word. Whatever else the name says survives, "Juez Municipal de Valdoro" and "Perito Avaluador Crisanto
+    Echeverri" alike: a refused name is a lost one. A name is never trimmed:
     "Colegio 20 de Julio" and "Calle 7 de Agosto" stay whole, a stray date beats a cut name. A person is
     never refused for a month in the name ("Julio Cesar", "Juan Mayo")."""
     kind = getattr(entity_type, "value", entity_type)
@@ -182,8 +172,6 @@ def usable_entity_name(name: str, entity_type: Any) -> str | None:
     if kind != "person" and len(folded) == 1 and folded[0] in _MONTHS:
         return None
     if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
-        return None
-    if kind == "organization" and len(folded) > 1 and folded[0] in _ROLE_WORDS and _starts_a_person(folded[1]):
         return None
     return text or None
 
@@ -265,8 +253,8 @@ def join_page(text: str) -> LineJoin:
                 out.pop()  # a hyphen before a separate word ("señor- que"): two words, never one
                 end[hyphen_at + 1] = len(out)
                 out.append(" ")
-            elif previous.endswith("-") and line[0].isupper():
-                pass  # "Pérez-" / "Gómez": a compound name keeps its hyphen
+            elif previous.endswith("-") and (line[0].isupper() or (previous[-2:-1].isdigit() and line[0].isdigit())):
+                pass  # "Pérez-" / "Gómez" or "1906-" / "1910": a compound name or a range keeps its hyphen
             else:
                 out.append(" ")
         pending = ""

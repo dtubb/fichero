@@ -16,7 +16,7 @@ from fichero_server.knowledge.svo_quality import (
 @pytest.mark.parametrize("name,kind", [
     ("Enero", "location"), ("Noviembre", "location"),
     ("Mayo", "organization"), ("De Diciembre", "organization"), ("Agencia", "organization"),
-    ("Agente", "organization"), ("Perito Avaluador Lucas Pardo", "organization"), ("1918-06-06", "event"),
+    ("Agente", "organization"), ("1918-06-06", "event"),
 ])
 def test_names_that_are_not_entities_are_refused(name, kind):
     assert usable_entity_name(name, kind) is None
@@ -63,8 +63,13 @@ def test_an_organisation_with_a_role_word_but_no_person_survives(name):
     assert usable_entity_name(name, "organization") == name
 
 
-def test_a_role_word_and_a_person_is_not_an_organisation():
-    assert usable_entity_name("Juez Pedro Gómez", "organization") is None
+@pytest.mark.parametrize("name", [
+    "Perito Avaluador Crisanto Echeverri", "Alcalde Pedro Ruiz", "Juez Pedro Gómez",
+    "Juez Municipal de Valdoro", "Alcalde Mayor de Valdoro", "Notario Público de Valdoro",
+    "Juez Letrado de Hacienda", "Juez Municipal", "Notario Undécimo",
+])
+def test_a_role_word_organisation_survives_a_name_is_never_lost(name):
+    assert usable_entity_name(name, "organization") == name
 
 
 @pytest.mark.parametrize("broken,whole", [
@@ -124,6 +129,7 @@ def test_a_line_end_hyphen_is_rejoined_only_mid_word():
     assert join_lines("el señor-\nque vino") == "el señor que vino"
     assert join_lines("de la Ene-\nro pasado") == "de la Enero pasado"
     assert join_lines("Pérez-\nGómez firmó") == "Pérez-Gómez firmó"
+    assert join_lines("de 1906-\n1910 fue") == "de 1906-1910 fue"
 
 
 def test_a_blank_line_stays_a_paragraph_break():

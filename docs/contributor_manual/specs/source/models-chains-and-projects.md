@@ -2736,12 +2736,12 @@ Jobs and chains
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.find-names.not-a-date-or-a-role` — **[OK]** a name saved as an entity is somebody or somewhere: a month or
   a date ("Enero" as a place, "De Diciembre", "7 de agosto de 1910"), a bare title or kind of body ("Agente",
-  "Agencia"), and an organisation that is a title and a person's name ("Perito Avaluador Lucas Pardo") are not saved.
+  "Agencia") are not saved.
   A person is never dropped for a month in the name ("Julio Cesar", "Juan Mayo", "Pedro Abril", "Mayo"): only a
   name that is wholly a date is refused. A name is never trimmed: a date that follows it ("Colegio 20 de Julio", "Calle 7 de Agosto",
   "Juzgado de Valdoro julio 25") stays in the name, since a stray date beats a cut name, whichever of the
-  model or the parser gave it. An organisation is refused for a role word only when a person's name follows it
-  ("Juez Pedro Gómez"; "Fiscal del Tribunal Superior" stays) (`svo_quality.usable_entity_name`, in
+  model or the parser gave it. A role word never refuses a longer name: "Juez Municipal de Valdoro",
+  "Notario Undécimo" and "Perito Avaluador Crisanto Echeverri" all stay, since a refused name is a lost one (`svo_quality.usable_entity_name`, in
   `extract_entities_only.py`); the names prompt
   says so too. *Test:* `fichero-server/tests/unit/knowledge/test_name_quality.py`.
 - `source.job.find-statements.not-a-date-or-swapped` — **[OK]** a statement's subject is who does the verb: a date is
