@@ -50,3 +50,9 @@ def test_the_page_is_found_and_the_ruler_and_card_are_left_out(kw):
 
 def test_a_page_that_fills_the_frame_is_not_cropped():
     assert find_page(Image.new("RGB", (W, H), PAPER)) is None
+
+
+def test_the_ruler_and_the_colour_card_are_named_as_furniture():
+    """WHY: Leave Out gives a line on the ruler the reason `ruler`, not just `off the page` (#6198)."""
+    kinds = {f["kind"] for f in find_page(scan()).furniture}
+    assert kinds == {"ruler", "colour card"}, kinds

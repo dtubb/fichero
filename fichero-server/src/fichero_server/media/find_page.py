@@ -30,6 +30,12 @@ STRIP_THIN = 0.12
 TRIM_BELOW = 0.5
 #: Lab distance from the paper's colour under which a pixel of the piece still counts as paper (at least).
 PAPER_TOLERANCE = 22.0
+#: A piece beside the page smaller than this share of the image is dust, not furniture.
+CARD_MIN_AREA = 0.004
+#: A colour card is a filled rectangle: its pixels fill at least this share of its box, and it is at most 4:1.
+CARD_FILL = 0.85
+#: The rim around the page's box, as a share of the long side, that is not searched for furniture.
+PAGE_PAD = 0.02
 #: The opening that removes thin strips, as a share of the working long side.
 OPEN_SHARE = 0.012
 
@@ -39,6 +45,8 @@ class PageFound:
     box: tuple[float, float, float, float]  # x, y, w, h as fractions of the image
     confidence: float
     method: str = "contour"
+    #: What was left out beside the paper: `{"kind": "ruler" | "colour card", "box": [x, y, w, h]}`, fractions of the image.
+    furniture: tuple[dict[str, Any], ...] = ()
 
     def pixels(self, width: int, height: int) -> tuple[int, int, int, int]:
         """left, top, right, bottom in pixels of an image `width` x `height`."""
@@ -97,7 +105,34 @@ def find_page(image: Any) -> PageFound | None:
     fill = float(box.mean())
     if (x1 - x0) * (y1 - y0) > 0.97 * h * w:
         return None  # the whole frame: nothing was left out
-    return PageFound((x0 / w, y0 / h, (x1 - x0) / w, (y1 - y0) / h), round(fill, 3))
+    return PageFound((x0 / w, y0 / h, (x1 - x0) / w, (y1 - y0) / h), round(fill, 3),
+                     furniture=tuple(_furniture(mask, (x0, y0, x1, y1))))
+
+
+def _furniture(mask: np.ndarray, page: tuple[int, int, int, int]) -> list[dict[str, Any]]:
+    """The pieces beside the page: a long thin strip on an edge is a ruler; a compact, colourless patch is a colour card."""
+    import cv2
+
+    h, w = mask.shape
+    rest = mask.copy()
+    pad = round(PAGE_PAD * max(h, w))  # the page's own rim (trimmed pixels) is not furniture
+    rest[max(0, page[1] - pad):page[3] + pad, max(0, page[0] - pad):page[2] + pad] = 0
+    count, _, stats, _ = cv2.connectedComponentsWithStats(rest)
+    out = []
+    for i in range(1, count):
+        x, y, bw, bh, area = (int(v) for v in stats[i])
+        if area < CARD_MIN_AREA * h * w:
+            continue
+        on_edge = x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1
+        long_side, short_side = max(bw, bh), max(1, min(bw, bh))
+        if on_edge and short_side < STRIP_THIN * min(h, w) and long_side >= 3 * short_side:
+            kind = "ruler"
+        else:
+            if area < CARD_FILL * bw * bh or long_side > 4 * short_side:
+                continue  # not a rectangle: a hand, a shadow
+            kind = "colour card"
+        out.append({"kind": kind, "box": [round(x / w, 5), round(y / h, 5), round(bw / w, 5), round(bh / h, 5)]})
+    return out
 
 
 def _trim(piece: np.ndarray) -> tuple[int, int, int, int]:
