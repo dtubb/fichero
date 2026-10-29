@@ -134,6 +134,8 @@ logger = logging.getLogger(__name__)
 #: for archival work the two are not equally trustworthy, so a region has to
 #: record which kind of evidence produced it (#4309/#4418).
 APPLE_VISION_GEOMETRY_SOURCE = "apple_vision_ocr"
+#: The scope value that sends a warning to the log only: `get_activity_tracker(None)` opens the REAL app database.
+NO_ACTIVITY_LOG = ""
 _vision_activity_db_path: ContextVar[str | None] = ContextVar(
     "vision_activity_db_path", default=None
 )
@@ -201,11 +203,15 @@ def _is_non_retriable_provider_error(message: str) -> bool:
 
 def _log_vision_warning(message: str, file_path: str = None):
     """Log vision processing warnings to the activity log."""
+    scoped = _vision_activity_db_path.get()
+    if scoped == NO_ACTIVITY_LOG:  # a caller with no library (image prep): said in the log, never in the app database
+        logger.warning(f"Vision processing warning: {message}")
+        return
     try:
         # Try to get activity tracker - this should work if we're in a workflow context
         from fichero_server.workflows.activity import get_activity_tracker
         from fichero_server.workflows.activity_types import ActivityType, ActivityLevel
-        tracker = get_activity_tracker(_vision_activity_db_path.get())
+        tracker = get_activity_tracker(scoped)
         if tracker:
             tracker.log(
                 type=ActivityType.SYSTEM_WARNING,

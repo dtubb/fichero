@@ -143,7 +143,7 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
         base = flat[0]
         _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box,
                method="flatten", control_points=flat[1])
-    turn = turn_by_text(base)
+    turn = turn_by_text(base, db_path=str(db.path))
     if turn["angle"]:
         base = apply_operation(base, {"op": "rotate", "params": {"angle": turn["angle"]}})  # the editor's own turn
         _write(db, doc, "rotated", base, run_id, library, turn["reason"], box, method="turn", angle=turn["angle"])

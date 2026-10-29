@@ -26,8 +26,10 @@ AGREE = 0.7
 Line = tuple[float, float, float, float]  # x, y, w, h as fractions of the picture, in Vision's reading order
 
 
-def read_lines(image: Any) -> list[Line]:
-    """The text lines Apple Vision finds in a PIL image, in reading order (empty where Vision is unavailable)."""
+def read_lines(image: Any, db_path: str | None = None) -> list[Line]:
+    """The text lines Apple Vision finds in a PIL image, in reading order (empty where Vision is unavailable). Vision's
+    warnings go to the library at `db_path`, or to the log alone when none is given: never to the app's own database."""
+    from fichero_server.workflows.tools import vision_base
     from fichero_server.workflows.tools.vision_base import apple_vision_ocr_with_geometry
 
     small = image.convert("RGB")
@@ -35,16 +37,20 @@ def read_lines(image: Any) -> list[Line]:
     with tempfile.TemporaryDirectory() as scratch:
         shot = Path(scratch) / "turn.png"
         small.save(shot)
+        scope = vision_base._vision_activity_db_path.set(db_path or vision_base.NO_ACTIVITY_LOG)
         try:
             geometry = apple_vision_ocr_with_geometry(str(shot), "en")
         except Exception:  # noqa: BLE001  Vision absent, or the picture unreadable: no lines read
             return []
+        finally:
+            vision_base._vision_activity_db_path.reset(scope)
     return [tuple(b.bbox[:4]) for b in geometry.line_boxes]
 
 
-def turn_by_text(image: Any, *, reader: Callable[[Any], list[Line]] | None = None) -> dict[str, Any]:
+def turn_by_text(image: Any, *, reader: Callable[[Any], list[Line]] | None = None,
+                 db_path: str | None = None) -> dict[str, Any]:
     """`{"angle": 0|90|180|270, "lines": n, "reason": ...}`; the angle is the turn to apply, 0 writes nothing."""
-    lines = (reader or read_lines)(image)
+    lines = reader(image) if reader else read_lines(image, db_path)
     if len(lines) < MIN_LINES:
         return {"angle": 0, "lines": len(lines), "reason": f"{len(lines)} lines read: too few to tell"}
     width, height = image.size

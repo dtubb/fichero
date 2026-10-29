@@ -108,7 +108,7 @@ def test_page_crop_prepare_turns_and_straightens_in_renditions(db, tmp_path, mon
     from fichero_server.recipes.page_crop import crop_pages
 
     monkeypatch.setattr(module, "find_page_vision", lambda image: None)
-    monkeypatch.setattr(turn_module, "read_lines", lambda image: _lines_of(180))  # the reader finds it upside down
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: _lines_of(180))  # the reader finds it upside down
     table = Image.new("RGB", (1400, 1100), (14, 12, 10))
     table.paste(_ruled(2.0).resize((900, 700)), (250, 200))
     path = tmp_path / "photo.png"
@@ -170,3 +170,21 @@ def test_a_ruled_page_with_a_little_writing_is_unsure_not_hidden():
     assert blank_verdict(_ledger_with_strokes(3)) != "blank"
     assert blank_verdict(Image.new("RGB", (900, 1200), (238, 236, 224))) == "blank"  # truly empty
     assert blank_verdict(Image.new("RGB", (900, 1200), (238, 236, 224)), has_lines=True) == "unsure"
+
+
+def test_a_vision_warning_from_the_turn_read_never_opens_the_app_database(monkeypatch):
+    """Review finding: `get_activity_tracker(None)` opens the REAL app database; the turn read has no library to log to."""
+    from fichero_server.media.turn_by_text import read_lines
+    from fichero_server.workflows import activity
+    from fichero_server.workflows.tools import vision_base
+
+    opened: list = []
+    monkeypatch.setattr(activity, "get_activity_tracker", lambda path=None: opened.append(path))
+
+    def fails(path, language="en", reference_text=None):
+        vision_base._log_vision_warning("Apple Vision OCR failed: probe", path)
+        raise ValueError("probe")
+
+    monkeypatch.setattr(vision_base, "apple_vision_ocr_with_geometry", fails)
+    assert read_lines(Image.new("RGB", (40, 40), "white")) == []
+    assert opened == []
