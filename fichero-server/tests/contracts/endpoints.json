@@ -3531,7 +3531,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "ScopeTemplate"
+        "response_model": "ColumnChoiceAnswer"
       },
       {
         "method": "PUT",
@@ -3543,7 +3543,7 @@
         ],
         "query_params": [],
         "request_model": "ColumnChoice",
-        "response_model": "ScopeTemplate"
+        "response_model": "ColumnChoiceAnswer"
       },
       {
         "method": "POST",

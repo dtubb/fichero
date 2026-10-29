@@ -22887,7 +22887,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScopeTemplate"
+                  "$ref": "#/components/schemas/ColumnChoiceAnswer"
                 }
               }
             }
@@ -22947,7 +22947,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScopeTemplate"
+                  "$ref": "#/components/schemas/ColumnChoiceAnswer"
                 }
               }
             }
@@ -59247,6 +59247,46 @@
         },
         "type": "object",
         "title": "ColumnChoice"
+      },
+      "ColumnChoiceAnswer": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "mixed": {
+            "type": "boolean",
+            "title": "Mixed"
+          },
+          "prototypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prototypes"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ColumnChoice",
+            "nullable": true
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "The audited action: undoing it puts the previous choice back."
+          }
+        },
+        "type": "object",
+        "required": [
+          "columns",
+          "mixed",
+          "prototypes"
+        ],
+        "title": "ColumnChoiceAnswer",
+        "description": "The scope's template after a choice, and the audited action that saved it (\u2318Z undoes that row)."
       },
       "ColumnEntity": {
         "properties": {

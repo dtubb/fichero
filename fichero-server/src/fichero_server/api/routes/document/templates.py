@@ -80,6 +80,20 @@ async def get_scope_template(doc_id: str, db: Database = Depends(get_library_dat
     )
 
 
+class ColumnChoiceAnswer(ScopeTemplate):
+    """The scope's template after a choice, and the audited action that saved it (⌘Z undoes that row)."""
+
+    audit_id: str | None = Field(None, description="The audited action: undoing it puts the previous choice back.")
+
+
+async def _choose(doc_id: str, choice: dict[str, Any] | None, db: Database, ctx: ActionContext) -> ColumnChoiceAnswer:
+    result = await _run_document_write(
+        registry.invoke, db, "document.set_column_choice", {"doc_id": doc_id, "choice": choice}, ctx
+    )
+    template = await get_scope_template(doc_id, db)
+    return ColumnChoiceAnswer(**template.model_dump(), audit_id=result.audit_id)
+
+
 class ColumnChoiceParams(BaseModel):
     doc_id: str = Field(description="The scope node the choice is saved on")
     choice: ColumnChoice | None = Field(None, description="None clears the choice (back to the union)")
@@ -112,24 +126,20 @@ def _action_set_column_choice(db: Database, params: ColumnChoiceParams, ctx: Act
     return {"document_id": scope.id, "choice": meta.get(CHOICE_KEY)}, spec
 
 
-@router.put("/{doc_id}/column-choice", response_model=ScopeTemplate)
+@router.put("/{doc_id}/column-choice", response_model=ColumnChoiceAnswer)
 async def put_column_choice(
     doc_id: str,
     choice: ColumnChoice,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> ScopeTemplate:
-    await _run_document_write(
-        registry.invoke, db, "document.set_column_choice", {"doc_id": doc_id, "choice": choice.model_dump(mode="json")}, ctx
-    )
-    return await get_scope_template(doc_id, db)
+) -> ColumnChoiceAnswer:
+    return await _choose(doc_id, choice.model_dump(mode="json"), db, ctx)
 
 
-@router.delete("/{doc_id}/column-choice", response_model=ScopeTemplate)
+@router.delete("/{doc_id}/column-choice", response_model=ColumnChoiceAnswer)
 async def clear_column_choice(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> ScopeTemplate:
-    await _run_document_write(registry.invoke, db, "document.set_column_choice", {"doc_id": doc_id, "choice": None}, ctx)
-    return await get_scope_template(doc_id, db)
+) -> ColumnChoiceAnswer:
+    return await _choose(doc_id, None, db, ctx)

@@ -60,3 +60,20 @@ def test_undo_restores_the_previous_choice(client, db):
     undo = client.post(f"/api/actions/audit/{forward.audit_id}/undo")
     assert undo.status_code == 200, undo.text
     assert _keys(client.get("/api/documents/scope/template")) == ["title", "sender", "judge"]
+
+
+def test_the_answer_names_the_audit_row_and_it_undoes_through_the_route(client, db):
+    _scope(db)
+    put = client.put("/api/documents/scope/column-choice", json={"hide": ["title"]})
+    assert put.status_code == 200 and put.json()["audit_id"]
+    assert client.get("/api/documents/scope/template").json().get("audit_id") is None
+    cleared = client.delete("/api/documents/scope/column-choice")
+    assert cleared.json()["audit_id"] and cleared.json()["audit_id"] != put.json()["audit_id"]
+    assert client.post(f"/api/actions/audit/{cleared.json()['audit_id']}/undo").status_code == 200
+    assert _keys(client.get("/api/documents/scope/template")) == ["sender", "judge"]
+
+
+def test_unknown_scope_is_404_on_all_three_routes(client):
+    assert client.get("/api/documents/nope/template").status_code == 404
+    assert client.put("/api/documents/nope/column-choice", json={"hide": ["x"]}).status_code == 404
+    assert client.delete("/api/documents/nope/column-choice").status_code == 404
