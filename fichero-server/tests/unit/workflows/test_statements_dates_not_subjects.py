@@ -23,3 +23,10 @@ def test_no_actor_or_two_leaves_the_dated_row_for_the_timeline():
     bare = {"date_normalized": "1918-06-06", "verb": "", "object": "", "source_text": "6 de junio"}
     kept, claims = _attach_date_subjects([said, bare], _entities("Lucas Pardo", "Rosa Vega"))
     assert kept == [said, bare] and claims == []
+
+
+def test_a_name_inside_a_longer_one_is_not_the_actor():
+    row = {"date_normalized": "1918-06-06", "verb": "fue dictado", "object": "el auto",
+           "source_text": "el auto fue dictado por Mariana Vega"}
+    kept, claims = _attach_date_subjects([row], _entities("Ana", "Mariana Vega"))
+    assert [c["subject"] for c in claims] == ["Mariana Vega"]

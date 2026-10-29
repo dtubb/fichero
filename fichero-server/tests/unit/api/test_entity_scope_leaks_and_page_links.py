@@ -26,3 +26,18 @@ def test_an_entity_lists_a_page_it_is_named_on_that_no_claim_reaches(client, db)
     named = _entity(db, "Lucas Pardo", ["page-1"])
     body = client.get(f"/api/entities/{named.id}/documents").json()
     assert [d["document_id"] for d in body["items"]] == ["page-1"]
+
+
+def test_the_entity_list_the_inspector_and_the_rollup_agree(client, db):
+    """One rule: a claim's subject, the entities scoped to the page, and a legacy unscoped entity a claim mentions."""
+    db.save(Document(id="doc-1", name="Doc 1"))
+    ours = _entity(db, "Lucas Pardo", ["doc-1"])
+    elsewhere = _entity(db, "Rosa Vega", ["doc-2"])
+    legacy = _entity(db, "Pedro Abril")  # no scope: only a claim's words name it
+    db.save(KnowledgeClaim(text="Lucas Pardo firmó", source_document_id="doc-1",
+                           entity_ids=[ours.id, elsewhere.id, legacy.id]))
+    listed = {e["canonical_name"] for e in client.get("/api/entities?document_id=doc-1").json()["items"]}
+    inspected = {e["canonical_name"] for e in client.get("/api/documents/doc-1/inspector").json()["entities"]}
+    counted = client.get("/api/documents/doc-1/rollup").json()["entities"]
+    assert listed == inspected == {"Lucas Pardo", "Pedro Abril"}
+    assert counted == 2

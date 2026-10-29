@@ -142,45 +142,157 @@ def _is_number(word: str) -> bool:
 
 
 def is_date_only(text: str | None) -> bool:
-    """Whether ``text`` is only a date: months, numbers, number words and "de" ("De Diciembre", "1918-06-06")."""
+    """Whether ``text`` is only a date: months, numbers, number words and "de" ("De Diciembre", "1918-06-06").
+
+    A lone month ("Mayo", "Abril") or a lone number word ("Cinco") is a name as often as a date, so it counts
+    only next to a digit ("7 de agosto", "1918") or as a "de <month>" fragment. "Primero de Mayo" stays a name."""
     words = fold(text or "").replace(".º", "").replace("º", "").split()
     if not words or not any(w in _MONTHS or _is_number(w) for w in words):
         return False
-    return all(w in _MONTHS or w in _DATE_FILLER or _is_number(w) for w in words)
+    if not all(w in _MONTHS or w in _DATE_FILLER or _is_number(w) for w in words):
+        return False
+    if any(w[:1].isdigit() for w in words):
+        return True
+    return len(words) > 1 and words[0] in ("de", "del") and any(w in _MONTHS for w in words)
+
+
+#: Words that start a place or body name; one left alone after a trim is no complete name.
+_GENERIC_PLACE_WORDS = frozenset("calle plaza puerto colonia villa barrio avenida pueblo ciudad rio hacienda cerro paseo camino".split())
+
+
+def _is_date_tail(words: list[str]) -> bool:
+    """``[d] [de] month [de] [year]`` with at least one number: "7 de agosto", "de agosto de 1910", "julio 25"."""
+    i = 0
+    if i < len(words) and _is_number(words[i]):
+        i += 1
+    if i < len(words) and words[i] in ("de", "del"):
+        i += 1
+    if i >= len(words) or words[i] not in _MONTHS:
+        return False
+    i += 1
+    if i < len(words) and words[i] in ("de", "del"):
+        i += 1
+    rest = words[i:]
+    return all(_is_number(w) for w in rest) and (bool(rest) or _is_number(words[0]))
+
+
+def _complete_name(words: list[str]) -> bool:
+    """Whether ``words`` (folded) stand as a name on their own: not ending on a number, a filler or a bare
+    generic word ("Calle", "Puerto"), and not made only of those."""
+    if not words or words[-1] in _DATE_FILLER or words[-1] in _GENERIC_PLACE_WORDS or _is_number(words[-1]):
+        return False
+    return any(w not in _GENERIC_PLACE_WORDS and w not in _GENERIC_BODY_WORDS and w not in _DATE_FILLER for w in words)
 
 
 def usable_entity_name(name: str, entity_type: Any) -> str | None:
     """The name to save as an entity of ``entity_type``, or ``None`` when it names nothing.
 
-    Refuses a date, a bare role or kind-of-body word, a person with a month in the name, and an organisation that
-    is a person's title and name. A date tail fused onto a place or body is trimmed off (a "de" before the month
-    keeps it: "Calle 7 de Agosto")."""
+    Refuses a date (a lone month only for a non-person: "Mayo" is a surname), a bare role or kind-of-body word,
+    and an organisation that is a person's title and name. A date tail ("de agosto de 1910", "julio 25") is
+    trimmed off only from a complete name: "Calle 7 de Agosto" and "Puerto Mayo 1910" stay whole. A person is
+    never refused for a month in the name ("Julio Cesar", "Juan Mayo"); a stray month beats a lost person."""
     kind = getattr(entity_type, "value", entity_type)
     text = (name or "").strip()
     words = text.split()
     folded = fold(text).split()
     if not folded or is_date_only(text):
         return None
-    if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
+    if kind != "person" and len(folded) == 1 and folded[0] in _MONTHS:
         return None
-    if kind == "person" and any(w in _MONTHS for w in folded):
+    if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
         return None
     if kind == "organization" and len(folded) > 1 and folded[0] in _ROLE_WORDS:
         return None
-    if kind in {"location", "organization"}:
-        end = len(words)
-        while end > 1 and _is_number(folded[end - 1]):
-            end -= 1
-        if end > 1 and folded[end - 1] in _MONTHS and folded[end - 2] not in ("de", "del") and end < len(words):
-            end -= 1
-            text = " ".join(words[:end])
+    if kind in {"location", "organization"} and len(folded) == len(words):
+        for start in range(1, len(words)):
+            if _is_date_tail(folded[start:]) and _complete_name(folded[:start]):
+                return " ".join(words[:start])
     return text or None
 
 
+_FUNCTION_WORDS = frozenset(
+    "a al con de del e el en la las lo los me mi no o por que se si su u un una y ya".split()
+)
+
+
+class LineJoin:
+    """A page's lines joined for reading (``text``) and the page text they came from (``original``).
+    ``spans_in_joined`` moves spans measured on ``original`` (a tied line's) onto ``text``."""
+
+    def __init__(self, text: str, original: str, start: list[int], end: list[int]) -> None:
+        self.text, self.original, self._start, self._end = text, original, start, end
+
+    def spans_in_joined(self, spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        return [(self._start[a], self._end[b]) for a, b in spans]
+
+
+def _is_mid_word_break(before: str, after: str) -> bool:
+    """A hyphen at a line end is a word cut in two when both sides are lowercase letters and the pieces are not
+    function words: "Ene-"+"ro" is one word, "señor-"+"que" is two (the hyphen is dropped, a space kept)."""
+    head = re.search(r"([^\W\d_]+)-$", before)
+    tail = re.match(r"[^\W\d_]+", after)
+    if not head or not tail or not before[-2].islower() or not after[0].islower():
+        return False
+    piece, rest = head.group(1).casefold(), tail.group(0).casefold()
+    return piece not in _FUNCTION_WORDS and rest not in _FUNCTION_WORDS and len(piece) + len(rest) <= 25
+
+
+def join_page(text: str) -> LineJoin:
+    """A page's lines as running text, so a statement is read across a line break and not cut at it. A hyphen
+    break mid-word is rejoined ("Ene-\nro" → "Enero"), a blank line stays a paragraph break ("\n\n"), the
+    rest joins with a space. Characters inside a line are copied as they are, so a span within one line keeps
+    its offsets; ``LineJoin`` maps the line ends back to ``text``."""
+    text = text or ""
+    out: list[str] = []
+    start = [0] * (len(text) + 1)  # where the text at i begins in the joined text
+    end = [0] * (len(text) + 1)  # where the text before i ends in it
+    pending = ""
+    hyphen_at = -1
+    pos = 0
+    previous = ""
+    for raw in text.split("\n"):
+        line = raw.strip()
+        lead = len(raw) - len(raw.lstrip())
+        if not line:
+            if out:
+                pending = "\n\n"
+            for j in range(pos, pos + len(raw) + 1):
+                start[min(j, len(text))] = end[min(j, len(text))] = len(out)
+            pos += len(raw) + 1
+            continue
+        if out:
+            if pending:
+                out.extend(pending)
+            elif previous.endswith("-") and _is_mid_word_break(previous, line):
+                out.pop()  # the hyphen
+                end[hyphen_at + 1] = len(out)
+            elif previous.endswith("-") and previous[-2:-1].islower() and line[0].islower():
+                out.pop()  # a hyphen before a separate word ("señor- que"): two words, never one
+                end[hyphen_at + 1] = len(out)
+                out.append(" ")
+            elif previous.endswith("-") and line[0].isupper():
+                pass  # "Pérez-" / "Gómez": a compound name keeps its hyphen
+            else:
+                out.append(" ")
+        pending = ""
+        for j in range(pos, pos + lead + 1):
+            start[j] = end[j] = len(out)
+        for k, ch in enumerate(line):
+            j = pos + lead + k
+            start[j] = len(out)
+            out.append(ch)
+            end[j + 1] = len(out)
+        hyphen_at = pos + lead + len(line) - 1
+        for j in range(hyphen_at + 1, min(pos + len(raw) + 1, len(text) + 1)):
+            start[j] = end[j] = len(out)
+        previous = line
+        pos += len(raw) + 1
+    return LineJoin("".join(out), text, start, end)
+
+
 def join_lines(text: str) -> str:
-    """A page's lines as running text: a hyphenated break is rejoined ("Ene-\nro" → "Enero"), the rest joined
-    with a space, so a statement is read across a line break and not cut at it."""
-    return " ".join(re.sub(r"(?<=\w)-\n(?=[a-zà-ÿ])", "", text or "").split())
+    """``join_page``'s running text alone."""
+    return join_page(text).text
 
 
 # ---------------------------------------------------------------------------

@@ -579,6 +579,19 @@ def _is_date_like_entity(entity: KnowledgeEntity) -> bool:
     return bool(_BARE_DATE_NAME_RE.match((entity.canonical_name or "").strip()))
 
 
+def document_entity_ids(db: Database, doc_ids: set[str], claims: list[Any]) -> set[str]:
+    """The entities of a document scope, one rule for the entity list, the inspector and its counts: each
+    claim's subject (``entity_ids[0]``), every entity scoped to the pages (``source_document_ids``), and an
+    entity a claim mentions after its subject that has no scope at all (a legacy object-only entity, which
+    would vanish). The names an alias scan found in a claim's words are other pages' entities, left out."""
+    ids = {c.entity_ids[0] for c in claims if c.entity_ids}
+    ids |= _entity_ids_scoped_to_docs(db, doc_ids)
+    mentioned = {eid for c in claims for eid in (c.entity_ids or [])[1:]} - ids
+    if mentioned:
+        ids |= {e.id for e in db.query_in(KnowledgeEntity, "id", list(mentioned)) if not e.source_document_ids}
+    return ids
+
+
 def _entity_ids_scoped_to_docs(db: Database, doc_ids: set[str]) -> set[str]:
     """Entity ids whose own ``source_document_ids`` intersect ``doc_ids``.
 
@@ -1231,22 +1244,7 @@ def list_entities_impl(
         # claim row in Python — the O(claims) melt at GHG scale (#1815).
         doc_claims = db.query_in(KnowledgeClaim, "source_document_id", doc_ids)
 
-        # Extract entity IDs from those claims
-        entity_ids: set[str] = set()
-        for c in doc_claims:
-            # The claim's subject only (as the document's knowledge graph reads it): the rest of a claim's
-            # entity_ids are names the alias scan found in its words, entities of other pages.
-            entity_ids.update((c.entity_ids or [])[:1])
-
-        # #1562 — belt-and-suspenders union: also include entities whose
-        # own per-page scope (source_document_ids, recorded at upsert by
-        # _entity_writer) intersects the requested doc scope. This covers
-        # the case where an entity's CLAIMS carry the PARENT id (legacy /
-        # non-aggregate flow) but the entity itself was scoped to a page,
-        # so per-page table views still surface it. Resolved via a SQL
-        # JSON-LIKE id lookup instead of a full db.all(KnowledgeEntity)
-        # scan (#1815). Union the two id sets, then hydrate each once.
-        entity_ids.update(_entity_ids_scoped_to_docs(db, doc_ids))
+        entity_ids = document_entity_ids(db, doc_ids, doc_claims)  # one rule with the inspector (#1562)
         entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
         entities = [e for e in entities if e is not None]
     else:

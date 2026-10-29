@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -28,7 +29,7 @@ from fichero_server.knowledge.svo_cleanup import (
 from fichero_server.knowledge.svo_quality import (
     claim_rejection,
     fold,
-    join_lines,
+    join_page,
     trim_predicate,
     ungrounded_span,
 )
@@ -158,7 +159,8 @@ def _attach_date_subjects(
             kept.append(item)
             continue
         said = fold(item.get("source_text") or "")
-        names = {e.name for sec, e in entity_by_norm.values() if sec in ("people", "organizations") and fold(e.name) in said}
+        names = {e.name for sec, e in entity_by_norm.values()
+                 if sec in ("people", "organizations") and re.search(rf"(?<!\w){re.escape(fold(e.name))}(?!\w)", said)}
         if len(names) == 1:
             claims.append({**{k: item.get(k, "") for k in ("verb", "object", "source_text", "epistemic_status", "claim_type")},
                            "subject": names.pop(), "date": item.get("date_normalized") or "", "place": ""})
@@ -259,7 +261,8 @@ async def extract_svo_only(
     documents = _coerce_documents(raw_documents, db, library_path)
     records = _records_for_documents(documents, db)
     for record in records:  # statements are read across line breaks, a hyphenated break rejoined
-        record["text"] = join_lines(record["text"])
+        record["joined"] = join_page(record["text"])
+        record["text"] = record["joined"].text
     if not records:
         return {
             "summary": {
@@ -485,6 +488,7 @@ async def extract_svo_only(
                 provider=getattr(llm_config, "provider", None),
                 model=getattr(llm_config, "model", None),
                 grounding_text=record["text"],
+                joined=record["joined"],
                 run_id=state.get("task_id"),
             )
 
@@ -557,6 +561,7 @@ async def extract_svo_only(
                     provider=getattr(llm_config, "provider", None),
                     model=getattr(llm_config, "model", None),
                     grounding_text=record["text"],
+                    joined=record["joined"],
                     run_id=state.get("task_id"),
                 )
 

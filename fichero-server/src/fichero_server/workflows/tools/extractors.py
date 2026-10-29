@@ -2495,6 +2495,7 @@ def _write_kg_rows(
     model: str | None = None,
     grounding_text: str | None = None,
     run_id: str | None = None,
+    joined: Any = None,
 ) -> tuple[list[str], list[str]]:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -2548,7 +2549,13 @@ def _write_kg_rows(
         if tied_lines is None:
             from fichero_server.checking.tie_text import line_spans
 
-            tied_lines = line_spans(db, container_id, page_text)
+            # `joined` (svo_quality.LineJoin): the grounding text is the page's lines joined for reading, so the
+            # lines are tied on the page text it came from and their spans moved onto the joined one.
+            on_page = joined.original if joined is not None and joined.text == grounding_text else None
+            tied_lines = line_spans(db, container_id, page_text if on_page is None else on_page)
+            if on_page is not None:
+                moved = joined.spans_in_joined([(s.start, s.end) for s in tied_lines])
+                tied_lines = [s._replace(start=a, end=b) for s, (a, b) in zip(tied_lines, moved)]
         return tied_lines
 
     named_on_page: set[str] = set()

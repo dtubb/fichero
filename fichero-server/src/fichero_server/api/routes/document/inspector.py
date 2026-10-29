@@ -113,7 +113,7 @@ def inspector(
     doc = _document_or_404(db, document_id)
 
     from fichero_server.api.routes.claim.claims import _descendant_doc_ids
-    from fichero_server.api.routes.entity.entities import _entity_ids_scoped_to_docs
+    from fichero_server.api.routes.entity.entities import document_entity_ids
 
     doc_ids = _descendant_doc_ids(db, document_id)
 
@@ -128,27 +128,11 @@ def inspector(
     # already applied for #1815's "O(claims) melt at GHG scale").
     doc_claims = db.query_in(KnowledgeClaim, "source_document_id", list(doc_ids))
 
-    # Entities referenced by those claims.
-    entity_ids: set[str] = set()
-    for c in doc_claims:
-        entity_ids.update(c.entity_ids or [])
+    # Entities of the scope: one rule with the /entities list and the rollup count (`document_entity_ids`).
     entities = [
-        e for e in (db.get(KnowledgeEntity, eid) for eid in entity_ids)
+        e for e in (db.get(KnowledgeEntity, eid) for eid in document_entity_ids(db, doc_ids, doc_claims))
         if e is not None
     ]
-    # #1562 union: also include entities whose own per-page scope
-    # (source_document_ids, recorded at upsert) intersects this doc — so
-    # entities imported WITHOUT claims (e.g. IIIF/W3C tagging annotations,
-    # which carry no SVO) still surface in the inspector. Mirrors the
-    # /entities?document_id= list endpoint's own `_entity_ids_scoped_to_docs`
-    # (SQL LIKE per doc-id chunk) instead of `db.all(KnowledgeEntity)` —
-    # hydrating every entity in the library just to check scope (#4975, same
-    # shape as the claims fix above). Dedup by id.
-    seen_ids = {e.id for e in entities}
-    # One IN query, not a get per id: a folder can scope thousands of entities.
-    extra_ids = [eid for eid in _entity_ids_scoped_to_docs(db, doc_ids) if eid not in seen_ids]
-    if extra_ids:
-        entities.extend(db.query_in(KnowledgeEntity, "id", extra_ids))
     entities.sort(key=lambda e: e.canonical_name)
 
     # Annotations on this document — equality filter pushed to SQL instead
@@ -329,15 +313,10 @@ def document_outline(
             )
         )
 
-    linked_entity_ids = {
-        entity_id
-        for claim in claims
-        for entity_id in (claim.entity_ids or [])
-        if entity_id
-    }
+    from fichero_server.api.routes.entity.entities import document_entity_ids
+
     entities = [
-        entity for entity in (db.get(KnowledgeEntity, entity_id) for entity_id in linked_entity_ids)
-        if entity is not None
+        e for e in (db.get(KnowledgeEntity, eid) for eid in document_entity_ids(db, doc_ids, claims)) if e is not None
     ]
     rows.append(
         DocumentOutlineRow(
@@ -416,14 +395,8 @@ def document_rollup(
     # the inspector union (#1562) so the collapsed count matches what
     # the expanded entity group will show, but counts ids only — no
     # entity fetch, dedup, or merge resolution.
-    entity_ids: set[str] = set()
-    for claim in claims:
-        entity_ids.update(claim.entity_ids or [])
-    for entity in db.query(KnowledgeEntity):
-        if entity.id in entity_ids:
-            continue
-        if doc_ids.intersection(entity.source_document_ids or []):
-            entity_ids.add(entity.id)
+    from fichero_server.api.routes.entity.entities import document_entity_ids
+    entity_ids = document_entity_ids(db, doc_ids, claims)
 
     return DocumentRollupResponse(
         document_id=document_id,
