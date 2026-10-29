@@ -2,14 +2,19 @@
 
 > Milestone: preview-image-editing (GitHub #315)
 > Manual: TBD — the user manual needs an "Editing an image" section: the Edits facet, the
-> reversible operation chain, compare modes (single/side-by-side/wipe), copying edits between
+> reversible operation chain, the tools (crop to the page, straighten, split, mark the ruler and
+> the colour card, enhance), seeing the original and the wipe, copying edits between
 > images, and that Revert to Original always asks first because every step is already saved.
 
 > Design-led spec (Testing Constitution). The creative director owns the intent; tests
 > enforce it; code makes them pass. One line per behavior, each cited by its pinning test.
 > **Status: DRAFT — PASS 1 of 2** (built behaviors only, grounded in disk 2026-09-18; the
 > fold-in of legacy milestone #168's sixteen issues is PASS 2 — a fold plan follows this
-> spec's own behaviors, no issues moved yet).
+> spec's own behaviors, no issues moved yet). **Section T (the tools) added 2026-10-29** from the
+> owner's direction and the review `agent-work/status/briefs/imgprep-review-2026-10-29.md`: one tool
+> set, one icon table, direct manipulation on the picture. The automatic step the tools correct is
+> `../source/image-preparation.md` (`prep.*`); the pixel methods behind the sliders are
+> `../source/image-enhancement.md` (`image.enhance.*`).
 > Tags: **[OK]** behaves this way today · **[PARTIAL]** implemented, not fully verified/tested
 > · **[BROKEN]** regression, code contradicts the line · **[GAP]** intended, never built.
 
@@ -144,6 +149,90 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   with their own independent zoom control, since a second zoom pill over `DocumentCanvas`
   would fight with its own. Grounded in reading the enum and its call sites directly; no test
   found exercising any of the three modes.
+
+## T. The tools — one set, one icon each, on the picture (2026-10-29)
+
+### What is wrong today
+
+The editor's tools are one-shot buttons that post to the engine and show the result; only the marquee
+acts on the picture. The icons are unclear and duplicated, counted in the review by file and line:
+`wand.and.stars` means "Edited" in the toolbar (`ImageEditorView+Toolbar.swift:32`), "no edits yet" in the
+panel (`ImageEditChainPanel.swift:130`) and "Enhance" on a chain row (`ImageEditingService.swift:44`);
+`slider.horizontal.3` is the Enhance button (`+Toolbar.swift:64`), the panel's title
+(`ImageEditChainPanel.swift:62`) and Add Step's Enhance (`ImageEditChainPanel+Steps.swift:347`);
+Straighten wears `crop.rotate` (`+Toolbar.swift:56`), a crop glyph; a second rotate tool, `angle`
+(`+Toolbar.swift:76`), repeats Straighten; Remove Background is `person.and.background.dotted` in the
+toolbar (`+Toolbar.swift:83`) and `scissors` on its row (`ImageEditingService.swift:49`); Segment is
+`square.split.2x1` in the toolbar (`+Toolbar.swift:89`), `square.split.bottomrightquarter` on its row
+(`ImageEditingService.swift:50`), and does nothing to the image (`media/image_ops.py` returns it
+unchanged); the Side-by-Side compare mode wears `rectangle.split.2x1` (`+Toolbar.swift:162`), the glyph
+that should mean "split a spread"; Revert appears twice (`+Toolbar.swift:109`,
+`ImageEditChainPanel.swift:76`); Crop appears only after a marquee drag (`+Toolbar.swift:133`); and the
+whole tool set is repeated as text in the panel's Add Step (`ImageEditChainPanel+Steps.swift:290-362`) and
+again in the batch menu (`+Toolbar.swift:242-280`), where Enhance is called "Auto-Enhance".
+
+### The design
+
+Preview's and Photos' conventions, nothing invented: a tool is selected, then used on the picture; a
+proposal from the automatic step is drawn as the tool's own handles, so correcting is the same gesture as
+editing; one glyph per tool wherever it appears (toolbar, chain row, Add Step, batch sheet, Set Up's
+worklist), from one table (`ImageEditOperation.icon`); icon-only in the toolbar with a help tag and an
+accessibility label, text beside the icon everywhere else.
+
+| Tool | SF Symbol | Does | On the picture |
+| --- | --- | --- | --- |
+| Crop | `crop` | the page box: four corner handles and edge handles over the photograph, seeded by the automatic page outline (`prep.find-the-page`), solid when applied, dashed when proposed; a *Find Page* button in its bar re-runs the finder; Return applies, Escape cancels; no aspect presets (pages are not photos) | yes |
+| Rotate Left · Rotate Right | `rotate.left` · `rotate.right` | lossless quarter turns; the chain row shows the glyph of the turn made (left, right, or `arrow.triangle.2.circlepath` for 180) | immediate |
+| Straighten | `level` | a horizontal dial under the picture (as Photos), −15° to 15°, a grid overlay while dragging, *Auto* fills the dial from `detect_deskew_angle`; the angle is written on the row; this absorbs today's `angle` popover | yes |
+| Split | `rectangle.split.2x1` | a vertical gutter line with a drag handle, seeded by the automatic gutter (`prep.split-at-the-gutter`), dashed when proposed; drag to move, Return to cut; *Don't split* keeps the page whole | yes |
+| Mark | `ruler` | a menu: *Ruler*, *Colour Card*, *Blank Page*; the first two draw a region (`segments-and-geometry.md`, kind `ruler` or `colour card`) by marquee, which Leave Out reads and the layout detector learns from; *Blank Page* toggles the page's blank mark (`prep.check.blank-mark-is-a-correction`); the glyph for a colour-card region is `swatchpalette`, for blank `doc` | yes |
+| Auto Enhance | `wand.and.stars` | one click: the `contrast` step at its defaults (`image.enhance.contrast-clahe`), as the wand means in Photos | immediate |
+| Adjust | `slider.horizontal.3` | a popover of sliders, one per pixel step from `image-enhancement.md`: Contrast (clip, sharpen, yellow), Stains, Ruling, Show-through; each slider previews live on the picture and the row records the values; this is the only place `slider.horizontal.3` appears | live |
+| Undo · Revert | `arrow.uturn.backward` · `arrow.counterclockwise` | once each, in the toolbar; the panel's row keeps its `minus.circle` for removing one step and loses its Revert | — |
+| Before | `eye` | press and hold to see the original (as Photos); release to see the edits; replaces the Original/Edited segment | — |
+| Compare | `rectangle.righthalf.inset.filled.arrow.right` | toggles the wipe; Side-by-Side is dropped (the wipe shows both; the glyph is needed by Split) | yes |
+| Apply to Selection | `square.stack.3d.up` | the batch sheet: the chosen steps, three previews (first, middle, last), counts, one confirmation (`prep.check.apply-correction-to-the-folder`); the clipboard's paste-to-all uses `doc.on.clipboard` | — |
+
+Leaving the toolbar: Remove Background (it becomes Crop's dark-mount method,
+`prep.page.remove-background-is-the-dark-mount-method`), Despeckle (folded into Stains,
+`image.enhance.stain-flattening`), Segment (regions are Find Regions' job; the op changes no pixel), the
+`angle` popover (Straighten). An existing chain that carries one of these ops still renders and shows its
+row with the old title; no new row of that kind is written. The panel's Add Step keeps only tools that
+cannot be done on the picture (Flip, Grayscale, Auto Levels, Binarize, Denoise), as a short menu.
+"Save selection as annotation" (`highlighter`) is reading markup, not an edit; it moves to the Mark menu
+as *Note*, where it is reached the same way.
+
+### Behaviors
+
+- `preview.edit.tool.one-icon-table` — **[GAP]** (#1420) every place a tool or its step is shown (toolbar, chain row, Add Step, batch sheet, the Set Up worklist) draws the glyph from `ImageEditOperation.icon`; a Swift test asserts the table has no two ops sharing a glyph and that the toolbar's buttons use it. Today three tables disagree (`ImageEditingService.swift:39-55`, `ImageEditorView+Toolbar.swift`, `ImageEditChainPanel+Steps.swift`).
+- `preview.edit.tool.set-is-exactly-this` — **[GAP]** (#1420) the toolbar holds Crop, Rotate Left, Rotate Right, Straighten, Split, Mark, Auto Enhance, Adjust, Undo, Revert, Before, Compare and (with a selection) Apply to Selection, each once, each with a help tag and an accessibility label; Remove Background, Despeckle, Segment and the `angle` popover are gone from it; a Swift availability test lists the identifiers.
+- `preview.edit.tool.crop-is-a-page-box` — **[GAP]** (#6188) Crop is always visible; selecting it shows the page box with handles seeded from `page_region` (solid) or the proposal (dashed) or the whole frame; dragging and Return write a `crop` row with the box, `method: person`; *Find Page* re-runs `prep.find-the-page` and reseeds.
+- `preview.edit.tool.straighten-is-a-dial` — **[GAP]** (#6190) Straighten shows a dial and a grid; *Auto* fills it; the row records the angle; the live preview is `LiveEditPreview`'s existing `CIFilter.straighten`.
+- `preview.edit.tool.split-is-a-gutter-line` — **[GAP]** (#5382) Split shows the gutter line seeded from the automatic plan; drag and Return cut (`preview.edit.crop-and-split-are-reversible`); *Don't split* writes the decision so the worklist drops the page.
+- `preview.edit.tool.mark-ruler-card-blank` — **[GAP]** (#6198) Mark's Ruler and Colour Card draw regions with those kinds; Blank Page toggles the mark; the regions are read by Leave Out (`image.enhance.leave-out-reads-the-page-box`) and exported as detector labels (`prep.yolo.fine-tune-from-corrected-regions`).
+- `preview.edit.tool.adjust-previews-live-before-after` — **[GAP]** (#6190) every Adjust slider previews on the picture while dragging and the Before gesture shows the original at any time; on Apply the engine's render replaces the preview; the row records the values. Built: the live path for the three PIL sliders (`LiveEditPreview.swift`, #3673). Missing: the new steps, the Before gesture.
+- `preview.edit.tool.proposal-is-the-tools-handles` — **[GAP]** (#5382) a page opened from the Set Up worklist (`prep.check.worklist-of-proposals-and-a-sample`) comes up with the proposing tool selected and its dashed handles shown; Return accepts, a drag corrects; either writes the `who: person` row (`prep.check.correction-replaces-the-runs-row`).
+- `preview.edit.tool.compare-is-hold-and-wipe` — **[GAP]** (#4872) Before is press-and-hold; Compare toggles the wipe; the Side-by-Side mode and the Original/Edited segment are removed (`preview.edit.compare-modes-single-side-by-side-wipe` is superseded by this line).
+- `preview.edit.tool.retired-ops-still-render` — **[GAP]** (#6190) a chain carrying `remove_background`, `fuzzy_clean`, `segment` or a legacy `enhance` renders to the same pixels as before and shows its row; no new row of those kinds is written by the app.
+
+### Build order
+
+#### Step T.1 — One icon table and the tool set (#1420)
+- Behaviours: `preview.edit.tool.one-icon-table`, `preview.edit.tool.set-is-exactly-this`, `preview.edit.tool.retired-ops-still-render`, `preview.edit.tool.compare-is-hold-and-wipe`
+- Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditToolSetTests.swift, fichero-server/tests/unit/media/test_retired_ops_render_unchanged.py
+- Size: M
+
+#### Step T.2 — Crop, Straighten and Split on the picture
+- Behaviours: `preview.edit.tool.crop-is-a-page-box`, `preview.edit.tool.straighten-is-a-dial`, `preview.edit.tool.split-is-a-gutter-line`
+- Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditDirectToolsTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
+- Depends on: T.1
+- Size: M
+
+#### Step T.3 — Mark, Adjust and the proposal handles
+- Behaviours: `preview.edit.tool.mark-ruler-card-blank`, `preview.edit.tool.adjust-previews-live-before-after`, `preview.edit.tool.proposal-is-the-tools-handles`
+- Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditMarkAdjustTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
+- Depends on: T.2
+- Size: M
 
 ## PASS 2 — the fold (legacy milestone #168, 16 issues, every body read fresh)
 
