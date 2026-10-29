@@ -93,3 +93,8 @@ def test_normalised_date_keeps_month_precision_and_marks_approximate_and_uncerta
     assert _norm("marzo de 1906 - 19 de febrero de 1918") == "1906-03/1918-02-19"
     assert _norm("c. 1850") == "1850~"
     assert _norm("1906? - 1918") == "1906?/1918"
+
+
+def test_normalised_date_keeps_a_day_written_after_the_month():
+    assert _norm("Mayo 8 de 1906 – Diciembre 5 de 1918") == "1906-05-08/1918-12-05"
+    assert _norm("8 de mayo de 1906 – 5 de diciembre de 1918") == "1906-05-08/1918-12-05"

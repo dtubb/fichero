@@ -256,6 +256,7 @@ def _edtf_side(side: str, fallback: str) -> str:
     from fichero_server.histdate import parse_historical_date
 
     text = _THOUSANDS.sub(r"\1\2", side).strip(" .,;")
+    text = re.sub(r"([^\W\d]+\s+\d{1,2})\s+de\s+(\d{4})", r"\1 \2", text)  # "Mayo 8 de 1906": month first, as histdate reads it
     read = parse_historical_date(text)
     if read is None:
         return fallback + ("?" if re.search(r"\?|incierto|uncertain", side, re.I) else "")
