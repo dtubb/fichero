@@ -42,3 +42,26 @@ def test_spoken_years_stop_at_the_years_last_word_and_money_is_no_year():
     assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1906", "1907")
     got = parse_fields("Dates: mil pesos, 1906")
     assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1906", "1906")
+
+
+def _span(dates: str) -> tuple[str, str]:
+    got = parse_fields(f"Dates: {dates}")
+    return got["catalogue_date_start"], got["catalogue_date_end"]
+
+
+def test_a_number_before_de_month_is_a_day_not_a_short_end_year():
+    assert _span("1913 - 19 de febrero de 1918") == ("1913", "1918")
+
+
+def test_spanish_thousands_punctuation_is_read_as_a_year():
+    assert _span("1.909 - 1.918") == ("1909", "1918")
+
+
+def test_a_year_in_digits_and_words_gives_one_year():
+    assert _span("1.909 – febrero de mil novecientos nueve") == ("1909", "1909")
+    assert _span("mil ochocientos noventa") == ("1890", "1890")
+
+
+def test_a_three_digit_year_with_the_one_dropped_ends_the_range_only_beside_a_full_year():
+    assert _span("1906 – del 914") == ("1906", "1914")
+    assert _span("1850, folio 914") == ("1850", "1850")  # 1914 is 64 years from 1850: not a year

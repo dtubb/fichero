@@ -185,7 +185,10 @@ ATTRIBUTE_FIELDS = {
     "Scope and content": ("catalogue_scope_content", False), "Arrangement": ("catalogue_arrangement", False),
 }
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
-_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)")
+# "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
+_SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)(?!\s+de\s)")
+_THOUSANDS = re.compile(r"(?<!\d)([12])\.(\d{3})(?!\d)")  # Spanish "1.918" = 1918
+_DROPPED_ONE = re.compile(r"(?<!\d)([89]\d{2})(?!\d)")  # "914" = 1914, "814" = 1814
 
 
 _ONES = {w: n for n, w in enumerate("uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince".split(), 1)}
@@ -217,10 +220,15 @@ def _spoken_years(dates: str) -> list[str]:
 def _years(dates: str) -> list[str]:
     """The years a Dates field names, digits or Spanish words; a short end of a range ("1850-60", "1850/60") is the year it
     ends: 1860."""
+    dates = _THOUSANDS.sub(r"\1\2", dates)
     years = _YEAR.findall(dates) + _spoken_years(dates)
     for start, tail in _SHORT_END.findall(dates):
         end = int(start[:2] + tail)
         years.append(str(end + 100 if end < int(start) else end))  # "1899-01" ends in 1901, not 1801
+    for short in _DROPPED_ONE.findall(dates):  # only next to a full year within 30 years: "914" beside 1906
+        year = 1000 + int(short)
+        if any(abs(year - int(y)) <= 30 for y in years):
+            years.append(str(year))
     return years
 
 
