@@ -16,6 +16,10 @@ import numpy as np
 
 #: Ink under this share of the page's pixels, after the ruling mask: blank.
 INK_MAX = 0.002
+#: "Sure" (`prep.blank-pages-marked`): ink under this share after the ruling mask, a tenth of INK_MAX. Between the two a
+#: page is unsure: three short pen strokes on a ruled ledger page are about 0.0005, and a page hidden by mistake is
+#: never read, so unsure becomes a proposal and the page stays.
+INK_SURE = 0.0002
 WORK_SIDE = 900
 #: A dark mark must be this much darker than the paper around it; a mark smaller than this many pixels is dust.
 CONTRAST = 40
@@ -49,6 +53,15 @@ def ink_share(image: Any) -> float:
 
 def is_blank(image: Any) -> bool:
     return ink_share(image) < INK_MAX
+
+
+def blank_verdict(image: Any, has_lines: bool = False) -> str:
+    """`blank` only when sure (ink under INK_SURE and no text line found on the page); `unsure` when the ink is under
+    INK_MAX but not that little, or a line was found; else `ink`."""
+    share = ink_share(image)
+    if share >= INK_MAX:
+        return "ink"
+    return "unsure" if (share >= INK_SURE or has_lines) else "blank"
 
 
 def mark_blank(db: Any, doc_id: str, blank: bool, *, who: str, reason: str = "") -> None:

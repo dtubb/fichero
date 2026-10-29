@@ -27,10 +27,10 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     from fichero_server.actions.registry import ActionContext, registry
     import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.update)
     from fichero_server.importers.ingest import _copy_to_library
-    from fichero_server.media.blank_page import is_blank, mark_blank
+    from fichero_server.media.blank_page import blank_verdict, mark_blank
     from fichero_server.media.find_page import find_page
     from fichero_server.media.upright import upright
-    from fichero_server.models import Document, NodeRegion, Rendition
+    from fichero_server.models import Document, NodeRegion, Rendition, Segment
     from fichero_server.models.anchors import RegionConfidence
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
@@ -57,10 +57,20 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             account["no_image"] += 1
             continue
         account["pages"] += 1
-        if prepare and meta.get("blank") is None and is_blank(image):  # a page with no ink: hidden and skipped, kept
-            mark_blank(db, doc.id, True, who=f"run {run_id}", reason="no ink beyond its ruling")
-            account["blank"] += 1
-            continue
+        if prepare and meta.get("blank") is None:
+            # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal.
+            has_lines = any(s.deleted_at is None for s in db.query(Segment, document_id=doc.id))
+            verdict = blank_verdict(image, has_lines)
+            if verdict == "blank":
+                mark_blank(db, doc.id, True, who=f"run {run_id}", reason="no ink beyond its ruling")
+                account["blank"] += 1
+                continue
+            if verdict == "unsure" and not meta.get("prep_proposals", {}).get("blank"):
+                registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {"prep_proposals": {
+                    **meta.get("prep_proposals", {}),
+                    "blank": {"reason": "very little ink beyond its ruling, or text lines found: kept, not hidden",
+                              "by": f"run {run_id}"}}}}}, ctx)
+                account["blank_proposed"] = account.get("blank_proposed", 0) + 1
         found = find_page(image)
         # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
         unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE

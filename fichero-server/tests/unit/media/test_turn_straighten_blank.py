@@ -149,3 +149,24 @@ def test_a_blank_graph_paper_page_is_blank_and_a_written_one_is_not():
     assert is_blank(_graph_paper(ink=False)), ink_share(_graph_paper(ink=False))
     assert not is_blank(_graph_paper(ink=True)), ink_share(_graph_paper(ink=True))
     assert is_blank(Image.new("RGB", (900, 1200), (238, 236, 224)))
+
+
+def _ledger_with_strokes(strokes: int):
+    """A ruled page, full-width bars every 40 px, with `strokes` short handwritten-like dashes."""
+    img = Image.new("RGB", (900, 1200), (238, 236, 224))
+    d = ImageDraw.Draw(img)
+    for y in range(80, 1200, 40):
+        d.line([(0, y), (900, y)], fill=(40, 40, 60), width=2)
+    for i in range(strokes):
+        d.line([(120 + i * 200, 300 + i * 90), (170 + i * 200, 320 + i * 90)], fill=(25, 25, 40), width=4)
+    return img
+
+
+def test_a_ruled_page_with_a_little_writing_is_unsure_not_hidden():
+    """`prep.blank-pages-marked`: hidden only when sure; a ruled ledger page with three strokes is a proposal."""
+    from fichero_server.media.blank_page import blank_verdict
+
+    assert blank_verdict(_ledger_with_strokes(0)) == "blank"  # bars alone are ruling
+    assert blank_verdict(_ledger_with_strokes(3)) != "blank"
+    assert blank_verdict(Image.new("RGB", (900, 1200), (238, 236, 224))) == "blank"  # truly empty
+    assert blank_verdict(Image.new("RGB", (900, 1200), (238, 236, 224)), has_lines=True) == "unsure"
