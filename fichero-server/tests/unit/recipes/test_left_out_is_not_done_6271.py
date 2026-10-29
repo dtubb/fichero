@@ -156,3 +156,43 @@ def test_a_redo_of_find_lines_then_read_a_line_reads_the_page_and_the_next_run_k
 
     assert sent and set(sent[0]) == set(versos)
     assert not step.get("left_out")
+
+
+def _blank_split(db, tmp_path):
+    """Two pages sorting called blank and one a person did, on a project of 12 pages; returns (ids, card)."""
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    every = list(ids.values())
+    versos = sorted(finddocs_job.blank_versos(db, every))
+    assert len(versos) >= 3
+    for pid, by in zip(versos[:3], (sorting.BY_SORTING, sorting.BY_SORTING, sorting.BY_PERSON)):
+        doc = db.get(Document, pid)
+        doc.attributes = {sorting.KIND: sorting.BLANK, sorting.SET_BY: by}
+        db.save(doc)
+    card = {"steps": ["find-lines"], "job": "find-lines", "card": "workflow", "workflow_id": "w", "model_override": None}
+    return every, card
+
+
+def test_the_plan_note_splits_blank_by_sorting_from_blank_a_person_called(client, db, tmp_path):
+    from fichero_server.recipes import done
+
+    every, card = _blank_split(db, tmp_path)
+    done.annotate(db, {"runs": [card]}, within=set(every))
+
+    assert "2 left out as blank by sorting (redo them to read anyway); 1 you marked blank" in card["note"], card["note"]
+
+
+def test_the_estimate_does_not_price_the_blank_pages_a_normal_run_leaves_out(client, db, tmp_path):
+    from fichero_server.recipes import done
+
+    every, card = _blank_split(db, tmp_path)
+    plan = {"runs": [card]}
+    normal = done.todo_counts(db, plan, within=set(every))["find-lines"]
+    redo = done.todo_counts(db, plan, within=set(every), redo={"find-lines"}).get("find-lines")
+
+    assert normal == len(every) - 3
+    assert redo is None  # a redo is priced on every page it will read, as before

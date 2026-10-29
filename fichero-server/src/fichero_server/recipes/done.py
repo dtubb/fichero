@@ -381,13 +381,20 @@ def failed_reads(db: Any, pages: list[str], mark_blank: bool = False) -> list[tu
     return [(page, why) for page, why in out if not _called_blank(db, page)]
 
 
-def _called_blank(db: Any, page: str) -> bool:
+def _blank_by(db: Any, page: str) -> str | None:
+    """Who called the page blank: "sorting" or "person"; None when nobody has."""
     from fichero_server.models import Document
     from fichero_server.recipes import sorting
 
     doc = db.get(Document, page)
     attrs = doc.attributes if doc is not None and isinstance(doc.attributes, dict) else {}
-    return attrs.get(sorting.KIND) == sorting.BLANK
+    if attrs.get(sorting.KIND) != sorting.BLANK:
+        return None
+    return "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
+
+
+def _called_blank(db: Any, page: str) -> bool:
+    return _blank_by(db, page) is not None
 
 
 def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
@@ -622,6 +629,8 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
+            if card.get("job") in ("find-lines", "read-a-line", "read-a-page"):  # a normal run leaves blank ones out (#6271)
+                todo = [p for p in todo if not _called_blank(db, p)]
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
@@ -638,10 +647,13 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
         if done is not None and card.get("job") in ("find-lines", "read-a-line", "read-a-page"):
-            left = sum(1 for p in todo if _called_blank(db, p))  # pages sorted blank before; not looked at again here (#6271)
-            if left:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
-                card["note"] = (f"runs on {len(todo) - left} of {len(pages)} pages; {left} left out as blank "
-                                f"(redo them to read anyway)")
+            by = [_blank_by(db, p) for p in todo]  # pages called blank before; not looked at again here (#6271)
+            sorted_out, marked = by.count("sorting"), by.count("person")
+            if sorted_out or marked:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
+                said = [f"{sorted_out} left out as blank by sorting (redo them to read anyway)" if sorted_out else "",
+                        f"{marked} you marked blank" if marked else ""]
+                card["note"] = (f"runs on {len(todo) - sorted_out - marked} of {len(pages)} pages; "
+                                + "; ".join(x for x in said if x))
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
             from fichero_server.recipes.catalogue_step import folders_to_describe
 
