@@ -7,8 +7,11 @@ replaced by a finder's. The finder is `media.find_page` (no model); a page it is
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 #: A finder box is written only when its paper fill is at least this (a ragged guess keeps the whole frame).
 MIN_CONFIDENCE = 0.8
@@ -18,7 +21,7 @@ PRODUCER = "page-crop"
 
 
 def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None, *,
-               prepare: bool = False) -> dict[str, int]:
+               prepare: bool = False) -> dict[str, Any]:
     """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
     Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
     `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`."""
@@ -43,69 +46,74 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     for doc_id in documents:
         if stop is not None and stop():
             break
-        doc = db.get(Document, doc_id)
-        meta = dict(doc.metadata or {}) if doc is not None else {}
-        if doc is None:
-            continue
-        if meta.get("page_box_by") == "person":
-            account["kept"] += 1
-            continue
-        path = _resolve_abs_path(doc, str(library))
         try:
-            with Image.open(path) as opened:
-                image = upright(opened)
-        except (OSError, AttributeError, TypeError):
-            account["no_image"] += 1
-            continue
-        account["pages"] += 1
-        found = find_page(image)
-        # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
-        unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
-        trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
-        if prepare and meta.get("blank") is None:
-            # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
-            # share of the paper found (not the mount around it); a text read is the last word, asked only when the ink
-            # alone would hide the page, because lines do not exist yet on a first run (Find Lines comes after).
-            verdict = blank_verdict(image, lambda: _has_text(db, doc.id, image),
-                                    list(found.box) if trusted else None)
-            if verdict == "blank":
-                # Through the action layer: audited, and Undo restores the page (`image.mark_blank`).
-                registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True, "who": f"run {run_id}",
-                                                        "reason": "no ink beyond its ruling"}, ctx)
-                account["blank"] += 1
+            doc = db.get(Document, doc_id)
+            meta = dict(doc.metadata or {}) if doc is not None else {}
+            if doc is None:
                 continue
-            if verdict == "unsure" and not meta.get("prep_proposals", {}).get("blank"):
-                registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {"prep_proposals": {
-                    **meta.get("prep_proposals", {}),
-                    "blank": {"reason": "very little ink beyond its ruling, or text lines found: kept, not hidden",
-                              "by": f"run {run_id}"}}}}}, ctx)
-                account["blank_proposed"] = account.get("blank_proposed", 0) + 1
-        if not trusted:
-            account["whole"] += 1
-            continue
-        box = [round(v, 5) for v in found.box]
-        registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {
-            "page_box": box, "page_box_by": found.method, "page_box_confidence": found.confidence,
-            "page_furniture": list(found.furniture),
-            # The attribute of `segments-and-geometry.md`: the outline, how it was found, the frame it is measured in.
-            "page_region": {"quad": [list(p) for p in found.quad], "box": box, "method": found.method,
-                            "confidence": found.confidence, "frame": "upright",
-                            "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}}}, ctx)
-        left, top, right, bottom = found.pixels(*image.size)
-        with tempfile.TemporaryDirectory() as scratch:
-            crop_file = Path(scratch) / f"{Path(path).stem}_page.png"
-            image.crop((left, top, right, bottom)).save(crop_file)
-            stored = _copy_to_library(crop_file, library)
-        for old in db.query(Rendition, document_id=doc.id):
-            if old.role == "crop" and old.producer_tool == PRODUCER:  # a re-run replaces its own crop, never another's
-                db.delete(old)
-        db.save(Rendition(document_id=doc.id, role="crop", path=str(stored), is_primary=False,
-                          pixel_width=right - left, pixel_height=bottom - top, producer_tool=PRODUCER,
-                          producer_run_id=run_id, note=f"the page found by the {found.method} finder",
-                          transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, method=found.method)))
-        account["cropped"] += 1
-        if prepare:
-            _prepare(db, doc, image, found, run_id, library)
+            if meta.get("page_box_by") == "person":
+                account["kept"] += 1
+                continue
+            path = _resolve_abs_path(doc, str(library))
+            try:
+                with Image.open(path) as opened:
+                    image = upright(opened)
+            except (OSError, AttributeError, TypeError):
+                account["no_image"] += 1
+                continue
+            account["pages"] += 1
+            found = find_page(image)
+            # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
+            unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
+            trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
+            if prepare and meta.get("blank") is None:
+                # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
+                # share of the paper found (not the mount around it); a text read is the last word, asked only when the ink
+                # alone would hide the page, because lines do not exist yet on a first run (Find Lines comes after).
+                verdict = blank_verdict(image, lambda: _has_text(db, doc.id, image),
+                                        list(found.box) if trusted else None)
+                if verdict == "blank":
+                    # Through the action layer: audited, and Undo restores the page (`image.mark_blank`).
+                    registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True, "who": f"run {run_id}",
+                                                            "reason": "no ink beyond its ruling"}, ctx)
+                    account["blank"] += 1
+                    continue
+                if verdict == "unsure" and not meta.get("prep_proposals", {}).get("blank"):
+                    registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {"prep_proposals": {
+                        **meta.get("prep_proposals", {}),
+                        "blank": {"reason": "very little ink beyond its ruling, or text lines found: kept, not hidden",
+                                  "by": f"run {run_id}"}}}}}, ctx)
+                    account["blank_proposed"] = account.get("blank_proposed", 0) + 1
+            if not trusted:
+                account["whole"] += 1
+                continue
+            box = [round(v, 5) for v in found.box]
+            registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {
+                "page_box": box, "page_box_by": found.method, "page_box_confidence": found.confidence,
+                "page_furniture": list(found.furniture),
+                # The attribute of `segments-and-geometry.md`: the outline, how it was found, the frame it is measured in.
+                "page_region": {"quad": [list(p) for p in found.quad], "box": box, "method": found.method,
+                                "confidence": found.confidence, "frame": "upright",
+                                "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}}}, ctx)
+            left, top, right, bottom = found.pixels(*image.size)
+            with tempfile.TemporaryDirectory() as scratch:
+                crop_file = Path(scratch) / f"{Path(path).stem}_page.png"
+                image.crop((left, top, right, bottom)).save(crop_file)
+                stored = _copy_to_library(crop_file, library)
+            for old in db.query(Rendition, document_id=doc.id):
+                if old.role == "crop" and old.producer_tool == PRODUCER:  # a re-run replaces its own crop, never another's
+                    db.delete(old)
+            db.save(Rendition(document_id=doc.id, role="crop", path=str(stored), is_primary=False,
+                              pixel_width=right - left, pixel_height=bottom - top, producer_tool=PRODUCER,
+                              producer_run_id=run_id, note=f"the page found by the {found.method} finder",
+                              transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, method=found.method)))
+            account["cropped"] += 1
+            if prepare:
+                _prepare(db, doc, image, found, run_id, library)
+        except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
+            logger.warning("page prep: %s skipped: %s", doc_id, exc)
+            account["failed"] = account.get("failed", 0) + 1
+            account.setdefault("failures", []).append({"page_id": doc_id, "why": str(exc)})
     return account
 
 

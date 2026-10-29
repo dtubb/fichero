@@ -83,3 +83,37 @@ def test_the_paper_answer_gates_the_contrast_step_and_the_facts_suggest_from_the
     got = suggest(db)
     assert got["the_paper"]["value"] == ["ruled"] and got["the_paper"]["agree"].endswith("of 5")
     assert "estimate" in estimate(374) and "2 min" in estimate(374)
+
+
+def test_one_failing_page_is_skipped_and_the_step_still_prepares_the_rest(db, tmp_path, monkeypatch):
+    """Review finding: any error but an unreadable image failed the step for every page and skipped the contrast step."""
+    from fichero_server.media import find_page as module
+    from fichero_server.recipes import page_crop
+    from fichero_server.recipes.runner import _run_prepare
+
+    ids = []
+    for n in range(3):
+        path = tmp_path / f"p{n}.png"
+        _graph_paper(ink=True).save(path)
+        doc = Document(name=path.name, doc_type=DocType.page, file_type=FileType.image, path=str(path), metadata={})
+        db.save(doc)
+        ids.append(doc.id)
+    real = module.find_page
+
+    def flaky(image, **kw):
+        if flaky.calls == 1:
+            flaky.calls += 1
+            raise RuntimeError("probe: the finder broke on this page")
+        flaky.calls += 1
+        return real(image, **kw)
+
+    flaky.calls = 0
+    monkeypatch.setattr(page_crop, "find_page", flaky, raising=False)
+    monkeypatch.setattr(module, "find_page", flaky)
+    step: dict = {}
+
+    child, state, _why = _run_prepare(db, ids, "run-9", step)
+
+    assert state == "done"
+    assert step["page_prep"]["pages"] == 3 and step["page_prep"].get("failed") == 1
+    assert "prepared" in step, "the contrast step still ran"
