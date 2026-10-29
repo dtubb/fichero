@@ -37,3 +37,20 @@ def test_every_page_left_out_as_blank_is_not_said_to_be_already_done(client, db,
     assert "already done" not in (step.get("why") or "")
     assert "blank" in (step.get("why") or "") and str(len(versos)) in step["why"]
     assert {e["page_id"] for e in step["left_out"]} == set(versos)
+
+
+def test_the_plan_says_how_many_pages_it_leaves_out_as_blank(client, db, tmp_path):
+    from fichero_server.recipes import done
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    every = list(ids.values())
+    versos = finddocs_job.blank_versos(db, every)
+    from fichero_server.recipes import sorting
+    sorting.kinds(db, every, [])  # an earlier run sorted them
+    card = {"steps": ["find-lines"], "job": "find-lines", "card": "workflow", "workflow_id": "w", "model_override": None}
+    plan = {"runs": [card]}
+    done.annotate(db, plan, within=set(every))
+    assert card["left_out_blank"] == len(versos)
+    assert f"{len(versos)} left out as blank" in card["note"] and "runs on all" not in card["note"]

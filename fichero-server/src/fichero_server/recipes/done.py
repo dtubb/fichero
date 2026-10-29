@@ -633,10 +633,16 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
     for card in plan.get("runs", []):
         pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
-        _todo, done = split_done(db, card, pages, memo=memo)
+        todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
+        if done is not None and card.get("job") in ("find-lines", "read-a-line", "read-a-page"):
+            left = sum(1 for p in todo if _called_blank(db, p))  # pages sorted blank before; not looked at again here (#6271)
+            if left:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
+                card["left_out_blank"] = left
+                card["note"] = (f"runs on {len(todo) - left} of {len(pages)} pages; {left} left out as blank "
+                                f"(redo them to read anyway)")
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
             from fichero_server.recipes.catalogue_step import folders_to_describe
 
