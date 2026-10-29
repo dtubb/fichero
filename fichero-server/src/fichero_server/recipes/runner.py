@@ -1538,7 +1538,11 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
             if step["state"] == "waiting":
-                step.update(state="done", child_id=None, why="already done on every page")
+                left = len(scratch.get("left_out") or [])  # pages left out are not pages done (#6271)
+                step.update(state="done", child_id=None, why=(
+                    f"nothing to run: {left} page{'' if left == 1 else 's'} left out, the rest already done" if left and already
+                    else f"nothing to run: all {left} page{'' if left == 1 else 's'} left out as blank" if left
+                    else "already done on every page"))
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
         if early is None:  # a step already running beside the one before it is not held back: it is running
