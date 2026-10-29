@@ -199,12 +199,14 @@ _SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?
 _UNIT = r"(?:pesos|reales|folios|fojas|hojas|varas|centavos|usd|kilos?|libras|m2|arrobas|\$)"  # what a number counts, when it is no year
 # Spanish "1.918" = 1918, only in a date context (an allow-list: everything else with a dot stays a number, "pesos 1.918");
 # a unit after it ("1.918 pesos", "2 de 1.918 pesos") makes it a number in every context:
-_DOTTED = r"(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)(?![.,]\d)(?!\s*" + _UNIT + r"(?!\w))"
+_DOTTED = r"(?:1\.[89]\d{2}|2\.0\d{2})(?!\d)(?![.,]\d)(?!\s*(?i:" + _UNIT + r")(?!\w))"
 _MONTHS_ES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
 _DOTTED_AFTER = (  # (prefix, year): "Marzo 4 de 1.918", "4 de marzo de 1.918", "marzo 1.918", "en 1.912"
     re.compile(r"(\b(?:\d{1,2}|" + _MONTHS_ES + r")\s+(?:de|del)\s+)(" + _DOTTED + ")", re.I),
     re.compile(r"(\b(?:" + _MONTHS_ES + r")\s+)(" + _DOTTED + ")", re.I),
     re.compile(r"(\ben\s+)(" + _DOTTED + ")", re.I),
+    # "Bogot\u00e1, 1.918": a capitalised place word, then the year (a unit word is no place)
+    re.compile(r"(\b(?!(?i:" + _UNIT + r")\b)[A-Z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1][A-Za-z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+,?\s+)(" + _DOTTED + ")"),
     re.compile(r"(\baños?\s+(?:de\s+)?)(" + _DOTTED + ")", re.I),  # "año de 1.910", "del año 1.915"
 )
 _BEFORE_ANO = re.compile(r"(" + _DOTTED + r")(?=\s+años?\b)", re.I)
@@ -213,7 +215,16 @@ _WHOLE_SIDE = re.compile(r"[\s.,\[\]()?]*(?:(?:de|del)\s+)?(" + _DOTTED + r")[\s
 _SIDE_SPLIT = re.compile(r"(;|\s+-\s+|(?<=\d)-(?=\d)|[\u2013\u2014]|\s+(?:to|hasta|a|al)\s+)")
 
 
+_HAS_UNIT = re.compile(r"\b(?:pesos|reales|folios|fojas|hojas|varas|centavos|usd|kilos?|libras|m2|arrobas)\b|\$", re.I)
+
+
 def _dedot(text: str) -> str:
+    """`_dedot_part` for each ";" part; a part with a range whose side carries a unit ("de 1.850 a 1.900 pesos") has no year."""
+    return ";".join(part if len(sides := _SIDE_SPLIT.split(part)) > 1 and any(_HAS_UNIT.search(x) for x in sides[::2])
+                    else _dedot_part(part) for part in text.split(";"))
+
+
+def _dedot_part(text: str) -> str:
     """The dotted years of a Dates text without the dot: after "de"/"del" that follows a day or month, a whole side of a range or
     ";" part, or next to "año(s)"; any other dotted number ("pesos 1.918", "1.900 kilos", "1.918,50") is left as it is."""
     drop = lambda year: year.replace(".", "")  # noqa: E731
