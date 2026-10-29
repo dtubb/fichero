@@ -39,13 +39,18 @@ The table view that shows and edits the same columns is `../ui/catalogue-table.m
 
 A person presses Start on a recipe whose last step is "Keep files". When the run ends they open the
 folder the step names and find `Catálogo.xlsx`: sheet 1 is the catalogue, one row per digital folder (a
-digital folder is one archival document or file), the columns of the folders' prototype in its words
-and order, two header rows (the funder's English, the team's Spanish); beside it the sheets the team is
-used to: `Entidades`, `Personas`, `Lugares` (the institutions, people and places the rows name, one row
-each, with the graph's canonical name beside each and the folders that name it), `Catálogo` (every
-catalogue attribute as it stands, dates as written and as EDTF), `Páginas` (the page texts), `Nombres`
-(the project's ONE canonical set of names in the scope), `Declaraciones` (the statements) and `Notas`
-(who or what set each cell). Beside the workbook, when the recipe asks for it, one Word file per folder
+digital folder is one archival document or file), one such sheet per collection in the scope, the
+columns of the folders' prototype in its words and order, three header rows (the funder's English, the
+team's Spanish, the instruction line per column); beside it the sheets the team is used to:
+`Faltantes` (the rows with something missing or unresolved), `Personas`, `Lugares`, `Entidades` (the
+people, places and institutions the rows name, one row each, with the graph's canonical name and its
+authority fields beside each and the folders that name it), `Tema` (the controlled subject list),
+`Catálogo` (every catalogue attribute as it stands, dates as written and as EDTF), `Páginas` (the
+page texts), `Nombres` (the project's ONE canonical set of names in the scope), `Declaraciones` (the
+statements) and `Notas` (who or what set each cell). The workbook is the team's "Revisada" sheet made
+by the engine: it prints the curated state (a person's values, the canonical forms of names) and marks
+what is still a machine's proposal; nothing in it is edited by hand, and every value is visible as an
+attribute in the app. Beside the workbook, when the recipe asks for it, one Word file per folder
 with the transcript page by page. They can hand it all to the archive or the funder as it is, or open
 the same columns in the app's table, correct a cell, and export again. Nothing in it was invented at
 export: every cell is an attribute of the folder as it stands, a fact of the folder (its name, its
@@ -69,9 +74,9 @@ the cells (`../ui/catalogue-table.md`); no rule lives in Swift.
   it: a first header row in EAP English (Digital Folder Name, Digital File Name (First), Digital File
   Name (Last), Number of Digital Files, Title (In Original Language/Script), Original Reference, Dates
   of Material (Gregorian Calendar), Related Towns/Cities, Related Subjects), a second row in the team's
-  Spanish. We ship it as the prototype `eap_digital_folder`, both label languages; the EAP instruction
-  text is a column's help, not a third row (the hand-built sheet had two rows, and the prototype
-  reproduces it).
+  Spanish, a third row of instructions per column. We ship it as the prototype `eap_digital_folder`,
+  both label languages and the instruction line, and the export writes all three rows (the team's
+  workbook has three; the earlier hand-built sheet had two).
 - **ISAD(G) and EAD.** Title, dates, extent, reference code, scope and content, access points. Every
   column of the EAP prototype maps to one ISAD(G) element, so an EAD export later
   (`catalogue.export-standards`) reads the same template.
@@ -109,13 +114,13 @@ holds when there is nothing.
 | 4 | Nombre de archivo digital (segundo) | Digital File Name (Last) | `folder.last_file`: the stem of the last page ("segundo" is the team's word for the last file, `_IMG_001` … `_IMG_125`). | Empty; equal to 3 when one page. |
 | 5 | Número de archivos digitales en carpeta | Number of Digital Files | `folder.page_count`: pages directly in the folder and its subfolders. | "0". |
 | 6 | Título del documento | Title (In Original Language/Script) | `attribute:catalogue_title` | Empty. |
-| 7 | Referencia original de archivo físico | Original Reference | `attribute:catalogue_original_reference` (NEW optional field: a reference the records carry, a cover number, a legajo and folio; proposed by the stage only when the pages state one; declared `inherits`, so a reference set on the box shows on every row until a folder states its own). | Empty. |
-| 8 | Fecha de inicio del proceso legal | Dates of Material (Gregorian Calendar) | `attribute:catalogue_date_normalised` through the format `d/Mes/aaaa`: the START side of the EDTF interval, at its precision ("17/Marzo/1892"; "Marzo/1892"; "1892"); `?` and `~` are dropped and the uncertainty goes to Problemas. | Empty when no normalised date; the reason goes to Problemas. |
-| 9 | Lugares mencionados (Pueblos, regiones, países, ríos, quebradas, cerros, minas, fincas y otros referentes geográficos) | Related Towns/Cities | `attribute:catalogue_places` (typed from the access points, below), joined "; ". | Empty. |
-| 10 | Nombres de personas mencionadas | — | `attribute:catalogue_people`, joined "; ". | Empty. |
+| 7 | Referencia original de archivo físico | Original Reference | `attribute:catalogue_original_reference`, declared `inherits`: in the team's workbook it is one archive-and-fonds string for a whole collection, so it is set once on the collection node and shows on every row until a folder states its own (a cover number, a legajo and folio the stage proposes only when the pages state one). | Empty. |
+| 8 | Fecha de inicio del proceso legal | Dates of Material (Gregorian Calendar) | `attribute:catalogue_date_normalised` through the format `d/Mes/aaaa` at the date's precision: the START side of the EDTF interval ("17/Marzo/1892"; "Marzo/1892"; "1892"; in the team's practice a year); `?` and `~` are dropped and the uncertainty goes to Problemas. | Empty when no normalised date; the reason goes to Problemas. |
+| 9 | Lugares mencionados (Pueblos, regiones, países, ríos, quebradas, cerros, minas, fincas y otros referentes geográficos) | Related Towns/Cities | `attribute:catalogue_places` (typed from the access points, below), each the place's canonical form, joined "|" (the revised sheet's convention; the join is a declaration setting). | Empty. |
+| 10 | Nombres de personas mencionadas | — | `attribute:catalogue_people`, each as "Apellido, Nombre" from the entity's surnames and given names (`name_order: surname-first`, a declaration setting), joined "|". | Empty. |
 | 11 | Descripción breve del documento: ¿Sobre qué es? | — | `description`: the folder's content when it is the promoted catalogue description (`catalogue_content_from` set), else the latest `catalogue.narrative` artifact's text. | Empty. |
 | 12 | Problemas para resolver | — | `problems`: the person's `attribute:catalogue_problems`, then the computed problems (below), each one clause, "; " between. | Empty. |
-| 13 | — | Related Subjects | `attribute:catalogue_subjects` (NEW optional field, terms from the project's `Tema` list only), joined "; ". | Empty. |
+| 13 | — | Related Subjects | `attribute:catalogue_subjects` (NEW optional field, a `multi_select` over the prototype's Tema vocabulary only, printed by its English label), joined "|". | Empty. |
 
 Institutions are not a column of the EAP prototype; they are the `Entidades` sheet, from
 `attribute:catalogue_institutions`. Columns 7, 12 and 13 are new optional fields of
@@ -194,6 +199,45 @@ Read at export and in the table from facts the engine holds, never stored, each 
 - a name in the row's lists that is still only a proposal in the graph: "nombre sin confirmar: …";
 - a check rejection on a statement of the folder (`checking/verdicts.py`): "declaración rechazada: …".
 
+## What the team's workbook taught (structure only; decided)
+
+The owner's team's real cataloguing workbook was read for its structure, never its rows; no name,
+title or reference from it is in the repo or a spec. Each pattern below is now a rule, and each rule
+is template data on the prototype or an attribute on a record, so the engine writes the same workbook
+deterministically from what Fichero holds, and the app shows every value as an attribute:
+
+- **One catalogue sheet per collection.** The team keeps one sheet per collection of the same funder
+  project. A collection is a node (a project, or a box that is a collection) carrying the prototype;
+  the export writes one catalogue sheet per collection node in the scope, named by the collection.
+- **Three header rows.** Row 1 the funder's English, row 2 the team's Spanish, row 3 an instruction
+  per column (how to write a date, how to separate places, to look in the Personas tab first). The
+  instruction is the declaration's `help`, in the team's language.
+- **The folder name, first and last file and count** follow one pattern (a project code, the
+  collection, the box, a document number and a short title; the files that stem plus `_IMG_nnn`):
+  the fact columns, computed, never typed.
+- **The original reference is the same string for a whole collection**: set once on the collection
+  node, inherited by every row (`inherits`), overridden where a folder differs.
+- **The date is in practice a year**: the EDTF start rendered at its precision does that by itself.
+- **The revised sheet is the canonical format**: places joined "|", people as "Apellido, Nombre"
+  joined "|"; the earlier sheets used "; " or ", " and "Nombre Apellido". The join and the name order
+  are declaration settings, and the EAP preset carries the revised ones.
+- **Personas** is an authority list: the compound form as used in the catalogue (a control column,
+  "do not edit"), given names, surnames, additional information (a relation, an office, a widow of),
+  comments, each with its own instruction. **Lugares** likewise: the place as used (control), the
+  corrected place, a place type from a fixed list, the place it lies inside, comments. These are
+  attributes of the canonical person and place entities (`given_names`, `surnames`, `note`;
+  `place_type`, `parent_place`), owned by the one record (`../kg/kg-entities-and-statements.md`,
+  `kg.attr.authority-sheet`); the sheets print them, and a person corrects them in the app's name
+  lens, not in the sheet. The control column is the form the catalogue rows print, so a later
+  re-import of a corrected sheet can match rows (not in the build order).
+- **Tema** is a controlled vocabulary of about 130 subject terms with English and Spanish side by
+  side: the `options` of `catalogue_subjects` on the prototype, two labels per term.
+- **Faltantes** lists folders that are missing or incomplete: a computed sheet of the catalogue rows
+  whose Problemas names a gap, missing pages or an unresolved date, plus rows a person marked.
+- **Revisada** is the curated state: the workbook prints a person's values where there are any, the
+  canonical forms of names, and marks what is still only a machine's proposal; a delivered export can
+  leave proposals out (`proposals: marked | omitted`, marked by default).
+
 ## The template is the prototype (decided)
 
 A template is a prototype's column set; there is no template setting of its own. Everything about
@@ -212,16 +256,23 @@ spec adds:
 
 ## The sheets
 
-Sheet 1, the catalogue, is named by the prototype's label ("Catalogación básica" for
-`eap_digital_folder`). Then, in this order, each from the rows of sheet 1 or the scope's pages and
-graph, every cell text:
+The catalogue sheets come first, one per collection node in the scope, each named by the collection
+and the prototype's label ("<collection> Catalogación básica"), with the three header rows. Then, in
+this order, each from the rows of the catalogue sheets or the scope's pages and graph, every cell text:
 
-- **Entidades**, **Personas**, **Lugares** (decided: from the rows, with the graph beside each): one
-  row per distinct value of `catalogue_institutions`, `catalogue_people`, `catalogue_places` across
-  the rows, sorted by the value; columns: the value as the rows write it; the graph's canonical name
-  where matched (and for Personas "Apellido, Nombre"; for Lugares the gazetteer's type and parent
-  place where linked, `knowledge/linked_places.py`, else empty); whether the name is confirmed or
-  still proposed; the folders that name it ("; "); Comentarios (empty, the person's).
+- **Faltantes**: the catalogue rows (same columns) whose Problemas names a numbering gap, missing
+  pages, an unresolved date or an unconfirmed name, or that a person marked incomplete.
+- **Personas**, **Lugares**, **Entidades** (decided: from the rows, with the graph beside each): one
+  row per distinct value of `catalogue_people`, `catalogue_places`, `catalogue_institutions` across
+  the rows, sorted by the value, each with an instruction row under the headings. Personas: the
+  compound form as the rows print it (the control column), given names, surnames, additional
+  information, whether confirmed or proposed, the folders that name it, Comentarios. Lugares: the
+  place as the rows print it (control), the canonical place, the place type (from the fixed list),
+  the place it lies inside (the gazetteer's parent where linked, `knowledge/linked_places.py`),
+  confirmed or proposed, the folders, Comentarios. Entidades: the institution as printed, the
+  canonical form, the folders, Comentarios. The authority fields are the entity's attributes, read
+  from the record, never typed into the sheet.
+- **Tema**: the prototype's subject vocabulary, one row per term, English and Spanish labels.
 - **Catálogo**: one row per folder, every `catalogue_*` attribute as it stands, alphabetically, with
   `catalogue_dates` and `catalogue_date_normalised` side by side.
 - **Páginas**: the existing Documents rows (`export_excel_xlsx`'s page rows for the scope) with the
@@ -321,6 +372,9 @@ Nothing else changes in the emitter: the heading per folder, the reading order, 
 - **Never a model.** The builders read attributes, pages, entities, claims and the run's record. A folder
   the Catalogue stage has not described has empty field columns; the Activity line says how many
   ("Catálogo.xlsx: 552 filas, 14 sin describir").
+- **Steps are optional where the recipe says so.** The export step reflects whatever ran. Leave-out
+  (`recipes-run.md`) is an optional step, off by default, that a person turns on like any other; it
+  is never fixed or always on, and the workbook never waits for it (owner, 2026-10-29).
 
 ## At 100k pages
 
@@ -392,9 +446,10 @@ every kept export. The Word transcript streams one folder at a time into the zip
   unconfirmed name in the lists, a rejected statement; one function computes them for the export and
   the table; nothing computed is stored. Test: fichero-server/tests/unit/export/test_catalogue_sheet_problems.py.
 - `catalogue.export.new-optional-fields` — **[GAP]** (#6087, #6282) the Catalogue stage's option list
-  gains Referencia original de archivo físico (`catalogue_original_reference`, declared inheriting),
-  Problemas para resolver (`catalogue_problems`, a person's field the model never fills) and Related
-  Subjects (`catalogue_subjects`, from the project's Tema list only); a model fills a field only from
+  gains Referencia original de archivo físico (`catalogue_original_reference`, declared inheriting and
+  set once on the collection), Problemas para resolver (`catalogue_problems`, a person's field the
+  model never fills) and Related Subjects (`catalogue_subjects`, a `multi_select` over the prototype's
+  Tema vocabulary only; a term outside it is refused in words); a model fills a field only from
   evidence in the records. Test: fichero-server/tests/unit/recipes/test_catalogue_stage_optional_fields.py.
 - `catalogue.export.template-is-the-prototype` — **[GAP]** (#6282) the export's columns are the
   effective prototype of the rows in the scope (`attributes-and-prototypes.md`): one kind, its columns
@@ -407,11 +462,27 @@ every kept export. The Word transcript streams one folder at a time into the zip
   Spanish as given, both frozen, and a fixture of three folders (one described by a fake model, one
   typed by a person, one undescribed) renders cell for cell as the matrix says, from attributes alone,
   with no model client in the process. Test: fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py.
-- `catalogue.export.authority-sheets-from-the-rows` — **[GAP]** (#6282, #5380) Entidades, Personas and
-  Lugares hold one row per distinct value of the typed attributes across the rows, sorted, with the
-  graph's canonical form where matched ("Apellido, Nombre" for a person; type and parent place for a
-  linked place, else empty), confirmed or proposed, the folders that name it, and an empty Comentarios;
-  a sheet with no rows still has its header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py.
+- `catalogue.export.authority-sheets-from-the-rows` — **[GAP]** (#6282, #5380) Personas, Lugares and
+  Entidades hold one row per distinct value of the typed attributes across the rows, sorted, with the
+  control column as the rows print it and the entity's authority fields from the record (given names,
+  surnames, additional information for a person; canonical place, place type, parent place for a
+  place; canonical form for an institution), confirmed or proposed, the folders that name it, an
+  instruction row under the headings and an empty Comentarios; a sheet with no rows still has its
+  header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py.
+- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[GAP]** (#6282) the export writes
+  one catalogue sheet per collection node in the scope, named by the collection, each with the
+  prototype's label rows and its instruction row frozen; a scope that is one collection writes one
+  sheet. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.faltantes-and-revisada` — **[GAP]** (#6282) Faltantes holds the catalogue rows
+  whose Problemas names a gap, missing pages, an unresolved date or an unconfirmed name, or that a
+  person marked incomplete; the workbook prints a person's values and canonical name forms and marks a
+  machine's proposals, and `proposals: omitted` leaves them out; Tema holds the prototype's subject
+  vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py.
+- `catalogue.export.list-cells-follow-the-declaration` — **[GAP]** (#6282) a list column is joined by
+  the declaration's `join` ("|" in the EAP preset) and people are printed by its `name_order` from the
+  entity's surnames and given names ("Apellido, Nombre"); a name with no split surname prints as
+  written; the table and the export print the same string. Test:
+  fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
 - `catalogue.export.names-sheet-is-the-canonical-set` — **[GAP]** (#6282, #6283) Nombres holds one row
   per entity of the scope that is not rejected and not merged away, read through the KG spec's scope
   function: canonical name, forms as written, type, confirmed or proposed, folders, maker; a resolved
@@ -475,33 +546,43 @@ from prototypes and the shipped EAP prototypes) before stage 1 here.
 - Tests: fichero-server/tests/unit/export/test_catalogue_sheet_rows.py, fichero-server/tests/unit/export/test_catalogue_sheet_dates.py
 - Depends on: 1.1, 1.2
 - Size: M
-#### Step 1.4 — The template from the prototype, problems and the EAP sheet end to end
+#### Step 1.4 — List cells by the declaration
+- Behaviours: `catalogue.export.list-cells-follow-the-declaration`
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_rows.py
+- Depends on: 1.3
+- Size: S
+#### Step 1.5 — The template from the prototype, problems and the EAP sheet end to end
 - Behaviours: `catalogue.export.template-is-the-prototype`, `catalogue.export.problems-column`, `catalogue.export.eap-preset-reproduces-the-sheet`
 - Tests: fichero-server/tests/unit/export/test_catalogue_sheet_template.py, fichero-server/tests/unit/export/test_catalogue_sheet_problems.py, fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py
-- Depends on: 1.3
+- Depends on: 1.4
 - Size: M
 
 ### Stage 2 — The workbook, the transcript and their doors
 #### Step 2.1 — The other sheets and the two formats
-- Behaviours: `catalogue.export.authority-sheets-from-the-rows`, `catalogue.export.names-sheet-is-the-canonical-set`, `catalogue.export.notas-sheet-is-the-provenance`, `catalogue.export.xlsx-and-csv`
+- Behaviours: `catalogue.export.authority-sheets-from-the-rows`, `catalogue.export.names-sheet-is-the-canonical-set`, `catalogue.export.notas-sheet-is-the-provenance`, `catalogue.export.xlsx-and-csv`, `catalogue.export.one-sheet-per-collection-three-header-rows`
 - Tests: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py, fichero-server/tests/unit/export/test_catalogue_sheet_kg_sheets.py, fichero-server/tests/unit/export/test_catalogue_sheet_notas.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
 - Size: M
-#### Step 2.2 — The Word transcript's options and one file per folder (#6287)
+#### Step 2.2 — Faltantes, Tema and the revised state
+- Behaviours: `catalogue.export.faltantes-and-revisada`
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py
+- Depends on: 2.1
+- Size: S
+#### Step 2.3 — The Word transcript's options and one file per folder (#6287)
 - Behaviours: `catalogue.export.word-transcript-options`, `catalogue.export.word-transcript-per-folder`
 - Tests: fichero-server/tests/unit/api/test_export_word_transcript_options.py, fichero-server/tests/unit/export/test_word_transcript_per_folder.py
 - Size: S
-#### Step 2.3 — The route and the recipe step
+#### Step 2.4 — The route and the recipe step
 - Behaviours: `catalogue.export.on-demand-route`, `catalogue.export.recipe-last-step`, `catalogue.export.streams-at-scale`
 - Tests: fichero-server/tests/unit/api/test_export_catalogue_workbook_route.py, fichero-server/tests/unit/recipes/test_recipe_export_catalogue_workbook.py, fichero-server/tests/unit/export/test_catalogue_sheet_streaming.py
-- Depends on: 2.1, 2.2
+- Depends on: 2.2, 2.3
 - Size: M
-#### Step 2.4 — The new optional fields and the app's doors
+#### Step 2.5 — The new optional fields and the app's doors
 - Behaviours: `catalogue.export.new-optional-fields`, `catalogue.export.app-doors`
 - Tests: fichero-server/tests/unit/recipes/test_catalogue_stage_optional_fields.py, fichero/Tests/Unit/general/Views/Library/CatalogueExportCommandTests.swift
-- Depends on: 2.3
+- Depends on: 2.4
 - Size: M
 
-Stage 3 is the table view (`../ui/catalogue-table.md`), which depends on 1.4 here and on
+Stage 3 is the table view (`../ui/catalogue-table.md`), which depends on 1.5 here and on
 `attributes-and-prototypes.md` step 2.1. The Nombres sheet reads the KG spec's scope function
 (`kg.one.catalogue-reads-the-record`); until that lands it reads the entity table with the same
 filter, so step 2.1 does not wait on the KG stage 3.
@@ -533,6 +614,13 @@ workbook is never a fixture.
    setting, no template route; the EAP preset is the prototype `eap_digital_folder`.
 7. **The Word transcript** (#6287) is a second template on the same record stream, with images off,
    a page break per page, blank pages once per folder and one file per folder in one call.
+8. **The team's real workbook is the model** (structure only): one sheet per collection, three header
+   rows, a collection-wide reference that cascades, "|" joins and surname-first people from the
+   revised sheet, person and place authority fields on the canonical entities, a controlled Tema
+   list, a Faltantes sheet, and the workbook as the revised state, generated deterministically from
+   attributes and never edited by hand.
+9. **Leave-out** is an optional step, off by default, turned on like any other; the export step never
+   depends on it.
 
 ## Open questions for the owner
 

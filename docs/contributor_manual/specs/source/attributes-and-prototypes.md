@@ -51,8 +51,10 @@ foundation, so it gets one spec, and the three surfaces read it instead of repea
 - **Effective prototype** of a node: its own, else the one it inherits (below).
 - **Effective value** of a key on a node: its own, else the one it inherits, else the declaration's
   default (below). Every effective value says where it came from.
-- **Template**: a prototype's columns: its fields in declared order, with their labels, plus the
-  computed columns the prototype declares. The export writes a template; the table shows one.
+- **Template**: a prototype's columns: its fields in declared order, with their labels and
+  instruction lines, plus the computed columns the prototype declares. The export writes a template;
+  the table shows one. One collection (a project, or a box that is a collection) carries one, so
+  "one template per collection" is the collection node carrying the prototype.
 
 ## Intent (the design)
 
@@ -174,10 +176,17 @@ three keys; `llm/language_policy.py` is the resolver both call (`source.resolve.
   `catalogue-export.md` ("Where each column comes from"); a computed column is read-only everywhere.
 - **Order** is the declaration's `order` (an integer; declarations without one follow in key order
   after those with one). A template's columns are the effective declarations in that order.
-- **Labels per language.** A declaration's `label` becomes `labels: {<language>: <text>}` with the
-  old single label kept as the project's metadata language (`catalogue.folder-description-fields`).
-  A header row of a table or an export is one language's labels; the EAP preset carries two (the
-  funder's English, the team's Spanish) and the export writes both rows. A label is never the key.
+- **Labels, instructions and vocabularies per language.** A declaration's `label` becomes
+  `labels: {<language>: <text>}` with the old single label kept as the project's metadata language
+  (`catalogue.folder-description-fields`); it gains `help: {<language>: <text>}`, the instruction a
+  cataloguer reads under the heading, and a `select` or `multi_select` declaration's `options` gain a
+  label per language too (a controlled list such as the team's Tema terms, English beside Spanish,
+  is one vocabulary with two labels, stored once on the prototype). A header row of a table or an
+  export is one language's labels; an instruction row is the `help` texts; the EAP preset carries two
+  label languages and the instruction row, and the export writes all three rows. A label is never
+  the key. A list declaration also carries `join` (the string between values, "; " or "|") and, for
+  people, `name_order` (as written, or surname first "Apellido, Nombre"), so a sheet's conventions
+  are template data.
 - **A scope's template.** The table and the export show rows (folders, or a prototype's units) from
   a scope. The template is the effective prototype of the rows: when every row has the same
   effective prototype, its columns; when they differ, the columns of each prototype in order of the
@@ -201,9 +210,13 @@ Shipped as JSON under a new folder, fichero-server/src/fichero_server/resources/
   `subfolders: eap_digital_folder`; the archive reference and the cataloguer name declared
   inheriting, so set once on the box they appear on every row.
 - **`eap_digital_folder`** ("EAP / Catalogación básica"): the thirteen columns of
-  `catalogue-export.md`, in that order, both labels, the date format `d/Mes/aaaa` with Spanish month
-  names in the declaration, lists joined "; ". A folder's pages: `pages: eap_page` (no fields; the
-  page's own attributes). This is the preset the owner named.
+  `catalogue-export.md`, in that order, both labels and the instruction line per column, the date
+  format `d/Mes/aaaa` at the date's precision with Spanish month names in the declaration, places and
+  people joined "|", people surname first, subjects a `multi_select` over the shipped Tema vocabulary
+  (about 130 terms, English and Spanish labels), the original reference and the cataloguer declared
+  inheriting. A folder's pages: `pages: eap_page` (no fields; the page's own attributes). This is the
+  preset the owner named, and it reproduces the revised sheet of the team's workbook from attributes
+  alone (`catalogue-export.md`, "What the team's workbook taught").
 - **`eap_digital_folder_en`** ("EAP (English only)"): parent `eap_digital_folder`, one label
   language, the funder's nine columns only.
 - The existing built-ins (`finding-documents.md`'s kinds: Sentencia, Carta, Telegrama …) stay and
@@ -257,9 +270,10 @@ table extraction asks the questions of the unit's effective prototype), never on
   "every catalogue key, alphabetically" when they have none. Test:
   fichero-server/tests/unit/models/test_prototype_template.py.
 - `proto.template.labels-per-language-and-order` — **[GAP]** (#6282) a declaration carries
-  `order`, `labels: {language: text}`, `join`, `format`, `inherits` and, for a computed column,
-  `source`; the old single `label` reads as the metadata language's; a label is never shown as the
-  key when one exists. Test: fichero-server/tests/unit/models/test_prototype_schema.py.
+  `order`, `labels: {language: text}`, `help: {language: text}`, `join`, `name_order`, `format`,
+  `inherits`, per-language labels on `options` and, for a computed column, `source`; the old single
+  `label` reads as the metadata language's; a label is never shown as the key when one exists. Test:
+  fichero-server/tests/unit/models/test_prototype_schema.py.
 - `proto.template.edit-copies-a-builtin` — **[GAP]** (#6282) a column change on a built-in prototype
   makes a project-owned child with `parent_key` the built-in, assigns it where the built-in was and
   lands the change on the child; the built-in is unchanged; later changes patch the child; ⌘Z
@@ -268,7 +282,8 @@ table extraction asks the questions of the unit's effective prototype), never on
 - `proto.shipped.eap-prototypes` — **[GAP]** (#6282) `eap_box`, `eap_digital_folder` and
   `eap_digital_folder_en` ship as JSON, load as read-only built-ins on open, migrate forward by key,
   and `eap_digital_folder`'s declarations are the thirteen columns of `catalogue-export.md` in that
-  order with both labels, the date format and the month names. Test:
+  order with both labels, the instruction lines, the "|" joins, surname-first people, the Tema
+  vocabulary, the date format and the month names. Test:
   fichero-server/tests/unit/models/test_shipped_prototypes.py.
 - `proto.runs.read-the-effective-prototype` — **[GAP]** (#6087, #5636) the Catalogue stage's optional
   fields and the table extraction's questions come from the node's EFFECTIVE prototype, not its own
@@ -327,6 +342,12 @@ overriding it; the effective prototype and the origin of every value asserted pe
 4. Values pass down app, library, folder, page, region, line, word, character, with an override at
    any level; the languages cascade and this one are one resolver.
 5. The EAP listing preset is a prototype for digital folders.
+6. (Later the same day) The team's real workbook is the model, read for structure only: one catalogue
+   sheet per collection, three header rows (the funder's English, the team's Spanish, an instruction
+   line), a collection-wide original reference that cascades, places and people joined "|" with
+   people surname first in the revised sheet, person and place authority records with their own
+   columns, and a controlled Tema list. Each is template data on the prototype or an attribute on
+   the record, never a hand edit.
 
 ## Open questions for the owner
 

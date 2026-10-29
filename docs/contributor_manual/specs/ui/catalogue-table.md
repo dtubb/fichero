@@ -85,8 +85,10 @@ write, the audited `classification.patch` for the column menu, and in the app th
   and the engine re-derives the normalised date and the years as one group with the parser alone; a
   person may edit the normalised cell directly, and it wins over the text, the parser and the model's
   proposal (`catalogue.export.dates-parser-checks-the-model`). Editing a list cell (people, places,
-  institutions, subjects) edits the list "; "-separated, and an entry added or removed is a decision on
-  the name in the graph (`kg.attr.folder-names-are-attributes`).
+  institutions, subjects) edits the list separated by the declaration's join ("|" in the EAP preset),
+  people shown by its name order; an entry added or removed is a decision on the name in the graph
+  (`kg.attr.folder-names-are-attributes`); a subject outside the prototype's Tema vocabulary is
+  refused and the cell offers the list.
 - **Accept** on a proposed cell (Return without a change, or the row's Accept menu) answers the
   proposal (`accepted_by`), which adds the person to the row's Tu nombre. A date cell with two readings
   (the parser's and the model's) offers both to pick from.
@@ -132,8 +134,9 @@ write, the audited `classification.patch` for the column menu, and in the app th
 - `catalogue.table.edit-is-an-audited-attribute-edit` — **[GAP]** (#6282) a cell commit calls
   `document.update` with the row's own attributes; the engine stamps the key as the person's; the
   store replaces one row; ⌘Z puts the old value back; a computed cell refuses the edit; a list cell
-  edits the "; "-joined list; editing an inherited cell writes the row's own value and leaves the
-  ancestor alone; clearing it inherits again. Test:
+  edits the list by the declaration's join and name order and a subject outside the vocabulary is
+  refused; editing an inherited cell writes the row's own value and leaves the ancestor alone;
+  clearing it inherits again. Test:
   fichero/Tests/Unit/general/Views/Library/CatalogueTableEditTests.swift,
   fichero-server/tests/unit/api/test_document_update_stamps_person.py.
 - `catalogue.table.date-edit-keeps-the-group` — **[GAP]** (#6282, #6270) editing the Dates text
@@ -164,7 +167,7 @@ write, the audited `classification.patch` for the column menu, and in the app th
 ## Build order
 
 Depends on `../source/attributes-and-prototypes.md` step 2.1 (a column change copies a built-in) and
-`../source/catalogue-export.md` step 1.4 (the template from the prototype, the problems and the EAP
+`../source/catalogue-export.md` step 1.5 (the template from the prototype, the problems and the EAP
 sheet end to end).
 
 ### Stage 1 — The engine's read
