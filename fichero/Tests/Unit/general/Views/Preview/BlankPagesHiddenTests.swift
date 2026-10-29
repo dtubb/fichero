@@ -30,4 +30,14 @@ struct BlankPagesHiddenTests {
         let mark = shown.metadata["blank"]?.value as? [String: Any]
         #expect(mark?["by"] as? String == "person")
     }
+
+    @Test("unhide and square go by the audited actions, with the engine's parameter names")
+    func requestsUseTheActionsParameterNames() throws {
+        let hide = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(ImageMarkBlankRequest(documentId: "d1", blank: false))) as? [String: Any]
+        #expect(hide?["document_id"] as? String == "d1" && hide?["blank"] as? Bool == false)
+        let square = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(ImageSquareRequest(documentId: "d1", quad: [[0, 0], [1, 0], [1, 1], [0, 1]]))) as? [String: Any]
+        #expect((square?["quad"] as? [[Double]])?.count == 4)
+    }
 }

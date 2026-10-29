@@ -80,6 +80,8 @@ struct ImageEditorView: View {
     @State var showPasteManyConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
+    @Environment(ActionStore.self) var actionStore: ActionStore?
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     // A SECONDARY preview pane must not co-publish the window-scoped \.previewSelectAll /
     // \.imageEditUndoAction keys — one publisher per key, or the scene loops (spec
     // panes.instance-safe). Set on every duplicate leaf by PaneSpec.paneNodeView.

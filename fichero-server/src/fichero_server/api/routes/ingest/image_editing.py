@@ -1134,33 +1134,6 @@ async def crop_image(
     return ImageEditChainResponse.model_validate(result.result)
 
 
-@router.post("/{document_id}/operations/square", response_model=ImageEditChainResponse)
-async def square_image(
-    document_id: str,
-    request: SquareOperationRequest,
-    db: Database = Depends(get_library_database_for_write),
-    ctx: "ActionContext" = Depends(action_context),
-) -> ImageEditChainResponse:
-    result = await asyncio.to_thread(
-        registry.invoke, db, "image.square", {"document_id": document_id, **request.model_dump(mode="json")}, ctx
-    )
-    return ImageEditChainResponse.model_validate(result.result)
-
-
-@router.post("/{document_id}/operations/mark-blank", response_model=ImageEditChainResponse)
-async def mark_blank_image(
-    document_id: str,
-    request: MarkBlankOperationRequest,
-    db: Database = Depends(get_library_database_for_write),
-    ctx: "ActionContext" = Depends(action_context),
-) -> ImageEditChainResponse:
-    """Hide a page as blank, or unhide it (`blank: false`): a person's correction row (`prep.check.blank-mark-is-a-correction`)."""
-    result = await asyncio.to_thread(
-        registry.invoke, db, "image.mark_blank", {"document_id": document_id, **request.model_dump(mode="json")}, ctx
-    )
-    return ImageEditChainResponse.model_validate(result.result)
-
-
 @router.post("/{document_id}/operations/rotate", response_model=ImageEditChainResponse)
 async def rotate_image(
     document_id: str,
@@ -1721,19 +1694,67 @@ def _action_square(
     return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, after_ops)
 
 
+class RestoreBlankStateParams(BaseModel):
+    """Params for image.restore_blank — put a page's hidden state and edit chain back as they were."""
+
+    document_id: str
+    operations: list[dict[str, Any]] = Field(default_factory=list)
+    exclude_from_processing: bool = False
+    blank_note: dict[str, Any] | None = None
+
+
+def _invert_mark_blank(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    """Undo of a mark: the page hidden or shown as it was, and the mark's row gone from its chain."""
+    if not before or not before.get("document_id"):
+        return None
+    return "image.restore_blank", {
+        "document_id": before["document_id"], "operations": before.get("operations", []),
+        "exclude_from_processing": before.get("exclude_from_processing", False), "blank_note": before.get("blank_note"),
+    }
+
+
 @action(
     "image.mark_blank",
     MarkBlankImageActionParams,
     domains=["image", "document"],
-    undoable=False,  # ponytail: the flag lives on the document, not the chain; mark again to undo
+    undoable=True,
+    invert=_invert_mark_blank,
 )
 def _action_mark_blank(
     db: Database, params: MarkBlankImageActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    doc = _get_or_404_document(db, params.document_id)
+    state = {"exclude_from_processing": bool(doc.exclude_from_processing), "blank_note": (doc.metadata or {}).get("blank")}
     before_ops = _chain_ops_snapshot(db, params.document_id)
     chain = mark_blank_impl(db, params.document_id, params.blank)
-    after_ops = [dict(op) for op in chain.operations]
-    return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, after_ops, domains=["image", "document"])
+    spec = _image_chain_spec(
+        params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
+    spec.before = {**(spec.before or {}), **state}
+    return _chain_result(chain), spec
+
+
+@action(
+    "image.restore_blank",
+    RestoreBlankStateParams,
+    domains=["image", "document"],
+    undoable=False,  # it is the inverse of a mark; redo is the audit's own
+)
+def _action_restore_blank(
+    db: Database, params: RestoreBlankStateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    doc = _get_or_404_document(db, params.document_id)
+    doc.exclude_from_processing = params.exclude_from_processing
+    meta = dict(doc.metadata or {})
+    if params.blank_note is None:
+        meta.pop("blank", None)
+    else:
+        meta["blank"] = params.blank_note
+    doc.metadata = meta
+    db.save(doc)
+    chain = set_operations_impl(db, params.document_id, list(params.operations))
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
 
 
 @action(

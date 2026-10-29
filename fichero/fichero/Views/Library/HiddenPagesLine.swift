@@ -32,6 +32,8 @@ struct HiddenPagesLine: View {
     let documents: [Document]
     let store: DocumentStore
 
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var revealed = false
     @State private var failure: String?
 
@@ -69,8 +71,13 @@ struct HiddenPagesLine: View {
     }
 
     private func unhide(_ page: Document) async {
+        guard let actionsService = actionStore?.actionsService else { return }
         do {
-            _ = try await ImageEditingService(apiClient: store.api).markBlank(documentId: page.id, blank: false)
+            // One audited action, so ⌘Z hides the page again (`undo.one-path`).
+            try await AuditedAction.run(
+                "image.mark_blank", params: ImageMarkBlankRequest(documentId: page.id, blank: false),
+                actionName: "Unhide Page", actionsService: actionsService, steps: windowSteps
+            )
             store.refreshLocalContent(HiddenPages.unhidden(page))
             failure = nil
         } catch {

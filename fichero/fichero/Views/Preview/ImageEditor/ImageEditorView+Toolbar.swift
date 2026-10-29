@@ -296,8 +296,14 @@ extension ImageEditorView {
     /// Return on the corner handles: square the page from the corrected corners, `who: person`.
     func squareFromCorners() async {
         guard let corners = pageCorners else { return }
-        await model.square(quad: corners.quad)
         pageCorners = nil
+        guard let actionsService = actionStore?.actionsService else { return }
+        let model = model
+        _ = try? await AuditedAction.run(
+            "image.square", params: ImageSquareRequest(documentId: activeDocument.id, quad: corners.quad, page: model.page),
+            actionName: "Square Page", actionsService: actionsService, steps: windowSteps,
+            afterChange: { await model.reload() }
+        )
     }
 
     /// Map the marquee (normalized image space) to source pixels and crop.

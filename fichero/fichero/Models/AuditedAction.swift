@@ -38,3 +38,21 @@ struct HandUnattributeRequest: Encodable, Equatable {
 struct HandCreateRequest: Encodable, Equatable {
     let label: String
 }
+
+/// `image.square`: the page warped to a rectangle from a person's four corners (fractions of the upright image, top-left clockwise).
+struct ImageSquareRequest: Encodable, Equatable {
+    let documentId: String
+    let quad: [[Double]]
+    var page: Int = 1
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id", quad, page }
+}
+
+/// `image.mark_blank`: hide a page as blank, or show it again (`blank: false`).
+struct ImageMarkBlankRequest: Encodable, Equatable {
+    let documentId: String
+    let blank: Bool
+    var page: Int = 1
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id", blank, page }
+}

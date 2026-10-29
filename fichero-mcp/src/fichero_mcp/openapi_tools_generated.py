@@ -3943,16 +3943,6 @@ def fichero_images_enhance(
     return _rt.call("POST", f"/api/images/{document_id}/operations/enhance", json=_rt.body({"auto_levels": auto_levels, "brightness": brightness, "contrast": contrast, "page": page, "sharpen": sharpen}))
 
 
-def fichero_images_mark_blank(
-    *,
-    document_id: Annotated[str, Field(description='Document Id')],
-    blank: Annotated[bool, Field(description='Blank.')],
-    page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
-) -> Any:
-    "Mark Blank Image\n\nHide a page as blank, or unhide it (`blank: false`): a person's correction row (`prep.check.blank-mark-is-a-correction`).\n\nRoute: POST /api/images/{document_id}/operations/mark-blank (toolset `images`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/images/{document_id}/operations/mark-blank", json=_rt.body({"blank": blank, "page": page}))
-
-
 def fichero_images_remove_background(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -3986,16 +3976,6 @@ def fichero_images_segment(
 ) -> Any:
     'Segment Image\n\nRoute: POST /api/images/{document_id}/operations/segment (toolset `images`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/images/{document_id}/operations/segment", json=_rt.body({"max_segments": max_segments, "method": method, "min_area": min_area, "page": page, "threshold": threshold}))
-
-
-def fichero_images_square(
-    *,
-    document_id: Annotated[str, Field(description='Document Id')],
-    page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
-    quad: Annotated[list[Any], Field(description='Quad.')],
-) -> Any:
-    'Square Image\n\nRoute: POST /api/images/{document_id}/operations/square (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/images/{document_id}/operations/square", json=_rt.body({"page": page, "quad": quad}))
 
 
 def fichero_images_straighten(
@@ -9609,11 +9589,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_images_put_edit_chain", "images", "PUT", "/api/images/{document_id}/edits", fichero_images_put_edit_chain),
     GeneratedTool("fichero_images_crop", "images", "POST", "/api/images/{document_id}/operations/crop", fichero_images_crop),
     GeneratedTool("fichero_images_enhance", "images", "POST", "/api/images/{document_id}/operations/enhance", fichero_images_enhance),
-    GeneratedTool("fichero_images_mark_blank", "images", "POST", "/api/images/{document_id}/operations/mark-blank", fichero_images_mark_blank),
     GeneratedTool("fichero_images_remove_background", "images", "POST", "/api/images/{document_id}/operations/remove-background", fichero_images_remove_background),
     GeneratedTool("fichero_images_rotate", "images", "POST", "/api/images/{document_id}/operations/rotate", fichero_images_rotate),
     GeneratedTool("fichero_images_segment", "images", "POST", "/api/images/{document_id}/operations/segment", fichero_images_segment),
-    GeneratedTool("fichero_images_square", "images", "POST", "/api/images/{document_id}/operations/square", fichero_images_square),
     GeneratedTool("fichero_images_straighten", "images", "POST", "/api/images/{document_id}/operations/straighten", fichero_images_straighten),
     GeneratedTool("fichero_images_preview", "images", "GET", "/api/images/{document_id}/preview", fichero_images_preview),
     GeneratedTool("fichero_images_split", "images", "POST", "/api/images/{document_id}/split", fichero_images_split),
