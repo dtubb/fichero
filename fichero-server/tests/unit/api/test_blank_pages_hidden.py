@@ -108,3 +108,28 @@ def test_a_runs_hide_is_an_audited_action_and_undo_shows_the_page_again(db, tmp_
     shown = db.get(Document, blank.id)
     assert shown.exclude_from_processing is False and "blank" not in (shown.metadata or {})
     assert db.query(ImageEditChain, document_id=blank.id)[0].operations == []
+
+
+def test_a_persons_answer_clears_the_blank_proposal_and_undo_brings_it_back(db, tmp_path):
+    """Review finding: a `blank` proposal was stored and nothing showed it. The app lists pages whose metadata holds one;
+    hiding or keeping it is a person's word, which removes it from the list, and Undo puts it back."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models import ActionAudit
+    from fichero_server.recipes.page_crop import crop_pages
+    from tests.unit.media.test_turn_straighten_blank import _ledger_with_strokes
+
+    page, _ = _page(db, tmp_path, "strokes.png", _ledger_with_strokes(3))
+    crop_pages(db, [page.id], "run-1", prepare=True)
+    proposal = db.get(Document, page.id).metadata["prep_proposals"]["blank"]
+    assert "kept, not hidden" in proposal["reason"] and not db.get(Document, page.id).exclude_from_processing
+
+    ctx = ActionContext(actor="person", library_path=str(tmp_path), is_bootstrap=True)
+    kept = registry.invoke(db, "image.mark_blank", {"document_id": page.id, "blank": False}, ctx)
+    assert "blank" not in db.get(Document, page.id).metadata["prep_proposals"]
+    crop_pages(db, [page.id], "run-2", prepare=True)  # the person's word stands: no new proposal
+    assert "blank" not in db.get(Document, page.id).metadata["prep_proposals"]
+
+    audit = db.get(ActionAudit, kept.audit_id)
+    reg = registry.get("image.mark_blank")
+    registry.invoke(db, *reg.invert(audit.before, audit.after, ctx), ctx)
+    assert db.get(Document, page.id).metadata["prep_proposals"]["blank"] == proposal

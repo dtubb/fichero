@@ -103,6 +103,9 @@ def mark_blank(db: Any, doc_id: str, blank: bool, *, who: str, reason: str = "")
     doc.exclude_from_processing = blank
     meta = dict(doc.metadata or {})
     meta["blank"] = {"blank": blank, "by": who, "reason": reason}  # kept when unmarked: a re-run never overrides a person
+    if who == "person":  # a person's word answers the run's proposal, hide or keep: it leaves the list
+        proposals = {k: v for k, v in (meta.get("prep_proposals") or {}).items() if k != "blank"}
+        meta["prep_proposals"] = proposals
     doc.metadata = meta
     doc.updated_at = utc_now()
     db.save(doc)

@@ -143,7 +143,10 @@ extension LibraryView {
             }
             // Blank pages the run hid, said in one line that reveals them (`prep.blank-pages-hidden-in-the-item-view`).
             .safeAreaInset(edge: .top, spacing: 0) {
-                HiddenPagesLine(documents: documents, store: documentStore)
+                VStack(spacing: 0) {
+                    HiddenPagesLine(documents: documents, store: documentStore)
+                    BlankProposalsLine(documents: documents, store: documentStore)
+                }
             }
             // Originals that moved, said above the rows, and Locate Originals (#5672).
             .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,

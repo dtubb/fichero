@@ -1711,6 +1711,7 @@ class RestoreBlankStateParams(BaseModel):
     operations: list[dict[str, Any]] = Field(default_factory=list)
     exclude_from_processing: bool = False
     blank_note: dict[str, Any] | None = None
+    blank_proposal: dict[str, Any] | None = None
 
 
 def _invert_mark_blank(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
@@ -1720,6 +1721,7 @@ def _invert_mark_blank(before: dict | None, after: dict | None, ctx: ActionConte
     return "image.restore_blank", {
         "document_id": before["document_id"], "operations": before.get("operations", []),
         "exclude_from_processing": before.get("exclude_from_processing", False), "blank_note": before.get("blank_note"),
+        "blank_proposal": before.get("blank_proposal"),
     }
 
 
@@ -1734,7 +1736,8 @@ def _action_mark_blank(
     db: Database, params: MarkBlankImageActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     doc = _get_or_404_document(db, params.document_id)
-    state = {"exclude_from_processing": bool(doc.exclude_from_processing), "blank_note": (doc.metadata or {}).get("blank")}
+    state = {"exclude_from_processing": bool(doc.exclude_from_processing), "blank_note": (doc.metadata or {}).get("blank"),
+             "blank_proposal": ((doc.metadata or {}).get("prep_proposals") or {}).get("blank")}
     before_ops = _chain_ops_snapshot(db, params.document_id)
     chain = mark_blank_impl(db, params.document_id, params.blank, who=params.who, reason=params.reason)
     spec = _image_chain_spec(
@@ -1760,6 +1763,11 @@ def _action_restore_blank(
         meta.pop("blank", None)
     else:
         meta["blank"] = params.blank_note
+    proposals = {k: v for k, v in (meta.get("prep_proposals") or {}).items() if k != "blank"}
+    if params.blank_proposal is not None:  # a person's answer is taken back: the run's proposal is on the list again
+        proposals["blank"] = params.blank_proposal
+    if proposals or "prep_proposals" in meta:
+        meta["prep_proposals"] = proposals
     doc.metadata = meta
     db.save(doc)
     chain = set_operations_impl(db, params.document_id, list(params.operations))

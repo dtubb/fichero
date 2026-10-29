@@ -40,4 +40,26 @@ struct BlankPagesHiddenTests {
             with: JSONEncoder().encode(ImageSquareRequest(documentId: "d1", quad: [[0, 0], [1, 0], [1, 1], [0, 1]]))) as? [String: Any]
         #expect((square?["quad"] as? [[Double]])?.count == 4)
     }
+
+    private func proposed(_ name: String, excluded: Bool = false) -> Document {
+        let proposal = ["blank": ["reason": "very little ink beyond its ruling", "by": "run r1"]] as [String: Any]
+        return Document(name: name, metadata: ["prep_proposals": AnyCodable(proposal)], excludeFromProcessing: excluded)
+    }
+
+    @Test("a page with an open blank proposal is listed with the run's reason; a hidden or plain page is not")
+    func proposalsAreListedWithTheirReason() {
+        let docs = [proposed("unsure"), proposed("hidden", excluded: true), page("written", excluded: false, blank: nil)]
+        #expect(BlankProposals.proposed(in: docs).map(\.name) == ["unsure"])
+        #expect(BlankProposals.reason(docs[0]) == "very little ink beyond its ruling")
+        #expect(BlankProposals.line(2) == "2 may be blank")
+    }
+
+    @Test("a person's answer takes the proposal off the list and keeps their word on the mark")
+    func answeringClearsTheProposal() {
+        let hidden = BlankProposals.answered(proposed("unsure"), blank: true)
+        #expect(BlankProposals.proposed(in: [hidden]).isEmpty)
+        #expect(HiddenPages.isHiddenBlank(hidden))
+        let kept = BlankProposals.answered(proposed("unsure"), blank: false)
+        #expect(BlankProposals.proposed(in: [kept]).isEmpty && !kept.excludeFromProcessing)
+    }
 }
