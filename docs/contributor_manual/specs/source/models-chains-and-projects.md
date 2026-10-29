@@ -2734,6 +2734,38 @@ Jobs and chains
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[PARTIAL]** (#4949, #5637; built: spaCy triples and an installed text model as candidates, `assemble.py`, pinned by `test_find_statements_candidates_5637.py`; not built: Apple Intelligence and cloud text models as bake-off candidates) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
+- `source.job.find-names.not-a-date-or-a-role` — **[OK]** a name saved as an entity is somebody or somewhere: a month or
+  a date ("Enero" as a place, "De Diciembre", "7 de agosto de 1910"), a bare title or kind of body ("Agente",
+  "Agencia") are not saved.
+  A person is never dropped for a month in the name ("Julio Cesar", "Juan Mayo", "Pedro Abril", "Mayo"): only a
+  name that is wholly a date is refused. A name is never trimmed: a date that follows it ("Colegio 20 de Julio", "Calle 7 de Agosto",
+  "Juzgado de Valdoro julio 25") stays in the name, since a stray date beats a cut name, whichever of the
+  model or the parser gave it. A role word never refuses a longer name: "Juez Municipal de Valdoro",
+  "Notario Undécimo" and "Perito Avaluador Crisanto Echeverri" all stay, since a refused name is a lost one (`svo_quality.usable_entity_name`, in
+  `extract_entities_only.py`); the names prompt
+  says so too. *Test:* `fichero-server/tests/unit/knowledge/test_name_quality.py`.
+- `source.job.find-statements.not-a-date-or-swapped` — **[OK]** a statement's subject is who does the verb: a date is
+  never one (`claim_rejection`; a lone month or number word, "Mayo" or "Primero de Mayo", is a name, a date only
+  next to a day or year), a dated statement with no subject goes to the one person or organisation named in
+  its words, as a claim carrying the date, and stays a dated timeline row when none or several are named
+  (`extract_svo_only._attach_date_subjects`, matched on whole words: "Ana" is not in "Mariana"); the page is read as
+  running text, so an object is never cut at a line break: a hyphen is rejoined only mid-word ("Ene-ro", "Mi-guel"; "señor-
+  que" stays two words; text is NFC-normalised first), a blank line stays a paragraph break, and each statement still rests on the page's own line
+  through an offset map (`svo_quality.join_page`, `LineJoin`). Geometry-based paragraph breaks are not used yet.
+  The names and statements prompts are still inline strings, not entries in the versioned prompt registry
+  (`llm/prompts.py`); moving them there, with the version recorded on results, is open. The prompt says the subject is the actor, not
+  what the verb is done to. *Test:* `tests/unit/knowledge/test_name_quality.py`,
+  `tests/unit/workflows/test_statements_dates_not_subjects.py`.
+- `source.extract.no-english-verb-on-another-language` — **[OK]** a name saved with no statement of its own gets no
+  invented English "is" (or "is a person") on a page that is not English (`extractors._synthesize_svo_fallback`,
+  `copula`). *Test:* `tests/unit/workflows/test_svo_fallback.py::TestNoEnglishVerbOnAnotherLanguage`.
+- `kg.entity.list-under-a-document-is-its-own` — **[OK]** the entities listed under a document are those its claims
+  are about (each claim's subject) and those named on its pages, and an entity with no page scope that a claim
+  mentions after its subject (legacy), as the document's knowledge graph reads them; the list, the inspector, its
+  outline and the roll-up count all use that one rule (`entities.document_entity_ids`); a name the alias scan found
+  in a claim's words does not bring in another page's scoped entity; and an entity lists every page it
+  is named on, including one no claim reaches yet. *Test:*
+  `tests/unit/api/test_entity_scope_leaks_and_page_links.py`.
 - `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
   spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
   person's to choose; never ranked by the rules over a text model they have; where none is installed the rules

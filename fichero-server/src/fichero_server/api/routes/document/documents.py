@@ -1071,6 +1071,95 @@ def _action_unrelink_originals(db: Database, params: UnrelinkParams, ctx: "Actio
                                           document_ids=back, emit_fn=_emit_document_change_spec)
 
 
+class PromoteCatalogueParams(BaseModel):
+    folder_id: Optional[str] = Field(default=None, description="the folder to promote; none: every folder in the project")
+    recursive: bool = Field(default=True, description="the folders below it too")
+
+
+class UnpromoteCatalogueParams(BaseModel):
+    before: dict[str, dict[str, Any]] = Field(description="each folder's content and the metadata and attribute keys promote changed, as they were")
+
+
+def _invert_promote_catalogue(before: dict | None, after: dict | None, ctx: "ActionContext"):
+    return ("folder.unpromote_catalogue", {"before": before}) if before else None
+
+
+@action("folder.promote_catalogue", PromoteCatalogueParams, domains=["document"], undoable=True,
+        invert=_invert_promote_catalogue)
+def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx: "ActionContext"):
+    """Put each folder's latest saved catalogue description in its content and attributes again (#6267), with no model
+    call: for folders described before the scope and arrangement fields existed. Idempotent; undoable."""
+    from fichero_server.recipes import catalogue_step
+
+    if params.folder_id is None:
+        folders = [d for d in db.query(Document, doc_type=DocType.folder) if not d.deleted_at]
+    else:
+        top = db.get(Document, params.folder_id)
+        if top is None:
+            raise ValueError(f"No folder {params.folder_id}")
+        folders = [top, *(catalogue_step.folders_below(db, top.id) if params.recursive else [])]
+    before: dict[str, dict] = {}
+    for folder in folders:
+        was = catalogue_step.promote_folder(db, folder)
+        if was is not None:
+            before[folder.id] = was
+    return ({"promoted": list(before)},
+            ChangeSpec(domains=["document"], target_ids=list(before), before=before, emit_type="document.updated",
+                       document_ids=list(before), emit_fn=_emit_document_change_spec))
+
+
+@action("folder.unpromote_catalogue", UnpromoteCatalogueParams, domains=["document"])
+def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
+    """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
+    from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.recipes import catalogue_step
+    from fichero_server.workflows.attribute_sources import BY_PERSON, SOURCES
+
+    for folder_id, was in params.before.items():
+        folder = db.get(Document, folder_id)
+        if folder is None:
+            continue
+        # content a person (or anything) changed since promote is theirs: it stays, and so do the keys that go with it
+        content_ours = "page_content" not in was or folder.page_content == was.get("page_content_after")
+        meta, attrs = dict(folder.metadata or {}), dict(folder.attributes or {})
+        sources = dict(meta.get(SOURCES) or {})
+        if content_ours:
+            meta.update(was.get("metadata") or {})
+            for key in was.get("metadata_added") or []:
+                meta.pop(key, None)
+        after = was.get("attributes_after") or {}
+        promoted = {*(was.get("attributes") or {}), *(was.get("attributes_added") or {}), *(was.get("sources") or {}),
+                    *(was.get("sources_added") or [])}
+        held_by_person = {k for k in promoted if (sources.get(k) or {}).get("by") == BY_PERSON or (sources.get(k) or {}).get("accepted_by")}
+        edited = {k for k in promoted - held_by_person if k in after and attrs.get(k) != after[k]}
+        keep = held_by_person | edited
+        if keep & set(catalogue_step.DATE_KEYS):  # the dates are read together: keeping one keeps them all
+            keep |= promoted & set(catalogue_step.DATE_KEYS)
+        for key in promoted:
+            if key in keep:
+                if key in edited:  # a plain edit carries a person's source, not promote's; kept siblings keep promote's
+                    sources[key] = {"by": BY_PERSON}
+                continue
+            for held, name in ((attrs, "attributes"), (sources, "sources")):
+                held.update({key: v for k, v in (was.get(name) or {}).items() if k == key})
+                if key in (was.get(f"{name}_added") or []):
+                    held.pop(key, None)
+        if sources or SOURCES in meta:
+            meta[SOURCES] = sources
+        folder.metadata, folder.attributes = meta, attrs
+        if "page_content" in was and content_ours:
+            folder.page_content = was["page_content"]
+        db.save(folder)
+        if "page_content" in was and content_ours:
+            try:
+                queue_reembed(db, [folder_id])  # search reads the content, as after put_in_content
+            except Exception:  # noqa: BLE001 -- the content is back; search catches up on the next re-embed
+                logger.exception("could not queue the re-embed of folder %s", folder_id)
+    ids = list(params.before)
+    return {"put_back": ids}, ChangeSpec(domains=["document"], target_ids=ids, emit_type="document.updated",
+                                         document_ids=ids, emit_fn=_emit_document_change_spec)
+
+
 def _checked_root(request: Request, db: Database, new_root: str) -> None:
     """The folder picked is a real folder this engine may read, picked by someone who may read server paths."""
     from fichero_server.api.routes.ingest.core import _require_ingest_owner, _validate_ingest_path
