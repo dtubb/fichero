@@ -171,6 +171,22 @@ native graph, timeline and map views.
   "similar, not proposed". A given-name gender variant or a father-and-son pair with the same
   surname is never proposed as one and is shown as "same family" instead
   (`_terminal_surname_diverges`).
+- `kg.resolve.unmistakable-auto-merge` — **[GAP]** (#6280, #4842; owner ruling 2026-10-29) a
+  merge happens by itself only when it is unmistakable, and the spec says what that is: two
+  names of the SAME type whose forms are identical once case, accents, punctuation, spacing and
+  the MARKED abbreviations of `dedupe.spelling_key` are set aside (a point or a raised letter, a
+  contraction that is no word), AND that are named in the same folder (one of them on a page of
+  the folder the other is named in). Nothing else merges by itself: not a title set aside, not a
+  shared surname, not an embedding neighbour, not two forms a vector or `SequenceMatcher` puts
+  close. An unmistakable merge is written as a merge (audited, undoable) and listed in the
+  to-review lens as "merged by rule" so a person can see it and undo it.
+- `kg.resolve.unclear-is-flagged` — **[GAP]** (#6280, #5107; owner ruling 2026-10-29) anything
+  short of unmistakable is FLAGGED for the owner to decide, through the existing pair queue
+  (`EntityMatchCandidate`, `queue_pair`, `accept_pair`, `reject_pair`): a given-name gender
+  variant with the same surname, a short or double given name, an old spelling that is not a
+  marked abbreviation, a name with and without a title, the same name across two folders, a
+  vector neighbour above the review band; the flag carries its method and reason, as the
+  queue's rows already do.
 - `kg.resolve.decision-remembered` — **[OK]** a person's accept is the audited merge, a
   reject is remembered and the pair is never proposed again, an absorbed name re-imported lands
   on the survivor, a split survives re-import, a delete or retype writes its rule
@@ -274,6 +290,29 @@ approval).
   worklist above the lists: each group with its evidence, what accepting joins, accept, reject,
   "same family"; an empty worklist says so; a proposal a person decided leaves the list and the
   count in the sidebar goes down.
+- `kg.lens.to-review` — **[GAP]** (#1677, #4828, #6280; owner ruling 2026-10-29) ONE place to
+  decide what the engine was unsure of: a to-review lens, scoped like every lens (folder, box,
+  project), listing each flagged item with its evidence and one-press verbs. Kinds of item,
+  each read from a record that already exists, never a new mechanism: a merge proposal (the pair
+  queue: the two names, their forms, pages and excerpts side by side; verbs accept = merge,
+  reject, skip); a merge made by rule (undo); a type in doubt (an entity whose name exists under
+  two specific types, the writer's "ambiguous type" case; verbs: keep both, retype one, merge);
+  a name the extractor was unsure of (a proposal with `[uncertain]` or `[ilegible]` in its form,
+  or below the step's certainty; verbs: verify, reject, rename); a date disagreement (a page or
+  statement whose dates pass and whose catalogue date differ; verbs: keep this one, keep that
+  one, skip); an access point the graph could not type at promote (verbs: this entity, new
+  entity of this type, reject). Each item shows the pages and the excerpts it rests on, opens
+  its source with the span lit, and leaves the list on a decision; skip keeps it for later. The
+  sidebar count is this list's length. The unmounted claim-review and contradiction sheets are
+  retired in its favour or re-mounted as its claim rows.
+- `kg.lens.decision-audited-undoable-teaches` — **[PARTIAL]** (#5129, #4864, #5416) every
+  decision in the lens is one audited action with undo (the merge audit and the mutation log
+  that exist; the two-trail entity delete of #4864 folded into one), is a person's and never a
+  model's, and is kept as a label (the pair states `accepted`, `rejected`, `withdrawn`) that the
+  resolution pass reads before proposing again and that trains the matcher where that is cheap
+  (the rejected label already blocks a repeat; a learned ranking is the future #972 names).
+  Built: the audits, the labels, the undo of a merge from the engine; not built: undo from the
+  menu (#5129), the one trail, a model actor refused on `claim.transition`.
 - `kg.lens.one-name` — **[PARTIAL]** (#4838, #4802) selecting a name shows its authority sheet
   in the Reader and its curation in the Inspector (statements where it is subject or object with
   source click-through, forms, merge history, notes); built: the Inspector's entity arm and
@@ -409,15 +448,15 @@ values alone; never a batch rewrite of a person's work.
 - Size: S
 
 #### Step 2.2 — The folder resolution pass (#6280, #5107)
-- Behaviours: `kg.resolve.folder-pass`, `kg.resolve.person-wins`
-- Tests: fichero-server/tests/unit/kg/test_folder_resolution_pass_proposes_groups.py, fichero-server/tests/unit/kg/test_person_decision_wins_over_a_run.py
+- Behaviours: `kg.resolve.folder-pass`, `kg.resolve.person-wins`, `kg.resolve.unmistakable-auto-merge`, `kg.resolve.unclear-is-flagged`
+- Tests: fichero-server/tests/unit/kg/test_folder_resolution_pass_proposes_groups.py, fichero-server/tests/unit/kg/test_person_decision_wins_over_a_run.py, fichero-server/tests/unit/kg/test_unmistakable_merge_rule.py, fichero-server/tests/unit/kg/test_unclear_names_are_flagged_not_merged.py
 - Depends on: 2.1
 - Size: M
 
-#### Step 2.3 — Proposals, merge and split in the lens (#5110, #4828)
-- Behaviours: `kg.lens.proposals`, `kg.resolve.merge-and-split-have-a-door`, `kg.lens.counts-in-the-sidebar`
-- Tests: fichero/Tests/Unit/general/Views/Library/FolderNamesLensTests.swift, fichero/Tests/Unit/general/Views/Library/MergeProposalWorklistTests.swift
-- Depends on: 2.2, 1.3
+#### Step 2.3 — The to-review route: every flagged item with its evidence; decisions audited (#1677, #4828)
+- Behaviours: `kg.lens.to-review`, `kg.lens.decision-audited-undoable-teaches`
+- Tests: fichero-server/tests/unit/api/test_to_review_lens_route.py, fichero-server/tests/unit/api/test_review_decisions_audited_and_undoable.py
+- Depends on: 2.2
 - Size: M
 
 #### Step 2.4 — Known names given to the prompts (#5725)
@@ -425,6 +464,12 @@ values alone; never a batch rewrite of a person's work.
 - Tests: fichero-server/tests/unit/workflows/test_names_prompt_carries_known_names.py
 - Depends on: 2.2
 - Size: S
+
+#### Step 2.5 — The lens in the app: proposals, merge and split, the sidebar count (#5110, #4828)
+- Behaviours: `kg.lens.proposals`, `kg.resolve.merge-and-split-have-a-door`, `kg.lens.counts-in-the-sidebar`
+- Tests: fichero/Tests/Unit/general/Views/Library/FolderNamesLensTests.swift, fichero/Tests/Unit/general/Views/Library/ToReviewLensTests.swift
+- Depends on: 2.3, 1.3
+- Size: M
 
 ### Stage 3 — The attribute link to the catalogue
 
@@ -487,7 +532,7 @@ values alone; never a batch rewrite of a person's work.
 #### Step 5.2 — Measures as lens columns; the neighbourhood with a legend (#5551, #4605)
 - Behaviours: `kg.graph.measures-are-columns`, `kg.graph.neighbourhood`
 - Tests: fichero-server/tests/unit/kg/test_scope_measures_named_by_rule.py, fichero/Tests/Unit/general/Views/Library/GraphEdgeLegendTests.swift
-- Depends on: 5.1, 2.3
+- Depends on: 5.1, 2.5
 - Size: M
 
 #### Step 5.3 — Timeline, map and paragraph read the reviewed values (#5037, #4600, #4832)
@@ -526,9 +571,9 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
    on its pages and the draft's names are resolved into the canonical set, not left beside it.
 4. **The per-folder proposal budget.** Recommendation: about one group per ten names, ranked
    by what it joins, the rest visible under "similar, not proposed"; a person can ask for more.
-5. **Given-name gender variants and father-and-son pairs (#6280):** never proposed as one?
-   Recommendation: never automatically; shown as "same family" with a one-click merge a person
-   can still make.
+5. **Answered** (owner 2026-10-29): gender variants and the like are flagged for the owner,
+   never merged by rule; the "same family" mark in the lens is the recommendation for how the
+   flag reads.
 6. **Where a dated row with no actor lives:** a date on the page, or a statement with an empty
    subject? Recommendation: a date value on the page (and on the one claim it belongs to when
    there is one); the timeline reads page dates; no subject-less claims.
@@ -552,7 +597,16 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
   `catalogue_places` and `catalogue_institutions`, with no model call
   (`kg.attr.folder-names-are-attributes`).
 - The authority sheets come from the catalogue rows, with the graph's canonical name
-  (`kg.attr.authority-sheet`). The export spec being written on `spec/export-catalogue` points here
+  (`kg.attr.authority-sheet`).
+- Merges are proposed, never automatic unless unmistakable: identical after accents and marked
+  abbreviations are normalised, same type, on the same pages or folder
+  (`kg.resolve.unmistakable-auto-merge`). Anything unclear, such as a gender variant of a given
+  name with the same surname, is flagged for the owner (`kg.resolve.unclear-is-flagged`).
+- One review queue or lens for everything flagged (merge proposals, a type in doubt, an uncertain
+  name, a date disagreement), each with its pages and excerpts and one-press accept, merge,
+  reject or skip; every decision audited, undoable, and a label for future proposals where
+  that is cheap; built on the existing pair queue, curation states and audits
+  (`kg.lens.to-review`, `kg.lens.decision-audited-undoable-teaches`). The export spec being written on `spec/export-catalogue` points here
   for the canonical-names design.
 
 ## Future (ideas, not scheduled)
