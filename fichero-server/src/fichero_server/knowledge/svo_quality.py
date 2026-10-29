@@ -31,6 +31,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from typing import Any
 
 # Pronouns and bare determiners that are never a legitimate KG subject, across
 # the languages this corpus actually holds. Matched case- and accent-folded, so
@@ -105,6 +106,81 @@ def _has_letter(text: str) -> bool:
     cheapest way to say so, and it treats accented letters as letters.
     """
     return any(ch.isalpha() for ch in text or "")
+
+
+# ---------------------------------------------------------------------------
+# Names that are not entities, and dates that are not subjects
+# ---------------------------------------------------------------------------
+#
+# A month, a bare "De Diciembre" or a role word ("Agente") is not somebody or
+# somewhere, whatever type a model gave it; a date fused onto a name ("Juzgado
+# de X julio veinticinco") is a name plus a date. All checkable without a model.
+
+_MONTHS = frozenset(
+    "enero febrero marzo abril mayo junio julio agosto septiembre setiembre octubre noviembre diciembre "
+    "january february march april may june july august september october november december "
+    "janeiro fevereiro marco maio junho julho setembro outubro novembro dezembro".split()
+)
+_UNITS = frozenset(
+    "uno una un dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince diecis"
+    "eis diecisiete dieciocho diecinueve veinte treinta y primero primer mil novecientos".split()
+)
+_DATE_FILLER = frozenset("de del el la los dia dias ano anos a".split())
+#: Titles of people: alone they name nobody, and in front of a name they make a person, not an organisation.
+_ROLE_WORDS = frozenset(
+    "agente perito avaluador avaluadores juez alcalde secretario escribano notario testigo apoderado albacea "
+    "curador tutor comisionado visitador recaudador administrador alguacil fiscal procurador sindico regidor "
+    "corregidor".split()
+)
+#: Kinds of body: alone they name no particular one.
+_GENERIC_BODY_WORDS = frozenset("agencia juzgado notaria oficina alcaldia tribunal despacho".split())
+_ISO_DATE = re.compile(r"^\d{1,4}([-/.]\d{1,2}){0,2}$")
+
+
+def _is_number(word: str) -> bool:
+    return bool(_ISO_DATE.match(word)) or word in _UNITS or word.startswith("veinti") or word[:1].isdigit()
+
+
+def is_date_only(text: str | None) -> bool:
+    """Whether ``text`` is only a date: months, numbers, number words and "de" ("De Diciembre", "1918-06-06")."""
+    words = fold(text or "").replace(".º", "").replace("º", "").split()
+    if not words or not any(w in _MONTHS or _is_number(w) for w in words):
+        return False
+    return all(w in _MONTHS or w in _DATE_FILLER or _is_number(w) for w in words)
+
+
+def usable_entity_name(name: str, entity_type: Any) -> str | None:
+    """The name to save as an entity of ``entity_type``, or ``None`` when it names nothing.
+
+    Refuses a date, a bare role or kind-of-body word, a person with a month in the name, and an organisation that
+    is a person's title and name. A date tail fused onto a place or body is trimmed off (a "de" before the month
+    keeps it: "Calle 7 de Agosto")."""
+    kind = getattr(entity_type, "value", entity_type)
+    text = (name or "").strip()
+    words = text.split()
+    folded = fold(text).split()
+    if not folded or is_date_only(text):
+        return None
+    if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
+        return None
+    if kind == "person" and any(w in _MONTHS for w in folded):
+        return None
+    if kind == "organization" and len(folded) > 1 and folded[0] in _ROLE_WORDS:
+        return None
+    if kind in {"location", "organization"}:
+        end = len(words)
+        while end > 1 and _is_number(folded[end - 1]):
+            end -= 1
+        if end > 1 and folded[end - 1] in _MONTHS and folded[end - 2] not in ("de", "del") and end < len(words):
+            end -= 1
+            text = " ".join(words[:end])
+    return text or None
+
+
+def join_lines(text: str) -> str:
+    """A page's lines as running text: a hyphenated break is rejoined ("Ene-\nro" → "Enero"), the rest joined
+    with a space, so a statement is read across a line break and not cut at it."""
+    return " ".join(re.sub(r"(?<=\w)-\n(?=[a-zà-ÿ])", "", text or "").split())
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +357,8 @@ def claim_rejection(
     """
     if is_pronoun_subject(subject):
         return f"pronoun subject {subject!r} — names no entity"
+    if is_date_only(subject):
+        return f"subject {subject!r} is a date — a date is when, not who"
     verb_text = (verb or "").strip()
     obj_text = (obj or "").strip()
     if not verb_text and not obj_text:

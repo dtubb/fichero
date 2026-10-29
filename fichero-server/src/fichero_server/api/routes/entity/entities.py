@@ -1234,7 +1234,9 @@ def list_entities_impl(
         # Extract entity IDs from those claims
         entity_ids: set[str] = set()
         for c in doc_claims:
-            entity_ids.update(c.entity_ids or [])
+            # The claim's subject only (as the document's knowledge graph reads it): the rest of a claim's
+            # entity_ids are names the alias scan found in its words, entities of other pages.
+            entity_ids.update((c.entity_ids or [])[:1])
 
         # #1562 — belt-and-suspenders union: also include entities whose
         # own per-page scope (source_document_ids, recorded at upsert by
@@ -1760,6 +1762,15 @@ async def get_entity_documents(
         logger.warning("entity-documents lookup failed for %s: %s", entity_id, exc)
         return EntityDocumentListResponse(items=[], count=0)
 
+    seen = {row[0] for row in rows}
+    # A page the entity is named on but no claim reaches (names are read before statements) still lists it.
+    for document_id in entity.source_document_ids or []:
+        if document_id in seen or len(rows) >= limit:
+            continue
+        document = db.get(Document, document_id)
+        if document is not None:
+            rows.append((document_id, document.name, getattr(document.doc_type, "value", document.doc_type),
+                         getattr(document.file_type, "value", document.file_type), 0, None))
     items = [
         EntityDocumentLink(
             document_id=row[0],

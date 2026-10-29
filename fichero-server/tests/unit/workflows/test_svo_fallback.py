@@ -99,3 +99,8 @@ class TestSvoSynthesis:
         )
         assert v == "is"
         assert o == "a region in the Pacific"
+
+
+class TestNoEnglishVerbOnAnotherLanguage:
+    def test_a_non_english_page_gets_no_synthesised_is(self):
+        assert _synthesize_svo_fallback("Lucas Pardo", "", "", "Lucas Pardo: el albacea", copula="") == ("", "el albacea")
