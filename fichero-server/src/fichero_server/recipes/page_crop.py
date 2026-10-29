@@ -26,8 +26,9 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
 
     from fichero_server.actions.registry import ActionContext, registry
     import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.update)
+    import fichero_server.api.routes.ingest.image_editing  # noqa: F401  (registers image.mark_blank)
     from fichero_server.importers.ingest import _copy_to_library
-    from fichero_server.media.blank_page import blank_verdict, mark_blank
+    from fichero_server.media.blank_page import blank_verdict
     from fichero_server.media.find_page import find_page
     from fichero_server.media.upright import upright
     from fichero_server.models import Document, NodeRegion, Rendition, Segment
@@ -62,7 +63,9 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             has_lines = any(s.deleted_at is None for s in db.query(Segment, document_id=doc.id))
             verdict = blank_verdict(image, has_lines)
             if verdict == "blank":
-                mark_blank(db, doc.id, True, who=f"run {run_id}", reason="no ink beyond its ruling")
+                # Through the action layer: audited, and Undo restores the page (`image.mark_blank`).
+                registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True, "who": f"run {run_id}",
+                                                        "reason": "no ink beyond its ruling"}, ctx)
                 account["blank"] += 1
                 continue
             if verdict == "unsure" and not meta.get("prep_proposals", {}).get("blank"):

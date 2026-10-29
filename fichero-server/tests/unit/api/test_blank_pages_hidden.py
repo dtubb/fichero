@@ -86,3 +86,25 @@ def test_a_page_excluded_for_another_reason_is_still_a_unit_of_work(db, tmp_path
     assert set(pages_for(db, {}, None)) == {curated.id, plain.id}, "a blank-hidden cut page is not added back"
     mark_blank(db, blank.id, False, who="person")
     assert blank.id in db.unit_of_work_ids()
+
+
+def test_a_runs_hide_is_an_audited_action_and_undo_shows_the_page_again(db, tmp_path):
+    """Review finding: the run's own hide went around the action layer, so it had no audit row and no Undo."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models import ActionAudit
+    from fichero_server.recipes.page_crop import crop_pages
+
+    blank, _ = _page(db, tmp_path, "blank.png", _graph_paper(ink=False))
+    crop_pages(db, [blank.id], "run-7", prepare=True)
+    assert db.get(Document, blank.id).exclude_from_processing is True
+
+    audits = [a for a in db.query(ActionAudit) if a.action_name == "image.mark_blank"]
+    assert len(audits) == 1 and audits[0].run_id == "run-7"
+    reg = registry.get("image.mark_blank")
+    assert reg.undoable
+    ctx = ActionContext(actor="person", library_path=str(tmp_path), is_bootstrap=True)
+    registry.invoke(db, *reg.invert(audits[0].before, audits[0].after, ctx), ctx)
+
+    shown = db.get(Document, blank.id)
+    assert shown.exclude_from_processing is False and "blank" not in (shown.metadata or {})
+    assert db.query(ImageEditChain, document_id=blank.id)[0].operations == []

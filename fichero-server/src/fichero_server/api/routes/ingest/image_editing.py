@@ -979,12 +979,15 @@ def square_image_impl(
     return _render_and_append(db, document_id, source_path, op, page)
 
 
-def mark_blank_impl(db: Database, document_id: str, blank: bool) -> ImageEditChain:
-    """Hide (blank) or unhide a page: the chain row and `exclude_from_processing` move together (`media.blank_page`)."""
+def mark_blank_impl(db: Database, document_id: str, blank: bool, *, who: str = "person",
+                    reason: str | None = None) -> ImageEditChain:
+    """Hide (blank) or unhide a page: the chain row and `exclude_from_processing` move together (`media.blank_page`).
+    `who` is the person, or `run <id>` for a run's own hide (`page_crop`, through the action layer)."""
     from fichero_server.media.blank_page import mark_blank
 
     _get_or_404_document(db, document_id)
-    mark_blank(db, document_id, blank, who="person", reason="marked by a person" if blank else "unhidden by a person")
+    mark_blank(db, document_id, blank, who=who,
+               reason=reason or ("marked by a person" if blank else "unhidden by a person"))
     if not blank:  # shown again: through the steps it skipped
         from fichero_server.media.blank_page import queue_unhidden
 
@@ -1540,6 +1543,9 @@ class SquareImageActionParams(SquareOperationRequest):
 
 class MarkBlankImageActionParams(MarkBlankOperationRequest):
     document_id: str
+    #: A run's own hide says so (`run <id>`), with its reason; a person's click is the default.
+    who: str = "person"
+    reason: str | None = None
 
 
 class RotateImageActionParams(RotateOperationRequest):
@@ -1730,7 +1736,7 @@ def _action_mark_blank(
     doc = _get_or_404_document(db, params.document_id)
     state = {"exclude_from_processing": bool(doc.exclude_from_processing), "blank_note": (doc.metadata or {}).get("blank")}
     before_ops = _chain_ops_snapshot(db, params.document_id)
-    chain = mark_blank_impl(db, params.document_id, params.blank)
+    chain = mark_blank_impl(db, params.document_id, params.blank, who=params.who, reason=params.reason)
     spec = _image_chain_spec(
         params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
     spec.before = {**(spec.before or {}), **state}
