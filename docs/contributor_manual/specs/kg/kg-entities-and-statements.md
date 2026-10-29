@@ -38,6 +38,14 @@ the catalogue reads them; a statement is a claim one of those names makes or is 
 resting on its line, with its date and place as values, never as subjects. Graph views stand on
 reviewed names and on edges whose rule is stated.
 
+**One source of truth.** A name, a place, an institution, a statement and the link between a name
+and a page each live in ONE record, and every view reads it: the Inspector, the Entities and
+Claims panes, the knowledge lenses and graph views, the folder's catalogue lists, the authority
+sheets, the Excel and RDF exports, the prompts' known-names list. Section G names the record for
+each fact, the copies that hold it twice today, and the migration that retires each copy. No new
+store is added: the `KnowledgeEntity` and `KnowledgeClaim` tables and the segment-anchored mention
+are the records; everything else is derived from them or goes.
+
 Lives in: the engine's `workflows/tools/extract_entities_only.py`, `extract_svo_only.py`,
 `_entity_writer.py`, `knowledge/svo_quality.py`, `knowledge/dedupe.py`, `api/routes/kg/*`,
 `api/routes/entity/*`, `api/routes/claim/*`, `recipes/catalogue_step.py`; the app's Entities and
@@ -293,6 +301,58 @@ approval).
   the date never as subject; built: the engine renderer; not built: the app calling it
   (`kg-readable-representation.md`).
 
+### G. One source of truth: the record for each fact, and the copy it retires
+
+The rule: a fact is written once, in its record; a copy is either derived from the record by the
+engine on read (or on change, rebuildable) or retired. A migration is an audited, scan-first,
+idempotent action that reads the copy, writes what the record lacks, and leaves the record's own
+values alone; never a batch rewrite of a person's work.
+
+| Fact | The record | Copies today | Migration |
+|---|---|---|---|
+| A name (person, place, organisation, event): preferred form, forms as written, type, state, maker | `KnowledgeEntity` (`names`, `curation_state`, `attribution_chain`) | the per-document `entities` artifact (`workflows/tools/entities.py`, `importers/manifest_import.py`) read by the app's `ArtifactEntityStore` for list rows and table cells; the folder's `catalogue_access_points` attribute; the catalogue tool's people and places tables (`_build_data_from_claims`); `aliases` beside `names` | artifact names become page-scoped entities through `upsert_entity`, then the artifact and the app store go; access points become proposals (section D); the catalogue tables read `document_entity_ids`; `aliases` derived from `names` |
+| A name's tie to a page: which stretch of which line | the mention: `source_supports` entry with its `source_anchor` on the segment (#5488) | `source_document_ids` on the entity; the alias scan's `entity_ids` on every claim; `pages_with_names` reading `source_document_ids` for the done-check | `source_document_ids` derived from the mentions (kept as a column only as a cache the engine fills); `entity_ids` recomputed as the names whose mention lies in the claim's span; the done-check reads mentions by run |
+| A statement: subject, verb, object, line, maker | `KnowledgeClaim` (`subject_entity_id`, the role ids, `source_segment_id`, span) | the dated rows with the date as subject; the `claim_text_en` glosses; the parser's English "is" rows | dates become values (section C); glosses stay display-only; English rows pruned by the standing rule |
+| A date | on the page (`document_date`) or on the statement (`date_values`, `time_start`) | the `dates` artifact (`workflows/tools/date_extract.py`); `catalogue_dates`, `catalogue_date_start`, `catalogue_date_end`, `catalogue_date_normalised` on the folder | the artifact derived or retired (#5597); the folder's date attributes derived from its pages' and statements' dates by `folder.promote_catalogue`, a person's value kept |
+| A place's coordinates and gazetteer identity | the location entity's `place_values` (`EvidentialPlace`) and its authority link | `claim_location`, `claim_geo`, `place_values` on claims; the geocode cache in `media/geo.py` | claims point at the place entity; their place fields derived; the cache stays a cache |
+| Who made a row | `attribution_chain` on entity and claim | `created_by`, `provider`, `model` columns; the draft marked only by the claim's provider | the columns derived from the chain; the draft's entry carries provider and model (#4869) |
+| The project's known names | verified entities | `recipes/known_names.py` (reads them, correct); the catalogue's description prose | nothing to retire; the prose reads the record |
+| Derived stores: entity vectors (LanceDB), the triple file for SPARQL, the networkx graph cache, triangulation counts, PyKEEN predictions | the two tables | the stores themselves | rebuildable from the tables (`/api/kg/rebuild`); re-derived when a page's text or a name's state changes (#5361) |
+| In the app | `EntityStore`, `ClaimStore` | `ArtifactEntityStore`, `LibraryClaimsModel`, the Inspector's own fetches (#3186) | the two stores are the only holders; the rest retire |
+
+- `kg.one.entity-is-the-record` — **[GAP]** (#5597, #5603) the `KnowledgeEntity` row is the one
+  record for a name; every surface named in the intent reads it through the entity routes, and
+  no other table, artifact, attribute or app store holds a list of names of its own.
+- `kg.one.entities-artifact-retired` — **[GAP]** (#5597, #3861) the per-document `entities`
+  artifact and the app's `ArtifactEntityStore` previews are replaced by page-scoped entities
+  (`document_entity_ids`): the Entity Extraction tool and the manifest importer write through
+  `upsert_entity` with a page scope, the list rows and table cells read the entity routes, and a
+  migration turns each existing artifact's names into scoped entities once, then retires it.
+- `kg.one.mention-is-the-link` — **[GAP]** (#5488, #4932, #1562) a name's tie to a page is one
+  record, the mention on a segment stretch; `source_document_ids` is derived from the mentions;
+  a claim's `entity_ids` is the names whose mention lies within the claim's span, computed by
+  the engine, never the alias scan; the done-check counts pages by the mentions a run wrote.
+- `kg.one.names-not-aliases` — **[GAP]** (#1688) `names` (each form with language and script)
+  is the record of a name's forms; `aliases` is derived from it until it is dropped; adding or
+  removing a form is one audited action on `names`.
+- `kg.one.dates-one-home` — **[GAP]** (#5597, #5008) a date lives on the page or on the
+  statement; the `dates` artifact and the folder's `catalogue_date_*` attributes are derived
+  from those (promote reads the record, a person's value is kept), never a third copy.
+- `kg.one.places-one-home` — **[GAP]** (#5597, #4600) a place's coordinates and gazetteer
+  identity live on the location entity; a claim's place fields point at that entity and derive
+  from it.
+- `kg.one.catalogue-reads-the-record` — **[GAP]** (#5365, #6283) the catalogue tool's people,
+  places, organisations and dates tables, the folder's three list attributes and the authority
+  sheets are read from the entity and claim records through one scope function, never from a
+  model's answer kept beside them.
+- `kg.one.derived-stores-follow-the-record` — **[PARTIAL]** (#5361) the vector store, the
+  triple file, the graph cache and the triangulation counts are derived and rebuildable from the
+  two tables; built: the rebuild route; not built: re-derivation when a page's corrected text,
+  a merge or a decision changes what they were built from.
+- `kg.one.app-has-two-stores` — **[PARTIAL]** (#4984, #3186) `EntityStore` and `ClaimStore`
+  are the app's only holders of names and statements; built: the stores; not built: the
+  Claims table and the Inspector's knowledge section reading them, the artifact store retired.
+
 ## Build order
 
 ### Stage 1 — Names a person can review (engine first)
@@ -318,6 +378,12 @@ approval).
 - Behaviours: `kg.names.measured`, `kg.names.cost-shown-first`
 - Tests: fichero-server/tests/unit/recipes/test_names_check_set_precision_recall.py, fichero-server/tests/unit/recipes/test_names_paths_offer_the_chooser.py
 - Depends on: 1.1
+- Size: M
+
+#### Step 1.5 — The mention is the link; entity_ids and source pages derived (#5488, #1562)
+- Behaviours: `kg.one.mention-is-the-link`, `kg.one.names-not-aliases`
+- Tests: fichero-server/tests/unit/kg/test_mention_is_the_one_link.py, fichero-server/tests/unit/kg/test_entity_ids_from_mentions_not_alias_scan.py, fichero-server/tests/unit/kg/test_names_field_is_the_record.py
+- Depends on: 1.2
 - Size: M
 
 ### Stage 2 — Resolution as proposals, per folder
@@ -365,6 +431,12 @@ approval).
 - Depends on: 3.2
 - Size: S
 
+#### Step 3.4 — Every name list reads the record: catalogue tables, entities artifact, app stores (#5597, #3861, #5365)
+- Behaviours: `kg.one.entity-is-the-record`, `kg.one.entities-artifact-retired`, `kg.one.catalogue-reads-the-record`, `kg.one.app-has-two-stores`
+- Tests: fichero-server/tests/unit/kg/test_entities_artifact_migrates_to_scoped_entities.py, fichero-server/tests/unit/workflows/test_catalogue_tables_read_the_entity_record.py, fichero/Tests/Unit/general/Models/EntityStoreIsTheOnlyNameHolderTests.swift
+- Depends on: 3.1, 1.5
+- Size: M
+
 ### Stage 4 — Statements worth reading
 
 #### Step 4.1 — Dates are values, never subjects (#5008, #4659)
@@ -382,6 +454,12 @@ approval).
 - Behaviours: `kg.statements.measured`, `kg.statements.object-role`, `kg.names.types`
 - Tests: fichero-server/tests/unit/recipes/test_statements_bakeoff_precision_recall.py, fichero-server/tests/unit/knowledge/test_object_role_from_parse.py
 - Depends on: 1.4
+- Size: M
+
+#### Step 4.4 — Dates and places have one home; derived stores follow (#5597, #4600, #5361)
+- Behaviours: `kg.one.dates-one-home`, `kg.one.places-one-home`, `kg.one.derived-stores-follow-the-record`
+- Tests: fichero-server/tests/unit/kg/test_dates_artifact_and_catalogue_dates_derive_from_the_record.py, fichero-server/tests/unit/kg/test_claim_place_points_at_the_place_entity.py, fichero-server/tests/unit/kg/test_derived_stores_rederive_on_change.py
+- Depends on: 4.1
 - Size: M
 
 ### Stage 5 — Graph views on reviewed names
@@ -422,9 +500,10 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
 
 ## Open questions for the owner (at most eight, each with a recommendation)
 
-1. **Retire the catalogue's access-points list outright, or keep it as a proposal source?**
-   Recommendation: keep it only as proposals into the graph (a mention on the folder
-   description), and make the three attributes the field. One list of people per folder.
+1. **Retire the catalogue's access-points list and the per-document `entities` artifact outright, or keep them as proposal sources?**
+   Recommendation: proposals only (a mention on the folder description, a page-scoped entity
+   from the artifact), migrated once and retired; the three attributes are the field. One list of
+   people per folder, one record per name.
 2. **Which names count for the catalogue by default: confirmed only, or confirmed plus
    unrejected proposals marked as proposed?** Recommendation: confirmed plus proposed, marked,
    for the working catalogue; confirmed only in anything exported or published.
