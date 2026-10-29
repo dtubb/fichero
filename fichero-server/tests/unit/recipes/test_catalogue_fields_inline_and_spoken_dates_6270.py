@@ -29,3 +29,16 @@ def test_digit_ranges_and_a_single_year_still_work():
     assert parse_fields("Dates: 1850-60.")["catalogue_date_end"] == "1860"
     one = parse_fields("Dates: 1776.")
     assert (one["catalogue_date_start"], one["catalogue_date_end"]) == ("1776", "1776")
+
+
+def test_a_field_stops_at_the_blank_line_and_prose_after_it_adds_no_dates():
+    got = parse_fields("Dates: 1906\n\nThe folder holds letters of 1850 and 1990.")
+    assert got["catalogue_dates"] == "1906"
+    assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1906", "1906")
+
+
+def test_spoken_years_stop_at_the_years_last_word_and_money_is_no_year():
+    got = parse_fields("Dates: 3 de abril de mil novecientos seis - dos de mayo de mil novecientos siete")
+    assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1906", "1907")
+    got = parse_fields("Dates: mil pesos, 1906")
+    assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1906", "1906")

@@ -197,17 +197,19 @@ _RANGE = re.compile(r"\s*[\u2013\u2014]\s*|\s+-\s+|\s+(?:to|hasta)\s+")
 
 def _spoken_years(dates: str) -> list[str]:
     """Years written as Spanish words ("mil novecientos seis" = 1906, "dos mil veinticuatro" = 2024)."""
-    words = re.sub(r"[^a-z ]", " ", unicodedata.normalize("NFD", dates.lower()).encode("ascii", "ignore").decode()).split()
     years = []
-    for i, word in enumerate(words):
-        if word != "mil":
-            continue
-        year = 2000 if words[i - 1:i] == ["dos"] else 1000
-        for part in words[i + 1:]:
-            if part != "y" and part not in _ONES:
-                break
-            year += _ONES.get(part, 0)
-        years.append(str(year))
+    for side in _RANGE.split(dates):  # a range's second date must not run on into the first one's number words
+        words = re.sub(r"[^a-z ]", " ", unicodedata.normalize("NFD", side.lower()).encode("ascii", "ignore").decode()).split()
+        for i, word in enumerate(words):
+            if word != "mil":
+                continue
+            year, used = (2000 if words[i - 1:i] == ["dos"] else 1000), 0
+            for part in words[i + 1:]:
+                if part != "y" and part not in _ONES:
+                    break
+                year, used = year + _ONES.get(part, 0), used + 1
+            if used and 1000 <= year <= 2099:  # "mil pesos" is money, not the year 1000
+                years.append(str(year))
     return years
 
 
@@ -234,6 +236,18 @@ def _date_range(dates: str) -> tuple[str, str] | None:
 _LABEL = re.compile(r"(?:^|(?<=[.;!?]\s)|(?<=\n))\s*(" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Scope and content", "Description"])) + r")\s*:", re.M)
 
 
+def _one_field(chunk: str) -> str:
+    """A field's own text: it ends at a blank line, or at the end of its line unless the line breaks mid-list (ends in ; or ,)
+    or the next line carries on in lower case; the unlabelled text after it is not part of it."""
+    lines = chunk.split("\n")
+    kept = [lines[0]]
+    for line in lines[1:]:
+        if not line.strip() or not (kept[-1].rstrip().endswith((";", ",")) or line.lstrip()[:1].islower()):
+            break
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def parse_fields(text: str) -> dict[str, Any]:
     """The folder attributes in a description's labelled fields (#6141): `{attribute key: value}`, a list for creators and access
     points (split at semicolons), and the Dates field also as ISO 8601 years (`catalogue_date_start`, `catalogue_date_end`: the
@@ -246,7 +260,7 @@ def parse_fields(text: str) -> dict[str, Any]:
         if mark.group(1) not in ATTRIBUTE_FIELDS:
             continue  # prose fields stay in the content, but they end the field before them
         key, is_list = ATTRIBUTE_FIELDS[mark.group(1)]
-        value = " ".join(text[mark.end():after.start() if after else len(text)].split())
+        value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
         if value:
             found[key] = [part.strip() for part in value.split(";") if part.strip()] if is_list else value
