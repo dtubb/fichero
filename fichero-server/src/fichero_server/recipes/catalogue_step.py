@@ -449,15 +449,16 @@ def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
 
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,
                      stop: Any = lambda: False, language: str | None = None,
-                     max_words: int = FOLDER_DESCRIPTION_MAX_WORDS) -> dict[str, Any]:
+                     max_words: int = FOLDER_DESCRIPTION_MAX_WORDS, whole_folders_only: bool = False) -> dict[str, Any]:
     """Describe the folders above `page_ids`, deepest first (a folder's subfolders are described before it). A folder
-    whose coverage matches its saved description is left. The account: described / unchanged / no_text / failed."""
+    whose coverage matches its saved description is left. With `whole_folders_only` (a reading step failed), a folder with any
+    page that has no text is left too and named in `skipped`. The account: described / unchanged / no_text / skipped / failed."""
     from fichero_server.llm.lang_detect import configured_primary_language, resolve_output_language
     from fichero_server.models import Artifact
     from fichero_server.workflows.tools.catalogue import _describe_container
 
     library_path = str(Path(db.path).parent)
-    account: dict[str, Any] = {"described": 0, "unchanged": 0, "no_text": 0, "failed": [], "flags": []}
+    account: dict[str, Any] = {"described": 0, "unchanged": 0, "no_text": 0, "skipped": [], "failed": [], "flags": []}
     for folder in folders_covering(db, page_ids):
         if stop():
             break
@@ -466,6 +467,10 @@ def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str |
         old = _latest(db, folder.id)
         if old is not None and (old.data or {}).get("covers") == covers:
             account["unchanged"] += 1
+            continue
+        unread = sum(1 for d in leaves if not (d.page_content or "").strip())
+        if whole_folders_only and unread:
+            account["skipped"].append(f"{folder.name} ({unread} of {len(leaves)} pages have no text)")
             continue
         if not any((d.page_content or "").strip() for d in leaves):
             account["no_text"] += 1
