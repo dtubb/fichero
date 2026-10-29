@@ -474,3 +474,48 @@ def test_a_crash_mid_submit_sends_the_rest_as_a_batch_on_resume(db, row):
     provider = Resumed(polls_open=0)
     _run(db, row, provider)
     assert provider.sent == [[REQS[2].key, REQS[3].key]], "only the chunk never submitted, as one batch"
+
+
+def test_a_batch_row_set_aside_as_failed_with_a_batch_still_open_is_followed_never_sent_twice(db, monkeypatch, tmp_path,
+                                                                                            project_says_yes):
+    """WHY (review 4 MED): a restart-worn row failed while its batch is open at the provider; the step's rerun adopts it
+    and waits on it, never queuing a second batch that bills the same pages again."""
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    first = cloud_batch.start(db, card=_card(), documents=["p1"], parent_job_id=parent, started_by="owner",
+                              pages_may_leave=True)
+    detail = json.loads(jobs.read_job(db, first)["detail"])
+    detail["batches"] = [{"ids": ["b1"], "state": "open", "requests": 1}]
+    jobs.save_detail(db, first, json.dumps(detail))
+    db.execute("UPDATE jobs SET state = 'failed' WHERE id = ?", [first])
+    waited = []
+    cloud_batch.run_step(db, _card(), ["p1"], parent, "o", wait=lambda db, child, p: (waited.append(child), (child, "failed", "x"))[1],
+                         replay=lambda: pytest.fail("no replay"))
+    assert waited == [first] and jobs.read_job(db, first)["state"] == "waiting"
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [cloud_batch.KIND])[0] == 1
+
+
+def test_a_failed_batch_row_with_nothing_open_is_not_adopted(db, monkeypatch, tmp_path, project_says_yes):
+    monkeypatch.setattr(cloud_batch, "_work_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    parent = _parent(db)
+    first = cloud_batch.start(db, card=_card(), documents=["p1"], parent_job_id=parent, started_by="owner",
+                              pages_may_leave=True)
+    db.execute("UPDATE jobs SET state = 'failed' WHERE id = ?", [first])
+    assert cloud_batch._ended_under(db, parent, ["p1"]) is None
+
+
+def test_resume_leaves_a_batch_and_a_recipe_with_one_out_running_after_every_restart(db, monkeypatch, tmp_path):
+    """WHY (#5540, review 4 MED): a cloud batch is far-side like a read; a recipe run with one out is not set aside."""
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    recipe = jobs.enqueue(db, "run-a-recipe", "r1", started_by="owner")
+    lone = jobs.enqueue(db, "run-a-recipe", "r2", started_by="owner")
+    batch = jobs.enqueue_remote(db, cloud_batch.KIND, "batch:1", target="anthropic", detail="{}", reason="x",
+                                started_by="owner")
+    jobs.set_parent(db, batch, recipe)
+    db.execute("UPDATE jobs SET state = 'running', attempts = ? WHERE id IN (?, ?, ?)",
+               [jobs.MAX_ATTEMPTS + 2, recipe, lone, batch])
+    jobs.resume(db)
+    states = {i: jobs.read_job(db, i)["state"] for i in (recipe, lone, batch)}
+    assert states == {recipe: "waiting", lone: "failed", batch: "waiting"}  # picked up again, not set aside

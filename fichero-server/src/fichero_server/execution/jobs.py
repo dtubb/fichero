@@ -931,7 +931,7 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
 
 
 #: The kinds whose row watches a Job elsewhere (Hugging Face or a cluster, its id the row's `target`).
-FAR_SIDE_KINDS = ("train-a-model", "read-at-scale")
+FAR_SIDE_KINDS = ("train-a-model", "read-at-scale", "cloud-batch")
 
 
 def details_of_kinds(db: "Database", kinds: tuple[str, ...] | list[str]) -> list[tuple[datetime, dict[str, Any]]]:
@@ -1762,8 +1762,11 @@ def resume(db: "Database") -> None:
     for job_id, attempts, started_at in db.execute_fetchall(
         "SELECT id, attempts, started_at FROM jobs "
         "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
-        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}){not_live}",
-        [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *live],
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}) "
+        # a recipe run with a read or batch still out for it is not set aside either: its restarts would cancel it (#5540)
+        f"AND NOT EXISTS (SELECT 1 FROM jobs c WHERE c.parent_id = jobs.id AND c.state IN ('waiting', 'running', 'paused') "
+        f"AND c.kind IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})){not_live}",
+        [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *FAR_SIDE_KINDS, *live],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
