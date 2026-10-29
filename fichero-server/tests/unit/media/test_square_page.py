@@ -80,7 +80,7 @@ def test_the_edit_chain_squares_and_page_crop_writes_a_squared_rendition(db, tmp
     image.save(path)
     doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
     db.save(doc)
-    crop_pages(db, [doc.id], "run-1")
+    crop_pages(db, [doc.id], "run-1", prepare=True)
     (row,) = [r for r in db.query(Rendition, document_id=doc.id) if r.role == "squared"]
     assert row.transform.method == "square" and len(row.transform.homography) == 3
     assert abs(detect_deskew_angle(Image.open(row.path))) < 1.0
@@ -91,5 +91,5 @@ def test_the_edit_chain_squares_and_page_crop_writes_a_squared_rendition(db, tmp
     img.save(flat)
     doc2 = Document(name=flat.name, doc_type=DocType.file, file_type=FileType.image, path=str(flat), metadata={})
     db.save(doc2)
-    crop_pages(db, [doc2.id], "run-1")
+    crop_pages(db, [doc2.id], "run-1", prepare=True)
     assert not [r for r in db.query(Rendition, document_id=doc2.id) if r.role == "squared"], "a flat page writes nothing"

@@ -68,7 +68,7 @@ def test_page_crop_writes_a_flattened_rendition_for_a_bent_page_and_none_for_a_s
         table.save(path)
         doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
         db.save(doc)
-        crop_pages(db, [doc.id], "run-1")
+        crop_pages(db, [doc.id], "run-1", prepare=True)
         return [r for r in db.query(Rendition, document_id=doc.id) if r.role == "flattened"]
 
     (row,) = on_a_table(24)

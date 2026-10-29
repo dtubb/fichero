@@ -17,8 +17,10 @@ MIN_SHARE = 0.15
 PRODUCER = "page-crop"
 
 
-def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None) -> dict[str, int]:
-    """Each page image's paper found and recorded; the account: `pages` looked at, `cropped` (a box written),
+def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None, *,
+               prepare: bool = False) -> dict[str, int]:
+    """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
+    Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
     `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `no_image`."""
     from PIL import Image
 
@@ -81,7 +83,8 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                           producer_run_id=run_id, note=f"the page found by the {found.method} finder",
                           transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, method=found.method)))
         account["cropped"] += 1
-        _square_and_flatten(db, doc, image, found, run_id, library)
+        if prepare:
+            _prepare(db, doc, image, found, run_id, library)
     return account
 
 
@@ -106,13 +109,14 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
                       transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, **transform)))
 
 
-def _square_and_flatten(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path) -> None:
-    """A page whose quad is not a rectangle gets a `squared` rendition, the homography on its row (`prep.square.*`); a
-    page whose lines curve gets a `flattened` one from the squared page (or the crop), the field's control points on its
-    row (`prep.flatten.*`). A rectangular, straight page writes nothing."""
+def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path) -> None:
+    """The operations in order, each fed by the one before and each writing a rendition only when it changed something:
+    square (`prep.square.*`, the homography on its row), flatten (`prep.flatten.*`, the control points), turn by the text
+    (`prep.turn-by-the-text`, the quarter turn and its reason), straighten (`prep.straighten-and-flatten`, the angle)."""
     from fichero_server.media.flatten_curve import flatten_curve
+    from fichero_server.media.image_ops import apply_operation, auto_straighten_angle
     from fichero_server.media.square_page import quad_is_rectangular, square_page
-
+    from fichero_server.media.turn_by_text import turn_by_text
     box = [round(v, 5) for v in found.box]
     base = image.crop(found.pixels(*image.size))
     if found.quad and not quad_is_rectangular(found.quad, image.size):
@@ -121,5 +125,15 @@ def _square_and_flatten(db: Any, doc: Any, image: Any, found: Any, run_id: str, 
                method="square", homography=homography, quad=[list(p) for p in found.quad])
     flat = flatten_curve(base)
     if flat is not None:
-        _write(db, doc, "flattened", flat[0], run_id, library, "the page flattened toward its gutter", box,
+        base = flat[0]
+        _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box,
                method="flatten", control_points=flat[1])
+    turn = turn_by_text(base)
+    if turn["angle"]:
+        base = apply_operation(base, {"op": "rotate", "params": {"angle": turn["angle"]}})  # the editor's own turn
+        _write(db, doc, "rotated", base, run_id, library, turn["reason"], box, method="turn", angle=turn["angle"])
+    angle = auto_straighten_angle(base)
+    if angle:
+        base = apply_operation(base, {"op": "straighten", "params": {"angle": angle, "expand": True}})
+        _write(db, doc, "deskewed", base, run_id, library, f"straightened {angle:.2f} degrees", box,
+               method="straighten", angle=angle)

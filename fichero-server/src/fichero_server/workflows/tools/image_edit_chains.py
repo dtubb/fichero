@@ -46,7 +46,7 @@ def _candidate_document_ids(inputs: dict[str, Any], state: State) -> list[str]:
 def append_image_edit_operations(
     inputs: dict[str, Any],
     state: State,
-    build_operation: Callable[[Document], dict[str, Any]],
+    build_operation: Callable[[Document], dict[str, Any] | None],
 ) -> list[dict[str, Any]]:
     """Persist edit-chain operations for workflow-selected documents.
 
@@ -65,6 +65,8 @@ def append_image_edit_operations(
         if doc is None:
             continue
         operation = build_operation(doc)
+        if operation is None:  # nothing to do for this page: no row
+            continue
         operation.setdefault("created_at", utc_now().isoformat())
 
         rows = list(db.query(ImageEditChain, document_id=doc.id))

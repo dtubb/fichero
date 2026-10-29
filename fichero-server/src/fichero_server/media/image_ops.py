@@ -25,6 +25,16 @@ def detect_deskew_angle(image: Image.Image) -> float:
     return float(np.median(angles)) if angles else 0.0
 
 
+#: The automatic straighten does nothing under this many degrees (`prep.straighten-and-flatten`).
+STRAIGHTEN_MIN_DEGREES = 0.3
+
+
+def auto_straighten_angle(image: Image.Image) -> float:
+    """The Hough skew angle, or 0.0 where it is under `STRAIGHTEN_MIN_DEGREES` (a page already square writes no row)."""
+    angle = detect_deskew_angle(image)
+    return angle if abs(angle) >= STRAIGHTEN_MIN_DEGREES else 0.0
+
+
 def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     """Find the non-border content rectangle using a local threshold."""
     import numpy as np
@@ -280,7 +290,7 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
-        angle = detect_deskew_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
+        angle = auto_straighten_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
         # Exact quarter turns are LOSSLESS transposes (Daniel, 2026-08-30:
         # "edits seemed to make the quality worse" — every rotate-left click
         # was bicubic-resampling the whole page). Only a fractional angle
