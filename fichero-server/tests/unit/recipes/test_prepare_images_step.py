@@ -34,7 +34,8 @@ def _page(path: Path, *, paper: int, ink: int) -> Path:
     image = Image.new("RGB", (200, 260), (paper, paper, paper - 10))
     draw = ImageDraw.Draw(image)
     for y in range(30, 230, 20):
-        draw.rectangle([20, y, 180, y + 6], fill=(ink, ink, ink))
+        for x in range(20, 180, 24):  # words, not a ruled line: a full-width bar is ruling, and a page of only ruling is blank
+            draw.rectangle([x, y, x + 14, y + 6], fill=(ink, ink, ink))
     image.save(str(path), format="PNG")
     return path
 
