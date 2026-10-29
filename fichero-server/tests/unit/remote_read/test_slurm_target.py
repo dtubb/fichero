@@ -162,3 +162,39 @@ def test_the_read_loop_runs_one_single_task_sbatch_per_shard_and_reads_them_in_o
     shell.files[f"{target._dir('job-1')}/out/shard-00001.tar"] = buf.getvalue()
     folder = target.fetch_part("job-1", "shard-00001", tmp_path / "home")
     assert (folder / "_outcome.json").read_text() == "{}"
+
+
+def test_iiif_pages_are_fetched_on_this_mac_into_the_package_before_it_is_sent_never_on_a_login_node(tmp_path,
+                                                                                                    monkeypatch):
+    """WHY (`compute.hpc.nothing-heavy-on-a-login-node`; compute nodes have no internet): a package of IIIF pages is
+    filled on this Mac, politely, before it leaves, so the pages travel in it; the cluster fetches nothing."""
+    import json
+
+    from fichero_server.remote_read import runner
+
+    pkg = tmp_path / "pkg"
+    (pkg / "shards").mkdir(parents=True)
+    (pkg / "job.json").write_text(json.dumps({"shards": [[0]], "sources": [{"id": "a", "iiif_service": "https://x/a"}]}))
+    fetched = []
+
+    def prefetch(package, *, get=None):
+        fetched.append(package)
+        (package / "images").mkdir(exist_ok=True)
+        (package / runner.prefetched({"id": "a"})).write_bytes(b"jpeg")
+        return {"failed": {}}
+
+    monkeypatch.setattr(runner, "prefetch", prefetch)
+    shell = FakeShell()
+    SlurmReadTarget(RORQUAL, shell).send(pkg, "job-1")
+    assert fetched == [pkg]
+    assert any(remote.endswith("images/iiif-a.jpg") for remote in shell.files), "the page travels in the package"
+    assert not [a for a in shell.ran if "--prefetch" in " ".join(a)], "nothing fetched on the login node"
+
+
+def test_a_package_with_no_iiif_pages_is_sent_as_it_is(tmp_path, monkeypatch):
+    from fichero_server.remote_read import runner
+
+    monkeypatch.setattr(runner, "prefetch", lambda *a, **k: pytest.fail("nothing to fetch"))
+    shell = FakeShell()
+    _sent_package(tmp_path, shell)
+    assert shell.files, "the package was not put on the cluster"

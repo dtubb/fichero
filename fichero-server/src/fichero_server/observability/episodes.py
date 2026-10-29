@@ -89,6 +89,10 @@ def record(
     was impossible (no library in context, or the write failed) — callers
     never branch on it; it exists so tests and correction records can
     reference the id."""
+    from fichero_server.llm.provider_batch import is_capturing
+
+    if is_capturing():  # a provider batch's capture run: its answers are stand-ins, never an episode (#5940)
+        return None
     library_path = _episode_library_path.get()
     if not library_path:
         logger.debug("episode not recorded: no library in context")

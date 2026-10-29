@@ -797,9 +797,19 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                   started_by: str) -> tuple[str | None, str, str | None]:
     """A read the plan placed on the project's cluster or on Hugging Face Jobs (`source.recipe.placement-by-scale`,
-    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step, and waited on as any
-    child; a place that refuses fails the step by name. The person's yes is read now, not when the plan was made: pages
-    may leave only while the project says so, the app allows the place, and (Hugging Face) the monthly cap is above $0."""
+    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step (or the one already
+    out for these pages adopted), and waited on as any child; a place that refuses fails the step by name."""
+    child, why = _send_at_scale(db, card, documents, parent, started_by)
+    return _wait(db, child, parent) if child is not None else (None, "failed", why)
+
+
+def _send_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                   started_by: str) -> tuple[str | None, str | None]:
+    """The send half of `_run_at_scale`, also what a batch sent ahead goes by (`remote_read.pipeline`): (the read's id,
+    None), or (None, why it was refused). The person's yes is read now, not when the plan was made: pages may leave only
+    while the project says so and the app allows the place. A read already out for these pages (a resume, or the batch
+    sent ahead) is adopted by them, never sent again, before the cap is asked: it is already counted in it. A new one on
+    Hugging Face needs the monthly cap above $0 and not yet reached."""
     from fichero_server.models.compute_requests import ReadAtScaleRequest
     from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_project_setup
@@ -811,24 +821,27 @@ def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: s
     answers = read_project_setup(_library(db))["answers"]
     where = "Hugging Face" if on_hf else f"the cluster {card['target']}"
     if not places.may_leave_to(answers, "huggingface" if on_hf else "acenet"):
-        return None, "failed", f"pages may not leave this Mac; this step was placed on {where}"
+        return None, f"pages may not leave this Mac; this step was placed on {where}"
+    if (out := read_job.out_under(db, parent, documents)) is not None:  # resumed or sent ahead: waited on, never sent again
+        return out, None
     if on_hf:
         from fichero_server.recipes.train_offers import spend_this_month
 
         cap = spend_cap(answers)
         if cap <= 0:
-            return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
+            return None, "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
         spent = spend_this_month(db, cap=cap)["spent_at_most_usd"]
         if spent >= cap:  # the cap is a ceiling on what is already sent, not only a switch (#6173)
-            return None, "failed", (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
-                                    f"has reached the ${cap:.2f} cap")
+            return None, (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
+                          f"has reached the ${cap:.2f} cap")
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
-                                                      parent_job_id=parent), started_by=started_by)["job_id"]
+                                                      parent_job_id=parent), started_by=started_by,
+                               stage=tuple(card.get("stage") or ("read",)))["job_id"]  # a card queued before stages: the read alone
     except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
-        return None, "failed", f"could not send the read to {where}: {exc}"
-    return _wait(db, child, parent)
+        return None, f"could not send the read to {where}: {exc}"
+    return child, None
 
 
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
@@ -1223,6 +1236,8 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     for number, batch in enumerate(batches):
         if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
             continue
+        from fichero_server.remote_read import pipeline  # the next batch's remote first step goes ahead (#5642)
+        pipeline.send_ahead(db, job_id, detail, batches[number + 1] if number + 1 < len(batches) else None, tree, started_by)
         with _holding_the_served_model(job_id, cards):  # one MLX load per batch, kept through spaCy's steps
             problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
         if _stop_asked(job_id):  # a person's Stop ends the run after this batch; a failure does not (#5540)
@@ -1630,6 +1645,11 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
     if card.get("place") in ("cluster", "huggingface"):
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
+    elif card.get("place") == "batch":  # one provider batch, then the step's own run from its answers (#5940)
+        from fichero_server.remote_read import cloud_batch
+
+        child, state, why = cloud_batch.run_step(db, card, documents, job_id, started_by, wait=_wait,
+                                                 replay=lambda: _run_workflow(db, card, documents, job_id, adopt))
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
     elif card["card"] == "workflow":
