@@ -1316,6 +1316,8 @@ action record holding a researcher's words is ruled out.
   the manager. An embed that carries on after the close fails cleanly on its next statement. Closing twice is
   harmless. `db_manager.close_database` takes the library out under its lock and closes it outside. *Test:*
   `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py`.
+- `source.store.duckdb-spill-survives-a-query` — **[GAP]** (#6272) a query that spills to DuckDB's temp directory keeps its spill
+  file until the query ends: GET children of a large folder must not return 500 "Could not read enough bytes". Not reproduced or built.
 - `source.store.a-closed-database-stays-closed` — **[OK]** (#6238) a `Database` that was closed refuses every later
   statement with DuckDB's closed-connection error and never reopens: DuckDB reads "closed" as "invalidated", and the
   reconnect that answers an invalidated connection refuses one the library closed. A store outlives a close and reopen

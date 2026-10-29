@@ -3841,6 +3841,8 @@ Setup
   coverage table (Latin hands, print in another script, vertical CJK, kuzushiji, palm-leaf,
   right-to-left, sign-by-sign scripts, an Indigenous syllabary, unwritten speech), setup produces
   the steps the table names or "needs a model", never an error and never a silent substitute.
+- `source.onboard.estimate-rows-are-per-step` — **[GAP]** (#6260) Find lines (Kraken, free) and Read each line (cloud) share one
+  priced row in the Start estimate, so the free step hides inside the cloud price. Not built; each step gets its own row.
 - `source.onboard.estimate-counts-the-image` — **[PARTIAL]** (#6265) the Start estimate for a cloud reader of pages (`read-a-line`,
   `read-a-page`) prices what it sends, by provider, not the 1,200/300 a text call is assumed to take. Gemini (direct or via OpenRouter)
   and any provider not named: the measured page picture in two calls (about 13k + 43k in, about 400 out; $0.0143 a page on Flash-Lite

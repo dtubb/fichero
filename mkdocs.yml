@@ -428,6 +428,7 @@ nav:
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
+              - KG Overview — Names, Statements, Review, Graph (draft): contributor_manual/specs/kg/kg-entities-and-statements.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
@@ -506,6 +507,7 @@ nav:
               - Layers on the Source: contributor_manual/specs/ui/layers-on-the-source.md
               - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
               - Reader View: contributor_manual/specs/ui/reader-view.md
+              - Reviewing Names & Statements (draft): contributor_manual/specs/ui/review-names-and-statements.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
               - Search: contributor_manual/specs/ui/search.md
