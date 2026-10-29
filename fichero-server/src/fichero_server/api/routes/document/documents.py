@@ -1733,6 +1733,12 @@ class EffectiveAttributesResponse(BaseModel):
     prototype_key: str | None
     declarations: dict[str, Any]
     values: dict[str, Any]
+    #: How ``prototype_key`` was found: ``own`` | ``inherited`` | ``none``; ``kind_from`` is the ancestor's id.
+    effective_prototype_key: str | None = None
+    kind_rule: str = "none"
+    kind_from: str | None = None
+    #: Per key where the value came from: ``{origin: here|inherited|default|empty, from, source}``.
+    origins: dict[str, dict[str, Any]] = {}
 
 
 @router.get("/{doc_id}/effective-attributes")
@@ -1747,31 +1753,38 @@ async def get_effective_attributes(
     """
     from fichero_server.models.node_prototypes import (
         PrototypeResolutionError,
+        effective_node_attributes,
+        resolve_node_prototype,
         resolve_prototype_attributes,
     )
     from fichero_server.models.prototype_schema import attribute_declarations
 
     doc = _document_or_404(db, doc_id)
 
+    kind = resolve_node_prototype(db, doc)
     declarations: dict[str, Any] = {}
     values: dict[str, Any] = {}
-    if doc.prototype_key:
-        try:
-            effective = resolve_prototype_attributes(db, doc.prototype_key)
-            decls = attribute_declarations(effective)
-        except (PrototypeResolutionError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        declarations = {
-            name: decl.model_dump(mode="json") for name, decl in decls.items()
-        }
-        values = {name: decl.default for name, decl in decls.items()}
+    origins: dict[str, dict[str, Any]] = {}
+    try:
+        if kind.key:
+            decls = attribute_declarations(resolve_prototype_attributes(db, kind.key))
+            declarations = {name: decl.model_dump(mode="json") for name, decl in decls.items()}
+        for name, found in effective_node_attributes(db, doc).items():
+            values[name] = found["value"]
+            origins[name] = {k: found[k] for k in ("origin", "from", "source")}
+    except (PrototypeResolutionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     own = doc.attributes if isinstance(doc.attributes, dict) else {}
     values.update(own)
     return EffectiveAttributesResponse(
         prototype_key=doc.prototype_key,
+        effective_prototype_key=kind.key,
         declarations=declarations,
         values=values,
+        kind_rule=kind.rule,
+        kind_from=kind.from_id,
+        origins=origins,
     )
 
 

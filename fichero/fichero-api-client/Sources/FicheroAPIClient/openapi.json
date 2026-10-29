@@ -64211,6 +64211,30 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Values"
+          },
+          "effective_prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Effective Prototype Key"
+          },
+          "kind_rule": {
+            "type": "string",
+            "title": "Kind Rule",
+            "default": "none"
+          },
+          "kind_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind From"
+          },
+          "origins": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Origins",
+            "default": {}
           }
         },
         "type": "object",

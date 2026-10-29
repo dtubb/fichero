@@ -14,6 +14,7 @@ than silently returning partial/empty attributes.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from .knowledge import ClassificationDimension, ClassificationValue
@@ -99,3 +100,139 @@ def check_level_defaults(db, key: str, attributes: dict[str, Any]) -> None:
         seen.add(cur)
         stack.extend(targets(cur))
 
+
+# --- The two walks (attributes-and-prototypes.md §1, §2) -------------------------------------------------
+
+
+def nearest_ancestor(document: Any, get_document, predicate) -> Any:
+    """The nearest ancestor of ``document`` for which ``predicate(ancestor)`` is true, or None.
+
+    THE ancestor walk: the value cascade, the kind walk and the direction cascade all call it.
+    ``get_document(id)`` loads a parent; a cycle or a missing parent ends the walk.
+    """
+    def parent_of(doc: Any) -> str | None:
+        return doc.get("parent_id") if isinstance(doc, dict) else getattr(doc, "parent_id", None)
+
+    seen: set[str] = set()
+    parent_id = parent_of(document) if document is not None else None
+    while parent_id and parent_id not in seen:
+        seen.add(parent_id)
+        parent = get_document(parent_id)
+        if parent is None:
+            return None
+        if predicate(parent):
+            return parent
+        parent_id = parent_of(parent)
+    return None
+
+
+def node_level(document: Any) -> str:
+    """Which level a node is for the "nodes beneath" defaults: a folder is a ``subfolder``, a region a
+    ``region``, anything else (file, page) a ``page``."""
+    kind = getattr(getattr(document, "doc_type", None), "value", getattr(document, "doc_type", None))
+    if kind in ("folder", "group"):
+        return "subfolders"
+    if kind == "chunk":
+        return "regions"
+    return "pages"
+
+
+@dataclass(frozen=True)
+class KindResolution:
+    key: str | None
+    #: ``own`` (set here), ``inherited`` (from an ancestor's kind) or ``none``.
+    rule: str
+    from_id: str | None = None
+
+
+def _declared_level_default(db, proto_key: str | None, level: str) -> str | None:
+    if not proto_key:
+        return None
+    from .prototype_schema import level_defaults
+
+    try:
+        return level_defaults(resolve_prototype_attributes(db, proto_key)).get(level)
+    except PrototypeResolutionError:
+        return None
+
+
+def resolve_node_prototype(db, document: Any, _visiting: frozenset = frozenset()) -> KindResolution:
+    """A node's effective prototype: its own key, else the first ancestor's effective prototype that
+    declares a default for this node's level, else none. Says which rule fired and from which ancestor.
+
+    A node with its own key restarts the chain beneath it, because the ancestor walk reads each
+    ancestor's EFFECTIVE prototype (its own, else the one it inherits).
+    """
+    own = getattr(document, "prototype_key", None)
+    if own:
+        return KindResolution(own, "own")
+    if document.id in _visiting:  # a parent cycle in stored data ends the walk
+        return KindResolution(None, "none")
+    visiting = _visiting | {document.id}
+    level = node_level(document)
+
+    get = _getter(db)
+
+    found: dict[str, str] = {}
+
+    def declares(ancestor) -> bool:
+        proto = resolve_node_prototype(db, ancestor, visiting).key
+        target = _declared_level_default(db, proto, level)
+        if target:
+            found["key"] = target
+        return bool(target)
+
+    ancestor = nearest_ancestor(document, get, declares)
+    if ancestor is None:
+        return KindResolution(None, "none")
+    return KindResolution(found["key"], "inherited", ancestor.id)
+
+
+def _getter(db):
+    """Committed reads where the database has them (they never queue behind an import's writes)."""
+    read = getattr(db, "get_committed", None) or db.get
+    return lambda doc_id: read(_document_cls(), doc_id)
+
+
+def _document_cls():
+    from . import Document
+
+    return Document
+
+
+def effective_node_attributes(db, document: Any) -> dict[str, dict[str, Any]]:
+    """Every field of a node with where its value came from.
+
+    ``{key: {value, origin: here|inherited|default|empty, from, source}}``. ``from`` is the ancestor's
+    id for ``inherited`` and the prototype key for ``default``. Only a declaration marked ``inherits``
+    walks up; nothing inherited or defaulted is stored on the node.
+    """
+    from fichero_server.workflows.attribute_sources import sources
+    from .prototype_schema import attribute_declarations, ordered_field_keys
+
+    proto_key = resolve_node_prototype(db, document).key
+    attrs = resolve_prototype_attributes(db, proto_key) if proto_key else {}
+    decls = attribute_declarations(attrs)
+    own = document.attributes if isinstance(document.attributes, dict) else {}
+    keys = ordered_field_keys(attrs) + [k for k in own if k not in decls]
+    get = _getter(db)
+
+    def has(doc, key) -> bool:
+        value = (doc.attributes or {}).get(key) if isinstance(doc.attributes, dict) else None
+        return value not in (None, "")
+
+    out: dict[str, dict[str, Any]] = {}
+    for key in keys:
+        decl = decls.get(key)
+        entry: dict[str, Any] = {"value": None, "origin": "empty", "from": None, "source": None}
+        if has(document, key):
+            entry.update(value=own[key], origin="here", source=sources(document).get(key))
+        elif decl is not None and decl.inherits:
+            ancestor = nearest_ancestor(document, get, lambda a, k=key: has(a, k))
+            if ancestor is not None:
+                entry.update(value=ancestor.attributes[key], origin="inherited", **{"from": ancestor.id},
+                             source=sources(ancestor).get(key))
+        if entry["origin"] == "empty" and decl is not None and decl.default not in (None, ""):
+            entry.update(value=decl.default, origin="default", **{"from": proto_key})
+        out[key] = entry
+    return out
