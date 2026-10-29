@@ -182,6 +182,7 @@ ATTRIBUTE_FIELDS = {
     "Title": ("catalogue_title", False), "Dates": ("catalogue_dates", False), "Extent": ("catalogue_extent", False),
     "Creator and hands": ("catalogue_creators", True), "Language and script": ("catalogue_language_script", False),
     "Condition": ("catalogue_condition", False), "Access points": ("catalogue_access_points", True),
+    "Scope and content": ("catalogue_scope_content", False), "Arrangement": ("catalogue_arrangement", False),
 }
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 _SHORT_END = re.compile(r"(?<!\d)(1\d{3}|20\d{2})\s*[-\u2013\u2014/]\s*(\d{2})(?!\d)")
@@ -233,7 +234,7 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     return (min(years), max(years)) if years else None
 
 
-_LABEL = re.compile(r"(?:^|(?<=[.;!?]\s)|(?<=\n))\s*(" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Scope and content", "Description"])) + r")\s*:", re.M)
+_LABEL = re.compile(r"(?:^|(?<=[.;!?]\s)|(?<=\n))\s*(" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Description"])) + r")\s*:", re.M)
 
 
 def _one_field(chunk: str) -> str:
@@ -258,7 +259,7 @@ def parse_fields(text: str) -> dict[str, Any]:
     marks = list(_LABEL.finditer(text))
     for mark, after in zip(marks, [*marks[1:], None]):
         if mark.group(1) not in ATTRIBUTE_FIELDS:
-            continue  # prose fields stay in the content, but they end the field before them
+            continue  # Description is prose: it stays in the content, but ends the field before it
         key, is_list = ATTRIBUTE_FIELDS[mark.group(1)]
         value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
@@ -287,6 +288,28 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
                                     provider=provider, model=model, said=text)
     return sources.write_answers_from_run(db, doc, {k: (v, source) for k, v in {**values, **gone}.items()})
+
+
+def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:
+    """Put the folder's latest saved description in its content and attributes again, with no model call (the same
+    `put_in_content` and `put_in_attributes` a run uses): for a folder described before a field existed.
+    Returns what the folder held before (content, metadata, attributes) when this changed it, for an undo; else None."""
+    art = _latest(db, folder.id)
+    if art is None or not (art.content or "").strip():
+        return None
+    from fichero_server.models import Document
+
+    def state() -> tuple:
+        doc = db.get(Document, folder.id)
+        return doc.page_content, dict(doc.metadata or {}), dict(doc.attributes or {})
+
+    was = state()
+    try:
+        put_in_content(db, folder.id, art.content, art.id)
+    except ReembedNotQueued:  # the content stands; search catches up on the next re-embed
+        logger.exception("could not queue the re-embed of folder %s", folder.id)
+    put_in_attributes(db, folder.id, art.content, art.id, run_id=art.run_id, provider=art.provider, model=art.model)
+    return dict(zip(("page_content", "metadata", "attributes"), was)) if state() != was else None
 
 
 def describe_folders(db: Any, page_ids: list[str], config: Any, *, run_id: str | None,

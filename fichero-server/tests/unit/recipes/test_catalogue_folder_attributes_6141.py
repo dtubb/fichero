@@ -45,12 +45,12 @@ def test_the_fields_are_parsed_typed_with_iso_years():
     assert (got["catalogue_date_start"], got["catalogue_date_end"]) == ("1776", "1780")
     assert got["catalogue_creators"] == ["Ana Ruiz", "one clerk's hand"]
     assert got["catalogue_access_points"] == ["Ana Ruiz", "Sevilla", "Casa de Contratación"]
-    assert "Scope and content" not in str(got) and "Letters about wheat" not in str(got)  # prose stays in the content
+    assert got["catalogue_scope_content"] == "Letters about wheat." and "A short paragraph" not in str(got)  # Description stays prose
 
 
 def test_a_field_the_text_lacks_is_not_written_and_no_year_means_no_iso_dates():
     got = catalogue_step.parse_fields("Title: A box.\nDates: undated.\nScope and content: x.")
-    assert got == {"catalogue_title": "A box.", "catalogue_dates": "undated."}
+    assert got == {"catalogue_title": "A box.", "catalogue_dates": "undated.", "catalogue_scope_content": "x."}
 
 
 def test_after_the_stage_runs_the_folder_has_the_attributes_citing_the_run(db, said):

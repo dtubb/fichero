@@ -1844,7 +1844,10 @@ def _document_text(db: Database, doc: Document) -> str:
         parts.append(doc.page_content.strip())
     elif page_text := _page_child_text(db, doc):
         parts.append(page_text)
+    promoted = "catalogue_content_from" in (doc.metadata or {})  # the description is already the content (#6267)
     for artifact in _text_artifacts(db, doc.id):
+        if promoted and artifact.artifact_type.startswith("catalogue."):
+            continue
         parts.append(f"{artifact.artifact_type}: {artifact.content.strip()}")
     return "\n\n".join(parts).strip() or "No text content available."
 

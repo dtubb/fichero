@@ -103,6 +103,19 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
 - `catalogue.export-standards` — **[GAP]** (#5365) fields export to EAD (ISAD(G)), Dublin Core, CSV and
   Excel, and IIIF manifest metadata.
 - `catalogue.fields-parse-wherever-written` — **[OK]** (#6270, engine) each labelled field of the model's answer lands in its own attribute even when the model writes it inline after another ("... de mayo de 1918. Access points: A; B": the access points are a list, not the end of Condition), and a prose label (Scope and content, Description) ends the field before it. The numeric years agree with the Dates text: a year written in Spanish words ("mil novecientos seis" = 1906) counts, and a range whose first year cannot be read has no `catalogue_date_start` or `catalogue_date_end` rather than the end year as both. Test: `fichero-server/tests/unit/recipes/test_catalogue_fields_inline_and_spoken_dates_6270.py`.
+- `catalogue.scope-and-arrangement-are-attributes` — **[OK]** (#6267, engine) the labelled fields "Scope and content" and
+  "Arrangement" of a folder's description are saved as its attributes `catalogue_scope_content` and `catalogue_arrangement`, like
+  the other fields (a person's own value is never overwritten; Description stays prose). *Test:*
+  `fichero-server/tests/unit/recipes/test_catalogue_promote_scope_arrangement_6267.py::test_scope_and_arrangement_are_parsed_as_attributes`.
+- `catalogue.promote-is-undoable-and-idempotent` — **[OK]** (#6267, engine) the action `folder.promote_catalogue` (`folder_id`, or the
+  whole project; `recursive`) re-reads each folder's latest `catalogue.narrative` and puts it in the folder's content and attributes
+  through `put_in_content` and `put_in_attributes`, with no model call: folders described before a field existed gain it without a rerun.
+  A folder already promoted from the same artifact changes nothing on a second call; one audited step, undone to what each folder held.
+  *Tests:* `.../test_catalogue_promote_scope_arrangement_6267.py::test_promote_gives_an_earlier_folder_the_new_keys_and_is_idempotent`,
+  `::test_promote_is_undone_to_what_the_folder_held`.
+- `catalogue.excel-export-prints-description-once` — **[OK]** (#6267) in the Excel export a folder whose content is its catalogue
+  description (`catalogue_content_from` set) does not also append its `catalogue.*` artifacts to its text, so the description prints once. The
+  Markdown and site exports are unchanged. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_a_promoted_folders_description_prints_once`.
 - `catalogue.excel-export-carries-attributes` — **[OK]** (owner goal 2026-10-28) `POST /api/export/excel`'s Documents sheet has one
   `attr:<key>` column per attribute key across the exported rows, and folder rows (the catalogue describes folders) beside the
   documents; `document_count` counts both. *Test:* `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`.

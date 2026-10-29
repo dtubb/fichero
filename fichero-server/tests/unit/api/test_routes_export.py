@@ -773,3 +773,21 @@ class TestExcelExportAttributes:
         columns = list(rows[0])
         attrs = [c for c in columns if c.startswith("attr:")]
         assert attrs == sorted(attrs) and columns[-len(attrs):] == attrs
+
+
+    def test_a_promoted_folders_description_prints_once(self, client, db, tmp_path):
+        """`catalogue.excel-export-prints-description-once` (#6267): the catalogue artifact is not appended to a folder
+        whose content already is that description."""
+        box = Document(id="once-box", name="Box", doc_type=DocType.folder, page_content="The wheat description.",
+                       metadata={"catalogue_content_from": "art-1"})
+        other = Document(id="once-other", name="Other", doc_type=DocType.folder)
+        for node in (box, other):
+            db.save(node)
+        for node in (box, other):
+            db.save(Artifact(document_id=node.id, artifact_type="catalogue.narrative", content="The wheat description."))
+        output_path = tmp_path / "once.xlsx"
+        r = client.post("/api/export/excel", json={"output_path": str(output_path)})
+        assert r.status_code == 200, r.text
+        rows = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=0)}
+        assert rows[box.id]["transcription"].count("The wheat description.") == 1
+        assert rows[other.id]["transcription"].count("The wheat description.") == 1  # no content: the artifact is its text

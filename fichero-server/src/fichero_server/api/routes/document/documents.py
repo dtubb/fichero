@@ -1071,6 +1071,56 @@ def _action_unrelink_originals(db: Database, params: UnrelinkParams, ctx: "Actio
                                           document_ids=back, emit_fn=_emit_document_change_spec)
 
 
+class PromoteCatalogueParams(BaseModel):
+    folder_id: Optional[str] = Field(default=None, description="the folder to promote; none: every folder in the project")
+    recursive: bool = Field(default=True, description="the folders below it too")
+
+
+class UnpromoteCatalogueParams(BaseModel):
+    before: dict[str, dict[str, Any]] = Field(description="each folder's content, metadata and attributes before")
+
+
+def _invert_promote_catalogue(before: dict | None, after: dict | None, ctx: "ActionContext"):
+    return ("folder.unpromote_catalogue", {"before": before}) if before else None
+
+
+@action("folder.promote_catalogue", PromoteCatalogueParams, domains=["document"], undoable=True,
+        invert=_invert_promote_catalogue)
+def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx: "ActionContext"):
+    """Put each folder's latest saved catalogue description in its content and attributes again (#6267), with no model
+    call: for folders described before the scope and arrangement fields existed. Idempotent; undoable."""
+    from fichero_server.recipes import catalogue_step
+
+    if params.folder_id is None:
+        folders = [d for d in db.query(Document, doc_type=DocType.folder) if not d.deleted_at]
+    else:
+        top = db.get(Document, params.folder_id)
+        if top is None:
+            raise ValueError(f"No folder {params.folder_id}")
+        folders = [top, *(catalogue_step._below(db, top.id)[0] if params.recursive else [])]
+    before: dict[str, dict] = {}
+    for folder in folders:
+        was = catalogue_step.promote_folder(db, folder)
+        if was is not None:
+            before[folder.id] = was
+    return ({"promoted": list(before)},
+            ChangeSpec(domains=["document"], target_ids=list(before), before=before, emit_type="document.updated",
+                       document_ids=list(before), emit_fn=_emit_document_change_spec))
+
+
+@action("folder.unpromote_catalogue", UnpromoteCatalogueParams, domains=["document"])
+def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
+    """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
+    for folder_id, was in params.before.items():
+        folder = db.get(Document, folder_id)
+        if folder is not None:
+            folder.page_content, folder.metadata, folder.attributes = was["page_content"], was["metadata"], was["attributes"]
+            db.save(folder)
+    ids = list(params.before)
+    return {"put_back": ids}, ChangeSpec(domains=["document"], target_ids=ids, emit_type="document.updated",
+                                         document_ids=ids, emit_fn=_emit_document_change_spec)
+
+
 def _checked_root(request: Request, db: Database, new_root: str) -> None:
     """The folder picked is a real folder this engine may read, picked by someone who may read server paths."""
     from fichero_server.api.routes.ingest.core import _require_ingest_owner, _validate_ingest_path
