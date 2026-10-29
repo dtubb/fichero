@@ -428,6 +428,7 @@ nav:
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
+              - KG Overview — Names, Statements, Review, Graph (draft): contributor_manual/specs/kg/kg-entities-and-statements.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
