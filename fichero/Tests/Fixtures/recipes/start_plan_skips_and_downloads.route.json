@@ -89,7 +89,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-811/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-3873/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -146,7 +146,7 @@
    },
    {
     "step": "nameless",
-    "why": "Correct has no model: none is named",
+    "why": "Review the reading has no model: none is named",
     "fix": "choose-model"
    },
    {
@@ -181,6 +181,7 @@
    "estimate_usd": 0.0,
    "over": false,
    "unpriced_models": [],
+   "note": null,
    "unpriced": false,
    "assumed_calls": 0,
    "assumed_usd": 0.0
@@ -194,9 +195,96 @@
   },
   "step_choices": [
    {
+    "step": "lines",
+    "job": "find-lines",
+    "name": "Find lines",
+    "picked": null,
+    "chosen_by": "setup",
+    "in_plan": true,
+    "wording": null,
+    "certainty_bar": null,
+    "turn_on": null,
+    "candidates": [
+     {
+      "card": "kraken:builtin/blla@bundled",
+      "name": "Kraken's built-in line and region finder (blla); ships inside the app",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": true,
+      "needs": [],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "Kraken, which ships with Fichero; about 0.0 GB to download",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "a Hugging Face account; Kraken runs in the Job",
+        "why": "add a Hugging Face token in Settings \u203a AI to run it there",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "apple:vision/find-lines@os",
+      "name": "Apple's on-device text recognition used to find the lines of print only; it keeps no text",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": true,
+      "needs": [],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "Kraken, which ships with Fichero",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "a Hugging Face account; Kraken runs in the Job",
+        "why": "add a Hugging Face token in Settings \u203a AI to run it there",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     }
+    ]
+   },
+   {
     "step": "read",
     "job": "read-a-line",
-    "name": "Read lines",
+    "name": "Read each line",
     "picked": null,
     "chosen_by": "setup",
     "in_plan": true,
@@ -395,90 +483,6 @@
       "measured": "not yet measured on your pages"
      },
      {
-      "card": "mlx:hf/mlx-community/Qwen2.5-VL-7B-Instruct-4bit@unpinned",
-      "name": "Qwen2.5-VL 7B, 4-bit, for MLX on Apple silicon",
-      "how": "local-model",
-      "runs_on": "this-mac",
-      "local": true,
-      "picked": false,
-      "recommended": false,
-      "available": false,
-      "needs": [
-       {
-        "kind": "download",
-        "words": "Download the model first"
-       }
-      ],
-      "places": [
-       {
-        "place": "this-mac",
-        "name": "this Mac",
-        "can": false,
-        "needs": "24 GB of unified memory",
-        "why": "needs 24 GB; this Mac has 16 GB",
-        "blocked": ""
-       },
-       {
-        "place": "hf-jobs",
-        "name": "Hugging Face Jobs",
-        "can": false,
-        "needs": "",
-        "why": "an MLX build runs only on a Mac",
-        "blocked": ""
-       }
-      ],
-      "cost_usd": {
-       "value": 0.0,
-       "basis": "estimate",
-       "measured": false,
-       "why": null,
-       "from": "free on this Mac"
-      },
-      "measured": "not yet measured on your pages"
-     },
-     {
-      "card": "mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@unpinned",
-      "name": "Qwen2.5-VL 3B, 4-bit; its licence is research-only, so it needs a deliberate choice",
-      "how": "local-model",
-      "runs_on": "this-mac",
-      "local": true,
-      "picked": false,
-      "recommended": false,
-      "available": false,
-      "needs": [
-       {
-        "kind": "download",
-        "words": "Download the model first"
-       }
-      ],
-      "places": [
-       {
-        "place": "this-mac",
-        "name": "this Mac",
-        "can": true,
-        "needs": "3.5 GB of unified memory",
-        "why": "",
-        "blocked": ""
-       },
-       {
-        "place": "hf-jobs",
-        "name": "Hugging Face Jobs",
-        "can": false,
-        "needs": "",
-        "why": "an MLX build runs only on a Mac",
-        "blocked": ""
-       }
-      ],
-      "cost_usd": {
-       "value": 0.0,
-       "basis": "estimate",
-       "measured": false,
-       "why": null,
-       "from": "free on this Mac"
-      },
-      "measured": "not yet measured on your pages"
-     },
-     {
       "card": "anthropic:claude@settings",
       "name": "Claude (Anthropic), in the cloud",
       "how": "cloud-reads-kraken-lines",
@@ -557,7 +561,7 @@
         "name": "this Mac",
         "can": false,
         "needs": "",
-        "why": "not available yet: add Claude (Anthropic) in Settings \u203a AI",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
         "blocked": ""
        },
        {
@@ -565,7 +569,212 @@
         "name": "Hugging Face Jobs",
         "can": false,
         "needs": "",
-        "why": "not available yet: add Claude (Anthropic) in Settings \u203a AI",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": null,
+       "basis": "unknown",
+       "measured": false,
+       "why": null,
+       "from": "no listed price"
+      },
+      "measured": "not yet measured on your pages"
+     }
+    ]
+   },
+   {
+    "step": "names",
+    "job": "find-names-tag-words",
+    "name": "Find names",
+    "picked": null,
+    "chosen_by": "setup",
+    "in_plan": true,
+    "wording": null,
+    "certainty_bar": null,
+    "turn_on": null,
+    "candidates": [
+     {
+      "card": "spacy:pkg/es_core_news_sm@bundled",
+      "name": "spaCy's small Spanish pipeline; bundled",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": true,
+      "needs": [],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "about 0.0 GB to download",
+        "why": "",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "spacy:pkg/en_core_web_sm@bundled",
+      "name": "spaCy's small English pipeline; bundled",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": true,
+      "needs": [],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "about 0.0 GB to download",
+        "why": "",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "mlx:text/mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+      "name": "Qwen3 4B Instruct",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": false,
+      "needs": [
+       {
+        "kind": "download",
+        "words": "Download the model first"
+       }
+      ],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "4 GB of unified memory",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "",
+        "why": "an MLX build runs only on a Mac",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "mlx:text/mlx-community/Llama-3.2-3B-Instruct-4bit@7f0dc925e0d0afb0322d96f9255cfddf2ba5636e",
+      "name": "Llama 3.2 3B Instruct",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": false,
+      "needs": [
+       {
+        "kind": "download",
+        "words": "Download the model first"
+       }
+      ],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "3.3 GB of unified memory",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "",
+        "why": "an MLX build runs only on a Mac",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "anthropic:claude@settings",
+      "name": "Claude (Anthropic), in the cloud",
+      "how": "cloud-model",
+      "runs_on": "cloud:anthropic",
+      "local": false,
+      "picked": false,
+      "recommended": false,
+      "available": false,
+      "needs": [
+       {
+        "kind": "permission",
+        "words": "Allow pages to be sent to a cloud service for this project"
+       },
+       {
+        "kind": "key",
+        "words": "Add a Anthropic key in Settings \u203a AI"
+       },
+       {
+        "kind": "price",
+        "words": "No listed price: Start asks you to accept it, counted at an assumed price"
+       }
+      ],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": false,
+        "needs": "",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
         "blocked": ""
        }
       ],
@@ -583,7 +792,7 @@
    {
     "step": "nameless",
     "job": "correct",
-    "name": "Correct",
+    "name": "Review the reading",
     "picked": null,
     "chosen_by": "setup",
     "in_plan": true,
@@ -676,6 +885,90 @@
       "measured": "not yet measured on your pages"
      },
      {
+      "card": "mlx:text/mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+      "name": "Qwen3 4B Instruct",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": false,
+      "needs": [
+       {
+        "kind": "download",
+        "words": "Download the model first"
+       }
+      ],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "4 GB of unified memory",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "",
+        "why": "an MLX build runs only on a Mac",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
+      "card": "mlx:text/mlx-community/Llama-3.2-3B-Instruct-4bit@7f0dc925e0d0afb0322d96f9255cfddf2ba5636e",
+      "name": "Llama 3.2 3B Instruct",
+      "how": "local-model",
+      "runs_on": "this-mac",
+      "local": true,
+      "picked": false,
+      "recommended": false,
+      "available": false,
+      "needs": [
+       {
+        "kind": "download",
+        "words": "Download the model first"
+       }
+      ],
+      "places": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "can": true,
+        "needs": "3.3 GB of unified memory",
+        "why": "",
+        "blocked": ""
+       },
+       {
+        "place": "hf-jobs",
+        "name": "Hugging Face Jobs",
+        "can": false,
+        "needs": "",
+        "why": "an MLX build runs only on a Mac",
+        "blocked": ""
+       }
+      ],
+      "cost_usd": {
+       "value": 0.0,
+       "basis": "estimate",
+       "measured": false,
+       "why": null,
+       "from": "free on this Mac"
+      },
+      "measured": "not yet measured on your pages"
+     },
+     {
       "card": "anthropic:claude@settings",
       "name": "Claude (Anthropic), in the cloud",
       "how": "kraken-then-cloud-corrects",
@@ -704,7 +997,7 @@
         "name": "this Mac",
         "can": false,
         "needs": "",
-        "why": "not available yet: add Claude (Anthropic) in Settings \u203a AI",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
         "blocked": ""
        },
        {
@@ -712,7 +1005,7 @@
         "name": "Hugging Face Jobs",
         "can": false,
         "needs": "",
-        "why": "not available yet: add Claude (Anthropic) in Settings \u203a AI",
+        "why": "add Claude (Anthropic) in Settings \u203a AI first",
         "blocked": ""
        }
       ],
@@ -729,6 +1022,7 @@
    }
   ],
   "refusals": [],
+  "notes": [],
   "waiting": [],
   "downloads": [
    {
