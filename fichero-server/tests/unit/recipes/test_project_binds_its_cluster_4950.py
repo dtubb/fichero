@@ -136,4 +136,4 @@ def test_pages_may_not_leave_said_after_start_refuses_the_cluster_step_by_name(d
     child, state, why = runner._run_card(db, {**KRAKEN_RUN, "place": "cluster", "target": "rq-1"}, ["p1"], {},
                                          "recipe-job", {}, "daniel")
     assert (child, state, sent) == (None, "failed", [])
-    assert why == "pages may not leave this Mac; this step was placed on rq-1"
+    assert why == "pages may not leave this Mac; this step was placed on the cluster rq-1"

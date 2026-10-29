@@ -2834,12 +2834,12 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
-    if plan.get("refusals"):  # a refused Start accepts nothing: project.start says why
-        return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
-    if unknown:
+    if unknown:  # a request naming a model the plan never asked about is wrong whether or not Start is refused
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
+    if plan.get("refusals"):  # a refused Start accepts nothing (#6259): project.start says why
+        return
     for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
         registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)
