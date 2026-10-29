@@ -166,11 +166,11 @@ native graph, timeline and map views.
   written differently (`dedupe.spelling_key`: old spellings, marked abbreviations, titles), a
   shared surname with a given-name form of the same name (a short form, a double name with one
   part), and co-presence in the same folder as a tie-breaker; a group names its evidence and
-  what accepting it joins (pages and statements). A pass proposes few: at most about one
-  group for every ten names in the scope, ranked by how much they join, the rest listed as
-  "similar, not proposed". A given-name gender variant or a father-and-son pair with the same
-  surname is never proposed as one and is shown as "same family" instead
-  (`_terminal_surname_diverges`).
+  what accepting it joins (pages and statements). The rules are the only source of proposals:
+  embedding similarity never proposes a merge (owner, 2026-10-29), and every pair the rules find
+  is proposed, with no budget, ranked by how much it joins. A given-name gender variant or a
+  father-and-son pair with the same surname is never one person: it is shown as "same family"
+  for the person to decide (`_terminal_surname_diverges`).
 - `kg.resolve.unmistakable-auto-merge` — **[GAP]** (#6280, #4842; owner ruling 2026-10-29) a
   merge happens by itself only when it is unmistakable, and the spec says what that is: two
   names of the SAME type whose forms are identical once case, accents, punctuation, spacing and
@@ -183,19 +183,21 @@ native graph, timeline and map views.
 - `kg.resolve.unclear-is-flagged` — **[GAP]** (#6280, #5107; owner ruling 2026-10-29) anything
   short of unmistakable is FLAGGED for the owner to decide, through the existing pair queue
   (`EntityMatchCandidate`, `queue_pair`, `accept_pair`, `reject_pair`): a given-name gender
-  variant with the same surname, a short or double given name, an old spelling that is not a
-  marked abbreviation, a name with and without a title, the same name across two folders, a
-  vector neighbour above the review band; the flag carries its method and reason, as the
-  queue's rows already do.
+  variant with the same surname (shown as "same family"), a short or double given name, an old
+  spelling that is not a marked abbreviation, a name with and without a title, the same name
+  across two folders; never a vector neighbour, since embedding similarity proposes nothing
+  (owner, 2026-10-29); the flag carries its method and reason, as the queue's rows already do.
 - `kg.resolve.decision-remembered` — **[OK]** a person's accept is the audited merge, a
   reject is remembered and the pair is never proposed again, an absorbed name re-imported lands
   on the survivor, a split survives re-import, a delete or retype writes its rule
   (`kg-tables.md`: `kg.tables.entity-resolution-registry`, `kg.entity.variant-spellings-proposed`).
   *Tests:* `fichero-server/tests/unit/kg/test_variant_spellings_to_spec.py`,
   `fichero-server/tests/unit/workflows/test_entity_reject_survives_reimport.py`.
-- `kg.resolve.person-wins` — **[GAP]** (#5416, #5072) where a model's proposal and a person's
-  decision disagree, the person's stands: a model never changes `curation_state`, a reviewer
-  model's verdict is recorded at its own trust level and never as a person's, a verified name's
+- `kg.resolve.person-wins` — **[GAP]** (#5416, #5072; owner ruling 2026-10-29) where a model's
+  proposal and a person's decision disagree, the person's stands: a model never changes
+  `curation_state`; a reviewer model for names and statements is allowed at its own trust level,
+  measured on the project's check set first and turned on per project, its verdict recorded as
+  the model's and never as a person's, a verified name's
   preferred form and type are never rewritten by a run, and a re-import that would contradict a
   decision writes a proposal beside it, never over it.
 - `kg.resolve.merge-and-split-have-a-door` — **[GAP]** (#5110, #4828) merge, split and the
@@ -215,9 +217,10 @@ native graph, timeline and map views.
   at most 25 words, a place or date is kept only when the page states it
   (`svo_quality.claim_rejection`, `ungrounded_span`, `_date_is_on_the_page`). *Test:*
   `fichero-server/tests/unit/workflows/test_svo_write_quality.py`.
-- `kg.statements.dates-are-values` — **[GAP]** (#5008, #4659, #5597) a date the dates pass
-  finds is stored as a date on the page or on a statement (`date_values`, `time_start`), never as
-  a claim whose subject slot holds the date; the timeline reads dates, the tables and the
+- `kg.statements.dates-are-values` — **[GAP]** (#5008, #4659, #5597; owner ruling 2026-10-29) a
+  date the dates pass finds is stored as a date value on the page and on the claim it belongs to
+  (`date_values`, `time_start`); a dated row with no clear actor is a page date, and there are no
+  subject-less claims, never a claim whose subject slot holds the date; the timeline reads dates, the tables and the
   paragraph never show a date where a person should be; existing dated rows are converted by
   an audited, scan-first repair, never a batch rewrite. In B12's Sonnet folder 36 of 75 claims
   are such rows.
@@ -248,7 +251,9 @@ approval).
 
 - `kg.attr.folder-names-are-attributes` — **[GAP]** (#6283, #5365, #6087; owner ruling
   2026-10-29) a folder carries three list attributes, `catalogue_people`, `catalogue_places` and
-  `catalogue_institutions`, each entry the canonical name of an entity in the folder's scope; at
+  `catalogue_institutions`, each entry the canonical name of an entity in the folder's scope,
+  confirmed names and proposed ones alike while a person works, the proposed marked as such, and
+  confirmed names only in any export (owner, 2026-10-29; `kg.attr.entry-shows-state`); at
   `folder.promote_catalogue` the description's access points are TYPED BY THE GRAPH into the three,
   with no model call: each access point is matched to a canonical entity in the folder's scope
   (exact or same-name-written-alike, else a proposal into the canonical set, section A), takes
@@ -259,8 +264,7 @@ approval).
   by the promote migration.
 - `kg.attr.entry-shows-state` — **[GAP]** (#6283) each entry in the folder's lists shows
   whether it is confirmed or proposed, how many pages name it in this folder, and opens the
-  name's lens; the Excel and catalogue exports print confirmed entries, and proposed ones only
-  when asked, marked.
+  name's lens; the Excel and catalogue exports print confirmed entries only (owner, 2026-10-29).
 - `kg.attr.authority-sheet` — **[GAP]** (#5380; owner ruling 2026-10-29) the authority sheets
   come from the catalogue rows: one sheet per distinct entry across the folders'
   `catalogue_people`, `catalogue_places` and `catalogue_institutions`, headed by the graph's
@@ -293,10 +297,12 @@ approval).
   any of them (in the app or by importing a corrected sheet) is a decision on the entity and
   reaches every other view; a subject term list (the team's Tema sheet) is a folder attribute of
   the catalogue spec, not an entity.
-- `kg.attr.links-proposed-per-type` — **[GAP]** (#4758, #3528) Wikidata and GeoNames candidates
-  are proposed for places, Wikidata and the project's own list for people and organisations,
-  from the authority sheet, confirmed by a person, kept apart from what the pages say
-  (`kg-enrichment.md`, `gazetteer.links-proposed-confirmed`).
+- `kg.attr.links-proposed-per-type` — **[GAP]** (#4758, #3528; owner ruling 2026-10-29) links
+  to outside authorities are an OPTION of the entities step, off unless chosen, per type: when
+  on, GeoNames (and Wikidata where chosen) candidates are proposed for places and Wikidata for
+  people and organisations, from the authority sheet, confirmed by a person, kept apart from what
+  the pages say (`kg-enrichment.md`, `gazetteer.links-proposed-confirmed`). For B12 and B13:
+  GeoNames for places on, no outside links for people.
 
 ### E. Review lenses
 
@@ -406,7 +412,8 @@ values alone; never a batch rewrite of a person's work.
   artifact and the app's `ArtifactEntityStore` previews are replaced by page-scoped entities
   (`document_entity_ids`): the Entity Extraction tool and the manifest importer write through
   `upsert_entity` with a page scope, the list rows and table cells read the entity routes, and a
-  migration turns each existing artifact's names into scoped entities once, then retires it.
+  migration turns each existing artifact's names into page-scoped PROPOSALS once, then retires
+  the artifact and the app store that reads it (owner ruling 2026-10-29).
 - `kg.one.mention-is-the-link` — **[GAP]** (#5488, #4932, #1562) a name's tie to a page is one
   record, the mention on a segment stretch; `source_document_ids` is derived from the mentions;
   a claim's `entity_ids` is the names whose mention lies within the claim's span, computed by
@@ -585,31 +592,10 @@ values alone; never a batch rewrite of a person's work.
 Fixtures: ten corrected B12 pages (names and statements confirmed by the owner) as the check
 set; the B12 one-folder Sonnet run as the before picture; a synthetic box for load.
 
-## Open questions for the owner (at most eight, each with a recommendation)
+## Open questions for the owner
 
-1. **Answered** (owner 2026-10-29): the access points are typed by the graph into the three
-   attributes at promote; the free-text list is superseded. Still open for the per-document
-   `entities` artifact: retire it after a one-time migration into page-scoped proposals?
-   Recommendation: yes.
-2. **Which names count for the catalogue by default: confirmed only, or confirmed plus
-   unrejected proposals marked as proposed?** Recommendation: confirmed plus proposed, marked,
-   for the working catalogue; confirmed only in anything exported or published.
-3. **Answered** (owner 2026-10-29): a draft never counts as done; the chosen model step runs
-   on its pages and the draft's names are resolved into the canonical set, not left beside it.
-4. **The per-folder proposal budget.** Recommendation: about one group per ten names, ranked
-   by what it joins, the rest visible under "similar, not proposed"; a person can ask for more.
-5. **Answered** (owner 2026-10-29): gender variants and the like are flagged for the owner,
-   never merged by rule; the "same family" mark in the lens is the recommendation for how the
-   flag reads.
-6. **Where a dated row with no actor lives:** a date on the page, or a statement with an empty
-   subject? Recommendation: a date value on the page (and on the one claim it belongs to when
-   there is one); the timeline reads page dates; no subject-less claims.
-7. **A reviewer model for names and statements (a cheap second model confirming a first)?**
-   Recommendation: allowed as a proposal at its own trust level, shown as such, never counted as
-   a person's decision; measured on the check set before it is offered.
-8. **Authorities on by default:** Recommendation: Wikidata and GeoNames for places, Wikidata and
-   the project's list for people and organisations; others per project, as
-   `project-gazetteer-and-names.md` already recommends.
+None. Every question this spec raised was answered on 2026-10-29; the answers are in Rulings and
+applied to the behaviours they name.
 
 ## Rulings
 
@@ -636,7 +622,26 @@ set; the B12 one-folder Sonnet run as the before picture; a synthetic box for lo
   name, a date disagreement), each with its pages and excerpts and one-press accept, merge,
   reject or skip; every decision audited, undoable, and a label for future proposals where
   that is cheap; built on the existing pair queue, curation states and audits
-  (`kg.lens.to-review`, `kg.lens.decision-audited-undoable-teaches`). The export spec being written on `spec/export-catalogue` points here
+  (`kg.lens.to-review`, `kg.lens.decision-audited-undoable-teaches`).
+
+**Owner, 2026-10-29, the former open questions** (relayed; decided):
+1. Catalogue names: while working, confirmed names plus proposals, the proposals marked; exports
+   carry confirmed names only (`kg.attr.folder-names-are-attributes`, `kg.attr.entry-shows-state`).
+2. Merges are proposed by clear rules only: the same name once accents and abbreviations are
+   normalised, a surname plus a given-name variant, or two names seen on the same pages. Embedding
+   similarity never proposes a merge. Every pair the rules find is proposed, no budget. The
+   existing write-time similarity pairs are withdrawn (`kg.resolve.folder-pass`,
+   `kg.resolve.no-write-time-embedding-pairs`).
+3. Gender-variant given names and father/son pairs are never one person; shown as "same family"
+   for the person to decide (`kg.resolve.unclear-is-flagged`).
+4. A dated row with no clear actor is a date value on the page and on its claim; there are no
+   subject-less claims (`kg.statements.dates-are-values`).
+5. A reviewer model for names and statements is allowed at its own trust level, measured on a
+   check set first, then turned on per project (`kg.resolve.person-wins`).
+6. Outside authority links are an option of the entities step, not always on; for B12 and B13,
+   GeoNames for places on, no outside links for people (`kg.attr.links-proposed-per-type`).
+7. The per-document entities artifact is migrated once into proposals, then retired with the app
+   store that reads it (`kg.one.entities-artifact-retired`). The export spec being written on `spec/export-catalogue` points here
   for the canonical-names design.
 
 ## Future (ideas, not scheduled)
