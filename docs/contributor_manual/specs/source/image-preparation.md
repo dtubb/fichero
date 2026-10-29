@@ -5,16 +5,19 @@
 > reading it (find the page, split, turn, straighten, clean), that the original is never changed,
 > how to check and correct what it did, and how to see whether a step helped.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — rewritten 2026-10-29 for approval** (first draft
-> 2026-10-03; the owner's direction of 2026-10-29 paraphrased throughout). Review:
+> Design-led (Testing Constitution). **Status: DRAFT — ruled 2026-10-29, ready to build** (first draft
+> 2026-10-03; rewritten 2026-10-29; the owner's rulings of 2026-10-29 folded in the same day, see
+> Rulings; no open question remains; the APPROVED tag waits only on the manual section and the first
+> pinning test, as `check_spec_manual_refs` and `check_specs_have_tests` require). Review:
 > `agent-work/status/briefs/imgprep-review-2026-10-29.md`. Stage 1 to 2 of `../../roadmap/research-pipeline.md`.
 >
 > **Three specs, one line between them.** This spec owns the **Set Up step**: the questions and their
-> defaults, what runs by itself, finding the page, splitting, turning, blank pages, the check-and-correct
-> flow, the detectors as cards, how corrections train a detector, and the time and cost shown before Start
-> (`prep.*`). `image-enhancement.md` (#6185) owns the **pixel steps that write renditions** (contrast,
-> stains, ruling, show-through, the working rendition, `image.enhance.*`) and the one function behind every
-> door. `../ui/preview-image-editing.md` owns the **editor** a person corrects with (`preview.edit.*`,
+> defaults, what runs by itself, finding the page, squaring a lopsided photograph, dewarping a curved
+> page, splitting, turning, blank pages, the check-and-correct flow, the detectors as cards, how
+> corrections train a detector, and the time and cost shown before Start (`prep.*`). `image-enhancement.md`
+> (#6185) owns the **pixel steps that write renditions** (the whole OpenCV suite: contrast, yellowing,
+> stains, ruling, show-through, binarise, denoise, sharpen, the working rendition, `image.enhance.*`) and
+> the one function behind every door. `../ui/preview-image-editing.md` owns the **editor** a person corrects with (`preview.edit.*`,
 > its tools in section C). Where two specs could say one thing, this spec cites the owner and does not
 > restate it. The `prep.*` ids of 2026-10-03 are kept; the ids four issues cite but no spec carried
 > (#6188, #6189, #6190, #6192) are added below with their tags.
@@ -25,7 +28,8 @@
 
 Archives are photographed, not scanned: a book open on a table, two pages at once, a ruler and a colour
 card beside the paper, a dark mount, the camera a little turned. Models read single, upright, flat, clean
-pages. Image preparation turns the one into the other **by itself, for a whole collection**, as the first
+pages; a photograph taken at an angle, or a bound page curving into the gutter, is neither flat nor
+square. Image preparation turns the one into the other **by itself, for a whole collection**, as the first
 step of a recipe, and a person **checks and corrects** it instead of doing it. Every result is a new
 rendition beside the original, which is never changed. The step is judged by whether reading improves, not
 by how the picture looks.
@@ -33,8 +37,8 @@ by how the picture looks.
 What the person sees: in Set Up, one card, "Prepare Images", with three short questions already answered
 from a sample of their pages, and a line saying how long the step takes on this Mac. After Start, a short
 list of pages to check: the ones Fichero was unsure about, and a few it was sure about, so the person sees
-both. Each opens in Preview with the page box, the cut and the turn drawn on the photograph, ready to be
-dragged. A correction on one page can be applied to the rest of its folder. Enough corrections, and Fichero
+both. Each opens in Preview with the page box, its four corners, the cut and the turn drawn on the photograph,
+ready to be dragged. A correction on one page can be applied to the rest of its folder. Enough corrections, and Fichero
 offers to train a detector on them; the detector replaces the default only when it measures better.
 
 The first test sets: Sergio Mosquera's notebooks (`fichero-projects/projects/sergio-notebooks`: 374
@@ -93,23 +97,28 @@ methods. Nothing here is invented.
 
 The stage `prepare-images` keeps its two jobs (`split-pages`, `prepare-the-image`) and asks, per project,
 with the answers **suggested from a sample of five pages** (first, a quarter in, middle, three quarters,
-last) before the person reads them. Each answer is stored per folder: a notebook folder and a map folder of
-the same project can differ.
+last) before the person reads them; an answer is suggested when **three of the five** pages agree (owner
+2026-10-29). Each answer is stored per folder: a notebook folder and a map folder of the same project can
+differ. A fourth question, added 2026-10-29, belongs to Find Lines but is asked here so Set Up stays one
+card: whether to check for lines and words the segmenter missed.
 
 | Question | Choices | Suggested when | Default without a sample |
 | --- | --- | --- | --- |
 | Two pages in one picture? | yes / no | the sample's outlines are wider than tall on 3 of 5 | no |
 | Anything beside the page? | ruler · colour card · dark mount or table · nothing | the outline covers under 85 % of the frame on 3 of 5 (the first three are one answer: "find the page"; the ruler and card choices add Leave Out's reasons) | nothing |
 | The paper | ruled or graph paper · stained or faded · writing shows through | `recipes/prepare.sample_shows_faded`; a hue mask finds thin regular coloured lines on 3 of 5; a mirrored faint copy of the previous page on 3 of 5 | none |
+| Check for missed lines and words? | yes / no | the sample's Find Lines (the bake-off already segments the sample) leaves over 3 % of the ink outside the line boxes on 3 of 5, or any sample line reads under 60 % of the page's characters per width (`source.segment.check-lines.*`) | yes for handwriting, no for typescript |
 
 Below the questions, one line: *Finds each page, turns it upright and straightens it; cuts spreads into
 pages; marks blank pages. About 2 min for 374 pages on this Mac. Nothing leaves this Mac.* The time comes
 from `prep.estimate.*` below; the sentence is the engine's (`how_it_works`), never the app's.
 
 **What runs by itself, whatever the answers:** find the page and crop to it (a no-op when the page fills
-the frame), turn upright by the text, straighten (skipped under 0.3°), mark blank pages. **What the
-answers switch on:** split (two pages), contrast (faded), ruling, show-through
-(`image-enhancement.md`). A step that finds nothing to do writes nothing.
+the frame), square a lopsided page from its corners, flatten a page curved toward the gutter, turn
+upright by the text, straighten (skipped under 0.3°), mark and hide blank pages. **What the answers
+switch on:** split (two pages), contrast and yellowing (faded), ruling, show-through, the check for missed
+lines (`image-enhancement.md`, `segments-and-geometry.md`). A step that finds nothing to do writes
+nothing.
 
 ### The operations, in order
 
@@ -118,24 +127,43 @@ answers switch on:** split (two pages), contrast (faded), ruling, show-through
    card where one is installed and the recipe names it. The result is a `page_region` Shape on the image
    (quad, box, method, confidence; `segments-and-geometry.md`) **and** the document's `page_box` metadata
    in fractions, which Leave Out and Find Regions read. The crop is a rendition; the outline maps every
-   later shape back to the photograph. Perspective correction from the quad is a later step (open
-   question 1).
-2. **Split at the gutter.** An outline wider than tall is a spread; the gutter is the darkest column of
+   later shape back to the photograph.
+2. **Square the page** (perspective). When the quad's corners are not a rectangle (any side's angle from
+   the frame's axes over 1°, or the two opposite sides' lengths differing by over 2 %), the page is warped
+   to a rectangle from the four corners: `cv2.getPerspectiveTransform` and `cv2.warpPerspective` to the
+   size the longer sides give, white fill. The source quad is the Vision outline or the contour finder's
+   polygon (`cv2.approxPolyDP` on the largest contour, four corners), never a hand guess. The result is a
+   rendition with the homography on its row, so every later shape maps back to the photograph through it.
+   A page whose quad is already a rectangle writes nothing. Below the finder's confidence the quad is a
+   proposal: the person drags a corner and Fichero squares from the corrected quad.
+3. **Flatten the curve** (dewarp), for a bound book. After squaring, a page whose text lines curve or
+   slant toward the gutter is flattened: text lines are found by connected components of the ink mask
+   (the legacy `segment.get_connected_component_lines` idea) and each line's baseline is fitted with a
+   quadratic; the baselines together give a smooth displacement field (a thin-plate spline through the
+   baseline samples, `cv2.remap`) that straightens every baseline to horizontal and evens the stretch
+   toward the gutter. The step runs only where the fitted curvature is over 0.5 % of the page height on
+   the gutter side (both sides on a spread cut in two) and is skipped otherwise; a page with no text
+   lines (blank, a map) is skipped. It is a rendition with the field's control points on its row. Its
+   test is reading: lines in the gutter third must read no worse than before and the bake-off keeps the
+   step only where it helps (`prep.judged-by-reading`).
+4. **Split at the gutter.** An outline wider than tall is a spread; the gutter is the darkest column of
    the middle band, kept only when darker than 180 and 15 darker than its neighbours (the legacy test);
    pages come out in the cascade's reading order as child items. Below the confidence the cut is a
    proposal.
-3. **Turn by the text.** Vision text recognition on a reduced copy at 0, 90, 180 and 270; the orientation
+5. **Turn by the text.** Vision text recognition on a reduced copy at 0, 90, 180 and 270; the orientation
    with the most recognised words wins; skipped when the first try already recognises most of them. A
    lossless quarter turn, recorded with its reason.
-4. **Straighten.** Hough median, the angle on the row, skipped under 0.3°. Flattening a page curved toward
-   the spine stays a gap (`prep.straighten-and-flatten`).
-5. **Mark blank pages.** A page with no ink beyond its ruling (ink pixels under 0.2 % after the ruling
-   mask) is marked blank: kept, dimmed, skipped by reading, never deleted.
-6. **Enhance** where asked: `image-enhancement.md`'s contrast, stains, ruling, show-through, each a
-   rendition.
+6. **Straighten.** Hough median, the angle on the row, skipped under 0.3°; a page already squared or
+   flattened is usually under that and writes nothing.
+7. **Mark blank pages.** A page with no ink beyond its ruling (ink pixels under 0.2 % after the ruling
+   mask) is marked blank: kept, dimmed, **hidden in the item view**, skipped by every later step (find
+   regions, leave out, read, check), never deleted. A person unhides one with one click, and an unhidden
+   page runs through the steps it skipped.
+8. **Enhance** where asked: `image-enhancement.md`'s suite (contrast, yellowing, stains, ruling,
+   show-through, binarise, denoise, sharpen), each a rendition.
 
 Each operation reports a **confidence** and a **reason**; below its threshold it **proposes** instead of
-changing: a dashed page box, a dashed gutter line, a turn shown as an arrow. Every applied operation is a
+changing: a dashed page box, dashed corner handles, a dashed gutter line, a turn shown as an arrow. Every applied operation is a
 row in the page's edit chain with `method`, `confidence` and `who: run <id>` (`image.enhance.rendition-records-its-steps`).
 
 ### Check and correct
@@ -149,16 +177,21 @@ correction **replaces the run's row** with a row `who: person`, keeping the run'
 disagreement is a training label. "Apply to the rest of this folder" copies a correction's parameters in
 fractions of the frame to the folder's other pages (the same notebook is photographed the same way), as a
 batch with its own undo (`image.enhance.batch-preview-undo`). Marking a page as not blank, or blank, is a
-correction too. The tools themselves are `preview.edit.tool.*`.
+correction too, and so is unhiding a blank page in the item view. The tools themselves are `preview.edit.tool.*`.
 
 ### Corrections train a detector
 
 Corrected page boxes are labels. When a project holds **30 or more** corrected or accepted pages, Set Up
 offers *Train a page finder from your corrections*: a one-class YOLO fine-tune (`training/yolo_set.py`,
-`training/yolo_local.py`, the same pipeline as regions, #5525) on this Mac's GPU or as a Hugging Face job,
-the cost and time shown first. The result is a project card. It replaces the default **only on evidence**:
-the bake-off scores every page-finding card on the held-out corrected pages by box overlap (mean IoU) and
-the recipe adopts the best. Marked ruler and colour-card regions are labels for the layout detector in the
+`training/yolo_local.py`, the same pipeline as regions, #5525) **on this Mac's GPU or as a Hugging Face
+job** through the existing training routes (`POST /api/training/regions/here` for local, the Hugging Face
+route of `training/hf_jobs`, as Kraken training already offers), the cost and time shown first and the
+place allowed by Set Up Fichero (`source.onboard.places-cap-projects`). The offer appears once at 30 and
+again after every 30 more; it is never started by itself. The result is a project card. It replaces the
+classical finder **only on evidence**: the bake-off scores every page-finding card on the held-out
+corrected pages (one in five, never trained on) by box overlap (mean IoU) and the recipe adopts the best;
+a trained card that does not beat Vision and the contour finder stays installed and unused, and the
+offer says so in words. Marked ruler and colour-card regions are labels for the layout detector in the
 same way (`prep.yolo.fine-tune-from-corrected-regions`).
 
 ### Methods are cards, chosen by rule, replaced by evidence
@@ -166,6 +199,8 @@ same way (`prep.yolo.fine-tune-from-corrected-regions`).
 | Job | Cards | Default | Licence |
 | --- | --- | --- | --- |
 | find the page | Apple Vision outline · contour finder · YOLO page detector (trained) | Vision, then contour | Vision: the OS · OpenCV: Apache-2.0 · Ultralytics: AGPL-3.0 |
+| square the page | perspective warp from the quad | itself | OpenCV, Apache-2.0 |
+| flatten the curve | baseline-field dewarp | itself | OpenCV, Apache-2.0 |
 | split pages | the built-in splitter | itself | — |
 | turn by the text | Vision text at four turns | itself | the OS |
 | straighten | Hough median | itself | OpenCV, Apache-2.0 |
@@ -200,8 +235,8 @@ collection (ruling 2026-10-04: some models use the ruling as a line guide).
 
 ### The step in Set Up
 
-- `prep.setup.three-questions-suggested-from-a-sample` — **[GAP]** (#5580) the Prepare Images card asks the three questions above with answers suggested from five sample pages (outline aspect, outline coverage, `sample_shows_faded`, a ruling mask, a mirrored-verso match), each answer stored per folder; the person changes any. Today `recipes/stages.py` asks two questions with fixed defaults.
-- `prep.setup.what-runs-by-itself` — **[GAP]** (#5580) find the page, turn, straighten and mark blanks run on every page whatever the answers; split, contrast, ruling and show-through run only when their answer says so; a step with nothing to do writes no row. Today the answers are stored and only `split-pages` runs (`recipes/start.py`).
+- `prep.setup.three-questions-suggested-from-a-sample` — **[GAP]** (#5580; owner 2026-10-29: five pages, three of five) the Prepare Images card asks the questions above (the id keeps its name; a fourth, the missed-lines check, was added 2026-10-29) with answers suggested from five sample pages (first, quarter, middle, three quarters, last) when three of the five agree (outline aspect, outline coverage, `sample_shows_faded`, a ruling mask, a mirrored-verso match, the sample's ink-outside and characters-per-width figures), each answer stored per folder; the person changes any. Today `recipes/stages.py` asks two questions with fixed defaults.
+- `prep.setup.what-runs-by-itself` — **[GAP]** (#5580) find the page, square, flatten, turn, straighten and mark blanks run on every page whatever the answers; split, contrast, yellowing, ruling, show-through and the missed-lines check run only when their answer says so; a step with nothing to do writes no row. Today the answers are stored and only `split-pages` runs (`recipes/start.py`).
 - `prep.setup.step-runs-from-the-start-plan` — **[GAP]** (#5580) the Start plan holds a runnable `prepare-the-image` entry naming the operations and their cards, before `find-regions`; its progress line says "Preparing images: 23 of 374 pages, about 2 min left" (`image.enhance.onboarding-step` is this line's twin in the enhancement spec and is retired in favour of it).
 - `prep.estimate.time-on-this-mac-before-start` — **[GAP]** (#5580) the Start sheet shows the step's time as the per-page seconds measured on this machine's last run of each card times the page count, or the card's seed figure marked "estimate", and says the step costs nothing and leaves nothing this Mac; a training offer shows its minutes locally or its rate and minutes on Hugging Face.
 - `prep.setup.how-it-works-is-the-engines-sentence` — **[PARTIAL]** (#5791) the one-line description under the questions is the job's topic text from the engine (`how_it_works`, `recipes/seed/topics.yaml`), never written in the app. Built: the mechanism. Missing: a topic for `prepare-the-image` that names the operations.
@@ -216,12 +251,20 @@ collection (ruling 2026-10-04: some models use the ruling as a line guide).
 - `prep.crop.content-bbox-is-fast` — **[GAP]** (#6190) `detect_content_bbox` is a NumPy reduction, under 0.5 s on a 3000×2000 image, with the same answer as today on the fixtures.
 - `prep.page.remove-background-is-the-dark-mount-method` — **[GAP]** (#6188) the editor's Remove Background and the `remove_background_images` node become the contour finder's dark-mount method inside find-the-page; the old operation name survives only so an existing chain re-renders unchanged.
 
+### Squaring and flattening
+
+- `prep.square.perspective-from-the-quad` — **[GAP]** (#5382; owner 2026-10-29) a page whose found quad is not a rectangle (a side over 1° off the frame's axes, or opposite sides differing by over 2 %) is warped to a rectangle from its four corners (`cv2.getPerspectiveTransform`, `cv2.warpPerspective`, white fill, the size the longer sides give) as a rendition whose row carries the homography; a rectangular quad writes nothing; the `page_region` and every later shape map back through the homography (`frame` names the rendition). On a fixture photographed at 15° the warped page's edges are within 0.5° of the axes and the hand-drawn box overlaps the result over 0.97.
+- `prep.square.corner-handles-correct-it` — **[GAP]** (#5382) below the finder's confidence the quad is a proposal drawn as four dashed corner handles in Crop (`preview.edit.tool.crop-is-a-page-box`); dragging a corner and Return squares the page from the corrected quad with `who: person`.
+- `prep.flatten.curve-toward-the-gutter` — **[GAP]** (#5382; owner 2026-10-29) a page whose text baselines curve or slant toward the gutter (fitted quadratic curvature over 0.5 % of the page height on the gutter side) is flattened by a displacement field from the baselines (connected-component lines, quadratic baselines, a thin-plate spline, `cv2.remap`) that makes every baseline horizontal and evens the stretch; a straight page, a blank page or a page with no lines writes nothing; the rendition's row carries the control points. On a synthetic page bent by a known curve the recovered baselines are within 2 px of straight.
+- `prep.flatten.judged-by-the-gutter-third` — **[GAP]** (#5382) the bake-off reads the gutter third of the sample with and without the flatten and keeps the step only where its character error rate is no worse; the figures are on the run.
+
 ### Splitting, turning, straightening, blanks
 
 - `prep.split-at-the-gutter` — **[PARTIAL]** (#5382) a two-page image is cut at its gutter or spiral, not at the middle, into pages in reading order; a single page is left whole. Built: `split_pages` (Vision outline, darkest column, aspect gate, proposal below 0.15; pinned on 11 Sergio photos, `tests/unit/media/test_page_split.py`). Missing: the neighbour test (darker than 180 and 15 darker than its neighbours), regions as children for several items on one sheet, the recipe calling it from the Start plan (#5390). `image.enhance.split-spread` defers to this line.
 - `prep.turn-by-the-text` — **[GAP]** (#5382) after cropping, a page is turned 0, 90, 180 or 270 degrees from its text: Vision text recognition at four turns on a reduced copy, the most words wins, skipped when the first try is confident; a lossless quarter turn recorded with its reason. EXIF alone is not enough (`prep.image.one-upright-frame` applies EXIF first).
-- `prep.straighten-and-flatten` — **[PARTIAL]** (#5382, #6190) small skew is corrected by Hough median with the angle recorded on the row and skipped under 0.3°. Built: `deskew_images`, the editor's Straighten. Missing: the angle on the row (today `angle: 0` means "auto"); flattening a page curved toward the spine is a gap and stays one. `image.enhance.rotate-deskew` defers to this line.
-- `prep.blank-pages-marked` — **[GAP]** (#5382) a page whose ink pixels are under 0.2 % after the ruling mask is marked blank: kept, dimmed, skipped by reading, never deleted; a person can mark or unmark any page. Open question 2 asks whether to import blanks at all.
+- `prep.straighten-and-flatten` — **[PARTIAL]** (#5382, #6190) small skew is corrected by Hough median with the angle recorded on the row and skipped under 0.3°. Built: `deskew_images`, the editor's Straighten. Missing: the angle on the row (today `angle: 0` means "auto"). Flattening a curved page is `prep.flatten.curve-toward-the-gutter`; squaring is `prep.square.perspective-from-the-quad`. `image.enhance.rotate-deskew` defers to this line.
+- `prep.blank-pages-marked` — **[GAP]** (#5382; owner 2026-10-29) a page whose ink pixels are under 0.2 % after the ruling mask is marked blank: imported and kept, dimmed, skipped by every later step (find regions, leave out, read, check), never deleted; a person can mark or unmark any page. The mark is a chain row (`prep.check.blank-mark-is-a-correction`); the skip is Leave Out's page-level reason `blank`, so the reading never sees it.
+- `prep.blank-pages-hidden-in-the-item-view` — **[GAP]** (#5382, #1791; owner 2026-10-29) a blank page is hidden in the item view (the list and the grid) with `exclude_from_processing` set and the row kept, under a "N hidden" line that reveals them dimmed (`library.chrome.excluded-from-processing-treatment`); *Unhide* on one clears the mark, writes the correction row and queues the page through the steps it skipped; a leaf pairing (`finding-documents.md`) still counts a hidden verso.
 - `prep.suppress-ruling` — **[GAP]** (#5382, #6195) ruled and graph-paper lines are removed and the ink kept, off until the bake-off shows it helps; the method is `image.enhance.ruled-lines`.
 - `prep.image.one-upright-frame` — **[PARTIAL]** (#5382; Test 14, 2026-10-24; ## 1114) a phone photo carries its rotation as an EXIF Orientation tag, and a page is ONE frame wherever geometry meets its image: the thumbnail, Preview, the reader's line crops (cloud and local, TrOCR, the re-asks), the Inspector's and Reader's segment pictures, the check's and the tie's reads of given lines, a training set's page and lines, and the Kraken segmenter's geometry are all in the upright frame, the tag applied once (`media/upright.py`: `upright`, `upright_size`, `open_in_frame`). New geometry says so (`frame: "upright"`); geometry with no marker was measured on the raw pixels and every consumer reads it so. The marker is on the pass (`media/upright.pass_frame`), inherited by a person's split, create or merge; a region node says `frame` too (`media/region_crops`); the evaluation and the bake-off score on the chosen pass's frame. Built (unrun on a real photo): the helpers, the marker on results, boxes, segments and passes, the consumers above. Not done: a pass not made from a result (a format import, a hand-made pass) reads raw; the live check on a real phone photo. Tests: `tests/unit/llm/test_one_upright_frame_exif_test14.py`, `tests/unit/llm/test_exif_crops_are_upright_1114.py`.
 
@@ -237,8 +280,9 @@ collection (ruling 2026-10-04: some models use the ruling as a line guide).
 
 - `prep.methods-are-cards-the-recipe-chooses` — **[GAP]** (#5382, #4951) each preparation job has its cards (Vision, contour, YOLO stock or trained, Kraken regions); the recipe names one per step, material kind and folder; onboarding picks the default by rule (built in, local, cheapest first); the bake-off replaces it only on evidence; a shared recipe carries its card choices.
 - `prep.judged-by-reading` — **[GAP]** (#5382) each operation's effect on character error rate is measured in the bake-off on the same sample read with and without it; an operation that does not help is left out of the recipe.
-- `prep.train.offered-after-thirty-corrections` — **[GAP]** (#5382, #5525) when a project holds 30 or more corrected or accepted page boxes, Set Up offers "Train a page finder from your corrections", with its time (local) or rate and time (Hugging Face) shown first; never started by itself.
-- `prep.train.adopted-only-on-held-out-overlap` — **[GAP]** (#5382) the trained page card is scored against Vision and the contour finder on held-out corrected pages by mean box overlap; the recipe adopts the best and says the figures; a worse model stays available, unused.
+- `prep.train.offered-after-thirty-corrections` — **[GAP]** (#5382, #5525; owner 2026-10-29) when a project holds 30 or more corrected or accepted page boxes, Set Up offers "Train a page finder from your corrections", once at 30 and again after every 30 more, with its time (local) or rate and time (Hugging Face) shown first; never started by itself; 29 corrections show no offer.
+- `prep.train.runs-locally-or-on-hugging-face` — **[GAP]** (#5382, #5525; owner 2026-10-29) the offer runs through the existing training routes and no new one: locally as the regions fine-tune does (`training/yolo_local.py`, `POST /api/training/regions/here` with the page class) or as a Hugging Face job through the route Kraken training uses, each place shown only when Set Up Fichero allows it (`source.onboard.places-cap-projects`) and refused in words otherwise.
+- `prep.train.adopted-only-on-held-out-overlap` — **[GAP]** (#5382; owner 2026-10-29) the trained page card is scored against Vision and the contour finder on the held-out corrected pages (one in five, never trained on) by mean box overlap; the recipe adopts the best and says the figures; a trained card that does not beat the classical finder stays installed, unused, and the offer line says so.
 - `prep.yolo-detectors-run-and-train` — **[GAP]** (#5382, #5525) a YOLO page and region detector runs locally and is trainable in Fichero from corrected outlines. Made concrete by the lines below.
 - `prep.yolo.regions-card` — **[PARTIAL]** (#5525) **Built 2026-10-10:** `recipes/regions.py`, `llm/yolo_runtime.py`; pinned by `fichero-server/tests/unit/recipes/test_yolo_regions_card.py`. The `find-regions` job has a YOLO card: a layout model runs in the local model lane and writes a region pass (text block, heading, marginal note, page header, page footer, table, picture) with outline and confidence. The stock DocLayNet YOLO11 (`hantian/yolo-doclaynet`, AGPL like Fichero) is downloaded on request, never bundled; measured 2026-10-10 at 0.1 s a page warm, 6 s first load, and on two handwritten Sergio photos it saw one "Picture" at 26–28 %: a starting point for fine-tuning only. *Not yet: a trained model offered as a card by setup.*
 - `prep.regions.open-default` — **[PARTIAL]** (#5668 walkthrough section 4) Find Regions' default is Kraken's built-in segmenter (`blla`, Apache-2.0, ships inside the app), kept to its regions; the YOLO DocLayNet model (AGPL-3.0) is a candidate with its licence sheet for pages that need its finer labels. Every page the project holds is found as every step finds it (`sources._resolve_abs_path`). Measured 2026-10-11: on a two-column printed page `blla` found 3 regions and 81 lines in 11 s on the MacBook Air. One pass, not two (#5689): the segmenter finds regions and lines together; Find Lines and Read use them (`fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`). Built: the bundled card, the rules, `recipes/regions.py` with `provider="kraken"`; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: the Start plan still sends a `find-regions` step to YOLO only (`recipes/start.py`).
@@ -261,7 +305,9 @@ collection (ruling 2026-10-04: some models use the ruling as a line guide).
 Fixtures (`tests/fixtures/image_prep/`, to add; reduced to 1500 px on the long side): ten
 Sergio notebook photographs with hand-drawn page boxes, gutter positions, blank flags and orientation;
 Doc10 and Doc11 reduced with a hand-drawn page box; one photo rotated 90 and one 180 by its content with
-EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text pages for the CER comparison.
+EXIF 1; one page photographed at about 15° with its four hand-marked corners; a synthetic text page bent
+by a known quadratic toward one edge; a blank graph-paper page; checked transcriptions of the Sergio text
+pages for the CER comparison.
 
 | Behaviour | Unit | Click-around | Notes |
 | --- | --- | --- | --- |
@@ -270,10 +316,13 @@ EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text page
 | `prep.page.detected-before-lines`, `prep.page.kraken-time-saved-is-reported` | `tests/unit/recipes/test_find_regions_inside_page.py` | not needed | no line outside the region; the summary's four numbers. |
 | `prep.crop.content-bbox-is-fast`, `prep.page.remove-background-is-the-dark-mount-method` | `tests/unit/media/test_image_ops_legacy_port.py` | not needed | under 0.5 s; an old `remove_background` chain re-renders unchanged. |
 | `prep.split-at-the-gutter` | `fichero-server/tests/unit/media/test_page_split.py` | not needed | the neighbour test added; 11 photos still pass. |
-| `prep.turn-by-the-text`, `prep.straighten-and-flatten`, `prep.blank-pages-marked` | `tests/unit/media/test_turn_straighten_blank.py` | not needed | the 90 and 180 fixtures turned; the angle on the row; the blank page marked and skipped. |
+| `prep.square.perspective-from-the-quad`, `prep.square.corner-handles-correct-it` | `tests/unit/media/test_square_page.py`; `ImageEditDirectToolsTests.swift` | needed | the 15° fixture squared within 0.5°; a rectangular quad writes nothing; a dragged corner re-squares with `who: person`. |
+| `prep.flatten.curve-toward-the-gutter`, `prep.flatten.judged-by-the-gutter-third` | `tests/unit/media/test_flatten_curve.py`, `tests/unit/recipes/test_prep_cards_bakeoff.py` | not needed | the bent synthetic page recovers straight baselines within 2 px; a straight page writes nothing; the gutter-third CER on the run. |
+| `prep.turn-by-the-text`, `prep.straighten-and-flatten`, `prep.blank-pages-marked` | `tests/unit/media/test_turn_straighten_blank.py` | not needed | the 90 and 180 fixtures turned; the angle on the row; the blank page marked and skipped by find regions and read. |
+| `prep.blank-pages-hidden-in-the-item-view` | `tests/unit/api/test_blank_pages_hidden.py`; `BlankPagesHiddenTests.swift` | needed | the blank row is hidden, revealed dimmed under "N hidden", unhidden with one click and queued. |
 | `prep.unsure-becomes-a-proposal`, `prep.check.worklist-of-proposals-and-a-sample`, `prep.check.correction-replaces-the-runs-row`, `prep.check.blank-mark-is-a-correction` | `tests/unit/recipes/test_prepare_check_worklist.py` | needed (`PrepareImagesCheckUITests.swift`) | the proposal stored and listed; a correction replaces the row and leaves the worklist. |
 | `prep.check.apply-correction-to-the-folder` | `tests/unit/api/test_image_batch_prepare.py`; `ImageBatchPrepareTests.swift` | needed | three previews write no row; batch id on every row; whole and per-page undo. |
-| `prep.train.offered-after-thirty-corrections`, `prep.train.adopted-only-on-held-out-overlap`, `prep.yolo.page-detector`, `prep.licence.agpl-stated-on-the-card` | `tests/unit/training/test_yolo_page_detector.py` | not needed | 29 corrections: no offer; 30: offered with a time; the trained card adopted only when its IoU is higher; the sheet's words. |
+| `prep.train.offered-after-thirty-corrections`, `prep.train.runs-locally-or-on-hugging-face`, `prep.train.adopted-only-on-held-out-overlap`, `prep.yolo.page-detector`, `prep.licence.agpl-stated-on-the-card` | `tests/unit/training/test_yolo_page_detector.py` | not needed | 29 corrections: no offer; 30: offered with a time; the local and Hugging Face places offered only when allowed; the trained card adopted only when its IoU is higher; the sheet's words. |
 | `prep.methods-are-cards-the-recipe-chooses`, `prep.judged-by-reading` | `tests/unit/recipes/test_prep_cards_bakeoff.py` | not needed | the card per step and folder; CER with and without an operation. |
 | `prep.prepared-image-attached-as-rendition` | `tests/unit/workflows/test_prepare_images_rendition_recipe.py` | needed | the prepared image is a rendition the viewer can switch to. |
 
@@ -298,12 +347,30 @@ EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text page
 - Depends on: 1.1
 - Size: S
 
-### Stage 2 — Split, turn, straighten, blanks
+### Stage 2 — Square, flatten, split, turn, straighten, blanks
 
-#### Step 2.1 — The gutter's neighbour test; turn by the text; the angle on the row; blank pages (#5382, #6190)
-- Behaviours: `prep.split-at-the-gutter`, `prep.turn-by-the-text`, `prep.straighten-and-flatten`, `prep.blank-pages-marked`, `prep.image.one-upright-frame`
-- Tests: fichero-server/tests/unit/media/test_page_split.py, fichero-server/tests/unit/media/test_turn_straighten_blank.py
+#### Step 2.1 — Square the page from the quad (#5382)
+- Behaviours: `prep.square.perspective-from-the-quad`, `prep.square.corner-handles-correct-it`
+- Tests: fichero-server/tests/unit/media/test_square_page.py, fichero/Tests/Unit/general/Views/Preview/ImageEditDirectToolsTests.swift
 - Depends on: 1.1
+- Size: M
+
+#### Step 2.2 — Flatten the curve toward the gutter (#5382)
+- Behaviours: `prep.flatten.curve-toward-the-gutter`, `prep.flatten.judged-by-the-gutter-third`
+- Tests: fichero-server/tests/unit/media/test_flatten_curve.py, fichero-server/tests/unit/recipes/test_prep_cards_bakeoff.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 2.3 — The gutter's neighbour test; turn by the text; the angle on the row (#5382, #6190)
+- Behaviours: `prep.split-at-the-gutter`, `prep.turn-by-the-text`, `prep.straighten-and-flatten`, `prep.image.one-upright-frame`
+- Tests: fichero-server/tests/unit/media/test_page_split.py, fichero-server/tests/unit/media/test_turn_straighten_blank.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 2.4 — Blank pages: marked, skipped, hidden, unhidden (#5382, #1791)
+- Behaviours: `prep.blank-pages-marked`, `prep.blank-pages-hidden-in-the-item-view`, `prep.check.blank-mark-is-a-correction`
+- Tests: fichero-server/tests/unit/media/test_turn_straighten_blank.py, fichero-server/tests/unit/api/test_blank_pages_hidden.py, fichero/Tests/Unit/general/Views/Preview/BlankPagesHiddenTests.swift
+- Depends on: 2.3
 - Size: M
 
 ### Stage 3 — The Set Up step runs
@@ -311,11 +378,11 @@ EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text page
 #### Step 3.1 — Three questions from a sample; what runs by itself; the plan holds the step; the time (#5580)
 - Behaviours: `prep.setup.three-questions-suggested-from-a-sample`, `prep.setup.what-runs-by-itself`, `prep.setup.step-runs-from-the-start-plan`, `prep.estimate.time-on-this-mac-before-start`, `prep.setup.how-it-works-is-the-engines-sentence`
 - Tests: fichero-server/tests/unit/recipes/test_prepare_step_setup.py, fichero/Tests/UI/general/PrepareImagesSetupUITests.swift
-- Depends on: 2.1
+- Depends on: 2.4
 - Size: M
 
 #### Step 3.2 — Proposals, the worklist, corrections (#5382)
-- Behaviours: `prep.unsure-becomes-a-proposal`, `prep.check.worklist-of-proposals-and-a-sample`, `prep.check.correction-replaces-the-runs-row`, `prep.check.blank-mark-is-a-correction`
+- Behaviours: `prep.unsure-becomes-a-proposal`, `prep.check.worklist-of-proposals-and-a-sample`, `prep.check.correction-replaces-the-runs-row`
 - Tests: fichero-server/tests/unit/recipes/test_prepare_check_worklist.py, fichero/Tests/UI/general/PrepareImagesCheckUITests.swift
 - Depends on: 3.1
 - Size: M
@@ -328,8 +395,8 @@ EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text page
 
 ### Stage 4 — Cards, training, evidence
 
-#### Step 4.1 — The page detector trained from corrections, adopted on evidence (#5525, #5382)
-- Behaviours: `prep.train.offered-after-thirty-corrections`, `prep.train.adopted-only-on-held-out-overlap`, `prep.yolo.page-detector`, `prep.licence.agpl-stated-on-the-card`
+#### Step 4.1 — The page detector trained from corrections, locally or on Hugging Face, adopted on evidence (#5525, #5382)
+- Behaviours: `prep.train.offered-after-thirty-corrections`, `prep.train.runs-locally-or-on-hugging-face`, `prep.train.adopted-only-on-held-out-overlap`, `prep.yolo.page-detector`, `prep.licence.agpl-stated-on-the-card`
 - Tests: fichero-server/tests/unit/training/test_yolo_page_detector.py
 - Depends on: 3.2
 - Size: M
@@ -359,22 +426,19 @@ EXIF 1; a blank graph-paper page; checked transcriptions of the Sergio text page
 - 2026-10-20 (owner): one Find Regions implementation.
 - 2026-10-26 (owner): two steps, prep (pixels, renditions) and Leave Out (decisions); order prep → find regions and lines → leave out → read; the legacy methods and parameters come over, not the old app's shape.
 - 2026-10-29 (owner, paraphrased): image preparation is a Set Up step that runs by itself with sensible defaults per collection and a check-and-correct flow; it crops to the page, leaves out the ruler, colour card and dark border, straightens, splits at the gutter and enhances into renditions; the detector may be classical, YOLO or trained from the person's corrections; good manual tools stand beside it.
+- 2026-10-29, second round (owner, paraphrased; closes every open question of the morning draft):
+  - **Perspective correction is in, now**, in two forms: a lopsided photograph squared from Vision's quad or the contour polygon, and a bound page whose lines curve into the gutter flattened. Both are renditions; the original is never touched (`prep.square.*`, `prep.flatten.*`).
+  - **Blank pages are imported**, kept, dimmed and skipped by later steps; they are hidden in the item view and a person can unhide one (`prep.blank-pages-marked`, `prep.blank-pages-hidden-in-the-item-view`).
+  - **Training the page finder is offered after 30 corrections**, runs locally or on Hugging Face through the existing training paths, and is adopted only when it beats the classical finder on held-out pages (`prep.train.*`).
+  - **Checking for missed lines** is asked per project in Set Up with a suggested default, runs wherever a model can run, and must catch words dropped inside a line, not only marginalia (`segments-and-geometry.md`, `source.segment.check-lines.*`).
+  - **The full OpenCV suite** comes over from the legacy tools, as automatic steps and as editor options with sliders and before/after (`image-enhancement.md`).
+  - **Show-through** is one setting from the sample, per region only when the sample is uneven (`image.enhance.bleed-through-suppression`).
+  - **Suggested answers** come from a five-page sample with a 3-of-5 rule (`prep.setup.three-questions-suggested-from-a-sample`).
 
 ## Open questions
 
-1. **Perspective correction from the quad.** Vision gives four corners; a warp makes a flatter page but a
-   new frame every later shape must map through. Recommended: not in this spec; the box crop first, the
-   warp as a later rendition step once the frame marker (`prep.image.one-upright-frame`) has run on real
-   photos.
-2. **Blank pages: imported and marked, or not imported?** Recommended: imported and marked (kept, dimmed,
-   skipped by reading), so a verso that only looks blank can be brought back and the leaf pairing of
-   `finding-documents.md` still holds.
-3. **How many corrections before Fichero offers to train?** Recommended: 30 corrected or accepted page
-   boxes; below that the offer is noise, above it a one-class fine-tune has been enough on the regions
-   pipeline.
-4. **The sample size for suggested answers.** Recommended: five pages (first, quarter, middle, three
-   quarters, last) and a 3-of-5 rule; a larger sample delays Set Up for little.
+None. The four questions of the morning draft (perspective, blanks, the training threshold, the sample size) were ruled on 2026-10-29 and are written above as decided.
 
 ## Future (ideas, not scheduled)
 - (#4368) Native Apple image ops (book-spread split, border cleanup, bg removal) replacing OpenCV paths.
-- Dewarping a curved page (Leptonica-style text-line model, DocTr, UVDoc), measured by whether lines near the gutter read better.
+- A learned dewarp (DocTr, UVDoc) as a card beside the baseline-field flatten, if the bake-off shows the classical field is not enough on real bound volumes.
