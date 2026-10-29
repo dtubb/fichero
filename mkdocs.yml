@@ -451,6 +451,8 @@ nav:
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - IIIF: contributor_manual/specs/source/iiif.md
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
+              - Attributes & Prototypes (foundation): contributor_manual/specs/source/attributes-and-prototypes.md
+              - Catalogue Workbook Export: contributor_manual/specs/source/catalogue-export.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Image Enhancement: contributor_manual/specs/source/image-enhancement.md
               - Recipes Run: contributor_manual/specs/source/recipes-run.md
@@ -493,6 +495,7 @@ nav:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
               - Automation: contributor_manual/specs/ui/automation.md
+              - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md

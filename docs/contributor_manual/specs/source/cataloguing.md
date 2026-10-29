@@ -82,9 +82,12 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
 ## Behaviors
 
 - `catalogue.fields-on-prototypes` — **[GAP]** (#5365) a prototype declares its fields with type,
-  vocabulary, whether required, and standard mappings; a document with that prototype has them.
+  vocabulary, whether required, and standard mappings; a document with that prototype has them. The
+  foundation (what a prototype is to a node, how a node inherits one, a template as a prototype's
+  columns) is `attributes-and-prototypes.md` (`proto.*`); this line points there.
 - `catalogue.fields-cascade` — **[GAP]** (#5365) a field's default comes from the prototype and the
-  folders above, and the value shown says where it came from.
+  folders above, and the value shown says where it came from: `attributes-and-prototypes.md`
+  (`proto.value.set-inherited-default-empty`) owns the walk.
 - `catalogue.values-proposed-then-confirmed` — **[GAP]** (#5365) a value records its origin (typed,
   claim, import, proposed); a proposed value is shown as proposed until a person confirms it and is
   never exported as confirmed.
