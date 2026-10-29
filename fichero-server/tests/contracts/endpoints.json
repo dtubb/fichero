@@ -5738,6 +5738,18 @@
       },
       {
         "method": "POST",
+        "path": "/images/{document_id}/operations/mark-blank",
+        "operation_id": "mark_blank_image_api_images__document_id__operations_mark_blank_post",
+        "summary": "Mark Blank Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "MarkBlankOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "POST",
         "path": "/images/{document_id}/operations/remove-background",
         "operation_id": "remove_background_image_api_images__document_id__operations_remove_background_post",
         "summary": "Remove Background Image",
@@ -5770,6 +5782,18 @@
         ],
         "query_params": [],
         "request_model": "SegmentOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/square",
+        "operation_id": "square_image_api_images__document_id__operations_square_post",
+        "summary": "Square Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "SquareOperationRequest",
         "response_model": "ImageEditChainResponse"
       },
       {

@@ -323,6 +323,13 @@ final class ImageEditorModel {
         }
     }
 
+    /// Square the page from a person's four corrected corners (`prep.square.corner-handles-correct-it`).
+    func square(quad: [[Double]]) async {
+        await runOp { service in
+            try await service.square(documentId: self.documentId, quad: quad, page: self.page)
+        }
+    }
+
     /// Re-edit ONE committed step in place, keeping its position in the chain
     /// (Daniel, 2026-09-02: Aperture/Lightroom step editing — "click a step to
     /// re-open its settings, change them, and the stack reapplies from that

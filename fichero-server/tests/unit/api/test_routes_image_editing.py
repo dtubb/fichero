@@ -147,6 +147,25 @@ class TestImageEditChainRoutes:
         }
         assert "derived_path" not in ops[0]
 
+    def test_square_takes_a_persons_corners_and_marks_blank_hides_then_unhides(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(120, 90))
+        sq = client.post(
+            f"/api/images/{doc.id}/operations/square",
+            json={"quad": [[0.05, 0.1], [0.95, 0.05], [0.97, 0.95], [0.03, 0.9]], "page": 1},
+        )
+        assert sq.status_code == 200
+        op = sq.json()["operations"][0]
+        assert (op["op"], op["who"]) == ("square", "person")
+        assert len(op["params"]["quad"]) == 4
+
+        hide = client.post(f"/api/images/{doc.id}/operations/mark-blank", json={"blank": True})
+        assert hide.status_code == 200
+        assert db.get(Document, doc.id).exclude_from_processing is True
+        show = client.post(f"/api/images/{doc.id}/operations/mark-blank", json={"blank": False})
+        assert [(o["op"], o["params"], o["who"]) for o in show.json()["operations"][1:]] == [
+            ("mark_blank", {"blank": True}, "person"), ("mark_blank", {"blank": False}, "person")]
+        assert db.get(Document, doc.id).exclude_from_processing is False
+
     def test_rotate_operation_appends_chain(self, client, db, tmp_path):
         doc = _make_image_doc(db, tmp_path, size=(80, 50))
         rotate = client.post(

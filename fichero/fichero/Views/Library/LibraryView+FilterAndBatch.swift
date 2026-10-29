@@ -62,7 +62,7 @@ extension LibraryView {
 
         // Documents — match against the precomputed lowercased key (name + a
         // bounded OCR excerpt + status), not a fresh full-pageContent scan (#3865).
-        var docs = documents
+        var docs = documents.filter { !HiddenPages.isHiddenBlank($0) }  // under the "N hidden" line, not in the rows
         if !searchText.isEmpty {
             // Lazy build (#3195): if the doc set changed while the filter was
             // empty the cache is stale/empty — rebuild once here, not per

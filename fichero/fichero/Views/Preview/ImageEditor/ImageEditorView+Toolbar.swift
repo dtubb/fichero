@@ -128,6 +128,13 @@ extension ImageEditorView {
 
             editsClipboardMenu
 
+            if compareMode == .single, let found = PageCorners(pageRegion: activeDocument.metadata["page_region"]?.value) {
+                toolButton("viewfinder", help: pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners") {
+                    pageCorners = pageCorners == nil ? found : nil
+                }
+                .accessibilityIdentifier("imageEditPageCorners")
+            }
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 toolButton("crop", help: "Crop to selection") {
@@ -284,6 +291,13 @@ extension ImageEditorView {
             return max(1, doc.sequence ?? 1)
         }
         return 1
+    }
+
+    /// Return on the corner handles: square the page from the corrected corners, `who: person`.
+    func squareFromCorners() async {
+        guard let corners = pageCorners else { return }
+        await model.square(quad: corners.quad)
+        pageCorners = nil
     }
 
     /// Map the marquee (normalized image space) to source pixels and crop.

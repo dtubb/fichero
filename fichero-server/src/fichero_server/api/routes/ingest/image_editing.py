@@ -12,7 +12,7 @@ import tempfile
 from datetime import datetime, timezone
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -111,7 +111,8 @@ class ContrastOperationRequest(BaseModel):
 class SquareOperationRequest(BaseModel):
     """The page's four corners, top-left clockwise, in fractions of the upright image (`prep.square.*`)."""
 
-    quad: list[tuple[float, float]] = Field(min_length=4, max_length=4)
+    # [x, y] pairs as lists, not tuples: a tuple makes a prefixItems schema the generated Swift client cannot type
+    quad: list[Annotated[list[float], Field(min_length=2, max_length=2)]] = Field(min_length=4, max_length=4)
     page: int = Field(1, ge=1)
 
 
@@ -968,6 +969,25 @@ def crop_image_impl(
     return _render_and_append(db, document_id, source_path, op, page)
 
 
+def square_image_impl(
+    db: Database, document_id: str, request: SquareOperationRequest
+) -> ImageEditChain:
+    """A person's four corners squared into a page: the row says `who: person` (`prep.square.corner-handles-correct-it`)."""
+    doc = _get_or_404_document(db, document_id)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
+    op = {"op": "square", "page": page, "params": {"quad": request.quad}, "who": "person"}
+    return _render_and_append(db, document_id, source_path, op, page)
+
+
+def mark_blank_impl(db: Database, document_id: str, blank: bool) -> ImageEditChain:
+    """Hide (blank) or unhide a page: the chain row and `exclude_from_processing` move together (`media.blank_page`)."""
+    from fichero_server.media.blank_page import mark_blank
+
+    _get_or_404_document(db, document_id)
+    mark_blank(db, document_id, blank, who="person", reason="marked by a person" if blank else "unhidden by a person")
+    return _get_chain(db, document_id)
+
+
 def rotate_image_impl(
     db: Database, document_id: str, request: RotateOperationRequest
 ) -> ImageEditChain:
@@ -1110,6 +1130,33 @@ async def crop_image(
         "image.crop",
         {"document_id": document_id, **request.model_dump(mode="json")},
         ctx,
+    )
+    return ImageEditChainResponse.model_validate(result.result)
+
+
+@router.post("/{document_id}/operations/square", response_model=ImageEditChainResponse)
+async def square_image(
+    document_id: str,
+    request: SquareOperationRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageEditChainResponse:
+    result = await asyncio.to_thread(
+        registry.invoke, db, "image.square", {"document_id": document_id, **request.model_dump(mode="json")}, ctx
+    )
+    return ImageEditChainResponse.model_validate(result.result)
+
+
+@router.post("/{document_id}/operations/mark-blank", response_model=ImageEditChainResponse)
+async def mark_blank_image(
+    document_id: str,
+    request: MarkBlankOperationRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageEditChainResponse:
+    """Hide a page as blank, or unhide it (`blank: false`): a person's correction row (`prep.check.blank-mark-is-a-correction`)."""
+    result = await asyncio.to_thread(
+        registry.invoke, db, "image.mark_blank", {"document_id": document_id, **request.model_dump(mode="json")}, ctx
     )
     return ImageEditChainResponse.model_validate(result.result)
 
@@ -1510,6 +1557,14 @@ class CropImageActionParams(CropOperationRequest):
     document_id: str
 
 
+class SquareImageActionParams(SquareOperationRequest):
+    document_id: str
+
+
+class MarkBlankImageActionParams(MarkBlankOperationRequest):
+    document_id: str
+
+
 class RotateImageActionParams(RotateOperationRequest):
     document_id: str
 
@@ -1648,6 +1703,37 @@ def _action_crop(
     return _chain_result(chain), _image_chain_spec(
         params.document_id, before_ops, after_ops
     )
+
+
+@action(
+    "image.square",
+    SquareImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_square(
+    db: Database, params: SquareImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = square_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, after_ops)
+
+
+@action(
+    "image.mark_blank",
+    MarkBlankImageActionParams,
+    domains=["image", "document"],
+    undoable=False,  # ponytail: the flag lives on the document, not the chain; mark again to undo
+)
+def _action_mark_blank(
+    db: Database, params: MarkBlankImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = mark_blank_impl(db, params.document_id, params.blank)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, after_ops, domains=["image", "document"])
 
 
 @action(

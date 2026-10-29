@@ -130,6 +130,17 @@ extension ImageEditorView {
                 }
             }
 
+            // The page's corners, to drag and square with Return. ponytail: drawn over the unzoomed fit; DocumentCanvas's own zoom is not followed.
+            if compareMode == .single, let corners = Binding($pageCorners), let size = model.preview?.pixelSize {
+                GeometryReader { geo in
+                    PageCornerHandlesOverlay(
+                        fittedRect: ImageFit.fittedRect(imagePixelSize: size, in: geo.size),
+                        corners: corners,
+                        onSquare: { Task { await squareFromCorners() } }
+                    )
+                }
+            }
+
             // Busy overlay for any in-flight edit/load, in every compare mode
             // (#1532). Translucent so the last image stays visible mid-op; the
             // labelled spinner makes clear a potentially-slow op (remove-bg,

@@ -220,6 +220,8 @@
   "POST /api/images/{document_id}/operations/enhance": "no undo registration in current tree",
   "POST /api/images/{document_id}/operations/remove-background": "no undo registration in current tree",
   "POST /api/images/{document_id}/operations/rotate": "no undo registration in current tree",
+  "POST /api/images/{document_id}/operations/square": "no undo registration in current tree",
+  "POST /api/images/{document_id}/operations/mark-blank": "no undo registration in current tree",
   "POST /api/images/{document_id}/operations/segment": "no undo registration in current tree",
   "POST /api/images/{document_id}/operations/straighten": "undo pending #2985 for user-facing image straighten edits",
   "POST /api/images/{document_id}/split": "inverse-action design required; tracked in #3740",

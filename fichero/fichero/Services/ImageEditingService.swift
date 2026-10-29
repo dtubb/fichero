@@ -269,6 +269,32 @@ final class ImageEditingService {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/square` operation: the page warped to a rectangle from a
+    /// person's four corners (fractions of the upright image, top-left clockwise), the row saying `who: person`.
+    @discardableResult
+    func square(documentId: String, quad: [[Double]], page: Int = 1) async throws -> ImageEditChain {
+        isLoading = true; defer { isLoading = false }
+        let response = try await client.api
+            .squareImageApiImagesDocumentIdOperationsSquarePost(
+                path: .init(documentId: documentId),
+                body: .json(.init(quad: quad, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
+    }
+
+    /// Uses the generated `/api/images/{document_id}/operations/mark-blank` operation: hide a page as blank, or unhide
+    /// it (`blank: false`); a person's correction row either way.
+    @discardableResult
+    func markBlank(documentId: String, blank: Bool, page: Int = 1) async throws -> ImageEditChain {
+        isLoading = true; defer { isLoading = false }
+        let response = try await client.api
+            .markBlankImageApiImagesDocumentIdOperationsMarkBlankPost(
+                path: .init(documentId: documentId),
+                body: .json(.init(blank: blank, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
+    }
+
     /// Uses the generated `/api/images/{document_id}/operations/rotate` operation.
     @discardableResult
     func rotate(documentId: String, angle: Double, expand: Bool = true, page: Int = 1) async throws -> ImageEditChain {

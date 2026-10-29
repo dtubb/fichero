@@ -8354,6 +8354,27 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("mark-blank")
+    def images_mark_blank_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+        blank: bool = typer.Option(..., '--blank/--no-blank', help='Blank.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+    ) -> None:
+        """Mark Blank Image (POST /api/images/{document_id}/operations/mark-blank)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/operations/mark-blank"
+            params = None
+            payload = _build_json_payload({
+                "blank": blank,
+                "page": page,
+            }, {
+                "blank": {'type': 'boolean', 'title': 'Blank', 'x-cli-required': True},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("remove-background")
     def images_remove_background_post(
         ctx: typer.Context,
@@ -8428,6 +8449,27 @@ def register_generated_openapi_commands(
                 "min_area": {'type': 'integer', 'minimum': 1.0, 'title': 'Min Area', 'default': 100, 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "threshold": {'type': 'integer', 'maximum': 255.0, 'minimum': 0.0, 'title': 'Threshold', 'default': 28, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("square")
+    def images_square_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        quad: str = typer.Option(..., '--quad', help='Quad. JSON.'),
+    ) -> None:
+        """Square Image (POST /api/images/{document_id}/operations/square)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/operations/square"
+            params = None
+            payload = _build_json_payload({
+                "page": page,
+                "quad": quad,
+            }, {
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "quad": {'items': {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 2, 'minItems': 2}, 'type': 'array', 'maxItems': 4, 'minItems': 4, 'title': 'Quad', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
