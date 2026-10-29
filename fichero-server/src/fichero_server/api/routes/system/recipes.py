@@ -2828,7 +2828,8 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
-    every one the plan lists, since pressing Start is the yes (#6259); none while the plan refuses Start. Each by `cloud.accept_unpriced`, the one accept action.
+    every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
+    (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
@@ -2838,8 +2839,6 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
     unknown = [m for m in accepted if m not in asked]
     if unknown:  # a request naming a model the plan never asked about is wrong whether or not Start is refused
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
-    if plan.get("refusals"):  # a refused Start accepts nothing (#6259): project.start says why
-        return
     for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
         registry.invoke(db, "cloud.accept_unpriced", {"provider": provider, "model": model}, ctx)

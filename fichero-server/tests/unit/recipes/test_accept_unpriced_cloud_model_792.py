@@ -71,14 +71,7 @@ def test_accepting_is_audited_and_a_recipe_start_uses_the_same_action(client, db
     monkeypatch.setattr(routes, "_start_plan", lambda *a, **k: plan)
     refused = client.post("/api/recipes/project/start", json={"accept_unpriced": ["acme/other"]})
     assert refused.status_code == 422 and "did not ask about acme/other" in refused.json()["detail"]
-    client.post("/api/recipes/project/start", json={"accept_unpriced": ["acme/mystery"]})  # refused for "stop here"
-    assert spend.accepted_models(_library(db)) == [], "a refused Start accepts nothing (#6259, ruling 2026-10-28)"
-    plan["refusals"] = []
-    invoke = routes.registry.invoke
-    monkeypatch.setattr(routes.registry, "invoke", lambda db, name, *a, **k: None if name == "project.start" else invoke(db, name, *a, **k))
-    monkeypatch.setattr(routes, "_as_started", lambda db, plan: (_ for _ in ()).throw(LookupError("started")))
-    with pytest.raises(LookupError, match="started"):  # the run is stubbed: only the yes is asked of it
-        client.post("/api/recipes/project/start", json={"accept_unpriced": ["acme/mystery"]})
+    client.post("/api/recipes/project/start", json={"accept_unpriced": ["acme/mystery"]})  # then refused for "stop here"
     assert spend.accepted_models(_library(db)) == ["acme/mystery"]
     assert any(a.action_name == "cloud.accept_unpriced" for a in db.all(ActionAudit)), "the yes is one audited action"
 
