@@ -878,6 +878,8 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
 
 
 CORRECT = "correct"
+#: Set Up's Leave Out toggle (`stages.py`, #6070): no, and the step is out of the plan; yes, and it is in (with Find Lines).
+LEAVE_OUT_QUESTION = "leave_out"
 #: Set Up's question under Read that asks for Correct (`recipes/stages.py`).
 CORRECT_QUESTION = "correct_with_a_second_model"
 #: "Add another model to review in turn?" (#6257): a second `correct` step, `correct-2`, after the first.
@@ -1054,6 +1056,11 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         jobs.add(PREPARE)
     if "find-lines" in jobs and jobs & READING_JOBS:
         jobs.add("leave-out")  # on by default between the lines and their reading; a person can take it out (#6070)
+    asked_leave_out = a.job_answers.get(LEAVE_OUT_QUESTION)
+    if asked_leave_out is False:  # Set Up's toggle, the person's own word (a ticked stage does not override it)
+        jobs.discard("leave-out")
+    elif asked_leave_out is True and "find-lines" in jobs:
+        jobs.add("leave-out")
     # Find where the readers disagree is optional like Correct: in the plan only when ticked (owner ruling 2026-10-19).
     if "find-where-readers-disagree" not in a.jobs:
         jobs.discard("find-where-readers-disagree")

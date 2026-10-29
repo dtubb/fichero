@@ -30,6 +30,9 @@ class Question:
     #: A question that names kinds (#5805): every kind by default (an empty answer), the person can type their own, no
     #: fixed `options`, and the listing's `suggestions` hold only what a sample try found.
     open_ended: bool = False
+    #: Unanswered, the answer is whether this job is in the project's recipe, so a stage the person ticked shows its
+    #: toggle on (Leave Out, #6070); empty for a question with a plain default.
+    plan_job: str = ""
 
 
 @dataclass(frozen=True)
@@ -73,7 +76,8 @@ STAGES: tuple[Stage, ...] = (
           "Marks what is not writing as left out, before it is read: marks too small to be a line, anything off the page, and "
           "damage that only looks like writing. Nothing is deleted; you can bring any line back.",
           "A speck, a dark edge of the scanner bed and a stain are left out, each with its reason; the lines of writing are kept.",
-          ()),
+          # The step's on/off (`assemble.LEAVE_OUT_QUESTION`): in a plan that finds and reads lines unless answered no.
+          (Question("leave_out", "Leave out what is not writing before reading?", "yes-no", default=True, plan_job="leave-out"),)),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
           "Reads the writing line by line, and can correct it with a second model.",
           "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",
@@ -230,6 +234,14 @@ def offered(stage: Stage) -> bool:
     return any(runs_or_by_hand(job) for job in stage.jobs)
 
 
+def _answer(q: Question, answered: dict[str, Any], recipe: dict[str, Any] | None) -> Any:
+    """What a question shows: the person's answer, else (for a question tied to a job, once there is a recipe) whether the
+    recipe has it, else its default."""
+    if q.key in answered or not q.plan_job or recipe is None:
+        return answered.get(q.key, q.default)
+    return q.plan_job in {str(s.get("job")) for s in recipe.get("steps") or []}
+
+
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
@@ -254,7 +266,7 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,
-                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else answered.get(q.key, q.default),
+                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else _answer(q, answered, recipe),
                            "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
                            "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],

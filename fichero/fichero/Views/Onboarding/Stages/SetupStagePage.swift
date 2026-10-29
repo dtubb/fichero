@@ -102,6 +102,10 @@ struct SetupStagePage: View {
                     .environment(project?.storageService)
             }
         }
+        // Leave Out's toggle is the step's on/off: propose the plan again so this page's steps follow it (#6070).
+        .onChange(of: store.jobAnswers.other[RecipeSetupStore.leaveOutQuestion]) {
+            if stage.jobs.contains("leave-out") { Task { await store.assemble() } }
+        }
         // A try's result changes what an open question suggests (the kinds it found): ask the engine's list again.
         .onChange(of: tryStore?.result) { Task { await store.loadStages() } }
         // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.

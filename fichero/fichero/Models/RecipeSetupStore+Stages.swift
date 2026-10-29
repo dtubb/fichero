@@ -40,7 +40,14 @@ extension RecipeSetupStore {
     func toggle(stage id: String) {
         stageChoice?.toggle(id)
         applyStageChoiceToJobs()
+        // Leave Out's own question is the step's on/off (`source.recipe.leave-out-stage`): the tick and the toggle agree.
+        if id == "leave-out", let choice = stageChoice {
+            jobAnswers[question: Self.leaveOutQuestion] = .yesNo(choice.chosen.contains(id))
+        }
     }
+
+    /// The stage question that turns Leave Out on or off (`recipes/assemble.LEAVE_OUT_QUESTION`).
+    static let leaveOutQuestion = "leave_out"
 
     /// A goal (a purpose) as a shortcut: it ticks the stages that carry its jobs, and stays a goal of the project.
     func applyGoal(_ purposeId: String) {
