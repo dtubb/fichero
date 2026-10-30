@@ -519,7 +519,9 @@ every kept export. The Word transcript streams one folder at a time into the zip
   fichero-server/tests/unit/api/test_export_catalogue_workbook_route.py.
 - `catalogue.export.app-doors` — **[GAP]** (#6282, #507) File ▸ Export ▸ Catalogue workbook…, File ▸
   Export ▸ Transcript (Word, per folder)…, the folder's context menu and the table view's Export button
-  call the routes and offer a save panel; no local path is sent. Test:
+  call the routes and offer a save panel; no local path is sent. Known gap until built: `POST /api/export/catalogue-workbook` is
+  in the endpoint matrix's known gaps, and `POST /api/export/word` with `per: folder` still takes `output_path` from the caller
+  and has no Swift (it needs a path-free, base64 sibling like the workbook's). Test:
   fichero/Tests/Unit/general/Views/Library/CatalogueExportCommandTests.swift.
 - `catalogue.export.streams-at-scale` — **[GAP]** (#6282) folders are read and written in batches of
   500 with five queries per batch and no per-folder query; a 5,000-folder workbook holds no more than
