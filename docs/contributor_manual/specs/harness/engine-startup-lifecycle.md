@@ -431,28 +431,37 @@ errant `Fichero Server` from an earlier run, and the new app could not reach its
   last minute", then starts a new window. Applied first to `Failed to create embedding for %s: %s`
   (`db/__init__.py`). A repeat held back and never followed by another occurrence is not announced (the
   summary needs a next line to ride on); `core/log_throttle.py`. *Test:* `fichero-server/tests/unit/core/test_log_throttle.py`.
-- `engine.stale-engines-ended-at-launch` — **[PARTIAL]** (owner 2026-10-30; supersedes the environment-reading
-  `terminateOrphanEngines` rule of #2079, which relied on `ps -E` and `FICHERO_PARENT_PID`, readings that a
-  sandboxed dev app may not get) before the app starts its own engine it ends the engine processes an earlier
-  run left behind. **Which processes count as stale**, all of: (1) the executable's path lies in a bundle
-  named `Fichero Server.app` that is inside, or is itself, an app bundle named `Fichero*.app` (the helper);
-  (2) it belongs to this user; (3) its parent is not a running process or is launchd (pid 1): an orphan.
-  **Never ended:** a uvicorn/python dev engine (the path is a venv or system Python, not a bundle: the
-  maintainer's external dev engine, #6244, is out of scope by construction); another user's process; any
-  helper whose parent is alive, which covers this app's own engine, the engine of a currently running other
-  copy of the app (two copies = two bundles, each live while its own app process runs, found as a process
-  whose executable is `<bundle>/Contents/MacOS/<exe>` in a `Fichero*.app`), and one a person started from a
-  terminal (its parent is the shell: when in doubt, spare). **How:** SIGTERM, then
-  `TerminationDeadlinePolicy.quit` (2 s grace, SIGKILL, half a second to observe), awaited before the app
-  decides to spawn (`engine.orphan-sweep-precedes-spawn-decision` is unchanged). A killed orphan's socket
-  file is a socket nobody listens on, which the engine's own claim reclaims (`uds_claim.claim_uds_path`);
-  its port is free once it is gone. **Reported:** one line in the app log, once, naming the pids, and a
-  one-line notice in the connection status ("Ended 1 leftover Fichero Server from an earlier run."). The
-  App Store build has no sweep (#3749), unchanged. The decision is a pure function of a process table
-  (`StaleEngineSweep.pidsToEnd`). *Test:* `Tests/Unit/general/Services/StaleEngineSweepTests.swift`
-  (orphan ended; helper of a live app kept; dev uvicorn kept; other bundle with live parent kept; other user's
-  kept; the app's own pid kept; table parsing), and `fichero-server/tests/unit/api/test_one_engine_per_socket.py`
-  (a SIGKILLed engine's socket is reclaimed; run, 14 passed). PARTIAL: written 2026-10-30 without building. `StaleEngineSweep.swift` was compiled and its rules run with a bare `swiftc` harness; the Xcode build, `StaleEngineSweepTests`, the `ps` read and the notice in the connection popover have not been built or run. The one-line notice is `EmbeddedBackendService.staleEngineNotice`, shown under the status detail in `BackendConnectionView`.
+- `engine.stale-engines-ended-at-launch` — **[PARTIAL]** (owner 2026-10-30; review 2026-10-30; umbrella #318, no
+  issue of its own yet; supersedes the environment-reading `terminateOrphanEngines` rule of #2079 only in how the
+  process is identified) before the app starts its own engine it ends the engine processes an earlier run left
+  behind. **Which processes count as stale**, all of: (1) the REAL executable, from `proc_pidpath` (never `ps`'s
+  argv[0], which a process can set to anything), is `<Fichero*.app>/…/Fichero Server.app/Contents/MacOS/Fichero
+  Server`: the helper INSIDE an outer bundle named `Fichero*.app`, so a helper in /tmp or a build folder is not
+  ours; (2) it belongs to this user; (3) its parent is launchd (pid 1) or no longer running: an orphan; (4) its
+  environment records `FICHERO_PARENT_PID` (set by every app spawn) and that names this app or a process that no
+  longer exists. **A launchd-parented helper with NO recorded parent, or whose environment cannot be read, was not
+  started by an app run (`open`, a kept-warm or shared engine, #5272): it is SPARED, as the #2079 rule did: when in
+  doubt, spare.** (5) never pid 1 or below, never this app's own pid. **Never ended:** a uvicorn/python dev
+  engine (a venv or system Python is not a bundle: the maintainer's external dev engine, #6244, is out of scope by
+  construction); another user's process; any helper whose parent is alive (this app's own engine, the engine of a
+  currently running other copy of the app, found as a live parent process in the table: two copies = two bundles,
+  each live while its own app process runs; one a person started from a shell). **How:** SIGTERM, then
+  `TerminationDeadlinePolicy.quit` (2 s grace, SIGKILL, half a second to observe), awaited before the app decides
+  to spawn (`engine.orphan-sweep-precedes-spawn-decision` is unchanged). Immediately before EACH signal the pid
+  is re-read (parent, owner, real path) and signalled only if still the process that was chosen (a pid is reused
+  once its process dies). A killed orphan's socket file is a socket nobody listens on, which the engine's own
+  claim reclaims (`uds_claim.claim_uds_path`); its port is free once it is gone. **Reported:** one line in the app
+  log, once, naming the pids, and a one-line notice in the connection status ("Ended 1 leftover Fichero Server from
+  an earlier run."); a later launch step that ends nothing leaves a notice already showing in place. The App Store
+  build has no sweep (#3749), unchanged. The decision is a pure function of a process table
+  (`StaleEngineSweep.pidsToEnd`). *Test:* `Tests/Unit/general/Services/StaleEngineSweepTests.swift` (orphan ended;
+  helper of a live app kept; launchd-parented helper with no recorded parent kept; recorded app still running kept;
+  dev uvicorn kept; other bundle with a live parent kept; helper outside a `Fichero*.app` kept; pid 1, other
+  user's and own pid kept; a reused pid is not the chosen one; the `KERN_PROCARGS2` read), and
+  `fichero-server/tests/unit/api/test_one_engine_per_socket.py` (a SIGKILLed engine's socket is reclaimed; run,
+  14 passed). PARTIAL: written without building. `StaleEngineSweep.swift` and the libproc/sysctl reads were
+  compiled and run standalone with `swiftc`; the Xcode build, `StaleEngineSweepTests` and the notice in the
+  connection popover have not been built or run.
 
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 

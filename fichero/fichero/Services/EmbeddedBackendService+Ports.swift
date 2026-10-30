@@ -121,7 +121,7 @@ extension EmbeddedBackendService {
     /// candidate's environment with `ps -E`). Called off the main actor before spawning, so the new engine can bind.
     ///
     /// SAFETY, the whole policy in `StaleEngineSweep.pidsToEnd` (pure, tested): only a process whose executable is a
-    /// `Fichero Server.app` helper, owned by this user, and an ORPHAN (its parent is launchd or gone). A helper whose
+    /// `Fichero Server.app` helper inside a `Fichero*.app`, by its real path (`proc_pidpath`), owned by this user, and an ORPHAN (its parent is launchd or gone). A helper whose
     /// parent is alive — this app's own engine, another running copy of the app, one started from a shell — is spared,
     /// and so is every uvicorn/python dev engine (not a bundle): the maintainer's external dev engine is never touched.
     /// When in doubt we spare. SIGTERM, then `TerminationDeadlinePolicy.quit` (2 s) and SIGKILL.
@@ -130,48 +130,80 @@ extension EmbeddedBackendService {
             logger.info("Custom/remote engine host configured — skipping orphan sweep (no local engine is ours to kill)")
             return
         }
-        guard let table = readProcessTable() else {
+        let table = readProcessTable()
+        guard !table.isEmpty else {
             logger.error("Stale-engine sweep skipped: could not read the process table")
             return
         }
-        let stale = StaleEngineSweep.pidsToEnd(
-            table: table,
-            currentUID: getuid(),
-            ownPID: ProcessInfo.processInfo.processIdentifier
-        )
-        guard !stale.isEmpty else { return }
-        for pid in stale { kill(pid, SIGTERM) }
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let chosen = StaleEngineSweep.pidsToEnd(table: table, currentUID: getuid(), ownPID: ownPID)
+            .compactMap { pid in table.first { $0.pid == pid } }
+        guard !chosen.isEmpty else { return }
+        // Identity is re-read right before EACH signal: a pid is reused once its process dies.
+        func signalIfStillTheSame(_ fact: StaleEngineSweep.ProcessFact, _ signal: Int32) {
+            guard fact.pid > 1,
+                  StaleEngineSweep.isStillTheSame(fact, now: readProcessFact(pid: fact.pid)) else { return }
+            kill(fact.pid, signal)
+        }
+        func isGone(_ fact: StaleEngineSweep.ProcessFact) -> Bool {
+            !StaleEngineSweep.isStillTheSame(fact, now: readProcessFact(pid: fact.pid))
+        }
+        for fact in chosen { signalIfStillTheSame(fact, SIGTERM) }
         let started = Date()
         var escalated = false
         let policy = TerminationDeadlinePolicy.quit
         while true {
-            let gone = stale.allSatisfy { childHasExited(pid: $0) }
-            switch policy.action(elapsed: Date().timeIntervalSince(started), childHasExited: gone, hasEscalated: escalated) {
+            let allGone = chosen.allSatisfy(isGone)
+            switch policy.action(elapsed: Date().timeIntervalSince(started), childHasExited: allGone, hasEscalated: escalated) {
             case .replyNow:
-                logger.info("Ended \(stale.count) stale Fichero Server process(es) from an earlier run: \(stale.map(String.init).joined(separator: ", "), privacy: .public)")
-                StaleEngineSweep.record(ended: stale.filter { childHasExited(pid: $0) })
+                let ended = chosen.filter(isGone).map(\.pid)
+                logger.info("Ended \(ended.count) stale Fichero Server process(es) from an earlier run: \(ended.map(String.init).joined(separator: ", "), privacy: .public)")
+                StaleEngineSweep.record(ended: ended)
                 return
             case .escalateToSIGKILL:
                 escalated = true
-                for pid in stale where !childHasExited(pid: pid) { kill(pid, SIGKILL) }
+                for fact in chosen { signalIfStillTheSame(fact, SIGKILL) }
             case .waitMore:
                 Thread.sleep(forTimeInterval: policy.pollInterval)
             }
         }
     }
 
-    nonisolated private static func readProcessTable() -> [StaleEngineSweep.ProcessFact]? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["-axww", "-o", "pid=,ppid=,uid=,comm="]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-        guard (try? task.run()) != nil else { return nil }
-        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-        task.waitUntilExit()
-        guard let output = String(data: data, encoding: .utf8) else { return nil }
-        return StaleEngineSweep.parseTable(output)
+    /// Every process now running, by `libproc` (the kernel's own answer: the real executable path, not `ps`'s argv[0]).
+    /// Empty when the table cannot be read (a sandbox that denies it): then nothing is ended.
+    nonisolated private static func readProcessTable() -> [StaleEngineSweep.ProcessFact] {
+        let capacity = Int(proc_listallpids(nil, 0))
+        guard capacity > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: capacity + 64)
+        let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        guard count > 0 else { return [] }
+        return pids.prefix(count).compactMap { $0 > 0 ? readProcessFact(pid: $0) : nil }
+    }
+
+    /// pid -> (parent, owner, real executable path), or nil when the process is gone or cannot be read.
+    nonisolated private static func readProcessFact(pid: pid_t) -> StaleEngineSweep.ProcessFact? {
+        var info = proc_bsdinfo()
+        let infoSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, infoSize) == infoSize else { return nil }
+        var path = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return nil }
+        let executablePath = String(cString: path)
+        return StaleEngineSweep.ProcessFact(
+            pid: pid, parentPID: Int32(info.pbi_ppid), uid: info.pbi_uid, executablePath: executablePath,
+            recordedParentPID: StaleEngineSweep.isFicheroServerHelper(executablePath: executablePath)
+                ? recordedParentPID(pid: pid) : nil
+        )
+    }
+
+    /// `FICHERO_PARENT_PID` from the process's environment (`KERN_PROCARGS2`, same-user processes only); nil when it
+    /// cannot be read, which spares the process.
+    nonisolated private static func recordedParentPID(pid: pid_t) -> Int32? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        return StaleEngineSweep.recordedParentPID(procArgs: Array(buffer.prefix(size)))
     }
 
     /// The orphan sweep as ITS OWN named, awaited seam (#4896, spec:

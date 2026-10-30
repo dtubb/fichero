@@ -200,7 +200,7 @@ extension EmbeddedBackendService {
     private func spawnAndAdoptEmbeddedEngine() async throws {
         logger.info("Starting embedded backend...")
         status = .starting
-        defer { staleEngineNotice = StaleEngineSweep.notice(ended: StaleEngineSweep.takeEnded()) }
+        defer { staleEngineNotice = StaleEngineSweep.nextNotice(current: staleEngineNotice, ended: StaleEngineSweep.takeEnded()) }
         if try await launchEngineAheadOfTheWindow() {
             lastPortResolution = .spawnOurs
             try await waitForSpawnedBackend()
