@@ -150,7 +150,7 @@ struct RecipeReadyFields: View {
     static func start(store: RecipeSetupStore, keptExports: KeptExportStore?) async -> Bool {
         if let keptExports, !(await keptExports.keepDrafts()) { return false }
         guard await store.save() else { return false }
-        return await store.start()
+        return await store.start(firstPages: store.runFirstPages)
     }
 }
 

@@ -655,6 +655,34 @@ struct RecipeSetupStoreTests {
         #expect(RecipesMockURLProtocol.calls == 6)
     }
 
+    /// WHY (#6295): "Run the first N pages" is for that one Start. It stayed set in the store, so a later Start (the menu's, or
+    /// "Run again on missed") sent `first_pages` again and re-ran the same N pages while the pages added since were never read.
+    @Test("the first N pages is for one Start: a later Start covers the whole project")
+    func firstPagesIsForOneStart() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            let body = request.bodyOrStream()
+            RecipesMockURLProtocol.bodies["\(RecipesMockURLProtocol.calls) \(request.httpMethod ?? "")"] = [
+                "query": request.url?.query ?? "", "bytes": body.count,
+                "json": (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            ]
+            return Self.reply(request, 200, Self.planJSON(refusals: ""))
+        }
+        func seen(_ key: String) -> [String: Any] { RecipesMockURLProtocol.bodies[key] ?? [:] }
+
+        await store.limitRun(toFirst: 40)
+        #expect(seen("1 GET")["query"] as? String == "first_pages=40")
+        #expect(await store.start(firstPages: store.runFirstPages))
+        #expect((seen("2 POST")["json"] as? [String: Any])?["first_pages"] as? Int == 40)
+        #expect(store.runFirstPages == nil, "an accepted Start spends the limit")
+
+        #expect(await store.start())
+        #expect(seen("3 POST")["bytes"] as? Int == 0, "the next Start is the whole project, with no first_pages")
+        await store.loadStartPlan()
+        #expect(seen("4 GET")["query"] as? String == "")
+    }
+
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download
     /// stayed refused after the download finished until setup was opened again. The engine now says
     /// `model.installed` on the change stream; the store reads the shown plan again on it, and a

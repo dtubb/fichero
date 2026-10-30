@@ -351,8 +351,9 @@ final class RecipeSetupStore {
     /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
     var isAddingMaterial = false
 
-    /// "Run fewer pages" (#6295): the plan and Start cover only the first N pages of the project in Finder order, as the engine
-    /// counts them; nil: every page. Never with a folder.
+    /// "Run fewer pages" (#6295): the plan shown covers only the first N pages of the project in Finder order, as the engine
+    /// counts them; nil: every page. Never with a folder. Start sends it only when the caller names it (`start(firstPages:)`),
+    /// and it is cleared once a Start is accepted or the material changes: it is for that one Start.
     var runFirstPages: Int?
 
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
@@ -389,9 +390,8 @@ final class RecipeSetupStore {
     /// without it, the whole project, sent as before (no body). `redo`: the steps to run again on pages that already have
     /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
-    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil) async -> Bool {
+    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil) async -> Bool {
         do {
-            let first = folderId == nil && documents == nil ? runFirstPages : nil
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
                 folderId == nil && redo.isEmpty && documents == nil && first == nil
                 ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first))
@@ -402,6 +402,7 @@ final class RecipeSetupStore {
                 // menus do not empty when the run starts.
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
+                runFirstPages = nil  // "the first N pages" was for this Start alone (#6295)
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
                 if redoSteps.isEmpty {
