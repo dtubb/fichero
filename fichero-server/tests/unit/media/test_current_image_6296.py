@@ -205,3 +205,43 @@ def test_for_geometry_is_the_same_image_when_the_frame_is_known(db, tmp_path):
     _edit(db, doc, EDITS)
     found = current_page_image(db, doc)
     assert found.for_geometry() is found
+
+
+def test_a_same_frame_rendition_at_half_size_is_scaled_so_a_line_cut_from_it_lands_on_the_ink(db, tmp_path):
+    doc = _page(db, tmp_path)
+    half = tmp_path / "half.png"
+    Image.open(tmp_path / "page.png").resize((W // 2, H // 2)).save(half)
+    db.save(Rendition(document_id=doc.id, role="enhanced", path=str(half)))
+
+    found = current_page_image(db, doc)
+
+    assert found.kind == RENDITION and found.path == str(half) and found.to_image is not None
+    line = {"id": "l1", "polygon": [[DOT[0] - 4, DOT[1] - 4], [DOT[0] + 4, DOT[1] - 4], [DOT[0] + 4, DOT[1] + 4], [DOT[0] - 4, DOT[1] + 4]],
+            "baseline": [[DOT[0] - 4, DOT[1]], [DOT[0] + 4, DOT[1]]]}
+    (moved,), opened_in = found.carry_lines([line], "upright")
+    xs = [p[0] for p in moved["polygon"]]
+    ys = [p[1] for p in moved["polygon"]]
+    assert opened_in is None
+    assert (min(xs), max(xs), min(ys), max(ys)) == pytest.approx((DOT[0] / 2 - 2, DOT[0] / 2 + 2, DOT[1] / 2 - 2, DOT[1] / 2 + 2))
+    assert max(xs) <= W // 2 and max(ys) <= H // 2  # inside the half-size picture, not past its edge
+
+
+def test_a_half_size_rendition_that_keeps_the_photographs_orientation_tag_is_scaled_into_its_raw_pixels(db, tmp_path):
+    photo = tmp_path / "tagged.jpg"
+    raw = Image.new("RGB", (W, H), "white")  # raw pixels W x H, tag 6: upright it is H x W
+    ImageDraw.Draw(raw).rectangle([38, 28, 42, 32], fill=(255, 0, 0))
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    raw.save(photo, exif=exif, quality=100)
+    doc = Document(name="tagged", doc_type=DocType.file, file_type=FileType.image, path=str(photo))
+    db.save(doc)
+    half = tmp_path / "half.jpg"
+    raw.resize((W // 2, H // 2)).save(half, exif=exif, quality=100)
+    db.save(Rendition(document_id=doc.id, role="enhanced", path=str(half)))
+
+    found = current_page_image(db, doc)
+
+    # the dot is at raw (40, 30); upright (tag 6, a clockwise quarter) it is at (H - 30, 40); on the half-size raw picture (20, 15)
+    upright_dot = [(H - 30) / H, 40 / W]
+    on_half = found.to_image.carry([upright_dot])[0]
+    assert (on_half[0] * W / 2, on_half[1] * H / 2) == pytest.approx((20, 15), abs=1)

@@ -249,7 +249,7 @@ _SAME_SHAPE = 0.01
 def _same_frame_map(rendition: Any, path: Path, photograph: Path, photo_size: tuple[float, float]) -> FrameMap | None:
     """A rendition with no `transform` is the photograph's frame (`models.Rendition`): checked against its shape, since a
     workflow tool writes `rotated` or `enhanced` pictures with no transform at all. None when its pixels fit the photograph's
-    as they are (same orientation tag); the identity on the upright page when it was saved upright (no tag, a photograph that
+    as they are (same orientation tag, same size); a scale map when only the size differs; the identity on the upright page when it was saved upright (no tag, a photograph that
     has one); `Unmappable` for any other shape or tag."""
     from PIL import Image
 
@@ -267,10 +267,21 @@ def _same_frame_map(rendition: Any, path: Path, photograph: Path, photo_size: tu
     if abs(own[0] / own[1] - shape) > _SAME_SHAPE * shape:
         raise Unmappable(f"{rendition.role} has another shape than the photograph and records no transform")
     if own_tag == photo_tag:
-        return None
+        if (float(own[0]), float(own[1])) == photo_size:
+            return None
+        # the same frame at another scale (a smaller enhanced copy): the lines are scaled to it, and opened as it is (its tag kept)
+        scaled = identity(photo_size).with_size((float(own[0]), float(own[1])))
+        if own_tag == 1:
+            return scaled
+        return scaled.then(exif_map(own_tag, _raw_size(own, own_tag)).inverse())
     if own_tag == 1:
         return identity(photo_size).with_size((float(own[0]), float(own[1])))
     raise Unmappable(f"{rendition.role} carries another orientation than the photograph")
+
+
+def _raw_size(upright: tuple[int, int], orientation: int) -> tuple[float, float]:
+    """The file's own pixel size, from its upright size and orientation tag (5-8 turn the page a quarter)."""
+    return (float(upright[1]), float(upright[0])) if orientation in (5, 6, 7, 8) else (float(upright[0]), float(upright[1]))
 
 
 def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[Any, FrameMap | None] | None:
