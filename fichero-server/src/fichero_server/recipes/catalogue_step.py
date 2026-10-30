@@ -489,7 +489,8 @@ def date_problems(doc: Any) -> list[str]:
 def asked_fields(db: Any, folder: Any) -> set[str] | None:
     """The attribute keys the Catalogue stage fills on this folder: the declared fields of its EFFECTIVE prototype
     (its own, else the one a box above gives it, `proto.runs.read-the-effective-prototype`), never only its own key; None
-    when it has none, which is today's fixed set. The working keys the declared ones rest on stay: the Dates text and
+    when it declares none of the stage's own keys, which is today's fixed set (a prototype that is silent on the catalogue
+    still gets its folders described). The working keys the declared ones rest on stay: the Dates text and
     the years beside a declared date, and the access points the typed lists are made from."""
     from fichero_server.models.node_prototypes import PrototypeResolutionError, resolve_node_prototype, resolve_prototype_attributes
     from fichero_server.models.prototype_schema import attribute_declarations
@@ -500,6 +501,8 @@ def asked_fields(db: Any, folder: Any) -> set[str] | None:
     try:
         declared = {k for k, d in attribute_declarations(resolve_prototype_attributes(db, key)).items() if not d.source}
     except PrototypeResolutionError:
+        return None
+    if not declared & ({key for key, _ in ATTRIBUTE_FIELDS.values()} | set(DATE_KEYS)):
         return None
     # ponytail: the stage's own keys stay a fixed list; a prototype's own extra fields are asked once the prompt can name them
     return declared | {"catalogue_access_points"} | (set(DATE_KEYS) if DATE_KEY in declared else set())

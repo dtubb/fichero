@@ -56,3 +56,13 @@ def test_the_table_step_asks_a_page_whose_kind_comes_from_the_folder_above(db):
     assert page.prototype_key is None
     assert [u.id for u in table.units(db, [page.id], "tpage")] == [page.id]
     assert table.units(db, [page.id], "tother") == []
+
+
+def test_a_prototype_that_declares_no_catalogue_field_still_gets_the_fixed_set(db):
+    _proto(db, "tcarta", {})
+    _proto(db, "tbook", {"folio": {"type": "text"}})
+    for key in ("tcarta", "tbook"):
+        row = _folder(db, f"Doc {key}", proto=key)
+        assert step.asked_fields(db, row) is None
+        attrs = _describe(db, row)
+        assert {"catalogue_title", "catalogue_extent", "catalogue_scope_content"} <= set(attrs)
