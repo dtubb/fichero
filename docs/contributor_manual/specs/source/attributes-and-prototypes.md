@@ -283,7 +283,7 @@ table extraction asks the questions of the unit's effective prototype), never on
   `inherits`, per-language labels on `options` and, for a computed column, `source`; the old single
   `label` reads as the metadata language's; a label is never shown as the key when one exists. Test:
   fichero-server/tests/unit/models/test_prototype_schema.py.
-- `proto.template.edit-copies-a-builtin` — **[GAP]** (#6282) a column change on a built-in prototype
+- `proto.template.edit-copies-a-builtin` — **[OK]** (#6282) a column change on a built-in prototype
   makes a project-owned child with `parent_key` the built-in, assigns it where the built-in was and
   lands the change on the child; the built-in is unchanged; later changes patch the child; ⌘Z
   undoes the patch and, the first time, the copy and the assignment together. Test:

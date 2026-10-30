@@ -399,12 +399,106 @@ def _action_create_value(
     return after, spec
 
 
+class ClassificationRevertCopyParams(BaseModel):
+    """``classification.revert_copy``: take back a built-in's copy (the undo of `classification.patch` on a built-in)."""
+
+    value_ids: list[str]
+    documents: list[dict]
+
+
+def _invert_patch_or_copy(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    if before and before.get("copied_for"):
+        return ("classification.revert_copy", {"value_ids": before["created_ids"], "documents": before["documents"]})
+    return _invert_patch(before, after, ctx)
+
+
+def _copy_builtin_for_edit(db: Database, builtin: ClassificationValue, patch: ClassificationPatchRequest) -> tuple:
+    """A column change on a built-in (attributes-and-prototypes.md section 3): a project-owned child whose parent is the
+    built-in, assigned on the nodes that carried it, and the change landed on the child. A node carrying a prototype
+    that names the built-in for the nodes beneath it (an `eap_box` for `eap_digital_folder`) gets a child of THAT
+    prototype naming the new child, so the rows beneath follow without an assignment per folder.
+    Returns (the child, the created ids, the snapshots of every document it touched)."""
+    from fichero_server.api.routes.document.documents import PrototypeAssignRequest, assign_document_prototype_impl
+    from fichero_server.models import Document
+    from fichero_server.models.node_prototypes import resolve_prototype_attributes
+    from fichero_server.models.prototype_schema import level_defaults
+
+    keys = {v.key for v in db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype)}
+
+    def fresh(base: str) -> str:
+        key, n = f"{base}-copy", 2
+        while key in keys:
+            key, n = f"{base}-copy-{n}", n + 1
+        keys.add(key)
+        return key
+
+    def make(source: ClassificationValue, attributes: dict) -> ClassificationValue:
+        made = create_value_impl(db, ClassificationCreateRequest(
+            dimension=source.dimension, key=fresh(source.key), label=f"{source.label} (this project)",
+            parent_key=source.key, attributes=attributes))
+        created.append(made.id)
+        return made
+
+    created: list[str] = []
+    before: dict[str, dict] = {}
+    child = make(builtin, {})
+    holders: dict[str, ClassificationValue] = {}
+    for doc in db.all(Document):
+        if doc.deleted_at is not None or not doc.prototype_key:
+            continue
+        if doc.prototype_key == builtin.key:
+            target = child
+        else:
+            try:
+                names = level_defaults(resolve_prototype_attributes(db, doc.prototype_key))
+            except Exception:  # noqa: BLE001 -- an unresolvable prototype carries nothing for us
+                continue
+            levels = [level for level, key in names.items() if key == builtin.key]
+            holder = _get_proto(db, doc.prototype_key)
+            if not levels or holder is None:
+                continue
+            if holder.key not in holders:  # a copy of the holder naming the child, so the one undo takes it back too
+                holders[holder.key] = make(holder, {level: child.key for level in levels})
+            target = holders[holder.key]
+        before[doc.id] = doc.model_dump(mode="json")
+        assign_document_prototype_impl(db, doc.id, PrototypeAssignRequest(prototype_key=target.key))
+    landed = patch_value_impl(db, child.id, patch)
+    return landed, created, list(before.values())
+
+
+def _get_proto(db: Database, key: str) -> ClassificationValue | None:
+    found = db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype, key=key)
+    return found[0] if found else None
+
+
+@action(
+    "classification.revert_copy",
+    ClassificationRevertCopyParams,
+    domains=["classification", "document"],
+    undoable=False,  # ponytail: redo of a built-in's copy is the person's next edit; add an invert if redo is asked for
+)
+def _action_revert_copy(
+    db: Database, params: ClassificationRevertCopyParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.api.routes.document.documents import restore_documents_impl
+
+    for value_id in params.value_ids:
+        value = db.get(ClassificationValue, value_id)
+        if value is not None:
+            db.delete(value)
+    restored = restore_documents_impl(db, documents=params.documents)
+    spec = ChangeSpec(domains=["classification", "document"], target_ids=[*params.value_ids, *restored],
+                      before=None, after={"deleted": params.value_ids}, emit_type="classification.deleted",
+                      document_ids=restored)
+    return {"deleted": params.value_ids, "restored": restored}, spec
+
+
 @action(
     "classification.patch",
     ClassificationPatchParams,
     domains=["classification"],
     undoable=True,
-    invert=_invert_patch,
+    invert=_invert_patch_or_copy,
 )
 def _action_patch_value(
     db: Database, params: ClassificationPatchParams, ctx: ActionContext
@@ -416,6 +510,14 @@ def _action_patch_value(
     patch = ClassificationPatchRequest(
         **params.model_dump(exclude={"value_id"}, exclude_unset=True)
     )
+    if existing.is_builtin and patch.attributes is not None and existing.dimension == ClassificationDimension.document_prototype:
+        value, created, documents = _copy_builtin_for_edit(db, existing, patch)
+        before = {**before, "copied_for": existing.key, "created_ids": created, "documents": documents}
+        after = _snap_value(value)
+        spec = ChangeSpec(domains=["classification", "document"], target_ids=[value.id, *created], before=before,
+                          after=after, emit_type="classification.created",
+                          document_ids=[d["id"] for d in documents])
+        return after, spec
     value = patch_value_impl(db, params.value_id, patch)
     after = _snap_value(value)
     spec = ChangeSpec(

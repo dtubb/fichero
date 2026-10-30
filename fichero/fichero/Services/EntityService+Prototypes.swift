@@ -127,13 +127,16 @@ extension EntityService {
         }
     }
 
+    /// Save an edit. The engine never edits a built-in in place: the change lands on a project-owned child
+    /// (`proto.template.edit-copies-a-builtin`), so the value returned may carry a different key than the one edited.
+    @discardableResult
     func updateDocumentPrototype(
         valueId: String,
         label: String,
         parentKey: String?,
         color: String?,
         attributes: [PrototypeAttributeDraft]
-    ) async throws {
+    ) async throws -> Components.Schemas.ClassificationValue {
         let response = try await client.api.patchValueApiClassificationsValueIdPatch(
             path: .init(valueId: valueId),
             body: .json(.init(
@@ -144,14 +147,19 @@ extension EntityService {
             ))
         )
         switch response {
-        case .ok:
-            return
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let code, _):
             throw ServiceError.unexpectedResponse(code)
         }
+    }
+
+    /// What the editor says after a save that landed on a copy of a built-in; nil when it saved in place.
+    static func copiedNotice(edited: String, saved: String, label: String) -> String? {
+        saved == edited ? nil : "“\(label)” is built in, so your change is saved as a copy for this project (\(saved))."
     }
 
     func deleteDocumentPrototype(valueId: String) async throws {
