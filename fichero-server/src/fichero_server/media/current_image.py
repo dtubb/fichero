@@ -38,6 +38,14 @@ from fichero_server.media.upright import FRAME_UPRIGHT
 logger = logging.getLogger(__name__)
 
 ORIGINAL, EDITED, RENDITION = "original", "edited", "rendition"
+#: Kept on a reading's artifact (`Artifact.data`): the signature of the image the model was sent. A reading made before this was
+#: kept has none, and counts as read from the photograph.
+IMAGE_READ = "image_read"
+
+
+def read_from(artifact: Any) -> str:
+    """The image signature a saved reading was read from (`ORIGINAL` for one that does not say)."""
+    return str((getattr(artifact, "data", None) or {}).get(IMAGE_READ) or ORIGINAL)
 
 #: Roles that are some other picture (a thumbnail, a PDF page, a part cut for a region or a segment), never the page's own.
 _NOT_THE_PAGE = frozenset({"original", "thumbnail", "pdf_page_render", "region-crop", "segment-picture"})
@@ -72,6 +80,12 @@ class PageImage:
     @property
     def is_original(self) -> bool:
         return self.kind == ORIGINAL
+
+    @property
+    def signature(self) -> str:
+        """Which image this is, for a reading to say what it was read from (`Artifact.data[IMAGE_READ]`): the photograph, or the
+        edited copy (its file name carries the chain's version) or rendition. An Undo or a new edit gives another signature."""
+        return ORIGINAL if self.is_original else Path(self.path).name
 
     def photograph_map(self) -> FrameMap | None:
         """This image's pixels back to the upright photograph's; None when they are the same."""

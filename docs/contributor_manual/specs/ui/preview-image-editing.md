@@ -124,7 +124,11 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   next step reads what is under it. Stored lines stay fractions of the upright photograph: a step that cuts from the
   page carries its lines onto the image it reads, and a step that finds on it carries what it found back
   (`media/frame_map.py`: crop, quarter and any-angle turn, flip, a recorded homography). A rendition whose frame is not
-  recorded (a flatten, a turn with no angle) is passed over and the page read on its photograph, said in the log.
+  recorded (a flatten, a turn with no angle) is passed over and the page read on its photograph, said in the log. An edit chain with an edit of unknown frame is
+  still what a whole-page read sends; a step that cuts or stores lines reads the photograph then (`PageImage.for_geometry`).
+  A saved reading says which image it was read from (`Artifact.data.image_read`): the skip-if-done cache and the per-line
+  resume (`working_lines.unread_by`) answer only for the same image, so an edit or Undo is read again. The recipe's page-done
+  card check (`recipes/done.py`) does not compare the image yet: a page it calls done is skipped by a recipe run.
   Pinned: `tests/unit/media/test_current_image_6296.py`, `tests/unit/workflows/test_every_step_sends_the_edited_image_6296.py`.
 - `preview.edit.rendition-caches-invalidate-on-every-edit` — **[OK]** a successful edit drops
   BOTH derived-pixel caches (not just the storage-service one), including on the way OUT of

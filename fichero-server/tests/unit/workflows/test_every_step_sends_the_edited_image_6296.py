@@ -427,3 +427,87 @@ async def test_a_vision_model_asked_for_boxes_on_an_edit_of_unknown_frame_is_sen
     _unknown_frame_edit(page, monkeypatch)
     (box,) = (await _vlm_boxes(page, monkeypatch)).boxes
     assert box.bbox == pytest.approx([0.0, 0.25, 1.0, 0.1])
+
+
+async def _whole_page_saved(page, monkeypatch):
+    """A whole-page read that is SAVED (so the skip-if-done cache has something to find): the pictures the model was sent. The
+    tool promotes no text onto the page, so the page's own text never answers in place of the cache."""
+    import fichero_server.llm as llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.vision_base import VisionToolConfig, process_vision
+
+    sent = []
+
+    async def model(images, prompt, config, **_):
+        sent.extend(_size_of_uri(i) for i in images)
+        return "una linea de texto"
+
+    monkeypatch.setattr(llm, "vision", model)
+    result = await process_vision(
+        files=[page["path"]], documents=[page["doc"].model_dump(mode="json")], prompt="read",
+        library_path=page["library"], llm_config=LLMConfig(provider="openrouter", model="m"), task_id="t",
+        tool_config=VisionToolConfig(artifact_type="transcription", supports_apple_vision=False, update_page_content=False,
+                                     trigger_embedding=False, skip_if_artifact_exists=True),
+        vision_mode="llm", save_to_db=True)
+    assert not result.get("error"), result.get("error")
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_a_saved_read_is_reused_for_the_same_image_and_not_for_another(page, monkeypatch):
+    """The skip-if-done cache answers for the image that was read: the same image again sends nothing; an edit is a different
+    image and is read; Undo back to an image that was read answers from that reading."""
+    assert await _whole_page_saved(page, monkeypatch) == [(W, H)]
+    assert await _whole_page_saved(page, monkeypatch) == []  # nothing changed: nothing is sent again
+
+    _set_edits(page, EDITS)  # the person edits in Preview: another image
+    assert await _whole_page_saved(page, monkeypatch) == [EDITED_SIZE]
+    assert await _whole_page_saved(page, monkeypatch) == []
+
+    _set_edits(page, EDITS[:1])  # a different edit again
+    assert await _whole_page_saved(page, monkeypatch) == [(200, 150)]
+
+    _set_edits(page, [])  # Undo: the photograph was read before, and that reading is its own
+    assert await _whole_page_saved(page, monkeypatch) == []
+
+
+@pytest.mark.asyncio
+async def test_a_resumed_read_skips_lines_read_from_the_same_image_and_not_from_another(page, monkeypatch):
+    """`unread_by`: a line this reader read counts as read only for the image it was read from. A stopped page resumes on the
+    same image; after an Undo it is read again, whole, from the photograph."""
+    import fichero_server.llm.kraken_runtime as kraken_runtime
+    from fichero_server.llm.working_lines import working_lines
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    _set_edits(page, [])
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda image_path, **_: {
+        "width": W, "height": H, "regions": [], "lines": [
+            {"baseline": [[120, 155], [280, 155]], "polygon": _poly((120, 140, 280, 160)), "region": None},
+            {"baseline": [[120, 205], [280, 205]], "polygon": _poly((120, 190, 280, 210)), "region": None}]})
+    await _tool(page, transcribe, vision_mode="kraken")  # two lines found on the photograph
+    monkeypatch.setattr(kraken_runtime, "resolve_recognition_model", lambda ref: ("/models/m.mlmodel", ref))
+    asked = []
+
+    def read(image_path, model_path, lines, **kw):
+        asked.append((Image.open(image_path).size, len(lines)))
+        return ["texto"] * len(lines)
+
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", read)
+
+    async def start():
+        await _tool(page, transcribe, vision_mode="kraken", kraken_model="kraken-m")
+
+    def stop_before_the_last_line():  # the Stop came before line 2
+        found = working_lines(page["db"], page["doc"].id)
+        page["db"].execute("DELETE FROM contentrepresentations WHERE segment_id = ?", [found.lines[1].id])
+
+    _set_edits(page, EDITS)
+    await start()
+    stop_before_the_last_line()
+    await start()
+    assert asked == [(EDITED_SIZE, 2), (EDITED_SIZE, 1)]  # the same image: only the unread line is read
+
+    stop_before_the_last_line()
+    _set_edits(page, [])  # Undo: line 1's reading came from the edited image, not from this one
+    await start()
+    assert asked[-1] == ((W, H), 2)

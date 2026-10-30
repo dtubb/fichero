@@ -14,6 +14,7 @@ Provides:
 
 from __future__ import annotations
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
+from fichero_server.media.current_image import IMAGE_READ, ORIGINAL
 
 import asyncio
 import collections
@@ -4781,6 +4782,7 @@ async def process_vision(
                         library_path=library_path,
                         provider=cache_provider,
                         model=cache_model,
+                        image=_page_image.signature if _page_image is not None else None,
                     )
                 except ArtifactLookupError as exc:
                     # Skip-if-done cache read FAILED — we cannot prove a cached
@@ -4916,7 +4918,8 @@ async def process_vision(
                     def _unread(stamp: str | None) -> Any:
                         if read_all_lines:
                             return found
-                        return _wl.unread_by(_dbm.get_database(library_path), found, stamp)
+                        return _wl.unread_by(_dbm.get_database(library_path), found, stamp,
+                                             image=_lines_on.signature if _lines_on is not None else ORIGINAL)
 
                     if not kraken_recognition_model:
                         from fichero_server.llm.line_reader import read_lines
@@ -5776,9 +5779,11 @@ async def process_vision(
                 # it local to this closure and UnboundLocalError every read
                 # above (the parameter lives in the enclosing scope).
                 effective_artifact_data = artifact_data
+                if _page_image is not None:  # what the model was sent: the skip-if-done cache and the line resume compare it (#6296)
+                    effective_artifact_data = {**(artifact_data or {}), IMAGE_READ: _page_image.signature}
                 if page_thinking_single:
                     effective_artifact_data = {
-                        **(artifact_data or {}),
+                        **(effective_artifact_data or {}),
                         "thinking": page_thinking_single,
                     }
                 # Provenance join (2026-08-12, Daniel: "can we click on an
