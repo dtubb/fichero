@@ -12,10 +12,10 @@ from fichero_server.models.node_prototypes import effective_node_attributes
 def db(tmp_path):
     d = Database(tmp_path / "t.duckdb")
     d.save(ClassificationValue(
-        dimension=ClassificationDimension.document_prototype, key="eap_box", label="box",
-        attributes={"subfolders": "eap_folder"}))
+        dimension=ClassificationDimension.document_prototype, key="tbox", label="box",
+        attributes={"subfolders": "tfolder"}))
     d.save(ClassificationValue(
-        dimension=ClassificationDimension.document_prototype, key="eap_folder", label="folder",
+        dimension=ClassificationDimension.document_prototype, key="tfolder", label="folder",
         attributes={
             "ref": {"type": "text", "inherits": True},
             "title": {"type": "text"},
@@ -33,7 +33,7 @@ def _doc(db, id, doc_type, parent=None, proto=None, attributes=None):
 
 
 def test_set_here_inherited_default_empty(db):
-    _doc(db, "box", DocType.folder, proto="eap_box", attributes={"ref": "EAP1", "title": "box title"})
+    _doc(db, "box", DocType.folder, proto="tbox", attributes={"ref": "EAP1", "title": "box title"})
     f = _doc(db, "f1", DocType.folder, parent="box", attributes={"title": "mine"})
     out = effective_node_attributes(db, f)
     assert out["title"]["value"] == "mine" and out["title"]["origin"] == "here"
@@ -43,14 +43,14 @@ def test_set_here_inherited_default_empty(db):
 
 
 def test_non_inheriting_key_never_walks_up(db):
-    _doc(db, "box", DocType.folder, proto="eap_box", attributes={"title": "box title"})
+    _doc(db, "box", DocType.folder, proto="tbox", attributes={"title": "box title"})
     f = _doc(db, "f1", DocType.folder, parent="box")
     out = effective_node_attributes(db, f)
     assert out["title"]["origin"] == "empty" and out["title"]["value"] in (None, "")
 
 
 def test_own_value_overrides_and_nothing_inherited_is_stored(db):
-    _doc(db, "box", DocType.folder, proto="eap_box", attributes={"ref": "EAP1"})
+    _doc(db, "box", DocType.folder, proto="tbox", attributes={"ref": "EAP1"})
     f = _doc(db, "f1", DocType.folder, parent="box", attributes={"ref": "EAP2"})
     assert effective_node_attributes(db, f)["ref"]["origin"] == "here"
     g = _doc(db, "f2", DocType.folder, parent="box")
@@ -59,7 +59,7 @@ def test_own_value_overrides_and_nothing_inherited_is_stored(db):
 
 
 def test_nearest_ancestor_wins(db):
-    _doc(db, "box", DocType.folder, proto="eap_box", attributes={"ref": "far"})
+    _doc(db, "box", DocType.folder, proto="tbox", attributes={"ref": "far"})
     _doc(db, "mid", DocType.folder, parent="box", attributes={"ref": "near"})
     f = _doc(db, "f1", DocType.folder, parent="mid")
     out = effective_node_attributes(db, f)
@@ -67,7 +67,7 @@ def test_nearest_ancestor_wins(db):
 
 
 def test_source_of_a_value_is_reported(db):
-    f = _doc(db, "f1", DocType.folder, proto="eap_folder", attributes={"title": "x"})
+    f = _doc(db, "f1", DocType.folder, proto="tfolder", attributes={"title": "x"})
     f.metadata = {"attribute_sources": {"title": {"by": "person", "name": "Ann"}}}
     db.save(f)
     out = effective_node_attributes(db, db.get(Document, "f1"))
