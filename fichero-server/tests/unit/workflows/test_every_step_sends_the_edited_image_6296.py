@@ -375,3 +375,55 @@ def test_an_edit_of_unknown_frame_is_read_whole_and_never_guessed_by_a_finder(pa
     reads the photograph (which says where its lines are)."""
     _unknown_frame_edit(page, monkeypatch)
     assert _sizes(step, page, monkeypatch) == [sends]
+
+
+async def _vlm_boxes(page, monkeypatch):
+    """A whole-page read by a model that returns boxes (as Find Regions with a VLM does): the boxes the model gave, as saved."""
+    import json
+    from unittest.mock import AsyncMock, patch
+
+    import fichero_server.llm as llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.vision_base import VisionToolConfig, process_vision
+
+    async def model(images, prompt, config, **_):
+        # a full-width band across the middle of the picture the model was handed, as fractions of THAT picture
+        return json.dumps({"text": "una linea", "boxes": [
+            {"text": "una linea", "bbox": [0.0, 0.25, 1.0, 0.1], "level": "line"}]})
+
+    monkeypatch.setattr(llm, "vision", model)
+    saved = AsyncMock(return_value="artifact-1")
+    with patch("fichero_server.workflows.tools.vision_base.save_artifact", new=saved):
+        await process_vision(
+            files=[page["path"]], documents=[{"id": page["doc"].id, "path": page["path"]}], prompt="boxes",
+            library_path=page["library"], llm_config=LLMConfig(provider="google", model="gemini-3-flash", api_key="k"),
+            task_id="t", tool_config=VisionToolConfig(artifact_type="regions", supports_apple_vision=False,
+                                                      update_page_content=False, trigger_embedding=False,
+                                                      skip_if_artifact_exists=False),
+            vision_mode="llm", return_boxes=True, force_return_boxes=True, save_to_db=True)
+    return saved.await_args.kwargs["ocr_geometry"]
+
+
+@pytest.mark.asyncio
+async def test_boxes_a_vision_model_returns_on_an_edited_page_are_stored_on_the_photograph(page, monkeypatch):
+    _set_edits(page, EDITS)
+    (box,) = (await _vlm_boxes(page, monkeypatch)).boxes
+    x, y, w, h = box.bbox
+    # the same band as the Apple Vision case: a tall strip on the photograph, inside the cropped region
+    assert (w * W, h * H) == pytest.approx((20, 150), abs=2)
+    assert (x * W, y * H) == pytest.approx((230, 50), abs=2)
+
+
+@pytest.mark.asyncio
+async def test_boxes_a_vision_model_returns_on_an_unedited_page_are_stored_as_they_came(page, monkeypatch):
+    (box,) = (await _vlm_boxes(page, monkeypatch)).boxes
+    assert box.bbox == pytest.approx([0.0, 0.25, 1.0, 0.1])
+
+
+@pytest.mark.asyncio
+async def test_a_vision_model_asked_for_boxes_on_an_edit_of_unknown_frame_is_sent_the_photograph(page, monkeypatch):
+    """The boxes are the point and are stored on the photograph: an edit whose place on it is unknown is not sent, so the boxes
+    the model gives are fractions of the photograph and valid as they are."""
+    _unknown_frame_edit(page, monkeypatch)
+    (box,) = (await _vlm_boxes(page, monkeypatch)).boxes
+    assert box.bbox == pytest.approx([0.0, 0.25, 1.0, 0.1])

@@ -4532,6 +4532,10 @@ async def process_vision(
                         _boxes_unsupported_reason,
                     )
                     _boxes_requested = False
+            if _boxes_requested and _page_image is not None and _page_image.frame_unknown:
+                # the boxes are the point and are stored on the photograph: an edit whose place on it is not known is not sent
+                _page_image = _page_image.for_geometry()
+                file_path = _page_image.path
             # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
             _preloaded_doc = (
                 page_doc_dict_by_index[file_index]
@@ -5374,6 +5378,8 @@ async def process_vision(
                             llm_config=effective_config,
                             page_index=requested_page_index,
                         )
+                        if _page_image is not None:  # the model's fractions are of the image it was sent: carried to the photograph
+                            page_geometry = _page_image.geometry_to_photograph(page_geometry)
                         parsed = parse_output(text, output_format, output_options)
                     else:
                         # #4309: no geometry from this pass — say WHY on the
