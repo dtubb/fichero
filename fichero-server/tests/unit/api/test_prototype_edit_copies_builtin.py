@@ -26,7 +26,7 @@ def _patch(db, value, attrs):
 def _undo(db, audit_id):
     audit = db.get(ActionAudit, audit_id)
     name, params = registry.get(audit.action_name).invert(audit.before, audit.after, CTX)
-    registry.invoke(db, name, params, CTX)
+    return registry.invoke(db, name, params, CTX)
 
 
 def _world(db):
@@ -97,6 +97,17 @@ def test_an_engine_kind_is_edited_in_place_and_no_node_moves_to_a_copy(db):
     assert {db.get(Document, d.id).prototype_key for d in openings} == {"opening"}
     assert not [v for v in db.query(ClassificationValue, dimension=DIM) if v.key.startswith("opening-copy")]
     assert result.audit_id
+
+
+def test_undoing_the_undo_brings_the_copy_and_its_assignments_back(db):
+    kind = _world(db)
+    result = _patch(db, kind, {"title": TITLE, "extra": {"type": "text", "order": 2}})
+    copy_keys = lambda: {v.key for v in db.query(ClassificationValue, dimension=DIM) if "-copy" in v.key}  # noqa: E731
+    copies, assigned = copy_keys(), db.get(Document, "own").prototype_key
+    revert = _undo(db, result.audit_id)
+    assert not copy_keys() and db.get(Document, "own").prototype_key == "tkind"
+    _undo(db, revert.audit_id)  # the redo
+    assert copy_keys() == copies and db.get(Document, "own").prototype_key == assigned
 
 
 def test_a_patch_of_a_builtin_through_the_real_route_lands_on_a_copy(client, db):

@@ -406,6 +406,25 @@ class ClassificationRevertCopyParams(BaseModel):
     documents: list[dict]
 
 
+class ClassificationReapplyCopyParams(BaseModel):
+    """``classification.reapply_copy``: bring a reverted built-in copy back (the undo of ``classification.revert_copy``)."""
+
+    values: list[dict]
+    documents: list[dict]
+
+
+def _invert_revert_copy(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("classification.reapply_copy", {"values": before["values"], "documents": before["documents"]})
+
+
+def _invert_reapply_copy(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("classification.revert_copy", {"value_ids": before["value_ids"], "documents": before["documents"]})
+
+
 def _invert_patch_or_copy(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
     if before and before.get("copied_for"):
         return ("classification.revert_copy", {"value_ids": before["created_ids"], "documents": before["documents"]})
@@ -479,26 +498,57 @@ def _get_proto(db: Database, key: str) -> ClassificationValue | None:
     return found[0] if found else None
 
 
+def _documents_now(db: Database, snapshots: list[dict]) -> list[dict]:
+    from fichero_server.models import Document
+
+    found = (db.get(Document, snap["id"]) for snap in snapshots)
+    return [doc.model_dump(mode="json") for doc in found if doc is not None]
+
+
 @action(
     "classification.revert_copy",
     ClassificationRevertCopyParams,
     domains=["classification", "document"],
-    undoable=False,  # ponytail: redo of a built-in's copy is the person's next edit; add an invert if redo is asked for
+    undoable=True,
+    invert=_invert_revert_copy,
 )
 def _action_revert_copy(
     db: Database, params: ClassificationRevertCopyParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     from fichero_server.api.routes.document.documents import restore_documents_impl
 
-    for value_id in params.value_ids:
-        value = db.get(ClassificationValue, value_id)
-        if value is not None:
-            db.delete(value)
+    values = [_snap_value(v) for value_id in params.value_ids if (v := db.get(ClassificationValue, value_id)) is not None]
+    copied_documents = _documents_now(db, params.documents)
+    for snap in values:
+        db.delete(db.get(ClassificationValue, snap["id"]))
     restored = restore_documents_impl(db, documents=params.documents)
     spec = ChangeSpec(domains=["classification", "document"], target_ids=[*params.value_ids, *restored],
-                      before=None, after={"deleted": params.value_ids}, emit_type="classification.deleted",
-                      document_ids=restored)
+                      before={"values": values, "documents": copied_documents}, after={"deleted": params.value_ids},
+                      emit_type="classification.deleted", document_ids=restored)
     return {"deleted": params.value_ids, "restored": restored}, spec
+
+
+@action(
+    "classification.reapply_copy",
+    ClassificationReapplyCopyParams,
+    domains=["classification", "document"],
+    undoable=True,
+    invert=_invert_reapply_copy,
+)
+def _action_reapply_copy(
+    db: Database, params: ClassificationReapplyCopyParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.api.routes.document.documents import restore_documents_impl
+
+    original_documents = _documents_now(db, params.documents)
+    for snapshot in params.values:
+        db.save(ClassificationValue(**snapshot))
+    restored = restore_documents_impl(db, documents=params.documents)
+    ids = [snapshot["id"] for snapshot in params.values]
+    spec = ChangeSpec(domains=["classification", "document"], target_ids=[*ids, *restored],
+                      before={"value_ids": ids, "documents": original_documents}, after={"created": ids},
+                      emit_type="classification.created", document_ids=restored)
+    return {"created": ids, "restored": restored}, spec
 
 
 @action(
