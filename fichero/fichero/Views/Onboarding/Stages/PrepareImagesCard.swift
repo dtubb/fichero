@@ -9,6 +9,8 @@ struct PrepareImagesCard: View {
     let store: RecipeSetupStore
     /// The project's folders, for a folder's own answers (`BakeoffStore.Folder.folders(in:)`).
     var folders: [BakeoffStore.Folder] = []
+    /// The project's actions, for answering a page on the worklist (each answer is one audited action with Undo).
+    var actionsService: ActionsService?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -36,11 +38,15 @@ struct PrepareImagesCard: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("prepareImages.estimate")
             }
+            PrepareImagesCheckList(store: store, actionsService: actionsService)
             if !folders.isEmpty {
                 PrepareImagesFolderAnswers(store: store, folders: folders)
             }
         }
-        .task { await store.loadPrepareFacts() }
+        .task {
+            await store.loadPrepareFacts()
+            await store.loadPrepareCheck()
+        }
     }
 }
 

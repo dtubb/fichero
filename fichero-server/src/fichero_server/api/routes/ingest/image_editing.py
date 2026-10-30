@@ -976,7 +976,22 @@ def square_image_impl(
     doc = _get_or_404_document(db, document_id)
     source_path, page = _resolve_source_and_page(db, doc, request.page)
     op = {"op": "square", "page": page, "params": {"quad": request.quad}, "who": "person"}
-    return _render_and_append(db, document_id, source_path, op, page)
+    run_value = ((doc.metadata or {}).get("prep_proposals") or {}).get("page_box") or (doc.metadata or {}).get("page_region")
+    if run_value:  # the person's row replaces the run's and keeps the run's values beside it (a training label)
+        op["replaces"] = {"by": run_value.get("by") or run_value.get("method"), "values": {
+            "quad": run_value.get("quad"), "box": run_value.get("box"), "confidence": run_value.get("confidence")}}
+    chain = _render_and_append(db, document_id, source_path, op, page)
+    _answer_proposal(db, doc, "page_box")
+    return chain
+
+
+def _answer_proposal(db: Database, doc: Any, kind: str) -> None:
+    """A person answered the run's proposal of `kind`: it leaves the worklist and the run does not propose it again."""
+    meta = dict(doc.metadata or {})
+    meta["prep_proposals"] = {k: v for k, v in (meta.get("prep_proposals") or {}).items() if k != kind}
+    meta["prep_answered"] = {**(meta.get("prep_answered") or {}), kind: "person"}
+    doc.metadata = meta
+    db.save(doc)
 
 
 def mark_blank_impl(db: Database, document_id: str, blank: bool, *, who: str = "person",
@@ -1005,7 +1020,9 @@ def rotate_image_impl(
         "page": page,
         "params": {"angle": request.angle, "expand": request.expand},
     }
-    return _render_and_append(db, document_id, source_path, op, page)
+    chain = _render_and_append(db, document_id, source_path, op, page)
+    _answer_proposal(db, doc, "turn")  # a person's turn answers the run's unsure turn
+    return chain
 
 
 def straighten_image_impl(
@@ -1688,20 +1705,98 @@ def _action_crop(
     )
 
 
+class RestoreProposalsParams(BaseModel):
+    """Params for image.restore_proposals — put a page's proposals, the kinds a person answered and (when given) its edit
+    chain back as they were: the inverse of a squaring or an Accept (`prep.check.correction-replaces-the-runs-row`)."""
+
+    document_id: str
+    proposals: dict[str, Any] = Field(default_factory=dict)
+    answered: dict[str, Any] = Field(default_factory=dict)
+    operations: list[dict[str, Any]] | None = None
+
+
+def _proposal_state(doc: Any) -> dict[str, Any]:
+    meta = doc.metadata or {}
+    return {"proposals": dict(meta.get("prep_proposals") or {}), "answered": dict(meta.get("prep_answered") or {})}
+
+
+def _invert_proposals(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    if not before or not before.get("document_id"):
+        return None
+    return "image.restore_proposals", {
+        "document_id": before["document_id"], "proposals": before.get("proposals", {}),
+        "answered": before.get("answered", {}), "operations": before.get("operations")}
+
+
 @action(
     "image.square",
     SquareImageActionParams,
-    domains=["image"],
+    domains=["image", "document"],
     undoable=True,
-    invert=_invert_image_chain,
+    invert=_invert_proposals,
 )
 def _action_square(
     db: Database, params: SquareImageActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    state = _proposal_state(_get_or_404_document(db, params.document_id))
     before_ops = _chain_ops_snapshot(db, params.document_id)
     chain = square_image_impl(db, params.document_id, params)
-    after_ops = [dict(op) for op in chain.operations]
-    return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, after_ops)
+    spec = _image_chain_spec(
+        params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
+    spec.before = {**(spec.before or {}), **state}
+    return _chain_result(chain), spec
+
+
+class AcceptProposalParams(BaseModel):
+    """Params for image.accept_proposal — a person looked at a page the run was unsure of and leaves it as it is."""
+
+    document_id: str
+    kind: str = Field(description="the proposal answered: page_box, turn or blank")
+
+
+@action(
+    "image.accept_proposal",
+    AcceptProposalParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_proposals,
+)
+def _action_accept_proposal(
+    db: Database, params: AcceptProposalParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc = _get_or_404_document(db, params.document_id)
+    state = _proposal_state(doc)
+    meta = dict(doc.metadata or {})
+    meta["prep_proposals"] = {k: v for k, v in state["proposals"].items() if k != params.kind}
+    meta["prep_answered"] = {**state["answered"], params.kind: "person"}
+    doc.metadata = meta
+    db.save(doc)
+    return {"document_id": doc.id, "kind": params.kind}, ChangeSpec(
+        domains=["document"], target_ids=[doc.id], before={"document_id": doc.id, **state},
+        after={"document_id": doc.id, "proposals": meta["prep_proposals"], "answered": meta["prep_answered"]},
+        emit_type="document.updated", document_ids=[doc.id])
+
+
+@action(
+    "image.restore_proposals",
+    RestoreProposalsParams,
+    domains=["image", "document"],
+    undoable=False,  # it is the inverse of a squaring or an Accept; redo is the audit's own
+)
+def _action_restore_proposals(
+    db: Database, params: RestoreProposalsParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    doc = _get_or_404_document(db, params.document_id)
+    meta = dict(doc.metadata or {})
+    meta["prep_proposals"] = dict(params.proposals)
+    meta["prep_answered"] = dict(params.answered)
+    doc.metadata = meta
+    db.save(doc)
+    chain = set_operations_impl(
+        db, params.document_id, list(before_ops if params.operations is None else params.operations))
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
 
 
 class RestoreBlankStateParams(BaseModel):
@@ -1778,19 +1873,20 @@ def _action_restore_blank(
 @action(
     "image.rotate",
     RotateImageActionParams,
-    domains=["image"],
+    domains=["image", "document"],
     undoable=True,
-    invert=_invert_image_chain,
+    invert=_invert_proposals,
 )
 def _action_rotate(
     db: Database, params: RotateImageActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    state = _proposal_state(_get_or_404_document(db, params.document_id))
     before_ops = _chain_ops_snapshot(db, params.document_id)
     chain = rotate_image_impl(db, params.document_id, params)
-    after_ops = [dict(op) for op in chain.operations]
-    return _chain_result(chain), _image_chain_spec(
-        params.document_id, before_ops, after_ops
-    )
+    spec = _image_chain_spec(
+        params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
+    spec.before = {**(spec.before or {}), **state}
+    return _chain_result(chain), spec
 
 
 @action(

@@ -61,6 +61,8 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             found = find_page(image)
             # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
             unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
+            if prepare:  # below its confidence the finder proposes (`prep.unsure-becomes-a-proposal`); sure again, the proposal goes
+                _propose(db, doc.id, "page_box", _page_box_proposal(found, run_id) if unsure else None, ctx)
             trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
             if prepare and meta.get("blank") is None:
                 # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
@@ -83,6 +85,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             if not trusted:
                 if prepare:
                     _clear(db, doc.id, everything=True)
+                    _propose(db, doc.id, "turn", None, ctx)
                 account["whole"] += 1
                 continue
             box = [round(v, 5) for v in found.box]
@@ -99,12 +102,40 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                              f"the page found by the {found.method} finder", box, None, method=found.method)
             account["cropped"] += 1
             if prepare:
-                _prepare(db, doc, image, found, run_id, library, crop_id)
+                _prepare(db, doc, image, found, run_id, library, crop_id, ctx)
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("page prep: %s skipped: %s", doc_id, exc)
             account["failed"] = account.get("failed", 0) + 1
             account.setdefault("failures", []).append({"page_id": doc_id, "why": str(exc)})
     return account
+
+
+def _page_box_proposal(found: Any, run_id: str) -> dict[str, Any]:
+    """The contour finder's unsure outline, kept on the page to be drawn as four dashed corners and listed in words."""
+    share = found.box[2] * found.box[3]
+    return {"quad": [list(p) for p in found.quad], "box": [round(v, 5) for v in found.box],
+            "confidence": round(float(found.confidence), 3), "by": f"run {run_id}",
+            "words": [f"the page edge is faint: {found.confidence:.0%} of the box is paper", f"the box found covers {share:.0%} of the picture"]}
+
+
+def _propose(db: Any, doc_id: str, kind: str, proposal: dict[str, Any] | None, ctx: Any) -> None:
+    """Store (or, with None, withdraw) the run's proposal of `kind` on the page (`metadata.prep_proposals.<kind>`); a kind a
+    person has answered (`prep_answered`) is never proposed again."""
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import Document
+
+    doc = db.get(Document, doc_id)
+    meta = dict(doc.metadata or {}) if doc is not None else {}
+    proposals = dict(meta.get("prep_proposals") or {})
+    if proposal is not None and (meta.get("prep_answered") or {}).get(kind):
+        return
+    if proposal is None and kind not in proposals:
+        return
+    if proposal is None:
+        proposals.pop(kind)
+    else:
+        proposals[kind] = proposal
+    registry.invoke(db, "document.update", {"doc_id": doc_id, "update": {"metadata": {"prep_proposals": proposals}}}, ctx)
 
 
 def _has_text(db: Any, doc_id: str, image: Any) -> bool:
@@ -153,7 +184,7 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
     return row.id
 
 
-def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path, crop_id: str) -> None:
+def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path, crop_id: str, ctx: Any) -> None:
     """The operations in order, each fed by the one before and each writing a rendition only when it changed something:
     square (`prep.square.*`, the homography on its row), flatten (`prep.flatten.*`, the control points), turn by the text
     (`prep.turn-by-the-text`, the quarter turn and its reason), straighten (`prep.straighten-and-flatten`, the angle)."""
@@ -174,6 +205,9 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
         parent = _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box, parent,
                         method="flatten", control_points=flat[1])
     turn = turn_by_text(base, db_path=str(db.path))
+    disagree = turn["reason"].startswith("the lines do not agree")  # no turn is written, the page is listed to be looked at
+    _propose(db, doc.id, "turn", {"reason": turn["reason"], "lines": turn["lines"], "by": f"run {run_id}",
+                                  "words": [turn["reason"]]} if disagree else None, ctx)
     if turn["angle"]:
         base = apply_operation(base, {"op": "rotate", "params": {"angle": turn["angle"]}})  # the editor's own turn
         parent = _write(db, doc, "rotated", base, run_id, library, turn["reason"], box, parent, method="turn", angle=turn["angle"])

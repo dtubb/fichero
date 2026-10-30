@@ -39,6 +39,14 @@ struct HandCreateRequest: Encodable, Equatable {
     let label: String
 }
 
+/// `image.accept_proposal`: a person looked at a page the run was unsure of and leaves it as it is (`kind`: page_box, turn, blank).
+struct ImageAcceptProposalRequest: Encodable, Equatable {
+    let documentId: String
+    let kind: String
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id", kind }
+}
+
 /// `image.square`: the page warped to a rectangle from a person's four corners (fractions of the upright image, top-left clockwise).
 struct ImageSquareRequest: Encodable, Equatable {
     let documentId: String

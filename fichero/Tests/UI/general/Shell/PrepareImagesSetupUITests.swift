@@ -66,4 +66,17 @@ final class PrepareImagesSetupUITests: FicheroUISessionTests {
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "prepareImages.folder.paper.show-through")
             .firstMatch.exists, "a folder's own paper answers are not offered")
     }
+
+    /// Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): after a run the card says how many pages the run
+    /// was unsure of (plus the sample) and opens the worklist with Accept and Open in Preview on each row.
+    func testThePagesToCheckLineOpensTheWorklist() throws {
+        try openPrepareImagesPage()
+        let line = app.descendants(matching: .any).matching(identifier: "prepareImages.toCheck").firstMatch
+        try XCTSkipUnless(line.waitForExistence(timeout: 5), "the seeded project has no page to check")
+        XCTAssertTrue(line.label.hasPrefix("Pages to check:"), line.label)
+        line.click()
+        let row = app.descendants(matching: .any).matching(identifier: "prepareImages.check.row").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "the worklist shows no row")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "prepareImages.check.open").firstMatch.exists)
+    }
 }

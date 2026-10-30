@@ -50,7 +50,8 @@ struct SetupStagePage: View {
                 Divider()
                 PrepareImagesCard(
                     store: store,
-                    folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [])
+                    folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [],
+                    actionsService: project?.actionsService)
             }
             if !stage.questions.isEmpty {
                 Divider()

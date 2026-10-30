@@ -112,6 +112,8 @@ final class RecipeSetupStore {
     var stages: [Components.Schemas.SetupStage] = []
     /// The Prepare Images card's suggestions, time line and sentence, from the engine (`loadPrepareFacts`).
     var prepareFacts: Components.Schemas.PrepareImagesFacts?
+    /// Pages to check after a Prepare Images run (`GET /api/recipes/prepare-images/check`, `loadPrepareCheck`).
+    var prepareCheck: Components.Schemas.PrepareCheckList?
     /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
     var stageChoice: SetupStageChoice?
     /// When, where and in which hand the material was written (section 7d, About the material).

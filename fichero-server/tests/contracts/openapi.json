@@ -15314,6 +15314,28 @@
         }
       }
     },
+    "/api/recipes/prepare-images/check": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Check",
+        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
+        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareCheckList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/prepare-images/facts": {
       "get": {
         "tags": [
@@ -82276,6 +82298,75 @@
         ],
         "title": "PredictionUncertaintySpan"
       },
+      "PrepareCheckItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "the proposals open on the page: page_box, turn, blank; none for a sample page"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Words",
+            "description": "what is unsure, in words"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "description": "a confident page checked as a sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kinds",
+          "words",
+          "sample"
+        ],
+        "title": "PrepareCheckItem"
+      },
+      "PrepareCheckList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PrepareCheckItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "proposed": {
+            "type": "integer",
+            "title": "Proposed",
+            "description": "how many items are proposals (they come first); the rest are the sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "proposed"
+        ],
+        "title": "PrepareCheckList"
+      },
       "PrepareImagesFacts": {
         "properties": {
           "suggestions": {
@@ -82295,6 +82386,12 @@
             "type": "string",
             "title": "How It Works",
             "description": "the engine's sentence naming the operations"
+          },
+          "to_check": {
+            "type": "integer",
+            "title": "To Check",
+            "description": "Pages to check: pages with a proposal plus the sample (`/prepare-images/check`)",
+            "default": 0
           }
         },
         "type": "object",

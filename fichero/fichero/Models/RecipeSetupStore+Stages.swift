@@ -34,6 +34,13 @@ extension RecipeSetupStore {
         }
     }
 
+    /// The Pages to check worklist (`prep.check.worklist-of-proposals-and-a-sample`): read again after every answer.
+    func loadPrepareCheck() async {
+        if case .ok(let success)? = try? await client.api.prepareImagesCheckApiRecipesPrepareImagesCheckGet() {
+            prepareCheck = try? success.body.json
+        }
+    }
+
     /// The chosen stages, in the engine's order: one page each.
     var chosenStageIds: [String] { stageChoice?.chosenInOrder ?? [] }
 

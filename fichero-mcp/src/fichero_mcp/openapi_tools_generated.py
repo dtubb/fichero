@@ -6516,6 +6516,12 @@ def fichero_recipes_put_places(
     return _rt.call("PUT", "/api/recipes/places", json=_rt.body({"places": places}))
 
 
+def fichero_recipes_prepare_images_check(
+) -> Any:
+    'Prepare Images Check\n\nPages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.\n\nRoute: GET /api/recipes/prepare-images/check (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/prepare-images/check")
+
+
 def fichero_recipes_prepare_images_facts(
 ) -> Any:
     'Prepare Images Facts\n\nWhat the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.\n\nRoute: GET /api/recipes/prepare-images/facts (toolset `recipes`; reads).'
@@ -9872,6 +9878,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_places", "recipes", "GET", "/api/recipes/places", fichero_recipes_get_places),
     GeneratedTool("fichero_recipes_put_places", "recipes", "PUT", "/api/recipes/places", fichero_recipes_put_places),
+    GeneratedTool("fichero_recipes_prepare_images_check", "recipes", "GET", "/api/recipes/prepare-images/check", fichero_recipes_prepare_images_check),
     GeneratedTool("fichero_recipes_prepare_images_facts", "recipes", "GET", "/api/recipes/prepare-images/facts", fichero_recipes_prepare_images_facts),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),

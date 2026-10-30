@@ -13747,6 +13747,17 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("prepare-images-check")
+    def recipes_prepare_images_check_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Prepare Images Check (GET /api/recipes/prepare-images/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/prepare-images/check"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("prepare-images-facts")
     def recipes_prepare_images_facts_get(
         ctx: typer.Context,
