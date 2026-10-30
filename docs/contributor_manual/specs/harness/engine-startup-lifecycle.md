@@ -425,7 +425,8 @@ errant `Fichero Server` from an earlier run, and the new app could not reach its
 - `engine.logs-pruned-at-launch` — **[PARTIAL]** (owner 2026-10-30) at engine start, files in the current
   log's folder that are rotated beyond the 5 kept, and any `*.log`, `*.log.N` or `*.log.gz` there older than
   14 days, are deleted. Never the current log; never a directory, a symlink, or any file outside the folder
-  the current log is in, and only when that folder is named `Fichero` (a path that points anywhere else
+  the current log is in, and only when that folder is a REAL `Logs/Fichero` (neither it nor `Logs` is a
+  symlink, and its resolved path ends `Logs/Fichero`: a link elsewhere, or any other folder named Fichero,
   deletes nothing). The engine is started by the app at every launch of a distribution build, so this
   is "at launch"; an app set to a remote host only never runs it (known edge). *Test:* same file. Engine side tested 2026-10-30; PARTIAL until the Lead's build proves the app passes `FICHERO_ENGINE_LOG_PATH` (one line in `+Spawn.swift`, written unbuilt).
 - `engine.repeated-log-line-collapses` — **[OK]** (owner 2026-10-30) a log line that repeats (same

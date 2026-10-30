@@ -67,13 +67,25 @@ def _keep_tail(path: Path, size: int, cap: int) -> None:
     scratch.replace(path)
 
 
+def _is_the_logs_folder(folder: Path) -> bool:
+    """`<anything>/Logs/Fichero` as a REAL directory: neither it nor `Logs` is a symlink, and its real path is
+    `Logs/Fichero` (a link into another folder, or a folder merely named Fichero elsewhere, is refused)."""
+    try:
+        if folder.is_symlink() or folder.parent.is_symlink() or not folder.is_dir():
+            return False
+        real = folder.resolve()
+    except OSError:
+        return False
+    return real.name == "Fichero" and real.parent.name == "Logs"
+
+
 def prune(
     current: Path, keep: int = DEFAULT_KEEP, max_age_days: int = DEFAULT_MAX_AGE_DAYS, now: float | None = None
 ) -> list[Path]:
     """Delete rotations beyond `keep` and logs older than `max_age_days` in the current log's folder.
-    Never the current log, a symlink, or anything when that folder is not named `Fichero`."""
+    Never the current log, a symlink, or anything unless that folder is a real `Logs/Fichero`."""
     folder = current.parent
-    if folder.name != "Fichero" or not folder.is_dir():
+    if not _is_the_logs_folder(folder):
         return []
     cutoff = (time.time() if now is None else now) - max_age_days * 86400
     removed: list[Path] = []

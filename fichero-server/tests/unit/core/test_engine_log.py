@@ -142,3 +142,31 @@ def test_a_running_engine_is_rotated_while_it_writes_through_the_raw_stream(tmp_
     assert "engine.log.1" in files and len(files) <= 4, files
     assert "LAST" in log.read_text()
     assert all(p.stat().st_size < 2000 + 2000 for p in folder.iterdir()), [(p.name, p.stat().st_size) for p in folder.iterdir()]
+
+
+def test_prune_refuses_a_log_folder_that_is_a_symlink(tmp_path):
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    precious = real / "precious.log"
+    precious.write_text("x")
+    old = time.time() - 40 * DAY
+    os.utime(precious, (old, old))
+    (tmp_path / "Logs").mkdir()
+    (tmp_path / "Logs" / "Fichero").symlink_to(real)
+    current = tmp_path / "Logs" / "Fichero" / "engine.log"
+    current.write_text("x")
+    assert engine_log.prune(current, keep=5, max_age_days=14) == []
+    assert precious.exists()
+
+
+def test_prune_requires_the_folder_to_be_logs_slash_fichero(tmp_path):
+    folder = tmp_path / "Documents" / "Fichero"          # named Fichero, but not under a Logs folder
+    folder.mkdir(parents=True)
+    victim = folder / "old.log"
+    victim.write_text("x")
+    old = time.time() - 40 * DAY
+    os.utime(victim, (old, old))
+    current = folder / "engine.log"
+    current.write_text("x")
+    assert engine_log.prune(current, keep=5, max_age_days=14) == []
+    assert victim.exists()
