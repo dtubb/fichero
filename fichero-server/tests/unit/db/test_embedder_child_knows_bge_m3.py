@@ -17,28 +17,48 @@ import pytest
 
 from fichero_server.db import embed_process, embeddings
 
-#: A child process that stands for the seed's: its fastembed never saw the engine's registration.
+#: The seed's child, for real: a fresh process (its fastembed never saw the engine's registration) runs `_serve` over a
+#: Pipe, as the forked child does. fastembed's `TextEmbedding.__init__` is stubbed with its own catalogue check, so no
+#: model files are needed: the load the child makes answers exactly what fastembed 0.8 would say about the name.
 _CHILD = textwrap.dedent("""
-    import json, sys
+    import json, multiprocessing, sys
     from fastembed import TextEmbedding
-    before = any(m.model.lower() == "baai/bge-m3" for m in TextEmbedding._list_supported_models())
+
+    def knows(name):
+        return any(m.model.lower() == name.lower() for m in TextEmbedding._list_supported_models())
+
+    def stub_init(self, model_name, cache_dir=None, threads=None, **kw):
+        if not knows(model_name):
+            raise ValueError(f"Model {model_name} is not supported in TextEmbedding.")
+
+    TextEmbedding.__init__ = stub_init
+    before = knows(sys.argv[1])
     from fichero_server.db import embed_process
-    embed_process.register_custom_model(sys.argv[1])
-    after = any(m.model.lower() == "baai/bge-m3" for m in TextEmbedding._list_supported_models())
-    print(json.dumps({"before": before, "after": after}))
+
+    parent, child = multiprocessing.Pipe()
+    pid = __import__("os").fork()
+    if pid == 0:
+        parent.close()
+        embed_process._serve(child, sys.argv[1], sys.argv[2], 1, {})
+    child.close()
+    kind, payload = parent.recv()
+    parent.close()
+    __import__("os").waitpid(pid, 0)
+    print(json.dumps({"before": before, "kind": kind, "payload": payload}))
 """)
 
 
-def test_a_fresh_process_learns_bge_m3_before_it_loads():
-    """What the seed's child sees: fastembed's own catalogue (no bge-m3), then the model registered by the loader."""
-    out = subprocess.run([sys.executable, "-c", _CHILD, embeddings.BGE_M3_EMBEDDING_SPACE.fastembed_model_name],
-                         capture_output=True, text=True, timeout=120, env={**os.environ, "FICHERO_EMBED_IN_PROCESS": "1"})
-    assert out.returncode == 0, out.stderr[-800:]
+def test_the_seed_s_child_loads_bge_m3_it_never_saw_registered(tmp_path):
+    """What the Air's child did: `_serve` -> `load_text_embedding("BAAI/bge-m3")` in a process that never registered it.
+    Without the registration in the loader it answers ("error", "ValueError: Model BAAI/bge-m3 is not supported...")."""
     import json
 
+    out = subprocess.run([sys.executable, "-c", _CHILD, embeddings.BGE_M3_EMBEDDING_SPACE.fastembed_model_name, str(tmp_path)],
+                         capture_output=True, text=True, timeout=120, env={**os.environ, "FICHERO_EMBED_IN_PROCESS": "1"})
+    assert out.returncode == 0, out.stderr[-800:]
     seen = json.loads(out.stdout.strip().splitlines()[-1])
     assert seen["before"] is False, "fastembed now ships bge-m3: the registration can go"
-    assert seen["after"] is True
+    assert seen["kind"] == "ready", seen["payload"]
 
 
 def test_a_model_that_will_not_load_is_said_once_and_not_tried_per_document(monkeypatch, caplog):
