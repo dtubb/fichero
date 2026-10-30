@@ -84,6 +84,11 @@ why it waits (`source.onboard.stages.try-waiting-says-why` (P), `test_a_waiting_
   owns the wording; pinned by `fichero-server/tests/unit/recipes/test_stage_try_does_not_wait_or_hide_5806.py`)
   a stage's Try runs on the sample pages only, as a person-started job on the lanes, and never starts
   the recipe; what it made is kept and shown as the try's, never counted as the run's.
+  *Changing (2026-10-30, `setup-try-live.md`):* the try lands on the real page as a try pass of its own
+  (`setup-try.run.lands-on-the-page-as-a-try-pass`), keyed and never run twice for the same model, settings
+  and input (`setup-try.reuse.never-the-same-model-on-the-same-input`); it still changes no existing pass,
+  never becomes the working pass by itself and is not the run's. Whether Start counts a matching try as
+  done (`source.recipe.done-is-not-redone`) is that spec's open question 1.
 
 ### 2. Start: on the project, or on one folder
 

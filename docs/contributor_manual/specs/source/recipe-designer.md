@@ -559,6 +559,18 @@ the Try is pressed (`source.try.any-time` (G), `source.find.try-before-default` 
 - `designer.compare.person-chooses` [PARTIAL] (#6052) — the compare proposes; the person chooses with
   Use This One per column (`use-candidate`, unchanged); a step lists only what that press accepts.
 
+**Improves — trying live (the maintainer's direction, 2026-10-30; `setup-try-live.md`).** Scores are not
+enough: every sampleable stage page embeds Preview with an item list, so a person picks a page, runs the
+step on it with the model and settings beside it, sees the output drawn, corrects it with Preview's own
+tools (a real edit, a checked line), changes the model or a setting and runs again, steps through pages
+and keeps what works. The compare becomes a mode of that Preview and `StageCompareWindow` goes. The
+behaviours are `setup-try.*` in `setup-try-live.md`; the ones this section's lines depend on:
+`setup-try.reuse.never-the-same-model-on-the-same-input` (a try is keyed on job, model version, settings
+and input, and never runs twice: the compare, the automatic compare and the bake-off reuse try passes,
+`setup-try.reuse.compare-and-bakeoff-reuse-tries`), `setup-try.cost.price-on-the-button` (the price on the
+button, the press is the yes, spent from the project cloud cap) and `setup-try.compare.is-a-mode-of-the-same-preview`
+(which meets `designer.compare.side-by-side-text`).
+
 ### 9. Checking lines (new journey point; the step every measure depends on)
 
 **Exists.** A line is corrected in place from the Reader or the Inspector with Correct this line
@@ -767,6 +779,12 @@ on approval; nothing else above alters an existing line.
 8. **The first draft's ids.** `recipe.rank.*`, `recipe.compare.*`, `recipe.review.*`, `recipe.coverage.*`,
    `recipe.regions.*` and `source.recipe.distil-*` from `recipe-ranking-and-compare.md` are retired for
    the `designer.*` ids above; no test cited them.
+
+9. **The compare is a mode of the embedded Preview (2026-10-30).** `designer.compare.side-by-side-text`,
+   `source.onboard.stages.compare-results-per-model` and `StageCompareWindow` are met and replaced by
+   `setup-try.compare.*` in `setup-try-live.md`; the try lands on the real page as a try pass and is never
+   run twice for the same key, which the automatic compare (`designer.compare.runs-by-itself`) and the
+   bake-off read before reading a page again.
 
 Not changed: the stage names and order (a one-page "Find the layout" is only `[PROPOSED]`); the places
 setting, the pages-may-leave question and the spend caps (a path shows them and proposes, it never

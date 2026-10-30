@@ -88,6 +88,17 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
 - `preview.edit.quarter-turns-are-lossless` — **[OK]** a 90/180/270-degree rotation is a
   lossless quarter-turn operation, not a lossy re-encode-and-rotate. Pinned:
   `test_image_edit_chains.py::TestQuarterTurnsAreLossless`.
+- `preview.edit.model-steps-read-the-edited-image` — **[BROKEN]** (#6296; reported by the maintainer
+  2026-10-30) one image-editing system: every step that sends a page image to a model (Find Regions, Find
+  Lines, a line read, a whole-page read, Review) reads the page's CURRENT edited image: the edit chain a
+  person applied here, then the Prepare Images renditions, the original only when there is neither; line
+  pictures are cut from that image with the line boxes in the same frame; Undo here changes what the next
+  run or try reads; Prepare Images writes through this same chain and renditions, never a separate pipeline
+  (`prep.prepared-image-attached-as-rendition` (B), #5386). Today the readers resolve `storage.resolve_source`
+  (the original file) and ignore the chain, so an edit made in Preview is not what a model sees. A Set Up
+  try's reuse key is built on this (`setup-try.reuse.key`, `../source/setup-try-live.md`). *Test (to write):*
+  `fichero-server/tests/unit/recipes/test_try_reads_the_edited_image_6296.py` (a crop in the chain changes
+  the bytes the reader is handed and the frame of the line cuts; Undo restores the original).
 
 ### B. Mounting — reached through the Preview surface's Edits facet
 
@@ -216,9 +227,19 @@ as *Note*, where it is reached the same way.
 - `preview.edit.tool.adjust-sections-match-the-suite` — **[GAP]** (#6185) a Swift test walks the engine's step registry (from the OpenAPI schema of the params models) and asserts Adjust has a section for every pixel step and no section for a step the engine lacks, so the editor and the recipe cannot drift (`image.enhance.every-step-is-a-recipe-step-and-an-editor-control`).
 - `preview.edit.tool.proposal-is-the-tools-handles` — **[GAP]** (#5382) a page opened from the Set Up worklist (`prep.check.worklist-of-proposals-and-a-sample`) comes up with the proposing tool selected and its dashed handles shown; Return accepts, a drag corrects; either writes the `who: person` row (`prep.check.correction-replaces-the-runs-row`).
 - `preview.edit.tool.compare-is-hold-and-wipe` — **[GAP]** (#4872) Before is press-and-hold; Compare toggles the wipe; the Side-by-Side mode and the Original/Edited segment are removed (`preview.edit.compare-modes-single-side-by-side-wipe` is superseded by this line).
+- `preview.edit.tool.works-embedded-in-set-up` — **[GAP]** (#6296; `../source/setup-try-live.md`,
+  `setup-try.preview.is-the-one-preview`) the same editor, tools and proposal handles mount inside Set Up's
+  embedded Preview; a Prepare Images try seeds the handles (`setup-try.show.prepare-images`) and Return
+  writes the person's row on the real page; no second editor. *Test:*
+  `fichero/Tests/Unit/general/Views/Onboarding/SetupPreviewMountTests.swift`.
 - `preview.edit.tool.retired-ops-still-render` — **[GAP]** (#6190) a chain carrying `remove_background`, `fuzzy_clean`, `segment` or a legacy `enhance` renders to the same pixels as before and shows its row; no new row of those kinds is written by the app.
 
 ### Build order
+
+#### Step T.0 — Models read the edited image (#6296)
+- Behaviours: `preview.edit.model-steps-read-the-edited-image`
+- Tests: fichero-server/tests/unit/recipes/test_try_reads_the_edited_image_6296.py
+- Size: M
 
 #### Step T.1 — One icon table and the tool set (#1420)
 - Behaviours: `preview.edit.tool.one-icon-table`, `preview.edit.tool.set-is-exactly-this`, `preview.edit.tool.retired-ops-still-render`, `preview.edit.tool.compare-is-hold-and-wipe`
@@ -242,6 +263,12 @@ as *Note*, where it is reached the same way.
 - Tests: fichero/Tests/Unit/general/Views/Preview/ImageEditAdjustControlsTests.swift, fichero/Tests/UI/general/ImageEditToolsUITests.swift
 - Depends on: T.3
 - Size: M
+
+#### Step T.5 — The editor embedded in Set Up
+- Behaviours: `preview.edit.tool.works-embedded-in-set-up`
+- Tests: fichero/Tests/Unit/general/Views/Onboarding/SetupPreviewMountTests.swift
+- Depends on: T.3
+- Size: S
 
 ## PASS 2 — the fold (legacy milestone #168, 16 issues, every body read fresh)
 
