@@ -913,8 +913,13 @@ DOWNLOAD_RETRY_WINDOW_SECONDS = 3600.0
 def wait_for_the_search_model(db, why: str, cause: BaseException | None = None) -> None:
     """The running embed job waits (it comes back after EMBED_RETRY_SECONDS) while the app fetches Search's model; never
     a failed page (#6218). Raises `JobDeferred` with `why`."""
+    from fichero_server.db.embed_process import is_a_load_defect
     from fichero_server.execution import jobs
 
+    if is_a_load_defect(why):
+        # The files are here and the model will not load: no download mends it, so the job FAILS with the sentence
+        # (Activity shows it once) rather than coming back every two minutes for every page (the Air, 2026-10-30).
+        raise RuntimeError(why) from cause
     job_id = getattr(jobs._current, "job_id", None)
     if job_id:
         jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)

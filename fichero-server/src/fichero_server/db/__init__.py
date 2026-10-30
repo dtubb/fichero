@@ -6377,8 +6377,12 @@ class Database(DatabaseEmbeddingMixin):
             # anyway — so an entirely unembedded library looked identical to a
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
-            logger.warning("Failed to create embedding for %s: %s", doc.id, e)
             from fichero_server.db.embed_process import EmbedderUnavailable
+
+            # A model that cannot load is said ONCE, by the loader (`embeddings._get_shared_embedder`); the Air logged
+            # this warning 31,385 times for one cause (2026-10-30). The outcome below still carries the words.
+            (logger.debug if isinstance(e, EmbedderUnavailable) else logger.warning)(
+                "Failed to create embedding for %s: %s", doc.id, e)
 
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,

@@ -52,7 +52,18 @@ def load_failure_words(payload: str, cached: bool) -> str:
     if missing and not cached:
         return ("Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet "
                 "connection; it tries again later and nothing already indexed is lost.")
-    return f"The search model could not be loaded: {text}"
+    return f"{WILL_NOT_LOAD} {text}"
+
+
+#: How a load failure that is NOT a missing download begins: the files are here and the model still will not load (a
+#: build without the model, a broken file). Waiting for a download will not mend it, so the embed lane says so once
+#: and parks instead of trying every page (`is_a_load_defect`).
+WILL_NOT_LOAD = "Search indexing is off: the search model could not be loaded."
+
+
+def is_a_load_defect(words: str) -> bool:
+    """Whether `words` (an `EmbedderUnavailable`'s) say the model is here and will not load, as against not yet here."""
+    return words.startswith(WILL_NOT_LOAD)
 
 
 def in_process() -> bool:
@@ -147,10 +158,24 @@ def materialise_model_links(cache_dir: str) -> None:
                     os.unlink(tmp)
 
 
+def register_custom_model(model_name: str) -> None:
+    """Tell THIS process's fastembed about `model_name` when it is one of ours that fastembed's catalogue lacks (bge-m3).
+
+    The engine registers it when it checks the cache (`_cached`), but the model loads in a child the SEED forked at
+    engine start, before any registration ran, so the child's fastembed had never heard of it: every embed on the Air
+    failed with "Model BAAI/bge-m3 is not supported in TextEmbedding", 31,385 times in a morning (2026-10-30)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    if space is not None:
+        _register_fastembed_model_for_space(space)
+
+
 def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
     """fastembed's `TextEmbedding`, retried once with the cache's links made real if the load escapes the model folder (#6024)."""
     from fastembed import TextEmbedding
 
+    register_custom_model(model_name)
     try:  # only a load that fails this way touches the cache: a model that loads is never rewritten
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
     except Exception as exc:  # noqa: BLE001 -- the cache's files are links into blobs/
