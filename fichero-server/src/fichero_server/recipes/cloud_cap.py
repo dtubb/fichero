@@ -78,10 +78,17 @@ def only_if_set(**named: Any) -> dict[str, Any]:
 
 def first_pages_of(db: Any, count: int) -> list[str]:
     """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
-    runs (#6295)."""
-    from fichero_server.recipes.done import pages_for
+    runs (#6295). A photograph cut into pages is read as one, all its cuts (`runner._units`), so the first pages end at the
+    last cut of the photograph they reach: the plan counts what the run reads."""
+    from fichero_server.recipes.done import _documents, _is_split_page, pages_for
 
-    return pages_for(db, {}, None)[:count]
+    pages = pages_for(db, {}, None)
+    first = pages[:count]
+    if len(first) == len(pages):
+        return first
+    photograph = {d.id: d.parent_id for d in _documents(db, None) if not d.deleted_at and _is_split_page(d)}
+    reached = {photograph[p] for p in first if p in photograph}
+    return first + [p for p in pages[count:] if photograph.get(p) in reached] if reached else first
 
 
 def cap_refusals(plan: dict) -> None:
@@ -111,13 +118,11 @@ def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pa
     if line["project_remaining_usd"] is not None:
         left.append(line["project_remaining_usd"])
     room = min(left)
-    first = first_pages_of(db, pages)
-
     def fits(count: int) -> bool:
-        cost = price(set(first[:count]))["total_cost_usd"]
+        cost = price(set(first_pages_of(db, count)))["total_cost_usd"]
         return cost is not None and cost <= room + 1e-9
 
-    low, high = 0, len(first) - 1  # `low` fits (no page costs nothing); the whole run does not
+    low, high = 0, pages - 1  # `low` fits (no page costs nothing); the whole run does not
     while low < high:
         middle = (low + high + 1) // 2
         low, high = (middle, high) if fits(middle) else (low, middle - 1)
