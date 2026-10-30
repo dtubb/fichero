@@ -81,3 +81,34 @@ def test_a_page_prepared_from_the_same_file_is_not_found_again_on_the_next_run(d
     scan(ruler=False).save(path)  # the file changed
     assert page_crop.crop_pages(db, [doc.id], "run-4", prepare=True, reuse=True)["unchanged"] == 0
     assert len(calls) == 3
+
+
+def test_curated_exclusion_and_a_cut_page_survive_crop_pages_not_only_mark_blank(db, tmp_path, monkeypatch):
+    """Review MED 7: `done._is_split_page` and the unit-of-work query read `metadata.blank`. Through `crop_pages` (which writes
+    the page box), a page a person curated out and a chunk cut from a photograph keep their state, so a run counts both."""
+    from fichero_server.media import find_page as module
+    from fichero_server.recipes.done import pages_for
+    from fichero_server.recipes.page_crop import crop_pages
+
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    path = tmp_path / "scan.png"
+    scan().save(path)
+    source = Document(name="photo.png", doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    curated = Document(name="curated.png", doc_type=DocType.page, file_type=FileType.image, path=str(path), metadata={},
+                       exclude_from_processing=True)
+    db.save(source)
+    db.save(curated)
+    cut = Document(name="cut.png", doc_type=DocType.chunk, file_type=FileType.image, path=str(path),
+                   metadata={"split_source_id": source.id})
+    db.save(cut)
+    before = set(pages_for(db, {}, None))
+
+    crop_pages(db, [curated.id, cut.id], "run-1", prepare=True)
+    crop_pages(db, [curated.id, cut.id], "run-2", prepare=True)
+
+    assert curated.id in set(pages_for(db, {}, None)) and cut.id in set(pages_for(db, {}, None))
+    assert set(pages_for(db, {}, None)) == before
+    assert db.get(Document, curated.id).exclude_from_processing is True
+    assert db.get(Document, cut.id).metadata["split_source_id"] == source.id
+
+
