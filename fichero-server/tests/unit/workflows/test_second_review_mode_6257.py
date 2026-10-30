@@ -182,3 +182,20 @@ def test_reading_before_reviews_asks_the_db_per_step_back_not_per_line(db, monke
     got = readings_before_reviews(db, readings)
     assert not gets, "no single-row lookups"
     assert got[next(r.id for r in readings if r.content == FIRST_REVIEW)].content == before
+
+
+def test_a_page_read_as_words_names_the_line_in_the_settle_block_never_a_word(db):
+    from tests.unit.api.test_a_word_pass_never_outranks_read_lines_5648 import _page, _words_in_lines
+
+    doc_id = _page(db)
+    lines, words = _words_in_lines(db, doc_id)
+    word = words[lines[0]][1]
+    reading = next(r for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id == word)
+    artifact = Artifact(document_id=doc_id, artifact_type="transcription_review", content=f"{word} | {FIRST_REVIEW}")
+    db.save(artifact)
+    write_readings(db, document_id=doc_id, readings=[(word, FIRST_REVIEW)], artifact_id=artifact.id, run_id=None,
+                   derived_from={word: reading.id})
+    got = tool_context(db, doc_id, review_mode=BOTH)
+    assert got.segment_ids == lines
+    assert list(got.first_review) == [lines[0]] and FIRST_REVIEW in got.first_review[lines[0]]
+    assert got.text.splitlines()[0].endswith("w00 w01 w02")  # the line as the second reviewer is shown it

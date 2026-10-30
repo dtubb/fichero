@@ -142,18 +142,22 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
         )
     }
     rows: list[tuple[str, Any, Any, str]] = []  # (segment id, its row, its reading, its text)
-    first_review: dict[str, str] = {}
+    theirs: list[tuple[str, Any, Any, str]] = []  # the same rows with the first review's text where it changed one
     spans = [s for s in derived.spans if s.representation_id is not None and (wanted is None or in_scope(s.segment_id))]
     before = readings_before_reviews(db, [readings.get(s.representation_id) for s in spans]) \
         if review_mode != IN_TURN else {}
     for span in spans:
         reading, text = readings.get(span.representation_id), derived.text[span.start:span.end].replace("\n", " ")
         first = before.get(getattr(reading, "id", None))
+        first_text = text
         if first is not None and first is not reading and first.content.strip() != text.strip():
-            first_review[span.segment_id] = text
             reading, text = first, first.content.replace("\n", " ")
         rows.append((span.segment_id, shapes.get(span.segment_id), reading, text))
-    rows = _grouped_into_lines(rows, shapes)
+        theirs.append((span.segment_id, shapes.get(span.segment_id), reading, first_text))
+    rows, theirs = _grouped_into_lines(rows, shapes), _grouped_into_lines(theirs, shapes)
+    # keyed by the line the model is shown (a page read as words is listed by its lines)
+    first_review = {line_id: said for (line_id, _r, _g, mine), (_i, _row, _rd, said) in zip(rows, theirs)
+                    if said.strip() != mine.strip()}
     lines, ids = [], []
     for segment_id, row, reading, text in rows:
         box = " ".join(f"{v:.3f}" for v in (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h)) if row else "- - - -"
