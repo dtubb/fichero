@@ -3,7 +3,8 @@ import Foundation
 
 /// What a person can do in place when the cloud spend caps stop (or would stop) a run (#6295, `ai.where.cloud-spend-cap`):
 /// the engine's `cloud_cap` line read as words and offers. The amounts are the engine's (`needed_cap_usd`,
-/// `needed_project_cap_usd`, `fewer_pages`): the best estimate, no margin; nothing is worked out here. Pure, for the tests.
+/// `needed_project_cap_usd`, `project_remaining_usd`, `fewer_pages`): the best estimate, no margin; nothing is worked out here.
+/// Pure, for the tests.
 struct CloudCapFix: Equatable {
     /// "Raise the monthly cap to $18.00": the cap to set, in dollars.
     struct Raise: Equatable {
@@ -39,7 +40,7 @@ struct CloudCapFix: Equatable {
             parts.append("the monthly cap (\(Self.usd(line.capUsd))) leaves \(Self.usd(line.remainingUsd))")
         }
         if line.overProject == true, let cap = line.projectCapUsd {
-            parts.append("the project's total cap (\(Self.usd(cap))) leaves \(Self.usd(max(0, cap - (line.projectSpentUsd ?? 0))))")
+            parts.append("the project's total cap (\(Self.usd(cap))) leaves \(Self.usd(line.projectRemainingUsd ?? 0))")
         }
         reason = "This run is estimated at \(Self.usd(estimate)), more than " + parts.joined(separator: " and ") + "."
     }
@@ -64,16 +65,13 @@ struct CloudCapFix: Equatable {
         }
     }
 
-    /// Whether a plan refusal is the cap's (`_cap_refusals`): the cap row says it, with its fixes, so the list does not.
-    nonisolated static func isCapRefusal(_ refusal: String) -> Bool {
-        refusal.hasPrefix("This run is estimated at US$") && refusal.contains(" cap ")
+    /// The plan's refusals without the cap's own: the cap row says that one, with its fixes, so the list does not say it twice. The
+    /// engine names the sentence it added (`cloud_cap.refusal`); no words are matched here.
+    nonisolated static func withoutCapRefusal(_ refusals: [String], line: Components.Schemas.CloudCapLine?) -> [String] {
+        guard let said = line?.refusal else { return refusals }
+        return refusals.filter { $0 != said }
     }
 
-    /// Whether words are about a spend cap: the plan's refusal, the 422 a refused Start answers with it, or a run's own reason
-    /// when a call was refused at the cap (`spend.py`: "cloud spend is capped", "capped at").
-    nonisolated static func mentionsCap(_ words: String?) -> Bool {
-        guard let words else { return false }
-        return isCapRefusal(words) || words.contains("Start is refused: This run is estimated at US$") && words.contains(" cap ")
-            || words.contains("cloud spend is capped")
-    }
+    /// Whether the plan is over a cap, so a refused Start has fixes to offer (`cloud_cap.over`), whatever the refusal's words.
+    nonisolated static func isOver(_ line: Components.Schemas.CloudCapLine?) -> Bool { line?.over == true }
 }

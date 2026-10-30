@@ -24,8 +24,9 @@ struct RecipeReadyFields: View {
             if let error = store.errorMessage {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-                    // A Start refused for a spend cap offers its fixes here, where the error is, not only below (#6295).
-                    if CloudCapFix.mentionsCap(error), let cap = store.startPlan?.cloudCap, cap.over {
+                    // A Start refused while the plan is over a cap offers its fixes here, where the error is (#6295): the plan's
+                    // `cloud_cap.over` decides, not the words of the error.
+                    if let cap = store.startPlan?.cloudCap, CloudCapFix.isOver(cap) {
                         CloudCapOffers(store: store, line: cap, undo: project?.actionsService)
                     }
                 }

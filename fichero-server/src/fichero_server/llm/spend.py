@@ -329,7 +329,8 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
             "over": over_month or over_project, "unpriced": estimate_usd is None,
             "over_month": over_month, "over_project": over_project,
             "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,
-            "project_cap_usd": project_cap, "project_spent_usd": total,
+            "project_cap_usd": project_cap, "project_spent_usd": total, "project_remaining_usd": project_remaining,
+            "refusal": None,
             "needed_project_cap_usd": needed_cap_usd(total, estimate_usd) if over_project else None,
             "fewer_pages": None, "pages": pages,
             "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}

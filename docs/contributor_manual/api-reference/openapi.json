@@ -59098,6 +59098,18 @@
             "description": "what its cloud calls have cost in all, across months",
             "default": 0.0
           },
+          "project_remaining_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Remaining Usd",
+            "description": "what the project's total cap leaves, `project_cap_usd` less `project_spent_usd`, not below 0; null: no total cap"
+          },
+          "refusal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Refusal",
+            "description": "when `over`: the sentence this cap adds to the plan's `refusals`, exactly, so a client can tell which refusal is the cap's without reading its words; null otherwise"
+          },
           "needed_project_cap_usd": {
             "type": "number",
             "nullable": true,

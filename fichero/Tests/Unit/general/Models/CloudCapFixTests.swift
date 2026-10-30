@@ -36,7 +36,9 @@ struct CloudCapFixTests {
     }
 
     @Test func aRunOverTheProjectCapOffersThatCapAlone() throws {
-        let fix = CloudCapFix(try line(#","over_project":true,"project_cap_usd":5,"project_spent_usd":2,"needed_project_cap_usd":16"#))
+        let fix = CloudCapFix(try line(
+            #","over_project":true,"project_cap_usd":5,"project_spent_usd":2,"project_remaining_usd":3,"#
+                + #""needed_project_cap_usd":16"#))
         #expect(fix.monthly == nil)
         #expect(fix.project == .init(usd: 16, title: "Raise the project cap to \(usd(16))"))
         #expect(fix.reason == "This run is estimated at \(usd(14)), more than the project's total cap (\(usd(5))) leaves \(usd(3)).")
@@ -45,7 +47,7 @@ struct CloudCapFixTests {
     @Test func overBothCapsOffersBothAndNamesBoth() throws {
         let fix = CloudCapFix(try line(
             #","over_month":true,"needed_cap_usd":18,"over_project":true,"project_cap_usd":5,"#
-                + #""project_spent_usd":2,"needed_project_cap_usd":16"#))
+                + #""project_spent_usd":2,"project_remaining_usd":3,"needed_project_cap_usd":16"#))
         #expect(fix.monthly?.usd == 18 && fix.project?.usd == 16)
         #expect(fix.reason?.contains("the monthly cap") == true && fix.reason?.contains("and the project's total cap") == true)
     }
@@ -79,15 +81,16 @@ struct CloudCapFixTests {
         ])
     }
 
-    @Test func theCapsRefusalIsRecognisedWhereverItIsSaid() {
-        let said = "This run is estimated at US$14.00 of cloud spending: more than the US$6.00 your project's "
-            + "monthly cap leaves this month (cap US$10.00 a month). "
-            + "Raise the monthly cap to US$18.00, or run fewer pages, or choose a cheaper model."
-        #expect(CloudCapFix.isCapRefusal(said))
-        #expect(CloudCapFix.mentionsCap("Start is refused: " + said), "the 422 a refused Start answers with")
-        #expect(CloudCapFix.mentionsCap("This call could cost up to $0.04 and this project's cloud spend is capped at $1.00 in all"))
-        #expect(!CloudCapFix.isCapRefusal("step 1 (find-lines): its model is not pinned in a known form"))
-        #expect(!CloudCapFix.mentionsCap("This project has no material yet") && !CloudCapFix.mentionsCap(nil))
+    /// The cap's refusal is told apart by the engine's own field, not by its words: with another refusal first, the sentence
+    /// is still the cap's, and a reworded sentence changes nothing here.
+    @Test func theCapsRefusalIsTheOneTheEngineNames() throws {
+        let said = "This run costs more than the cap, in whatever words the engine uses."
+        let other = "step 1 (find-lines): its model is not pinned in a known form"
+        let capped = try line(#","over_month":true,"needed_cap_usd":18,"refusal":"\#(said)""#)
+        #expect(CloudCapFix.withoutCapRefusal([other, said], line: capped) == [other])
+        #expect(CloudCapFix.withoutCapRefusal([said], line: capped).isEmpty)
+        #expect(CloudCapFix.withoutCapRefusal([other], line: nil) == [other], "no line: nothing is hidden")
+        #expect(CloudCapFix.isOver(capped) && !CloudCapFix.isOver(nil))
     }
 
     @Test func aFieldChangeSendsOnlyWhatMovedAndClearsAnEmptiedProjectCap() throws {

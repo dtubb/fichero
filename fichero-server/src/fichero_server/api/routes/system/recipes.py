@@ -2448,6 +2448,11 @@ class CloudCapLine(BaseModel):
     project_cap_usd: Optional[float] = Field(default=None, description=(
         "the most the project may spend on cloud calls in all (`answers.cloud_project_cap_usd`); null: no such limit"))
     project_spent_usd: float = Field(default=0.0, description="what its cloud calls have cost in all, across months")
+    project_remaining_usd: Optional[float] = Field(default=None, description=(
+        "what the project's total cap leaves, `project_cap_usd` less `project_spent_usd`, not below 0; null: no total cap"))
+    refusal: Optional[str] = Field(default=None, description=(
+        "when `over`: the sentence this cap adds to the plan's `refusals`, exactly, so a client can tell which refusal is the cap's "
+        "without reading its words; null otherwise"))
     needed_project_cap_usd: Optional[float] = Field(default=None, description=(
         "when `over_project`: the project cap under which this run's estimate fits (spent in all plus the estimate, to the cent)"))
     pages: int = Field(default=0, description="the pages the estimate is for")
@@ -2688,8 +2693,8 @@ def _first_pages_that_fit(db: Database, plan: dict[str, Any], line: dict[str, An
     from fichero_server.recipes.done import material
 
     left = [line["remaining_usd"]]
-    if line["project_cap_usd"] is not None:
-        left.append(max(0.0, line["project_cap_usd"] - line["project_spent_usd"]))
+    if line["project_remaining_usd"] is not None:
+        left.append(line["project_remaining_usd"])
     room = min(left)
     first = _first_pages(db, pages)
 
@@ -2947,11 +2952,11 @@ def _cap_refusals(plan: dict) -> None:
         said.append(f"more than the US${line['remaining_usd']:,.2f} your project's monthly cap leaves this month "
                     f"(cap US${line['cap_usd']:,.2f} a month). Raise the monthly cap to US${line['needed_cap_usd']:,.2f}")
     if line["over_project"]:
-        project_left = max(0.0, line["project_cap_usd"] - line["project_spent_usd"])
-        said.append(f"more than the US${project_left:,.2f} your project's total cap leaves (cap US${line['project_cap_usd']:,.2f} "
+        said.append(f"more than the US${line['project_remaining_usd']:,.2f} your project's total cap leaves (cap US${line['project_cap_usd']:,.2f} "
                     f"in all). Raise the project cap to US${line['needed_project_cap_usd']:,.2f}")
     fewer = f", or run the first {line['fewer_pages']} pages" if line.get("fewer_pages") else ", or run fewer pages"
-    plan["refusals"] = [*plan["refusals"], ", ".join(said[:1]) + ": " + "; and ".join(said[1:]) + f"{fewer}, or choose a cheaper model."]
+    line["refusal"] = ", ".join(said[:1]) + ": " + "; and ".join(said[1:]) + f"{fewer}, or choose a cheaper model."
+    plan["refusals"] = [*plan["refusals"], line["refusal"]]
 
 
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).

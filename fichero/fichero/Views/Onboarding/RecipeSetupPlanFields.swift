@@ -245,8 +245,8 @@ struct RecipeStartFields: View {
                 // A refusal that names a step sits in that step's box (#5840), so only the others are here.
                 let stepIds = Set((store.recipe?.steps ?? []).map(\.id))
                 // The cap's refusal is said, with its fixes, by the cap row above (#6295): not twice.
-                ForEach(plan.refusals.filter {
-                    !CloudCapFix.isCapRefusal($0) && (Self.stepId(ofRefusal: $0).map { !stepIds.contains($0) } ?? true)
+                ForEach(CloudCapFix.withoutCapRefusal(plan.refusals, line: plan.cloudCap).filter {
+                    Self.stepId(ofRefusal: $0).map { !stepIds.contains($0) } ?? true
                 }, id: \.self) { refusal in
                     Label(Self.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
                         .font(.body)

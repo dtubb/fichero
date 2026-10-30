@@ -156,8 +156,10 @@ def _line(**kw) -> dict:
         "needed_cap_usd": None,
         "project_cap_usd": None,
         "project_spent_usd": 0.0,
+        "project_remaining_usd": None,
         "needed_project_cap_usd": None,
         "fewer_pages": None,
+        "refusal": None,
     }
     return {**base, **kw}
 
@@ -188,6 +190,7 @@ def test_the_refusal_names_the_project_cap_and_both_when_both_are_over():
             over_project=True,
             project_cap_usd=5.0,
             project_spent_usd=2.0,
+            project_remaining_usd=3.0,
             needed_project_cap_usd=16.0,
         ),
     }
@@ -204,6 +207,7 @@ def test_the_refusal_names_the_project_cap_and_both_when_both_are_over():
             needed_cap_usd=18.0,
             project_cap_usd=5.0,
             project_spent_usd=2.0,
+            project_remaining_usd=3.0,
             needed_project_cap_usd=16.0,
         ),
     }
@@ -215,6 +219,32 @@ def test_the_refusal_names_the_project_cap_and_both_when_both_are_over():
     quiet = {"refusals": [], "cloud_cap": _line(over=False)}
     _cap_refusals(quiet)
     assert quiet["refusals"] == []
+
+
+def test_the_plan_line_carries_the_caps_own_refusal_so_a_client_never_reads_prose():
+    """The app hid the cap's refusal from the list by matching the engine's sentence, and missed it when another refusal came
+    first (the 422 then began with that one). The line carries the sentence it added, whatever else is in `refusals`."""
+    from fichero_server.api.routes.system.recipes import _cap_refusals
+
+    plan = {
+        "refusals": ["step 1 (find-lines): its model is not pinned in a known form"],
+        "cloud_cap": _line(over_month=True, needed_cap_usd=18.0),
+    }
+    _cap_refusals(plan)
+    assert plan["refusals"][0].startswith("step 1")
+    assert plan["cloud_cap"]["refusal"] == plan["refusals"][1]
+    assert "Raise the monthly cap to US$18.00" in plan["cloud_cap"]["refusal"]
+    quiet = {"refusals": [], "cloud_cap": _line(over=False)}
+    _cap_refusals(quiet)
+    assert quiet["cloud_cap"]["refusal"] is None
+
+
+def test_the_plan_line_says_what_the_project_cap_leaves(tmp_path):
+    """The app worked `max(0, cap - spent)` out itself; the engine says it."""
+    library = _project(tmp_path, cloud_spend_cap_usd=100, cloud_project_cap_usd=5)
+    spend._book(library, 7.0)
+    assert spend.plan_line(library, estimate_usd=1.0)["project_remaining_usd"] == 0.0
+    assert spend.plan_line(_project(tmp_path / "n"), estimate_usd=1.0)["project_remaining_usd"] is None
 
 
 # --- the one audited, undoable action -------------------------------------------------------------------------------
@@ -351,8 +381,7 @@ def test_the_first_pages_that_fit_are_priced_on_what_each_has_still_to_do(db):
     assert whole["runs"][0]["pages"] == 20 and per_page > 0
     line = {
         "remaining_usd": 12.5 * per_page,
-        "project_cap_usd": None,
-        "project_spent_usd": 0.0,
+        "project_remaining_usd": None,
     }
     assert _first_pages_that_fit(db, plan, line, whole["pages"]) == 12
     assert int(line["remaining_usd"] * 100 / whole["total_cost_usd"]) == 62  # the old answer
