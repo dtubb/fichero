@@ -81,7 +81,31 @@ struct DocumentAttributesSection: View {
 
     @ViewBuilder
     private func attributeRow(_ decl: EntityService.AttributeDeclaration) -> some View {
-        LabeledContent(decl.required ? "\(decl.name) *" : decl.name) {
+        LabeledContent {
+            attributeControl(decl)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(decl.required ? "\(decl.name) *" : decl.name)
+                if let words = originWords(for: decl.name) {
+                    Text(words)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .help(originWords(for: decl.name) ?? "")
+        .disabled(isSaving)
+    }
+
+    /// Where the value came from, in words; nil when there is no value to explain.
+    private func originWords(for name: String) -> String? {
+        guard let resolved, let origin = resolved.origins[name] else { return nil }
+        return OriginWords.words(origin, ancestorNames: resolved.ancestorNames, prototypeLabels: resolved.prototypeLabels)
+    }
+
+    @ViewBuilder
+    private func attributeControl(_ decl: EntityService.AttributeDeclaration) -> some View {
+        Group {
             switch decl.type {
             case "checkbox":
                 Toggle("", isOn: boolBinding(for: decl.name))
@@ -99,14 +123,13 @@ struct DocumentAttributesSection: View {
                 textField(name: decl.name, prompt: inheritedPrompt(for: decl.name))
             }
         }
-        .disabled(isSaving)
+        .foregroundStyle(OriginWords.isGreyed(resolved?.origins[decl.name]) ? .secondary : .primary)
     }
 
     private func textField(name: String, prompt: String) -> some View {
         TextField("", text: draftBinding(for: name), prompt: prompt.isEmpty ? nil : Text(prompt))
             .textFieldStyle(.plain)
             .multilineTextAlignment(.trailing)
-            .foregroundStyle(.primary)
             .onSubmit { Task { await save(name: name) } }
     }
 

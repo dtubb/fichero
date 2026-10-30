@@ -298,7 +298,7 @@ table extraction asks the questions of the unit's effective prototype), never on
   fields and the table extraction's questions come from the node's EFFECTIVE prototype, not its own
   key alone, so a folder beneath an `eap_box` is asked the EAP fields with no assignment of its own. Built: the stage fills a folder's EFFECTIVE prototype's declared fields (no prototype: today's fixed set) and the table step finds its units by the effective kind; the stage's prompt still names the fixed fields, so a prototype's own extra field is not yet asked.
   Test: fichero-server/tests/unit/recipes/test_catalogue_stage_reads_effective_prototype.py.
-- `proto.app.inspector-says-where-from` — **[GAP]** (#5365) the Inspector shows each field's value
+- `proto.app.inspector-says-where-from` — **[OK]** (#5365) the Inspector shows each field's value
   with its origin in words ("set here", "from Caja 12", "default of EAP digital folder", "Fichero
   (<model>)", a person's name), greys an inherited or default value, and lets a person set the node's
   own kind or clear it. Test: fichero/Tests/Unit/general/Views/Inspector/EffectiveAttributesOriginTests.swift.
