@@ -49,6 +49,8 @@ extension ActivityStore {
             guard let status = try await activityService.getRecipeRunStatus(jobId: jobId) else { return }
             let atOnce = RecipeRunPagesAtOnce(status)
             if recipeRunPagesAtOnce[jobId] != atOnce { recipeRunPagesAtOnce[jobId] = atOnce }
+            let capped = status.stoppedAtCap == true ? (status.reason ?? "Paused at the cloud spend cap") : nil
+            if recipeRunStoppedAtCap[jobId] != capped { recipeRunStoppedAtCap[jobId] = capped }
             for (folder, steps) in RecipeFolderSteps.byFolder(status) where recipeFolderSteps[folder] != steps {
                 recipeFolderSteps[folder] = steps
             }

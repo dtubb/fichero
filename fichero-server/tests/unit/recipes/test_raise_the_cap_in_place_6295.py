@@ -451,3 +451,56 @@ def test_a_plan_on_the_first_pages_counts_only_them_and_refuses_a_folder_beside_
         ).status_code
         == 422
     )
+
+
+# --- a run paused at a cap says so, in a field ----------------------------------------------------------------------
+
+
+def test_a_step_run_paused_at_a_cap_is_marked_on_its_recipe_run_until_it_goes_on(
+    tmp_path, db, monkeypatch
+):
+    """The run strip offered "Change the Cap" by matching words the paused run's reason did not carry. The engine marks
+    the run (`stopped_at_cap`, and its words in `reason`) from the call it refused; Resume, or a call sent, clears it."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+    from fichero_server.workflows import node_context
+
+    monkeypatch.setattr(
+        usage,
+        "_registry_entry",
+        lambda model, provider="": {
+            "input_cost_per_token": 1e-6,
+            "output_cost_per_token": 1e-5,
+        },
+    )
+    runner.register_job_kinds()
+    library = _project(tmp_path, cloud_spend_cap_usd=1)
+    spend._book(library, 1.0)
+    recipe = jobs.enqueue(db, runner.KIND, "capped")
+    jobs.enqueue(db, "workflow", "thread-cap-1")
+    db.execute(
+        "UPDATE jobs SET state = 'paused', detail = ? WHERE id = ?",
+        [json.dumps({"awaiting": {"card": "read", "child": "thread-cap-1"}}), recipe],
+    )
+    assert runner.status(db, recipe)["stopped_at_cap"] is False
+
+    async def refused():
+        node_context.set_current_node("n1", run_id="thread-cap-1")
+        async with spend.holding(LLMConfig(provider="openai", model="gpt-test", api_key="k"), library):
+            raise AssertionError("sent")
+
+    try:
+        with pytest.raises(spend.CloudSpendRefusedError):
+            asyncio.run(refused())
+        said = runner.status(db, recipe)
+        assert said["stopped_at_cap"] is True
+        assert "capped at $1.00 a month" in said["reason"]
+        spend.forget_cap_stop("thread-cap-1")  # Resume
+        assert runner.status(db, recipe)["stopped_at_cap"] is False
+    finally:
+        spend.forget_cap_stop("thread-cap-1")
+        from fichero_server.execution.cancellation import clear_pause
+
+        clear_pause("thread-cap-1")

@@ -26,6 +26,9 @@ struct ProjectRunStrip: Equatable {
     var missed: ActivityDetails.MissedOffer?
     /// The state the strip goes by (`effectiveState`); the preview seam's live strip runs.
     var state = "running"
+    /// The cap's words when a step of the run was paused at a cloud spend cap, as the engine says it (`stopped_at_cap`, #6295): the
+    /// strip offers the caps' change by it, and says it in place of the run's own line.
+    var stoppedAtCap: String?
     /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
     /// (`activity.spinner-reflects-process-liveness`, #4346).
     var spins: Bool { isLive && state == "running" }
@@ -37,6 +40,7 @@ struct ProjectRunStrip: Equatable {
         self.init(jobId: jobId, node: store.runTrees[jobId],
                   job: store.backgroundJobs.first { $0.id == jobId },
                   folders: store.recipeRunFolders[jobId], pagesAtOnce: store.recipeRunPagesAtOnce[jobId])
+        stoppedAtCap = store.recipeRunStoppedAtCap[jobId]
     }
 
     /// Preview seam: the words given.
@@ -85,11 +89,6 @@ struct ProjectRunStrip: Equatable {
         title = [words.title, folders?.words].compactMap { $0 }.joined(separator: " · ")
         // Then how many pages it reads at once and why, as the engine sends them (#6217).
         detail = [words.detail, pagesAtOnce?.words].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-    }
-
-    /// Whether the run is stopped or paused at a spend cap, by its own words (the engine's refusal names the cap).
-    nonisolated static func stoppedAtCap(_ strip: ProjectRunStrip, failure: String? = nil) -> Bool {
-        CloudCapFix.mentionsCap(failure) || CloudCapFix.mentionsCap(strip.detail)
     }
 
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
@@ -250,7 +249,7 @@ struct ProjectRunStripView: View {
                 onShowDetails: { showDetails(strip.jobId) },
                 onClose: { store.putAwayProjectRun() },
                 // A run stopped or paused at a spend cap changes the caps here, in place (#6295).
-                onChangeCaps: ProjectRunStrip.stoppedAtCap(strip, failure: failure) ? { changingCaps = true } : nil
+                onChangeCaps: strip.stoppedAtCap != nil ? { changingCaps = true } : nil
             )
             .popover(isPresented: $changingCaps, arrowEdge: .top) { capsPopover }
         }
@@ -281,7 +280,7 @@ struct ProjectRunStripRow: View {
     var runAgain: (_ missed: ActivityDetails.MissedOffer) -> Void = { _ in }
     let onShowDetails: () -> Void
     let onClose: () -> Void
-    /// Change the spend caps in place: offered only when the run stopped at one (`ProjectRunStrip.stoppedAtCap`).
+    /// Change the spend caps in place: offered only when the run stopped at one (`ProjectRunStrip.stoppedAtCap`, the engine's field).
     var onChangeCaps: (() -> Void)?
 
     var body: some View {
@@ -296,12 +295,12 @@ struct ProjectRunStripRow: View {
                     .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)
             }
             Text(strip.title).font(.callout.weight(.semibold))
-            Text(failure ?? strip.detail)
+            Text(failure ?? strip.stoppedAtCap ?? strip.detail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .help(failure ?? strip.detail)
+                .help(failure ?? strip.stoppedAtCap ?? strip.detail)
             Spacer(minLength: 8)
             ForEach(strip.failed) { stage in
                 if let offer = stage.offer {

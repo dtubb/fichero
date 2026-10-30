@@ -174,6 +174,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// How many pages a running recipe run reads at once and why (`recipes-run.memory.gate-shown`, #6217), keyed by the
     /// run's id: read from the same status as its folders; removed when the status no longer says.
     var recipeRunPagesAtOnce: [String: RecipeRunPagesAtOnce] = [:]
+    /// The cap's words for a recipe run a step of which was paused at a cloud spend cap (#6295), keyed by the run's id: the engine's
+    /// `stopped_at_cap` and `reason` from the same status; removed when it goes on. The run strip offers the caps' change by it.
+    var recipeRunStoppedAtCap: [String: String] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's

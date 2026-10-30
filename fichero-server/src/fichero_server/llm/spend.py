@@ -231,6 +231,24 @@ def note_actual(cost_usd: float | None) -> None:
         ticket.append(float("nan") if cost_usd is None else cost_usd)
 
 
+#: The workflow runs stopped at a cap, by run id, with the words (#6295): what a recipe run's status says so by, so the app
+#: offers the cap's change without reading a sentence. In this process, as the hold is; a run goes on, or ends, and it is dropped.
+_STOPPED_AT_CAP: dict[str, str] = {}
+
+
+def stopped_at_cap(run_ids: list[str | None]) -> str | None:
+    """The words a step run was paused at a cap with, for the first of `run_ids` that was; None when none was."""
+    with _LOCK:
+        return next((_STOPPED_AT_CAP[r] for r in run_ids if r and r in _STOPPED_AT_CAP), None)
+
+
+def forget_cap_stop(run_id: str | None) -> None:
+    """The run goes on (Resume) or a call of it was sent: it is no longer stopped at a cap."""
+    if run_id:
+        with _LOCK:
+            _STOPPED_AT_CAP.pop(run_id, None)
+
+
 def _ask_run_to_pause() -> str | None:
     """Ask the workflow run this call belongs to to pause at its next boundary; its id, or None outside a run."""
     from fichero_server.workflows.node_context import get_current_node
@@ -268,12 +286,19 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
             reserved = _RESERVED.get(library, 0.0)
             if why := _past_a_cap(library, 0.0, worst):
                 paused = _ask_run_to_pause()
+                if paused:
+                    _STOPPED_AT_CAP[paused] = f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}"
                 raise CloudSpendRefusedError(
                     f"This call could cost up to ${worst:.2f} and {why}, so it was not sent"
                     + (" and the run is pausing" if paused else "")
                     + ". Raise the cap in the project's Set Up to go on.")
             if not _past_a_cap(library, reserved, worst):
                 _RESERVED[library] = reserved + worst
+                if _STOPPED_AT_CAP:
+                    from fichero_server.workflows.node_context import get_current_node
+
+                    node = get_current_node()
+                    _STOPPED_AT_CAP.pop((node.run_id if node else None) or "", None)  # a call of the run is sent: it went on
                 break
         await asyncio.sleep(0.2)  # the cap is reachable only through calls in flight: they will end
     ticket: list[float] = []

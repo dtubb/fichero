@@ -115,14 +115,17 @@ struct CloudCapFixTests {
         #expect(unset?["cloud_project_cap_usd"] == nil, "unanswered keeps the saved cap, or no limit")
     }
 
-    @Test func aRunPausedAtACapOffersTheChangeInPlace() {
-        let paused = ProjectRunStrip(
-            jobId: "r", isLive: true, title: "Recipe run paused",
-            detail: "This call could cost up to $0.04 and this project's cloud spend is capped at $1.00 a month, "
-                + "of which $0.99 is spent this month")
-        #expect(ProjectRunStrip.stoppedAtCap(paused))
-        let quiet = ProjectRunStrip(jobId: "r", isLive: true, title: "Recipe run", detail: "1 done · 2 left")
-        #expect(!ProjectRunStrip.stoppedAtCap(quiet))
-        #expect(ProjectRunStrip.stoppedAtCap(quiet, failure: "the cloud spend is capped at $5.00"))
+    /// The strip offers the caps' change by the engine's `stopped_at_cap`, not by reading the run's line: the status says it, the
+    /// store keeps its words, the strip has them. A status that is not stopped at a cap leaves nothing.
+    @Test func aRunPausedAtACapOffersTheChangeByTheEnginesField() throws {
+        let capped = try JSONDecoder().decode(Components.Schemas.RecipeRunStatus.self, from: Data("""
+        {"job_id":"r","state":"waiting","reason":"Paused at the cloud spend cap: a call could cost up to $0.04","steps":[],"skipped":[],
+         "stopped_at_cap":true}
+        """.utf8))
+        #expect(capped.stoppedAtCap == true)
+        var strip = ProjectRunStrip(jobId: "r", isLive: true, title: "Recipe run paused", detail: "Paused with its run")
+        #expect(strip.stoppedAtCap == nil, "no field, no button: the words of the line are never read")
+        strip.stoppedAtCap = capped.reason
+        #expect(strip.stoppedAtCap?.contains("spend cap") == true)
     }
 }

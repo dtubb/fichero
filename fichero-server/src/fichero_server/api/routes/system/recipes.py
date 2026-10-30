@@ -3455,6 +3455,9 @@ class RecipeRunStatus(BaseModel):
         "the running stage's time left at its own pace so far; null until it has done a page"))
     seconds: Optional[float] = Field(default=None, description=(
         "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"))
+    stopped_at_cap: bool = Field(default=False, description=(
+        "a step's run was paused at a cloud spend cap and has not gone on (#6295): the app offers the caps' change; `reason` "
+        "then carries the cap's words. Resume goes on after the cap is raised"))
     pages_at_once: Optional[int] = Field(default=None, description=(
         "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"))
     pages_at_once_reason: Optional[str] = Field(default=None, description=(

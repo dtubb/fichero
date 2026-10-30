@@ -85384,6 +85384,12 @@
             "title": "Seconds",
             "description": "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"
           },
+          "stopped_at_cap": {
+            "type": "boolean",
+            "title": "Stopped At Cap",
+            "description": "a step's run was paused at a cloud spend cap and has not gone on (#6295): the app offers the caps' change; `reason` then carries the cap's words. Resume goes on after the cap is raised",
+            "default": false
+          },
           "pages_at_once": {
             "type": "integer",
             "nullable": true,
