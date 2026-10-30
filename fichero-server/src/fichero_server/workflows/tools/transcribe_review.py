@@ -294,13 +294,13 @@ async def _review_whole_page(inputs: dict[str, Any], state: State, llm_config: L
     )
 
 
-def _answered_by(db: Any, document_id: str, provider: str, model: str) -> set[str]:
-    """The lines of a page that already carry a reading from a review by this same model (a re-run does not ask them
-    again, or pay for them again)."""
+def _answered_by(db: Any, document_id: str, provider: str, model: str, mode: str = "in-turn") -> set[str]:
+    """The lines of a page that already carry a reading from a review by this same model, in this same mode (a re-run
+    does not ask them again, or pay for them again; a review in another mode was given other input, #6257)."""
     from fichero_server.models import Artifact, ContentRepresentation
 
     made = {a.id for a in db.query(Artifact, document_id=document_id, artifact_type="transcription_review")
-            if (a.provider, a.model) == (provider, model)}
+            if (a.provider, a.model) == (provider, model) and ((a.data or {}).get("review_mode") or "in-turn") == mode}
     return {r.segment_id for r in db.query(ContentRepresentation, document_id=document_id)
             if r.segment_id and r.derived_from_artifact_id in made and not getattr(r, "retracted_at", None)}
 
@@ -344,7 +344,8 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         with Image.open(page.path) as img:
             width, height = rows.page_size(img)
         # a forced re-run (`skip_if_artifact_exists` False) asks every unsure line again
-        done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
+        mode = inputs.get("review_mode") or "in-turn"
+        done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model, mode)
                 if inputs.get("skip_if_artifact_exists", True) else set())
         already += len(shown & done)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
@@ -374,7 +375,8 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
             result["results"].append({"file": file_path, "text": "", "value": None, "lines": "no line answered"})
             continue
         art = Artifact(document_id=str(doc_id), artifact_type="transcription_review", content=content,
-                       provider=llm_config.provider, model=llm_config.model, version=1, reviewed=False)
+                       provider=llm_config.provider, model=llm_config.model, version=1, reviewed=False,
+                       data={"review_mode": mode} if mode != "in-turn" else None)
         db.save(art)
         result["artifacts"].append(art.id)
         result["texts"].append(content)
