@@ -8178,6 +8178,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("batch-prepare-preview")
+    def images_batch_prepare_preview_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Option(..., '--folder-id', help='Folder Id.'),
+        operation: str = typer.Option(..., '--operation', help="The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn). JSON."),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='the page the correction was made on: it already has it, so it is left out.'),
+    ) -> None:
+        """Batch Prepare Preview (POST /api/images/batch-prepare/preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/images/batch-prepare/preview"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "operation": operation,
+                "source_document_id": source_document_id,
+            }, {
+                "folder_id": {'type': 'string', 'title': 'Folder Id', 'x-cli-required': True},
+                "operation": {'properties': {'op': {'type': 'string', 'enum': ['square', 'rotate'], 'title': 'Op'}, 'quad': {'items': {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 2, 'minItems': 2}, 'type': 'array', 'nullable': True, 'title': 'Quad'}, 'angle': {'type': 'number', 'maximum': 360.0, 'minimum': -360.0, 'nullable': True, 'title': 'Angle'}}, 'type': 'object', 'required': ['op'], 'title': 'BatchPrepareOperation', 'description': "The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn).", 'x-cli-required': True},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'description': 'the page the correction was made on: it already has it, so it is left out', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("batch-crop")
     def images_batch_crop_post(
         ctx: typer.Context,

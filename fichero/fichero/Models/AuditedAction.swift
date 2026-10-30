@@ -47,6 +47,33 @@ struct ImageAcceptProposalRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case documentId = "document_id", kind }
 }
 
+/// The correction `image.batch_prepare` copies to a folder: a square's four corners (fractions of the upright frame) or a
+/// turn's degrees.
+struct BatchPrepareOperation: Encodable, Equatable {
+    let kind: String
+    var quad: [[Double]]?
+    var angle: Double?
+
+    enum CodingKeys: String, CodingKey { case kind = "op", quad, angle }
+}
+
+/// `image.batch_prepare`: one correction copied to the folder's other pages, one batch id on every row.
+struct ImageBatchPrepareRequest: Encodable, Equatable {
+    let folderId: String
+    let operation: BatchPrepareOperation
+    var sourceDocumentId: String?
+
+    enum CodingKeys: String, CodingKey { case folderId = "folder_id", operation, sourceDocumentId = "source_document_id" }
+}
+
+/// `image.undo_batch_page`: one page leaves a batch, the others keep it.
+struct ImageUndoBatchPageRequest: Encodable, Equatable {
+    let documentId: String
+    let batchId: String
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id", batchId = "batch_id" }
+}
+
 /// `image.square`: the page warped to a rectangle from a person's four corners (fractions of the upright image, top-left clockwise).
 struct ImageSquareRequest: Encodable, Equatable {
     let documentId: String

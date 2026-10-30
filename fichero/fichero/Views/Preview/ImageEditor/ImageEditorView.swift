@@ -59,6 +59,8 @@ struct ImageEditorView: View {
     @State var marqueeSelection: CGRect?
     /// The four dashed corner handles on the found page; nil when they are not showing (`prep.square.corner-handles-correct-it`).
     @State var pageCorners: PageCorners?
+    /// "Apply to the rest of this folder": the sheet with three previews (`prep.check.apply-correction-to-the-folder`).
+    @State var showBatchPrepare = false
     @State var compareMode: CompareMode = .single
     @State var compareSplit: CGFloat = 0.5
     /// Canvas zoom for the COMPARE modes (Daniel, 2026-09-01: the editor had
@@ -119,6 +121,14 @@ struct ImageEditorView: View {
             // Inspector's panel one divider apart; see his 9:50pm screenshot).
             canvas
         })
+        .sheet(isPresented: $showBatchPrepare) {
+            if let correction = BatchPrepare.correction(in: model.chain.operations), let folderId = activeDocument.parentId {
+                ImageBatchPrepareSheet(
+                    folderId: folderId, sourceDocumentId: activeDocument.id, correction: correction,
+                    documents: siblingEditableDocs,
+                    onApplied: { ids in ids.forEach { storageService.invalidateImageCache(for: $0) } })
+            }
+        }
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id

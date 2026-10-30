@@ -1870,6 +1870,199 @@ def _action_restore_blank(
         params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
 
 
+# ---------------------------------------------------------------------------
+# A correction applied to the folder (`prep.check.apply-correction-to-the-folder`, #6192)
+# ---------------------------------------------------------------------------
+
+BATCH_PREVIEW_SIDE = 480
+
+
+class BatchPrepareOperation(BaseModel):
+    """The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn)."""
+
+    op: Literal["square", "rotate"]
+    quad: list[Annotated[list[float], Field(min_length=2, max_length=2)]] | None = None
+    angle: float | None = Field(default=None, ge=-360.0, le=360.0)
+
+    def row_params(self) -> dict[str, Any]:
+        if self.op == "square":
+            if self.quad is None or len(self.quad) != 4:
+                raise HTTPException(422, "a square needs its four corners")
+            return {"quad": self.quad}
+        if self.angle is None:
+            raise HTTPException(422, "a turn needs its angle")
+        return {"angle": self.angle, "expand": True}
+
+
+class BatchPrepareRequest(BaseModel):
+    folder_id: str
+    operation: BatchPrepareOperation
+    source_document_id: str | None = Field(
+        default=None, description="the page the correction was made on: it already has it, so it is left out")
+
+
+class BatchPreparePreviewItem(BaseModel):
+    document_id: str
+    name: str
+    image_base64: str = Field(description="the page with the correction applied, a small JPEG; nothing is written")
+
+
+class BatchPreparePreview(BaseModel):
+    previews: list[BatchPreparePreviewItem]
+    pages: int = Field(description="how many pages the batch would change")
+
+
+def _batch_targets(db: Database, request: BatchPrepareRequest) -> tuple[list[tuple[Document, int]], list[dict[str, str]]]:
+    """(page, source page number) the batch would change, and (page id, why) for each it leaves out: the page the correction
+    came from, a page hidden as blank, one a person already squared or turned, one with no readable file."""
+    from fichero_server.media.blank_page import is_hidden_blank
+
+    targets: list[tuple[Document, int]] = []
+    skipped: list[dict[str, str]] = []
+    order = {doc_id: i for i, doc_id in enumerate(db.unit_of_work_ids())}  # the project's page order: first, middle, last mean it
+    for doc in sorted(_folder_images(db, request.folder_id), key=lambda d: (order.get(d.id, len(order)), d.name)):
+        if doc.id == request.source_document_id:
+            continue
+        chain = _get_chain(db, doc.id)
+        if is_hidden_blank(doc):
+            skipped.append({"id": doc.id, "why": "hidden as blank"})
+        elif any(op.get("who") == "person" and op.get("op") == request.operation.op for op in (chain.operations if chain else [])):
+            skipped.append({"id": doc.id, "why": f"a person already did a {request.operation.op} on it"})
+        else:
+            try:
+                targets.append((doc, _resolve_source_and_page(db, doc, 1)[1]))
+            except HTTPException as exc:
+                skipped.append({"id": doc.id, "why": str(exc.detail)})
+    return targets, skipped
+
+
+@router.post("/batch-prepare/preview", response_model=BatchPreparePreview)
+async def batch_prepare_preview(
+    request: BatchPrepareRequest, db: Database = Depends(get_library_database)
+) -> BatchPreparePreview:
+    """The folder's first, middle and last page with the correction applied, before anything runs. Writes no row."""
+    return await asyncio.to_thread(_batch_prepare_preview, db, request)
+
+
+def _batch_prepare_preview(db: Database, request: BatchPrepareRequest) -> BatchPreparePreview:
+    import base64
+
+    targets, _skipped = _batch_targets(db, request)
+    chosen = [targets[i] for i in sorted({0, len(targets) // 2, len(targets) - 1})] if targets else []
+    op = {"op": request.operation.op, "page": 1, "params": request.operation.row_params()}
+    previews = []
+    for doc, page in chosen:
+        source_path, _ = _resolve_source_and_page(db, doc, 1)
+        picture = _apply_operation(_load_source_image(source_path, page=page), op)
+        picture.thumbnail((BATCH_PREVIEW_SIDE, BATCH_PREVIEW_SIDE))
+        out = io.BytesIO()
+        picture.convert("RGB").save(out, format="JPEG", quality=80)
+        previews.append(BatchPreparePreviewItem(
+            document_id=doc.id, name=doc.name, image_base64=base64.b64encode(out.getvalue()).decode("ascii")))
+    return BatchPreparePreview(previews=previews, pages=len(targets))
+
+
+class BatchPrepareActionParams(BatchPrepareRequest):
+    pass
+
+
+def _page_state(db: Database, doc: Document) -> dict[str, Any]:
+    return {"operations": _chain_ops_snapshot(db, doc.id), **_proposal_state(doc)}
+
+
+class RestoreBatchParams(BaseModel):
+    """Params for image.restore_batch — every page the batch touched back as it was (the whole-batch Undo)."""
+
+    pages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+def _invert_batch(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    if not before or "pages" not in before:
+        return None
+    return "image.restore_batch", {"pages": before["pages"]}
+
+
+@action(
+    "image.batch_prepare",
+    BatchPrepareActionParams,
+    domains=["image", "document"],
+    undoable=True,
+    invert=_invert_batch,
+)
+def _action_batch_prepare(
+    db: Database, params: BatchPrepareActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """One correction copied to every page of the folder, each row `who: person` carrying one `batch_id` (the audit's id),
+    so the whole batch undoes as one audit and one page undoes by dropping its row."""
+    import uuid
+
+    targets, skipped = _batch_targets(db, params)
+    batch_id = uuid.uuid4().hex
+    row_params = params.operation.row_params()
+    before: dict[str, dict[str, Any]] = {}
+    for doc, page in targets:
+        before[doc.id] = _page_state(db, doc)
+        row = {"op": params.operation.op, "page": page, "params": row_params, "who": "person", "batch_id": batch_id,
+               "created_at": utc_now().isoformat()}
+        _append_operation(db, doc.id, row)
+        if params.operation.op == "square":
+            _answer_proposal(db, db.get(Document, doc.id), "page_box")
+        elif params.operation.op == "rotate":
+            _answer_proposal(db, db.get(Document, doc.id), "turn")
+    result = {"batch_id": batch_id, "applied": [doc.id for doc, _ in targets], "skipped": skipped}
+    return result, ChangeSpec(
+        domains=["image", "document"], target_ids=[doc.id for doc, _ in targets], before={"pages": before},
+        after={"batch_id": batch_id, "pages": list(before)}, audit_id=batch_id, emit_type=IMAGE_EDIT_EMIT_TYPE,
+        document_ids=[doc.id for doc, _ in targets])
+
+
+@action(
+    "image.restore_batch",
+    RestoreBatchParams,
+    domains=["image", "document"],
+    undoable=False,  # it is the inverse of a batch; redo is the audit's own
+)
+def _action_restore_batch(
+    db: Database, params: RestoreBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    for doc_id, state in params.pages.items():
+        doc = db.get(Document, doc_id)
+        if doc is None:
+            continue
+        meta = dict(doc.metadata or {})
+        meta["prep_proposals"] = dict(state.get("proposals") or {})
+        meta["prep_answered"] = dict(state.get("answered") or {})
+        doc.metadata = meta
+        db.save(doc)
+        set_operations_impl(db, doc_id, list(state.get("operations") or []))
+    return {"restored": list(params.pages)}, ChangeSpec(
+        domains=["image", "document"], target_ids=list(params.pages), emit_type=IMAGE_EDIT_EMIT_TYPE,
+        document_ids=list(params.pages), before=None, after={"pages": list(params.pages)})
+
+
+class UndoBatchPageParams(BaseModel):
+    """Params for image.undo_batch_page — one page leaves a batch: its row of that batch is dropped, the others stay."""
+
+    document_id: str
+    batch_id: str
+
+
+@action(
+    "image.undo_batch_page",
+    UndoBatchPageParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_undo_batch_page(
+    db: Database, params: UndoBatchPageParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    kept = [op for op in before_ops if op.get("batch_id") != params.batch_id]
+    chain = set_operations_impl(db, params.document_id, kept)
+    return _chain_result(chain), _image_chain_spec(params.document_id, before_ops, [dict(op) for op in chain.operations])
+
+
 @action(
     "image.rotate",
     RotateImageActionParams,

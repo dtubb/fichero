@@ -26965,6 +26965,49 @@
         }
       }
     },
+    "/api/images/batch-prepare/preview": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Batch Prepare Preview",
+        "description": "The folder's first, middle and last page with the correction applied, before anything runs. Writes no row.",
+        "operationId": "batch_prepare_preview_api_images_batch_prepare_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchPrepareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchPreparePreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/locations/resolve": {
       "post": {
         "tags": [
@@ -54530,6 +54573,113 @@
         ],
         "title": "BatchListResponse",
         "description": "Standardized envelope for GET /api/batch list endpoints."
+      },
+      "BatchPrepareOperation": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "square",
+              "rotate"
+            ],
+            "title": "Op"
+          },
+          "quad": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Quad"
+          },
+          "angle": {
+            "type": "number",
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "nullable": true,
+            "title": "Angle"
+          }
+        },
+        "type": "object",
+        "required": [
+          "op"
+        ],
+        "title": "BatchPrepareOperation",
+        "description": "The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn)."
+      },
+      "BatchPreparePreview": {
+        "properties": {
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPreparePreviewItem"
+            },
+            "type": "array",
+            "title": "Previews"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "how many pages the batch would change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "previews",
+          "pages"
+        ],
+        "title": "BatchPreparePreview"
+      },
+      "BatchPreparePreviewItem": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "image_base64": {
+            "type": "string",
+            "title": "Image Base64",
+            "description": "the page with the correction applied, a small JPEG; nothing is written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "image_base64"
+        ],
+        "title": "BatchPreparePreviewItem"
+      },
+      "BatchPrepareRequest": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/BatchPrepareOperation"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id",
+            "description": "the page the correction was made on: it already has it, so it is left out"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "operation"
+        ],
+        "title": "BatchPrepareRequest"
       },
       "BatchProgressResponse": {
         "properties": {

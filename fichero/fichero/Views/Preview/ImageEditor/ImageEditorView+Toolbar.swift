@@ -135,6 +135,8 @@ extension ImageEditorView {
                 .accessibilityIdentifier("imageEditPageCorners")
             }
 
+            applyToFolderButton
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 toolButton("crop", help: "Crop to selection") {
@@ -398,7 +400,7 @@ extension ImageEditorView {
         done()
     }
 
-    private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+    func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
         }

@@ -3863,6 +3863,16 @@ def fichero_images_undo_batch_operation(
     return _rt.call("POST", f"/api/images/batch-apply/{batch_id}/undo")
 
 
+def fichero_images_batch_prepare_preview(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id.')],
+    operation: Annotated[dict[str, Any], Field(description="The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn).")],
+    source_document_id: Annotated[Optional[str], Field(description='the page the correction was made on: it already has it, so it is left out.')] = None,
+) -> Any:
+    "Batch Prepare Preview\n\nThe folder's first, middle and last page with the correction applied, before anything runs. Writes no row.\n\nRoute: POST /api/images/batch-prepare/preview (toolset `images`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/images/batch-prepare/preview", json=_rt.body({"folder_id": folder_id, "operation": operation, "source_document_id": source_document_id}))
+
+
 def fichero_images_batch_crop(
     *,
     auto_orient: Annotated[Optional[bool], Field(description='Auto Orient. Default: true.')] = None,
@@ -9594,6 +9604,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_iiif_import_from", "iiif", "POST", "/api/iiif/import", fichero_iiif_import_from),
     GeneratedTool("fichero_images_batch_apply_operation", "images", "POST", "/api/images/batch-apply", fichero_images_batch_apply_operation),
     GeneratedTool("fichero_images_undo_batch_operation", "images", "POST", "/api/images/batch-apply/{batch_id}/undo", fichero_images_undo_batch_operation),
+    GeneratedTool("fichero_images_batch_prepare_preview", "images", "POST", "/api/images/batch-prepare/preview", fichero_images_batch_prepare_preview),
     GeneratedTool("fichero_images_batch_crop", "images", "POST", "/api/images/crops/batch", fichero_images_batch_crop),
     GeneratedTool("fichero_images_crop_child", "images", "POST", "/api/images/{document_id}/crop", fichero_images_crop_child),
     GeneratedTool("fichero_images_delete_edit_chain", "images", "DELETE", "/api/images/{document_id}/edits", fichero_images_delete_edit_chain),

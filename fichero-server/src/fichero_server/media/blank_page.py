@@ -108,6 +108,11 @@ def blank_verdict(image: Any, has_lines: bool | Callable[[], bool] = False, box:
     return "unsure" if (has_lines() if callable(has_lines) else has_lines) else "blank"
 
 
+def is_hidden_blank(doc: Any) -> bool:
+    """A page hidden as blank: excluded AND the engine's blank mark true (a page excluded for another reason is not)."""
+    return bool(doc.exclude_from_processing) and bool(((doc.metadata or {}).get("blank") or {}).get("blank"))
+
+
 def mark_blank(db: Any, doc_id: str, blank: bool, *, who: str, reason: str = "") -> None:
     """Mark a page blank (hidden, skipped) or not blank (shown again): one row in its edit chain with `who`, and the
     flag `exclude_from_processing` every later step honours. The page's row, files and original are kept."""
