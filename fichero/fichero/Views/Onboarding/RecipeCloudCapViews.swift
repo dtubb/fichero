@@ -52,6 +52,8 @@ struct CloudCapFields: View {
     @State private var project: Double?
     /// The change last sent and not yet confirmed by a new plan line (`shouldSend`).
     @State private var sent: Change?
+    /// The field's width grows with the person's text size (Dynamic Type), so "$1,000.00" is never cut off at a larger size.
+    @ScaledMetric(relativeTo: .callout) private var fieldWidth: CGFloat = CloudCapFields.baseFieldWidth
     private enum Field { case monthly, project }
 
     var body: some View {
@@ -72,7 +74,7 @@ struct CloudCapFields: View {
             // The engine refuses a cap below $0, so the field never holds one.
             TextField(prompt, value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = $0.map { max($0, 0) } }),
                       format: .currency(code: "USD"))
-                .multilineTextAlignment(.trailing).frame(maxWidth: 110)
+                .multilineTextAlignment(.trailing).frame(maxWidth: fieldWidth)
                 .focused($focus, equals: field)
                 .onSubmit { Task { await save() } }
                 .onChange(of: focus) { old, _ in if old == field { Task { await save() } } }
@@ -113,6 +115,9 @@ struct CloudCapFields: View {
     nonisolated static func emptiedMonthlyWords(_ monthly: Double?) -> String? {
         monthly == nil ? "The monthly cap cannot be left empty: every project has one (US$10 unless you set another). Type an amount." : nil
     }
+
+    /// The field's width at the default text size, in points; it scales from here (`fieldWidth`).
+    nonisolated static let baseFieldWidth: CGFloat = 110
 
     /// What differs from the engine's line: the monthly cap if it moved, the project cap if it moved, or cleared when emptied.
     /// Pure, for the tests.

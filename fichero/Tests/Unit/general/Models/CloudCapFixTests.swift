@@ -144,6 +144,18 @@ struct CloudCapFixTests {
         #expect(!CloudCapFields.shouldSend(nothing, after: nil), "nothing moved: nothing is sent")
     }
 
+    /// WHY: a fixed 110-point field cut a larger amount off at larger text sizes. There is no mounted-view harness here, so this reads
+    /// the view's source: the width must come from a `@ScaledMetric`, not a literal passed to `.frame`.
+    @Test func theCapFieldWidthScalesWithTheTextSize() throws {
+        let tests = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let view = tests.deletingLastPathComponent().appendingPathComponent("fichero/Views/Onboarding/RecipeCloudCapViews.swift")
+        let source = try String(contentsOf: view, encoding: .utf8)
+        #expect(source.contains("@ScaledMetric"), "the width is a scaled metric")
+        #expect(!source.contains("maxWidth: 110"), "no literal width on the field")
+        #expect(CloudCapFields.baseFieldWidth == 110)
+    }
+
     @Test func theProjectCapIsSavedUnderTheEnginesKeyAndLeftOutUnanswered() throws {
         let set = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
             RecipeSetupAnswers(cloudProjectCapUsd: 60))) as? [String: Any]
