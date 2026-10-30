@@ -181,9 +181,10 @@ def test_an_8_gb_mac_gives_a_library_at_least_a_gib_minus_the_small_files(tmp_pa
     (tmp_path / "GHG 12.fichero").mkdir()
     ghg = ds.connect_utc(str(tmp_path / "GHG.fichero" / "fichero.duckdb"))
     ghg12 = ds.connect_utc(str(tmp_path / "GHG 12.fichero" / "fichero.duckdb"))
-    assert _near(_limit(app), ds.SMALL_INSTANCE_BYTES)
-    assert _near(_limit(glob), ds.SMALL_INSTANCE_BYTES)
-    each = (GIB - 2 * ds.SMALL_INSTANCE_BYTES) / 2
+    small = ds.small_share_bytes(str(tmp_path / "app.duckdb"), 4)
+    assert _near(_limit(app), small)
+    assert _near(_limit(glob), small)
+    each = (GIB - 2 * small) / 2
     assert each >= 448 * 1024**2
     assert _near(_limit(ghg), each) and _near(_limit(ghg12), each)
     for c in (app, glob, ghg, ghg12):
@@ -195,7 +196,7 @@ def test_a_single_library_on_8_gb_gets_the_whole_gib_less_the_small_files(tmp_pa
     app = _open(tmp_path, "app")
     (tmp_path / "GHG.fichero").mkdir()
     ghg = ds.connect_utc(str(tmp_path / "GHG.fichero" / "fichero.duckdb"))
-    assert _near(_limit(ghg), GIB - ds.SMALL_INSTANCE_BYTES)
+    assert _near(_limit(ghg), GIB - ds.small_share_bytes(str(tmp_path / "app.duckdb"), 2))
     app.close()
     ghg.close()
 
@@ -207,7 +208,8 @@ def test_a_small_mac_runs_few_duckdb_threads(tmp_path, monkeypatch):
     assert int(conn.execute("SELECT current_setting('threads')").fetchone()[0]) == ds.THREADS_ON_A_SMALL_MAC
     conn.close()
     monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 32 * GIB)
-    ds._instances.clear(); ds._applied.clear()
+    ds._instances.clear()
+    ds._applied.clear()
     conn = _open(tmp_path, "b")
     assert int(conn.execute("SELECT current_setting('threads')").fetchone()[0]) > ds.THREADS_ON_A_SMALL_MAC
     conn.close()
@@ -216,6 +218,75 @@ def test_a_small_mac_runs_few_duckdb_threads(tmp_path, monkeypatch):
 def test_a_grown_global_library_shares_as_a_library(tmp_path):
     big = tmp_path / "global.fichero" / "fichero.duckdb"
     big.parent.mkdir()
-    big.write_bytes(b"\0" * (ds.SMALL_FILE_BYTES + 1))
+    big.write_bytes(b"\0" * (ds.small_file_bytes() + 1))
     assert not ds.is_small_instance(str(big))
     assert ds.is_small_instance(str(tmp_path / "app.duckdb"))
+
+
+# --- the review of the Air fix (M1): the engine's own files take a share that scales with the Mac and the file --------
+
+
+def test_the_small_files_share_scales_with_the_mac(tmp_path, monkeypatch):
+    """A fixed 64 MiB took app.duckdb from 1.6 GB to 64 MiB on a 64 GB Mac. Its share is a fraction of the budget."""
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 64 * GIB)
+    app = _open(tmp_path, "app")
+    (tmp_path / "L.fichero").mkdir()
+    lib = ds.connect_utc(str(tmp_path / "L.fichero" / "fichero.duckdb"))
+    budget = 64 * GIB * ds.BUDGET_FRACTION
+    assert _limit(app) >= budget / 20  # 5%: ~330 MiB here, as against 64 MiB on any Mac
+    assert _near(_limit(lib), budget - _limit(app))
+    for c in (app, lib):
+        c.close()
+
+
+def test_an_app_database_with_a_heavy_audit_log_reads_it_on_an_8_gb_mac(tmp_path, monkeypatch):
+    """app.duckdb holds the action audits (JSON params, before, after): 2,000 rows of 3 x 6 KB, a 67 MiB file, did not
+    list at 64 MiB (`list_action_audits` reads them all, ordered). Its share grows with its file."""
+    from fichero_server.db.app import AppDatabase
+    from fichero_server.models import ActionAudit
+
+    monkeypatch.setenv(ds.DUCKDB_MEMORY_LIMIT_ENV, "4GiB")  # the build itself, unbounded by the Air's share
+    app = AppDatabase(tmp_path / "app.duckdb")
+    blob = {"k": "x" * 6000}
+    for _ in range(2000):
+        app.save_action_audit(ActionAudit(action_name="a.b", actor="t", params=blob, before=blob, after=blob))
+    app.conn.execute("CHECKPOINT")
+    app.conn.close()
+    ds._instances.clear()
+    ds._applied.clear()
+    monkeypatch.delenv(ds.DUCKDB_MEMORY_LIMIT_ENV)
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 8 * GIB)
+    app = AppDatabase(tmp_path / "app.duckdb")
+    (tmp_path / "L.fichero").mkdir()
+    lib = ds.connect_utc(str(tmp_path / "L.fichero" / "fichero.duckdb"))
+    assert len(app.list_action_audits()) == 2000
+    assert _limit(lib) >= 448 * 1024**2  # the library still gets what a 70k-page library needs
+    app.conn.close()
+    lib.close()
+
+
+def test_a_global_library_that_grows_in_the_session_is_reshared_at_the_next_connect(tmp_path, monkeypatch):
+    """The share was decided at open: a global.fichero that grew past the small size stayed at the small share until
+    the engine restarted. The next connect to any instance sees the size and re-shares."""
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 8 * GIB)
+    (tmp_path / "global.fichero").mkdir()
+    path = tmp_path / "global.fichero" / "fichero.duckdb"
+    glob = ds.connect_utc(str(path))
+    (tmp_path / "L.fichero").mkdir()
+    lib = ds.connect_utc(str(tmp_path / "L.fichero" / "fichero.duckdb"))
+    small = _limit(glob)
+    glob.execute("CREATE TABLE t (v VARCHAR)")
+    grew = False
+    for start in range(0, 150_000, 2_000):  # the library grows in steps, with polls between them, as in the engine
+        glob.execute(f"INSERT INTO t SELECT (SELECT string_agg(md5(range || '-' || k), '') FROM range(40) u(k)) "
+                     f"FROM range({start}, {start + 2_000})")
+        glob.execute("CHECKPOINT")
+        ds.connect_utc(str(tmp_path / "L.fichero" / "fichero.duckdb")).close()  # any poll
+        grew = path.stat().st_size > 140 * 1024**2  # past the small size on 8 GB (2 x 5% of the 1 GiB budget)
+        if grew:
+            break
+    assert grew
+    assert _limit(glob) > 2 * small
+    assert _near(_limit(glob), _limit(lib))  # two libraries now, sharing alike
+    for c in (glob, lib):
+        c.close()

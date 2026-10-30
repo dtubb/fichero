@@ -24,7 +24,7 @@ import tempfile
 import threading
 import weakref
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import duckdb
 
@@ -170,8 +170,8 @@ def pin_utc_session(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnectio
 # read `documents` rows of several KB (page text, line boxes) and failed 170 times in a morning with "failed to allocate
 # data of size 16.0 MiB (257 MiB/256 MiB used)". A running query's string arenas (16 MiB per thread) are not evictable,
 # so the spill directory cannot save it. Hence: the budget is never under what one library of 100k pages measurably
-# needs (`BUDGET_FLOOR_BYTES`); the engine's own small files take a small fixed slice instead of an equal quarter
-# (`SMALL_INSTANCE_BYTES`); and on a small Mac each instance runs few threads (`THREADS_ON_A_SMALL_MAC`).
+# needs (`BUDGET_FLOOR_BYTES`); the engine's own small files take a slice sized by the budget and their file instead of
+# an equal quarter (`small_share_bytes`); and on a small Mac each instance runs few threads (`THREADS_ON_A_SMALL_MAC`).
 #: With this set, it is the TOTAL budget (e.g. "4GB"), split the same way; it replaces the computed figure.
 DUCKDB_MEMORY_LIMIT_ENV = "FICHERO_DUCKDB_MEMORY_LIMIT"
 #: The share of physical memory all open DuckDB instances may use between them, when that is above the floor.
@@ -180,10 +180,13 @@ BUDGET_FRACTION = 0.10
 BUDGET_FLOOR_BYTES = 1024**3
 #: No library instance gets less than this, so many open instances may together pass the budget; the floor wins.
 FLOOR_BYTES = 256 * 1024**2
-#: The engine's own databases (app.duckdb; global.fichero while it is small) hold settings and a few rows: this each.
-SMALL_INSTANCE_BYTES = 64 * 1024**2
-#: A global.fichero larger than this on disk is a real library and shares as one.
-SMALL_FILE_BYTES = 128 * 1024**2
+#: The engine's own databases (app.duckdb; global.fichero while it is small) take this share of the budget each, or
+#: twice their file, whichever is more (app.duckdb holds the action audits, JSON before/after: a 67 MiB file did not
+#: list at 64 MiB), never under `SMALL_FLOOR_BYTES`, never over an equal share. Rounded up to `SMALL_STEP_BYTES` so a
+#: file that grows by a page does not re-share every instance.
+SMALL_SHARE_FRACTION = 0.05
+SMALL_FLOOR_BYTES = 64 * 1024**2
+SMALL_STEP_BYTES = 32 * 1024**2
 #: On a Mac with less memory than this, each instance runs `THREADS_ON_A_SMALL_MAC` threads: a thread owns a 16 MiB
 #: string arena while it scans, and DuckDB's default (every core) multiplies that past the share.
 SMALL_MAC_BYTES = 12 * 1024**3
@@ -229,27 +232,45 @@ def total_budget_bytes() -> int:
     return max(BUDGET_FLOOR_BYTES, int((physical_memory_bytes() or 16 * GIB) * BUDGET_FRACTION))
 
 
+def small_file_bytes() -> int:
+    """A global.fichero larger than this on disk is a real library and shares as one: twice a small file's base share."""
+    return 2 * max(SMALL_FLOOR_BYTES, int(total_budget_bytes() * SMALL_SHARE_FRACTION))
+
+
+def _file_bytes(key: str) -> int:
+    try:
+        return Path(key).stat().st_size
+    except OSError:
+        return 0  # not on disk yet (new and empty), or an in-memory key
+
+
 def is_small_instance(key: str) -> bool:
     """Whether `key` (a file's real path, or `memory:...`) is one of the engine's own small databases: app.duckdb, or
-    global.fichero while its file is under `SMALL_FILE_BYTES`. Checked at open; a global library that outgrows that
-    during one session shares as a library from the next engine start."""
+    global.fichero while its file is under `small_file_bytes()`. Asked at every re-share (`_shares_drifted`), so a
+    global library that grows during a session starts sharing as a library at the next connect."""
     path = Path(key)
     if path.name == "app.duckdb":
         return True
-    if path.parent.name == "global.fichero":
-        try:
-            return path.stat().st_size < SMALL_FILE_BYTES
-        except OSError:
-            return True  # not on disk yet: it is new and empty
-    return False
+    return path.parent.name == "global.fichero" and _file_bytes(key) < small_file_bytes()
 
 
-def instance_limit_bytes(open_instances: int, small_instances: int = 0) -> int:
-    """What each LIBRARY instance may hold when `open_instances` are open, `small_instances` of them the engine's own
-    small files (which take `SMALL_INSTANCE_BYTES` each off the top): its share of the rest, never under the floor."""
-    libraries = max(1, open_instances - small_instances)
-    rest = total_budget_bytes() - small_instances * SMALL_INSTANCE_BYTES
-    return max(FLOOR_BYTES, rest // libraries)
+def small_share_bytes(key: str, open_instances: int) -> int:
+    """What one of the engine's small databases may hold: `SMALL_SHARE_FRACTION` of the budget or twice its file,
+    whichever is more, in `SMALL_STEP_BYTES` steps; never under `SMALL_FLOOR_BYTES`, never over an equal share."""
+    budget = total_budget_bytes()
+    want = max(SMALL_FLOOR_BYTES, int(budget * SMALL_SHARE_FRACTION), 2 * _file_bytes(key))
+    want = -(-want // SMALL_STEP_BYTES) * SMALL_STEP_BYTES
+    return max(SMALL_FLOOR_BYTES, min(want, budget // max(1, open_instances)))
+
+
+def instance_limit_bytes(open_instances: int, small_shares: Sequence[int] | int = ()) -> int:
+    """What each LIBRARY instance may hold when `open_instances` are open and the engine's small files take
+    `small_shares` off the top (an int: that many at their base share): its share of the rest, never under the floor."""
+    if isinstance(small_shares, int):
+        base = max(SMALL_FLOOR_BYTES, int(total_budget_bytes() * SMALL_SHARE_FRACTION))
+        small_shares = [base] * small_shares
+    libraries = max(1, open_instances - len(small_shares))
+    return max(FLOOR_BYTES, (total_budget_bytes() - sum(small_shares)) // libraries)
 
 
 def threads_per_instance() -> int | None:
@@ -308,6 +329,25 @@ def _set_limit(conn: Any, limit: int) -> None:
         conn.cursor().execute(f"SET threads={threads}")
 
 
+def _shares(keys: list[str]) -> tuple[dict[str, int], int]:
+    """Each open instance's share by key, and a library's: the small files first (`small_share_bytes`), the rest split."""
+    small = {key: small_share_bytes(key, len(keys)) for key in keys if is_small_instance(key)}
+    limit = instance_limit_bytes(len(keys), list(small.values()))
+    return {key: small.get(key, limit) for key in keys}, limit
+
+
+def _shares_drifted() -> bool:
+    """Whether a small file's share moved since it was set (it grew, or global.fichero outgrew the small size): a stat
+    per small file, no query, so it is cheap enough for every connect."""
+    with _instances_lock:
+        keys = list(_instances)
+        applied = dict(_applied)
+    if not any(applied.get(key) is not None for key in keys):
+        return False
+    share, _ = _shares(keys)
+    return any(key in applied and applied[key] != share[key] for key in keys)
+
+
 def _rebalance() -> None:
     """Give every open instance its share of the budget. The shares are worked out under the lock; the SETs, one per
     instance whose share CHANGED, run outside it. A close is seen here (the instance no longer answers)."""
@@ -320,13 +360,12 @@ def _rebalance() -> None:
                 _applied.pop(key, None)
             else:
                 keepers[key] = conn
-        small = {key for key in keepers if is_small_instance(key)}
-        limit = instance_limit_bytes(len(keepers), len(small))
-        share = {key: (SMALL_INSTANCE_BYTES if key in small else limit) for key in keepers}
+        share, limit = _shares(list(keepers))
         todo = [(key, conn) for key, conn in keepers.items() if _applied.get(key) != share[key]]
     if todo:  # the share in force, at warning so a run that keeps only warnings has it: on the M4 it was unknown (#6236)
-        logger.warning("DuckDB memory: %d open instance(s), %d MiB each library, %d small at %d MiB, %s thread(s) each "
-                       "(budget %d MiB)", len(keepers), limit // 1024**2, len(small), SMALL_INSTANCE_BYTES // 1024**2,
+        small = {key: share[key] // 1024**2 for key in keepers if share[key] != limit}
+        logger.warning("DuckDB memory: %d open instance(s), %d MiB each library, small files %s MiB, %s thread(s) each "
+                       "(budget %d MiB)", len(keepers), limit // 1024**2, sorted(small.values()),
                        threads_per_instance() or "default", total_budget_bytes() // 1024**2)
     for key, conn in todo:
         try:
@@ -387,6 +426,8 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
         if not shared:
             with _instances_lock:
                 _applied.pop(key, None)  # whatever was set is gone with the instance: set it again
+            _rebalance()
+        elif _shares_drifted():  # a small file grew past its step: re-share at this connect, not the next start
             _rebalance()
         if explicit:
             total_budget_bytes()  # raises for an unparsable explicit value, before the connection is handed out
