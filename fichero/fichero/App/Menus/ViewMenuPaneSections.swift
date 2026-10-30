@@ -205,8 +205,10 @@ struct GoMenuCommands: Commands {
             // Help › Save Logs for Support… (#5656): dev tier only. The tier is
             // a launch constant, so reading it here needs no observation.
             #if os(macOS)
+            Divider()
+            // Help › Send Logs to the Maintainer… is a release feature: every tier (it asks first).
+            SendLogsToMaintainerButton()
             if SupportLogs.isOffered(for: FeatureManager.shared.activeBuildTier) {
-                Divider()
                 SaveLogsForSupportButton()
             }
             #endif

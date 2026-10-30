@@ -23,6 +23,35 @@ nonisolated enum SupportLogs {
     /// engine.log can grow without bound; the zip carries only its last 20 MB.
     static let engineLogCap = 20 * 1024 * 1024
 
+    /// The maintainer's support address (`help.send-logs-to-the-maintainer`). EMPTY on purpose: no support address
+    /// exists in the repo and one is never invented. The draft opens with an empty To until the owner sets it.
+    static let maintainerAddress = ""
+
+    /// `To` for the draft: nothing while the address is unset.
+    static var maintainerRecipients: [String] { maintainerAddress.isEmpty ? [] : [maintainerAddress] }
+
+    /// A file that must never be in the zip, whatever sits in the logs folder: a library database or a credential.
+    /// The logs folder holds logs; this is the belt for the day something else lands there.
+    static func isExcluded(fileName: String) -> Bool {
+        let name = fileName.lowercased()
+        let extensions = ["duckdb", "db", "sqlite", "sqlite3", "fichero", "pem", "key", "p12", "wal"]
+        if extensions.contains((name as NSString).pathExtension) { return true }
+        if name == ".api-key" || name.hasPrefix(".api-key") { return true }
+        return ["token", "credential", "secret", "password", "api-key", "apikey"].contains { name.contains($0) }
+    }
+
+    /// What the person is shown before anything is composed: every part of the zip, and what it may reveal.
+    static let contentsDescription = """
+        The zip holds:
+        • The app's logs folder (Library/Logs/Fichero): the app's logs, the server's logs, and the engine log \
+        (its last 20 MB).
+        • about.txt: the Fichero version and build, feature tier, macOS version, Mac model, memory, free disk, \
+        the date, and the logs folder.
+
+        It does not hold your libraries, documents, or any password or token. Logs can name files and folders \
+        the app opened. Nothing is sent: your mail app opens a new message with the zip attached, and you press Send.
+        """
+
     /// Dev tier only (#5656): a support tool for testers, not a release feature.
     /// MainActor because `FeatureTier` is (the target's default isolation).
     @MainActor static func isOffered(for tier: FeatureTier) -> Bool { tier == .dev }
@@ -78,6 +107,7 @@ nonisolated enum SupportLogs {
             while let item = enumerator?.nextObject() as? URL {
                 let values = try item.resourceValues(forKeys: Set(keys))
                 guard values.isRegularFile == true else { continue }
+                guard !isExcluded(fileName: item.lastPathComponent) else { continue }
                 let relativePath = item.relativePath
                 let target = destination.appendingPathComponent(relativePath)
                 try fileManager.createDirectory(
@@ -182,7 +212,7 @@ nonisolated enum SupportLogs {
     /// and copies that zip to `destination`, replacing a file the save panel
     /// already confirmed overwriting.
     @concurrent
-    static func makeArchive(at destination: URL, about: String) async throws {
+    static func makeArchive(at destination: URL, about: String, logsDirectory: URL = logsDirectory) async throws {
         let fileManager = FileManager.default
         let scratch = fileManager.temporaryDirectory
             .appendingPathComponent("SupportLogs-\(UUID().uuidString)", isDirectory: true)
@@ -248,6 +278,58 @@ struct SaveLogsForSupportButton: View {
                 continuation.resume(returning: result == .OK ? panel.url : nil)
             }
         }
+    }
+}
+
+/// Help › Send Logs to the Maintainer… (`help.send-logs-to-the-maintainer`): every tier. Shows what the zip holds and
+/// asks; then builds the same zip into a temporary folder and opens a new mail with it attached. Composed, never sent.
+struct SendLogsToMaintainerButton: View {
+    var body: some View {
+        Button("Send Logs to the Maintainer…") {
+            Task { await Self.run() }
+        }
+    }
+
+    static func run() async {
+        guard confirm() else { return }
+        let tier = FeatureManager.shared.activeBuildTier.environmentValue
+        let name = SupportLogs.archiveBaseName(date: Date()) + ".zip"
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SendLogs-\(UUID().uuidString)", isDirectory: true)
+        let url = folder.appendingPathComponent(name)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try await SupportLogs.makeArchive(at: url, about: SupportLogs.currentAbout(tier: tier))
+            try compose(attaching: url)
+        } catch SendLogsError.noMailAccount {
+            // No mail account: the person still gets the zip, through the Save Logs panel, to send by hand.
+            await SaveLogsForSupportButton.run()
+        } catch {
+            ExportPresentation.showError(error, title: "Couldn’t Prepare the Logs")
+        }
+    }
+
+    private static func confirm() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Send logs to the maintainer?"
+        alert.informativeText = SupportLogs.contentsDescription
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// A new mail with the zip attached; throws `noMailAccount` when this Mac cannot compose one.
+    private static func compose(attaching zip: URL) throws {
+        guard let service = NSSharingService(named: .composeEmail), service.canPerform(withItems: [zip]) else {
+            throw SendLogsError.noMailAccount
+        }
+        service.recipients = SupportLogs.maintainerRecipients
+        service.subject = "Fichero logs"
+        service.perform(withItems: [zip])
+    }
+
+    enum SendLogsError: Error {
+        case noMailAccount
     }
 }
 #endif
