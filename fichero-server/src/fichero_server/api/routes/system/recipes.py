@@ -2828,17 +2828,16 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
-    every one the plan lists, since pressing Start is the yes (#6259); none while the plan refuses Start. Each by `cloud.accept_unpriced`, the one accept action.
+    every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
+    (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
-    if plan.get("refusals"):  # a refused Start accepts nothing: project.start says why
-        return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
-    if unknown:
+    if unknown:  # a request naming a model the plan never asked about is wrong whether or not Start is refused
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
     for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
@@ -2868,6 +2867,9 @@ async def start_project(
         # The yes to a cloud model with no price is its own audited action, taken BEFORE Start's: inside Start's
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         clusters = _cluster_names(http)
+
+        if request and request.documents is not None and folder_id:  # said first: the accept's plan would call the folder unknown
+            raise ValueError("Start takes a folder or some pages, not both")
 
         def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx)

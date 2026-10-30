@@ -734,11 +734,20 @@ def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: 
 
     step["catalogue"] = account = describe_folders(
         db, documents, LLMConfig(provider=card["provider"], model=card["model"]), run_id=parent,
-        stop=lambda: _stop_asked(parent))
+        stop=lambda: _stop_asked(parent), whole_folders_only=bool(step.pop("readers_unfinished", False)),
+        failed_ids=step.pop("failed_ids", ()))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
     if account["failed"]:
         return None, "failed", "; ".join(account["failed"])
+    skipped = account["skipped"]
+    if skipped:  # a reading step failed: only the folders read in full were described, and the rest are named
+        shown = "; ".join(skipped[:10]) + (f"; and {len(skipped) - 10} more" if len(skipped) > 10 else "")
+        said = (f"skipped {len(skipped)} folder{'' if len(skipped) == 1 else 's'} with pages not read "
+                f"(a reading step failed): {shown}")
+        if not account["described"] and not account["unchanged"]:
+            return None, "not run", f"no folder was read in full; {said}"
+        return None, "partial", said
     return None, "done", None
 
 
@@ -1433,6 +1442,15 @@ def _in_the_cards_folders(db: Any, card: dict[str, Any], documents: list[str], t
             and not any(d in scope and (inside is None or scope < inside) for scope in others.values())]
 
 
+def _readers_unfinished(cards: list[dict[str, Any]], steps: list[dict[str, Any]], card: dict[str, Any]) -> bool:
+    """Whether a step that gives what this card takes did not end done. A card queued before cards declared their inputs
+    takes from every card before it (as `_blocked` reads it): any of them not done is unfinished."""
+    if "takes" not in card:
+        return any(s["state"] != "done" for s in steps)
+    kinds = {kind for take in card["takes"] for kind in take.split("|")}
+    return any(s["state"] != "done" for c, s in zip(cards, steps) if kinds.intersection(c.get("gives") or ()))
+
+
 def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict[str, Any], tree: _Tree,
                 detail: dict[str, Any]) -> tuple[list[str], dict[str, Any], dict[str, str]]:
     """The pages a step works on in this batch, as it is about to run: (pages, its scratch notes, the pages' kinds)."""
@@ -1447,7 +1465,15 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
     if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
         from fichero_server.recipes.done import pages_for
 
-        documents = pages_for(db, card, detail.get("documents"))
+        # A folder's run covers that folder's pages alone (#6275), not the whole project's.
+        try:
+            within = folder_scope(db, detail["folder_id"], tree) if detail.get("folder_id") else None
+        except LookupError:  # the folder was trashed after Start planned: it holds no pages (as `_in_the_cards_folders`)
+            within = set()
+        documents = pages_for(db, card, detail.get("documents"), within)
+        index = detail["steps"].index(step)
+        scratch["readers_unfinished"] = _readers_unfinished(detail["runs"][:index], detail["steps"][:index], card)
+        scratch["failed_ids"] = sorted({i for s in detail["steps"][:index] for i in s.get("failed_ids") or []})
     elif not redo.intersection(card["steps"]):
         documents, scratch["already_done"] = split_done(db, card, documents, own=set(step.get("ran_on") or []))
     if documents and _reads_page_images(card.get("job")):
@@ -1539,7 +1565,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             here[index]["state"] = "not run"
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
-        blocked = _blocked(cards, here, index) or _await_downloads(db, job_id, detail, card)
+        # The catalogue judges each folder itself (`_run_catalogue`): one failed batch must not hide a folder read in full.
+        blocked = (None if card["card"] == "catalogue" else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
         if blocked:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)
@@ -1694,6 +1721,9 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
         none_done, pages_failed, lost = _did_no_page(db, card, child, scratch)
+        # The ids of the pages this step lost, kept (not in the run's status) for the Catalogue, which skips their folders (#6275).
+        lost_ids = [f.document_id for f in lost if getattr(f, "document_id", None)] or (documents if state == "failed" else [])
+        step["failed_ids"] = sorted({*(step.get("failed_ids") or []), *lost_ids})
         if state == "done" and card.get("job") == "read-a-line":
             # A page whose reader gave no text for every line, or most (`source.read.line-with-no-writing-is-read`),
             # is a lost page though its node succeeded: the step is partial and names it with the reason.

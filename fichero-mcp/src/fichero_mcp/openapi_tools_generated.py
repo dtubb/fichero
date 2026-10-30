@@ -3113,6 +3113,7 @@ def fichero_export_training_route(
 
 def fichero_export_word_route(
     *,
+    include_images: Annotated[Optional[bool], Field(description="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true.")] = None,
     include_knowledge_graph: Annotated[Optional[bool], Field(description='Append relevant knowledge graph entities and claims. Default: true.')] = None,
     output_path: Annotated[str, Field(description='Destination .docx path.')],
     overwrite: Annotated[Optional[bool], Field(description='Overwrite existing .docx. Default: false.')] = None,
@@ -3120,7 +3121,7 @@ def fichero_export_word_route(
     target_id: Annotated[Optional[str], Field(description='Optional document/folder id to export; omitted exports library.')] = None,
 ) -> Any:
     'Export Word Route\n\nExport a library, folder, or document as a Word .docx file.\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/export/word", json=_rt.body({"include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
+    return _rt.call("POST", "/api/export/word", json=_rt.body({"include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
 
 
 def fichero_find_documents_list_proposals(

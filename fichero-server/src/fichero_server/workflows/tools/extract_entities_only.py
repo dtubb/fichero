@@ -593,7 +593,7 @@ async def extract_entities_only(
                     entity_type=entity_type,
                     aliases=aliases,
                     source_document_id=record["doc_id"],
-                    asserted_by=asserted_by,
+                    asserted_by={**asserted_by, "document_id": record["doc_id"]},
                 )
                 if entity_id is None:
                     suppressed += 1

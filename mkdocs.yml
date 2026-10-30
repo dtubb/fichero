@@ -428,6 +428,7 @@ nav:
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
+              - KG Overview — Names, Statements, Review, Graph (draft): contributor_manual/specs/kg/kg-entities-and-statements.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
@@ -451,6 +452,8 @@ nav:
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - IIIF: contributor_manual/specs/source/iiif.md
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
+              - Attributes & Prototypes (foundation): contributor_manual/specs/source/attributes-and-prototypes.md
+              - Catalogue Workbook Export: contributor_manual/specs/source/catalogue-export.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Image Enhancement: contributor_manual/specs/source/image-enhancement.md
               - Recipes Run: contributor_manual/specs/source/recipes-run.md
@@ -493,6 +496,7 @@ nav:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
               - Automation: contributor_manual/specs/ui/automation.md
+              - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
@@ -503,6 +507,7 @@ nav:
               - Layers on the Source: contributor_manual/specs/ui/layers-on-the-source.md
               - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
               - Reader View: contributor_manual/specs/ui/reader-view.md
+              - Reviewing Names & Statements (draft): contributor_manual/specs/ui/review-names-and-statements.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
               - Search: contributor_manual/specs/ui/search.md

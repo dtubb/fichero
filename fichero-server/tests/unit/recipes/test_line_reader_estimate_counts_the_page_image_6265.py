@@ -11,6 +11,15 @@ from fichero_server.workflows.model_comparison import estimate_cost
 MODEL, PROVIDER = "claude-haiku-4-5", "anthropic"
 
 
+@pytest.fixture(autouse=True)
+def _not_a_batch(monkeypatch):
+    """874 pages is over the batch threshold (#5940); these tests are about the tokens a page read sends, priced at the
+    listed rate. The batch price of the same tokens is the last test."""
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "goes_as_provider_batch", lambda run, pages: False)
+
+
 def _run(job):
     return {"card": "workflow", "runs_on": "cloud:anthropic", "model_override": MODEL, "provider_override": PROVIDER,
             "workflow_id": None, "job": job, "steps": [job], "workflow": "Read"}
@@ -41,3 +50,13 @@ def test_openrouter_claude_is_the_capped_image_too():
     cost = estimate([run], 10)["runs"][0]["cost_usd"]
     if cost is not None:
         assert cost == pytest.approx(estimate_cost("anthropic/claude-haiku-4.5", 10 * 3_600, 10 * 400, provider="openrouter"))
+
+
+def test_a_batched_page_read_is_priced_on_the_page_image_at_the_batch_price(monkeypatch):
+    from fichero_server.llm.spend import batch_cost_usd
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "goes_as_provider_batch", lambda run, pages: True)
+    row = estimate([_run("read-a-page")], 874)["runs"][0]
+    assert row["cost_usd"] == pytest.approx(batch_cost_usd(PROVIDER, MODEL, 874 * 3_600, 874 * 400))
+    assert row["basis"] == "the batch price, answered within a day"

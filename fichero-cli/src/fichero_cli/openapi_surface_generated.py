@@ -6622,6 +6622,7 @@ def register_generated_openapi_commands(
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
+        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true."),
         include_knowledge_graph: Optional[bool] = typer.Option(None, '--include-knowledge-graph/--no-include-knowledge-graph', help='Append relevant knowledge graph entities and claims. Default: true.'),
         output_path: str = typer.Option(..., '--output-path', help='Destination .docx path.'),
         overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .docx. Default: false.'),
@@ -6633,12 +6634,14 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/export/word"
             params = None
             payload = _build_json_payload({
+                "include_images": include_images,
                 "include_knowledge_graph": include_knowledge_graph,
                 "output_path": output_path,
                 "overwrite": overwrite,
                 "recursive": recursive,
                 "target_id": target_id,
             }, {
+                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Embed each page's scan; false prints no image and no note, and never opens the scan files", 'default': True, 'x-cli-required': False},
                 "include_knowledge_graph": {'type': 'boolean', 'title': 'Include Knowledge Graph', 'description': 'Append relevant knowledge graph entities and claims', 'default': True, 'x-cli-required': False},
                 "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .docx path', 'x-cli-required': True},
                 "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .docx', 'default': False, 'x-cli-required': False},

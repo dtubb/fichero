@@ -1493,8 +1493,9 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
         if runs_on.startswith("cloud") and calls is not None and goes_as_provider_batch(w, pages):
             from fichero_server.llm.spend import batch_cost_usd
 
-            cost = batch_cost_usd(w["provider_override"], w["model_override"] or "", pages * calls * _TOKENS_IN,
-                                  pages * calls * _TOKENS_OUT)
+            tokens_in, tokens_out = _page_read_tokens(w) if w.get("job") in PAGE_READ_JOBS else (_TOKENS_IN, _TOKENS_OUT)
+            cost = batch_cost_usd(w["provider_override"], w["model_override"] or "", pages * calls * tokens_in,
+                                  pages * calls * tokens_out)  # a page read sends the picture, batch or not (#6265)
             basis = "unpriced" if cost is None else "the batch price, answered within a day"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None

@@ -236,6 +236,11 @@ def get_run(db: Any, thread_id: str) -> Optional[tuple]:
     return (*row[:at], read_log(db, thread_id, row[at]), *row[at + 1:])
 
 
+def get_run_scope(db: Any, thread_id: str) -> Optional[tuple]:
+    """A run's `(resolved_scope, status)` and nothing else (not its log); None when there is no such run."""
+    return db.execute_fetchone(f"SELECT resolved_scope, status FROM {RUNS} WHERE id = ?", [thread_id], committed=True)
+
+
 def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[str]], exclude_deleted: bool,
               limit: int, offset: int) -> list[tuple]:
     """Runs newest first, paged in SQL, each in the light projection (`LIST_COLUMNS`)."""

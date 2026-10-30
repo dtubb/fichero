@@ -1324,6 +1324,7 @@ def export_word_docx(
     title: str | None = None,
     text_for: Callable[[Document], str] | None = None,
     skipped: list[tuple[str, str]] | None = None,
+    include_images: bool = True,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file. `skipped` collects (page, why) for each image left out (#5966).
 
@@ -1353,8 +1354,10 @@ def export_word_docx(
 
     for index, doc in enumerate(documents, start=1):
         text = text_for(doc) if text_for is not None else _document_text(db, doc)
+        image_source = None
         try:
-            image_source = _docx_image_source(db, doc, package)
+            if include_images:
+                image_source = _docx_image_source(db, doc, package)
         except ExportImageUnavailable as unavailable:
             logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
             if skipped is not None:

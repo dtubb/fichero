@@ -101466,6 +101466,12 @@
             "title": "Include Knowledge Graph",
             "description": "Append relevant knowledge graph entities and claims",
             "default": true
+          },
+          "include_images": {
+            "type": "boolean",
+            "title": "Include Images",
+            "description": "Embed each page's scan; false prints no image and no note, and never opens the scan files",
+            "default": true
           }
         },
         "additionalProperties": true,
