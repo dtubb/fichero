@@ -118,6 +118,8 @@ ANSWER_BY_ID = (
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
 #: next pass of a preset is given as its context.
 _SHOWN_LINE = re.compile(r"^[0-9a-f]{32} \| ", re.MULTILINE)
+#: A row of the settle block a second review in `both` mode is given (`tool_context.as_prompt_context`): the first review's version of a line.
+_SETTLE_ROW = re.compile(r"^their version of ([0-9a-f]{32}): ")
 
 
 def shows_segment_lines(prior_text: Any) -> bool:
@@ -228,7 +230,10 @@ def _within_budget(prior_text: Any, model: str, prompt: str = "", files: list | 
         message = (f"{left} of the page's {len(listed)} lines were left out to fit the model's budget of {budget} "
                    "tokens; they are not reviewed in this pass")
         dropped = set(listed[len(keep):])
-        texts[index] = "\n".join(row for i, row in enumerate(rows) if i not in dropped) + f"\n\n({message}.)"
+        gone = {rows[i][:32] for i in dropped}  # the settle block (#6257) names no line the model was not shown
+        kept = [row for i, row in enumerate(rows) if i not in dropped
+                and not ((m := _SETTLE_ROW.match(row)) and m.group(1) in gone)]
+        texts[index] = "\n".join(kept) + f"\n\n({message}.)"
         logging.getLogger(__name__).warning("review context: %s", message)
         said.append(message)
     return (texts if isinstance(prior_text, list) else texts[0]), said

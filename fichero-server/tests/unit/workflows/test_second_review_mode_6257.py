@@ -229,3 +229,17 @@ def test_a_loop_in_the_derivation_trail_gives_the_reading_itself_as_a_broken_tra
 
     got = readings_before_reviews(Db(), [a, b])
     assert got == {"a": a, "b": b}
+
+
+def test_a_line_the_budget_dropped_is_not_named_in_the_settle_block(monkeypatch):
+    from fichero_server.recipes import cards
+    from fichero_server.workflows.tools.transcribe_review import _within_budget
+
+    kept_id, dropped_id = "a" * 32, "b" * 32
+    text = (f"{kept_id} | 0 0 1 1 | m | 0.9 | first\n{dropped_id} | 0 1 1 1 | m | 0.9 | {'long ' * 400}\n\n"
+            f"Another reviewer changed the lines below.\ntheir version of {kept_id}: kept version\n"
+            f"their version of {dropped_id}: dropped version")
+    monkeypatch.setattr(cards, "prefill_tokens_for", lambda model: 50)
+    got, said = _within_budget(text, "m")
+    assert said and dropped_id not in got and "dropped version" not in got
+    assert f"their version of {kept_id}: kept version" in got
