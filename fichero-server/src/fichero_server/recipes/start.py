@@ -495,12 +495,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
             settings[setting] = given
         bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
-        if bar not in (None, "", WHOLE_PAGE) and settings.get("review_mode") not in (None, "", "in-turn"):
+        has_bar = bar not in (None, "", WHOLE_PAGE) or settings.get("only_below_confidence") not in (None, "")
+        if has_bar and settings.get("review_mode") not in (None, "", "in-turn"):
             # The unsure-lines path asks the model about each line's current reading, so compare and both would be ignored.
-            skip(sid, f"{label}: it reviews {settings['review_mode']}, which needs the whole page, and the project sends the "
+            skip(sid, f"{label}: it reviews {settings['review_mode']}, which needs the whole page, and this step sends the "
                       "second model only the lines Kraken is unsure of",
                  "answer \"Send the second model only the lines Kraken is unsure of?\" No, or review in turn, in the "
-                 "project's setup")
+                 "project's setup; or take the step's own certainty bar out")
             continue
         if bar not in (None, "", WHOLE_PAGE) and "only_below_confidence" not in settings:
             try:

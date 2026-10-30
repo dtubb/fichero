@@ -294,13 +294,13 @@ async def _review_whole_page(inputs: dict[str, Any], state: State, llm_config: L
     )
 
 
-def _answered_by(db: Any, document_id: str, provider: str, model: str, mode: str = "in-turn") -> set[str]:
-    """The lines of a page that already carry a reading from a review by this same model, in this same mode (a re-run
-    does not ask them again, or pay for them again; a review in another mode was given other input, #6257)."""
+def _answered_by(db: Any, document_id: str, provider: str, model: str) -> set[str]:
+    """The lines of a page that already carry a reading from a review by this same model (a re-run does not ask
+    them again, or pay for them again). The unsure-lines path only runs in turn, so there is no other mode to tell apart."""
     from fichero_server.models import Artifact, ContentRepresentation
 
     made = {a.id for a in db.query(Artifact, document_id=document_id, artifact_type="transcription_review")
-            if (a.provider, a.model) == (provider, model) and ((a.data or {}).get("review_mode") or "in-turn") == mode}
+            if (a.provider, a.model) == (provider, model)}
     return {r.segment_id for r in db.query(ContentRepresentation, document_id=document_id)
             if r.segment_id and r.derived_from_artifact_id in made and not getattr(r, "retracted_at", None)}
 
@@ -344,8 +344,7 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         with Image.open(page.path) as img:
             width, height = rows.page_size(img)
         # a forced re-run (`skip_if_artifact_exists` False) asks every unsure line again
-        mode = inputs.get("review_mode") or "in-turn"
-        done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model, mode)
+        done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
                 if inputs.get("skip_if_artifact_exists", True) else set())
         already += len(shown & done)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
@@ -375,8 +374,7 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
             result["results"].append({"file": file_path, "text": "", "value": None, "lines": "no line answered"})
             continue
         art = Artifact(document_id=str(doc_id), artifact_type="transcription_review", content=content,
-                       provider=llm_config.provider, model=llm_config.model, version=1, reviewed=False,
-                       data={"review_mode": mode} if mode != "in-turn" else None)
+                       provider=llm_config.provider, model=llm_config.model, version=1, reviewed=False)
         db.save(art)
         result["artifacts"].append(art.id)
         result["texts"].append(content)
@@ -440,6 +438,10 @@ async def transcribe_review(
 ) -> dict[str, Any]:
     """Re-check an image against its prior transcription and emit a corrected version."""
 
+    if inputs.get("only_below_confidence") is not None and inputs.get("review_mode") not in (None, "", "in-turn"):
+        # the unsure-lines path asks about each line's current reading, so compare and both would be ignored (#6257)
+        raise ValueError(f"review_mode {inputs['review_mode']!r} needs the whole page; it cannot be combined with "
+                         "only_below_confidence, which sends the model only the unsure lines")
     files = inputs.get("files") or state.get("input_files", [])
     # #4298: recover aligned documents from upstream node outputs when the
     # `documents` port is unwired, so a page-scoped review stays scoped to

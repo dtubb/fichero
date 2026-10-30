@@ -199,3 +199,14 @@ def test_a_page_read_as_words_names_the_line_in_the_settle_block_never_a_word(db
     assert got.segment_ids == lines
     assert list(got.first_review) == [lines[0]] and FIRST_REVIEW in got.first_review[lines[0]]
     assert got.text.splitlines()[0].endswith("w00 w01 w02")  # the line as the second reviewer is shown it
+
+
+@pytest.mark.asyncio
+async def test_the_review_tool_refuses_a_mode_called_with_a_certainty_bar():
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    inputs = {"files": ["page.png"], "documents": [{"id": "d1"}], "review_mode": "both", "only_below_confidence": 0.6}
+    with pytest.raises(ValueError, match="needs the whole page"):
+        await transcribe_review(inputs=inputs, state={"library_path": "lib"},
+                                llm_config=LLMConfig(provider="", model=""))

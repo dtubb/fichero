@@ -105,3 +105,12 @@ def test_in_turn_with_the_certainty_bar_is_as_before(mac):  # noqa: F811
     plan = plan_start(_recipe(LINES, KRAKEN_READS, CORRECT, {**CORRECT, "id": "correct-2"}), stays_local=True,
                       job_answers={"review_certainty_bar": "0.5"})
     assert [r["steps"][0] for r in plan["runs"] if r["job"] == "correct"] == ["correct", "correct-2"]
+
+
+def test_a_step_with_its_own_certainty_bar_and_a_mode_is_refused_too(mac):  # noqa: F811
+    mac.installed.add("Qwen2.5-VL-7B")
+    second = {**CORRECT, "id": "correct-2", "settings": {"review_mode": "both", "only_below_confidence": 0.6}}
+    plan = plan_start(_recipe(LINES, KRAKEN_READS, CORRECT, second), stays_local=True)
+    (skipped,) = [s for s in plan["skipped"] if s["step"] == "correct-2"]
+    assert "both" in skipped["why"] and "unsure of" in skipped["why"]
+    assert [r["steps"][0] for r in plan["runs"] if r["job"] == "correct"] == ["correct"]

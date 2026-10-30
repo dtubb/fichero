@@ -189,16 +189,3 @@ def test_a_correct_step_with_a_bar_reaches_the_review_node(monkeypatch):
              if "correct" in r["steps"]]
     assert run["tool_config"] == {"transcribe_review": {"only_below_confidence": 0.6}}
 
-
-@pytest.mark.asyncio
-async def test_a_re_run_in_another_review_mode_asks_again_what_the_same_model_answered_on_other_input(page, monkeypatch):  # noqa: F811
-    """#6257: a line this model answered in turn was given other input than in compare, so it is asked again; the same mode
-    still skips it."""
-    _kraken_was_sure(page, [0.95, 0.30, 0.50])
-    await _correct(page, monkeypatch, ["vezino de la ciudad", "y lo firmo."])
-
-    compared = await _correct(page, monkeypatch, ["vezino de la cibdad", "y lo firmo"], review_mode="compare")
-    assert sum(len(c["images"]) for c in compared["calls"]) == 2, "asked again, on the other input"
-
-    same = await _correct(page, monkeypatch, [], review_mode="compare")
-    assert same["calls"] == [], "the same mode and model: not asked again"
