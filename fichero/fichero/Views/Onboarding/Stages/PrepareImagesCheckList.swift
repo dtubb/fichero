@@ -99,3 +99,14 @@ struct PrepareImagesCheckList: View {
         NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: ["documentId": item.id])
     }
 }
+
+#Preview("Pages to check") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    store.prepareCheck = .init(
+        items: [
+            .init(id: "p1", name: "page-014", kinds: ["blank"], words: ["very little ink beyond its ruling"], sample: false),
+            .init(id: "p2", name: "page-020", kinds: [], words: ["checked as a sample"], sample: true)
+        ],
+        count: 2, proposed: 1)
+    return PrepareImagesCheckList(store: store).padding().frame(width: 420)
+}

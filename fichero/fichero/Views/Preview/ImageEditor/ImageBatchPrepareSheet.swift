@@ -4,17 +4,22 @@ import SwiftUI
 /// Pure rules for "Apply to the rest of this folder" (`prep.check.apply-correction-to-the-folder`): which correction a
 /// page's chain holds that can be copied, and the words around it.
 enum BatchPrepare {
+    /// The correction `image.batch_prepare` copies: a square's four corners (fractions of the upright frame) or a turn's
+    /// degrees. The generated contract type, not a copy of it, and the same one the preview and the action send.
+    typealias Operation = Components.Schemas.BatchPrepareOperation
+    typealias Request = Components.Schemas.BatchPrepareRequest
+
     /// The last correction a person made on the page that the engine can copy as fractions or degrees: a squaring or a turn.
-    static func correction(in operations: [ImageEditOperation]) -> BatchPrepareOperation? {
+    static func correction(in operations: [ImageEditOperation]) -> Operation? {
         for operation in operations.reversed() {
             let raw = operation.raw.value as? [String: Any] ?? [:]
             guard (raw["who"] as? String) == "person" || operation.opKind == "rotate" else { continue }
             let params = operation.params
             switch operation.opKind {
             case "square":
-                if let quad = quad(params["quad"]) { return .init(kind: "square", quad: quad) }
+                if let quad = quad(params["quad"]) { return .init(op: .square, quad: quad) }
             case "rotate":
-                if let angle = number(params["angle"]) { return .init(kind: "rotate", angle: angle) }
+                if let angle = number(params["angle"]) { return .init(op: .rotate, angle: angle) }
             default:
                 continue
             }
@@ -38,12 +43,12 @@ enum BatchPrepare {
         return points.count == 4 ? points : nil
     }
 
-    static func title(_ operation: BatchPrepareOperation) -> String {
-        operation.kind == "square" ? "this page's four corners" : "a turn of \(Int(operation.angle ?? 0))°"
+    static func title(_ operation: Operation) -> String {
+        operation.op == .square ? "this page's four corners" : "a turn of \(Int(operation.angle ?? 0))°"
     }
 
     /// The sheet's sentence before it runs: how many pages it would change.
-    static func summary(pages: Int, operation: BatchPrepareOperation) -> String {
+    static func summary(pages: Int, operation: Operation) -> String {
         "Copies \(title(operation)) to \(pages) other page\(pages == 1 ? "" : "s") in this folder."
     }
 }
@@ -53,7 +58,7 @@ enum BatchPrepare {
 struct ImageBatchPrepareSheet: View {
     let folderId: String
     let sourceDocumentId: String
-    let correction: BatchPrepareOperation
+    let correction: BatchPrepare.Operation
     let documents: [Document]
     var onApplied: ([String]) -> Void = { _ in }
 
@@ -67,7 +72,7 @@ struct ImageBatchPrepareSheet: View {
     @State private var applied: [String] = []
     @State private var failure: String?
 
-    private var request: ImageBatchPrepareRequest {
+    private var request: BatchPrepare.Request {
         .init(folderId: folderId, operation: correction, sourceDocumentId: sourceDocumentId)
     }
 
@@ -126,10 +131,7 @@ struct ImageBatchPrepareSheet: View {
     }
 
     private func loadPreviews() async {
-        let body = Components.Schemas.BatchPrepareRequest(
-            folderId: folderId,
-            operation: .init(op: correction.kind == "square" ? .square : .rotate, quad: correction.quad, angle: correction.angle),
-            sourceDocumentId: sourceDocumentId)
+        let body = request
         do {
             if case .ok(let answer) = try await apiClient.api.batchPreparePreviewApiImagesBatchPreparePreviewPost(body: .json(body)) {
                 let result = try answer.body.json
@@ -180,4 +182,11 @@ extension ImageEditorView {
             .accessibilityIdentifier("imageEditApplyToFolder")
         }
     }
+}
+
+#Preview("Apply to the rest of this folder") {
+    ImageBatchPrepareSheet(
+        folderId: "folder", sourceDocumentId: "page-1",
+        correction: .init(op: .rotate, angle: 90), documents: [])
+        .environment(APIClient())
 }

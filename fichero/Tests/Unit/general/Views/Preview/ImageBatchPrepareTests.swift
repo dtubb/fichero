@@ -8,6 +8,7 @@
 //
 
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -18,7 +19,7 @@ struct ImageBatchPrepareTests {
 
     @Test func aPersonsSquaringIsTheCorrectionToCopyWithWholeNumbersToo() {
         let ops = [operation(["op": "square", "who": "person", "params": ["quad": quad]])]
-        #expect(BatchPrepare.correction(in: ops) == BatchPrepareOperation(kind: "square", quad: quad))
+        #expect(BatchPrepare.correction(in: ops) == BatchPrepare.Operation(op: .square, quad: quad))
     }
 
     @Test func aTurnIsCopiedAsDegreesWhetherItIsWholeOrNot() {
@@ -30,7 +31,7 @@ struct ImageBatchPrepareTests {
         let ops = [operation(["op": "rotate", "params": ["angle": 90]]),
                    operation(["op": "square", "who": "run r1", "params": ["quad": quad]]),
                    operation(["op": "enhance", "params": ["brightness": 1.2]])]
-        #expect(BatchPrepare.correction(in: ops)?.kind == "rotate")
+        #expect(BatchPrepare.correction(in: ops)?.op == .rotate)
         #expect(BatchPrepare.correction(in: [operation(["op": "enhance", "params": [:]])]) == nil)
     }
 
@@ -40,14 +41,14 @@ struct ImageBatchPrepareTests {
     }
 
     @Test func theSheetSaysHowManyPagesItWillChange() {
-        let one = BatchPrepare.summary(pages: 1, operation: .init(kind: "rotate", angle: 90))
+        let one = BatchPrepare.summary(pages: 1, operation: .init(op: .rotate, angle: 90))
         #expect(one == "Copies a turn of 90° to 1 other page in this folder.")
-        #expect(BatchPrepare.summary(pages: 12, operation: .init(kind: "square", quad: quad)).contains("12 other pages"))
+        #expect(BatchPrepare.summary(pages: 12, operation: .init(op: .square, quad: quad)).contains("12 other pages"))
     }
 
     @Test func theRequestsUseTheActionsParameterNames() throws {
-        let request = ImageBatchPrepareRequest(
-            folderId: "f1", operation: .init(kind: "square", quad: quad), sourceDocumentId: "d1")
+        let request = BatchPrepare.Request(
+            folderId: "f1", operation: .init(op: .square, quad: quad), sourceDocumentId: "d1")
         let body = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
         #expect(body["folder_id"] as? String == "f1" && body["source_document_id"] as? String == "d1")
         #expect((body["operation"] as? [String: Any])?["op"] as? String == "square")
