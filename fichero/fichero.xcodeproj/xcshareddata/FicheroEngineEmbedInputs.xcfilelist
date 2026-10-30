@@ -179,6 +179,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/fonts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/locations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/migrations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/projects.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipe_cloud_cap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/registries.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/settings.py
@@ -487,6 +488,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/bakeoff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/catalogue_step.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/cloud_cap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/diff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py

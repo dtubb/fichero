@@ -165,7 +165,7 @@ def _line(**kw) -> dict:
 
 
 def test_the_refusal_names_the_monthly_cap_and_the_amount():
-    from fichero_server.api.routes.system.recipes import _cap_refusals
+    from fichero_server.recipes.cloud_cap import cap_refusals as _cap_refusals
 
     plan = {
         "refusals": [],
@@ -182,7 +182,7 @@ def test_the_refusal_names_the_monthly_cap_and_the_amount():
 
 
 def test_the_refusal_names_the_project_cap_and_both_when_both_are_over():
-    from fichero_server.api.routes.system.recipes import _cap_refusals
+    from fichero_server.recipes.cloud_cap import cap_refusals as _cap_refusals
 
     plan = {
         "refusals": [],
@@ -224,7 +224,7 @@ def test_the_refusal_names_the_project_cap_and_both_when_both_are_over():
 def test_the_plan_line_carries_the_caps_own_refusal_so_a_client_never_reads_prose():
     """The app hid the cap's refusal from the list by matching the engine's sentence, and missed it when another refusal came
     first (the 422 then began with that one). The line carries the sentence it added, whatever else is in `refusals`."""
-    from fichero_server.api.routes.system.recipes import _cap_refusals
+    from fichero_server.recipes.cloud_cap import cap_refusals as _cap_refusals
 
     plan = {
         "refusals": ["step 1 (find-lines): its model is not pinned in a known form"],
@@ -345,10 +345,7 @@ def test_setup_refuses_a_project_cap_below_zero_too(client):
 def test_the_first_pages_that_fit_are_priced_on_what_each_has_still_to_do(db):
     """100 pages, the last 80 done: only the first 20 cost anything. Pro-rating the estimate over all 100 pages offered a
     run on the first 62 (still all 20 to do, still over); walking the pages in Finder order finds the 12 that fit."""
-    from fichero_server.api.routes.system.recipes import (
-        _estimate_on,
-        _first_pages_that_fit,
-    )
+    from fichero_server.recipes.cloud_cap import estimate_on, first_pages_that_fit
     from fichero_server.models import Artifact
     from fichero_server.recipes.done import material
 
@@ -376,23 +373,26 @@ def test_the_first_pages_that_fit_are_priced_on_what_each_has_still_to_do(db):
                     model=model,
                 )
             )
-    whole = _estimate_on(db, plan, material(db, None), None, {})
+    whole = estimate_on(db, plan, material(db, None), None, {})
     per_page = whole["total_cost_usd"] / 20
     assert whole["runs"][0]["pages"] == 20 and per_page > 0
+    def price(within):
+        return estimate_on(db, plan, material(db, within), within, {})
+
     line = {
         "remaining_usd": 12.5 * per_page,
         "project_remaining_usd": None,
     }
-    assert _first_pages_that_fit(db, plan, line, whole["pages"]) == 12
+    assert first_pages_that_fit(db, plan, line, whole["pages"], price) == 12
     assert int(line["remaining_usd"] * 100 / whole["total_cost_usd"]) == 62  # the old answer
     line["remaining_usd"] = per_page / 2
-    assert _first_pages_that_fit(db, plan, line, whole["pages"]) is None  # not even one page
+    assert first_pages_that_fit(db, plan, line, whole["pages"], price) is None  # not even one page
     line["remaining_usd"] = 0.0
-    assert _first_pages_that_fit(db, plan, line, whole["pages"]) is None
+    assert first_pages_that_fit(db, plan, line, whole["pages"], price) is None
 
 
 def test_the_first_pages_are_the_first_in_finder_order(db):
-    from fichero_server.api.routes.system.recipes import _first_pages
+    from fichero_server.recipes.cloud_cap import first_pages_of as _first_pages
 
     names = {}
     for name in [

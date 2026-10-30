@@ -29,6 +29,16 @@ from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
 from fichero_server.recipes import places
+from fichero_server.recipes.cloud_cap import (
+    CloudCapLine,
+    cap_refusals,
+    catalogue_runs,
+    estimate_on,
+    folders_covering,
+    first_pages_of,
+    first_pages_that_fit,
+    only_if_set,
+)
 from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
@@ -548,16 +558,6 @@ def _where_facts(request: Request) -> tuple[float, bool, list[str]]:
 
     mac = this_mac_memory_gb()
     return mac, bool(remote_compute(price=False)["available"]), _cluster_names(request)
-
-
-def _lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) -> dict[str, Any] | None:
-    """What the project already holds of Kraken's lines, for pricing a run that sends only the unsure ones (variant A);
-    None when no run has a bar, so no plan pays for the scan."""
-    from fichero_server.recipes.done import kraken_lines_known
-    from fichero_server.recipes.start import certainty_bar
-
-    has_bar = any(certainty_bar(w) is not None for w in workflows if w.get("job") == "correct")
-    return kraken_lines_known(db, page_ids) if has_bar else None
 
 
 def _hf_spent(db: Any, answers: dict[str, Any] | None) -> float:
@@ -2046,57 +2046,6 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
                              emit_type="project.setup_saved")
 
 
-class CloudCapChange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    cap_usd: Optional[float] = Field(default=None, ge=0, description=(
-        "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged"))
-    project_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
-        "the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); "
-        "left out: unchanged"))
-    clear_project_cap: bool = Field(default=False, description="remove the project's total cap (no such limit)")
-
-    @model_validator(mode="after")
-    def _says_something(self) -> "CloudCapChange":
-        if self.cap_usd is None and self.project_cap_usd is None and not self.clear_project_cap:
-            raise ValueError("send the monthly cap, the project cap, or clear_project_cap")
-        if self.project_cap_usd is not None and self.clear_project_cap:
-            raise ValueError("a project cap is set or cleared, not both")
-        return self
-
-
-class CloudCapChanged(BaseModel):
-    cap_usd: float = Field(description="the project's monthly cloud cap now")
-    project_cap_usd: Optional[float] = Field(default=None, description="the project's total cloud cap now; null: none")
-    audit_id: str = Field(description="the audit row of the change; Undo reverses it")
-
-
-@router.put("/project/cloud-cap", response_model=CloudCapChanged, responses={422: {"model": _ErrorDetail,
-                    "description": "the cap is refused, in one sentence"}})
-async def change_cloud_cap(
-    request: CloudCapChange,
-    db: Database = Depends(get_library_database_for_write),
-    ctx: ActionContext = Depends(action_context),
-) -> CloudCapChanged:
-    """Set the project's monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap
-    (`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up's "Raise the cap to N" (#6295). One
-    `project.save_setup`, so audited and undoable as one step; the answer names the audit row."""
-    from fichero_server.llm import spend
-
-    answers = dict(read_project_setup(_library(db)).get("answers") or {})
-    if request.cap_usd is not None:
-        answers[spend.CAP_KEY] = request.cap_usd
-    if request.project_cap_usd is not None:
-        answers[spend.PROJECT_CAP_KEY] = request.project_cap_usd
-    if request.clear_project_cap:
-        answers.pop(spend.PROJECT_CAP_KEY, None)
-    try:
-        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return CloudCapChanged(cap_usd=spend.cap_usd(str(_library(db))) or 0.0, project_cap_usd=spend.project_cap_usd(str(_library(db))),
-                           audit_id=done.audit_id)
-
-
 class AllowCloudResult(BaseModel):
     project: str = Field(description="the project (its library folder's name) whose pages may now go to a cloud model")
     cloud_allowed: bool
@@ -2432,43 +2381,6 @@ class HfSpend(BaseModel):
     sentence: str
 
 
-class CloudCapLine(BaseModel):
-    """The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."""
-
-    cap_usd: float = Field(description="the project's cloud spending cap for a month (`answers.cloud_spend_cap_usd`), US$10 unless set")
-    spent_usd: float = Field(description="what its cloud calls have cost this (UTC) month, assumed prices included")
-    remaining_usd: float = Field(description="what the cap leaves this month")
-    estimate_usd: Optional[float] = Field(default=None, description="this run's estimated cloud cost; null when a model has no listed price")
-    over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
-    over_month: bool = Field(default=False, description="the estimate is more than the monthly cap leaves")
-    over_project: bool = Field(default=False, description="the estimate is more than the project's total cap leaves")
-    needed_cap_usd: Optional[float] = Field(default=None, description=(
-        "when `over_month`: the monthly cap under which this run's estimate fits (what is booked this month plus the estimate, "
-        "to the cent, no margin); Set Up offers it as \"Raise the cap to N\" (#6295); null otherwise"))
-    project_cap_usd: Optional[float] = Field(default=None, description=(
-        "the most the project may spend on cloud calls in all (`answers.cloud_project_cap_usd`); null: no such limit"))
-    project_spent_usd: float = Field(default=0.0, description="what its cloud calls have cost in all, across months")
-    project_remaining_usd: Optional[float] = Field(default=None, description=(
-        "what the project's total cap leaves, `project_cap_usd` less `project_spent_usd`, not below 0; null: no total cap"))
-    refusal: Optional[str] = Field(default=None, description=(
-        "when `over`: the sentence this cap adds to the plan's `refusals`, exactly, so a client can tell which refusal is the cap's "
-        "without reading its words; null otherwise"))
-    needed_project_cap_usd: Optional[float] = Field(default=None, description=(
-        "when `over_project`: the project cap under which this run's estimate fits (spent in all plus the estimate, to the cent)"))
-    pages: int = Field(default=0, description="the pages the estimate is for")
-    fewer_pages: Optional[int] = Field(default=None, description=(
-        "when `over`: how many of the project's first pages, in Finder order, fit what the caps leave at this run's per-page "
-        "estimate; null when none fit or the run is not over"))
-    unpriced_models: list[str] = Field(default_factory=list, description=(
-        "`provider/model` of cloud models in this plan with no listed price that the project has not accepted: listed apart, "
-        "counted at an assumed price per call; pressing Start accepts them (`cloud.accept_unpriced`), never a refusal (#6259)"))
-    note: Optional[str] = Field(default=None, description=(
-        "one sentence naming the unpriced models and the assumed price per call they are counted at; null when there are none"))
-    unpriced: bool = Field(description="the estimate is unknown (a cloud model with no listed price): asked about, never $0")
-    assumed_calls: int = Field(default=0, description="calls this month booked at the assumed price of a model with no listed price")
-    assumed_usd: float = Field(default=0.0, description="what those calls were booked at: counted against the cap, listed apart")
-
-
 class BuiltInStep(BaseModel):
     """A step that is built in: it runs nothing and needs nothing (#5816)."""
 
@@ -2647,18 +2559,6 @@ def _step_choices_of(setup: dict[str, Any], *, may_leave: bool, pages: Optional[
                         places_of=lambda c: places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=clusters))
 
 
-def _catalogue_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The plan's Catalogue runs, priced by `estimate` (one call a folder, before Start)."""
-    return [r for r in runs if r.get("card") == "catalogue"]
-
-
-def _folders_covering(db: Database, page_ids: list[str]) -> int:
-    """How many folders a Catalogue run over these pages describes (each folder above them, once; those already described are not priced)."""
-    from fichero_server.recipes.catalogue_step import folders_to_describe
-
-    return len(folders_to_describe(db, page_ids)[0]) if page_ids else 0
-
-
 def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
     """Where a step's per-kind readers differ from the step's own model, said in words: no refusal, no silent switch (#6269)."""
     out = []
@@ -2668,54 +2568,6 @@ def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
                 out.append(f"{kind} pages are read by {reader.get('note') or reader.get('model_override')}, not the step's "
                            f"{run.get('model_override') or 'default model'} ({', '.join(run.get('steps') or [])})")
     return out
-
-
-def _only_if_set(**named: Any) -> dict[str, Any]:
-    """The keyword arguments that were given: `_start_plan` is called with `first_pages` only for a first-pages run."""
-    return {key: value for key, value in named.items() if value is not None}
-
-
-def _estimate_on(db: Database, plan: dict[str, Any], pages: dict[str, Any], within: set[str] | None, memo: dict) -> dict[str, Any]:
-    """The plan's estimate over `pages` (`done.material` of `within`): each run priced on the pages it has still to do, the
-    review passes on their lines, the Catalogue step on its folders. The one pricing Start's plan and "run fewer pages" share."""
-    from fichero_server.recipes.done import todo_counts
-    from fichero_server.recipes.start import estimate
-
-    return estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
-                    catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
-                    todo=todo_counts(db, plan, within, memo=memo))
-
-
-def _first_pages_that_fit(db: Database, plan: dict[str, Any], line: dict[str, Any], pages: int) -> Optional[int]:
-    """The most first pages (Finder order) whose own estimate, priced as the plan prices it (only what each step has still to
-    do, review passes by their lines), fits what the caps leave; None when not even one page does. Found by halving, since the
-    price only grows with the pages; the price is the plan's best estimate, no margin (#6295)."""
-    from fichero_server.recipes.done import material
-
-    left = [line["remaining_usd"]]
-    if line["project_remaining_usd"] is not None:
-        left.append(line["project_remaining_usd"])
-    room = min(left)
-    first = _first_pages(db, pages)
-
-    def fits(count: int) -> bool:
-        within = set(first[:count])
-        cost = _estimate_on(db, plan, material(db, within), within, {})["total_cost_usd"]
-        return cost is not None and cost <= room + 1e-9
-
-    low, high = 0, len(first) - 1  # `low` fits (no page costs nothing); the whole run does not
-    while low < high:
-        middle = (low + high + 1) // 2
-        low, high = (middle, high) if fits(middle) else (low, middle - 1)
-    return low or None
-
-
-def _first_pages(db: Database, count: int) -> list[str]:
-    """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
-    runs (#6295)."""
-    from fichero_server.recipes.done import pages_for
-
-    return pages_for(db, {}, None)[:count]
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = (),
@@ -2747,10 +2599,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     if first_pages is not None and folder_id:
         raise LookupError("Start takes a folder or the first pages, not both")
-    within = runner.folder_scope(db, folder_id) if folder_id else set(_first_pages(db, first_pages)) if first_pages else None
+    within = runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages)) if first_pages else None
     pages = material(db, within)
     memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes
-    plan["estimate"] = _estimate_on(db, plan, pages, within, memo)
+    plan["estimate"] = estimate_on(db, plan, pages, within, memo)
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters),
@@ -2767,6 +2619,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
+    plan["first_pages"] = first_pages  # for `_as_started`: the run queued is these pages (not in the answer's model)
     plan["notes"] = [*notes, *_reader_notes(plan["workflows"])]
     from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
@@ -2797,8 +2650,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"),
                                               cloud_models=cloud_models, pages=plan["estimate"]["pages"])
     if plan["cloud_cap"]["over"] and not folder_id:
-        plan["cloud_cap"]["fewer_pages"] = _first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"])
-    _cap_refusals(plan)
+        plan["cloud_cap"]["fewer_pages"] = first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"], lambda within: estimate_on(db, plan, material(db, within), within, {}))
+    cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
@@ -2812,7 +2665,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     return plan
 
 
-def _as_started(db: Database, plan: dict[str, Any], first_pages: Optional[int] = None) -> dict[str, Any]:
+def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     """The plan as Start started it (#5498): its runs, workflows and skipped steps are the queued run's, so the
     response's `started.workflows` and `runs` name the same thing, never the plan for next time."""
     from fichero_server.recipes import runner
@@ -2830,12 +2683,12 @@ def _as_started(db: Database, plan: dict[str, Any], first_pages: Optional[int] =
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
     within = (runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id")
-              else set(_first_pages(db, first_pages)) if first_pages else None)  # the run's own pages (#6295)
+              else set(first_pages_of(db, plan["first_pages"])) if plan.get("first_pages") else None)  # the run's own pages (#6295)
     from fichero_server.recipes.done import material, todo_counts
 
     memo: dict = {}
-    plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=_catalogue_runs(plan["runs"]),
-                                   folders=_folders_covering(db, material(db, within)["ids"]),
+    plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=catalogue_runs(plan["runs"]),
+                                   folders=folders_covering(db, material(db, within)["ids"]),
                                    todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo)), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
@@ -2894,7 +2747,7 @@ async def get_start_plan(
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
         # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
-        plan = await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=_cluster_names(http), **_only_if_set(first_pages=first_pages)))
+        plan = await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=_cluster_names(http), **only_if_set(first_pages=first_pages)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if summary:
@@ -2939,24 +2792,6 @@ class StartRequest(BaseModel):
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
         "(`ai.where.accept-unpriced-cloud-model`)"))
-
-
-def _cap_refusals(plan: dict) -> None:
-    """The cap's one refusal: an estimate over what the cap leaves, asked before the run, not after the money is gone (#5987).
-    A model with no listed price never refuses (#6259): the cap line lists it apart at the assumed price, and Start is the yes."""
-    line = plan["cloud_cap"]
-    if not line["over"]:
-        return
-    said = [f"This run is estimated at US${line['estimate_usd']:,.2f} of cloud spending"]
-    if line["over_month"]:
-        said.append(f"more than the US${line['remaining_usd']:,.2f} your project's monthly cap leaves this month "
-                    f"(cap US${line['cap_usd']:,.2f} a month). Raise the monthly cap to US${line['needed_cap_usd']:,.2f}")
-    if line["over_project"]:
-        said.append(f"more than the US${line['project_remaining_usd']:,.2f} your project's total cap leaves (cap US${line['project_cap_usd']:,.2f} "
-                    f"in all). Raise the project cap to US${line['needed_project_cap_usd']:,.2f}")
-    fewer = f", or run the first {line['fewer_pages']} pages" if line.get("fewer_pages") else ", or run fewer pages"
-    line["refusal"] = ", ".join(said[:1]) + ": " + "; and ".join(said[1:]) + f"{fewer}, or choose a cheaper model."
-    plan["refusals"] = [*plan["refusals"], line["refusal"]]
 
 
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
@@ -3023,7 +2858,7 @@ async def start_project(
     clusters = _cluster_names(http)
     first = request.first_pages if request else None  # the answer describes the run queued, not the whole project (#6295)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
-        db, _start_plan(db, folder_id, clusters=clusters, **_only_if_set(first_pages=first)), first)))
+        db, _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first)))))
 
 
 class UseInsteadRequest(BaseModel):
@@ -3315,7 +3150,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters, **_only_if_set(first_pages=params.first_pages))
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters, **only_if_set(first_pages=params.first_pages))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
@@ -3335,7 +3170,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=_first_pages(db, params.first_pages) if params.first_pages else params.documents,
+            "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages) if params.first_pages else params.documents,
                                      first_pages=params.first_pages, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id),
             "folder_id": params.folder_id,
