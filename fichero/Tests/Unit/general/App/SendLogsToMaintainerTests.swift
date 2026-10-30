@@ -132,22 +132,4 @@ final class SendLogsToMaintainerTests: XCTestCase {
             XCTAssertTrue(text.contains(part), "the confirmation does not say \(part)")
         }
     }
-
-    func testHelpMenuMountsTheItemInEveryTier() throws {
-        let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent("App/Menus/ViewMenuPaneSections.swift"),
-            encoding: .utf8
-        )
-        let help = try XCTUnwrap(source.range(of: "CommandGroup(after: .help) {"))
-        let body = String(source[help.upperBound...])
-        let send = try XCTUnwrap(body.range(of: "SendLogsToMaintainerButton()"))
-        let gate = try XCTUnwrap(body.range(of: "if SupportLogs.isOffered(for: FeatureManager.shared.activeBuildTier) {"))
-        XCTAssertLessThan(send.lowerBound, gate.lowerBound, "the item must sit outside the dev-tier gate")
-        let button = try String(
-            contentsOf: AppSource.root().appendingPathComponent("App/Menus/Help/SaveLogsForSupport.swift"),
-            encoding: .utf8
-        )
-        XCTAssertTrue(button.contains("Button(\"Send Logs to the Maintainer…\")"))
-        XCTAssertTrue(button.contains("Button(\"Save Logs for Support…\")"), "Save Logs stays")
-    }
 }

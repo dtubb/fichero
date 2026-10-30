@@ -125,4 +125,23 @@ final class SaveLogsForSupportTests: XCTestCase {
         )
         XCTAssertTrue(button.contains("Button(\"Save Logs for Support…\")"))
     }
+
+    /// Spec `help.send-logs-to-the-maintainer`: Send Logs sits in the Help group OUTSIDE the dev-tier gate (every
+    /// tier), and Save Logs stays behind it. (Here, not in SendLogsToMaintainerTests, so that file has no source scrape.)
+    func testHelpMenuMountsSendLogsInEveryTier() throws {
+        let source = try String(
+            contentsOf: AppSource.root().appendingPathComponent("App/Menus/ViewMenuPaneSections.swift"),
+            encoding: .utf8
+        )
+        let help = try XCTUnwrap(source.range(of: "CommandGroup(after: .help) {"))
+        let body = String(source[help.upperBound...])
+        let send = try XCTUnwrap(body.range(of: "SendLogsToMaintainerButton()"))
+        let gate = try XCTUnwrap(body.range(of: "if SupportLogs.isOffered(for: FeatureManager.shared.activeBuildTier) {"))
+        XCTAssertLessThan(send.lowerBound, gate.lowerBound, "Send Logs must sit outside the dev-tier gate")
+        let button = try String(
+            contentsOf: AppSource.root().appendingPathComponent("App/Menus/Help/SaveLogsForSupport.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(button.contains("Button(\"Send Logs to the Maintainer…\")"))
+    }
 }

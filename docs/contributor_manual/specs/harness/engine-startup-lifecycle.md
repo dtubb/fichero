@@ -414,11 +414,11 @@ engine's own `RotatingFileHandler` (`core/logging.py`, 10 MB x 5) never sees tha
 (`Failed to create embedding for ...`) was written 380,611 times. Twice a tester's Mac kept an
 errant `Fichero Server` from an earlier run, and the new app could not reach its own engine.
 
-- `engine.log-rotates-by-size` — **[PARTIAL]** (owner 2026-10-30) `engine.log` is rotated by size, default
+- `engine.log-rotates-by-size` — **[PARTIAL]** (owner 2026-10-30; under umbrella #3947, a dedicated issue is requested) `engine.log` is rotated by size, default
   10 MB, keeping the last 5 (`engine.log.1` .. `engine.log.5`), whoever writes it. Built in the engine, not
   the app: the app passes the log path as `FICHERO_ENGINE_LOG_PATH`; the engine (`core/engine_log.py`)
   rotates at its own start and then every few seconds while running, by renaming the files and re-pointing its own descriptors 1 and 2 at a fresh `engine.log`. **A rotated file is never replaced**: a process that inherited stdout/stderr (the embedder's workers, any subprocess) keeps writing to the inode it was given, wherever the file now lives, so nothing it writes is lost until that file is itself rotated out past the 5 kept. A file already more than twice the cap (the 166 MB case) is cut to its last 10 MB IN PLACE (same inode, tail written at offset 0 and truncated), after our own writer has moved off it. Python-level writes (`print`, `sys.stderr`) retry through the descriptor swap (`dup2` onto 1/2 is not atomic on macOS: an unretried write can fail with EBADF); a C-level writer (torch, faulthandler) that lands inside that instant may lose one line. A holder of a rotated file keeps its disk space until it exits (known edge). No env variable (a uvicorn dev engine, the tests) = no rotation. *Test:* `fichero-server/tests/unit/core/test_engine_log.py` (rotation, the 5 kept, a huge file cut to its tail, a live process writing through `print`/`sys.stderr`, a FORKED child holding the old fd loses no line). PARTIAL: the app's one-line env hand-over (`+Spawn.swift`, `FICHERO_ENGINE_LOG_PATH`) is written but unbuilt.
-- `engine.logs-pruned-at-launch` — **[PARTIAL]** (owner 2026-10-30) at engine start, files in the current
+- `engine.logs-pruned-at-launch` — **[PARTIAL]** (owner 2026-10-30; under umbrella #3947, a dedicated issue is requested) at engine start, files in the current
   log's folder that are rotated beyond the 5 kept, and any `*.log`, `*.log.N` or `*.log.gz` there older than
   14 days, are deleted. Never the current log; never a directory, a symlink, or any file outside the folder
   the current log is in, and only when that folder is a REAL `Logs/Fichero` (neither it nor `Logs` is a
@@ -431,8 +431,8 @@ errant `Fichero Server` from an earlier run, and the new app could not reach its
   last minute", then starts a new window. Applied first to `Failed to create embedding for %s: %s`
   (`db/__init__.py`). A repeat held back and never followed by another occurrence is not announced (the
   summary needs a next line to ride on); `core/log_throttle.py`. *Test:* `fichero-server/tests/unit/core/test_log_throttle.py`.
-- `engine.stale-engines-ended-at-launch` — **[PARTIAL]** (owner 2026-10-30; review 2026-10-30; umbrella #318, no
-  issue of its own yet; supersedes the environment-reading `terminateOrphanEngines` rule of #2079 only in how the
+- `engine.stale-engines-ended-at-launch` — **[PARTIAL]** (owner 2026-10-30; review 2026-10-30; umbrella #3947, a
+  dedicated issue is requested; supersedes the environment-reading `terminateOrphanEngines` rule of #2079 only in how the
   process is identified) before the app starts its own engine it ends the engine processes an earlier run left
   behind. **Which processes count as stale**, all of: (1) the REAL executable, from `proc_pidpath` (never `ps`'s
   argv[0], which a process can set to anything), is `<Fichero*.app>/…/Fichero Server.app/Contents/MacOS/Fichero
