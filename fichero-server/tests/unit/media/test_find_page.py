@@ -92,3 +92,29 @@ def test_vision_answers_first_and_the_contour_finder_when_it_does_not(monkeypatc
 
     _vision(monkeypatch, Outline((0, 0, 10, 10), 0.3, "apple-vision", quad))  # unsure: not trusted
     assert find_page_module.find_page(scan()).method == "contour"
+
+
+def _spread(shadow=(45, 42, 40)):
+    """Two pages on a dark mount, a gutter shadow between them as dark as the mount (120 px at 3000 px wide)."""
+    img = Image.new("RGB", (3000, 2000), (18, 16, 14))
+    d = ImageDraw.Draw(img)
+    d.rectangle([150, 200, 1440, 1800], fill=PAPER)
+    d.rectangle([1440, 200, 1560, 1800], fill=shadow)
+    d.rectangle([1560, 200, 2850, 1800], fill=PAPER)
+    for y in range(400, 1700, 80):
+        d.line([(250, y), (1350, y)], fill=(60, 50, 40), width=6)
+        d.line([(1660, y), (2750, y)], fill=(60, 50, 40), width=6)
+    return img
+
+
+def test_a_spread_cut_by_its_gutter_shadow_is_never_sure_of_one_half():
+    """Review HIGH 4: the finder took the right page alone at confidence 1.0 (never proposed, left page lost). A rival piece
+    as large as the chosen one makes it unsure, so the run keeps the whole frame and proposes."""
+    from fichero_server.recipes.page_crop import MIN_CONFIDENCE
+
+    found = find_page(_spread())
+    assert found is None or found.confidence < MIN_CONFIDENCE, found
+
+
+def test_a_page_beside_a_small_card_is_still_sure():
+    assert find_page(scan()).confidence >= 0.8

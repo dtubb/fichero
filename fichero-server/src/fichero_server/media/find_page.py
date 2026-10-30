@@ -40,6 +40,10 @@ PAGE_PAD = 0.02
 PAD_SHARE = 0.01
 #: The opening that removes thin strips, as a share of the working long side.
 OPEN_SHARE = 0.012
+#: The page piece must hold at least this share of all page-sized pieces' area. Under it a rival piece of similar size lies
+#: beside it (the other half of a spread split by a gutter shadow, or by a tilt): the box is not sure, so it is only
+#: proposed and the whole frame is kept (`prep.unsure-becomes-a-proposal`), never half a spread at confidence 1.0.
+MIN_PIECE_SHARE = 0.55
 
 
 @dataclass(frozen=True)
@@ -154,6 +158,7 @@ def find_page_contour(image: Any) -> PageFound | None:
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (size, size)))
     count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
     best, best_score = None, 0.0
+    candidate_area = 0
     for i in range(1, count):
         x, y, bw, bh, area = stats[i]
         if area < MIN_AREA * h * w:
@@ -161,6 +166,7 @@ def find_page_contour(image: Any) -> PageFound | None:
         on_edge = x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1
         if on_edge and min(bw, bh) < STRIP_THIN * min(h, w):
             continue  # a ruler along an edge
+        candidate_area += int(area)
         cx, cy = centroids[i]
         centrality = 1.0 - 0.5 * np.hypot((cx - w / 2) / w, (cy - h / 2) / h) * 2
         score = float(area) * max(centrality, 0.1)
@@ -196,6 +202,9 @@ def find_page_contour(image: Any) -> PageFound | None:
     area = 0.5 * abs(sum(xs[i] * ys[(i + 1) % 4] - xs[(i + 1) % 4] * ys[i] for i in range(4)))
     if area > 0:
         fill = max(fill, min(1.0, float(piece.sum()) / area))
+    piece_share = float(stats[best][4]) / max(candidate_area, 1)
+    if piece_share < MIN_PIECE_SHARE:
+        fill = min(fill, piece_share)  # a rival piece as large as this one: not sure of it
     # The box takes in the corners (a tilted page's points lie outside the trimmed box) and a rim of PAD_SHARE of the long
     # side (30 px on a 3000 px photograph), so Kraken never loses a line in a corner; the quad's corners come from the
     # opened piece, so a ruler the page touches is still out.
