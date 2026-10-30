@@ -81,11 +81,16 @@ struct BlankProposalsLine: View {
     private func answer(_ page: Document, blank: Bool) async {
         guard let actionsService = actionStore?.actionsService else { return }
         do {
+            var first = true
             try await AuditedAction.run(
                 "image.mark_blank", params: ImageMarkBlankRequest(documentId: page.id, blank: blank),
-                actionName: blank ? "Hide Page" : "Keep Page", actionsService: actionsService, steps: windowSteps
+                actionName: blank ? "Hide Page" : "Keep Page", actionsService: actionsService, steps: windowSteps,
+                afterChange: {
+                    await HiddenPages.settle(
+                        store, id: page.id, fallback: first ? BlankProposals.answered(page, blank: blank) : nil)
+                    first = false
+                }
             )
-            store.refreshLocalContent(BlankProposals.answered(page, blank: blank))
             failure = nil
         } catch {
             failure = "Couldn't answer for \(page.name): \(error.localizedDescription)"

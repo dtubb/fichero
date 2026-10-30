@@ -25,6 +25,22 @@ enum HiddenPages {
     }
 
     static func line(_ count: Int) -> String { "\(count) hidden" }
+
+    /// Read the page again from the engine and put it in the rows: after the action and after every Undo and Redo of it,
+    /// so the line and the rows follow the page's real state (`undo.one-path`). With nothing fetched (the engine did not
+    /// answer) `fallback`, the page as the action leaves it, is shown instead; Undo and Redo pass none.
+    @MainActor
+    static func settle(
+        _ store: DocumentStore, id: String, fallback: Document? = nil,
+        fetch: (([String]) async -> [Document])? = nil
+    ) async {
+        let fresh = await (fetch?([id]) ?? store.freshDocuments(ids: [id]))
+        if fresh.isEmpty {
+            if let fallback { store.refreshLocalContent(fallback) }
+            return
+        }
+        for page in fresh { store.refreshLocalContent(page) }
+    }
 }
 
 /// The "N hidden" line above the rows; nothing when no page is hidden.
@@ -74,11 +90,16 @@ struct HiddenPagesLine: View {
         guard let actionsService = actionStore?.actionsService else { return }
         do {
             // One audited action, so ⌘Z hides the page again (`undo.one-path`).
+            var first = true
             try await AuditedAction.run(
                 "image.mark_blank", params: ImageMarkBlankRequest(documentId: page.id, blank: false),
-                actionName: "Unhide Page", actionsService: actionsService, steps: windowSteps
+                actionName: "Unhide Page", actionsService: actionsService, steps: windowSteps,
+                afterChange: {
+                    // The action's own result first, then the page again after each Undo and Redo.
+                    await HiddenPages.settle(store, id: page.id, fallback: first ? HiddenPages.unhidden(page) : nil)
+                    first = false
+                }
             )
-            store.refreshLocalContent(HiddenPages.unhidden(page))
             failure = nil
         } catch {
             failure = "Couldn't unhide \(page.name): \(error.localizedDescription)"

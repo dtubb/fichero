@@ -62,4 +62,21 @@ struct BlankPagesHiddenTests {
         let kept = BlankProposals.answered(proposed("unsure"), blank: false)
         #expect(BlankProposals.proposed(in: [kept]).isEmpty && !kept.excludeFromProcessing)
     }
+
+    @MainActor
+    @Test("after Undo the page is read again and the hidden line follows it; with nothing fetched the fallback shows")
+    func theLineFollowsThePageAfterUndo() async {
+        let hidden = page("blank", excluded: true, blank: true)
+        let store = DocumentStore(apiClient: APIClient())
+        store.currentDocuments = [HiddenPages.unhidden(hidden)]  // the person unhid it: no line
+        #expect(HiddenPages.hidden(in: store.currentDocuments).isEmpty)
+
+        await HiddenPages.settle(store, id: hidden.id, fetch: { _ in [hidden] })  // Undo: the engine says hidden again
+        #expect(HiddenPages.hidden(in: store.currentDocuments).map(\.name) == ["blank"])
+
+        await HiddenPages.settle(store, id: hidden.id, fetch: { _ in [] })  // the engine did not answer, no fallback: unchanged
+        #expect(HiddenPages.hidden(in: store.currentDocuments).count == 1)
+        await HiddenPages.settle(store, id: hidden.id, fallback: HiddenPages.unhidden(hidden), fetch: { _ in [] })
+        #expect(HiddenPages.hidden(in: store.currentDocuments).isEmpty)
+    }
 }
