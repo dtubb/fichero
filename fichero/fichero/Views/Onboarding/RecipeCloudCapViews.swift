@@ -17,8 +17,8 @@ struct RecipeCloudCapRow: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let estimate = store.startPlan?.estimate {
                 // The best estimate with its basis, per step: what it is priced on, never a margin added here.
-                ForEach(CloudCapFix.basis(of: estimate, title: store.title(ofJob:)), id: \.self) { basis in
-                    Text(basis).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(CloudCapFix.basisLines(of: estimate, title: store.title(ofJob:))) { basis in
+                    Text(basis.text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             if let note = line.note {  // e.g. a model with no listed price is run at an assumed one (#6259)

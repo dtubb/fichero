@@ -83,6 +83,20 @@ struct CloudCapFixTests {
 
     /// The cap's refusal is told apart by the engine's own field, not by its words: with another refusal first, the sentence
     /// is still the cap's, and a reworded sentence changes nothing here.
+    /// WHY: the basis list was keyed by its own words, so two runs that print the same line (two Review steps at one price) repeated
+    /// an id: SwiftUI drew one row for two, or the wrong one on an update.
+    @Test func twoRunsWithTheSameWordsAreTwoRows() throws {
+        let estimate = try JSONDecoder().decode(Components.Schemas.StartEstimate.self, from: Data("""
+        {"pages":10,"total_cost_usd":2,"runs":[
+          {"workflow":"w","steps":["correct"],"where":"cloud","pages":10,"cost_usd":1,"basis":"the model's listed rate"},
+          {"workflow":"w","steps":["correct"],"where":"cloud","pages":10,"cost_usd":1,"basis":"the model's listed rate"}]}
+        """.utf8))
+        let lines = CloudCapFix.basisLines(of: estimate, title: { $0 })
+        #expect(lines.count == 2 && lines[0].text == lines[1].text)
+        #expect(Set(lines.map(\.id)).count == 2, "each row has an id of its own")
+        #expect(CloudCapFix.basis(of: estimate, title: { $0 }) == lines.map(\.text))
+    }
+
     @Test func theCapsRefusalIsTheOneTheEngineNames() throws {
         let said = "This run costs more than the cap, in whatever words the engine uses."
         let other = "step 1 (find-lines): its model is not pinned in a known form"

@@ -76,13 +76,25 @@ struct CloudCapFix: Equatable {
     /// The estimate's basis, a line per run: its pages, what it is priced at, and its cost, so the figure beside the cap can be
     /// checked ("Read lines: 120 pages · the model's listed rate · $2.71"). `title` names a run's steps.
     nonisolated static func basis(of estimate: Components.Schemas.StartEstimate, title: (String) -> String) -> [String] {
-        estimate.runs.map { run in
+        basisLines(of: estimate, title: title).map(\.text)
+    }
+
+    /// One line of the basis, with an id of its own: two runs can print the same words (two Review steps at the same price), and a
+    /// list keyed by the words repeated an id.
+    struct BasisLine: Identifiable, Equatable {
+        let id: Int
+        let text: String
+    }
+
+    /// `basis(of:title:)`, each line numbered by its place, so a list can key on it. Pure, for the tests.
+    nonisolated static func basisLines(of estimate: Components.Schemas.StartEstimate, title: (String) -> String) -> [BasisLine] {
+        estimate.runs.enumerated().map { index, run in
             let name = run.steps.map(title).joined(separator: ", ")
             var parts = ["\(run.pages) \(run.pages == 1 ? "page" : "pages")"]
             if let calls = run.callsPerPage, calls > 1 { parts.append("\(calls) calls a page") }
             parts.append(run.basis ?? (run.costUsd == nil ? "unpriced" : "estimated"))
             parts.append(run.costUsd.map(Self.usd) ?? "price unknown")
-            return "\(name): " + parts.joined(separator: " · ")
+            return BasisLine(id: index, text: "\(name): " + parts.joined(separator: " · "))
         }
     }
 
