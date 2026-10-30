@@ -117,6 +117,15 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   committed/saved, so reverting always discards real, saved work, never just an in-progress
   draft. Pinned: `ImageEditStepEditingTests` (suite `ImageEditStepEditingTests`, case
   "delete-a-step and revert-to-original stay reachable and confirmed").
+- `preview.edit.readers-send-the-current-image` — **[OK]** (#6296) every step that sends a page to a model (line
+  read, whole-page read, review, Find Regions with Kraken or YOLO, Find Lines, the tie and the check) reads the page's
+  CURRENT image, resolved in one place (`media/current_image.current_page_image`): the edit chain applied, else the
+  newest rendition whose place on the photograph is known, else the original. Undo in Preview removes the edit, so the
+  next step reads what is under it. Stored lines stay fractions of the upright photograph: a step that cuts from the
+  page carries its lines onto the image it reads, and a step that finds on it carries what it found back
+  (`media/frame_map.py`: crop, quarter and any-angle turn, flip, a recorded homography). A rendition whose frame is not
+  recorded (a flatten, a turn with no angle) is passed over and the page read on its photograph, said in the log.
+  Pinned: `tests/unit/media/test_current_image_6296.py`, `tests/unit/workflows/test_every_step_sends_the_edited_image_6296.py`.
 - `preview.edit.rendition-caches-invalidate-on-every-edit` — **[OK]** a successful edit drops
   BOTH derived-pixel caches (not just the storage-service one), including on the way OUT of
   the editor, so leaving edit mode can never show stale pixels; a batch-applied edit

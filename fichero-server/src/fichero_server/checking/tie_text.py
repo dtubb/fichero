@@ -379,7 +379,14 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 jobs.save_detail(db, job_id, json.dumps({**detail, "waited_for_kraken": detail.get("waited_for_kraken", 0) + 1}))
                 jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
                 raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
-            reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+            from fichero_server.media.current_image import current_page_image
+
+            current = current_page_image(db, doc, library_root=Path(db.path).parent)  # the page as edited (#6296)
+            if current is None or current.is_original:
+                reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+            else:
+                moved, opened_in = current.carry_lines(lines, found.frame)
+                reads = kraken_runtime.read_given_lines(current.path, model_path, moved, frame=opened_in)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1

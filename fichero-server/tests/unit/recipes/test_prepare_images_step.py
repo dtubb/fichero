@@ -147,24 +147,3 @@ def test_start_prepares_the_faded_page_and_lines_read_the_prepared_copy(client, 
     # (#5706: the plan said "already done on 4 of 92" after a run that found 88 clear).
     assert again["steps"][0].get("prepared") is None and again["steps"][0]["state"] == "done", again["steps"][0]
     assert len([r for r in db.query(Rendition, document_id=faded.id) if r.role == "prepared"]) == 1
-
-
-def test_the_prepared_copy_is_read_before_a_background_removed_one(tmp_path):
-    """The steps after it read the prepared rendition: it comes before a background-removed one, and only in the
-    page's own frame."""
-    from fichero_server.db import db_manager
-    from fichero_server.models import NodeRegion
-    from fichero_server.workflows.tools.vision_base import READ_FROM_ROLES, frame_true_rendition_path
-
-    package = tmp_path / "t.fichero"
-    (package / "files").mkdir(parents=True)
-    db = db_manager.get_database(str(package))
-    for name in ("bg.png", "prep.png", "tilted.png"):
-        (package / "files" / name).write_bytes(b"png")
-    db.save(Rendition(document_id="d", role="background_removed", path="files/bg.png"))
-    assert frame_true_rendition_path(str(package), "d", READ_FROM_ROLES) == str(package / "files/bg.png")
-    db.save(Rendition(document_id="d", role="prepared", path="files/prep.png"))
-    assert frame_true_rendition_path(str(package), "d", READ_FROM_ROLES) == str(package / "files/prep.png")
-    db.save(Rendition(document_id="e", role="prepared", path="files/tilted.png",
-                      transform=NodeRegion(rect=[0.1, 0.1, 0.5, 0.5])))
-    assert frame_true_rendition_path(str(package), "e", ("prepared",)) is None

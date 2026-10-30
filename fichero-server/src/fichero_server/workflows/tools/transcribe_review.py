@@ -298,6 +298,20 @@ def _answered_by(db: Any, document_id: str, provider: str, model: str) -> set[st
             if r.segment_id and r.derived_from_artifact_id in made and not getattr(r, "retracted_at", None)}
 
 
+def _lines_on_current_image(db: Any, page: Any, asked: list[dict[str, Any]], frame: str | None
+                            ) -> tuple[str, list[dict[str, Any]], str | None]:
+    """What `re_ask` is given: the page's current image (`media/current_image.py`, #6296: edits applied, else the newest
+    rendition, else the photograph) with the lines' outlines carried onto it, and the frame to open it in. The photograph, the
+    lines and their frame as they came when nothing is edited."""
+    from fichero_server.media.current_image import current_page_image
+
+    current = current_page_image(db, page)
+    if current is None or current.is_original:
+        return page.path, asked, frame
+    moved, opened_in = current.carry_lines(asked, frame)
+    return current.path, moved, opened_in
+
+
 async def _review_unsure_lines(prior_text: Any, documents: list, files: list, llm_config: LLMConfig, state: State,
                                inputs: dict[str, Any]) -> dict[str, Any]:
     """Variant A (`source.recipe.kraken-then-cloud-unsure-lines`): the model is sent each unsure line's own crop with
@@ -346,7 +360,8 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
             result["results"].append({"file": file_path, "text": "", "value": None,
                                       "lines": "every unsure line was already answered by this model"})
             continue
-        got, missing = await re_ask(page.path, asked, "", llm_config, frame=rows.frame,
+        cut_from, asked, cut_frame = _lines_on_current_image(db, page, asked, rows.frame)
+        got, missing = await re_ask(cut_from, asked, "", llm_config, frame=cut_frame,
                                     batch=lines_per_request_for(str(llm_config.model)) or LINES_PER_CALL,
                                     language=language)
         name = getattr(page, "name", None) or doc_id
@@ -592,7 +607,8 @@ async def _re_ask_pages(result: dict[str, Any], artifact_ids: list[str], library
             width, height = rows.page_size(img)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
                  for r in left]
-        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config, frame=rows.frame,
+        cut_from, asked, cut_frame = _lines_on_current_image(db, page, asked, rows.frame)
+        got, missing = await re_ask(cut_from, asked, artifact.content or "", llm_config, frame=cut_frame,
                                 batch=lines_per_request_for(str(getattr(llm_config, "model", ""))) or LINES_PER_CALL)
         if missing:
             model = f"{llm_config.provider}/{llm_config.model}"
