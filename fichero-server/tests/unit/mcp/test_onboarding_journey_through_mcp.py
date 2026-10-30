@@ -22,7 +22,6 @@ from fichero_cli import FicheroClient
 from fichero_mcp import server as mcp_server
 from fichero_server.execution import jobs
 from fichero_server.finddocs import job as finddocs_job
-from fichero_server.recipes import runner
 from tests.unit.finddocs.boxes import correspondence_box
 from tests.unit.finddocs.test_find_documents_to_spec import _project
 

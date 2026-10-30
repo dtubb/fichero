@@ -16,8 +16,7 @@ import time
 
 from fichero_server.models import DocType, Document, FileType
 from tests.unit.mcp.test_onboarding_journey_through_mcp import _call, agent  # noqa: F401  (fixture)
-from tests.unit.mcp.test_reading_journey_through_mcp import UnsureCards, assert_no_download  # noqa: F401
-from tests.unit.mcp.test_reading_journey_through_mcp import engine as _engine  # noqa: F401  (fixture)
+from tests.unit.mcp.test_reading_journey_through_mcp import UnsureCards, assert_no_download, engine as reading_journey_engine  # noqa: F401
 from tests.unit.recipes.test_recipe_execution_to_spec import _png
 
 #: The pages read in parallel, so with the second held the run is caught at 1 or 2 of 3 done: the count is not the claim,
@@ -31,12 +30,12 @@ RECIPE = {"fichero_recipe": 1, "id": "t/reads", "version": "0.1.0", "title": "Re
 
 
 def test_a_reading_run_says_which_step_reads_and_how_many_pages(agent, client, db, tmp_path, test_package,  # noqa: F811
-                                                                 _engine, monkeypatch):
+                                                                 reading_journey_engine, monkeypatch):  # noqa: F811
     from fichero_server.llm import kraken_runtime
     from fichero_server.workflows.default_workflows import seed_default_workflows
 
     held = threading.Event()
-    stub = _engine.recognize
+    stub = reading_journey_engine.recognize
 
     def recognize(image_path, model_path, **kw):
         if str(image_path).endswith("p1.png"):
