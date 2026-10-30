@@ -101,6 +101,8 @@ final class RecipeSetupStore {
     var automatic: RecipeSetupAnswers.Automatic?
     /// The questions a ticked purpose opens under it (section 7b step 3, `answers.job_answers`).
     var jobAnswers = RecipeSetupAnswers.JobAnswers()
+    /// A folder's own answers to Prepare Images' questions, by folder id then question key (`answers.job_answers_by_folder`).
+    var jobAnswersByFolder: [String: [String: StageAnswer]] = [:]
 
     // MARK: What the engine gave back
 
@@ -500,7 +502,8 @@ final class RecipeSetupStore {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
-                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers,
+                           jobAnswersByFolder: jobAnswersByFolder, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
                            copiesMayStayOnCluster: copiesMayStay)
@@ -541,6 +544,7 @@ final class RecipeSetupStore {
         }
         if let value = saved.automatic { automatic = value }
         if let value = saved.jobAnswers { jobAnswers = value }
+        jobAnswersByFolder = saved.jobAnswersByFolder ?? [:]
         if let value = saved.period { period = value }
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }

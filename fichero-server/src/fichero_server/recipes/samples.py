@@ -285,7 +285,8 @@ def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> 
     answers = setup["answers"] or {}
     steps = {s.get("id") for s in recipe.get("steps") or [] if s.get("job") in stage.jobs}
     plan = plan_start(recipe, stays_local=not places.may_leave_to(answers, "cloud"), only=steps,
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
     plan["estimate"] = estimate(plan["workflows"], page_count)
     return plan
 

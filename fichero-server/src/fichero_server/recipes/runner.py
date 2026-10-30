@@ -122,7 +122,8 @@ def _plan(db: Any) -> dict[str, Any]:
     stays_local = not places.may_leave_to(answers, "cloud")
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
@@ -746,14 +747,14 @@ def _run_prepare(db: Any, documents: list[str], parent: str,
     """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
     account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
     from fichero_server.recipes.page_crop import crop_pages
-    from fichero_server.recipes.prepare import prepare_pages
+    from fichero_server.recipes.prepare import prepare_pages, runs_contrast
 
     # The Set Up step's operations first, on every page whatever the answers (`prep.setup.what-runs-by-itself`): find the
     # page, square, flatten, turn, straighten, mark blanks; the account (`page_prep`) counts what each did.
     step["page_prep"] = crop_pages(db, documents, parent, stop=lambda: _stop_asked(parent), prepare=True)
     # The contrast step runs where the answer says the paper is faded; with no paper answer it looks at each page and
     # raises only the faded ones (`prep.setup.what-runs-by-itself`).
-    if not paper or "faded" in paper:
+    if runs_contrast(paper):
         step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
     if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
         return None, "cancelled", "Stopped by you"

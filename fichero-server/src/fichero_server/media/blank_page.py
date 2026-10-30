@@ -37,9 +37,8 @@ RULE_LENGTH = 0.12
 RULE_THICK = 5
 
 
-def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRAST) -> float:
-    """The share of the page's pixels that are ink once ruled lines and specks are taken out (0.0 to 1.0). `box`
-    (`[x, y, w, h]`, fractions of the picture) is the page found in it: the share is of the paper, not of the mount."""
+def work_gray(image: Any, box: list[float] | None = None) -> Any:
+    """The page (or the part of it `box` names, fractions of the picture) as grey, at most WORK_SIDE on the long side."""
     import cv2
 
     gray = np.asarray(image.convert("L"))
@@ -51,6 +50,15 @@ def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRA
     scale = min(1.0, WORK_SIDE / max(gray.shape))
     if scale < 1:
         gray = cv2.resize(gray, (round(gray.shape[1] * scale), round(gray.shape[0] * scale)), interpolation=cv2.INTER_AREA)
+    return gray
+
+
+def marks(gray: Any, lighter_than: int = CONTRAST, up_to: int | None = None) -> Any:
+    """Where the marks are, as a boolean array the size of `gray`: pixels darker than the paper around them by more than
+    `lighter_than` (and, with `up_to`, no more than that: the faint band show-through lives in), once ruled lines and
+    specks are taken out."""
+    import cv2
+
     h, w = gray.shape
     # The page's own light, ink included, estimated on a small copy and laid back at full size.
     small_scale = min(1.0, PAPER_SIDE / max(h, w))
@@ -59,7 +67,8 @@ def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRA
     paper = cv2.medianBlur(small, 2 * max(7, round(0.03 * max(small.shape))) + 1)
     if paper.shape != gray.shape:
         paper = cv2.resize(paper, (w, h), interpolation=cv2.INTER_LINEAR)
-    dark = (cv2.subtract(paper, gray) > contrast).astype(np.uint8)  # saturating: ink only where darker than the paper
+    under = cv2.subtract(paper, gray)  # saturating: marks only where darker than the paper
+    dark = ((under > lighter_than) if up_to is None else (under > lighter_than) & (under <= up_to)).astype(np.uint8)
     long_side = max(5, round(RULE_LENGTH * max(h, w)))
     ruling = cv2.bitwise_or(
         cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (long_side, 1))),
@@ -67,12 +76,20 @@ def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRA
     thick = max(RULE_THICK, round(max(h, w) / PAPER_SIDE))  # a scan's ruling halo is thicker, in pixels
     ruling = cv2.dilate(ruling, np.ones((thick, thick), np.uint8))
     ink = cv2.bitwise_and(dark, cv2.bitwise_not(ruling) & 1)
-    count, _, stats, _ = cv2.connectedComponentsWithStats(ink)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink)
     reach = SPECK_EXTENT * max(h, w)
-    kept = sum(int(stats[i, cv2.CC_STAT_AREA]) for i in range(1, count)
-               if stats[i, cv2.CC_STAT_AREA] >= SPECK_AREA
-               and max(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]) >= reach)
-    return kept / (h * w)
+    keep = np.zeros(count, dtype=bool)
+    for i in range(1, count):
+        keep[i] = (stats[i, cv2.CC_STAT_AREA] >= SPECK_AREA
+                   and max(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]) >= reach)
+    return keep[labels]
+
+
+def ink_share(image: Any, box: list[float] | None = None, contrast: int = CONTRAST) -> float:
+    """The share of the page's pixels that are ink once ruled lines and specks are taken out (0.0 to 1.0). `box`
+    (`[x, y, w, h]`, fractions of the picture) is the page found in it: the share is of the paper, not of the mount."""
+    gray = work_gray(image, box)
+    return float(marks(gray, contrast).sum()) / gray.size
 
 
 def is_blank(image: Any, box: list[float] | None = None) -> bool:

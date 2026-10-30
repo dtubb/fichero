@@ -368,7 +368,7 @@ def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | Non
 
 def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None,
                automatic: dict | None = None, job_answers: dict | None = None,
-               db: Any = None) -> dict[str, Any]:
+               job_answers_by_folder: dict | None = None, db: Any = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
@@ -384,7 +384,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     (`answers.automatic`), given for a run new material starts by itself (an import after Start), never for Start:
     with Nothing runs automatically every step is skipped, else every step not ticked (#5478). `job_answers` are
     setup's answers under a purpose (`answers.job_answers`): each reaches the step it configures as its setting
-    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). With the project's `db`, a model
+    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). `job_answers_by_folder` is a folder's own
+    answers to Prepare Images' questions, `{folder id: {question: answer}}`: the folder's pages run the step with them
+    (`_with_folder_answers`). With the project's `db`, a model
     already downloading does not refuse Start: its download is marked `downloading` (with its progress), `waiting`
     says so in words, and the run's steps on it wait for it to land (#5660, #5583).
     """
@@ -525,6 +527,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
             if job == "prepare-the-image":  # the optional operations the paper answer switches on
                 entry["paper"] = list(settings.get("paper") or [])
+                entry["how"] = _prepare_how(entry["paper"])
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:
@@ -703,6 +706,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
             skip(item.get("job", "?"), item.get("why", ""), item.get("fix", ""))
+    runs = _with_folder_answers(runs, job_answers, job_answers_by_folder, skip, names)
     # Each card declares what it takes and gives, so a run knows which steps a failure stops (#5498).
     jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
     for run in runs:
@@ -748,6 +752,50 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
 
 
+#: The Prepare Images questions a folder can answer for itself, and the job each one gates.
+FOLDER_QUESTIONS = {"the_paper": "prepare-the-image", "two_pages_per_image": "split-pages"}
+
+
+def _prepare_how(paper: list[str]) -> str:
+    """The prepare step's sentence: the engine's, then what the paper answers name that is not built yet."""
+    from fichero_server.recipes.prepare import NOT_BUILT_YET
+
+    return " ".join([how_it_works("prepare-the-image") or "", *[NOT_BUILT_YET[o] for o in paper if o in NOT_BUILT_YET]]).strip()
+
+
+def _with_folder_answers(runs: list[dict[str, Any]], job_answers: dict | None, by_folder: dict | None,
+                         skip: Any, names: dict[str, str]) -> list[dict[str, Any]]:
+    """A folder that answered a Prepare Images question for itself runs that step with its own answer (`answers.
+    job_answers_by_folder`): the project's run leaves the folder out (`exclude_folders`, applied by the runner as for a
+    folder's reader) and the folder gets a run of its own, `folder_id`. The paper answer gives the folder its own prepare
+    run. The two-pages answer gates the split: an explicit no skips it, with its why; no answer keeps today's behaviour, so
+    an older project does not change; a folder's yes runs the split on that folder even where the project says no."""
+    answers = {f: a for f, a in (by_folder or {}).items() if isinstance(a, dict)}
+    project_no = (job_answers or {}).get("two_pages_per_image") is False
+    if not answers and not project_no:
+        return runs
+    out: list[dict[str, Any]] = []
+    for run in runs:
+        if run.get("job") == "prepare-the-image":
+            own = {f: list(a["the_paper"] or []) for f, a in answers.items() if isinstance(a.get("the_paper"), list)}
+            out.append({**run, "exclude_folders": [*run.get("exclude_folders", []), *own]})
+            out += [{**run, "folder_id": f, "paper": paper, "exclude_folders": [], "how": _prepare_how(paper)}
+                    for f, paper in own.items()]
+        elif run.get("job") == "split-pages":
+            said = {f: a["two_pages_per_image"] for f, a in answers.items() if isinstance(a.get("two_pages_per_image"), bool)}
+            yes = [f for f, v in said.items() if v]
+            if not project_no:
+                out.append({**run, "exclude_folders": [*run.get("exclude_folders", []), *(f for f, v in said.items() if not v)]})
+            elif yes:
+                out += [{**run, "folder_id": f, "exclude_folders": []} for f in yes]
+            else:
+                sid = run["steps"][0]
+                skip(sid, f"{names.get(sid, sid)}: Two pages in one picture? is answered no, so the pictures are not cut", None)
+        else:
+            out.append(run)
+    return out
+
+
 def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args: Any
                            ) -> tuple[list[dict[str, Any]], list[dict[str, str | None]], list[str]]:
     """A reader chosen for one folder runs on that folder's pages (`source.try.use-this-scope`, #6135): for each folder
@@ -783,7 +831,7 @@ def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args
         if not base:
             continue
         for run in base:
-            run["exclude_folders"] = list(folders)
+            run["exclude_folders"] = list(dict.fromkeys([*run.get("exclude_folders", []), *folders]))  # beside a folder's own answers
         for o in mine:
             as_project = apply_project_overrides({**recipe, "overrides": [{**o, "scope": "project"}]}, [])
             plan = plan_start({**as_project, "overrides": []}, **plan_args)  # the whole recipe: the run keeps the steps it chains

@@ -2654,7 +2654,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
 
     notes = fit_overrides(setup["recipe"]) if setup["recipe"] else []  # a kept choice never refuses Start (#6259)
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
-                      job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
+                      job_answers=(setup["answers"] or {}).get("job_answers"),
+                      job_answers_by_folder=(setup["answers"] or {}).get("job_answers_by_folder"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
     memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes

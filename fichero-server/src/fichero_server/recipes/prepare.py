@@ -69,6 +69,18 @@ def contrast_spread(path: str | None) -> int | None:
     return level(range(255, -1, -1)) - level(range(256))
 
 
+#: What each paper answer switches on. "faded" raises the contrast (built); the other two name operations that are not built
+#: (`prep.suppress-ruling`, `image.enhance.bleed-through-suppression`): the answer is kept and the plan says so, never silently.
+NOT_BUILT_YET = {"ruled": "Ruling is not taken out yet: the answer is kept for when it is.",
+                 "show-through": "Show-through is not taken out yet: the answer is kept for when it is."}
+
+
+def runs_contrast(paper: list[str] | None) -> bool:
+    """The paper answer's gate for the contrast step: no answer looks at each page and raises the faded ones; an answer
+    runs it only when it says faded."""
+    return not paper or "faded" in paper
+
+
 def is_faded(path: str | None) -> bool:
     spread = contrast_spread(path)
     return spread is not None and BLANK_BELOW <= spread < FADED_BELOW

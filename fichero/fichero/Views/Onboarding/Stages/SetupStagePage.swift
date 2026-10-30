@@ -48,7 +48,9 @@ struct SetupStagePage: View {
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
             if stage.id == "prepare-images" {
                 Divider()
-                PrepareImagesCard(store: store)
+                PrepareImagesCard(
+                    store: store,
+                    folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [])
             }
             if !stage.questions.isEmpty {
                 Divider()

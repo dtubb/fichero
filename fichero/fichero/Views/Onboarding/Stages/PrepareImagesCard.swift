@@ -7,6 +7,8 @@ import SwiftUI
 /// writes every word; this view only lays them out (`GET /api/recipes/prepare-images/facts`).
 struct PrepareImagesCard: View {
     let store: RecipeSetupStore
+    /// The project's folders, for a folder's own answers (`BakeoffStore.Folder.folders(in:)`).
+    var folders: [BakeoffStore.Folder] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -34,8 +36,89 @@ struct PrepareImagesCard: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("prepareImages.estimate")
             }
+            if !folders.isEmpty {
+                PrepareImagesFolderAnswers(store: store, folders: folders)
+            }
         }
         .task { await store.loadPrepareFacts() }
+    }
+}
+
+/// One folder's own answers to the two questions that can differ by folder: a picker for the folder, then "Two pages in
+/// one picture?" and the paper, each either following the project or answered here (`answers.job_answers_by_folder`).
+struct PrepareImagesFolderAnswers: View {
+    @Bindable var store: RecipeSetupStore
+    let folders: [BakeoffStore.Folder]
+    @State private var folderId: String = ""
+
+    static let paperOptions: [(id: String, title: String)] = [
+        ("ruled", "Ruled or graph paper"), ("faded", "Stained or faded"), ("show-through", "Writing shows through")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            Picker("Answer for one folder", selection: $folderId) {
+                Text("The whole project").tag("")
+                ForEach(folders) { folder in
+                    Text(store.folderAnswer("two_pages_per_image", in: folder.id) == nil
+                         && store.folderAnswer("the_paper", in: folder.id) == nil
+                         ? folder.name : "\(folder.name) (own answers)").tag(folder.id)
+                }
+            }
+            .accessibilityIdentifier("prepareImages.folder.picker")
+            if !folderId.isEmpty {
+                twoPages
+                ForEach(Self.paperOptions, id: \.id) { option in
+                    Toggle(option.title, isOn: Binding(
+                        get: { Self.paper(of: store, in: folderId).contains(option.id) },
+                        set: { store.setFolderPaper(option.id, $0, in: folderId) }
+                    ))
+                    .setupCheckbox()
+                    .accessibilityIdentifier("prepareImages.folder.paper.\(option.id)")
+                }
+                Button("Follow the project again") {
+                    for question in RecipeSetupStore.folderQuestions { store.setFolderAnswer(nil, to: question, in: folderId) }
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("prepareImages.folder.clear")
+            }
+        }
+    }
+
+    private var twoPages: some View {
+        Picker("Two pages in one picture?", selection: Binding(
+            get: { Self.twoPages(of: store, in: folderId) },
+            set: { store.setFolderAnswer($0.stageAnswer, to: "two_pages_per_image", in: folderId) }
+        )) {
+            Text("Like the project").tag(FolderYesNo.followsProject)
+            Text("Yes").tag(FolderYesNo.saysYes)
+            Text("No").tag(FolderYesNo.saysNo)
+        }
+        .accessibilityIdentifier("prepareImages.folder.twoPages")
+    }
+
+    static func twoPages(of store: RecipeSetupStore, in folder: String) -> FolderYesNo {
+        if case .yesNo(let flag)? = store.folderAnswer("two_pages_per_image", in: folder) { return flag ? .saysYes : .saysNo }
+        return .followsProject
+    }
+
+    static func paper(of store: RecipeSetupStore, in folder: String) -> [String] {
+        if case .many(let list)? = store.folderAnswer("the_paper", in: folder) { return list }
+        return []
+    }
+}
+
+/// A folder's answer to a yes-or-no question: its own, or the project's.
+enum FolderYesNo: Hashable {
+    case followsProject, saysYes, saysNo
+
+    var stageAnswer: StageAnswer? {
+        switch self {
+        case .followsProject: nil
+        case .saysYes: .yesNo(true)
+        case .saysNo: .yesNo(false)
+        }
     }
 }
 
