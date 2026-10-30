@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30
+
+- Reading at scale: provider batch service for 100+ page steps at the batch price; next batch sent ahead; Slurm array per stage; restarts and failed rows no longer cancel a read still out (#5540, #5940, #5642).
+- Catalogue: per-folder catalogue after a reading failure, skipped folders named; a folder's run catalogues only its folder (#6275); a folder's own record; normalised dates (#6267, #6270).
+- Names and statements: no months, dates or bare roles as names; a Sonnet names step is not skipped for a spaCy draft; a failed or stopped run marks nothing done (#6127, #6285, #6264).
+- Blank pages: redo reads sorting-blank pages; a page with lines is never blank; the plan says how many are left out (#6271).
+- Start plan and cost: batched reads priced on the page image; faster folder Start; reader notes; a refused Start keeps the yes to an unpriced model; an older saved model no longer hides the current one (#6268, #6269, #6291, #6266).
+- Export: Word transcripts can leave the scans out (#6287).
+- Reliability and tooling: a closed library stays closed (#6238); onnx fork crash (#6286); gate part for tests/unit/recipes (#6292).
+
 ## 2026-10-28
 
 - Set Up and Start: search model on the Search step (#6249); per-provider estimate, dated price list, unpriced models never block Start, cloud cap beside the estimate (#6265, #5943, #6259); a second Review model (#6257); Choose a Model on every model step; transcribe is lines alone by default (#6250); Tie text to lines picker (#6256); review instructions one pass at a time (#5481).
