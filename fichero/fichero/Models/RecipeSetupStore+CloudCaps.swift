@@ -14,6 +14,7 @@ extension RecipeSetupStore {
         undo: (any UndoSetEngine)? = nil, steps: WindowSteps? = nil
     ) async -> Bool {
         guard monthlyUsd != nil || projectUsd != nil || clearProjectCap else { return false }
+        errorMessage = nil  // a field edit too: an earlier "Start is refused…" is not about the cap just set
         do {
             let body = Components.Schemas.CloudCapChange(
                 capUsd: monthlyUsd, projectCapUsd: projectUsd, clearProjectCap: clearProjectCap ? true : nil)
@@ -44,8 +45,7 @@ extension RecipeSetupStore {
     /// The offer "Raise the monthly cap to N" / "Raise the project cap to N": N is the engine's, as the plan names it.
     @discardableResult
     func raise(_ cap: CloudCapFix.Raise, project: Bool, undo: (any UndoSetEngine)? = nil, steps: WindowSteps? = nil) async -> Bool {
-        errorMessage = nil
-        return await changeCloudCaps(
+        await changeCloudCaps(
             monthlyUsd: project ? nil : cap.usd, projectUsd: project ? cap.usd : nil, undo: undo, steps: steps)
     }
 
