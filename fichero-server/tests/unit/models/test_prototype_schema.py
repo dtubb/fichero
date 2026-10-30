@@ -162,6 +162,14 @@ class TestDeclarationsGainTemplateFields:
             validate_prototype_attributes({"subfolders": 3})
 
 
+    def test_a_typed_field_named_like_a_level_is_still_a_field(self):
+        attrs = {"pages": {"type": "number"}, "lines": {"type": "text"}, "regions": {"type": "text"}}
+        validate_prototype_attributes(attrs)
+        assert set(attribute_declarations(attrs)) == {"pages", "lines", "regions"}
+        with pytest.raises(ValueError, match="pages"):
+            validate_prototype_attributes({"pages": 3})
+
+
 class TestLevelDefaultsAreChecked:
     """proto.kind.declared-defaults-for-beneath: unknown key or cycle refused with words."""
 

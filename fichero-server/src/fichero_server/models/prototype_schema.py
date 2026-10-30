@@ -189,6 +189,7 @@ def validate_prototype_attributes(attributes: dict[str, Any]) -> None:
     """Validate a prototype's attributes dict at save time (loud, not lossy)."""
     for key in LEVEL_KEYS:
         value = attributes.get(key)
-        if key != "entries" and value is not None and not isinstance(value, str):
+        # a typed declaration under a level's name is an existing field of that name (a Book's numeric `pages`), never a level
+        if key != "entries" and value is not None and not isinstance(value, str) and not is_declaration(value):
             raise ValueError(f"Attribute {key!r} must name a prototype key, not {value!r}")
     attribute_declarations(attributes)
