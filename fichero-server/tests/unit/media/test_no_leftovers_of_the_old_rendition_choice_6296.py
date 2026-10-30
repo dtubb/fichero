@@ -11,3 +11,8 @@ GONE = ("frame_true_rendition_path", "READ_FROM_ROLES", "_frame_true_background_
 def test_nothing_in_src_names_the_deleted_rendition_choice():
     named = [f"{path.relative_to(SRC)}: {word}" for path in SRC.rglob("*.py") for word in GONE if word in path.read_text(encoding="utf-8")]
     assert named == []
+
+
+def test_the_perf_baseline_has_no_entry_for_the_test_file_that_was_deleted():
+    baseline = (Path(__file__).resolve().parents[2] / "perf_baseline.json").read_text(encoding="utf-8")
+    assert "test_apple_vision_rendition_preference" not in baseline
