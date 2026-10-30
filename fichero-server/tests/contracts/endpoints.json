@@ -4509,6 +4509,16 @@
     "export": [
       {
         "method": "POST",
+        "path": "/export/catalogue-workbook",
+        "operation_id": "export_catalogue_workbook_route_api_export_catalogue_workbook_post",
+        "summary": "The catalogue workbook of a folder or project, in its archive's template",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CatalogueWorkbookRequest",
+        "response_model": "CatalogueWorkbookResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/eleventy-site",
         "operation_id": "export_eleventy_site_route_api_export_eleventy_site_post",
         "summary": "Export Eleventy Site Route",

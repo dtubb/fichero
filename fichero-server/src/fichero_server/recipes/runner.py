@@ -883,9 +883,39 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
         time.sleep(_CHECK_POLL_SECONDS)
 
 
-def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
-    from fichero_server import sync_folder
+def _keep_catalogue_formats(db: Any, card: dict[str, Any]) -> None:
+    """The workbook and the per-folder transcripts are kept exports in the card's folder (`catalogue.export.recipe-last-step`):
+    kept once, then written again (the whole export) on the run's last batch, after Catalogue; the quiet-period hook keeps
+    them current when the work changes. Never a model."""
+    from fichero_server import kept_export
 
+    kept = [f for f in card.get("formats") or [] if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    for fmt in kept:
+        resolved = kept_export._refuse_folder(db, card["folder"])
+        have = next((e for e in kept_export._exports(db) if e["format"] == fmt and e["folder"] == resolved), None)
+        if have is None:
+            kept_export.keep(db, card["folder"], fmt, "document")
+        else:
+            kept_export.write_now(db, have["id"])
+
+
+def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
+    from fichero_server import kept_export, sync_folder
+
+    formats = card.get("formats") or []
+    ours = [f for f in formats if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    if ours:
+        if not card.get("folder"):
+            return None, "failed", "the step keeps the catalogue as a file, and names no folder to keep it in"
+        if card.get("final"):  # written once the Catalogue step has described the folders, over the whole run
+            try:
+                _keep_catalogue_formats(db, card)
+            except kept_export.KeptExportRefused as exc:
+                return None, "failed", str(exc)
+        formats = [f for f in formats if f not in ours]
+        if not formats:
+            return None, "done", None
+        card = {**card, "formats": formats}
     tied = {f["path"]: f["id"] for f in sync_folder._folders(db)}
     folder = card.get("folder")
     if folder and str(Path(folder)) not in tied:
@@ -1601,6 +1631,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
             if ahead[after] is not None:
                 card = _text_is_the_hosted_readers(card)
+        if card["card"] == "export":
+            card = {**card, "final": final}  # the workbook and the transcripts are written once, on the last batch
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()

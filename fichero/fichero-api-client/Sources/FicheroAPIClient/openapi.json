@@ -25194,6 +25194,49 @@
         }
       }
     },
+    "/api/export/catalogue-workbook": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "The catalogue workbook of a folder or project, in its archive's template",
+        "description": "The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the\nrecord; never a model. No local path in the request: the file comes back, or is queued into a kept export.",
+        "operationId": "export_catalogue_workbook_route_api_export_catalogue_workbook_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueWorkbookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueWorkbookResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/kept": {
       "get": {
         "tags": [
@@ -55890,6 +55933,94 @@
         ],
         "title": "CanvasListResponse",
         "description": "Standardized envelope for canvas spatial list endpoints."
+      },
+      "CatalogueWorkbookRequest": {
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "A folder or project id; omitted writes the whole library"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "xlsx",
+              "csv"
+            ],
+            "title": "Format",
+            "description": "xlsx: one workbook; csv: a zip of one file per sheet",
+            "default": "xlsx"
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key",
+            "description": "Write this prototype's columns instead of the rows' own"
+          },
+          "proposals": {
+            "type": "string",
+            "enum": [
+              "marked",
+              "omitted"
+            ],
+            "title": "Proposals",
+            "description": "A machine's unanswered proposals are marked, or left out of a delivered sheet",
+            "default": "marked"
+          },
+          "kept_export_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kept Export Id",
+            "description": "Write into this kept export's folder (queued) instead of returning the file"
+          }
+        },
+        "type": "object",
+        "title": "CatalogueWorkbookRequest",
+        "description": "What to write: the catalogue of a folder or project, in its rows' effective prototype's template."
+      },
+      "CatalogueWorkbookResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "The file's name: Cat\u00e1logo.xlsx or Cat\u00e1logo.zip"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "content_base64": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content Base64",
+            "description": "The file, base64; none when it was queued into a kept export"
+          },
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sheets"
+          },
+          "row_count": {
+            "type": "integer",
+            "title": "Row Count",
+            "default": 0
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "The queued write, when kept_export_id was given"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "media_type"
+        ],
+        "title": "CatalogueWorkbookResponse"
       },
       "CategoryToolsResponse": {
         "properties": {

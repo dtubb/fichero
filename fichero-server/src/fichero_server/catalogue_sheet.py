@@ -559,3 +559,11 @@ def workbook(db: Any, scope: Document | None, prototype_key: str | None = None, 
     sheets["Declaraciones"] = (statements_sheet(db, every), 1)
     sheets["Notas"] = (notes_sheet(db, every, proposals), 1)
     return sheets
+
+
+def undescribed_count(db: Any, scope: Document | None) -> tuple[int, int]:
+    """(rows, rows the Catalogue stage has not described): the Activity line "552 filas, 14 sin describir"."""
+    from fichero_server.recipes.catalogue_step import CONTENT_FROM, _latest
+
+    rows = [f for c in collections_in(db, scope) for f in c.rows]
+    return len(rows), sum(1 for f in rows if not (f.metadata or {}).get(CONTENT_FROM) and _latest(db, f.id) is None)

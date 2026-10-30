@@ -507,12 +507,12 @@ every kept export. The Word transcript streams one folder at a time into the zip
   .docx per folder in the scope, or writes them into a named kept export's folder; the kept-export
   format `word-transcript` writes the same on the run's last batch and the quiet-period rewrite; one
   call for a box. Test: fichero-server/tests/unit/export/test_word_transcript_per_folder.py.
-- `catalogue.export.recipe-last-step` — **[GAP]** (#5485, #6282) the export card accepts the formats
+- `catalogue.export.recipe-last-step` — **[OK]** (#5485, #6282) the export card accepts the formats
   `catalogue-workbook` and `word-transcript` per folder scope; they are written after Catalogue on the
   run's last batch, kept as kept exports and rewritten by the quiet-period hook when a folder's
   attributes, description or pages' text change. Test:
   fichero-server/tests/unit/recipes/test_recipe_export_catalogue_workbook.py.
-- `catalogue.export.on-demand-route` — **[GAP]** (#6282) `POST /api/export/catalogue-workbook` takes a
+- `catalogue.export.on-demand-route` — **[OK]** (#6282) `POST /api/export/catalogue-workbook` takes a
   folder or project id, a format and an optional prototype key, returns the file as the response or
   writes into a named kept export; the CLI and MCP reach it through the generated surface; the route
   runs the same builder as the recipe step. Test:

@@ -1,5 +1,7 @@
 """Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+import base64
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -13,6 +15,7 @@ from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.export_service import (
+    export_catalogue_xlsx,
     export_eleventy_site,
     export_excel_xlsx,
     export_jsonl,
@@ -421,6 +424,61 @@ async def export_excel_route(
         raise HTTPException(status_code=400, detail=str(e))
 
     return ExcelExportResponse(**result.__dict__)
+
+
+class CatalogueWorkbookRequest(BaseModel):
+    """What to write: the catalogue of a folder or project, in its rows' effective prototype's template."""
+
+    target_id: str | None = Field(default=None, description="A folder or project id; omitted writes the whole library")
+    format: Literal["xlsx", "csv"] = Field(default="xlsx", description="xlsx: one workbook; csv: a zip of one file per sheet")
+    prototype_key: str | None = Field(default=None, description="Write this prototype's columns instead of the rows' own")
+    proposals: Literal["marked", "omitted"] = Field(
+        default="marked", description="A machine's unanswered proposals are marked, or left out of a delivered sheet")
+    kept_export_id: str | None = Field(
+        default=None, description="Write into this kept export's folder (queued) instead of returning the file")
+
+
+class CatalogueWorkbookResponse(BaseModel):
+    filename: str = Field(description="The file's name: Catálogo.xlsx or Catálogo.zip")
+    media_type: str
+    #: ponytail: the file rides in the JSON envelope (base64); a streamed binary body when a workbook outgrows memory.
+    content_base64: str | None = Field(default=None, description="The file, base64; none when it was queued into a kept export")
+    sheets: list[str] = Field(default_factory=list)
+    row_count: int = 0
+    job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
+
+
+_WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
+
+
+@router.post("/catalogue-workbook", response_model=CatalogueWorkbookResponse,
+             summary="The catalogue workbook of a folder or project, in its archive's template")
+async def export_catalogue_workbook_route(
+    request: CatalogueWorkbookRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> CatalogueWorkbookResponse:
+    """The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the
+    record; never a model. No local path in the request: the file comes back, or is queued into a kept export."""
+    from fichero_server import kept_export
+
+    suffix = ".xlsx" if request.format == "xlsx" else ".zip"
+    name = f"{kept_export.WORKBOOK_NAME}{suffix}"
+    if request.kept_export_id:
+        kept = kept_export._export(db, request.kept_export_id)
+        if kept is None or kept["format"] != "catalogue-workbook":
+            raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")
+        return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                         job_id=kept_export.write_now(db, request.kept_export_id))
+    try:
+        with tempfile.TemporaryDirectory(prefix="fichero-catalogue-") as scratch:
+            result = export_catalogue_xlsx(db, Path(scratch) / f"out{suffix}", request.target_id, request.prototype_key,
+                                           overwrite=True, proposals=request.proposals, file_format=request.format)
+            data = Path(result.output_path).read_bytes()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                     content_base64=base64.b64encode(data).decode("ascii"), sheets=result.sheets,
+                                     row_count=result.row_count)
 
 
 # ---------------------------------------------------------------------------------------------------

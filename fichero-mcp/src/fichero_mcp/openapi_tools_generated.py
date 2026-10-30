@@ -3037,6 +3037,18 @@ def fichero_evaluation_model_scores(
     return _rt.call("GET", "/api/evaluation/scores", params={"model": model, "reader": reader})
 
 
+def fichero_export_catalogue_workbook_route(
+    *,
+    format: Annotated[Optional[str], Field(description='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".')] = None,
+    kept_export_id: Annotated[Optional[str], Field(description="Write into this kept export's folder (queued) instead of returning the file.")] = None,
+    proposals: Annotated[Optional[str], Field(description='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".')] = None,
+    prototype_key: Annotated[Optional[str], Field(description="Write this prototype's columns instead of the rows' own.")] = None,
+    target_id: Annotated[Optional[str], Field(description='A folder or project id; omitted writes the whole library.')] = None,
+) -> Any:
+    "The catalogue workbook of a folder or project, in its archive's template\n\nThe same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the\nrecord; never a model. No local path in the request: the file comes back, or is queued into a kept export.\n\nRoute: POST /api/export/catalogue-workbook (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/export/catalogue-workbook", json=_rt.body({"format": format, "kept_export_id": kept_export_id, "proposals": proposals, "prototype_key": prototype_key, "target_id": target_id}))
+
+
 def fichero_export_eleventy_site_route(
     *,
     output_path: Annotated[str, Field(description='Destination folder for the site project.')],
@@ -9528,6 +9540,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_evaluation_start", "evaluation", "POST", "/api/evaluation/runs", fichero_evaluation_start),
     GeneratedTool("fichero_evaluation_status", "evaluation", "GET", "/api/evaluation/runs/{job_id}", fichero_evaluation_status),
     GeneratedTool("fichero_evaluation_model_scores", "evaluation", "GET", "/api/evaluation/scores", fichero_evaluation_model_scores),
+    GeneratedTool("fichero_export_catalogue_workbook_route", "export", "POST", "/api/export/catalogue-workbook", fichero_export_catalogue_workbook_route),
     GeneratedTool("fichero_export_eleventy_site_route", "export", "POST", "/api/export/eleventy-site", fichero_export_eleventy_site_route),
     GeneratedTool("fichero_export_excel_route", "export", "POST", "/api/export/excel", fichero_export_excel_route),
     GeneratedTool("fichero_export_jsonl_route", "export", "POST", "/api/export/jsonl", fichero_export_jsonl_route),

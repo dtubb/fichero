@@ -6440,6 +6440,36 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='export')
         existing_apps['export'] = target_app
 
+    @target_app.command("the-catalogue-workbook-of-a-folder-or-project-in-its-archive-s-template", hidden=True)
+    @target_app.command("catalogue-workbook-route")
+    def export_catalogue_workbook_route_post(
+        ctx: typer.Context,
+        format: Optional[str] = typer.Option(None, '--format', help='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".'),
+        kept_export_id: Optional[str] = typer.Option(None, '--kept-export-id', help="Write into this kept export's folder (queued) instead of returning the file."),
+        proposals: Optional[str] = typer.Option(None, '--proposals', help='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help="Write this prototype's columns instead of the rows' own."),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='A folder or project id; omitted writes the whole library.'),
+    ) -> None:
+        """The catalogue workbook of a folder or project, in its archive's template (POST /api/export/catalogue-workbook)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/catalogue-workbook"
+            params = None
+            payload = _build_json_payload({
+                "format": format,
+                "kept_export_id": kept_export_id,
+                "proposals": proposals,
+                "prototype_key": prototype_key,
+                "target_id": target_id,
+            }, {
+                "format": {'type': 'string', 'enum': ['xlsx', 'csv'], 'title': 'Format', 'description': 'xlsx: one workbook; csv: a zip of one file per sheet', 'default': 'xlsx', 'x-cli-required': False},
+                "kept_export_id": {'type': 'string', 'nullable': True, 'title': 'Kept Export Id', 'description': "Write into this kept export's folder (queued) instead of returning the file", 'x-cli-required': False},
+                "proposals": {'type': 'string', 'enum': ['marked', 'omitted'], 'title': 'Proposals', 'description': "A machine's unanswered proposals are marked, or left out of a delivered sheet", 'default': 'marked', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': "Write this prototype's columns instead of the rows' own", 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'A folder or project id; omitted writes the whole library', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
         ctx: typer.Context,

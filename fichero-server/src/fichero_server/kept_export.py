@@ -228,9 +228,13 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[s
     if fmt == "catalogue-workbook":
         from fichero_server.export_service import export_catalogue_xlsx
 
+        from fichero_server import catalogue_sheet
+
+        rows, bare = catalogue_sheet.undescribed_count(db, None)
         with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
             out = Path(scratch) / "out.xlsx"
             export_catalogue_xlsx(db, out, overwrite=True)
+            jobs.note_done(f"{WORKBOOK_NAME}.xlsx: {rows} filas, {bare} sin describir")
             return out.read_bytes()
     if fmt in PAGE_FORMATS:
         from fichero_server.formats import FormatCannotWrite
