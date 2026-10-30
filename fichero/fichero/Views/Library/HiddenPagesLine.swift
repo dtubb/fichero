@@ -34,7 +34,13 @@ enum HiddenPages {
         _ store: DocumentStore, id: String, fallback: Document? = nil,
         fetch: (([String]) async -> [Document])? = nil
     ) async {
-        let fresh = await (fetch?([id]) ?? store.freshDocuments(ids: [id]))
+        // Not `await (fetch?(..) ?? store.fresh..)`: an async call cannot sit in `??`'s autoclosure.
+        let fresh: [Document]
+        if let fetch {
+            fresh = await fetch([id])
+        } else {
+            fresh = await store.freshDocuments(ids: [id])
+        }
         if fresh.isEmpty {
             if let fallback { store.refreshLocalContent(fallback) }
             return

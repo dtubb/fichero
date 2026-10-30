@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import OpenAPIRuntime
 import SwiftUI
 
 /// What the Prepare Images card shows besides its questions: the engine's sentence naming the operations, an answer
@@ -12,14 +13,20 @@ struct PrepareImagesCard: View {
     /// The project's actions, for answering a page on the worklist (each answer is one audited action with Undo).
     var actionsService: ActionsService?
 
+    /// The engine's suggestions by question key; the schema does not require them, so none is an empty list.
+    static func suggestions(of facts: Components.Schemas.PrepareImagesFacts) -> [String: Components.Schemas.PrepareSuggestion] {
+        facts.suggestions?.additionalProperties ?? [:]
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let facts = store.prepareFacts {
                 if !facts.howItWorks.isEmpty {
                     Text(facts.howItWorks).font(.callout).fixedSize(horizontal: false, vertical: true)
                 }
-                ForEach(facts.suggestions.additionalProperties.keys.sorted(), id: \.self) { key in
-                    if let suggestion = facts.suggestions.additionalProperties[key] {
+                let suggestions = Self.suggestions(of: facts)
+                ForEach(suggestions.keys.sorted(), id: \.self) { key in
+                    if let suggestion = suggestions[key] {
                         HStack {
                             Text("Suggested: \(suggestion.why) (\(suggestion.agree) pages)")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -130,9 +137,10 @@ enum FolderYesNo: Hashable {
 
 #Preview("Prepare Images card") {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    let ruled = (try? OpenAPIValueContainer(unvalidatedValue: ["ruled"])) ?? "ruled"
     store.prepareFacts = .init(
         suggestions: .init(additionalProperties: [
-            "the_paper": .init(value: .init(["ruled"]), agree: "4 of 5", why: "the sample shows ruled paper")
+            "the_paper": .init(value: ruled, agree: "4 of 5", why: "the sample shows ruled paper")
         ]),
         estimate: "About 2 min for 374 pages on this Mac (estimate). Nothing leaves this Mac.",
         howItWorks: "Finds each page, squares it, turns it upright and straightens it.")

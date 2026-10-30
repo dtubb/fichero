@@ -10,6 +10,7 @@
 @testable import Fichero
 import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import Testing
 
 @MainActor
@@ -55,5 +56,15 @@ struct PrepareImagesFolderAnswersTests {
         store.setFolderAnswer(.yesNo(true), to: "two_pages_per_image", in: "f1")
         #expect(PrepareImagesFolderAnswers.twoPages(of: store, in: "f1") == .saysYes)
         #expect(PrepareImagesFolderAnswers.paper(of: store, in: "f1").isEmpty)
+    }
+
+    @Test func theCardReadsFactsWithAndWithoutSuggestions() throws {
+        let bare = Components.Schemas.PrepareImagesFacts(estimate: "About 1 min", howItWorks: "Finds each page.")
+        #expect(PrepareImagesCard.suggestions(of: bare).isEmpty)
+        let ruled = try OpenAPIValueContainer(unvalidatedValue: ["ruled"])
+        let facts = Components.Schemas.PrepareImagesFacts(
+            suggestions: .init(additionalProperties: ["the_paper": .init(value: ruled, agree: "4 of 5", why: "ruled")]),
+            estimate: "About 1 min", howItWorks: "Finds each page.")
+        #expect(PrepareImagesCard.suggestions(of: facts).keys.sorted() == ["the_paper"])
     }
 }
