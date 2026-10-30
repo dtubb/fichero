@@ -2807,7 +2807,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     return plan
 
 
-def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
+def _as_started(db: Database, plan: dict[str, Any], first_pages: Optional[int] = None) -> dict[str, Any]:
     """The plan as Start started it (#5498): its runs, workflows and skipped steps are the queued run's, so the
     response's `started.workflows` and `runs` name the same thing, never the plan for next time."""
     from fichero_server.recipes import runner
@@ -2824,7 +2824,8 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["runs"], plan["skipped"] = started["runs"], started["skipped"]
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
-    within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
+    within = (runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id")
+              else set(_first_pages(db, first_pages)) if first_pages else None)  # the run's own pages (#6295)
     from fichero_server.recipes.done import material, todo_counts
 
     memo: dict = {}
@@ -3015,7 +3016,9 @@ async def start_project(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
-    return StartPlan(**await asyncio.to_thread(lambda: _as_started(db, _start_plan(db, folder_id, clusters=clusters))))
+    first = request.first_pages if request else None  # the answer describes the run queued, not the whole project (#6295)
+    return StartPlan(**await asyncio.to_thread(lambda: _as_started(
+        db, _start_plan(db, folder_id, clusters=clusters, **_only_if_set(first_pages=first)), first)))
 
 
 class UseInsteadRequest(BaseModel):
