@@ -115,3 +115,57 @@ def test_an_answer_that_names_a_line_twice_still_ties_and_the_later_answer_wins(
                                settling=True)
     assert len(made) == 1 and "NOT_TIED" not in said
     assert db.get(ContentRepresentation, made[0]).content == "settled text again"
+
+
+@pytest.mark.asyncio
+async def test_the_review_tool_passes_its_mode_to_the_page_context_it_builds(monkeypatch):
+    """One loop, not a parametrize: pytest-asyncio and parametrize break fixtures in this tree."""
+    import fichero_server.tool_context as tool_context_module
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    class Stop(Exception):
+        pass
+
+    seen = {}
+
+    def context(*args, **kwargs):
+        seen.update(kwargs)
+        raise Stop
+
+    monkeypatch.setattr(tool_context_module, "with_page_context", context)
+    for given, passed in (("both", "both"), ("compare", "compare"), (None, "in-turn")):
+        inputs = {"files": ["page.png"], "documents": [{"id": "d1"}], **({"review_mode": given} if given else {})}
+        with pytest.raises(Stop):
+            await transcribe_review(inputs=inputs, state={"library_path": "lib"},
+                                    llm_config=LLMConfig(provider="", model=""))
+        assert seen["review_mode"] == passed
+
+
+def test_the_node_config_a_plan_sends_reaches_the_review_nodes_inputs(db, monkeypatch):
+    """Start's `tool_config.transcribe_review.review_mode` is merged into the review nodes' config by the runner, and a
+    node's config is what the executor hands the tool as `inputs` (`tool_kwargs = {**resolved_inputs, **node.config}`)."""
+    import json
+    from pathlib import Path
+
+    from fichero_server.api.routes.workflow import chains
+    from fichero_server.models import Workflow
+    from fichero_server.recipes import runner, start
+    from fichero_server.workflows import default_workflows
+
+    presets = Path(start.__file__).parents[1] / "resources" / "default_workflows"
+    shipped = Workflow(**json.loads((presets / "transcribe_paleography_review.json").read_text()))
+    seen = {}
+
+    def validate(workflow, request, db):
+        seen["configs"] = [n["config"] for n in workflow.nodes if n.get("tool") == "transcribe_review"]
+        raise ValueError("stop here")
+
+    monkeypatch.setattr(chains, "_load_step_workflow", lambda db, workflow_id: None)
+    monkeypatch.setattr(default_workflows, "resolve_shipped_workflow", lambda db, workflow_id, name: shipped)
+    monkeypatch.setattr(chains, "_validate_step_workflow", validate)
+    name, workflow_id = start._shipped(start.WORKFLOW_FOR_JOB["correct"])
+    card = {"workflow": name, "workflow_id": workflow_id, "provider_override": "openai", "model_override": "gpt-5",
+            "tool_config": {"transcribe_review": {"review_mode": "both"}}}
+    assert runner._run_workflow(db, card, ["p1"], "recipe-job")[1:] == ("failed", "stop here")
+    assert seen["configs"] and all(config["review_mode"] == "both" for config in seen["configs"])
