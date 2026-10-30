@@ -107,6 +107,16 @@ struct CloudCapFixTests {
         #expect(!none.clear, "no total limit and none typed: nothing to clear")
     }
 
+    /// WHY: an emptied monthly field returned "no change", so nothing was sent and nothing said: the field stayed empty while the cap
+    /// was still the old one. Only the total cap may be emptied (no limit); the monthly one says so and goes back.
+    @Test func anEmptiedMonthlyFieldIsToldSoAndNotLeftEmpty() throws {
+        #expect(CloudCapFields.emptiedMonthlyWords(nil)?.contains("cannot be left empty") == true)
+        #expect(CloudCapFields.emptiedMonthlyWords(0) == nil, "0 is a cap")
+        #expect(CloudCapFields.emptiedMonthlyWords(10) == nil)
+        let none = CloudCapFields.change(monthly: nil, project: nil, line: try line())
+        #expect(none.monthly == nil && !none.clear, "nothing is sent for the emptied field")
+    }
+
     @Test func theProjectCapIsSavedUnderTheEnginesKeyAndLeftOutUnanswered() throws {
         let set = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
             RecipeSetupAnswers(cloudProjectCapUsd: 60))) as? [String: Any]

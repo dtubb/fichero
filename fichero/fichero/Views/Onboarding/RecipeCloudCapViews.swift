@@ -81,10 +81,21 @@ struct CloudCapFields: View {
     }
 
     private func save() async {
+        // An emptied monthly field cannot be saved (every project has a monthly cap): the field goes back to the cap it holds and
+        // the person is told, instead of the field staying empty while the cap is still what it was.
+        let emptied = Self.emptiedMonthlyWords(monthly)
+        if emptied != nil { monthly = line.capUsd }
         let change = Self.change(monthly: monthly, project: project, line: line)
-        guard change.monthly != nil || change.project != nil || change.clear else { return }
-        if await store.changeCloudCaps(monthlyUsd: change.monthly, projectUsd: change.project, clearProjectCap: change.clear,
-                                       undo: undo, steps: steps) == false { showSaved() }
+        if change.monthly != nil || change.project != nil || change.clear {
+            if await store.changeCloudCaps(monthlyUsd: change.monthly, projectUsd: change.project, clearProjectCap: change.clear,
+                                           undo: undo, steps: steps) == false { showSaved() }
+        }
+        if let emptied { store.errorMessage = emptied }
+    }
+
+    /// What to tell the person who emptied the monthly field; nil when it holds an amount. Pure, for the tests.
+    nonisolated static func emptiedMonthlyWords(_ monthly: Double?) -> String? {
+        monthly == nil ? "The monthly cap cannot be left empty: every project has one (US$10 unless you set another). Type an amount." : nil
     }
 
     /// What differs from the engine's line: the monthly cap if it moved, the project cap if it moved, or cleared when emptied.
