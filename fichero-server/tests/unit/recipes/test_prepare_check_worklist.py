@@ -119,7 +119,7 @@ def test_the_lines_that_do_not_agree_make_a_turn_proposal_a_person_can_answer_wi
     assert item["kinds"] == ["turn"] and "do not agree" in item["words"][0]
 
     registry.invoke(db, "image.rotate", {"document_id": page.id, "angle": 90}, _ctx(tmp_path))
-    assert worklist(db) == []
+    assert all(i["sample"] for i in worklist(db))  # answered: only the confident page's sample is left (page_region now kept)
 
 
 def test_a_person_marking_a_page_blank_answers_its_proposal(db, tmp_path):
