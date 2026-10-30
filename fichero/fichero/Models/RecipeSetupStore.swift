@@ -949,7 +949,7 @@ extension RecipeSetupStore {
     }
 
     /// The engine's own sentence from a response the generated client could not decode.
-    private static func engineWords(_ error: Error) async -> String? {
+    static func engineWords(_ error: Error) async -> String? {
         guard let clientError = error as? ClientError, let body = clientError.responseBody,
               let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
         return EngineErrorDetail.message(from: data)

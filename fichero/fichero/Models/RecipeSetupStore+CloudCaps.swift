@@ -37,7 +37,9 @@ extension RecipeSetupStore {
             }
         } catch {
             if error.isCancellationError { return false }
-            errorMessage = error.localizedDescription
+            // A refusal whose body is FastAPI's field-error array (a cap below 0, a project cap set and cleared at once) does not fit the
+            // declared sentence shape: the generated client throws while decoding it. Its words, never the decoder's.
+            errorMessage = await Self.engineWords(error) ?? error.localizedDescription
         }
         return false
     }

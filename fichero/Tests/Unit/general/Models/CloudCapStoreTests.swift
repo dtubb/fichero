@@ -72,4 +72,65 @@ struct CloudCapStoreTests {
         #expect(await store.changeCloudCaps(monthlyUsd: 25))
         #expect(store.errorMessage == nil)
     }
+
+    /// WHY: a cap the engine refuses must say so in its words and change nothing on screen: the store held the old caps, the plan was
+    /// not read again, and no undo step was made for a change that did not happen.
+    @Test("a cap the engine refuses in a sentence says it, and the plan is not read again")
+    func aRefusedCapSaysItsSentence() async {
+        defer { CloudCapURLProtocol.handler = nil }
+        let store = makeStore { request in
+            request.httpMethod == "PUT" ? (422, #"{"detail":"The cloud spending cap is a number of dollars, 0 or more."}"#) : (404, "{}")
+        }
+        store.cloudSpendCapUsd = 10
+        #expect(await store.changeCloudCaps(monthlyUsd: 25) == false)
+        #expect(store.errorMessage == "The cloud spending cap is a number of dollars, 0 or more.")
+        #expect(store.cloudSpendCapUsd == 10, "the held cap is the engine's, not the one asked for")
+        #expect(CloudCapURLProtocol.seen == ["PUT /api/recipes/project/cloud-cap"], "no answers read back, no plan read again")
+    }
+
+    /// WHY: the route's own field checks (a cap below 0, a project cap set and cleared together) answer in FastAPI's field-error
+    /// array, which the declared sentence shape cannot decode: the client threw, and the screen showed the decoder's words.
+    @Test("a refusal in FastAPI's field-error shape says the engine's words, not the decoder's")
+    func aFieldErrorShapedRefusalSaysItsWords() async {
+        defer { CloudCapURLProtocol.handler = nil }
+        let store = makeStore { _ in
+            (422, #"{"detail":[{"type":"value_error","loc":["body"],"msg":"Value error, a project cap is set or cleared, not both"}]}"#)
+        }
+        #expect(await store.changeCloudCaps(monthlyUsd: 25) == false)
+        let words = store.errorMessage ?? ""
+        #expect(words.contains("a project cap is set or cleared, not both"), "got: \(words)")
+    }
+
+    /// WHY: after a kept change the store holds the caps as the engine now has them, and the saved answers a later save starts from, so
+    /// a cap cleared (or put back by an undo) is never written back by the next save; the plan is read again, so it says whether
+    /// Start still asks.
+    @Test("a kept change adopts the caps the engine now holds and reads the plan again")
+    func aKeptChangeAdoptsTheSavedCaps() async throws {
+        defer { CloudCapURLProtocol.handler = nil }
+        let store = makeStore(Self.keeping)
+        #expect(await store.changeCloudCaps(monthlyUsd: 25, projectUsd: 60))
+        #expect(store.cloudSpendCapUsd == 25 && store.cloudProjectCapUsd == 60)
+        let kept = try #require(store.savedAnswers.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
+        #expect(kept["cloud_spend_cap_usd"] as? Double == 25 && kept["cloud_project_cap_usd"] as? Double == 60)
+        #expect(CloudCapURLProtocol.seen == [
+            "PUT /api/recipes/project/cloud-cap", "GET /api/recipes/project", "GET /api/recipes/project/start"
+        ])
+        #expect(store.startPlan != nil)
+    }
+
+    /// WHY: clearing the project cap must read back as no limit, or the next save would put the old one back.
+    @Test("a cleared project cap reads back as no limit")
+    func aClearedProjectCapReadsBackAsNoLimit() async {
+        defer { CloudCapURLProtocol.handler = nil }
+        let store = makeStore { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("PUT", "/api/recipes/project/cloud-cap"): return (200, #"{"cap_usd":25,"audit_id":"audit-2"}"#)
+            case ("GET", "/api/recipes/project"): return (200, #"{"answers":{"cloud_spend_cap_usd":25},"recipe":null}"#)
+            default: return (200, Self.plan)
+            }
+        }
+        store.cloudProjectCapUsd = 60
+        #expect(await store.changeCloudCaps(clearProjectCap: true))
+        #expect(store.cloudProjectCapUsd == nil && store.cloudSpendCapUsd == 25)
+    }
 }
