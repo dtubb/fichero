@@ -394,12 +394,12 @@ every kept export. The Word transcript streams one folder at a time into the zip
   rows with no effective prototype get and stays as it is. Tests:
   `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`,
   `::TestCatalogueTextOnlyDroppedInExcel::test_excel_has_the_normalised_date_column`.
-- `catalogue.export.one-row-per-folder` — **[GAP]** (#6282) the catalogue sheet holds one row per
+- `catalogue.export.one-row-per-folder` — **[OK]** (#6282) the catalogue sheet holds one row per
   folder in the scope, in sidebar order, a folder with subfolders first and its subfolders after it;
   the fact columns (name, first file, last file, page count) are filled for every row from the folder
   and its pages alone; file stems come from `metadata.source_filename`, else the page name. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.cells-from-attributes-never-guessed` — **[GAP]** (#6282) a field column holds the
+- `catalogue.export.cells-from-attributes-never-guessed` — **[OK]** (#6282) a field column holds the
   folder's EFFECTIVE value of that key (its own, else inherited where the declaration says so, else the
   prototype's default; a person's value over a machine's); a folder with no value has an empty cell;
   writing the workbook never calls a model or reruns the Catalogue stage (#6127); a run with no
@@ -419,7 +419,7 @@ every kept export. The Word transcript streams one folder at a time into the zip
   `catalogue_places` and `catalogue_people` joined "; " in the attribute's order; institutions never
   appear in either and go to the Entidades sheet. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.dates-in-the-archives-format` — **[GAP]** (#6282, #6270) the date column renders the
+- `catalogue.export.dates-in-the-archives-format` — **[OK]** (#6282, #6270) the date column renders the
   start side of `catalogue_date_normalised` through the prototype's format: "17/Marzo/1892" for a day,
   "Marzo/1892" for a month, "1892" for a year, empty when there is none; `?` and `~` are dropped and
   noted in Problemas; the month names come from the declaration, not the code; `catalogue_dates` text is
@@ -451,13 +451,13 @@ every kept export. The Word transcript streams one folder at a time into the zip
   model never fills) and Related Subjects (`catalogue_subjects`, a `multi_select` over the prototype's
   Tema vocabulary only; a term outside it is refused in words); a model fills a field only from
   evidence in the records. Test: fichero-server/tests/unit/recipes/test_catalogue_stage_optional_fields.py.
-- `catalogue.export.template-is-the-prototype` — **[GAP]** (#6282) the export's columns are the
+- `catalogue.export.template-is-the-prototype` — **[OK]** (#6282) the export's columns are the
   effective prototype of the rows in the scope (`attributes-and-prototypes.md`): one kind, its columns
   in declared order with its header rows; mixed kinds, the union in first-seen order; no kind, every
   `catalogue_*` key alphabetically; a named prototype on the request overrides; there is no template
   setting on the project and no template route. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_template.py.
-- `catalogue.export.eap-preset-reproduces-the-sheet` — **[GAP]** (#6282) a box carrying `eap_box`
+- `catalogue.export.eap-preset-reproduces-the-sheet` — **[OK]** (#6282) a box carrying `eap_box`
   writes its folders with the thirteen columns above in that order, row 1 the EAP English, row 2 the
   Spanish as given, both frozen, and a fixture of three folders (one described by a fake model, one
   typed by a person, one undescribed) renders cell for cell as the matrix says, from attributes alone,
@@ -469,10 +469,10 @@ every kept export. The Word transcript streams one folder at a time into the zip
   place; canonical form for an institution), confirmed or proposed, the folders that name it, an
   instruction row under the headings and an empty Comentarios; a sheet with no rows still has its
   header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py.
-- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[GAP]** (#6282) the export writes
+- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[PARTIAL]** (#6282) the export writes
   one catalogue sheet per collection node in the scope, named by the collection, each with the
   prototype's label rows and its instruction row frozen; a scope that is one collection writes one
-  sheet. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+  sheet. Built for the XLSX (`export_catalogue_xlsx`, tested in test_catalogue_sheet_template.py); the CSV and the other sheets are not. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
 - `catalogue.export.faltantes-and-revisada` — **[GAP]** (#6282) Faltantes holds the catalogue rows
   whose Problemas names a gap, missing pages, an unresolved date or an unconfirmed name, or that a
   person marked incomplete; the workbook prints a person's values and canonical name forms and marks a

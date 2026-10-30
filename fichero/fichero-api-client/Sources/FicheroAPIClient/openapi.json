@@ -72709,7 +72709,8 @@
               "alto",
               "pagexml",
               "tei",
-              "hocr"
+              "hocr",
+              "catalogue-workbook"
             ],
             "title": "Format"
           },
@@ -72807,7 +72808,8 @@
               "alto",
               "pagexml",
               "tei",
-              "hocr"
+              "hocr",
+              "catalogue-workbook"
             ],
             "title": "Format",
             "description": "What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR"

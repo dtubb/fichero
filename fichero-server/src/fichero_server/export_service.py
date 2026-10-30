@@ -1520,6 +1520,51 @@ def export_excel_xlsx(
     )
 
 
+@dataclass
+class CatalogueExportResult:
+    """Result metadata for a catalogue workbook."""
+
+    output_path: str
+    sheets: list[str]
+    row_count: int
+    bytes_written: int
+
+
+def export_catalogue_xlsx(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    prototype_key: str | None = None,
+    overwrite: bool = False,
+) -> CatalogueExportResult:
+    """The catalogue workbook: one sheet per collection in the scope (the columns of its folders' effective
+    prototype, three frozen header rows, one row per folder), then Tema. Reads attributes only; never a model."""
+    from fichero_server import catalogue_sheet as sheet
+
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".xlsx":
+        output_file = output_file.with_suffix(".xlsx")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    scope = db.get(Document, target_id) if target_id else None
+    if target_id and scope is None:
+        raise ValueError(f"Document not found: {target_id}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    sheets: dict[str, XlsxGrid] = {}
+    names: set[str] = set()
+    rows_written, tema = 0, []
+    for collection in sheet.collections_in(db, scope):
+        template = sheet.template_for(db, scope, collection.rows, prototype_key)
+        cells = sheet.grid(db, template, collection.rows)
+        sheets[sheet.sheet_name(collection.name, names)] = XlsxGrid(cells, frozen=len(cells) - len(collection.rows))
+        rows_written += len(collection.rows)
+        tema = tema or sheet.subject_terms(template)
+    sheets["Tema"] = XlsxGrid([["Related Subjects", "Tema"], *tema], frozen=1)
+    _write_xlsx(output_file, sheets)
+    return CatalogueExportResult(str(output_file), list(sheets), rows_written, output_file.stat().st_size)
+
+
 def export_jsonl(
     db: Database,
     output_path: str | Path,
@@ -2097,7 +2142,15 @@ def _unique_filename(stem: str, used_names: set[str], suffix: str) -> str:
     return candidate
 
 
-def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]]]) -> None:
+@dataclass
+class XlsxGrid:
+    """A sheet of ready cells (the catalogue's): `frozen` leading rows are the header rows and stay in view."""
+
+    rows: list[list[str]]
+    frozen: int = 0
+
+
+def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]] | XlsxGrid]) -> None:
     sheet_items = list(sheets.items())
     with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as xlsx:
         xlsx.writestr("[Content_Types].xml", _xlsx_content_types(len(sheet_items)))
@@ -2111,12 +2164,16 @@ def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]]]) -> N
             )
 
 
-def _xlsx_sheet(rows: list[dict[str, Any]]) -> str:
-    headers = _xlsx_headers(rows)
-    values = [headers] + [
-        [_xlsx_cell_value(row.get(header)) for header in headers]
-        for row in rows
-    ]
+def _xlsx_sheet(rows: list[dict[str, Any]] | XlsxGrid) -> str:
+    frozen = 0
+    if isinstance(rows, XlsxGrid):
+        values, frozen = rows.rows, rows.frozen
+    else:
+        headers = _xlsx_headers(rows)
+        values = [headers] + [
+            [_xlsx_cell_value(row.get(header)) for header in headers]
+            for row in rows
+        ]
     row_xml = []
     for row_index, row in enumerate(values, start=1):
         cells = []
@@ -2129,10 +2186,16 @@ def _xlsx_sheet(rows: list[dict[str, Any]]) -> str:
             )
         row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
 
+    pane = (
+        '<sheetViews><sheetView workbookViewId="0">'
+        f'<pane ySplit="{frozen}" topLeftCell="A{frozen + 1}" activePane="bottomLeft" state="frozen"/>'
+        "</sheetView></sheetViews>"
+        if frozen else ""
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f'<sheetData>{"".join(row_xml)}</sheetData>'
+        f'{pane}<sheetData>{"".join(row_xml)}</sheetData>'
         "</worksheet>"
     )
 
@@ -2192,7 +2255,7 @@ def _xlsx_package_rels() -> str:
 """
 
 
-def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+def _xlsx_workbook(sheet_items: list[tuple[str, Any]]) -> str:
     sheets = "".join(
         '<sheet name="{}" sheetId="{}" r:id="rId{}"/>'.format(
             escape(name, {'"': "&quot;"}), index, index
@@ -2207,7 +2270,7 @@ def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
 """
 
 
-def _xlsx_workbook_rels(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+def _xlsx_workbook_rels(sheet_items: list[tuple[str, Any]]) -> str:
     relationships = "".join(
         f'<Relationship Id="rId{index}" '
         'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '

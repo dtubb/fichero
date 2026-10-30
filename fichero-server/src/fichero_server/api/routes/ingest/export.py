@@ -404,7 +404,7 @@ async def export_excel_route(
 # the project's work in a folder outside it, written again as the work changes (`kept_export.py`).
 # ---------------------------------------------------------------------------------------------------
 
-KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr"]
+KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr", "catalogue-workbook"]
 KeptExportPer = Literal["page", "document"]
 
 

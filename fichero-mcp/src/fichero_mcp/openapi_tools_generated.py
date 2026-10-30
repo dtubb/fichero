@@ -3080,7 +3080,7 @@ def fichero_export_list_kept_exports(
 def fichero_export_keep(
     *,
     folder: Annotated[str, Field(description="A full path to a folder on the engine's disk, outside the project.")],
-    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.')],
+    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook.')],
     per: Annotated[str, Field(description='One file per page, or one per document (the page formats are one per page) One of: page, document.')],
 ) -> Any:
     'Keep an export in a folder, written again as the work changes\n\nOne-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.\n\nRoute: POST /api/export/kept (toolset `export`; changes data, as the agent account when one exists).'

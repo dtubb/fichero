@@ -6538,7 +6538,7 @@ def register_generated_openapi_commands(
     def export_keep_post(
         ctx: typer.Context,
         folder: str = typer.Option(..., '--folder', help="A full path to a folder on the engine's disk, outside the project."),
-        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.'),
+        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook.'),
         per: str = typer.Option(..., '--per', help='One file per page, or one per document (the page formats are one per page) One of: page, document.'),
     ) -> None:
         """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
@@ -6551,7 +6551,7 @@ def register_generated_openapi_commands(
                 "per": per,
             }, {
                 "folder": {'type': 'string', 'title': 'Folder', 'description': "A full path to a folder on the engine's disk, outside the project", 'x-cli-required': True},
-                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
+                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr', 'catalogue-workbook'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
                 "per": {'type': 'string', 'enum': ['page', 'document'], 'title': 'Per', 'description': 'One file per page, or one per document (the page formats are one per page)', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

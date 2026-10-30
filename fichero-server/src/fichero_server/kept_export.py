@@ -45,9 +45,12 @@ KIND = "write-kept-export"
 QUIET_SECONDS = 5.0
 #: The page interchange formats, written one file per page by the exporter.
 PAGE_FORMATS = ("alto", "pagexml", "tei", "hocr")
-FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS)
+#: Written for the whole project, one file (the catalogue workbook, `catalogue-export.md`): per document only.
+WHOLE_FORMATS = ("catalogue-workbook",)
+FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS, *WHOLE_FORMATS)
 PER = ("page", "document")
-_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt"}
+_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt", "catalogue-workbook": ".xlsx"}
+WORKBOOK_NAME = "Catálogo"
 #: The unit key of the pages at the top of the project (no parent): one document, the project's.
 _TOP = "top"
 
@@ -108,6 +111,8 @@ def keep(db: Any, folder: str, fmt: str, per: str) -> str:
         raise KeptExportRefused(f"An export is one file per page or per document; not {per!r}.")
     if fmt in PAGE_FORMATS and per != "page":
         raise KeptExportRefused(f"{fmt} describes one image, so it is written one file per page.")
+    if fmt in WHOLE_FORMATS and per != "document":
+        raise KeptExportRefused(f"{fmt} is one file for the project, not one per page.")
     resolved = _refuse_folder(db, folder)
     register_job_kinds()
     export_id = uuid.uuid4().hex
@@ -173,6 +178,8 @@ def _units(db: Any, export: dict[str, Any]) -> list[_Unit]:
     from fichero_server.export_service import _collect_documents
     from fichero_server.models import DocType, Document
 
+    if export["format"] in WHOLE_FORMATS:
+        return [_Unit(_TOP, WORKBOOK_NAME, WORKBOOK_NAME, filename=f"{WORKBOOK_NAME}{_extension(export['format'])}")]
     _root, documents = _collect_documents(db, target_id=None, recursive=True)
     pages = [d for d in documents if d.doc_type in (DocType.file, DocType.page)]
     units: dict[str, _Unit] = {}
@@ -213,6 +220,13 @@ def _text(db: Any, page_id: str) -> str | None:
 def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[str, str]] | None = None) -> bytes | None:
     """The unit's file, or None when it has nothing to write (no page of it is read)."""
     fmt = export["format"]
+    if fmt == "catalogue-workbook":
+        from fichero_server.export_service import export_catalogue_xlsx
+
+        with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
+            out = Path(scratch) / "out.xlsx"
+            export_catalogue_xlsx(db, out, overwrite=True)
+            return out.read_bytes()
     if fmt in PAGE_FORMATS:
         from fichero_server.formats import FormatCannotWrite
         from fichero_server.page_export import ExportRefused, export_page
@@ -284,8 +298,8 @@ def write(db: Any, subject: str) -> None:
     if not folder.is_dir():
         raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
     for unit in _units(db, export):
-        if key and unit.key != key:
-            continue
+        if key and unit.key != key and export["format"] not in WHOLE_FORMATS:
+            continue  # (the workbook is one file: any page's change rewrites it)
         data = _render(db, export, unit, left_out)
         if data is not None:
             _put(db, export, unit.filename, data)

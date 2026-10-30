@@ -131,7 +131,7 @@ struct KeptExportStoreTests {
         for format in [KeptExportStore.Format.word, .markdown, .plainText] {
             #expect(KeptExportStore.allowsPerDocument(format))
         }
-        #expect(KeptExportStore.formats.count == 7, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR")
+        #expect(KeptExportStore.formats.count == 8, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook")
 
         let client = makeClient { request in
             let body = KeptExportURLProtocol.seen.last?.body ?? [:]
@@ -141,6 +141,31 @@ struct KeptExportStoreTests {
         let store = KeptExportStore(client: client)
         #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/ALTO"), format: .alto, per: .document))
         #expect(KeptExportURLProtocol.seen.last?.body["per"] as? String == "page", "never asked per document")
+    }
+
+    /// WHY: the catalogue workbook is one Catálogo.xlsx for the whole project; the engine refuses it
+    /// per page. The row must hold only per document, and a request must never ask otherwise.
+    @Test("the catalogue workbook is one file per project: per document only")
+    func catalogueWorkbookIsPerDocumentOnly() async throws {
+        let format = KeptExportStore.Format.catalogueWorkbook
+        #expect(KeptExportStore.formats.contains(format))
+        #expect(KeptExportStore.allowsPerDocument(format) && !KeptExportStore.allowsPerPage(format))
+        #expect(KeptExportStore.title(of: format) == "Catalogue workbook (Excel)")
+        var draft = KeptExportStore.Draft(folder: nil, format: .alto, per: .page)
+        draft.format = format
+        #expect(draft.per == .document, "choosing the workbook makes the row per document")
+        draft.per = .page
+        #expect(draft.per == .document, "per page cannot be chosen for the workbook")
+
+        let client = makeClient { _ in
+            let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+            return (200, Self.exportJSON(id: "k3", folder: "/Exports/Sheet", format: body["format"] as? String ?? "",
+                                         per: body["per"] as? String ?? ""))
+        }
+        let store = KeptExportStore(client: client)
+        #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/Sheet"), format: format, per: .page))
+        let sent = KeptExportURLProtocol.seen.last?.body
+        #expect(sent?["format"] as? String == "catalogue-workbook" && sent?["per"] as? String == "document")
     }
 
     // MARK: Removing, writing
