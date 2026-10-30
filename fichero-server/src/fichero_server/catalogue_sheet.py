@@ -7,6 +7,7 @@ pages alone. Nothing is invented and no model is called: a cell with no value is
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -130,15 +131,105 @@ def blank_pages(pages: list[Document]) -> list[Document]:
     return [p for p in pages if (p.attributes or {}).get(KIND) == BLANK]
 
 
-def problems_for(db: Any, folder: Document, pages: list[Document]) -> list[str]:
-    """The folder's Problemas clauses: a person's own, then those computed from what the engine holds."""
+LISTS = ("catalogue_people", "catalogue_places", "catalogue_institutions")
+#: The clauses a Faltantes row has: a gap in the numbering, a date nobody resolved, a name nobody confirmed.
+GAP_CLAUSES = ("faltan ", "fecha sin normalizar", "fecha: ", "nombre sin confirmar")
+
+
+def fold(text: Any) -> str:
+    return unicodedata.normalize("NFC", str(text or "")).casefold().strip()
+
+
+@dataclass
+class Facts:
+    """What the Problemas clauses read beyond the folder and its pages, read once per export: the graph's names
+    (by folded canonical name and alias) and the statements a check rejected, by the document they stand on."""
+
+    entities: dict[str, list[Any]] = field(default_factory=dict)
+    rejected: dict[str, list[str]] = field(default_factory=dict)
+
+
+def facts(db: Any) -> Facts:
+    from fichero_server.models.checking import CheckVerdict
+    from fichero_server.models.knowledge import EntityCurationState, KnowledgeClaim, KnowledgeEntity
+
+    out = Facts()
+    for entity in db.all(KnowledgeEntity):
+        if entity.merged_into_id or entity.curation_state in (EntityCurationState.rejected, EntityCurationState.merged):
+            continue
+        for name in {entity.canonical_name, *entity.aliases}:
+            out.entities.setdefault(fold(name), []).append(entity)
+    latest: dict[str, Any] = {}
+    for verdict in sorted(db.query(CheckVerdict, layer="claims"), key=lambda v: (v.created_at, v.id)):
+        latest[verdict.target_id] = verdict
+    for target, verdict in latest.items():
+        claim = db.get(KnowledgeClaim, target) if verdict.verdict == "reject" else None
+        if claim is not None and claim.source_document_id:
+            out.rejected.setdefault(claim.source_document_id, []).append(claim.text)
+    return out
+
+
+def _listed(value: Any) -> list[str]:
+    return [str(v) for v in (value if isinstance(value, list) else [value]) if v not in (None, "")]
+
+
+def missing_numbers(stems: list[str]) -> list[str]:
+    """The stems a numbered run lacks: "IMG_001, IMG_002, IMG_005" lacks IMG_003 and IMG_004 (padding as the run writes it)."""
+    runs: dict[str, dict[int, int]] = {}
+    for stem in stems:
+        if m := _NUMBERED.match(stem):
+            runs.setdefault(m.group(1), {})[int(m.group(2))] = len(m.group(2))
+    out: list[str] = []
+    for prefix, numbers in runs.items():
+        width = max(numbers.values())
+        out += [f"{prefix}{n:0{width}d}" for n in range(min(numbers), max(numbers)) if n not in numbers]
+    return out
+
+
+def _lint_flags(db: Any, folder: Document) -> list[str]:
+    from fichero_server.recipes.catalogue_step import _latest
+
+    art = _latest(db, folder.id)
+    flags = (art.data or {}).get("lint_flags") if art is not None else None
+    return [str(f) for f in flags] if isinstance(flags, list) else []
+
+
+def _name_clauses(folder: Document, known: Facts) -> list[str]:
+    from fichero_server.models.knowledge import EntityCurationState
+
+    attrs = folder.attributes or {}
+    typed = {fold(v) for key in LISTS for v in _listed(attrs.get(key))}
+    out = [f"sin clasificar: {p}" for p in _listed(attrs.get("catalogue_access_points"))
+           if fold(p) not in typed and fold(p) not in known.entities]
+    unconfirmed = [n for key in LISTS for n in _listed(attrs.get(key))
+                   if (found := known.entities.get(fold(n))) and all(e.curation_state == EntityCurationState.unreviewed for e in found)]
+    if unconfirmed:
+        out.append("nombre sin confirmar: " + "; ".join(dict.fromkeys(unconfirmed)))
+    return out
+
+
+def problems_for(db: Any, folder: Document, pages: list[Document], known: Facts | None = None) -> list[str]:
+    """The folder's Problemas clauses: a person's own, then those computed from what the engine holds (never stored)."""
+    from fichero_server.llm.working_lines import working_lines
     from fichero_server.recipes.catalogue_step import date_problems
 
+    known = known or facts(db)
     own = (folder.attributes or {}).get("catalogue_problems")
     out = [str(x) for x in (own if isinstance(own, list) else [own] if own else [])]
     out.extend(date_problems(folder))
-    if blank := blank_pages(pages):
+    blank = blank_pages(pages)
+    if blank:
         out.append("en blanco: " + image_ranges([page_stem(p) for p in blank]))
+    blank_ids = {p.id for p in blank}
+    if unread := [page_stem(p) for p in pages if p.id not in blank_ids and working_lines(db, p.id) is None]:
+        out.append("sin líneas: " + image_ranges(unread))
+    if gaps := missing_numbers([page_stem(p) for p in pages]):
+        out.append("faltan " + image_ranges(gaps))
+    out.extend(_lint_flags(db, folder))
+    out.extend(_name_clauses(folder, known))
+    out.extend(f"declaración rechazada: {text}" for text in known.rejected.get(folder.id, []))
+    for page in pages:
+        out.extend(f"declaración rechazada: {text}" for text in known.rejected.get(page.id, []))
     return out
 
 
@@ -186,7 +277,8 @@ def _list_cell(value: Any, column: Column) -> str:
     return (column.join or "; ").join(str(labels.get(i, i)) for i in items if i not in (None, ""))
 
 
-def cell(db: Any, folder: Document, column: Column, effective: dict[str, dict], lang: str = "es") -> str:
+def cell(db: Any, folder: Document, column: Column, effective: dict[str, dict], lang: str = "es",
+         known: Facts | None = None) -> str:
     if column.kind == "computed":
         pages = pages_of(db, folder)
         match column.source:
@@ -201,7 +293,7 @@ def cell(db: Any, folder: Document, column: Column, effective: dict[str, dict], 
             case "description":
                 return _description(db, folder)
             case "problems":
-                return "; ".join(problems_for(db, folder, pages))
+                return "; ".join(problems_for(db, folder, pages, known))
             case "cataloguer":
                 return cataloguer(folder)
         return ""
@@ -245,9 +337,10 @@ def template_for(db: Any, scope: Document | None, rows: list[Document], prototyp
 def grid(db: Any, template: Template, rows: list[Document], lang: str = "es") -> list[list[str]]:
     """The sheet's cells: the header rows, then one row per folder."""
     out = header_rows(template.columns)
+    known = facts(db)
     for folder in rows:
         effective = effective_node_attributes(db, folder)
-        out.append([cell(db, folder, c, effective, lang) for c in template.columns])
+        out.append([cell(db, folder, c, effective, lang, known) for c in template.columns])
     return out
 
 

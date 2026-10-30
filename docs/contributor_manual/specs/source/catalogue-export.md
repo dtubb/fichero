@@ -440,7 +440,7 @@ every kept export. The Word transcript streams one folder at a time into the zip
   pending proposal and puts both readings in Problemas; a person's edit of the normalised cell wins
   and is never written over by a promote or a run. Test:
   fichero-server/tests/unit/recipes/test_catalogue_dates_parser_vs_model.py.
-- `catalogue.export.problems-column` — **[GAP]** (#6282) Problemas para resolver joins the person's
+- `catalogue.export.problems-column` — **[OK]** (#6282) Problemas para resolver joins the person's
   `catalogue_problems`, then the computed clauses: blank pages as image ranges, pages without lines,
   numbering gaps, `lint_flags`, the date clauses above, an uncertain date, untyped access points, an
   unconfirmed name in the lists, a rejected statement; one function computes them for the export and

@@ -62,12 +62,14 @@ def test_the_thirteen_columns_render_cell_for_cell(db, box, tmp_path):
     described, typed, undescribed = rows[3:]
     assert described == [
         "Fichero (m-1)", "Pleito A", "IMG_001", "IMG_002", "2", "Pleito por una finca.",
-        "Archivo Z, fondo 3", "17/Marzo/1892", "", "", DESCRIPTION, "", ""]  # the content IS the description
+        "Archivo Z, fondo 3", "17/Marzo/1892", "", "", DESCRIPTION,  # the content IS the description
+        "sin líneas: IMG_001\u2013IMG_002; sin clasificar: Villa Sur", ""]
     assert typed == [
         "", "Carta B", "", "", "0", "Carta del alcalde", "Archivo Z, fondo 3", "Mayo/1900",
         "Villa Sur|Río Claro", "Mora, Ana|Luna, Pedro", "", "falta el sello", "Children|Commerce"]
     assert undescribed[:6] == ["", "Legajo C", "IMG_017", "IMG_026", "5", ""]
-    assert undescribed[6:] == ["Archivo Z, fondo 3", "", "", "", "", "en blanco: IMG_017\u2013IMG_019, IMG_025", ""]
+    assert undescribed[6:] == ["Archivo Z, fondo 3", "", "", "", "",
+                              "en blanco: IMG_017\u2013IMG_019, IMG_025; sin líneas: IMG_026; faltan IMG_020\u2013IMG_024", ""]
 
 
 def test_image_ranges_collapse_runs_only():
