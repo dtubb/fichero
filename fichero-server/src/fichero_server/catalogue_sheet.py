@@ -48,6 +48,19 @@ def _folders(db: Any, parent_id: str | None) -> list[Document]:
     return [d for d in _children(db, parent_id) if d.doc_type == DocType.folder and d.node_kind not in _NOT_CATALOGUE_KINDS]
 
 
+def folders_under(db: Any, root: Document | None) -> list[Document]:
+    """The folder itself, then every folder beneath it in sidebar order (a folder first, its subfolders after)."""
+    out = [root] if root is not None else []
+
+    def visit(parent_id: str | None) -> None:
+        for child in _folders(db, parent_id):
+            out.append(child)
+            visit(child.id)
+
+    visit(root.id if root is not None else None)
+    return out
+
+
 def pages_of(db: Any, folder: Document) -> list[Document]:
     """The folder's own pages in reading order."""
     return [d for d in _children(db, folder.id) if d.doc_type in (DocType.file, DocType.page) and d.node_kind != "workflow"]

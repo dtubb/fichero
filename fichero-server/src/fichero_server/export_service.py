@@ -1324,8 +1324,16 @@ def export_word_docx(
     title: str | None = None,
     text_for: Callable[[Document], str] | None = None,
     skipped: list[tuple[str, str]] | None = None,
+    include_images: bool = True,
+    page_break_per_page: bool = False,
+    blank_pages_listed_once: bool = False,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file. `skipped` collects (page, why) for each image left out (#5966).
+
+    The transcript's options (#6287, `catalogue.export.word-transcript-options`): `include_images=False` prints
+    neither the image nor the "[Image not included…]" note (a page is its heading and its text);
+    `page_break_per_page` breaks before each page's heading; `blank_pages_listed_once` prints no body for a page
+    sorted blank and ends the file with one line, "Páginas en blanco: IMG_017–IMG_019, IMG_025".
 
     This intentionally avoids optional dependencies. It writes a valid Office
     Open XML package with text content and, for image documents, a simple
@@ -1351,10 +1359,17 @@ def export_word_docx(
     media: list[tuple[str, Path, str]] = []
     body_parts: list[str] = [_docx_heading(title or "Library Export", 1)]
 
+    from fichero_server import catalogue_sheet
+
+    blank_ids = {d.id for d in catalogue_sheet.blank_pages(documents)} if blank_pages_listed_once else set()
     for index, doc in enumerate(documents, start=1):
+        if doc.id in blank_ids:
+            continue
         text = text_for(doc) if text_for is not None else _document_text(db, doc)
+        if page_break_per_page:
+            body_parts.append(_DOCX_PAGE_BREAK)
         try:
-            image_source = _docx_image_source(db, doc, package)
+            image_source = _docx_image_source(db, doc, package) if include_images else None
         except ExportImageUnavailable as unavailable:
             logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
             if skipped is not None:
@@ -1369,6 +1384,10 @@ def export_word_docx(
         else:
             body_parts.append(_docx_heading(doc.name, 2))
             body_parts.extend(_docx_paragraph(part) for part in _paragraphs(text))
+
+    if blank_ids:
+        stems = [catalogue_sheet.page_stem(d) for d in documents if d.id in blank_ids]
+        body_parts.append(_docx_paragraph(f"Páginas en blanco: {catalogue_sheet.image_ranges(stems)}"))
 
     if include_knowledge_graph:
         appendix = _docx_knowledge_graph_appendix(
@@ -1401,6 +1420,72 @@ def export_word_docx(
         document_count=len(documents),
         bytes_written=output_file.stat().st_size,
     )
+
+
+@dataclass
+class WordTranscriptsResult:
+    """Result metadata for a per-folder Word transcript export."""
+
+    output_path: str
+    files: list[str]
+    document_count: int
+    bytes_written: int
+
+
+def folder_transcript_name(folder_name: str, used: set[str]) -> str:
+    """A folder's .docx name: its name made safe, ` 2`, ` 3` when two would share it (the kept export's rule)."""
+    from fichero_server.kept_export import _stem
+
+    stem = _stem(folder_name, "folder")
+    filename, n = f"{stem}.docx", 2
+    while filename.lower() in used:
+        filename, n = f"{stem} {n}.docx", n + 1
+    used.add(filename.lower())
+    return filename
+
+
+def export_word_transcripts(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    overwrite: bool = False,
+    package_path: str | Path | None = None,
+    text_for: Callable[[Document], str] | None = None,
+) -> WordTranscriptsResult:
+    """One .docx per folder of the scope that has pages, page by page, no images, a page break per page and the
+    blank pages listed once (#6287, `catalogue.export.word-transcript-per-folder`); all in one zip. One folder is
+    held at a time. A folder with subfolders is one file for its own pages; each subfolder is another."""
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".zip":
+        output_file = output_file.with_suffix(".zip")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    root = db.get(Document, target_id) if target_id else None
+    if target_id and root is None:
+        raise ValueError(f"Document not found: {target_id}")
+    from fichero_server import catalogue_sheet
+
+    if root is not None and root.doc_type != DocType.folder:
+        raise ValueError(f"Not a folder: {root.name}")
+    folders = catalogue_sheet.folders_under(db, root)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    used: set[str] = set()
+    files, pages_written = [], 0
+    with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for folder in folders:
+            pages = catalogue_sheet.pages_of(db, folder)
+            if not pages:
+                continue
+            name = folder_transcript_name(folder.name, used)
+            with tempfile.TemporaryDirectory(prefix="fichero-transcript-") as scratch:
+                out = Path(scratch) / "folder.docx"
+                export_word_docx(db, out, overwrite=True, package_path=package_path, include_knowledge_graph=False,
+                                 documents=pages, title=folder.name, text_for=text_for, include_images=False,
+                                 page_break_per_page=True, blank_pages_listed_once=True)
+                bundle.write(out, name)
+            files.append(name)
+            pages_written += len(pages)
+    return WordTranscriptsResult(str(output_file), files, pages_written, output_file.stat().st_size)
 
 
 _NOT_CATALOGUE_KINDS = frozenset({"workflow", "workflow_container", "workspace", "alias"})
@@ -2314,6 +2399,9 @@ def _docx_heading(text: str, level: int) -> str:
   <w:pPr><w:pStyle w:val="{style}"/></w:pPr>
   <w:r><w:t>{escape(text)}</w:t></w:r>
 </w:p>"""
+
+
+_DOCX_PAGE_BREAK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
 
 
 def _docx_paragraph(text: str) -> str:

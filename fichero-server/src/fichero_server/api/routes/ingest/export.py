@@ -19,6 +19,7 @@ from fichero_server.export_service import (
     export_parquet,
     export_markdown_folder,
     export_word_docx,
+    export_word_transcripts,
 )
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -70,12 +71,27 @@ class WordExportRequest(BaseModel):
         default=True,
         description="Append relevant knowledge graph entities and claims",
     )
+    include_images: bool = Field(
+        default=True,
+        description="Off prints neither the image nor the 'image not included' note: a page is its heading and text",
+    )
+    page_break_per_page: bool = Field(default=False, description="Start each page on a new Word page")
+    blank_pages_listed_once: bool = Field(
+        default=False,
+        description="Print no body for a page sorted blank; end the folder with one line listing them as image ranges",
+    )
+    per: Literal["document", "folder"] = Field(
+        default="document",
+        description="'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no "
+        "images, a page break per page, blank pages listed once): the options above are fixed for it",
+    )
 
 
 class WordExportResponse(BaseModel):
     output_path: str
     document_count: int
     bytes_written: int
+    files: list[str] = Field(default_factory=list, description="per folder: the .docx names inside the zip")
 
 
 class ExcelExportRequest(BaseModel):
@@ -354,8 +370,13 @@ async def export_word_route(
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
-    """Export a library, folder, or document as a Word .docx file."""
+    """Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them)."""
     try:
+        if request.per == "folder":
+            return WordExportResponse(**export_word_transcripts(
+                db=db, output_path=Path(request.output_path), target_id=request.target_id,
+                overwrite=request.overwrite, package_path=x_fichero_library_path,
+            ).__dict__)
         result = export_word_docx(
             db=db,
             output_path=Path(request.output_path),
@@ -364,6 +385,9 @@ async def export_word_route(
             overwrite=request.overwrite,
             package_path=x_fichero_library_path,
             include_knowledge_graph=request.include_knowledge_graph,
+            include_images=request.include_images,
+            page_break_per_page=request.page_break_per_page,
+            blank_pages_listed_once=request.blank_pages_listed_once,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -404,7 +428,8 @@ async def export_excel_route(
 # the project's work in a folder outside it, written again as the work changes (`kept_export.py`).
 # ---------------------------------------------------------------------------------------------------
 
-KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr", "catalogue-workbook"]
+KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr", "catalogue-workbook",
+                         "word-transcript"]
 KeptExportPer = Literal["page", "document"]
 
 

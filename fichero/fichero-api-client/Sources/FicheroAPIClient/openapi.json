@@ -25115,7 +25115,7 @@
           "export"
         ],
         "summary": "Export Word Route",
-        "description": "Export a library, folder, or document as a Word .docx file.",
+        "description": "Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them).",
         "operationId": "export_word_route_api_export_word_post",
         "requestBody": {
           "content": {
@@ -72710,7 +72710,8 @@
               "pagexml",
               "tei",
               "hocr",
-              "catalogue-workbook"
+              "catalogue-workbook",
+              "word-transcript"
             ],
             "title": "Format"
           },
@@ -72809,7 +72810,8 @@
               "pagexml",
               "tei",
               "hocr",
-              "catalogue-workbook"
+              "catalogue-workbook",
+              "word-transcript"
             ],
             "title": "Format",
             "description": "What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR"
@@ -101543,6 +101545,34 @@
             "title": "Include Knowledge Graph",
             "description": "Append relevant knowledge graph entities and claims",
             "default": true
+          },
+          "include_images": {
+            "type": "boolean",
+            "title": "Include Images",
+            "description": "Off prints neither the image nor the 'image not included' note: a page is its heading and text",
+            "default": true
+          },
+          "page_break_per_page": {
+            "type": "boolean",
+            "title": "Page Break Per Page",
+            "description": "Start each page on a new Word page",
+            "default": false
+          },
+          "blank_pages_listed_once": {
+            "type": "boolean",
+            "title": "Blank Pages Listed Once",
+            "description": "Print no body for a page sorted blank; end the folder with one line listing them as image ranges",
+            "default": false
+          },
+          "per": {
+            "type": "string",
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Per",
+            "description": "'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it",
+            "default": "document"
           }
         },
         "additionalProperties": true,
@@ -101566,6 +101596,14 @@
           "bytes_written": {
             "type": "integer",
             "title": "Bytes Written"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "per folder: the .docx names inside the zip"
           }
         },
         "type": "object",

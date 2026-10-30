@@ -56,7 +56,7 @@ final class KeptExportStore {
 
     /// The formats offered, in the spec's order (section 7b, screen 3).
     static let formats: [Format] = [
-        .word, .markdown, .plainText, .alto, .pagexml, .tei, .hocr, .catalogueWorkbook
+        .word, .markdown, .plainText, .alto, .pagexml, .tei, .hocr, .catalogueWorkbook, .wordTranscript
     ]
 
     static func title(of format: Format) -> String {
@@ -69,6 +69,7 @@ final class KeptExportStore {
         case .tei: "TEI"
         case .hocr: "hOCR"
         case .catalogueWorkbook: "Catalogue workbook (Excel)"
+        case .wordTranscript: "Word transcript (one per folder)"
         }
     }
 
@@ -76,15 +77,15 @@ final class KeptExportStore {
     /// engine rules (`kept_export.PAGE_FORMATS`).
     nonisolated static func allowsPerDocument(_ format: Format) -> Bool {
         switch format {
-        case .word, .markdown, .plainText, .catalogueWorkbook: true
+        case .word, .markdown, .plainText, .catalogueWorkbook, .wordTranscript: true
         case .alto, .pagexml, .tei, .hocr: false
         }
     }
 
-    /// The catalogue workbook is one file for the whole project, never one per page
-    /// (`kept_export.WHOLE_FORMATS`).
+    /// The catalogue workbook is one file for the whole project and the Word transcript one file per folder,
+    /// page by page: neither is ever one per page (`kept_export.WHOLE_FORMATS`, `FOLDER_FORMATS`).
     nonisolated static func allowsPerPage(_ format: Format) -> Bool {
-        format != .catalogueWorkbook
+        format != .catalogueWorkbook && format != .wordTranscript
     }
 
     /// A kept export's format, as the list names it.

@@ -6538,7 +6538,7 @@ def register_generated_openapi_commands(
     def export_keep_post(
         ctx: typer.Context,
         folder: str = typer.Option(..., '--folder', help="A full path to a folder on the engine's disk, outside the project."),
-        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook.'),
+        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.'),
         per: str = typer.Option(..., '--per', help='One file per page, or one per document (the page formats are one per page) One of: page, document.'),
     ) -> None:
         """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
@@ -6551,7 +6551,7 @@ def register_generated_openapi_commands(
                 "per": per,
             }, {
                 "folder": {'type': 'string', 'title': 'Folder', 'description': "A full path to a folder on the engine's disk, outside the project", 'x-cli-required': True},
-                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr', 'catalogue-workbook'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
+                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr', 'catalogue-workbook', 'word-transcript'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
                 "per": {'type': 'string', 'enum': ['page', 'document'], 'title': 'Per', 'description': 'One file per page, or one per document (the page formats are one per page)', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -6670,9 +6670,13 @@ def register_generated_openapi_commands(
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
+        blank_pages_listed_once: Optional[bool] = typer.Option(None, '--blank-pages-listed-once/--no-blank-pages-listed-once', help='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.'),
+        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true."),
         include_knowledge_graph: Optional[bool] = typer.Option(None, '--include-knowledge-graph/--no-include-knowledge-graph', help='Append relevant knowledge graph entities and claims. Default: true.'),
         output_path: str = typer.Option(..., '--output-path', help='Destination .docx path.'),
         overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .docx. Default: false.'),
+        page_break_per_page: Optional[bool] = typer.Option(None, '--page-break-per-page/--no-page-break-per-page', help='Start each page on a new Word page. Default: false.'),
+        per: Optional[str] = typer.Option(None, '--per', help='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".'),
         recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
         target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
@@ -6681,15 +6685,23 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/export/word"
             params = None
             payload = _build_json_payload({
+                "blank_pages_listed_once": blank_pages_listed_once,
+                "include_images": include_images,
                 "include_knowledge_graph": include_knowledge_graph,
                 "output_path": output_path,
                 "overwrite": overwrite,
+                "page_break_per_page": page_break_per_page,
+                "per": per,
                 "recursive": recursive,
                 "target_id": target_id,
             }, {
+                "blank_pages_listed_once": {'type': 'boolean', 'title': 'Blank Pages Listed Once', 'description': 'Print no body for a page sorted blank; end the folder with one line listing them as image ranges', 'default': False, 'x-cli-required': False},
+                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Off prints neither the image nor the 'image not included' note: a page is its heading and text", 'default': True, 'x-cli-required': False},
                 "include_knowledge_graph": {'type': 'boolean', 'title': 'Include Knowledge Graph', 'description': 'Append relevant knowledge graph entities and claims', 'default': True, 'x-cli-required': False},
                 "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .docx path', 'x-cli-required': True},
                 "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .docx', 'default': False, 'x-cli-required': False},
+                "page_break_per_page": {'type': 'boolean', 'title': 'Page Break Per Page', 'description': 'Start each page on a new Word page', 'default': False, 'x-cli-required': False},
+                "per": {'type': 'string', 'enum': ['document', 'folder'], 'title': 'Per', 'description': "'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it", 'default': 'document', 'x-cli-required': False},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)

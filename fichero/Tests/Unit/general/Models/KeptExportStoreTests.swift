@@ -131,7 +131,7 @@ struct KeptExportStoreTests {
         for format in [KeptExportStore.Format.word, .markdown, .plainText] {
             #expect(KeptExportStore.allowsPerDocument(format))
         }
-        #expect(KeptExportStore.formats.count == 8, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook")
+        #expect(KeptExportStore.formats.count == 9, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook, the Word transcript")
 
         let client = makeClient { request in
             let body = KeptExportURLProtocol.seen.last?.body ?? [:]
@@ -166,6 +166,31 @@ struct KeptExportStoreTests {
         #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/Sheet"), format: format, per: .page))
         let sent = KeptExportURLProtocol.seen.last?.body
         #expect(sent?["format"] as? String == "catalogue-workbook" && sent?["per"] as? String == "document")
+    }
+
+    /// WHY: the Word transcript is one .docx per folder, page by page; a single page is no transcript, so
+    /// the engine refuses it per page. The row must hold per document only, and say what it writes.
+    @Test("the Word transcript is one file per folder: per document only")
+    func wordTranscriptIsPerDocumentOnly() async throws {
+        let format = KeptExportStore.Format.wordTranscript
+        #expect(KeptExportStore.formats.contains(format))
+        #expect(KeptExportStore.allowsPerDocument(format) && !KeptExportStore.allowsPerPage(format))
+        #expect(KeptExportStore.title(of: format) == "Word transcript (one per folder)")
+        var draft = KeptExportStore.Draft(folder: nil, format: .markdown, per: .page)
+        draft.format = format
+        #expect(draft.per == .document)
+        draft.per = .page
+        #expect(draft.per == .document, "per page cannot be chosen for the transcript")
+
+        let client = makeClient { _ in
+            let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+            return (200, Self.exportJSON(id: "k4", folder: "/Exports/T", format: body["format"] as? String ?? "",
+                                         per: body["per"] as? String ?? ""))
+        }
+        let store = KeptExportStore(client: client)
+        #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/T"), format: format, per: .page))
+        let sent = KeptExportURLProtocol.seen.last?.body
+        #expect(sent?["format"] as? String == "word-transcript" && sent?["per"] as? String == "document")
     }
 
     // MARK: Removing, writing

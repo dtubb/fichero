@@ -3080,7 +3080,7 @@ def fichero_export_list_kept_exports(
 def fichero_export_keep(
     *,
     folder: Annotated[str, Field(description="A full path to a folder on the engine's disk, outside the project.")],
-    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook.')],
+    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.')],
     per: Annotated[str, Field(description='One file per page, or one per document (the page formats are one per page) One of: page, document.')],
 ) -> Any:
     'Keep an export in a folder, written again as the work changes\n\nOne-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.\n\nRoute: POST /api/export/kept (toolset `export`; changes data, as the agent account when one exists).'
@@ -3139,14 +3139,18 @@ def fichero_export_training_route(
 
 def fichero_export_word_route(
     *,
+    blank_pages_listed_once: Annotated[Optional[bool], Field(description='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.')] = None,
+    include_images: Annotated[Optional[bool], Field(description="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true.")] = None,
     include_knowledge_graph: Annotated[Optional[bool], Field(description='Append relevant knowledge graph entities and claims. Default: true.')] = None,
     output_path: Annotated[str, Field(description='Destination .docx path.')],
     overwrite: Annotated[Optional[bool], Field(description='Overwrite existing .docx. Default: false.')] = None,
+    page_break_per_page: Annotated[Optional[bool], Field(description='Start each page on a new Word page. Default: false.')] = None,
+    per: Annotated[Optional[str], Field(description='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".')] = None,
     recursive: Annotated[Optional[bool], Field(description='Include descendants of folders. Default: true.')] = None,
     target_id: Annotated[Optional[str], Field(description='Optional document/folder id to export; omitted exports library.')] = None,
 ) -> Any:
-    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file.\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/export/word", json=_rt.body({"include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
+    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file (or, per folder, a zip of them).\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/export/word", json=_rt.body({"blank_pages_listed_once": blank_pages_listed_once, "include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "page_break_per_page": page_break_per_page, "per": per, "recursive": recursive, "target_id": target_id}))
 
 
 def fichero_find_documents_list_proposals(
