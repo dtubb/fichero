@@ -131,7 +131,10 @@ struct KeptExportStoreTests {
         for format in [KeptExportStore.Format.word, .markdown, .plainText] {
             #expect(KeptExportStore.allowsPerDocument(format))
         }
-        #expect(KeptExportStore.formats.count == 9, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook, the Word transcript")
+        #expect(
+            KeptExportStore.formats.count == 9,
+            "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook, the Word transcript"
+        )
 
         let client = makeClient { request in
             let body = KeptExportURLProtocol.seen.last?.body ?? [:]
