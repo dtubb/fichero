@@ -19,6 +19,9 @@
 > `designer.how.*`, `designer.defaults.*`, `designer.budget.*`). The maintainer's request of 2026-10-30, from
 > #6295 (no budget control in Set Up) and #6294 (the estimate under-prices a cloud line read). Those lines are
 > tagged **[GAP]** meaning nothing is built, as the maintainer asked; each names the test file that would pin it.
+> **Ruled 2026-10-30 (the maintainer):** open questions 5, 7, 8 and 9 of the 2026-10-30 additions (page order, the two
+> caps, no margin on the estimate, fewer pages as a Start), recorded under "Rulings (the maintainer, 2026-10-30)";
+> question 6 (the defaults table's rows) stays open.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
 > inlined in the appendix "Screens review facts") and the owner's directions of 2026-10-24, paraphrased.
@@ -233,6 +236,9 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
 
 ### 4. How do you want to run this? (new page, after About the Material, before Choose the Stages)
 
+*Page order is ruled (the maintainer's ruling, 2026-10-30): How comes after About the Material and before Choose
+the Stages, so the material's facts are known before the models are narrowed.*
+
 **Exists.** The routes: `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and
 distil routes for the volume with whole-project cost, time and accuracy, each figure marked measured or
 estimate or unknown, to be shown **side by side, not as one plan** (`source.onboard.routes-for-the-volume` (P);
@@ -388,7 +394,7 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
   | handwriting, show-through | + Prepare Images (show-through suppression) | as above | as above | "writing from the other side is dimmed before reading" |
   | handwriting, tight binding | + Prepare Images (flatten toward the gutter) | as above | as above | "text that curves into the gutter is flattened first" |
   | handwriting, torn or water damage | + Leave Out (damaged areas), Review on | vision-language reader offered beside the CTC one, compared | the route's estimate | "a damaged page needs a reader that uses context, and a check for what it invents" |
-  | cloud allowed, quality | Read by a large cloud model; Review off | large vision-language model | the route's estimate × 1.5, rounded up | "a large model reads a hard hand best; the estimate carries a margin until it is measured" |
+  | cloud allowed, quality | Read by a large cloud model; Review off | large vision-language model | the route's estimate, rounded up to the dollar | "a large model reads a hard hand best; the cap is Fichero's best estimate of the cost, and it learns from what your project has booked" |
   | cloud allowed, cost, large archive | path (a): cloud first pages, then Teach | as the path | the first pages' estimate | "the cloud reads the first pages, your corrections teach a free model for the rest" |
   | a cluster or Hugging Face, cost | path (b) | the person's readers there | the Hugging Face cap at the route's estimate | "long runs go where your allocation is" |
 
@@ -793,10 +799,17 @@ reaches the last screen with no control that fixes it; the cap is changed outsid
 (#6294):** a 16-page folder estimated $0.33 booked about 2.5× that, so a cap set at the estimate paused the run
 at 9 of 16 pages.
 
+**Ruled (the maintainer's ruling, 2026-10-30).** A Start may be blocked by either of two caps, the project cap or
+the monthly cap, and the experience must let a person update **both** in place: in the Budget block on Ready, and
+on the refusal and the paused-at-cap screens. Today a Start is blocked with no way to change either cap in the app.
+There is **no margin multiplier**: the estimate says what Fichero thinks the run will cost, its best estimate with
+its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
+
 **Improves.**
 - `designer.budget.beside-the-estimate` [GAP] (#6295) — Ready has one Budget block, above Start: the estimate
-  for this run (`estimate.total_cost_usd`) with its basis, the project's cap for the month with what is spent
-  and what is left (the `CloudCapLine` figures), and two editable fields: **this run, at most** and **this
+  for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
+  and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
+  whichever cap would block Start can be updated from the block: **this run, at most** and **this
   project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
   in the plan. One block, not a field under a question. *Test:* `fichero/Tests/Unit/general/Models/BudgetBlockTests.swift`
   (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
@@ -810,28 +823,34 @@ at 9 of 16 pages.
   model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
   booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
   labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
-  the estimate lets a run finish (#6294's case: after the first pages the estimate reads the booked figure).
+  the estimate lets a run finish (#6294's case: after the first pages the estimate reads the booked figure). No
+  margin is applied on top (the maintainer's ruling, 2026-10-30): the figure shown is Fichero's best estimate, its
+  basis beside it, and the booked costs are how it improves.
   *Test:* `fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
   the new estimate is not refused).
 - `designer.budget.run-cap` [GAP] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
   deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
-  The run cap is proposed at the estimate's basis (the defaults table's cap column: the estimate with its margin
-  when assumed, the estimate when measured) and written only when the person confirms the typed figure
+  The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
+  measured, with no margin multiplier, the maintainer's ruling, 2026-10-30) and written only when the person confirms the typed figure
   (`designer.path.caps-proposed-not-written`). *Test:*
   `fichero-server/tests/unit/llm/test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
   remaining refuses at the run cap; the project cap still refuses first when lower).
 - `designer.budget.refusal-offers-the-fix` [GAP] (#6295) — a Start refused for the cap says, in plain words,
-  what the estimate is, what the cap leaves, and which step costs most; and the refusal carries typed fixes
-  the app shows as buttons in the Budget block, each one press: **Raise the cap to $N** (N = the estimate with
-  its margin, rounded up to the dollar; the project cap, or the run cap when that is the one refusing);
+  which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
+  the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
+  same screen (the maintainer's ruling, 2026-10-30): **Raise the cap to $N** (N = the estimate, rounded up to the
+  dollar, with no margin; the cap that is refusing, project or monthly);
   **Change the model for <step>** (opens the one finder on that step, `designer.rank.finder-for-every-model-step`,
   the cheaper candidates first with their cost a page); **Run fewer pages** (the number of pages that fit what
-  the cap leaves, as a folder-scoped or a first-N-pages Start, `source.recipe.folder-scoped-start`). The engine
+  the cap leaves, sent as a Start of the first N pages in Finder order, the maintainer's ruling, 2026-10-30: the
+  pages are named as `documents` in the existing Start request, `source.recipe.folder-scoped-start`, with no new
+  request field; offering "the folders that fit" is a later slice). The engine
   serves the fixes (`refusal.fixes[]`: `kind`, `step`, `raise_to_usd`, `pages_that_fit`); the app computes none.
   *Test:* `fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py` (each fix is served with
-  its figure; raising to N clears the refusal; the fewer-pages count fits what is left),
+  its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
+  and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
   `fichero/Tests/Unit/general/Models/BudgetRefusalFixTests.swift` (the three buttons from a served refusal).
 - `designer.budget.change-is-audited-and-undoable` [GAP] (#6295) — raising or lowering either cap, from the
   field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
@@ -841,7 +860,8 @@ at 9 of 16 pages.
   `fichero-server/tests/unit/recipes/test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
   both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen).
 - `designer.budget.fix-during-the-run` [GAP] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
-  paused at the cap, the run's Activity row and the project's run strip show the same three fixes (raise to $N,
+  paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
+  fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
   change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
   far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
   *Test:* `fichero-server/tests/unit/recipes/test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
@@ -1114,34 +1134,33 @@ only. Questions 1–3 and 5–9 are ruled as follows; question 4 stays open.
 Set Up screens items 5, 9 and 13 (appendix): one "Choose a model…" on every model step; Ready as one
 line per step with Change…; the duplicate grey example line removed (one is kept).
 
+## Rulings (the maintainer, 2026-10-30)
+
+On the open questions of the 2026-10-30 additions; question 6 (the defaults table's rows) stays open.
+
+5. **Page order.** How do you want to run this? comes after About the Material and before Choose the Stages
+   (section 4, as drafted).
+7. **Caps.** A Start may be blocked by either the project cap or the monthly cap, and the experience lets a person
+   update both in place: in the Budget block on Ready and on the refusal and the paused-at-cap screens
+   (`designer.budget.beside-the-estimate`, `designer.budget.refusal-offers-the-fix`,
+   `designer.budget.fix-during-the-run`). Today a Start is blocked with no way to change either cap in the app.
+8. **Margin.** There is no margin multiplier. The estimate says what Fichero thinks it will cost, its best
+   estimate with its basis, and it learns from the project's booked costs
+   (`designer.budget.estimate-from-booked-usage`).
+9. **Fewer pages.** The "Run fewer pages" fix starts the first N pages, in Finder order
+   (`designer.budget.refusal-offers-the-fix`).
+
 ## Open question for the creative director
 
 4. The dictionary-word rule for "lines changed beyond the CER" (needs a word list per language; none
    for Latin abbreviations); until ruled it stays [PROPOSED] and the insertion rate is the one number.
 
-## Open questions for the maintainer (the 2026-10-30 additions; a recommendation on each)
+## Open question for the maintainer (the 2026-10-30 additions; a recommendation)
 
-5. **Order of the pages.** The request asks "How do you want to run this?" before the person chooses what
-   to do. Choose the Stages is "what to do", so the page sits after About the Material and before Choose the
-   Stages (section 4's place today). *Recommend:* keep that order; the condition answers (section 3) and the
-   how answers together fill the defaults table, and the material's facts must be known before the models
-   are narrowed. The alternative is How before About the Material, with the table filled in two passes.
 6. **The defaults table's rows.** The nine rows in section 4b are a first draft from the specs' own rules;
    the maintainer's judgement on each cell (which reader for damaged handwriting; whether Review defaults on
    for a large cloud model) is what makes the table right. *Recommend:* rule row by row on approval; the
    table is data, so a changed row is a one-line change and a test.
-7. **One cap or two.** `ai.where.cloud-spend-cap` asks whether the project cap is a month's or a total, and
-   whether Hugging Face shares it. The Budget block shows a run cap and a project cap, with the Hugging Face
-   cap as a third line only when a Hugging Face place is in the plan. *Recommend:* two caps (run, project a
-   month) in the block; the Hugging Face cap stays its own answer until the one-list-of-places lands
-   (`ai.where.one-list-of-places`), then folds in.
-8. **The margin on an assumed estimate.** Section 4b proposes the estimate × 1.5, rounded up, as the cap to
-   propose while the figure is assumed, and the estimate itself once measured (#6294 measured 2.5× on one
-   folder; #6265 measured 30× before its fix). *Recommend:* 1.5 as the seed, replaced per model by the ratio
-   of booked to assumed over the project's own rows once there are ten, and shown as "margin: measured".
-9. **"Fewer pages" as a Start.** Start takes a folder or named documents today. *Recommend:* the fix sends the
-   first N pages in Finder order as `documents`, no new request field; a later slice can offer "the folders
-   that fit".
 
 ## Appendix: screens review facts (2026-10-24, read from the code; inlined so nothing cites a local note)
 
