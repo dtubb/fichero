@@ -346,6 +346,9 @@ extension EmbeddedBackendService {
         // port for the command-line tool, MCP clients, and paired devices; a
         // Bonjour address must also listen on the network interface.
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
+        // engine.log is the engine's captured stdout/stderr; the engine rotates and prunes it itself
+        // (`engine.log-rotates-by-size`, 10 MB x 5, `engine.logs-pruned-at-launch`, 14 days).
+        environment["FICHERO_ENGINE_LOG_PATH"] = Self.engineLogURL.path
         // The search embedder is a forked child (#5847); a fork after the Objective-C runtime is up crashes on macOS
         // unless this is set BEFORE the engine starts (setting it in the child is too late).
         environment["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"

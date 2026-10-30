@@ -226,6 +226,12 @@ def main(argv: list[str] | None = None):
 
 def _main(argv: list[str] | None = None):
     _stamp("main() entry")
+    engine_log_path = (os.environ.get("FICHERO_ENGINE_LOG_PATH") or "").strip()
+    if engine_log_path:
+        # The app captures our stdout/stderr into this file: bound it ourselves (engine.log-rotates-by-size).
+        from fichero_server.core import engine_log
+
+        engine_log.start(pathlib.Path(engine_log_path))
     # The interpreter's own start-up, before any line of ours (#5228): the app stamps the wall
     # clock it spawned us at, so the run-up is a number rather than a guess.
     spawned_at = os.environ.get("FICHERO_SPAWNED_AT")

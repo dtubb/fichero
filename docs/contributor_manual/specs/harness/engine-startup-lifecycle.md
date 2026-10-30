@@ -414,21 +414,21 @@ engine's own `RotatingFileHandler` (`core/logging.py`, 10 MB x 5) never sees tha
 (`Failed to create embedding for ...`) was written 380,611 times. Twice a tester's Mac kept an
 errant `Fichero Server` from an earlier run, and the new app could not reach its own engine.
 
-- `engine.log-rotates-by-size` — **[GAP]** (owner 2026-10-30) `engine.log` is rotated by size, default
+- `engine.log-rotates-by-size` — **[PARTIAL]** (owner 2026-10-30) `engine.log` is rotated by size, default
   10 MB, keeping the last 5 (`engine.log.1` .. `engine.log.5`), whoever writes it. Built in the engine, not
   the app: the app passes the log path as `FICHERO_ENGINE_LOG_PATH`; the engine (`core/engine_log.py`)
   rotates at its own start and then every few seconds while running, by renaming the files, opening a fresh
   `engine.log` and re-pointing its own descriptors 1 and 2 at it, so a line written during the swap lands
   in the renamed file and none is lost, and C-level output (torch, faulthandler) is caught as well. A
   file already over the cap (the 166 MB case) becomes `engine.log.1` cut to its last 10 MB. No env
-  variable (a uvicorn dev engine, the tests) = no rotation. *Test:* `fichero-server/tests/unit/core/test_engine_log.py`.
-- `engine.logs-pruned-at-launch` — **[GAP]** (owner 2026-10-30) at engine start, files in the current
+  variable (a uvicorn dev engine, the tests) = no rotation. *Test:* `fichero-server/tests/unit/core/test_engine_log.py` (rotation, the 5 kept, a huge file cut to its tail, a live child writing through raw fds 1/2). PARTIAL: the app's one-line env hand-over is unbuilt.
+- `engine.logs-pruned-at-launch` — **[PARTIAL]** (owner 2026-10-30) at engine start, files in the current
   log's folder that are rotated beyond the 5 kept, and any `*.log`, `*.log.N` or `*.log.gz` there older than
   14 days, are deleted. Never the current log; never a directory, a symlink, or any file outside the folder
   the current log is in, and only when that folder is named `Fichero` (a path that points anywhere else
   deletes nothing). The engine is started by the app at every launch of a distribution build, so this
-  is "at launch"; an app set to a remote host only never runs it (known edge). *Test:* same file.
-- `engine.repeated-log-line-collapses` — **[GAP]** (owner 2026-10-30) a log line that repeats (same
+  is "at launch"; an app set to a remote host only never runs it (known edge). *Test:* same file. Engine side tested 2026-10-30; PARTIAL until the Lead's build proves the app passes `FICHERO_ENGINE_LOG_PATH` (one line in `+Spawn.swift`, written unbuilt).
+- `engine.repeated-log-line-collapses` — **[OK]** (owner 2026-10-30) a log line that repeats (same
   message template, the arguments may differ) is written the first 5 times in a minute; the rest are held
   back and the next occurrence after the minute writes ONE line, "<template> — repeated K times in the
   last minute", then starts a new window. Applied first to `Failed to create embedding for %s: %s`

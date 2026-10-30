@@ -6499,12 +6499,15 @@ class Database(DatabaseEmbeddingMixin):
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
             from fichero_server.core import failure_ledger
+            from fichero_server.core.log_throttle import log_collapsed
             from fichero_server.db.embed_process import EmbedderUnavailable
 
             # A model that cannot load is said ONCE, by the loader (`embeddings._get_shared_embedder`); the Air logged
             # this warning 31,385 times for one cause (2026-10-30). The outcome below still carries the words.
-            (logger.debug if isinstance(e, EmbedderUnavailable) else logger.warning)(
-                "Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
+            # A failing loop repeats this per document (380,611 lines in one engine.log): collapse it; the ledger counts the
+            # cause once through `note`, so the record carries `ledgered` and the handler stays out.
+            log_collapsed(logger, logging.DEBUG if isinstance(e, EmbedderUnavailable) else logging.WARNING,
+                          "Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
             failure_ledger.note(
                 "search", "embed", type(e.__cause__ or e).__name__,
                 sentence="Search is not indexing new pages: the search model cannot be loaded"
