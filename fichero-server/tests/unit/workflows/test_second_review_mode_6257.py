@@ -210,3 +210,22 @@ async def test_the_review_tool_refuses_a_mode_called_with_a_certainty_bar():
     with pytest.raises(ValueError, match="needs the whole page"):
         await transcribe_review(inputs=inputs, state={"library_path": "lib"},
                                 llm_config=LLMConfig(provider="", model=""))
+
+
+def test_a_loop_in_the_derivation_trail_gives_the_reading_itself_as_a_broken_trail_does():
+    from types import SimpleNamespace as NS
+
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.tool_context import readings_before_reviews
+
+    review = NS(id="art", artifact_type="transcription_review")
+    a = NS(id="a", derived_from_artifact_id="art", derived_from_representation_id="b")
+    b = NS(id="b", derived_from_artifact_id="art", derived_from_representation_id="a")
+
+    class Db:
+        def query_in(self, model, column, ids):
+            rows = {"art": review, "a": a, "b": b}
+            return [rows[i] for i in ids if i in rows and (model is ContentRepresentation) == (i != "art")]
+
+    got = readings_before_reviews(Db(), [a, b])
+    assert got == {"a": a, "b": b}

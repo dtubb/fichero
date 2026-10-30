@@ -84,7 +84,8 @@ def readings_before_reviews(db: Any, readings: list[Any]) -> dict[str, Any]:
     from fichero_server.models import Artifact, ContentRepresentation
 
     asked = [r for r in readings if r is not None]
-    current = {r.id: r for r in asked}
+    original = {r.id: r for r in asked}
+    current = dict(original)
     seen = {r.id: {r.id} for r in asked}
     walking = set(current)
     while walking:
@@ -98,12 +99,12 @@ def readings_before_reviews(db: Any, readings: list[Any]) -> dict[str, Any]:
         walking = set()
         for i in reviewed:
             parent = parents.get(current[i].derived_from_representation_id)
-            if parent is None:
-                current[i] = next(r for r in asked if r.id == i)  # the trail is broken: the reading itself
-            elif parent.id not in seen[i]:
-                seen[i].add(parent.id)
-                current[i] = parent
-                walking.add(i)
+            if parent is None or parent.id in seen[i]:
+                current[i] = original[i]  # the trail is broken or loops: the reading itself, never a guess
+                continue
+            seen[i].add(parent.id)
+            current[i] = parent
+            walking.add(i)
     return current
 
 
