@@ -219,7 +219,9 @@ def _roots(db: Any) -> list[str]:
     """The project's top-level live items: what a training run looks through when no folder is chosen."""
     from fichero_server.models import Document
 
-    return sorted(d.id for d in db.query(Document, parent_id=None) if not d.deleted_at)
+    # Two columns, not `SELECT *`: on the Air this read every root's page text and line boxes and was the query that
+    # turned a recipe start into a 500 at 256 MiB (2026-10-30).
+    return sorted(d.id for d in db.query_fields(Document, ["id", "deleted_at"], parent_id=None) if not d.deleted_at)
 
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,

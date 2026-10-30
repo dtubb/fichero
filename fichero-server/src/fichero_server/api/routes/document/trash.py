@@ -102,10 +102,15 @@ class EmptyTrashResult(EmptyTrashPreview):
 # reading the Trash
 
 
-def _all_documents(db: Any) -> dict[str, Document]:
-    from fichero_server.api.routes.document.documents import _list_documents_raw
+#: What the Trash needs of every row to place a deleted item: the tree and the deletion, never the page's text or
+#: its line boxes. The Air read all 69k documents whole on every Trash poll (2 s of event loop, and the first query to
+#: fail at the 256 MiB cap, 2026-10-30); these few columns are a few MB.
+_TRASH_FIELDS = ("id", "parent_id", "name", "doc_type", "deleted_at", "deleted_by")
 
-    return {doc.id: doc for doc in _list_documents_raw(db)}
+
+def _all_documents(db: Any) -> dict[str, Any]:
+    """Every document's placement fields (`_TRASH_FIELDS`), by id: enough to find the tops and their folders."""
+    return {row.id: row for row in db.query_fields(Document, _TRASH_FIELDS)}
 
 
 def _is_top_level(doc: Document, by_id: dict[str, Document]) -> bool:
@@ -236,6 +241,8 @@ def trash_listing(
     tops, counts, by_id = trashed_items(db)
     tops, withheld = keep_readable(tops)
     page = tops[offset : offset + limit] if limit is not None else tops[offset:]
+    whole = {doc.id: doc for doc in db.query_in_committed(Document, "id", [doc.id for doc in page])}
+    page = [whole[doc.id] for doc in page if doc.id in whole]  # the page's rows whole: the item carries its document
     reasons = moved_reasons(db, [doc.id for doc in page])
     taken = taken_back_reasons(db, [doc.id for doc in page])
     items = []

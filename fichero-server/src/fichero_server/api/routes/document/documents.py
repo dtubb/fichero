@@ -34,7 +34,7 @@ from fichero_server.api.routes.document.trash import (
     trash_listing,
 )
 from fichero_server.db import Database
-from fichero_server.db.node_levels import NodeLevel, resolve_level
+from fichero_server.db.node_levels import NodeLevel, containers_to_look_through, resolve_level
 from fichero_server.models.knowledge import (
     Annotation,
     ClassificationDimension,
@@ -502,14 +502,19 @@ def _with_group_dates(db: Database, items: list[Document]) -> list[Document]:
     return items
 
 
-def _batched_children_of(db: Database, rows: list[Document]):
+def _batched_children_of(db: Database, rows: list[Document], level: NodeLevel | str = NodeLevel.content):
     """One committed IN-query prefetches every listed container's children —
     resolve_level's per-container callable then answers from the dict.
     2026-08-24: the content tier for a 152-child folder ran ~75 sequential
     per-container queries and cost 2.4s of the sidebar-click wait.
+
+    Only the containers `resolve_level` will look through are fetched (none at the stored tier): the sidebar's
+    stored view of 66 folders read their 4,000 pages whole, and that was the read that failed at 256 MiB on the
+    Air (2026-10-30).
     """
-    prefetched: dict[str, list[Document]] = {row.id: [] for row in rows}
-    for child in db.query_in_committed(Document, "parent_id", [row.id for row in rows]):
+    wanted = containers_to_look_through(db, rows, level)
+    prefetched: dict[str, list[Document]] = {row.id: [] for row in wanted}
+    for child in db.query_in_committed(Document, "parent_id", [row.id for row in wanted]):
         if child.parent_id in prefetched:
             prefetched[child.parent_id].append(child)
 
@@ -1663,7 +1668,7 @@ async def get_children(
             # the folder keeps the order the user was just looking at.
             return resolve_level(
                 db, rows, level,
-                children_of=_batched_children_of(db, rows),
+                children_of=_batched_children_of(db, rows, level),
             )
 
         children = await asyncio.to_thread(_fetch)
