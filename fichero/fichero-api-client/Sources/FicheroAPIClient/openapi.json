@@ -15314,50 +15314,6 @@
         }
       }
     },
-    "/api/recipes/prepare-images/check": {
-      "get": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Prepare Images Check",
-        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
-        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrepareCheckList"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/recipes/prepare-images/facts": {
-      "get": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Prepare Images Facts",
-        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
-        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrepareImagesFacts"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/recipes/samples": {
       "get": {
         "tags": [
@@ -17362,6 +17318,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/prepare-images/check": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Check",
+        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
+        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareCheckList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/prepare-images/facts": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Facts",
+        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
+        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareImagesFacts"
                 }
               }
             }
