@@ -33,3 +33,27 @@ struct SecondReviewModePicker: View {
         }
     }
 }
+
+#Preview("Second review mode, in turn") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    let question = try? JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+    {"key": "second_review_mode", "ask": "How should the second model review?", "kind": "one",
+     "options": [{"id": "in-turn", "title": "In turn: it reviews the first model's result"},
+                 {"id": "compare", "title": "Compare: it reviews the same reading on its own"},
+                 {"id": "both", "title": "Both: it reviews on its own, then settles the two"}],
+     "default": "in-turn", "read_by_a_step": true}
+    """.utf8))
+    if let question {
+        store.stages = [Components.Schemas.SetupStage(
+            id: "read", title: "Read", sentence: "Reads the text.", example: "",
+            exampleCredit: Components.Schemas.ExampleCredit(
+                title: "Sample page", shortCredit: "Sample", licence: "CC BY 4.0",
+                sourceUrl: "https://example.org", licenceUrl: "https://creativecommons.org/licenses/by/4.0/"
+            ),
+            jobs: ["correct"], on: true, jobsInRecipe: [], questions: [question], needs: [], sampleable: false, triedBy: .workflow
+        )]
+    }
+    return SecondReviewModePicker(store: store)
+        .padding()
+        .frame(width: 420)
+}
