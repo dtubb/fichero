@@ -191,7 +191,7 @@ def test_a_correct_step_with_a_bar_reaches_the_review_node(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_re_run_in_another_review_mode_asks_again_what_the_same_model_answered_on_other_input(page, monkeypatch):
+async def test_a_re_run_in_another_review_mode_asks_again_what_the_same_model_answered_on_other_input(page, monkeypatch):  # noqa: F811
     """#6257: a line this model answered in turn was given other input than in compare, so it is asked again; the same mode
     still skips it."""
     _kraken_was_sure(page, [0.95, 0.30, 0.50])
