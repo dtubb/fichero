@@ -117,7 +117,8 @@ def test_prune_never_follows_a_symlink_out_of_the_folder(tmp_path):
 
 def test_a_running_engine_is_rotated_while_it_writes_through_the_raw_stream(tmp_path):
     """The real mechanism, in a child process: fds 1 and 2 are re-pointed at a fresh engine.log, so the file is
-    bounded though the writer is plain print() and C-level stderr, as under the app's capture."""
+    bounded though the writer is plain print() and sys.stderr, as under the app's capture. (A raw os.write(2) racing the
+    dup2 can fail with EBADF on macOS: the engine retries Python-level writes, not C-level ones.)"""
     folder = _logs(tmp_path)
     log = folder / "engine.log"
     script = textwrap.dedent(
@@ -128,7 +129,8 @@ def test_a_running_engine_is_rotated_while_it_writes_through_the_raw_stream(tmp_
         engine_log.start(Path({str(log)!r}), max_bytes=2000, keep=3, interval=0.01)
         for n in range(400):
             print(f"stdout line {{n:04d}} " + "x" * 40, flush=True)
-            os.write(2, f"stderr line {{n:04d}}\\n".encode())
+            sys.stderr.write(f"stderr line {{n:04d}}\\n")
+            sys.stderr.flush()
             time.sleep(0.002)
         time.sleep(0.3)
         print("LAST", flush=True)
@@ -170,3 +172,44 @@ def test_prune_requires_the_folder_to_be_logs_slash_fichero(tmp_path):
     current.write_text("x")
     assert engine_log.prune(current, keep=5, max_age_days=14) == []
     assert victim.exists()
+
+
+def test_a_forked_child_holding_the_old_fd_loses_no_line_through_rotation(tmp_path):
+    """A process that inherited stdout/stderr (the embedder's workers, any subprocess) keeps writing to the file it
+    was given, whatever it has been renamed to. Rotation must never replace a rotated file's inode (the review's
+    /tmp/rv2.py: 40 of 100 child lines survived)."""
+    import re
+
+    folder = _logs(tmp_path)
+    log = folder / "engine.log"
+    log.write_bytes(b"")
+    script = textwrap.dedent(
+        f"""
+        import os, time
+        from pathlib import Path
+        from fichero_server.core import engine_log
+        engine_log.start(Path({str(log)!r}), max_bytes=3000, keep=60, interval=0.01)
+        pid = os.fork()
+        if pid == 0:
+            for n in range(100):
+                os.write(2, ("CHILD %04d " % n + "c" * 30 + "\\n").encode())
+                time.sleep(0.005)
+            os._exit(0)
+        for n in range(100):
+            print("PARENT %04d " % n + "p" * 30, flush=True)
+            time.sleep(0.005)
+        os.waitpid(pid, 0)
+        time.sleep(0.2)
+        """
+    )
+    with log.open("ab") as capture:
+        subprocess.run([sys.executable, "-c", script], stdout=capture, stderr=capture, check=True, timeout=60)
+    seen: dict[str, set[int]] = {"CHILD": set(), "PARENT": set()}
+    for path in folder.iterdir():
+        for line in path.read_text().splitlines():
+            match = re.match(r"(CHILD|PARENT) (\d+)", line)
+            if match:
+                seen[match[1]].add(int(match[2]))
+    assert (folder / "engine.log.1").exists(), "the run never rotated"
+    assert seen["PARENT"] == set(range(100))
+    assert seen["CHILD"] == set(range(100))

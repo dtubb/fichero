@@ -7,8 +7,10 @@ the rename and the re-point lands in the renamed file; none is lost.
 
 from __future__ import annotations
 
+import errno
 import logging
 import os
+import sys
 import re
 import threading
 import time
@@ -30,9 +32,12 @@ def rotate(
     keep: int = DEFAULT_KEEP,
     after_rename: Callable[[], None] | None = None,
 ) -> bool:
-    """Move `log` to `log.1` (shifting `.1`..`.keep-1` up, dropping `.keep`) when it is over `max_bytes`, then cut
-    `log.1` to its last `max_bytes`. `after_rename` runs between the two: a live writer is re-pointed there, so the
-    cut never replaces a file something is still writing to."""
+    """Move `log` to `log.1` (shifting `.1`..`.keep-1` up, dropping `.keep`) when it is over `max_bytes`.
+
+    A rotated file is NEVER replaced: a process that inherited stdout/stderr (the embedder's workers, any
+    subprocess) keeps writing to the inode it was given, wherever the file was renamed to, so a copy-and-replace
+    would lose its output. Only a file more than twice the cap (a log that grew unbounded before this existed, the
+    166 MB case) is cut, IN PLACE on the same inode, after `after_rename` has pointed our own writer elsewhere."""
     try:
         size = log.stat().st_size
     except FileNotFoundError:
@@ -48,23 +53,26 @@ def rotate(
     log.rename(first)
     if after_rename:
         after_rename()
-    _keep_tail(first, first.stat().st_size, max_bytes)
+    if size > 2 * max_bytes:
+        _keep_tail_in_place(first, max_bytes)
     return True
 
 
-def _keep_tail(path: Path, size: int, cap: int) -> None:
-    """Cut `path` to its last `cap` bytes, starting on a whole line."""
-    if size <= cap:
-        return
-    with path.open("rb") as source:
-        source.seek(size - cap)
-        tail = source.read()
-    newline = tail.find(b"\n")
-    if newline != -1:
-        tail = tail[newline + 1 :]
-    scratch = path.with_name(path.name + ".tmp")
-    scratch.write_bytes(tail)
-    scratch.replace(path)
+def _keep_tail_in_place(path: Path, cap: int) -> None:
+    """Cut `path` to its last `cap` bytes, starting on a whole line, keeping its inode: the tail is written at
+    offset 0 and the file truncated, so a holder of the file loses nothing it writes afterwards."""
+    with path.open("r+b") as handle:
+        size = handle.seek(0, os.SEEK_END)
+        if size <= cap:
+            return
+        handle.seek(size - cap)
+        tail = handle.read()
+        newline = tail.find(b"\n")
+        if newline != -1:
+            tail = tail[newline + 1 :]
+        handle.seek(0)
+        handle.write(tail)
+        handle.truncate(len(tail))
 
 
 def _is_the_logs_folder(folder: Path) -> bool:
@@ -111,6 +119,32 @@ def _is_stdout(log: Path) -> bool:
     return (wanted.st_dev, wanted.st_ino) == (mine.st_dev, mine.st_ino)
 
 
+def _retry_through_the_swap(stream) -> None:
+    """`dup2` onto fd 1/2 is not atomic on macOS: a write that lands inside it fails with EBADF (reproduced: a
+    thread's print raised, killing the engine's own logging). Retry such a write a few times; it succeeds the
+    moment the swap ends. C-level writers (torch) are not covered: a rare, lost line, never a crash of ours."""
+    raw = getattr(getattr(stream, "buffer", None), "raw", None)
+    if raw is None or getattr(raw, "_retries_ebadf", False):
+        return
+    original = raw.write
+
+    def write(data):
+        for _ in range(100):
+            try:
+                return original(data)
+            except OSError as exc:
+                if exc.errno != errno.EBADF:
+                    raise
+                time.sleep(0.0001)
+        return original(data)
+
+    try:
+        raw.write = write
+        raw._retries_ebadf = True
+    except (AttributeError, TypeError):
+        pass
+
+
 def _repoint(log: Path) -> None:
     fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
     try:
@@ -133,6 +167,8 @@ def start(
 ) -> None:
     """Rotate now and while running, and prune old logs once. Only acts when this process's stdout IS `log`
     (the app's capture); a dev engine writing to a terminal is never touched."""
+    _retry_through_the_swap(sys.stdout)
+    _retry_through_the_swap(sys.stderr)
     try:
         _rotate_and_repoint(log, max_bytes, keep)
         removed = prune(log, keep)
