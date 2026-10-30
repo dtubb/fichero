@@ -486,6 +486,25 @@ def date_problems(doc: Any) -> list[str]:
     return out
 
 
+def asked_fields(db: Any, folder: Any) -> set[str] | None:
+    """The attribute keys the Catalogue stage fills on this folder: the declared fields of its EFFECTIVE prototype
+    (its own, else the one a box above gives it, `proto.runs.read-the-effective-prototype`), never only its own key; None
+    when it has none, which is today's fixed set. The working keys the declared ones rest on stay: the Dates text and
+    the years beside a declared date, and the access points the typed lists are made from."""
+    from fichero_server.models.node_prototypes import PrototypeResolutionError, resolve_node_prototype, resolve_prototype_attributes
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    key = resolve_node_prototype(db, folder).key
+    if not key:
+        return None
+    try:
+        declared = {k for k, d in attribute_declarations(resolve_prototype_attributes(db, key)).items() if not d.source}
+    except PrototypeResolutionError:
+        return None
+    # ponytail: the stage's own keys stay a fixed list; a prototype's own extra fields are asked once the prompt can name them
+    return declared | {"catalogue_access_points"} | (set(DATE_KEYS) if DATE_KEY in declared else set())
+
+
 def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, run_id: str | None, provider: str,
                       model: str, language: str | None = None) -> list[str]:
     """The description's fields as the folder's attributes, through the one attribute path (#6141): each value cites this run
@@ -497,13 +516,17 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     doc = db.get(Document, folder_id)
     if doc is None:
         return []
-    values = parse_fields(text, language)
-    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", DATE_KEY]
+    asked = asked_fields(db, doc)
+    asking = (lambda key: True) if asked is None else (lambda key: key in asked)
+    values = {k: v for k, v in parse_fields(text, language).items() if asking(k)}
+    every = [k for k in [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", DATE_KEY]
+             if asking(k)]
     gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
                                     provider=provider, model=model, said=text)
     answers = {k: (v, source) for k, v in {**values, **gone}.items()}
-    answers.update(_date_answer(doc, values.get(DATE_KEY), model_date(text), source))
+    if asking(DATE_KEY):
+        answers.update(_date_answer(doc, values.get(DATE_KEY), model_date(text), source))
     return sources.write_answers_from_run(db, doc, answers)
 
 
