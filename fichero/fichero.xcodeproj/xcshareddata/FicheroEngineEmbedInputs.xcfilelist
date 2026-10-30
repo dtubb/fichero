@@ -501,6 +501,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/examples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/folder_answers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/folder_overrides.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/htr_united.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
