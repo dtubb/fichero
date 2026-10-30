@@ -243,3 +243,11 @@ def test_a_line_the_budget_dropped_is_not_named_in_the_settle_block(monkeypatch)
     got, said = _within_budget(text, "m")
     assert said and dropped_id not in got and "dropped version" not in got
     assert f"their version of {kept_id}: kept version" in got
+
+
+def test_a_line_both_flags_uncertain_that_the_first_review_never_changed_is_kept_at_the_lower_certainty_too(db):
+    doc_id, line, _before = _reviewed_page(db)
+    other = next(i for i in tool_context(db, doc_id).segment_ids if i != line)
+    assert other not in tool_context(db, doc_id, review_mode=BOTH).first_review
+    reading = _settled(db, doc_id, other, "the second reviewer's version")
+    assert reading.content == "the second reviewer's version" and reading.machine_confidence <= 0.5
