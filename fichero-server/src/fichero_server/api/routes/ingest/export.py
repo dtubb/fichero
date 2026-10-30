@@ -6,13 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import assert_library_write_authorized, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.export_service import (
     export_catalogue_xlsx,
@@ -455,7 +456,9 @@ _WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spread
              summary="The catalogue workbook of a folder or project, in its archive's template")
 async def export_catalogue_workbook_route(
     request: CatalogueWorkbookRequest,
-    db: Database = Depends(get_library_database_for_write),
+    http: Request,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database),
 ) -> CatalogueWorkbookResponse:
     """The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the
     record; never a model. No local path in the request: the file comes back, or is queued into a kept export."""
@@ -464,6 +467,7 @@ async def export_catalogue_workbook_route(
     suffix = ".xlsx" if request.format == "xlsx" else ".zip"
     name = f"{kept_export.WORKBOOK_NAME}{suffix}"
     if request.kept_export_id:
+        assert_library_write_authorized(http, library_path)  # a read export, except that this one queues a write
         kept = kept_export._export(db, request.kept_export_id)
         if kept is None or kept["format"] != "catalogue-workbook":
             raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")

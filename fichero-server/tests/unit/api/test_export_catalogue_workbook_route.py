@@ -57,3 +57,11 @@ def test_a_kept_export_id_queues_the_write_instead(client, db, tmp_path):
     got = _post(client, target_id=box.id, kept_export_id=export_id)
     assert got["job_id"] and got["content_base64"] is None
     assert client.post("/api/export/catalogue-workbook", json={"kept_export_id": "x"}).status_code == 404
+
+
+def test_a_workbook_that_only_reads_does_not_ask_for_the_write_door():
+    from fichero_server.api.main import get_library_database_for_write
+    from fichero_server.api.routes.ingest.export import router
+
+    route = next(r for r in router.routes if r.path.endswith("/catalogue-workbook"))
+    assert get_library_database_for_write not in {d.call for d in route.dependant.dependencies}
