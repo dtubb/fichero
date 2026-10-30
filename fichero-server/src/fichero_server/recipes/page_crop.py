@@ -18,13 +18,18 @@ MIN_CONFIDENCE = 0.8
 #: ...and covers at least this share of the image (a sliver is a stamp or a card, not the page).
 MIN_SHARE = 0.15
 PRODUCER = "page-crop"
+#: Bumped when the finders, the blank rule or the operations change what a page comes out as, so a stamp from the older rules
+#: no longer lets a re-run skip the page (`_stamp`).
+PREP_VERSION = 2
 
 
 def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None, *,
-               prepare: bool = False) -> dict[str, Any]:
+               prepare: bool = False, reuse: bool = False) -> dict[str, Any]:
     """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
     Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
-    `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`."""
+    `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`.
+    With `prepare` and `reuse`, a page this step already prepared from the same file under the same rules (`_stamp`) is
+    counted as `unchanged` and not found, turned or read again: a run that starts again costs only the pages that changed."""
     from PIL import Image
 
     from fichero_server.actions.registry import ActionContext, registry
@@ -38,7 +43,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
 
     library = Path(db.path).parent
     ctx = ActionContext(actor="page-crop", run_id=run_id, library_path=str(library), is_bootstrap=True)
-    account = {"pages": 0, "cropped": 0, "whole": 0, "kept": 0, "no_image": 0, "blank": 0}
+    account = {"pages": 0, "cropped": 0, "whole": 0, "kept": 0, "no_image": 0, "blank": 0, "unchanged": 0}
     for doc_id in documents:
         if stop is not None and stop():
             break
@@ -51,6 +56,9 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["kept"] += 1
                 continue
             path = _resolve_abs_path(doc, str(library))
+            if prepare and reuse and (meta.get("page_prep_stamp") or {}) == _stamp(path):
+                account["unchanged"] += 1
+                continue
             try:
                 with Image.open(path) as opened:
                     image = upright(opened)
@@ -87,6 +95,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     _clear(db, doc.id, everything=True)
                     _propose(db, doc.id, "turn", None, ctx)
                 account["whole"] += 1
+                _write_stamp(db, doc.id, path, prepare, ctx)
                 continue
             box = [round(v, 5) for v in found.box]
             _merge_metadata(db, doc.id, lambda now: {
@@ -103,11 +112,29 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             account["cropped"] += 1
             if prepare:
                 _prepare(db, doc, image, found, run_id, library, crop_id, ctx)
+            _write_stamp(db, doc.id, path, prepare, ctx)
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("page prep: %s skipped: %s", doc_id, exc)
             account["failed"] = account.get("failed", 0) + 1
             account.setdefault("failures", []).append({"page_id": doc_id, "why": str(exc)})
     return account
+
+
+def _stamp(path: Any) -> dict[str, Any]:
+    """What a finished preparation of a page was made from: the file's size and modified time and the rules' version. A
+    changed file, or changed rules, gives another stamp, so the page is prepared again."""
+    try:
+        info = Path(path).stat()
+    except OSError:
+        return {}
+    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "version": PREP_VERSION}
+
+
+def _write_stamp(db: Any, doc_id: str, path: Any, prepare: bool, ctx: Any) -> None:
+    """Remember a page prepared to its end (a blank hide stops early and is never stamped: unhiding must prepare it)."""
+    stamp = _stamp(path)
+    if prepare and stamp:
+        _merge_metadata(db, doc_id, lambda now: {"page_prep_stamp": stamp}, ctx)
 
 
 def _page_box_proposal(found: Any, run_id: str) -> dict[str, Any]:

@@ -16,7 +16,7 @@ def run_prepare(db: Any, documents: list[str], parent: str,
 
     # The Set Up step's operations first, on every page whatever the answers (`prep.setup.what-runs-by-itself`): find the
     # page, square, flatten, turn, straighten, mark blanks; the account (`page_prep`) counts what each did.
-    step["page_prep"] = crop_pages(db, documents, parent, stop=lambda: _stop_asked(parent), prepare=True)
+    step["page_prep"] = crop_pages(db, documents, parent, stop=lambda: _stop_asked(parent), prepare=True, reuse=True)
     # The contrast step runs where the answer says the paper is faded; with no paper answer it looks at each page and
     # raises only the faded ones (`prep.setup.what-runs-by-itself`).
     if runs_contrast(paper):

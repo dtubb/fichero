@@ -54,3 +54,30 @@ def test_page_crop_keeps_the_pages_other_metadata_over_two_runs(db, tmp_path, mo
     assert _is_split_page(db.get(Document, cut.id))
     assert cut.id in pages_for(db, {}, None)
     assert not db.get(Document, cut.id).exclude_from_processing
+
+
+def test_a_page_prepared_from_the_same_file_is_not_found_again_on_the_next_run(db, tmp_path, monkeypatch):
+    """Review MED 4 (Stage 2): a fresh `crop_pages` recomputed every page. With `reuse`, a stamped page (same file, same
+    rules) is `unchanged` and no finder runs; a changed file is prepared again."""
+    from fichero_server.media import find_page as module
+    from fichero_server.recipes import page_crop
+
+    calls = []
+    real = module.find_page_contour
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    monkeypatch.setattr(module, "find_page_contour", lambda image: calls.append(1) or real(image))
+    path = tmp_path / "scan.png"
+    scan().save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+
+    assert page_crop.crop_pages(db, [doc.id], "run-1", prepare=True, reuse=True)["cropped"] == 1
+    again = page_crop.crop_pages(db, [doc.id], "run-2", prepare=True, reuse=True)
+    assert again["unchanged"] == 1 and again["pages"] == 0 and len(calls) == 1
+
+    assert page_crop.crop_pages(db, [doc.id], "run-3", prepare=True)["cropped"] == 1  # no reuse asked: recomputed
+    assert len(calls) == 2
+
+    scan(ruler=False).save(path)  # the file changed
+    assert page_crop.crop_pages(db, [doc.id], "run-4", prepare=True, reuse=True)["unchanged"] == 0
+    assert len(calls) == 3
