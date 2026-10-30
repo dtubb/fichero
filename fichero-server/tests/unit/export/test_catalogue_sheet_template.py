@@ -33,7 +33,7 @@ def test_one_kind_gives_its_columns_with_three_frozen_header_rows(db, tmp_path):
     page(db, "IMG_002.jpg", f.id, seq=2)
     sheets, frozen = _export(db, tmp_path, box.id)
     name = "Caja 1 Catalogación básica"
-    assert list(sheets) == [name, "Tema"]
+    assert list(sheets)[0] == name and "Tema" in sheets
     assert frozen[name] == 3
     assert sheets[name] == [["Name", "Title", ""], ["Nombre", "Título", "Cuenta"], ["", "Escriba", ""],
                             ["Carta uno", "Una carta", "2"]]
@@ -76,5 +76,5 @@ def test_a_box_of_collections_writes_one_sheet_each(db, tmp_path):
         c = folder(db, n, project.id, proto="tbox")
         folder(db, f"{n} doc", c.id)
     sheets, _ = _export(db, tmp_path, project.id)
-    assert list(sheets) == ["C1 Catalogación básica", "C2 Catalogación básica", "Tema"]
+    assert list(sheets)[:3] == ["C1 Catalogación básica", "C2 Catalogación básica", "Faltantes"]
     assert sheets["C2 Catalogación básica"][-1][0] == "C2 doc"

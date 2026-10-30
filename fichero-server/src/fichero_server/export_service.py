@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import os
 import re
 import shutil
@@ -1615,39 +1617,55 @@ class CatalogueExportResult:
     bytes_written: int
 
 
+def _catalogue_scope(db: Database, target_id: str | None) -> Document | None:
+    scope = db.get(Document, target_id) if target_id else None
+    if target_id and scope is None:
+        raise ValueError(f"Document not found: {target_id}")
+    return scope
+
+
+def _csv_bytes(rows: list[list[str]]) -> bytes:
+    """UTF-8 with a byte-order mark (Excel on a Spanish Mac reads accents), every field quoted, CRLF."""
+    out = io.StringIO()
+    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerows(rows)
+    return b"\xef\xbb\xbf" + out.getvalue().encode("utf-8")
+
+
 def export_catalogue_xlsx(
     db: Database,
     output_path: str | Path,
     target_id: str | None = None,
     prototype_key: str | None = None,
     overwrite: bool = False,
+    proposals: str = "marked",
+    file_format: str = "xlsx",
 ) -> CatalogueExportResult:
-    """The catalogue workbook: one sheet per collection in the scope (the columns of its folders' effective
-    prototype, three frozen header rows, one row per folder), then Tema. Reads attributes only; never a model."""
+    """The catalogue workbook (`catalogue_sheet.workbook`): one catalogue sheet per collection in the scope (the columns of
+    its folders' effective prototype, three frozen header rows, one row per folder), then the other sheets. `file_format`
+    xlsx writes one workbook; csv writes one file per sheet in a zip (UTF-8 with a BOM, every field quoted, CRLF)."""
     from fichero_server import catalogue_sheet as sheet
 
+    suffix = {"xlsx": ".xlsx", "csv": ".zip"}.get(file_format)
+    if suffix is None:
+        raise ValueError(f"A catalogue is written as xlsx or csv; not {file_format!r}")
     output_file = Path(output_path).expanduser()
-    if output_file.suffix.lower() != ".xlsx":
-        output_file = output_file.with_suffix(".xlsx")
+    if output_file.suffix.lower() != suffix:
+        output_file = output_file.with_suffix(suffix)
     if output_file.exists() and not overwrite:
         raise FileExistsError(f"Export file already exists: {output_file}")
-    scope = db.get(Document, target_id) if target_id else None
-    if target_id and scope is None:
-        raise ValueError(f"Document not found: {target_id}")
+    scope = _catalogue_scope(db, target_id)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    sheets: dict[str, XlsxGrid] = {}
-    names: set[str] = set()
-    rows_written, tema = 0, []
-    for collection in sheet.collections_in(db, scope):
-        template = sheet.template_for(db, scope, collection.rows, prototype_key)
-        cells = sheet.grid(db, template, collection.rows)
-        sheets[sheet.sheet_name(collection.name, names)] = XlsxGrid(cells, frozen=len(cells) - len(collection.rows))
-        rows_written += len(collection.rows)
-        tema = tema or sheet.subject_terms(template)
-    sheets["Tema"] = XlsxGrid([["Related Subjects", "Tema"], *tema], frozen=1)
-    _write_xlsx(output_file, sheets)
-    return CatalogueExportResult(str(output_file), list(sheets), rows_written, output_file.stat().st_size)
+    built = sheet.workbook(db, scope, prototype_key, proposals)
+    first = next(iter(built.values()))
+    rows_written = len(first[0]) - first[1]
+    if file_format == "csv":
+        with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for name, (cells, _frozen) in built.items():
+                bundle.writestr(f"{name}.csv", _csv_bytes(cells))
+    else:
+        _write_xlsx(output_file, {name: XlsxGrid(cells, frozen=frozen) for name, (cells, frozen) in built.items()})
+    return CatalogueExportResult(str(output_file), list(built), rows_written, output_file.stat().st_size)
 
 
 def export_jsonl(

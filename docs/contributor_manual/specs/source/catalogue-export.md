@@ -462,39 +462,39 @@ every kept export. The Word transcript streams one folder at a time into the zip
   Spanish as given, both frozen, and a fixture of three folders (one described by a fake model, one
   typed by a person, one undescribed) renders cell for cell as the matrix says, from attributes alone,
   with no model client in the process. Test: fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py.
-- `catalogue.export.authority-sheets-from-the-rows` — **[GAP]** (#6282, #5380) Personas, Lugares and
+- `catalogue.export.authority-sheets-from-the-rows` — **[OK]** (#6282, #5380) Personas, Lugares and
   Entidades hold one row per distinct value of the typed attributes across the rows, sorted, with the
   control column as the rows print it and the entity's authority fields from the record (given names,
   surnames, additional information for a person; canonical place, place type, parent place for a
   place; canonical form for an institution), confirmed or proposed, the folders that name it, an
   instruction row under the headings and an empty Comentarios; a sheet with no rows still has its
-  header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py.
-- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[PARTIAL]** (#6282) the export writes
+  header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[OK]** (#6282) the export writes
   one catalogue sheet per collection node in the scope, named by the collection, each with the
   prototype's label rows and its instruction row frozen; a scope that is one collection writes one
-  sheet. Built for the XLSX (`export_catalogue_xlsx`, tested in test_catalogue_sheet_template.py); the CSV and the other sheets are not. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
-- `catalogue.export.faltantes-and-revisada` — **[GAP]** (#6282) Faltantes holds the catalogue rows
+  sheet. Built for the XLSX and the CSV (`export_catalogue_xlsx`, tested in test_catalogue_sheet_template.py and test_catalogue_sheet_formats.py). Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.faltantes-and-revisada` — **[OK]** (#6282) Faltantes holds the catalogue rows
   whose Problemas names a gap, missing pages, an unresolved date or an unconfirmed name, or that a
   person marked incomplete; the workbook prints a person's values and canonical name forms and marks a
   machine's proposals, and `proposals: omitted` leaves them out; Tema holds the prototype's subject
-  vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py.
+  vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
 - `catalogue.export.list-cells-follow-the-declaration` — **[GAP]** (#6282) a list column is joined by
   the declaration's `join` ("|" in the EAP preset) and people are printed by its `name_order` from the
   entity's surnames and given names ("Apellido, Nombre"); a name with no split surname prints as
   written; the table and the export print the same string. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.names-sheet-is-the-canonical-set` — **[GAP]** (#6282, #6283) Nombres holds one row
+- `catalogue.export.names-sheet-is-the-canonical-set` — **[OK]** (#6282, #6283) Nombres holds one row
   per entity of the scope that is not rejected and not merged away, read through the KG spec's scope
   function: canonical name, forms as written, type, confirmed or proposed, folders, maker; a resolved
   draft never appears twice; spaCy-only names appear only as "propuesto (spaCy)" and only when
   proposals are asked for; Declaraciones holds the statements step's claims of the scope; Páginas holds
   the scope's page rows; Catálogo holds every `catalogue_*` attribute. Test:
-  fichero-server/tests/unit/export/test_catalogue_sheet_kg_sheets.py.
-- `catalogue.export.notas-sheet-is-the-provenance` — **[GAP]** (#6282) Notas holds one row per folder
+  fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.notas-sheet-is-the-provenance` — **[OK]** (#6282) Notas holds one row per folder
   and attribute key with by, step, run, when, what the model said and accepted by, from
   `attribute_sources`, the parser's date reading included; a computed column has no row; a person's
-  one-field edit appears as theirs. Test: fichero-server/tests/unit/export/test_catalogue_sheet_notas.py.
-- `catalogue.export.xlsx-and-csv` — **[GAP]** (#6282) XLSX is one workbook (the catalogue first with its
+  one-field edit appears as theirs. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.xlsx-and-csv` — **[OK]** (#6282) XLSX is one workbook (the catalogue first with its
   header rows frozen, then the sheets in the order above, every cell text); CSV is one file per sheet,
   UTF-8 with a byte-order mark, every field quoted, CRLF; both carry accents and ñ unchanged. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
@@ -560,11 +560,11 @@ from prototypes and the shipped EAP prototypes) before stage 1 here.
 ### Stage 2 — The workbook, the transcript and their doors
 #### Step 2.1 — The other sheets and the two formats
 - Behaviours: `catalogue.export.authority-sheets-from-the-rows`, `catalogue.export.names-sheet-is-the-canonical-set`, `catalogue.export.notas-sheet-is-the-provenance`, `catalogue.export.xlsx-and-csv`, `catalogue.export.one-sheet-per-collection-three-header-rows`
-- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py, fichero-server/tests/unit/export/test_catalogue_sheet_kg_sheets.py, fichero-server/tests/unit/export/test_catalogue_sheet_notas.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
 - Size: M
 #### Step 2.2 — Faltantes, Tema and the revised state
 - Behaviours: `catalogue.export.faltantes-and-revisada`
-- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
 - Depends on: 2.1
 - Size: S
 #### Step 2.3 — The Word transcript's options and one file per folder (#6287)
