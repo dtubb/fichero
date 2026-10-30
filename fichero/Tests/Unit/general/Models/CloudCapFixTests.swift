@@ -117,6 +117,19 @@ struct CloudCapFixTests {
         #expect(none.monthly == nil && !none.clear, "nothing is sent for the emptied field")
     }
 
+    /// WHY: Return and the field losing focus both save, before the plan has come back, so both read the same stale line and sent the
+    /// same change: two PUTs, two audit rows, two undo steps for one edit.
+    @Test func oneEditIsOneChangeNotTwo() throws {
+        let held = try line(#","project_cap_usd":50"#)
+        let edit = CloudCapFields.change(monthly: 25, project: 50, line: held)
+        #expect(CloudCapFields.shouldSend(edit, after: nil))
+        #expect(!CloudCapFields.shouldSend(edit, after: edit), "the same change just sent is not sent again")
+        let another = CloudCapFields.change(monthly: 30, project: 50, line: held)
+        #expect(CloudCapFields.shouldSend(another, after: edit), "a different edit is sent")
+        let nothing = CloudCapFields.change(monthly: 10, project: 50, line: held)
+        #expect(!CloudCapFields.shouldSend(nothing, after: nil), "nothing moved: nothing is sent")
+    }
+
     @Test func theProjectCapIsSavedUnderTheEnginesKeyAndLeftOutUnanswered() throws {
         let set = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
             RecipeSetupAnswers(cloudProjectCapUsd: 60))) as? [String: Any]

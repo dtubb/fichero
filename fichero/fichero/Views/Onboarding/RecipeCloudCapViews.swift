@@ -50,6 +50,8 @@ struct CloudCapFields: View {
     @FocusState private var focus: Field?
     @State private var monthly: Double?
     @State private var project: Double?
+    /// The change last sent and not yet confirmed by a new plan line (`shouldSend`).
+    @State private var sent: Change?
     private enum Field { case monthly, project }
 
     var body: some View {
@@ -58,7 +60,10 @@ struct CloudCapFields: View {
             row("Cloud spend in all, at most", value: $project, prompt: "No limit", field: .project, id: "setup.cloudProjectCap")
         }
         .onAppear(perform: showSaved)
-        .onChange(of: line) { _, _ in if focus == nil { showSaved() } }
+        .onChange(of: line) { _, _ in
+            sent = nil  // the plan has come back: the line is the engine's again
+            if focus == nil { showSaved() }
+        }
     }
 
     private func row(_ title: String, value: Binding<Double?>, prompt: String, field: Field, id: String) -> some View {
@@ -86,11 +91,22 @@ struct CloudCapFields: View {
         let emptied = Self.emptiedMonthlyWords(monthly)
         if emptied != nil { monthly = line.capUsd }
         let change = Self.change(monthly: monthly, project: project, line: line)
-        if change.monthly != nil || change.project != nil || change.clear {
+        if Self.shouldSend(change, after: sent) {
+            sent = change  // Return and leaving the field both save, before the plan has come back: the second is the same change
             if await store.changeCloudCaps(monthlyUsd: change.monthly, projectUsd: change.project, clearProjectCap: change.clear,
-                                           undo: undo, steps: steps) == false { showSaved() }
+                                           undo: undo, steps: steps) == false {
+                sent = nil
+                showSaved()
+            }
         }
         if let emptied { store.errorMessage = emptied }
+    }
+
+    /// Whether `change` is one to send: it moves a cap, and is not the one just sent that the plan has not yet confirmed. Two
+    /// saves from one edit (Return, then the field losing focus) read the same stale line, so they sent the same change twice: two
+    /// audit rows and two undo steps. Pure, for the tests.
+    nonisolated static func shouldSend(_ change: Change, after sent: Change?) -> Bool {
+        (change.monthly != nil || change.project != nil || change.clear) && change != sent
     }
 
     /// What to tell the person who emptied the monthly field; nil when it holds an amount. Pure, for the tests.
