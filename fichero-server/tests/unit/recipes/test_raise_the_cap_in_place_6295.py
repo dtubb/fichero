@@ -75,9 +75,7 @@ def test_the_project_cap_is_its_own_limit_and_names_its_own_amount(tmp_path):
     assert line["over"] and line["over_project"] and not line["over_month"]
     assert line["needed_cap_usd"] is None and line["needed_project_cap_usd"] == 6.0
     assert line["project_cap_usd"] == 5.0 and line["project_spent_usd"] == 2.0
-    assert (
-        line["fewer_pages"] == 30
-    )  # 3 of the 4 dollars: three quarters of the 40 pages
+    assert line["fewer_pages"] is None  # the caller finds it: it needs the plan's own pricing
     both = spend.plan_line(
         _project(tmp_path / "b", cloud_spend_cap_usd=1, cloud_project_cap_usd=2),
         estimate_usd=9.0,
@@ -312,6 +310,56 @@ def test_setup_refuses_a_project_cap_below_zero_too(client):
 
 
 # --- run fewer pages: the first N in Finder order -------------------------------------------------------------------
+
+
+def test_the_first_pages_that_fit_are_priced_on_what_each_has_still_to_do(db):
+    """100 pages, the last 80 done: only the first 20 cost anything. Pro-rating the estimate over all 100 pages offered a
+    run on the first 62 (still all 20 to do, still over); walking the pages in Finder order finds the 12 that fit."""
+    from fichero_server.api.routes.system.recipes import (
+        _estimate_on,
+        _first_pages_that_fit,
+    )
+    from fichero_server.models import Artifact
+    from fichero_server.recipes.done import material
+
+    model = "claude-haiku-4-5"
+    card = {
+        "card": "workflow",
+        "runs_on": "cloud:anthropic",
+        "model_override": model,
+        "provider_override": "anthropic",
+        "workflow_id": None,
+        "job": "read-a-page",
+        "steps": ["read-a-page"],
+        "workflow": "Read",
+    }
+    plan = {"runs": [card], "workflows": [card]}
+    for i in range(100):
+        doc = Document(name=f"p{i:03}", doc_type=DocType.page, page_content="")
+        db.save(doc)
+        if i >= 20:  # the last 80 are read already
+            db.save(
+                Artifact(
+                    document_id=doc.id,
+                    artifact_type="transcription",
+                    content="x",
+                    model=model,
+                )
+            )
+    whole = _estimate_on(db, plan, material(db, None), None, {})
+    per_page = whole["total_cost_usd"] / 20
+    assert whole["runs"][0]["pages"] == 20 and per_page > 0
+    line = {
+        "remaining_usd": 12.5 * per_page,
+        "project_cap_usd": None,
+        "project_spent_usd": 0.0,
+    }
+    assert _first_pages_that_fit(db, plan, line, whole["pages"]) == 12
+    assert int(line["remaining_usd"] * 100 / whole["total_cost_usd"]) == 62  # the old answer
+    line["remaining_usd"] = per_page / 2
+    assert _first_pages_that_fit(db, plan, line, whole["pages"]) is None  # not even one page
+    line["remaining_usd"] = 0.0
+    assert _first_pages_that_fit(db, plan, line, whole["pages"]) is None
 
 
 def test_the_first_pages_are_the_first_in_finder_order(db):

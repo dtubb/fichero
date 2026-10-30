@@ -307,7 +307,7 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
               pages: int = 0) -> dict:
     """Start's plan: the monthly cap and the project's total cap, what is booked against each, what each leaves, and the
     run's estimate beside them. `over` asks before the run starts, naming which cap (`over_month`, `over_project`) and the cap
-    that would let the estimate through (`needed_*`); `fewer_pages` is how many of the first pages (Finder order) fit. An
+    that would let the estimate through (`needed_*`); `fewer_pages` is left for the caller to find (it needs the plan's own pricing: `recipes._first_pages_that_fit`). An
     unknown estimate (a model with no listed price) is `unpriced`, never a $0. Models with no price the project has not
     accepted are named in `unpriced_models` and the `note`, never a refusal (#6259); spend booked at an assumed price is
     listed apart."""
@@ -325,15 +325,13 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
     known = estimate_usd is not None
     over_month = known and estimate_usd > remaining + 1e-9
     over_project = known and project_remaining is not None and estimate_usd > project_remaining + 1e-9
-    room = min(remaining, project_remaining if project_remaining is not None else remaining)
-    fits = int(room * pages / estimate_usd) if (over_month or over_project) and estimate_usd and pages else None
     return {"note": note, "cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
             "over": over_month or over_project, "unpriced": estimate_usd is None,
             "over_month": over_month, "over_project": over_project,
             "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,
             "project_cap_usd": project_cap, "project_spent_usd": total,
             "needed_project_cap_usd": needed_cap_usd(total, estimate_usd) if over_project else None,
-            "fewer_pages": fits if fits else None, "pages": pages,
+            "fewer_pages": None, "pages": pages,
             "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}
 
 

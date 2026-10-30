@@ -2670,6 +2670,41 @@ def _only_if_set(**named: Any) -> dict[str, Any]:
     return {key: value for key, value in named.items() if value is not None}
 
 
+def _estimate_on(db: Database, plan: dict[str, Any], pages: dict[str, Any], within: set[str] | None, memo: dict) -> dict[str, Any]:
+    """The plan's estimate over `pages` (`done.material` of `within`): each run priced on the pages it has still to do, the
+    review passes on their lines, the Catalogue step on its folders. The one pricing Start's plan and "run fewer pages" share."""
+    from fichero_server.recipes.done import todo_counts
+    from fichero_server.recipes.start import estimate
+
+    return estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
+                    catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
+                    todo=todo_counts(db, plan, within, memo=memo))
+
+
+def _first_pages_that_fit(db: Database, plan: dict[str, Any], line: dict[str, Any], pages: int) -> Optional[int]:
+    """The most first pages (Finder order) whose own estimate, priced as the plan prices it (only what each step has still to
+    do, review passes by their lines), fits what the caps leave; None when not even one page does. Found by halving, since the
+    price only grows with the pages; the price is the plan's best estimate, no margin (#6295)."""
+    from fichero_server.recipes.done import material
+
+    left = [line["remaining_usd"]]
+    if line["project_cap_usd"] is not None:
+        left.append(max(0.0, line["project_cap_usd"] - line["project_spent_usd"]))
+    room = min(left)
+    first = _first_pages(db, pages)
+
+    def fits(count: int) -> bool:
+        within = set(first[:count])
+        cost = _estimate_on(db, plan, material(db, within), within, {})["total_cost_usd"]
+        return cost is not None and cost <= room + 1e-9
+
+    low, high = 0, len(first) - 1  # `low` fits (no page costs nothing); the whole run does not
+    while low < high:
+        middle = (low + high + 1) // 2
+        low, high = (middle, high) if fits(middle) else (low, middle - 1)
+    return low or None
+
+
 def _first_pages(db: Database, count: int) -> list[str]:
     """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
     runs (#6295)."""
@@ -2683,11 +2718,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project."""
     from fichero_server.recipes import runner
-    from fichero_server.recipes.done import annotate, material, todo_counts
+    from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.answers import spend_cap
-    from fichero_server.recipes.start import estimate, place_runs, plan_start
+    from fichero_server.recipes.start import place_runs, plan_start
     from fichero_server.recipes.train_offers import counted, offered, train_ahead, train_offers
 
     library = _library(db)
@@ -2710,9 +2745,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     within = runner.folder_scope(db, folder_id) if folder_id else set(_first_pages(db, first_pages)) if first_pages else None
     pages = material(db, within)
     memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes
-    plan["estimate"] = estimate(plan["workflows"], pages["pages"], _lines_known(db, plan["workflows"], pages["ids"]),
-                                catalogue=_catalogue_runs(plan["runs"]), folders=_folders_covering(db, pages["ids"]),
-                                todo=todo_counts(db, plan, within, memo=memo))
+    plan["estimate"] = _estimate_on(db, plan, pages, within, memo)
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters),
@@ -2758,6 +2791,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                     for w in plan["workflows"] if str(w.get("runs_on")).startswith("cloud") and w.get("model_override")]
     plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"),
                                               cloud_models=cloud_models, pages=plan["estimate"]["pages"])
+    if plan["cloud_cap"]["over"] and not folder_id:
+        plan["cloud_cap"]["fewer_pages"] = _first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"])
     _cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
