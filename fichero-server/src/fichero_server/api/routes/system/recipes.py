@@ -2665,6 +2665,11 @@ def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
     return out
 
 
+def _only_if_set(**named: Any) -> dict[str, Any]:
+    """The keyword arguments that were given: `_start_plan` is called with `first_pages` only for a first-pages run."""
+    return {key: value for key, value in named.items() if value is not None}
+
+
 def _first_pages(db: Database, count: int) -> list[str]:
     """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
     runs (#6295)."""
@@ -2848,7 +2853,7 @@ async def get_start_plan(
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
         # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
-        plan = await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=_cluster_names(http), first_pages=first_pages))
+        plan = await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=_cluster_names(http), **_only_if_set(first_pages=first_pages)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if summary:
@@ -3267,7 +3272,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters, first_pages=params.first_pages)
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters, **_only_if_set(first_pages=params.first_pages))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
