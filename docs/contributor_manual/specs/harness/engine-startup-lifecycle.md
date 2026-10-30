@@ -406,6 +406,57 @@ very engine spawn those tests exist to exercise.
   `fichero-server/tests/unit/scripts/test_check_engine_embed_filelist.py`; to refresh run
   `scripts/regen_engine_embed_filelist.py` and commit the result.
 
+### G. Logs that stay bounded, and stale engines the app ends (owner's order 2026-10-30)
+
+Why: one machine's `engine.log` grew to 166 MB (another 57 MB) because the app captures the engine's
+stdout/stderr into it (`EmbeddedBackendService.engineLogURL`, opened by `openEngineLogHandle`) and the
+engine's own `RotatingFileHandler` (`core/logging.py`, 10 MB x 5) never sees that raw stream. One line
+(`Failed to create embedding for ...`) was written 380,611 times. Twice a tester's Mac kept an
+errant `Fichero Server` from an earlier run, and the new app could not reach its own engine.
+
+- `engine.log-rotates-by-size` — **[GAP]** (owner 2026-10-30) `engine.log` is rotated by size, default
+  10 MB, keeping the last 5 (`engine.log.1` .. `engine.log.5`), whoever writes it. Built in the engine, not
+  the app: the app passes the log path as `FICHERO_ENGINE_LOG_PATH`; the engine (`core/engine_log.py`)
+  rotates at its own start and then every few seconds while running, by renaming the files, opening a fresh
+  `engine.log` and re-pointing its own descriptors 1 and 2 at it, so a line written during the swap lands
+  in the renamed file and none is lost, and C-level output (torch, faulthandler) is caught as well. A
+  file already over the cap (the 166 MB case) becomes `engine.log.1` cut to its last 10 MB. No env
+  variable (a uvicorn dev engine, the tests) = no rotation. *Test:* `fichero-server/tests/unit/core/test_engine_log.py`.
+- `engine.logs-pruned-at-launch` — **[GAP]** (owner 2026-10-30) at engine start, files in the current
+  log's folder that are rotated beyond the 5 kept, and any `*.log`, `*.log.N` or `*.log.gz` there older than
+  14 days, are deleted. Never the current log; never a directory, a symlink, or any file outside the folder
+  the current log is in, and only when that folder is named `Fichero` (a path that points anywhere else
+  deletes nothing). The engine is started by the app at every launch of a distribution build, so this
+  is "at launch"; an app set to a remote host only never runs it (known edge). *Test:* same file.
+- `engine.repeated-log-line-collapses` — **[GAP]** (owner 2026-10-30) a log line that repeats (same
+  message template, the arguments may differ) is written the first 5 times in a minute; the rest are held
+  back and the next occurrence after the minute writes ONE line, "<template> — repeated K times in the
+  last minute", then starts a new window. Applied first to `Failed to create embedding for %s: %s`
+  (`db/__init__.py`). A repeat held back and never followed by another occurrence is not announced (the
+  summary needs a next line to ride on); `core/log_throttle.py`. *Test:* `fichero-server/tests/unit/core/test_log_throttle.py`.
+- `engine.stale-engines-ended-at-launch` — **[GAP]** (owner 2026-10-30; supersedes the environment-reading
+  `terminateOrphanEngines` rule of #2079, which relied on `ps -E` and `FICHERO_PARENT_PID`, readings that a
+  sandboxed dev app may not get) before the app starts its own engine it ends the engine processes an earlier
+  run left behind. **Which processes count as stale**, all of: (1) the executable's path lies in a bundle
+  named `Fichero Server.app` that is inside, or is itself, an app bundle named `Fichero*.app` (the helper);
+  (2) it belongs to this user; (3) its parent is not a running process or is launchd (pid 1): an orphan.
+  **Never ended:** a uvicorn/python dev engine (the path is a venv or system Python, not a bundle: the
+  maintainer's external dev engine, #6244, is out of scope by construction); another user's process; any
+  helper whose parent is alive, which covers this app's own engine, the engine of a currently running other
+  copy of the app (two copies = two bundles, each live while its own app process runs, found as a process
+  whose executable is `<bundle>/Contents/MacOS/<exe>` in a `Fichero*.app`), and one a person started from a
+  terminal (its parent is the shell: when in doubt, spare). **How:** SIGTERM, then
+  `TerminationDeadlinePolicy.quit` (2 s grace, SIGKILL, half a second to observe), awaited before the app
+  decides to spawn (`engine.orphan-sweep-precedes-spawn-decision` is unchanged). A killed orphan's socket
+  file is a socket nobody listens on, which the engine's own claim reclaims (`uds_claim.claim_uds_path`);
+  its port is free once it is gone. **Reported:** one line in the app log, once, naming the pids, and a
+  one-line notice in the connection status ("Ended 1 leftover Fichero Server from an earlier run."). The
+  App Store build has no sweep (#3749), unchanged. The decision is a pure function of a process table
+  (`StaleEngineSweep.pidsToEnd`). *Test:* `Tests/Unit/general/Services/StaleEngineSweepTests.swift`
+  (orphan ended; helper of a live app kept; dev uvicorn kept; other bundle with live parent kept; other user's
+  kept; the app's own pid kept; table parsing), and `fichero-server/tests/unit/api/test_one_engine_per_socket.py`
+  (a SIGKILLed engine's socket is reclaimed).
+
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 
 All by NUMBER. All 13 moved onto #318 (`gh api -X PATCH .../milestone=318`) — every issue on
