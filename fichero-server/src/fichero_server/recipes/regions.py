@@ -109,6 +109,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         path = _resolve_abs_path(doc, library) if doc is not None else ""
         # THE page's current image (`media/current_image.py`, #6296): both finders see it, and what they find is carried back to the photograph.
         page_image = current_page_image(db, doc, library_root=library) if doc is not None else None
+        page_image = page_image.for_geometry() if page_image is not None else None  # the boxes are carried back: needs a known frame
         if page_image is not None and not page_image.is_original:
             path = page_image.path
         rendered, page_index = None, None

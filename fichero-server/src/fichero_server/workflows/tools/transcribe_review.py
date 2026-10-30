@@ -306,6 +306,7 @@ def _lines_on_current_image(db: Any, page: Any, asked: list[dict[str, Any]], fra
     from fichero_server.media.current_image import current_page_image
 
     current = current_page_image(db, page)
+    current = current.for_geometry() if current is not None else None  # lines are carried onto it: needs a known frame
     if current is None or current.is_original:
         return page.path, asked, frame
     moved, opened_in = current.carry_lines(asked, frame)

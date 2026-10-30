@@ -358,3 +358,20 @@ async def test_apple_vision_reads_the_edited_image_and_its_boxes_land_on_the_pho
     # a full-width band on the 150 x 200 edit is a tall strip on the photograph, inside the cropped region
     assert (w * W, h * H) == pytest.approx((20, 150), abs=2)
     assert (x * W, y * H) == pytest.approx((230, 50), abs=2)  # turned back, then put 100 and 50 in from the photograph's corner
+
+
+def _unknown_frame_edit(page, monkeypatch):
+    """A Remove background that crops the page (200 x 150 here): the edit is real but its place on the photograph is not recorded."""
+    import fichero_server.media.image_ops as image_ops
+
+    monkeypatch.setattr(image_ops, "_remove_background", lambda image, params: image.crop((50, 50, 250, 200)))
+    _set_edits(page, [{"op": "remove_background", "page": 1, "params": {"method": "threshold"}}])
+
+
+@pytest.mark.parametrize("step, sends", [("whole-page read", (200, 150)), ("find lines", (W, H)),
+                                          ("find regions (kraken)", (W, H)), ("find regions (yolo)", (W, H))])
+def test_an_edit_of_unknown_frame_is_read_whole_and_never_guessed_by_a_finder(page, monkeypatch, step, sends):
+    """A page read as a whole needs no frame map: it gets the person's edit. A step that stores or cuts lines needs one, and
+    reads the photograph (which says where its lines are)."""
+    _unknown_frame_edit(page, monkeypatch)
+    assert _sizes(step, page, monkeypatch) == [sends]

@@ -382,6 +382,7 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
             from fichero_server.media.current_image import current_page_image
 
             current = current_page_image(db, doc, library_root=Path(db.path).parent)  # the page as edited (#6296)
+            current = current.for_geometry() if current is not None else None  # lines are carried onto it: needs a known frame
             if current is None or current.is_original:
                 reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
             else:

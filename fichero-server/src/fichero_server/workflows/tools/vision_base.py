@@ -4485,6 +4485,9 @@ async def process_vision(
             _page_image = None
             if library_path and doc_id_for_file and _segment_target is None:
                 _page_image = _current_page_image_of(library_path, doc_id_for_file)
+                if _page_image is not None and (vision_mode == "kraken" or (vision_mode == "apple" and not keep_text)):
+                    # a step that finds or cuts lines needs a frame it can follow (a whole-page read does not)
+                    _page_image = _page_image.for_geometry()
                 if _page_image is not None and not _page_image.is_original:
                     file_path = _page_image.path
                     logger.info("page image for %s: %s", doc_id_for_file, _page_image.why)

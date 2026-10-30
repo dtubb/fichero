@@ -170,3 +170,38 @@ def test_a_pages_geometry_carried_to_the_edit_and_back_is_the_same_box(db, tmp_p
     assert (max(xs) - min(xs), max(ys) - min(ys)) == pytest.approx((20, 50))
     assert min(xs) >= CROP["left"] and max(xs) <= CROP["left"] + CROP["width"]
     assert min(ys) >= CROP["top"] and max(ys) <= CROP["top"] + CROP["height"]
+
+
+def _unmappable_chain(db, doc, monkeypatch):
+    """A person's Remove background that crops the page: its box is not recorded, so the edit has no known frame."""
+    import fichero_server.media.image_ops as image_ops
+
+    monkeypatch.setattr(image_ops, "_remove_background", lambda image, params: image.crop((10, 10, 150, 90)))
+    _edit(db, doc, [{"op": "remove_background", "page": 1, "params": {"method": "threshold"}}])
+
+
+def test_a_chain_with_an_edit_of_unknown_frame_is_still_the_edited_image_for_a_whole_page_read(db, tmp_path, monkeypatch):
+    doc = _page(db, tmp_path)
+    _unmappable_chain(db, doc, monkeypatch)
+
+    found = current_page_image(db, doc)
+
+    assert found.kind == EDITED and found.frame_unknown
+    with Image.open(found.path) as edited:
+        assert edited.size == (140, 80)  # the person's edit, not the photograph
+
+
+def test_a_step_that_needs_the_frame_reads_the_photograph_when_the_edits_frame_is_unknown(db, tmp_path, monkeypatch):
+    doc = _page(db, tmp_path)
+    _unmappable_chain(db, doc, monkeypatch)
+
+    geometry = current_page_image(db, doc).for_geometry()
+
+    assert geometry.is_original and geometry.path == str(tmp_path / "page.png") and geometry.to_image is None
+
+
+def test_for_geometry_is_the_same_image_when_the_frame_is_known(db, tmp_path):
+    doc = _page(db, tmp_path)
+    _edit(db, doc, EDITS)
+    found = current_page_image(db, doc)
+    assert found.for_geometry() is found

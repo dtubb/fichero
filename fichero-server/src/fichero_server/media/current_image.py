@@ -58,6 +58,16 @@ class PageImage:
     to_image: FrameMap | None = None
     #: Why it is this image, in words, for a log line or a run's note.
     why: str = ""
+    #: The edit chain has an edit whose place on the photograph is not known: this image is right for a step that reads the page
+    #: whole, and no line can be carried to or from it. A step that cuts or stores lines reads `for_geometry()`.
+    frame_unknown: bool = False
+
+    def for_geometry(self) -> "PageImage":
+        """The image for a step that cuts lines from the page or stores what it finds on it: this one, or the photograph when
+        this image's frame is not known (never a guess)."""
+        if not self.frame_unknown:
+            return self
+        return PageImage(self.photograph, ORIGINAL, self.photograph, why=f"{self.why}: lines are read on the photograph")
 
     @property
     def is_original(self) -> bool:
@@ -110,8 +120,16 @@ class PageImage:
     def geometry_to_photograph(self, result: Any) -> Any:
         """Boxes a finder measured on this image, as fractions of the upright photograph (`frame: "upright"`), the polygon and
         baseline in its pixels. The result is returned as it came when this image is the photograph's own."""
+        if result is None or not getattr(result, "boxes", None):
+            return result
+        if self.frame_unknown:  # the boxes are on an image whose place on the photograph is not known: none is stored
+            from fichero_server.media.ocr_geometry import OCRGeometryStatus, geometry_unavailable
+
+            return geometry_unavailable(
+                status=OCRGeometryStatus.NOT_RUN, provider=result.provider or "unknown", model=result.model, text=result.text,
+                reason="the page's edits have no known place on the photograph, so the boxes found on the edited image are not stored")
         back = self.photograph_map()
-        if back is None or result is None or not getattr(result, "boxes", None):
+        if back is None:
             return result
         boxes = [_box_to_photograph(box, back) for box in result.boxes]
         meta = {**result.metadata, "pixel_frame": {"width": back.dst[0], "height": back.dst[1]}, "frame": FRAME_UPRIGHT}
@@ -291,7 +309,8 @@ def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = N
                 made = chain_map(size, operations, lambda: _upright_image(photograph)).with_size(_size_of(edited))
             except Unmappable as why:
                 logger.warning("page image: the edits on %s have no known frame (%s): lines are read on the photograph", doc.id, why)
-                return PageImage(str(photograph), ORIGINAL, str(photograph), why=f"edits not followed: {why}")
+                return PageImage(str(edited), EDITED, str(photograph), why=f"{len(operations)} edit(s) applied, frame not followed ({why})",
+                                 frame_unknown=True)
             return PageImage(str(edited), EDITED, str(photograph), made, why=f"{len(operations)} edit(s) applied")
 
     newest = _newest_rendition(db, doc, photograph, root)
