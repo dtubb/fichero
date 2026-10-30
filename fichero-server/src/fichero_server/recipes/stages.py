@@ -54,7 +54,7 @@ STAGES: tuple[Stage, ...] = (
     Stage("prepare-images", "Prepare Images", ("split-pages", "prepare-the-image"),
           "Splits two-page scans into single pages and straightens, crops or brightens a page, keeping the original.",
           "A photograph of an open notebook becomes its left and right pages.",
-          (Question("two_pages_per_image", "Two pages in one picture?", "yes-no", default=False),
+          (Question("two_pages_per_image", "Two pages in one picture?", "yes-no", default=False, read_by_a_step=True),
            Question("beside_the_page", "Anything beside the page?", "one",
                     (("nothing", "Nothing"), ("ruler", "A ruler"), ("colour-card", "A colour card"),
                      ("dark-mount", "A dark mount or table")), default="nothing"),

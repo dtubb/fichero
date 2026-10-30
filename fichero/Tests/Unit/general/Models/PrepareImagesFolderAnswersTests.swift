@@ -67,4 +67,14 @@ struct PrepareImagesFolderAnswersTests {
             estimate: "About 1 min", howItWorks: "Finds each page.")
         #expect(PrepareImagesCard.suggestions(of: facts).keys.sorted() == ["the_paper"])
     }
+
+    @Test func aFolderIsOwnAnswersWhenItAnswersAnyQuestionTheEngineReadsByFolder() {
+        let store = store()
+        #expect(!store.hasOwnAnswers(in: "f1"))
+        store.setFolderAnswer(.yesNo(true), to: "two_pages_per_image", in: "f1")
+        #expect(store.hasOwnAnswers(in: "f1") && !store.hasOwnAnswers(in: "f2"))
+        store.setFolderAnswer(nil, to: "two_pages_per_image", in: "f1")
+        store.setFolderPaper("ruled", true, in: "f1")
+        #expect(store.hasOwnAnswers(in: "f1"))
+    }
 }

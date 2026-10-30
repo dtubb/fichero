@@ -64,6 +64,11 @@ struct SetupStagePage: View {
                             set: { store.jobAnswers[question: question.key] = $0 }
                         )
                     )
+                    if stage.id == "prepare-images", question.readByAStep != true {
+                        // No step reads it yet (`read_by_a_step`): said, not implied (`StageKindsField` says the same).
+                        Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("setup.question.notRead.\(question.key)")
+                    }
                 }
             }
             // The review's own instructions for each pass, from the profile built for this project (#6128).

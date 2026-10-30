@@ -74,12 +74,12 @@ struct PrepareImagesFolderAnswers: View {
             Picker("Answer for one folder", selection: $folderId) {
                 Text("The whole project").tag("")
                 ForEach(folders) { folder in
-                    Text(store.folderAnswer("two_pages_per_image", in: folder.id) == nil
-                         && store.folderAnswer("the_paper", in: folder.id) == nil
-                         ? folder.name : "\(folder.name) (own answers)").tag(folder.id)
+                    Text(store.hasOwnAnswers(in: folder.id) ? "\(folder.name) (own answers)" : folder.name).tag(folder.id)
                 }
             }
             .accessibilityIdentifier("prepareImages.folder.picker")
+            Text("Only \u{201C}Two pages in one picture?\u{201D} and the paper can differ by folder; the other questions are for the whole project.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !folderId.isEmpty {
                 twoPages
                 ForEach(Self.paperOptions, id: \.id) { option in

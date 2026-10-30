@@ -7,6 +7,12 @@ extension RecipeSetupStore {
     /// The questions a folder can answer for itself; the engine reads these two (`start.FOLDER_QUESTIONS`).
     nonisolated static let folderQuestions = ["two_pages_per_image", "the_paper"]
 
+    /// Whether the folder answers any question for itself: every one in `folderQuestions`, so a question added there later
+    /// is counted without touching the picker.
+    func hasOwnAnswers(in folder: String) -> Bool {
+        Self.folderQuestions.contains { folderAnswer($0, in: folder) != nil }
+    }
+
     func folderAnswer(_ question: String, in folder: String) -> StageAnswer? {
         jobAnswersByFolder[folder]?[question]
     }

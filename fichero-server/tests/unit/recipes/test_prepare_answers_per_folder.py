@@ -175,3 +175,13 @@ def test_the_sample_suggests_show_through_from_the_previous_page_and_not_from_a_
     ruled = _page(strong=other_rows, ruling=True)
     db = _fake_db(monkeypatch, tmp_path, [front, ruled, front, ruled, front])
     assert "the_paper" not in prepare_suggest.suggest(db)
+
+
+def test_the_card_says_which_prepare_questions_no_step_reads():
+    """Review LOW: `beside_the_page` and `check_missed_lines` are asked but no step reads them; the card says so
+    (`read_by_a_step` false). `two_pages_per_image` and `the_paper` are read: the plan gates the split and the contrast."""
+    from fichero_server.recipes.stages import STAGES
+
+    (stage,) = [s for s in STAGES if s.id == "prepare-images"]
+    read = {q.key: q.read_by_a_step for q in stage.questions}
+    assert read == {"two_pages_per_image": True, "beside_the_page": False, "the_paper": True, "check_missed_lines": False}
