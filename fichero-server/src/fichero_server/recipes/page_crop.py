@@ -77,10 +77,10 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     account["blank"] += 1
                     continue
                 if verdict == "unsure" and not meta.get("prep_proposals", {}).get("blank"):
-                    registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {"prep_proposals": {
-                        **meta.get("prep_proposals", {}),
+                    _merge_metadata(db, doc.id, lambda now: {"prep_proposals": {
+                        **(now.get("prep_proposals") or {}),
                         "blank": {"reason": "very little ink beyond its ruling, or text lines found: kept, not hidden",
-                                  "by": f"run {run_id}"}}}}}, ctx)
+                                  "by": f"run {run_id}"}}}, ctx)
                     account["blank_proposed"] = account.get("blank_proposed", 0) + 1
             if not trusted:
                 if prepare:
@@ -89,13 +89,13 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["whole"] += 1
                 continue
             box = [round(v, 5) for v in found.box]
-            registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"metadata": {
+            _merge_metadata(db, doc.id, lambda now: {
                 "page_box": box, "page_box_by": found.method, "page_box_confidence": found.confidence,
                 "page_furniture": list(found.furniture),
                 # The attribute of `segments-and-geometry.md`: the outline, how it was found, the frame it is measured in.
                 "page_region": {"quad": [list(p) for p in found.quad], "box": box, "method": found.method,
                                 "confidence": found.confidence, "frame": "upright",
-                                "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}}}, ctx)
+                                "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}, ctx)
             left, top, right, bottom = found.pixels(*image.size)
             _clear(db, doc.id, everything=prepare)  # a re-run replaces every rendition of its own, so none is left stale
             crop_id = _write(db, doc, "crop", image.crop((left, top, right, bottom)), run_id, library,
@@ -121,7 +121,6 @@ def _page_box_proposal(found: Any, run_id: str) -> dict[str, Any]:
 def _propose(db: Any, doc_id: str, kind: str, proposal: dict[str, Any] | None, ctx: Any) -> None:
     """Store (or, with None, withdraw) the run's proposal of `kind` on the page (`metadata.prep_proposals.<kind>`); a kind a
     person has answered (`prep_answered`) is never proposed again."""
-    from fichero_server.actions.registry import registry
     from fichero_server.models import Document
 
     doc = db.get(Document, doc_id)
@@ -135,7 +134,18 @@ def _propose(db: Any, doc_id: str, kind: str, proposal: dict[str, Any] | None, c
         proposals.pop(kind)
     else:
         proposals[kind] = proposal
-    registry.invoke(db, "document.update", {"doc_id": doc_id, "update": {"metadata": {"prep_proposals": proposals}}}, ctx)
+    _merge_metadata(db, doc_id, lambda now: {"prep_proposals": proposals}, ctx)
+
+
+def _merge_metadata(db: Any, doc_id: str, patch: Callable[[dict[str, Any]], dict[str, Any]], ctx: Any) -> None:
+    """Write `patch(current metadata)` over the page's metadata, the rest kept: `document.update` replaces the whole object,
+    so a bare write would drop `split_source_id`, `blank`, `prep_answered` and every other key (review 2026-10-30)."""
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import Document
+
+    doc = db.get(Document, doc_id)
+    now = dict(doc.metadata or {}) if doc is not None else {}
+    registry.invoke(db, "document.update", {"doc_id": doc_id, "update": {"metadata": {**now, **patch(now)}}}, ctx)
 
 
 def _has_text(db: Any, doc_id: str, image: Any) -> bool:
