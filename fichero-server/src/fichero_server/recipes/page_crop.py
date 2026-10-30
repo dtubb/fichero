@@ -30,15 +30,11 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     from fichero_server.actions.registry import ActionContext, registry
     import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.update)
     import fichero_server.api.routes.ingest.image_editing  # noqa: F401  (registers image.mark_blank)
-    from fichero_server.importers.ingest import _copy_to_library
     from fichero_server.media.blank_page import blank_verdict
     from fichero_server.media.find_page import find_page
     from fichero_server.media.upright import upright
-    from fichero_server.models import Document, NodeRegion, Rendition
-    from fichero_server.models.anchors import RegionConfidence
+    from fichero_server.models import Document
     from fichero_server.workflows.tools.sources import _resolve_abs_path
-
-    import tempfile
 
     library = Path(db.path).parent
     ctx = ActionContext(actor="page-crop", run_id=run_id, library_path=str(library), is_bootstrap=True)
@@ -85,6 +81,8 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                                   "by": f"run {run_id}"}}}}}, ctx)
                     account["blank_proposed"] = account.get("blank_proposed", 0) + 1
             if not trusted:
+                if prepare:
+                    _clear(db, doc.id, everything=True)
                 account["whole"] += 1
                 continue
             box = [round(v, 5) for v in found.box]
@@ -96,20 +94,12 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                                 "confidence": found.confidence, "frame": "upright",
                                 "settings": {"min_confidence": MIN_CONFIDENCE, "min_share": MIN_SHARE}}}}}, ctx)
             left, top, right, bottom = found.pixels(*image.size)
-            with tempfile.TemporaryDirectory() as scratch:
-                crop_file = Path(scratch) / f"{Path(path).stem}_page.png"
-                image.crop((left, top, right, bottom)).save(crop_file)
-                stored = _copy_to_library(crop_file, library)
-            for old in db.query(Rendition, document_id=doc.id):
-                if old.role == "crop" and old.producer_tool == PRODUCER:  # a re-run replaces its own crop, never another's
-                    db.delete(old)
-            db.save(Rendition(document_id=doc.id, role="crop", path=str(stored), is_primary=False,
-                              pixel_width=right - left, pixel_height=bottom - top, producer_tool=PRODUCER,
-                              producer_run_id=run_id, note=f"the page found by the {found.method} finder",
-                              transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, method=found.method)))
+            _clear(db, doc.id, everything=prepare)  # a re-run replaces every rendition of its own, so none is left stale
+            crop_id = _write(db, doc, "crop", image.crop((left, top, right, bottom)), run_id, library,
+                             f"the page found by the {found.method} finder", box, None, method=found.method)
             account["cropped"] += 1
             if prepare:
-                _prepare(db, doc, image, found, run_id, library)
+                _prepare(db, doc, image, found, run_id, library, crop_id)
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("page prep: %s skipped: %s", doc_id, exc)
             account["failed"] = account.get("failed", 0) + 1
@@ -127,9 +117,24 @@ def _has_text(db: Any, doc_id: str, image: Any) -> bool:
     return bool(read_lines(image, str(db.path)))
 
 
+def _clear(db: Any, doc_id: str, *, everything: bool) -> None:
+    """Delete this step's own renditions of a page, rows and files (another step's are never touched): all of them when the
+    step re-prepares the page, else only the crop. A file still named by another row is kept."""
+    from fichero_server.models import Rendition
+
+    rows = db.query(Rendition, document_id=doc_id)
+    mine = [r for r in rows if r.producer_tool == PRODUCER and (everything or r.role == "crop")]
+    keep = {r.path for r in rows if r not in mine}
+    for old in mine:
+        db.delete(old)
+        if old.path not in keep:
+            Path(old.path).unlink(missing_ok=True)
+
+
 def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Path, note: str, box: list[float],
-           **transform: Any) -> None:
-    """One more rendition of the page, replacing this step's own earlier one of the role, never another's."""
+           parent_id: str | None, **transform: Any) -> str:
+    """One more rendition of the page: the id of the rendition. `parent_id` is the rendition it was made from (None: the
+    photograph), on the row and on its transform, so every shape traces back to the photograph through the chain."""
     import tempfile
 
     from fichero_server.importers.ingest import _copy_to_library
@@ -140,15 +145,15 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
         made = Path(scratch) / f"{doc.id}_{role}.png"
         picture.save(made)
         stored = _copy_to_library(made, library)
-    for old in db.query(Rendition, document_id=doc.id):
-        if old.role == role and old.producer_tool == PRODUCER:
-            db.delete(old)
-    db.save(Rendition(document_id=doc.id, role=role, path=str(stored), is_primary=False, pixel_width=picture.width,
-                      pixel_height=picture.height, producer_tool=PRODUCER, producer_run_id=run_id, note=note,
-                      transform=NodeRegion(rect=box, confidence=RegionConfidence.measured, **transform)))
+    row = Rendition(document_id=doc.id, role=role, path=str(stored), is_primary=False, pixel_width=picture.width,
+                    pixel_height=picture.height, producer_tool=PRODUCER, producer_run_id=run_id, note=note,
+                    derived_from_rendition_id=parent_id,
+                    transform=NodeRegion(rect=box, rendition_id=parent_id, confidence=RegionConfidence.measured, **transform))
+    db.save(row)
+    return row.id
 
 
-def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path) -> None:
+def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path, crop_id: str) -> None:
     """The operations in order, each fed by the one before and each writing a rendition only when it changed something:
     square (`prep.square.*`, the homography on its row), flatten (`prep.flatten.*`, the control points), turn by the text
     (`prep.turn-by-the-text`, the quarter turn and its reason), straighten (`prep.straighten-and-flatten`, the angle)."""
@@ -158,21 +163,22 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
     from fichero_server.media.turn_by_text import turn_by_text
     box = [round(v, 5) for v in found.box]
     base = image.crop(found.pixels(*image.size))
+    parent: str | None = crop_id  # the rendition `base` is: each operation's row names the one before it
     if found.quad and not quad_is_rectangular(found.quad, image.size):
         base, homography = square_page(image, found.quad)
-        _write(db, doc, "squared", base, run_id, library, "the page squared from its four corners", box,
-               method="square", homography=homography, quad=[list(p) for p in found.quad])
+        parent = _write(db, doc, "squared", base, run_id, library, "the page squared from its four corners", box, None,
+                        method="square", homography=homography, quad=[list(p) for p in found.quad])
     flat = flatten_curve(base)
     if flat is not None:
         base = flat[0]
-        _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box,
-               method="flatten", control_points=flat[1])
+        parent = _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box, parent,
+                        method="flatten", control_points=flat[1])
     turn = turn_by_text(base, db_path=str(db.path))
     if turn["angle"]:
         base = apply_operation(base, {"op": "rotate", "params": {"angle": turn["angle"]}})  # the editor's own turn
-        _write(db, doc, "rotated", base, run_id, library, turn["reason"], box, method="turn", angle=turn["angle"])
+        parent = _write(db, doc, "rotated", base, run_id, library, turn["reason"], box, parent, method="turn", angle=turn["angle"])
     angle = auto_straighten_angle(base)
     if angle:
         base = apply_operation(base, {"op": "straighten", "params": {"angle": angle, "expand": True}})
-        _write(db, doc, "deskewed", base, run_id, library, f"straightened {angle:.2f} degrees", box,
+        _write(db, doc, "deskewed", base, run_id, library, f"straightened {angle:.2f} degrees", box, parent,
                method="straighten", angle=angle)

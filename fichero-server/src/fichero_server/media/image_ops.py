@@ -270,9 +270,14 @@ def apply_clahe_contrast(image: Image.Image, *, profile: str = "handwritten", cl
     except ImportError:
         return image
     d_clip, d_tile, d_gain, d_lift = CLAHE_PROFILES.get(profile, CLAHE_PROFILES["handwritten"])
-    clip, tile = d_clip if clip is None else float(clip), d_tile if tile is None else int(tile)
+    clip, tile = d_clip if clip is None else float(clip), max(1, d_tile if tile is None else int(tile))  # a 0 tile crashes cv2
     gain, lift = d_gain if gain is None else float(gain), d_lift if lift is None else float(lift)
     alpha = image.getchannel("A") if image.mode in {"RGBA", "LA"} else None
+    if image.mode.startswith("I"):  # 16/32-bit greys: scaled to 8 bits, not clipped (RGB conversion clipped them to white)
+        grey = np.asarray(image, dtype=np.float64)
+        span = max(float(grey.max() - grey.min()), 1.0)
+        image = Image.fromarray(((grey - grey.min()) * (255 / span)).astype(np.uint8))
+    tile = max(1, min(tile, min(image.size) // 8))  # tiles under 8 px turned a tiny uniform image white
     lab = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2LAB)
     light = cv2.createCLAHE(clipLimit=clip, tileGridSize=(tile, tile)).apply(lab[:, :, 0])
     lab[:, :, 0] = cv2.convertScaleAbs(light, alpha=gain, beta=lift)

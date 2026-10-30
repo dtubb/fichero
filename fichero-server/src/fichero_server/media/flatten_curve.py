@@ -35,6 +35,12 @@ def _baselines(gray: np.ndarray) -> list[tuple[np.ndarray, int, int]]:
     _, ink = cv2.threshold(cv2.GaussianBlur(gray, (3, 3), 0), 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     if ink.mean() / 255 > 0.5 or not ink.any():
         return []
+    # The mount around a padded page box is "ink" too and joins every line to the frame: ink that touches the edge is not text.
+    count, labels = cv2.connectedComponents(ink)
+    edge = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
+    ink[np.isin(labels, edge[edge > 0])] = 0
+    if not ink.any():
+        return []
     joined = cv2.dilate(ink, cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, round(0.04 * w)), 3)))
     count, labels, stats, _ = cv2.connectedComponentsWithStats(joined)
     lines = []

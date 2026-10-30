@@ -36,6 +36,8 @@ CARD_MIN_AREA = 0.004
 CARD_FILL = 0.85
 #: The rim around the page's box, as a share of the long side, that is not searched for furniture.
 PAGE_PAD = 0.02
+#: The rim added around the paper's box, as a share of the long side (the spec's 30 px on a 3000 px photograph).
+PAD_SHARE = 0.01
 #: The opening that removes thin strips, as a share of the working long side.
 OPEN_SHARE = 0.012
 
@@ -61,6 +63,8 @@ class PageFound:
 VISION_MIN = 0.5
 #: Vision is shown the image at this long side: the corners are fractions, so the size does not change the answer.
 VISION_SIDE = 1400
+#: Vision's outline must be at least this share paper inside (`_paper_share`): a wrong outline above 0.5 confidence is not cropped to.
+VISION_PAPER_SHARE = 0.7
 
 
 def find_page(image: Any, *, vision: bool = True) -> PageFound | None:
@@ -83,9 +87,13 @@ def find_page_vision(image: Any) -> PageFound | None:
 
     from fichero_server.media.page_split import detect_document_outline
 
-    small = image.convert("RGB")
+    from PIL import Image
+
+    small = image
     if max(small.size) > VISION_SIDE:
-        small.thumbnail((VISION_SIDE, VISION_SIDE))
+        scale = VISION_SIDE / max(small.size)  # shrunk before the RGB copy: no full-size copy of a big scan
+        small = small.resize((max(1, round(small.width * scale)), max(1, round(small.height * scale))), Image.Resampling.BOX)
+    small = small.convert("RGB")
     with tempfile.TemporaryDirectory() as scratch:
         shot = Path(scratch) / "page.jpg"
         small.save(shot, quality=90)
@@ -96,18 +104,44 @@ def find_page_vision(image: Any) -> PageFound | None:
     box = (max(0.0, min(xs)), max(0.0, min(ys)), min(1.0, max(xs)) - max(0.0, min(xs)), min(1.0, max(ys)) - max(0.0, min(ys)))
     if box[2] * box[3] > 0.97:
         return None
+    if _paper_share(image, outline.quad) < VISION_PAPER_SHARE:
+        return None  # the outline takes in mount, table or furniture: not trusted, the contour finder answers
     return PageFound(box, round(outline.confidence, 3), "vision", quad=tuple(outline.quad))
+
+
+def _paper_share(image: Any, quad: Any) -> float:
+    """The share of the outline's inside that is paper: pixels within `PAPER_TOLERANCE` (CIE Lab) of the inside's median
+    colour. An outline that straddles paper and mount, or covers half a page, has a low share."""
+    import cv2
+
+    rgb = _work_copy(image)
+    h, w = rgb.shape[:2]
+    mask = np.zeros((h, w), np.uint8)
+    cv2.fillPoly(mask, [np.array([[x * w, y * h] for x, y in quad], dtype=np.int32)], 1)
+    inside = mask.astype(bool)
+    if not inside.any():
+        return 0.0
+    lab = cv2.cvtColor(cv2.GaussianBlur(rgb, (0, 0), 2), cv2.COLOR_RGB2LAB).astype(np.float32)[inside]
+    return float((np.linalg.norm(lab - np.median(lab, axis=0), axis=1) < PAPER_TOLERANCE).mean())
+
+
+def _work_copy(image: Any) -> np.ndarray:
+    """The image as RGB at `WORK_SIDE` on its long side. Shrunk BEFORE it is converted, so a 66 MP scan never exists as a
+    full-size RGB array here (the review measured +575 MB)."""
+    from PIL import Image
+
+    width, height = image.size
+    scale = WORK_SIDE / max(width, height)
+    if scale < 1:
+        image = image.resize((max(1, round(width * scale)), max(1, round(height * scale))), Image.Resampling.BOX)
+    return np.asarray(image.convert("RGB"))
 
 
 def find_page_contour(image: Any) -> PageFound | None:
     """The contour finder: the page's box on a PIL image, or None when no piece looks like a page."""
     import cv2
 
-    rgb = np.asarray(image.convert("RGB"))
-    height, width = rgb.shape[:2]
-    scale = WORK_SIDE / max(height, width)
-    if scale < 1:
-        rgb = cv2.resize(rgb, (round(width * scale), round(height * scale)), interpolation=cv2.INTER_AREA)
+    rgb = _work_copy(image)
     h, w = rgb.shape[:2]
     lab = cv2.cvtColor(cv2.GaussianBlur(rgb, (0, 0), 2), cv2.COLOR_RGB2LAB).astype(np.float32)
     frame = max(2, round(0.02 * min(h, w)))
@@ -162,7 +196,13 @@ def find_page_contour(image: Any) -> PageFound | None:
     area = 0.5 * abs(sum(xs[i] * ys[(i + 1) % 4] - xs[(i + 1) % 4] * ys[i] for i in range(4)))
     if area > 0:
         fill = max(fill, min(1.0, float(piece.sum()) / area))
-    return PageFound((x0 / w, y0 / h, (x1 - x0) / w, (y1 - y0) / h), round(fill, 3),
+    # The box takes in the corners (a tilted page's points lie outside the trimmed box) and a rim of PAD_SHARE of the long
+    # side (30 px on a 3000 px photograph), so Kraken never loses a line in a corner; the quad's corners come from the
+    # opened piece, so a ruler the page touches is still out.
+    pad = round(PAD_SHARE * max(h, w))
+    bx0, by0 = max(0, min(x0, int(min(xs))) - pad), max(0, min(y0, int(min(ys))) - pad)
+    bx1, by1 = min(w, max(x1, int(np.ceil(max(xs)))) + pad), min(h, max(y1, int(np.ceil(max(ys)))) + pad)
+    return PageFound((bx0 / w, by0 / h, (bx1 - bx0) / w, (by1 - by0) / h), round(fill, 3),
                      furniture=tuple(_furniture(mask, (x0, y0, x1, y1))), quad=quad)
 
 

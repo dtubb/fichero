@@ -89,3 +89,28 @@ def test_find_regions_never_runs_the_page_finder_itself(db, tmp_path, monkeypatc
     page = _page(db, tmp_path, None)
 
     assert find_regions(db, [page.id], "run-1", "blla", provider="kraken")["pages"] == 1
+
+
+def test_a_yolo_region_found_in_the_crop_comes_back_in_whole_image_fractions(db, tmp_path, monkeypatch):
+    """Review LOW: the YOLO crop remap had no test. A box covering the crop's left half is the page box's left half in
+    whole-image fractions."""
+    from fichero_server.llm import yolo_runtime
+    from fichero_server.models import Segment
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+
+    def detect(path, model_id="m", **_):
+        with Image.open(path) as image:
+            seen.append(image.size)
+        return [yolo_runtime.Region(kind_raw="Table", rect=[0.0, 0.0, 0.5, 0.5], confidence=0.9)]
+
+    monkeypatch.setattr(yolo_runtime, "detect_regions", detect)
+    page = _page(db, tmp_path, BOX)
+
+    find_regions(db, [page.id], "run-1", "m")
+
+    assert seen == [(600, 640)]
+    (seg,) = [s for s in db.query(Segment, document_id=page.id) if s.deleted_at is None]
+    x, y, w, h = seg.bbox_x, seg.bbox_y, seg.bbox_w, seg.bbox_h
+    assert (round(x, 4), round(y, 4), round(w, 4), round(h, 4)) == (0.3, 0.1, 0.3, 0.4)

@@ -6,6 +6,7 @@ Through the public surface: `POST /api/recipes/assemble` (with and without the o
 `PUT /api/recipes/project`, `GET|POST /api/recipes/project/start`, the recipe run's status and the real job scheduler.
 The Kraken reader is the stub the recipe execution tests use, at the Kraken runtime: it records which picture it read.
 """
+# ruff: noqa: F811  (fixtures imported from the execution tests are re-taken as arguments: pytest's idiom)
 from __future__ import annotations
 
 import hashlib
