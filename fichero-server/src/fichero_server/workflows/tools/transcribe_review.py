@@ -519,13 +519,14 @@ async def transcribe_review(
         import asyncio
 
         unresolved = await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"),
-                                             inputs.get("lens"))
+                                             inputs.get("lens"), inputs.get("review_mode"))
         if unresolved:
             await _re_ask_pages(result, unresolved, library_path, state.get("task_id"), llm_config)
     return result
 
 
-def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, lens: str | None = None) -> list[str]:
+def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, lens: str | None = None,
+                review_mode: str | None = None) -> list[str]:
     """The review's corrections become the page's text (#5654, `source.job.correct-onto-lines`): each
     saved review is put onto its page's lines as readings (`working_lines.correct_lines`), and what was
     done is said per page in the step's notes and its per-file result (`lines`). A review that cannot be
@@ -551,7 +552,8 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, l
                              **({"unreadable_lines": unread} if unread else {})}
             db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
-                                    artifact_id=artifact.id, run_id=run_id, library_path=library_path)
+                                    artifact_id=artifact.id, run_id=run_id, library_path=library_path,
+                                    settling=review_mode == "both")
         page = db.get(Document, artifact.document_id)
         notes.append(f"{getattr(page, 'name', None) or artifact.document_id}: {said}")
         if artifact_id in by_artifact:

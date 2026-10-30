@@ -65,3 +65,28 @@ def test_a_mode_nobody_defined_is_refused_naming_the_valid_ones(db):
     doc_id = _import(db, SYRIAC)
     with pytest.raises(ValueError, match="in-turn, compare, both; not 'together'"):
         tool_context(db, doc_id, review_mode="together")
+
+
+def _settled(db, doc_id, line, answer_text, *, settling=True):
+    """The second review's answer for the first-changed line, put onto the lines; the line's counting reading after."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.llm.working_lines import correct_lines
+
+    artifact = Artifact(document_id=doc_id, artifact_type="transcription_review", content=f"{line} | uncertain | {answer_text}")
+    db.save(artifact)
+    correct_lines(db, document_id=doc_id, text=artifact.content, artifact_id=artifact.id, run_id=None, settling=settling)
+    span = next(s for s in document_text(db, doc_id, include_furniture=True).spans if s.segment_id == line)
+    return db.get(ContentRepresentation, span.representation_id)
+
+
+@pytest.mark.parametrize("answer", [FIRST_REVIEW, "the second reviewer's version"])
+def test_a_line_both_cannot_settle_keeps_a_lower_certainty_whichever_version_it_gives(db, answer):
+    doc_id, line, _before = _reviewed_page(db)
+    reading = _settled(db, doc_id, line, answer)
+    assert reading.content == answer and reading.machine_confidence is not None and reading.machine_confidence <= 0.5
+
+
+def test_a_line_flagged_uncertain_outside_both_is_as_before(db):
+    doc_id, line, _before = _reviewed_page(db)
+    reading = _settled(db, doc_id, line, "the second reviewer's version", settling=False)
+    assert reading.machine_confidence is None

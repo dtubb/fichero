@@ -303,6 +303,8 @@ def _as_lines(db: Any, shown: list[tuple[str, str | None, str]], answer: list[st
 NOT_TIED = "not tied to lines"
 #: The flag a review gives each line (`source.job.review-is-segment-native`).
 LINE_FLAGS = ("certain", "uncertain", "unreadable")
+#: The certainty a settling review's `uncertain` line is given when the reading it corrects had none or a surer one (#6257).
+UNSETTLED_CONFIDENCE = 0.5
 #: Where a line's short note starts: ` | note: ...` at its end (#5724).
 _BOX = re.compile(r"^-?[\d.]+(\s+-?[\d.]+){3}$")
 _NOTE = re.compile(r"\s*\|\s*note:\s*(.*)$", re.IGNORECASE)
@@ -336,6 +338,7 @@ def correct_lines(
     run_id: str | None,
     level: str = "as_written",
     library_path: str | None = None,
+    settling: bool = False,
 ) -> tuple[list[str], str]:
     """A correcting step's text (the paleographer's review, `correct`, #5654) put onto the page's lines.
 
@@ -346,8 +349,10 @@ def correct_lines(
     artifact, whose model made it, and from the line's counting reading, which it corrects). A line it left
     unchanged gets nothing; a line whose counting reading is a person's gets nothing (a run never writes
     over a person). An answer that cannot be matched writes nothing and says why, starting `NOT_TIED`: the
-    artifact stays the step's only output, never guessed onto the lines. Returns (readings made, what was
-    done, in words). The page's text cache follows from the readings (`actions/page_text_cache.py`)."""
+    artifact stays the step's only output, never guessed onto the lines. With `settling` (a second review that settles
+    two readings, `review_mode` both, #6257) a line it flags `uncertain` always gets a reading, even in the text already
+    there, no surer than `UNSETTLED_CONFIDENCE`: the lower certainty is how a person finds what it could not settle.
+    Returns (readings made, what was done, in words). The page's text cache follows from the readings (`actions/page_text_cache.py`)."""
     from fichero_server.api.routes.document.segment_readings import document_text
     from fichero_server.models import ContentRepresentation
 
@@ -387,7 +392,8 @@ def correct_lines(
     readings, derived_from, people = [], {}, 0
     for segment_id, representation_id, old in shown:
         new = corrected.get(segment_id)
-        if not new or segment_id in unreadable or " ".join(new.split()) == " ".join(old.split()):
+        unchanged = bool(new) and " ".join(new.split()) == " ".join(old.split())
+        if not new or segment_id in unreadable or (unchanged and not (settling and segment_id in uncertain)):
             continue
         if representation_id is None and segment_id in people_lines:
             people += 1
@@ -398,6 +404,8 @@ def correct_lines(
             continue
         # an uncertain correction is no surer than the reading it corrects (#5694)
         sure = getattr(counting.get(representation_id), "machine_confidence", None) if segment_id in uncertain else None
+        if settling and segment_id in uncertain:
+            sure = UNSETTLED_CONFIDENCE if sure is None else min(sure, UNSETTLED_CONFIDENCE)
         readings.append((segment_id, new, sure))
         derived_from[segment_id] = representation_id
     made = write_readings(db, document_id=document_id, readings=readings, artifact_id=artifact_id,
