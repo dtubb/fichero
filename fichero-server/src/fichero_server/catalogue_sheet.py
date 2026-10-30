@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
 from fichero_server.core.naturalsort import natural_key
+from fichero_server.export_service import _NOT_CATALOGUE_KINDS  # one set, shared with the folder export
 from fichero_server.models import DocType, Document
 from fichero_server.models.node_prototypes import (
     PrototypeResolutionError,
@@ -21,7 +24,6 @@ from fichero_server.models.node_prototypes import (
 from fichero_server.models.prototype_schema import level_defaults
 from fichero_server.models.prototype_template import Column, Template, apply_choice, template_for_prototype, template_for_rows
 
-_NOT_CATALOGUE_KINDS = frozenset({"workflow", "workflow_container", "workspace", "alias"})
 SUFFIX = " Catalogación básica"
 CHOICE_KEY = "column_choice"
 _EDTF_START = re.compile(r"^(?P<y>-?\d{4})(?:-(?P<m>\d{2}))?(?:-(?P<d>\d{2}))?$")
@@ -40,7 +42,36 @@ def _sort_key(doc: Document) -> tuple:
     return (doc.sequence or 0, natural_key(doc.name))
 
 
+@dataclass
+class _Reads:
+    """What one workbook reads once: every live document by parent (one query, not one per folder) and each folder's Problemas."""
+
+    children: dict[str | None, list[Document]] = field(default_factory=dict)
+    problems: dict[str, list[str]] = field(default_factory=dict)
+
+
+_READS: ContextVar[_Reads | None] = ContextVar("catalogue_reads", default=None)
+
+
+@contextmanager
+def _reading_once(db: Any):
+    """Within the block `_children` is answered from one read of the documents and `problems_for` once per folder.
+    The documents are not written while a workbook is built."""
+    by_parent: dict[str | None, list[Document]] = {}
+    for doc in db.all(Document):
+        if doc.deleted_at is None:
+            by_parent.setdefault(doc.parent_id, []).append(doc)
+    reads = _Reads({parent: sorted(docs, key=_sort_key) for parent, docs in by_parent.items()})
+    token = _READS.set(reads)
+    try:
+        yield
+    finally:
+        _READS.reset(token)
+
+
 def _children(db: Any, parent_id: str | None) -> list[Document]:
+    if (reads := _READS.get()) is not None:
+        return reads.children.get(parent_id, [])
     found = db.query(Document, parent_id=parent_id) if parent_id else [d for d in db.all(Document) if d.parent_id is None]
     return sorted((d for d in found if d.deleted_at is None), key=_sort_key)
 
@@ -213,6 +244,9 @@ def problems_for(db: Any, folder: Document, pages: list[Document], known: Facts 
     from fichero_server.llm.working_lines import working_lines
     from fichero_server.recipes.catalogue_step import date_problems
 
+    reads = _READS.get()
+    if reads is not None and folder.id in reads.problems:
+        return list(reads.problems[folder.id])
     known = known or facts(db)
     own = (folder.attributes or {}).get("catalogue_problems")
     out = [str(x) for x in (own if isinstance(own, list) else [own] if own else [])]
@@ -230,6 +264,8 @@ def problems_for(db: Any, folder: Document, pages: list[Document], known: Facts 
     out.extend(f"declaración rechazada: {text}" for text in known.rejected.get(folder.id, []))
     for page in pages:
         out.extend(f"declaración rechazada: {text}" for text in known.rejected.get(page.id, []))
+    if reads is not None:
+        reads.problems[folder.id] = list(out)
     return out
 
 
@@ -334,10 +370,10 @@ def template_for(db: Any, scope: Document | None, rows: list[Document], prototyp
     return apply_choice(db, template_for_rows(db, rows), choice if isinstance(choice, dict) else None)
 
 
-def grid(db: Any, template: Template, rows: list[Document], lang: str = "es") -> list[list[str]]:
+def grid(db: Any, template: Template, rows: list[Document], lang: str = "es", known: Facts | None = None) -> list[list[str]]:
     """The sheet's cells: the header rows, then one row per folder."""
     out = header_rows(template.columns)
-    known = facts(db)
+    known = known or facts(db)
     for folder in rows:
         effective = effective_node_attributes(db, folder)
         out.append([cell(db, folder, c, effective, lang, known) for c in template.columns])
@@ -536,6 +572,11 @@ def workbook(db: Any, scope: Document | None, prototype_key: str | None = None, 
     A sheet with no rows keeps its header. Reads attributes, pages, the graph and the record; never a model."""
     if proposals not in PROPOSALS:
         raise ValueError(f"proposals is one of {', '.join(PROPOSALS)}; not {proposals!r}")
+    with _reading_once(db):
+        return _workbook(db, scope, prototype_key, proposals)
+
+
+def _workbook(db: Any, scope: Document | None, prototype_key: str | None, proposals: str) -> dict[str, tuple[list[list[str]], int]]:
     known = facts(db)
     sheets: dict[str, tuple[list[list[str]], int]] = {}
     names: set[str] = set()
@@ -543,7 +584,7 @@ def workbook(db: Any, scope: Document | None, prototype_key: str | None = None, 
     tema: list[list[str]] = []
     for collection in collections_in(db, scope):
         template = template_for(db, scope, collection.rows, prototype_key)
-        cells = grid(db, template, collection.rows)
+        cells = grid(db, template, collection.rows, known=known)
         sheets[sheet_name(collection.name, names)] = (cells, len(cells) - len(collection.rows))
         every += collection.rows
         tema = tema or subject_terms(template)
