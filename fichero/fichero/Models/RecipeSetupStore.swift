@@ -571,22 +571,6 @@ extension RecipeSetupStore {
     /// Whether a step can be taken out: the engine names, in `needed_by`, the later steps that need it.
     static func canTakeOut(_ step: Components.Schemas.RecipeStep) -> Bool { (step.neededBy ?? []).isEmpty }
 
-    /// Take a step out of the plan; the engine proposes the plan again without it, and Ready saves that, so
-    /// Start runs the plan as shown and Set Up… reopens with it.
-    func takeOut(job: String) async {
-        guard !removedJobs.contains(job) else { return }
-        removedJobs.append(job)
-        if job == Self.leaveOutStage { setLeaveOut(false) }  // the saved answer follows the plan, never contradicts it
-        await assemble()
-    }
-
-    /// Put a step taken out back into the plan.
-    func putBack(job: String) async {
-        removedJobs.removeAll { $0 == job }
-        if job == Self.leaveOutStage { setLeaveOut(true) }
-        await assemble()
-    }
-
     /// Tick or untick a job on its own. A job a ticked purpose brings stays ticked while that
     /// purpose is (the engine adds jobs to a purpose's, it never takes one away).
     func toggle(job id: String) {

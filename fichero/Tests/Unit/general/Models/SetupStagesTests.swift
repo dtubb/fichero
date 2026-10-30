@@ -135,6 +135,24 @@ struct SetupStagesTests {
         #expect(store.stageChoice?.chosen.contains("leave-out") == false)
     }
 
+    @Test("source.recipe.leave-out-stage: turning Leave Out off on its own page keeps the page, and Continue goes to the next stage")
+    func leaveOutToggleOffContinuesToTheNextStage() {
+        let leaveOut = SetupStageChoice.Stage(id: "leave-out", jobs: ["leave-out"], needs: [])
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.stageChoice = SetupStageChoice(
+            stages: [Self.lines, leaveOut, Self.names], chosen: ["find-lines", "leave-out", "names"])
+        let page = SetupStep.stage("leave-out")
+        store.setLeaveOut(false)  // the page's toggle: the tick goes, the person is still on the page
+        var flow = SetupFlow(includesApp: false, project: .existing)
+        flow.chosenStages = store.stageIds(keeping: "leave-out")
+        #expect(page.next(in: flow.steps) == .stage("names"), "Continue goes to the next chosen stage, not Ready")
+        #expect(page.previous(in: flow.steps) == .stage("find-lines"), "Back goes to the stage before")
+        flow.chosenStages = store.stageIds(keeping: "names")  // on the next page the unticked stage is gone
+        #expect(!flow.steps.contains(page))
+        #expect(SetupStep.stage("names").previous(in: flow.steps) == .stage("find-lines"))
+        #expect(store.chosenStageIds == ["find-lines", "names"])
+    }
+
     @Test("source.onboard.stages.goals-are-shortcuts: a goal ticks its stages; a stage unticked afterwards stays so")
     func goalsAreShortcuts() {
         var choice = choice()

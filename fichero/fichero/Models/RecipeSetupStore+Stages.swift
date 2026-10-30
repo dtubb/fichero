@@ -27,7 +27,11 @@ extension RecipeSetupStore {
     }
 
     /// The chosen stages, in the engine's order: one page each.
-    var chosenStageIds: [String] { stageChoice?.chosenInOrder ?? [] }
+    var chosenStageIds: [String] { stageIds(keeping: nil) }
+
+    /// The chosen stages, plus `current` while the person is on its page: unticking a stage on its own page (Leave Out's
+    /// toggle) must not drop the page from under them, or Continue and Back would lose their place.
+    func stageIds(keeping current: String?) -> [String] { stageChoice?.inOrder(keeping: current) ?? [] }
 
     /// Each stage's title, for its page's name in the window's list.
     var stageTitles: [String: String] {
@@ -59,6 +63,22 @@ extension RecipeSetupStore {
         removedJobs.removeAll { $0 == Self.leaveOutStage }
         addedJobs.removeAll { $0 == Self.leaveOutStage }
         if ticked { addedJobs.append(Self.leaveOutStage) } else { removedJobs.append(Self.leaveOutStage) }
+    }
+
+    /// Take a step out of the plan; the engine proposes the plan again without it, and Ready saves that, so
+    /// Start runs the plan as shown and Set Up… reopens with it.
+    func takeOut(job: String) async {
+        guard !removedJobs.contains(job) else { return }
+        removedJobs.append(job)
+        if job == Self.leaveOutStage { setLeaveOut(false) }  // the saved answer follows the plan, never contradicts it
+        await assemble()
+    }
+
+    /// Put a step taken out back into the plan.
+    func putBack(job: String) async {
+        removedJobs.removeAll { $0 == job }
+        if job == Self.leaveOutStage { setLeaveOut(true) }
+        await assemble()
     }
 
     /// The Leave Out stage and its one job (`recipes/stages.py`).
