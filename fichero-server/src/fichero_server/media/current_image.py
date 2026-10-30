@@ -113,24 +113,6 @@ class PageImage:
             return lines, lines_frame
         return [{**ln, **{key: fmap.carry_pixels(ln[key]) for key in ("polygon", "baseline") if ln.get(key)}} for ln in lines], None
 
-    def geometry_on_image(self, result: Any, lines_frame: str | None) -> Any:
-        """The lines geometry a line reader reads (`working_lines.as_geometry`, pixels of the photograph) carried onto this
-        image: outlines, baselines, boxes and the frame it says. As it came when the lines already fit this image."""
-        fmap = self.lines_map(lines_frame)
-        if fmap is None:
-            return result
-        boxes = []
-        for box in result.boxes:
-            meta = {k: v for k, v in box.metadata.items() if k != "frame"}
-            for key in ("polygon_px", "baseline_px"):
-                if meta.get(key):
-                    meta[key] = fmap.carry_pixels(meta[key])
-            meta["pixel_frame"] = {"width": fmap.dst[0], "height": fmap.dst[1]}
-            boxes.append(box.model_copy(update={"bbox": _clamp_rect(fmap.carry_rect(box.bbox)), "metadata": meta}))
-        meta = {k: v for k, v in result.metadata.items() if k != "frame"}
-        meta["pixel_frame"] = {"width": fmap.dst[0], "height": fmap.dst[1]}
-        return result.model_copy(update={"boxes": boxes, "metadata": meta})
-
     def geometry_to_photograph(self, result: Any) -> Any:
         """Boxes a finder measured on this image, as fractions of the upright photograph (`frame: "upright"`), the polygon and
         baseline in its pixels. The result is returned as it came when this image is the photograph's own."""
@@ -149,20 +131,6 @@ class PageImage:
         meta = {**result.metadata, "pixel_frame": {"width": back.dst[0], "height": back.dst[1]}, "frame": FRAME_UPRIGHT}
         return result.model_copy(update={"boxes": boxes, "metadata": meta})
 
-    def payload_to_photograph(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Kraken's raw answer (`segment_lines`) about this image, in the upright photograph's pixels."""
-        back = self.photograph_map()
-        if back is None:
-            return payload
-        return {**payload, "width": back.dst[0], "height": back.dst[1],
-                "regions": [{**r, "polygon": back.carry_pixels(r.get("polygon") or [])} for r in payload.get("regions") or []],
-                "lines": [{**ln, "polygon": back.carry_pixels(ln.get("polygon") or []),
-                           "baseline": back.carry_pixels(ln.get("baseline") or [])} for ln in payload.get("lines") or []]}
-
-    def rects_to_photograph(self, rects: list[Any], key: Any = lambda r: r.rect) -> list[list[float]]:
-        """A layout model's fractional [x, y, w, h] boxes on this image as fractions of the upright photograph."""
-        back = self.photograph_map()
-        return [list(key(r)) if back is None else _clamp_rect(back.carry_rect(key(r))) for r in rects]
 
 
 def _clamp_rect(rect: list[float]) -> list[float]:

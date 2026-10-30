@@ -16,3 +16,16 @@ def test_nothing_in_src_names_the_deleted_rendition_choice():
 def test_the_perf_baseline_has_no_entry_for_the_test_file_that_was_deleted():
     baseline = (Path(__file__).resolve().parents[2] / "perf_baseline.json").read_text(encoding="utf-8")
     assert "test_apple_vision_rendition_preference" not in baseline
+
+
+def test_every_public_page_image_method_has_a_caller_in_src():
+    """`PageImage` is the one answer to 'the page's current image'; a method nothing calls is code to read for no reason."""
+    from fichero_server.media.current_image import PageImage
+
+    own = SRC / "media" / "current_image.py"
+    others = "\n".join(p.read_text(encoding="utf-8") for p in SRC.rglob("*.py") if p != own)
+    inside = own.read_text(encoding="utf-8")
+    unused = [name for name, member in vars(PageImage).items()
+              if not name.startswith("_") and (callable(member) or isinstance(member, property))
+              and f".{name}" not in others and inside.count(f".{name}") == 0]
+    assert unused == []
