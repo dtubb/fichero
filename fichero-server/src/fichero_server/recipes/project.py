@@ -50,6 +50,16 @@ def read_project_setup(library: Path) -> dict[str, Any]:
     return out
 
 
+def read_saved_answers(library: Path) -> dict[str, Any]:
+    """The answers exactly as `setup.yaml` holds them, {} for none: not read in today's shape (`read_project_setup` adds the
+    defaults a project that answered nothing never wrote). For a change of one answer, which must not write the rest."""
+    import yaml
+
+    path = _path(library, "answers")
+    saved = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+    return dict(saved) if isinstance(saved, dict) else {}
+
+
 def write_project_setup(library: Path, answers: dict | None, recipe: dict | None) -> None:
     """Save (or, with None, remove) the answers and the recipe. Refuses code or credentials in
     either: a recipe is data and names providers, never keys."""

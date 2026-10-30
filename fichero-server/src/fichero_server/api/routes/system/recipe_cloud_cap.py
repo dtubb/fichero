@@ -9,9 +9,10 @@ from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database_for_write
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
-from fichero_server.api.routes.system.recipes import _library, normalise_answers, read_project_setup
+from fichero_server.api.routes.system.recipes import _library, normalise_answers
 from fichero_server.db import Database
 from fichero_server.recipes.cloud_cap import CloudCapChange, CloudCapChanged
+from fichero_server.recipes.project import read_saved_answers
 
 router = APIRouter(prefix="/recipes")
 
@@ -28,15 +29,17 @@ async def change_cloud_cap(
     `project.save_setup`, so audited and undoable as one step; the answer names the audit row."""
     from fichero_server.llm import spend
 
-    answers = dict(read_project_setup(_library(db)).get("answers") or {})
-    if request.cap_usd is not None:
-        answers[spend.CAP_KEY] = request.cap_usd
-    if request.project_cap_usd is not None:
-        answers[spend.PROJECT_CAP_KEY] = request.project_cap_usd
-    if request.clear_project_cap:
-        answers.pop(spend.PROJECT_CAP_KEY, None)
+    answers = read_saved_answers(_library(db))
+    asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
+             if value is not None}
     try:
-        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+        # Only the caps are checked and written, over the answers as the file holds them: reading them in today's shape and
+        # normalising them all wrote the defaults (`purposes: [not-sure]`, `materials: [handwriting]`) into a project that had
+        # answered nothing.
+        answers.update({key: normalise_answers(asked, strict=True)[key] for key in asked})
+        if request.clear_project_cap:
+            answers.pop(spend.PROJECT_CAP_KEY, None)
+        done = registry.invoke(db, "project.save_setup", {"answers": answers}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return CloudCapChanged(cap_usd=spend.cap_usd(str(_library(db))) or 0.0, project_cap_usd=spend.project_cap_usd(str(_library(db))),

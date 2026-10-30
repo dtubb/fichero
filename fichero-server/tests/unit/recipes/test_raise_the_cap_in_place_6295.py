@@ -296,6 +296,29 @@ def test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back
     )
 
 
+def test_the_first_cap_change_of_a_project_with_no_set_up_writes_only_the_cap(client, db):
+    """The change normalised the (empty) answers, which writes `purposes: [not-sure]` and `materials: [handwriting]` into the
+    project's setup.yaml though it had answered nothing: a side effect of setting a number. Read as the file holds it (a GET
+    reads the answers in today's shape, defaults and all)."""
+    import yaml
+
+    saved = _library(db) + "/recipe/setup.yaml"
+
+    def on_disk() -> dict:
+        return yaml.safe_load(open(saved, encoding="utf-8"))
+
+    r = client.put("/api/recipes/project/cloud-cap", json={"cap_usd": 25})
+    assert r.status_code == 200
+    assert on_disk() == {"cloud_spend_cap_usd": 25}
+    assert (
+        client.put(
+            "/api/recipes/project/cloud-cap", json={"project_cap_usd": 60}
+        ).status_code
+        == 200
+    )
+    assert on_disk() == {"cloud_spend_cap_usd": 25, "cloud_project_cap_usd": 60}
+
+
 def test_one_cap_alone_leaves_the_other_and_the_project_cap_can_be_cleared(client, db):
     client.put("/api/recipes/project/cloud-cap", json={"project_cap_usd": 8})
     assert (
