@@ -1586,6 +1586,10 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
         if token is not None:
             _holding.reset(token)
         release.set()
+        # `hold` raises the call's own error into the lane's future after the slot was granted, and nobody awaits
+        # `waiting` past the grant: asyncio then logs "Future exception was never retrieved" with the words the caller
+        # already has (13 times on the Air, 2026-10-30). Mark it retrieved once the job has finished.
+        waiting.add_done_callback(lambda done: None if done.cancelled() else done.exception())
 
 
 #: The reason a call's row carries when its run was stopped while the call ran.
