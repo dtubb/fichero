@@ -1625,9 +1625,11 @@ def _catalogue_scope(db: Database, target_id: str | None) -> Document | None:
 
 
 def _csv_bytes(rows: list[list[str]]) -> bytes:
-    """UTF-8 with a byte-order mark (Excel on a Spanish Mac reads accents), every field quoted, CRLF."""
+    """UTF-8 with a byte-order mark (Excel on a Spanish Mac reads accents), every field quoted, CRLF. A cell Excel would read as a
+    formula (it starts with `=`, `+`, `-`, `@`) gets a leading apostrophe, so page text cannot run as one."""
     out = io.StringIO()
-    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerows(rows)
+    safe = [[f"'{cell}" if cell[:1] in ("=", "+", "-", "@", "\t", "\r") else cell for cell in row] for row in rows]
+    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerows(safe)
     return b"\xef\xbb\xbf" + out.getvalue().encode("utf-8")
 
 
@@ -2267,6 +2269,20 @@ def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]] | Xlsx
             )
 
 
+_XLSX_BAD_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+_XLSX_CELL_LIMIT = 32767
+_XLSX_CUT_NOTE = " [\u2026 cortado: la celda de Excel admite 32.767 caracteres]"
+
+
+def _xlsx_text(value: str) -> str:
+    """A cell's text as Excel opens it: control characters XML cannot hold (a form feed in OCR text) dropped, and a text over
+    the 32,767-character cell limit cut with a note, so the workbook never reads as corrupt."""
+    value = _XLSX_BAD_CHARS.sub("", value)
+    if len(value) > _XLSX_CELL_LIMIT:
+        value = value[: _XLSX_CELL_LIMIT - len(_XLSX_CUT_NOTE)] + _XLSX_CUT_NOTE
+    return value
+
+
 def _xlsx_sheet(rows: list[dict[str, Any]] | XlsxGrid) -> str:
     frozen = 0
     if isinstance(rows, XlsxGrid):
@@ -2285,7 +2301,7 @@ def _xlsx_sheet(rows: list[dict[str, Any]] | XlsxGrid) -> str:
                 continue
             ref = f"{_xlsx_col_letter(col_index)}{row_index}"
             cells.append(
-                f'<c r="{ref}" t="inlineStr"><is><t>{escape(value)}</t></is></c>'
+                f'<c r="{ref}" t="inlineStr"><is><t>{escape(_xlsx_text(value))}</t></is></c>'
             )
         row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
 
