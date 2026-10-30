@@ -158,10 +158,13 @@ nothing.
    mask) is marked blank: kept, dimmed, **hidden in the item view**, skipped by every later step (find
    regions, leave out, read, check), never deleted. A person unhides one with one click, and an unhidden
    page runs through the steps it skipped.
-   **"Sure" means** ink under 0.02 % of the page after the ruling mask (a tenth of the 0.2 % line) **and** no text line found
-   on the page, when lines exist for it. Between 0.02 % and 0.2 %, or with a line found, the page is *unsure*: it stays
-   shown and a `blank` proposal is stored on the page (`prep_proposals`, for Pages to check). Three short pen strokes on
-   a ruled ledger page are unsure, never hidden: a hidden page is never read.
+   **"Sure" means** no mark at all at the faint cut (12 grey levels under the paper, ruling and specks taken out: a folio
+   number, a squiggle and faded pen are all marks) **and** no text line found on the page, when lines exist for it. A page
+   with ink over 0.2 % is shown as written. In between, or with a line found, the page is *unsure*: it stays shown and a
+   `blank` proposal is stored on the page (`prep_proposals`, for Pages to check). The faint cut sits under the faint ink the
+   contrast step raises (20 to 30 levels), so a page that step would brighten is never hidden before it sees it. Three
+   short pen strokes on a ruled ledger page, or a folio number alone, are unsure, never hidden: a hidden page is never read.
+   Unmeasured on real scans: the cut is set from drawn pages.
 8. **Enhance** where asked: `image-enhancement.md`'s suite (contrast, yellowing, stains, ruling,
    show-through, binarise, denoise, sharpen), each a rendition.
 

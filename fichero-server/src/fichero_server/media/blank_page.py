@@ -17,18 +17,15 @@ import numpy as np
 
 #: Ink under this share of the page's pixels, after the ruling mask: blank.
 INK_MAX = 0.002
-#: "Sure" (`prep.blank-pages-marked`): ink under this share after the ruling mask, a tenth of INK_MAX. Between the two a
-#: page is unsure: three short pen strokes on a ruled ledger page are about 0.0005, and a page hidden by mistake is
-#: never read, so unsure becomes a proposal and the page stays.
-INK_SURE = 0.0002
 #: Ink is measured at this long side at most (memory), never the 900 px the paper's light is estimated at: shrinking a
 #: scan to 900 px averaged thin pencil strokes below the contrast cut and hid pages with writing (review 2026-10-29).
 WORK_SIDE = 4000
 PAPER_SIDE = 900
 #: A dark mark must be this much darker than the paper around it; a page is hidden as blank only when nothing is there
-#: even at the fainter cut (pencil, a faded pen), where show-through and stains still stay under it.
+#: even at the fainter cut. The cut is under the faint ink the contrast step exists to raise (faded pen, pencil: 20 to 30
+#: levels under the paper, `prepare.is_faded`): a page the contrast step would raise is never hidden before it sees it.
 CONTRAST = 40
-CONTRAST_FAINT = 25
+CONTRAST_FAINT = 12
 #: A mark is dust unless it is at least this long, as a share of the picture's long side, and a few pixels in area.
 SPECK_EXTENT = 0.004
 SPECK_AREA = 4
@@ -97,13 +94,14 @@ def is_blank(image: Any, box: list[float] | None = None) -> bool:
 
 
 def blank_verdict(image: Any, has_lines: bool | Callable[[], bool] = False, box: list[float] | None = None) -> str:
-    """`blank` only when sure (ink under INK_SURE and no text line found on the page); `unsure` when the ink is under
-    INK_MAX but not that little, or a line was found; else `ink`. `has_lines` may be a function, asked only when the ink
-    alone would call the page blank (a text read costs seconds); `box` is the page's box, the share being of the paper."""
-    share = ink_share(image, box)
-    if share >= INK_MAX:
+    """`blank` only when sure: no mark at all at the faint cut (ruling, specks and dust taken out; a folio number, a
+    squiggle, faded pen all count as marks), and no text line found on the page. `unsure` when the ink is under INK_MAX but
+    there is a faint mark or a line; else `ink`. `has_lines` may be a function, asked only when the marks alone would call
+    the page blank (a text read costs seconds); `box` is the page's box, the share being of the paper."""
+    gray = work_gray(image, box)
+    if float(marks(gray, CONTRAST).sum()) / gray.size >= INK_MAX:
         return "ink"
-    if share >= INK_SURE or ink_share(image, box, CONTRAST_FAINT) >= INK_SURE:
+    if marks(gray, CONTRAST_FAINT).any():
         return "unsure"
     return "unsure" if (has_lines() if callable(has_lines) else has_lines) else "blank"
 

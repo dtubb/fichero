@@ -236,3 +236,37 @@ def test_the_text_read_is_asked_only_when_the_ink_alone_would_hide_the_page():
 
     assert blank_verdict(_graph_paper(ink=True), reads) == "ink" and asked == []
     assert blank_verdict(_graph_paper(ink=False), reads) == "unsure" and asked == [1]
+
+
+def test_faded_writing_and_small_marks_are_never_called_blank():
+    """Review HIGH 2: ink 22 levels under the paper (faded pen, which `prepare.is_faded` would raise), a hand-drawn squiggle
+    and a folio number alone are marks, not a blank page. With no text read at all (Vision absent) none is hidden."""
+    from fichero_server.media.blank_page import blank_verdict
+
+    assert blank_verdict(_pencil_scan(3000, 4200, 8, grey=214, stroke=3)) != "blank"  # about 22 levels under the paper
+
+    squiggle = _ledger_with_strokes(0)
+    ImageDraw.Draw(squiggle).line([(300, 1150), (330, 1128), (360, 1150), (390, 1128)], fill=(190, 190, 190), width=3)  # between two bars
+    assert blank_verdict(squiggle) != "blank"
+
+    folio = _ledger_with_strokes(0)
+    ImageDraw.Draw(folio).text((420, 1135), "17", fill=(60, 60, 60))
+    assert blank_verdict(folio) != "blank"
+
+    assert blank_verdict(_ledger_with_strokes(0)) == "blank"  # ruling alone is still blank
+
+
+def test_a_faded_written_page_is_not_hidden_by_the_run(db, tmp_path, monkeypatch):
+    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.recipes import page_crop
+
+    monkeypatch.setattr(page_crop, "_has_text", lambda *args: False)
+    path = tmp_path / "faded.png"
+    _pencil_scan(3000, 4200, 8, grey=214, stroke=3).save(path)
+    doc = Document(name=path.name, doc_type=DocType.page, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+
+    account = page_crop.crop_pages(db, [doc.id], "run-1", prepare=True)
+
+    assert account["blank"] == 0
+    assert not db.get(Document, doc.id).exclude_from_processing
