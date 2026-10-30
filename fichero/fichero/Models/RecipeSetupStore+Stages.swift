@@ -41,10 +41,28 @@ extension RecipeSetupStore {
         stageChoice?.toggle(id)
         applyStageChoiceToJobs()
         // Leave Out's own question is the step's on/off (`source.recipe.leave-out-stage`): the tick and the toggle agree.
-        if id == "leave-out", let choice = stageChoice {
+        if id == Self.leaveOutStage, let choice = stageChoice {
             jobAnswers[question: Self.leaveOutQuestion] = .yesNo(choice.chosen.contains(id))
         }
     }
+
+    /// Leave Out turned on or off from anywhere but the chooser (its page's toggle, Ready's take out and put back): the
+    /// answer is saved and the stage's tick follows, so the three never disagree. A tick that cannot change (another
+    /// chosen stage needs the stage) leaves the answer as the tick has it.
+    func setLeaveOut(_ on: Bool) {
+        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(on)
+        guard let choice = stageChoice else { return }
+        if choice.chosen.contains(Self.leaveOutStage) != on { stageChoice?.toggle(Self.leaveOutStage) }
+        let ticked = stageChoice?.chosen.contains(Self.leaveOutStage) ?? on
+        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(ticked)
+        // only this job's lines: the other steps taken out on Ready stay taken out
+        removedJobs.removeAll { $0 == Self.leaveOutStage }
+        addedJobs.removeAll { $0 == Self.leaveOutStage }
+        if ticked { addedJobs.append(Self.leaveOutStage) } else { removedJobs.append(Self.leaveOutStage) }
+    }
+
+    /// The Leave Out stage and its one job (`recipes/stages.py`).
+    static let leaveOutStage = "leave-out"
 
     /// The stage question that turns Leave Out on or off (`recipes/assemble.LEAVE_OUT_QUESTION`).
     static let leaveOutQuestion = "leave_out"

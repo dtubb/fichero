@@ -241,9 +241,10 @@ def offered(stage: Stage) -> bool:
 
 
 def _answer(q: Question, answered: dict[str, Any], recipe: dict[str, Any] | None) -> Any:
-    """What a question shows: the person's answer, else (for a question tied to a job, once there is a recipe) whether the
-    recipe has it, else its default."""
-    if q.key in answered or not q.plan_job or recipe is None:
+    """What a question shows: for a question tied to a job, once there is a recipe, whether the recipe has it (the plan is
+    what will run, so a saved answer the plan no longer follows, a step taken out on Ready, never shows); else the person's
+    answer, else its default."""
+    if not q.plan_job or recipe is None:
         return answered.get(q.key, q.default)
     return q.plan_job in {str(s.get("job")) for s in recipe.get("steps") or []}
 

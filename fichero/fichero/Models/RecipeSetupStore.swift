@@ -576,12 +576,14 @@ extension RecipeSetupStore {
     func takeOut(job: String) async {
         guard !removedJobs.contains(job) else { return }
         removedJobs.append(job)
+        if job == Self.leaveOutStage { setLeaveOut(false) }  // the saved answer follows the plan, never contradicts it
         await assemble()
     }
 
     /// Put a step taken out back into the plan.
     func putBack(job: String) async {
         removedJobs.removeAll { $0 == job }
+        if job == Self.leaveOutStage { setLeaveOut(true) }
         await assemble()
     }
 

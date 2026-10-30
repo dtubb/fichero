@@ -63,3 +63,12 @@ def test_unanswered_it_shows_what_the_saved_plan_has(client, with_material):
 def test_an_answer_that_is_not_yes_or_no_is_refused_in_words(bad):
     with pytest.raises(ValueError, match="Leave Out is yes or no"):
         normalise({"job_answers": {"leave_out": bad}}, strict=True)
+
+
+def test_a_step_taken_out_on_ready_shows_no_whatever_answer_was_saved(client, with_material):
+    """The saved answer said yes, then the step was taken out of the plan: the toggle shows the plan, not the stale yes."""
+    answers = {**ANSWERS, "job_answers": {"leave_out": True}}
+    recipe = client.post("/api/recipes/assemble", json=answers).json()
+    without = [s for s in recipe["steps"] if s["job"] != "leave-out"]
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": {**recipe, "steps": without}}).status_code == 200
+    assert _question(client)["answer"] is False

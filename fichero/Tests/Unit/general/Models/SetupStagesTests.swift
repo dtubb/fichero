@@ -112,6 +112,29 @@ struct SetupStagesTests {
         #expect(RecipeSetupStore.secondReviewStepId == "correct-2")
     }
 
+    @Test("source.recipe.leave-out-stage: the page's toggle and Ready's take out and put back keep the stage's tick and the answer in step")
+    func leaveOutStaysInStep() async {
+        let leaveOut = SetupStageChoice.Stage(id: "leave-out", jobs: ["leave-out"], needs: [])
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.stageChoice = SetupStageChoice(stages: [Self.lines, leaveOut], chosen: ["find-lines", "leave-out"])
+        store.setLeaveOut(false)  // the toggle on the page
+        #expect(store.stageChoice?.chosen == ["find-lines"], "the chooser's tick follows the toggle")
+        #expect(store.removedJobs == ["leave-out"])
+        store.setLeaveOut(true)
+        #expect(store.stageChoice?.chosen == ["find-lines", "leave-out"])
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(true))
+        #expect(!store.removedJobs.contains("leave-out"))
+        store.removedJobs = ["other-step"]
+        store.setLeaveOut(false)
+        #expect(Set(store.removedJobs) == ["other-step", "leave-out"], "a step taken out on Ready stays out")
+        await store.putBack(job: "leave-out")  // Ready's put back
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(true))
+        #expect(store.stageChoice?.chosen.contains("leave-out") == true)
+        await store.takeOut(job: "leave-out")  // Ready's take out: no saved yes against a plan without the step
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(false))
+        #expect(store.stageChoice?.chosen.contains("leave-out") == false)
+    }
+
     @Test("source.onboard.stages.goals-are-shortcuts: a goal ticks its stages; a stage unticked afterwards stays so")
     func goalsAreShortcuts() {
         var choice = choice()
