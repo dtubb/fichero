@@ -372,15 +372,19 @@ def correct_lines(
     by_id: dict[str, str] = {}
     unreadable: set[str] = set()
     uncertain: set[str] = set()
+    tied = 0  # answer lines that name a listed line: a line named twice is still two answer lines, the later one wins
     for line in answer:
         segment_id, flag, said_text, _note = answer_line(line)
         if segment_id in ids and "|" in line:
+            tied += 1
             by_id[segment_id] = said_text
+            unreadable.discard(segment_id)
+            uncertain.discard(segment_id)
             if flag == "unreadable":
                 unreadable.add(segment_id)
             elif flag == "uncertain":
                 uncertain.add(segment_id)
-    if answer and len(by_id) == len(answer):
+    if answer and tied == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):
         corrected = {segment_id: new for (segment_id, _, _), new in zip(shown, answer)}

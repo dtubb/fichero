@@ -189,11 +189,12 @@ def as_prompt_context(context: ToolContext, *, confidence: bool = False) -> str:
         return f"This page has {context.statement}."
     settle = ""
     if context.first_review:
+        # Rows that start with no segment id: they are not listed lines, so no count, trim or answer takes them for one.
         settle = (
-            "\n\nAnother reviewer already changed these lines (id | its version). Review the reading above yourself, "
-            "then settle each of these between your version and theirs: answer with the one you judge right, and mark "
-            "the line `uncertain` when you cannot settle it, so a person can look:\n"
-            + "\n".join(f"{i} | {t}" for i, t in context.first_review.items()))
+            "\n\nAnother reviewer already changed the lines named below. They are not extra lines to answer. Review the "
+            "reading above yourself; for each named line, answer its one line as usual with the version you judge right "
+            "between yours and theirs, and mark that line `uncertain` when you cannot settle it, so a person can look:\n"
+            + "\n".join(f"their version of {i}: {t}" for i, t in context.first_review.items()))
     return (
         "The page's existing reading, one line per segment: id | x y w h (fractions of the page) | "
         f"who made it | {'how sure the machine was (0 to 1, - if not stated) | ' if confidence else ''}text. "

@@ -51,7 +51,7 @@ def test_both_is_given_the_starting_reading_and_the_first_reviews_version_to_set
     got = tool_context(db, doc_id, review_mode=BOTH)
     assert _text_of(got, line) == before and got.first_review == {line: FIRST_REVIEW}
     words = as_prompt_context(got)
-    assert f"{line} | {FIRST_REVIEW}" in words and "uncertain" in words and "settle" in words
+    assert f"their version of {line}: {FIRST_REVIEW}" in words and "uncertain" in words and "settle" in words
     assert "settle" not in as_prompt_context(tool_context(db, doc_id, review_mode=COMPARE))
 
 
@@ -90,3 +90,28 @@ def test_a_line_flagged_uncertain_outside_both_is_as_before(db):
     doc_id, line, _before = _reviewed_page(db)
     reading = _settled(db, doc_id, line, "the second reviewer's version", settling=False)
     assert reading.machine_confidence is None
+
+
+def test_the_settle_rows_are_not_listed_lines_so_nothing_counts_or_trims_them(db):
+    from fichero_server.workflows.tools.transcribe_review import _SHOWN_LINE, _only_unsure, shows_segment_lines
+
+    doc_id, line, _before = _reviewed_page(db)
+    words = as_prompt_context(tool_context(db, doc_id, review_mode=BOTH), confidence=True)
+    listed = [row for row in words.splitlines() if _SHOWN_LINE.match(row)]
+    assert len(listed) == len(tool_context(db, doc_id, review_mode=BOTH).segment_ids)
+    assert FIRST_REVIEW in words and shows_segment_lines(words)
+    _kept, _said, (_sent, total) = _only_unsure(words, 0.5, "m")
+    assert total == len(listed)
+
+
+def test_an_answer_that_names_a_line_twice_still_ties_and_the_later_answer_wins(db):
+    from fichero_server.llm.working_lines import correct_lines
+
+    doc_id, line, _before = _reviewed_page(db)
+    artifact = Artifact(document_id=doc_id, artifact_type="transcription_review",
+                        content=f"{line} | certain | settled text\n{line} | uncertain | settled text again")
+    db.save(artifact)
+    made, said = correct_lines(db, document_id=doc_id, text=artifact.content, artifact_id=artifact.id, run_id=None,
+                               settling=True)
+    assert len(made) == 1 and "NOT_TIED" not in said
+    assert db.get(ContentRepresentation, made[0]).content == "settled text again"
