@@ -98,6 +98,20 @@ final class SendLogsToMaintainerTests: XCTestCase {
         }
     }
 
+    /// about.txt carries no username: the home folder is `~`.
+    func testAboutTextPathsCarryNoUsername() throws {
+        XCTAssertEqual(
+            SupportLogs.anonymisedPath("/Users/" + "jane" + "/Library/Containers/app/Data/Library/Logs/Fichero", home: "/Users/" + "jane" + "/Library/Containers/app/Data"),
+            "~/Library/Logs/Fichero"
+        )
+        XCTAssertEqual(SupportLogs.anonymisedPath("/Users/" + "jane" + "/Library/Logs/Fichero", home: "/elsewhere"), "~/Library/Logs/Fichero")
+        let logs = scratch.appendingPathComponent("Logs/Fichero", isDirectory: true)
+        let out = scratch.appendingPathComponent("out", isDirectory: true)
+        try SupportLogs.collect(logsDirectory: logs, into: out, about: "Fichero x (y)\n")
+        let about = try String(contentsOf: out.appendingPathComponent("about.txt"), encoding: .utf8)
+        XCTAssertFalse(about.contains(NSUserName() + "/"), "about.txt names the user: \(about)")
+    }
+
     func testExclusionRules() {
         for name in ["library.duckdb", "x.db", "x.sqlite", "A.fichero", ".api-key", "bootstrap-token", "Credentials.json",
                      "a.pem", "b.key", "my-secret.txt", "Password.txt"] {

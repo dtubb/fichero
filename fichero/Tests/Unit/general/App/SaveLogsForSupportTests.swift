@@ -62,7 +62,7 @@ final class SaveLogsForSupportTests: XCTestCase {
         XCTAssertTrue(aboutText.hasPrefix("Fichero 2026.10.10 (42)\n"))
         XCTAssertTrue(aboutText.contains("Feature tier: dev\n"))
         XCTAssertTrue(aboutText.contains("Model: Mac14,2\n"))
-        XCTAssertTrue(aboutText.contains("Logs folder: \(logs.path)\n"))
+        XCTAssertTrue(aboutText.contains("Logs folder: \(SupportLogs.anonymisedPath(logs.path))\n"))
     }
 
     /// An engine.log under the cap is copied whole, untouched.

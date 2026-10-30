@@ -52,6 +52,17 @@ nonisolated enum SupportLogs {
         the app opened. Nothing is sent: your mail app opens a new message with the zip attached, and you press Send.
         """
 
+    /// A path with the person's home folder (and any other `/Users/<name>`) written `~`, so about.txt carries no
+    /// username.
+    static func anonymisedPath(_ path: String, home: String = NSHomeDirectory()) -> String {
+        var result = path
+        if !home.isEmpty, result.hasPrefix(home) { result = "~" + result.dropFirst(home.count) }
+        if result.hasPrefix("/Users/"), let slash = result.dropFirst("/Users/".count).firstIndex(of: "/") {
+            result = "~" + result[slash...]
+        }
+        return result
+    }
+
     /// Dev tier only (#5656): a support tool for testers, not a release feature.
     /// MainActor because `FeatureTier` is (the target's default isolation).
     @MainActor static func isOffered(for tier: FeatureTier) -> Bool { tier == .dev }
@@ -91,7 +102,7 @@ nonisolated enum SupportLogs {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
 
-        var logsNote = "Logs folder: \(logsDirectory.path)"
+        var logsNote = "Logs folder: \(anonymisedPath(logsDirectory.path))"
         if fileManager.fileExists(atPath: logsDirectory.path) {
             var enumerationError: Error?
             let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
@@ -290,8 +301,32 @@ struct SendLogsToMaintainerButton: View {
         }
     }
 
+    /// Removes the temporary folder holding the zip when the mail is sent or abandoned.
+    private final class Cleanup: NSObject, NSSharingServiceDelegate {
+        let folder: URL
+        init(folder: URL) { self.folder = folder }
+        func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) { remove() }
+        func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) { remove() }
+        private func remove() {
+            try? FileManager.default.removeItem(at: folder)
+            SendLogsToMaintainerButton.cleanups.removeAll { $0 === self }
+        }
+    }
+    /// Retained until the share ends: `NSSharingService.delegate` is weak.
+    private static var cleanups: [Cleanup] = []
+
+    /// A temp folder of an earlier send that was never completed (the app quit while the mail was open).
+    private static func removeLeftoverFolders() {
+        let temp = FileManager.default.temporaryDirectory
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: temp.path)) ?? []
+        for name in names where name.hasPrefix("SendLogs-") {
+            try? FileManager.default.removeItem(at: temp.appendingPathComponent(name))
+        }
+    }
+
     static func run() async {
         guard confirm() else { return }
+        removeLeftoverFolders()
         let tier = FeatureManager.shared.activeBuildTier.environmentValue
         let name = SupportLogs.archiveBaseName(date: Date()) + ".zip"
         let folder = FileManager.default.temporaryDirectory
@@ -300,11 +335,13 @@ struct SendLogsToMaintainerButton: View {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try await SupportLogs.makeArchive(at: url, about: SupportLogs.currentAbout(tier: tier))
-            try compose(attaching: url)
+            try compose(attaching: url, cleaningUp: folder)
         } catch SendLogsError.noMailAccount {
+            try? FileManager.default.removeItem(at: folder)
             // No mail account: the person still gets the zip, through the Save Logs panel, to send by hand.
             await SaveLogsForSupportButton.run()
         } catch {
+            try? FileManager.default.removeItem(at: folder)
             ExportPresentation.showError(error, title: "Couldn’t Prepare the Logs")
         }
     }
@@ -319,10 +356,13 @@ struct SendLogsToMaintainerButton: View {
     }
 
     /// A new mail with the zip attached; throws `noMailAccount` when this Mac cannot compose one.
-    private static func compose(attaching zip: URL) throws {
+    private static func compose(attaching zip: URL, cleaningUp folder: URL) throws {
         guard let service = NSSharingService(named: .composeEmail), service.canPerform(withItems: [zip]) else {
             throw SendLogsError.noMailAccount
         }
+        let cleanup = Cleanup(folder: folder)
+        cleanups.append(cleanup)
+        service.delegate = cleanup
         service.recipients = SupportLogs.maintainerRecipients
         service.subject = "Fichero logs"
         service.perform(withItems: [zip])
