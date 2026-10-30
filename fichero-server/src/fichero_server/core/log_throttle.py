@@ -53,10 +53,13 @@ def log_collapsed(
     *args: object,
     collapser: RepeatCollapser | None = None,
     now: float | None = None,
+    cause: BaseException | None = None,
     extra: dict | None = None,
 ) -> None:
-    """`extra` reaches both records, so a site that already `note`d the failure ledger keeps its `ledgered` flag (#6314)."""
-    admission = (collapser or _DEFAULT).admit(template, now)
+    """`cause`'s type joins the key: a different failure is a different line and is never hidden by a burst of another.
+    `extra` reaches both records, so a site that already `note`d the failure ledger keeps its `ledgered` flag (#6314)."""
+    key = template if cause is None else f"{template}|{type(cause).__qualname__}"
+    admission = (collapser or _DEFAULT).admit(key, now)
     if admission.summary:
         logger.log(level, "%s — repeated %d times in the last minute", template, admission.summary, extra=extra)
     if admission.write:

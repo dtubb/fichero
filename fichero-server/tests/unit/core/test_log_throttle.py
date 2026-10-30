@@ -44,3 +44,14 @@ def test_log_collapsed_writes_the_arguments_and_the_summary(caplog):
     assert messages[2] == "Failed for %s: %s — repeated 4 times in the last minute"
     assert messages[3] == "Failed for doc9: boom"
     assert len(messages) == 4
+
+
+def test_a_different_cause_is_not_hidden_by_a_burst_of_another(caplog):
+    """The key is the template AND the exception type: after five "model missing" lines, "disk full" still shows."""
+    collapser = RepeatCollapser(limit=2, window_s=60)
+    logger = logging.getLogger("throttle-cause")
+    with caplog.at_level(logging.WARNING, logger="throttle-cause"):
+        for n in range(6):
+            log_collapsed(logger, logging.WARNING, "Failed: %s", n, collapser=collapser, now=float(n), cause=FileNotFoundError())
+        log_collapsed(logger, logging.WARNING, "Failed: %s", "d", collapser=collapser, now=7.0, cause=OSError("disk full"))
+    assert [r.getMessage() for r in caplog.records][-1] == "Failed: d"

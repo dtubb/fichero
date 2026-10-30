@@ -6507,7 +6507,7 @@ class Database(DatabaseEmbeddingMixin):
             # A failing loop repeats this per document (380,611 lines in one engine.log): collapse it; the ledger counts the
             # cause once through `note`, so the record carries `ledgered` and the handler stays out.
             log_collapsed(logger, logging.DEBUG if isinstance(e, EmbedderUnavailable) else logging.WARNING,
-                          "Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
+                          "Failed to create embedding for %s: %s", doc.id, e, cause=e, extra={"ledgered": True})
             failure_ledger.note(
                 "search", "embed", type(e.__cause__ or e).__name__,
                 sentence="Search is not indexing new pages: the search model cannot be loaded"
