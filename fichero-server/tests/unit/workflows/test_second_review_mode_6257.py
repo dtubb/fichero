@@ -169,3 +169,16 @@ def test_the_node_config_a_plan_sends_reaches_the_review_nodes_inputs(db, monkey
             "tool_config": {"transcribe_review": {"review_mode": "both"}}}
     assert runner._run_workflow(db, card, ["p1"], "recipe-job")[1:] == ("failed", "stop here")
     assert seen["configs"] and all(config["review_mode"] == "both" for config in seen["configs"])
+
+
+def test_reading_before_reviews_asks_the_db_per_step_back_not_per_line(db, monkeypatch):
+    from fichero_server.tool_context import readings_before_reviews
+
+    doc_id, line, before = _reviewed_page(db)
+    readings = [r for r in db.query(ContentRepresentation, document_id=doc_id)]
+    gets = []
+    real_get = type(db).get
+    monkeypatch.setattr(type(db), "get", lambda self, *a, **k: gets.append(a) or real_get(self, *a, **k))
+    got = readings_before_reviews(db, readings)
+    assert not gets, "no single-row lookups"
+    assert got[next(r.id for r in readings if r.content == FIRST_REVIEW)].content == before

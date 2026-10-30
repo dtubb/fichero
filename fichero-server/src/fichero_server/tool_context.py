@@ -77,24 +77,39 @@ IN_TURN, COMPARE, BOTH = "in-turn", "compare", "both"
 REVIEW_MODES = (IN_TURN, COMPARE, BOTH)
 
 
-def reading_before_reviews(db: Any, reading: Any) -> Any:
-    """The reading a line had before any review changed it: a review's correction names the reading it corrects
-    (`derived_from_representation_id`), so walk back while the reading came from a review's artifact. The reading
-    itself when no review made it, or when the trail is broken (never a guess)."""
+def readings_before_reviews(db: Any, readings: list[Any]) -> dict[str, Any]:
+    """Each reading's reading before any review changed it, by the reading's id: a review's correction names the reading
+    it corrects (`derived_from_representation_id`), so walk back while a reading came from a review's artifact. The reading
+    itself when no review made it, or when the trail is broken (never a guess). One query per step back for all of them."""
     from fichero_server.models import Artifact, ContentRepresentation
 
-    current, seen = reading, set()
-    while current is not None and current.id not in seen:
-        seen.add(current.id)
-        artifact = db.get(Artifact, current.derived_from_artifact_id) if current.derived_from_artifact_id else None
-        if artifact is None or artifact.artifact_type != "transcription_review":
-            return current
-        parent = db.get(ContentRepresentation, current.derived_from_representation_id) \
-            if current.derived_from_representation_id else None
-        if parent is None:
-            return reading
-        current = parent
-    return reading
+    asked = [r for r in readings if r is not None]
+    current = {r.id: r for r in asked}
+    seen = {r.id: {r.id} for r in asked}
+    walking = set(current)
+    while walking:
+        artifacts = {a.id: a for a in db.query_in(
+            Artifact, "id", [current[i].derived_from_artifact_id for i in walking if current[i].derived_from_artifact_id])}
+        reviewed = {i for i in walking if getattr(artifacts.get(current[i].derived_from_artifact_id), "artifact_type", None)
+                    == "transcription_review"}
+        parents = {p.id: p for p in db.query_in(
+            ContentRepresentation, "id",
+            [current[i].derived_from_representation_id for i in reviewed if current[i].derived_from_representation_id])}
+        walking = set()
+        for i in reviewed:
+            parent = parents.get(current[i].derived_from_representation_id)
+            if parent is None:
+                current[i] = next(r for r in asked if r.id == i)  # the trail is broken: the reading itself
+            elif parent.id not in seen[i]:
+                seen[i].add(parent.id)
+                current[i] = parent
+                walking.add(i)
+    return current
+
+
+def reading_before_reviews(db: Any, reading: Any) -> Any:
+    """One reading's reading before any review changed it (`readings_before_reviews`)."""
+    return reading if reading is None else readings_before_reviews(db, [reading])[reading.id]
 
 
 def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None, *,
@@ -128,14 +143,15 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
     }
     rows: list[tuple[str, Any, Any, str]] = []  # (segment id, its row, its reading, its text)
     first_review: dict[str, str] = {}
-    for span in derived.spans:
-        if span.representation_id is None or (wanted is not None and not in_scope(span.segment_id)):
-            continue
+    spans = [s for s in derived.spans if s.representation_id is not None and (wanted is None or in_scope(s.segment_id))]
+    before = readings_before_reviews(db, [readings.get(s.representation_id) for s in spans]) \
+        if review_mode != IN_TURN else {}
+    for span in spans:
         reading, text = readings.get(span.representation_id), derived.text[span.start:span.end].replace("\n", " ")
-        before = reading_before_reviews(db, reading) if review_mode != IN_TURN else reading
-        if before is not reading and before is not None and before.content.strip() != text.strip():
+        first = before.get(getattr(reading, "id", None))
+        if first is not None and first is not reading and first.content.strip() != text.strip():
             first_review[span.segment_id] = text
-            reading, text = before, before.content.replace("\n", " ")
+            reading, text = first, first.content.replace("\n", " ")
         rows.append((span.segment_id, shapes.get(span.segment_id), reading, text))
     rows = _grouped_into_lines(rows, shapes)
     lines, ids = [], []
