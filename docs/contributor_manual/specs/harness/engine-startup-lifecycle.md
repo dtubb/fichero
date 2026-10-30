@@ -434,7 +434,7 @@ errant `Fichero Server` from an earlier run, and the new app could not reach its
   last minute", then starts a new window. Applied first to `Failed to create embedding for %s: %s`
   (`db/__init__.py`). A repeat held back and never followed by another occurrence is not announced (the
   summary needs a next line to ride on); `core/log_throttle.py`. *Test:* `fichero-server/tests/unit/core/test_log_throttle.py`.
-- `engine.stale-engines-ended-at-launch` — **[GAP]** (owner 2026-10-30; supersedes the environment-reading
+- `engine.stale-engines-ended-at-launch` — **[PARTIAL]** (owner 2026-10-30; supersedes the environment-reading
   `terminateOrphanEngines` rule of #2079, which relied on `ps -E` and `FICHERO_PARENT_PID`, readings that a
   sandboxed dev app may not get) before the app starts its own engine it ends the engine processes an earlier
   run left behind. **Which processes count as stale**, all of: (1) the executable's path lies in a bundle
@@ -455,7 +455,7 @@ errant `Fichero Server` from an earlier run, and the new app could not reach its
   (`StaleEngineSweep.pidsToEnd`). *Test:* `Tests/Unit/general/Services/StaleEngineSweepTests.swift`
   (orphan ended; helper of a live app kept; dev uvicorn kept; other bundle with live parent kept; other user's
   kept; the app's own pid kept; table parsing), and `fichero-server/tests/unit/api/test_one_engine_per_socket.py`
-  (a SIGKILLed engine's socket is reclaimed).
+  (a SIGKILLed engine's socket is reclaimed; run, 14 passed). PARTIAL: written 2026-10-30 without building. `StaleEngineSweep.swift` was compiled and its rules run with a bare `swiftc` harness; the Xcode build, `StaleEngineSweepTests`, the `ps` read and the notice in the connection popover have not been built or run. The one-line notice is `EmbeddedBackendService.staleEngineNotice`, shown under the status detail in `BackendConnectionView`.
 
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 

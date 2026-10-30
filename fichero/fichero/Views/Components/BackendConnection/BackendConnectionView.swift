@@ -87,6 +87,12 @@ struct BackendConnectionView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if let notice = backendService.staleEngineNotice {
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("backend.connection.staleEngineNotice")
+        }
         if status.isRecovering {
             // Recovery is automatic — say so and let it happen (#4296).
             ProgressView()

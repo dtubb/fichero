@@ -116,60 +116,62 @@ extension EmbeddedBackendService {
     // a binary the reviewer greps. The MAS build manages only the Process handle
     // it owns; see resolvePortConflict().
     #if !FICHERO_APP_STORE
-    /// SIGTERM a "Fichero Server" subprocess left over from a previous run of
-    /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
-    /// crash, or force-quit). Called off the main actor before spawning a new engine
-    /// so the new spawn can bind port 8765 cleanly.
+    /// End the "Fichero Server" helpers an earlier run of this app left behind (spec
+    /// `engine.stale-engines-ended-at-launch`; supersedes the #2079 rule that read `FICHERO_PARENT_PID` from each
+    /// candidate's environment with `ps -E`). Called off the main actor before spawning, so the new engine can bind.
     ///
-    /// SAFETY (#2079): a host can BOTH serve a shared engine (for remote users)
-    /// AND run the app. Killing local engines by name pattern would SIGTERM that
-    /// shared engine out from under its users. We therefore never kill by name
-    /// alone — only engines that provably belong to this app's lineage. The rule,
-    /// in priority order, per candidate engine PID:
-    ///   • configured to use a custom/remote host  → we own NO local engine;
-    ///     skip the whole sweep (early return below).
-    ///   • engine has no recorded `FICHERO_PARENT_PID`  → started independently
-    ///     of any app (a shared/manually-run engine) — SPARE it.
-    ///   • recorded parent is still alive and isn't us  → a DIFFERENT live owner
-    ///     is using it — SPARE it.
-    ///   • recorded parent is us, or is dead  → a genuine orphan of a Fichero
-    ///     app run that no longer exists — KILL it.
-    ///
-    /// Correctness over aggressiveness: it is better to leave a real orphan
-    /// running (the user can kill it) than to SIGTERM a shared engine others
-    /// depend on. When in doubt we spare.
+    /// SAFETY, the whole policy in `StaleEngineSweep.pidsToEnd` (pure, tested): only a process whose executable is a
+    /// `Fichero Server.app` helper, owned by this user, and an ORPHAN (its parent is launchd or gone). A helper whose
+    /// parent is alive — this app's own engine, another running copy of the app, one started from a shell — is spared,
+    /// and so is every uvicorn/python dev engine (not a bundle): the maintainer's external dev engine is never touched.
+    /// When in doubt we spare. SIGTERM, then `TerminationDeadlinePolicy.quit` (2 s) and SIGKILL.
     nonisolated static func terminateOrphanEngines() {
         if EngineConfig.usesCustomHost {
             logger.info("Custom/remote engine host configured — skipping orphan sweep (no local engine is ours to kill)")
             return
         }
-
-        let thisAppPID = ProcessInfo.processInfo.processIdentifier
-
-        let pgrep = Process()
-        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        pgrep.arguments = ["-f", "Fichero Server.app/Contents/MacOS"]
-        let pipe = Pipe()
-        pgrep.standardOutput = pipe
-        pgrep.standardError = FileHandle.nullDevice
-        guard (try? pgrep.run()) != nil else { return }
-        pgrep.waitUntilExit()
-        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-        guard let output = String(data: data, encoding: .utf8) else { return }
-        for line in output.split(separator: "\n") {
-            guard let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) else { continue }
-
-            guard let parent = engineParentPID(pid) else {
-                logger.info("Engine PID \(pid) has no FICHERO_PARENT_PID — not app-spawned, sparing")
-                continue
-            }
-            if parent != thisAppPID, isProcessAlive(parent) {
-                logger.info("Engine PID \(pid) owned by live app PID \(parent) — sparing")
-                continue
-            }
-            logger.info("Terminating orphan engine PID \(pid) (parent \(parent) is this app or dead)")
-            kill(pid, SIGTERM)
+        guard let table = readProcessTable() else {
+            logger.error("Stale-engine sweep skipped: could not read the process table")
+            return
         }
+        let stale = StaleEngineSweep.pidsToEnd(
+            table: table,
+            currentUID: getuid(),
+            ownPID: ProcessInfo.processInfo.processIdentifier
+        )
+        guard !stale.isEmpty else { return }
+        for pid in stale { kill(pid, SIGTERM) }
+        let started = Date()
+        var escalated = false
+        let policy = TerminationDeadlinePolicy.quit
+        while true {
+            let gone = stale.allSatisfy { childHasExited(pid: $0) }
+            switch policy.action(elapsed: Date().timeIntervalSince(started), childHasExited: gone, hasEscalated: escalated) {
+            case .replyNow:
+                logger.info("Ended \(stale.count) stale Fichero Server process(es) from an earlier run: \(stale.map(String.init).joined(separator: ", "), privacy: .public)")
+                StaleEngineSweep.record(ended: stale.filter { childHasExited(pid: $0) })
+                return
+            case .escalateToSIGKILL:
+                escalated = true
+                for pid in stale where !childHasExited(pid: pid) { kill(pid, SIGKILL) }
+            case .waitMore:
+                Thread.sleep(forTimeInterval: policy.pollInterval)
+            }
+        }
+    }
+
+    nonisolated private static func readProcessTable() -> [StaleEngineSweep.ProcessFact]? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-axww", "-o", "pid=,ppid=,uid=,comm="]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        task.waitUntilExit()
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        return StaleEngineSweep.parseTable(output)
     }
 
     /// The orphan sweep as ITS OWN named, awaited seam (#4896, spec:
@@ -191,35 +193,6 @@ extension EmbeddedBackendService {
         }.value
     }
 
-    /// Read the `FICHERO_PARENT_PID` recorded in a candidate engine's
-    /// environment (set by `launchEmbeddedBackend` on spawn). `ps -E` appends a
-    /// process's environment to its command-line output, so we can recover the
-    /// owner without a pidfile. Returns nil when the var is absent (engine
-    /// started independently of any app) or the environment can't be read.
-    nonisolated private static func engineParentPID(_ pid: pid_t) -> pid_t? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["-E", "-ww", "-o", "command=", "-p", String(pid)]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-        guard (try? task.run()) != nil else { return nil }
-        task.waitUntilExit()
-        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-        guard let output = String(data: data, encoding: .utf8),
-              let range = output.range(of: "FICHERO_PARENT_PID=") else { return nil }
-        let digits = output[range.upperBound...].prefix { $0.isNumber }
-        return pid_t(digits)
-    }
-
-    /// True if `pid` names a live process — exists, even if owned by another
-    /// user we lack permission to signal. `kill(_, 0)` returns 0 when the
-    /// process exists and is signalable, or fails with EPERM when it exists but
-    /// belongs to a different owner. Both mean "alive" for orphan-kill purposes.
-    nonisolated private static func isProcessAlive(_ pid: pid_t) -> Bool {
-        if pid <= 0 { return false }
-        return kill(pid, 0) == 0 || errno == EPERM
-    }
     #else
     /// App Sandbox: no orphan sweep (see `resolvePortConflict`). Kept only so
     /// that function's default argument compiles in the App Store build.
