@@ -22,7 +22,13 @@ struct RecipeReadyFields: View {
         // Native grouped sections, as System Settings draws them (#5840): a box per step, then the parts.
         Form {
             if let error = store.errorMessage {
-                Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    // A Start refused for a spend cap offers its fixes here, where the error is, not only below (#6295).
+                    if CloudCapFix.mentionsCap(error), let cap = store.startPlan?.cloudCap, cap.over {
+                        CloudCapOffers(store: store, line: cap, undo: project?.actionsService)
+                    }
+                }
             }
             if store.isAssembling {
                 Section { ProgressView() }

@@ -92,6 +92,8 @@ final class RecipeSetupStore {
     var spendCapUsd: Double?
     /// The cloud spend cap a month the person set; nil is the engine's US$10 (`ai.where.cloud-spend-cap`, #5943).
     var cloudSpendCapUsd: Double?
+    /// The most the project may spend on cloud calls in all; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
+    var cloudProjectCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -349,6 +351,10 @@ final class RecipeSetupStore {
     /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
     var isAddingMaterial = false
 
+    /// "Run fewer pages" (#6295): the plan and Start cover only the first N pages of the project in Finder order, as the engine
+    /// counts them; nil: every page. Never with a folder.
+    var runFirstPages: Int?
+
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
 
@@ -357,7 +363,7 @@ final class RecipeSetupStore {
     func loadStartPlan(folderId: String? = nil) async {
         do {
             if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet(
-                query: .init(folderId: folderId)
+                query: .init(folderId: folderId, firstPages: folderId == nil ? runFirstPages : nil)
             ) {
                 startPlan = try success.body.json
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
@@ -385,9 +391,10 @@ final class RecipeSetupStore {
     /// its `missed` names them (a run an import started, #6170).
     func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil) async -> Bool {
         do {
+            let first = folderId == nil && documents == nil ? runFirstPages : nil
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil
-                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents))
+                folderId == nil && redo.isEmpty && documents == nil && first == nil
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json
@@ -501,12 +508,13 @@ final class RecipeSetupStore {
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
+                           cloudProjectCapUsd: cloudProjectCapUsd,
                            copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
     /// engine wrote that setup does not ask about (`answers.layers`, `mac_memory_gb`, …).
-    private var savedAnswers: Data?
+    var savedAnswers: Data?
 
     /// Setup's answers over the saved ones: a field setup asks about takes setup's value; any
     /// other field the engine saved stays as it was (`source.onboard.add-layer`). The old
@@ -544,6 +552,7 @@ final class RecipeSetupStore {
         if let value = saved.place { place = value }
         spendCapUsd = saved.hfSpendCapUsd
         cloudSpendCapUsd = saved.cloudSpendCapUsd
+        cloudProjectCapUsd = saved.cloudProjectCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.

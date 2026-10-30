@@ -6582,6 +6582,16 @@ def fichero_recipes_use_bakeoff_choice(
     return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "granularity": granularity, "scope": scope}))
 
 
+def fichero_recipes_change_cloud_cap(
+    *,
+    cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged.")] = None,
+    clear_project_cap: Annotated[Optional[bool], Field(description="remove the project's total cap (no such limit) Default: false.")] = None,
+    project_cap_usd: Annotated[Optional[float], Field(description='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.')] = None,
+) -> Any:
+    'Change Cloud Cap\n\nSet the project\'s monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up\'s "Raise the cap to N" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.\n\nRoute: PUT /api/recipes/project/cloud-cap (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_project_cap": clear_project_cap, "project_cap_usd": project_cap_usd}))
+
+
 def fichero_recipes_change_project_layers(
     *,
     languages: Annotated[Optional[list[Any]], Field(description='BCP 47 language tags to add.')] = None,
@@ -6622,22 +6632,24 @@ def fichero_recipes_run_summary(
 
 def fichero_recipes_get_start_plan(
     *,
+    first_pages: Annotated[Optional[int], Field(description='plan Start on the first N pages of the project in Finder order ("run fewer pages", #6295); never with `folder_id`')] = None,
     folder_id: Annotated[Optional[str], Field(description='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project')] = None,
     summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'Get Start Plan\n\nWhat Start would run on this project, or on one folder of it, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`). 422 for a folder not in the project.\n\nRoute: GET /api/recipes/project/start (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id, "summary": summary})
+    return _rt.call("GET", "/api/recipes/project/start", params={"first_pages": first_pages, "folder_id": folder_id, "summary": summary})
 
 
 def fichero_recipes_start_project(
     *,
     accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
     documents: Annotated[Optional[list[Any]], Field(description="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`.")] = None,
+    first_pages: Annotated[Optional[int], Field(description='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.')] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "redo": redo}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -9875,6 +9887,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_start_bakeoff", "recipes", "POST", "/api/recipes/project/bakeoffs", fichero_recipes_start_bakeoff),
     GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
+    GeneratedTool("fichero_recipes_change_cloud_cap", "recipes", "PUT", "/api/recipes/project/cloud-cap", fichero_recipes_change_cloud_cap),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
     GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),

@@ -87,6 +87,11 @@ struct ProjectRunStrip: Equatable {
         detail = [words.detail, pagesAtOnce?.words].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
+    /// Whether the run is stopped or paused at a spend cap, by its own words (the engine's refusal names the cap).
+    nonisolated static func stoppedAtCap(_ strip: ProjectRunStrip, failure: String? = nil) -> Bool {
+        CloudCapFix.mentionsCap(failure) || CloudCapFix.mentionsCap(strip.detail)
+    }
+
     /// The state the strip goes by. The run's tree is the record, but a failed tree read keeps the last tree (`ActivityStore`
     /// `fetchRunTree`), so a run that has ended can still look running there while the jobs list, polled, already says it ended
     /// or stalled: an end, a stall or a pause in the list wins over a tree that has not caught up. Pure, tested without a store.
@@ -226,6 +231,7 @@ struct ProjectRunStripView: View {
     @Environment(ActivityStore.self) private var store
     @Environment(\.openWindow) private var openWindow
     @State private var failure: String?
+    @State private var changingCaps = false
 
     var body: some View {
         if let strip = ProjectRunStrip(store: store) {
@@ -242,8 +248,19 @@ struct ProjectRunStripView: View {
                     }
                 },
                 onShowDetails: { showDetails(strip.jobId) },
-                onClose: { store.putAwayProjectRun() }
+                onClose: { store.putAwayProjectRun() },
+                // A run stopped or paused at a spend cap changes the caps here, in place (#6295).
+                onChangeCaps: ProjectRunStrip.stoppedAtCap(strip, failure: failure) ? { changingCaps = true } : nil
             )
+            .popover(isPresented: $changingCaps, arrowEdge: .top) { capsPopover }
+        }
+    }
+
+    /// The caps to change, beside the amounts the engine says the plan needs; the plan is read when it opens.
+    @ViewBuilder
+    private var capsPopover: some View {
+        if let library = LibraryManager.shared.openLibraries.first(where: { $0.id == libraryId }) {
+            CloudCapChangeView(store: library.recipeSetupStore, undo: library.actionsService)
         }
     }
 
@@ -264,6 +281,8 @@ struct ProjectRunStripRow: View {
     var runAgain: (_ missed: ActivityDetails.MissedOffer) -> Void = { _ in }
     let onShowDetails: () -> Void
     let onClose: () -> Void
+    /// Change the spend caps in place: offered only when the run stopped at one (`ProjectRunStrip.stoppedAtCap`).
+    var onChangeCaps: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -298,6 +317,11 @@ struct ProjectRunStripRow: View {
                     .controlSize(.small)
                     .help(missed.words)
                     .accessibilityIdentifier("project.runStrip.runAgainOnMissed")
+            }
+            if let onChangeCaps {
+                Button("Change the Cap…", action: onChangeCaps)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("project.runStrip.changeCap")
             }
             Button("Show Details", action: onShowDetails)
                 .controlSize(.small)

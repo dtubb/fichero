@@ -9608,6 +9608,16 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "PUT",
+        "path": "/recipes/project/cloud-cap",
+        "operation_id": "change_cloud_cap_api_recipes_project_cloud_cap_put",
+        "summary": "Change Cloud Cap",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CloudCapChange",
+        "response_model": "CloudCapChanged"
+      },
+      {
         "method": "POST",
         "path": "/recipes/project/layers",
         "operation_id": "change_project_layers_api_recipes_project_layers_post",
@@ -9668,6 +9678,11 @@
         "summary": "Get Start Plan",
         "path_params": [],
         "query_params": [
+          {
+            "name": "first_pages",
+            "required": false,
+            "type": "integer"
+          },
           {
             "name": "folder_id",
             "required": false,

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30
+
+- Set Up and Start: the cloud spending caps are on Ready beside the estimate and its basis, both the monthly cap and a new total cap for the project, each changed in place (audited, undoable); a Start refused for a cap says which one and offers "Raise the monthly cap to N", "Raise the project cap to N" or "Run the first N pages" (#6295).
+
 ## 2026-10-28
 
 - Set Up and Start: search model on the Search step (#6249); per-provider estimate, dated price list, unpriced models never block Start, cloud cap beside the estimate (#6265, #5943, #6259); a second Review model (#6257); Choose a Model on every model step; transcribe is lines alone by default (#6250); Tie text to lines picker (#6256); review instructions one pass at a time (#5481).

@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import contextvars
 import json
+import math
 import os
 import threading
 from collections.abc import AsyncIterator
@@ -24,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CAP_KEY = "cloud_spend_cap_usd"
+#: The most the project may spend on cloud calls in all, across months (maintainer's ruling 2026-10-30); unset: no such limit.
+PROJECT_CAP_KEY = "cloud_project_cap_usd"
 #: The cap of a project that has not set one (owner's ruling 2026-10-20: every project has a cap).
 DEFAULT_CAP_USD = 10.0
 #: What one call to a model with no listed price is held at, and booked at when it reports no priced usage.
@@ -126,6 +129,34 @@ def cap_usd(library: str | None) -> float | None:
     return float(cap) if ok else DEFAULT_CAP_USD
 
 
+def project_cap_usd(library: str | None) -> float | None:
+    """The most the project may spend on cloud calls in all (`answers.cloud_project_cap_usd`); None: no such limit. A
+    malformed answer is no limit here too, since the monthly cap still holds."""
+    if not library:
+        return None
+    try:
+        import yaml
+
+        answers = yaml.safe_load((_recipe_dir(library) / "setup.yaml").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 -- no setup, no project limit
+        return None
+    cap = answers.get(PROJECT_CAP_KEY) if isinstance(answers, dict) else None
+    ok = isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap >= 0
+    return float(cap) if ok else None
+
+
+def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
+    """Why `worst` more, beside what is booked and `reserved`, does not fit the monthly cap or the project's total cap, in words
+    naming that cap; None when it fits both. Called with the lock held."""
+    cap, project_cap = cap_usd(library), project_cap_usd(library)
+    booked, total = booked_usd(library), total_booked_usd(library)
+    if cap is not None and booked + reserved + worst > cap + 1e-9:
+        return f"this project's cloud spend is capped at ${cap:.2f} a month, of which ${booked:.2f} is spent this month"
+    if project_cap is not None and total + reserved + worst > project_cap + 1e-9:
+        return f"this project's cloud spend is capped at ${project_cap:.2f} in all, of which ${total:.2f} is spent"
+    return None
+
+
 def _month(now: datetime | None = None) -> str:
     return (now or datetime.now(timezone.utc)).strftime("%Y-%m")
 
@@ -137,6 +168,15 @@ def booked_usd(library: str, now: datetime | None = None) -> float:
     except (OSError, ValueError):
         return 0.0
     return float(data.get("usd", 0.0)) if data.get("month") == _month(now) else 0.0
+
+
+def total_booked_usd(library: str) -> float:
+    """What cloud calls have been booked in all, across months. A ledger from before the total was kept counts its month's spend."""
+    try:
+        data = json.loads((_recipe_dir(library) / LEDGER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0.0
+    return float(data.get("total_usd", data.get("usd", 0.0))) if isinstance(data, dict) else 0.0
 
 
 def _ledger(library: str, now: datetime | None = None) -> dict:
@@ -163,6 +203,7 @@ def _book(library: str, usd: float, now: datetime | None = None, *, assumed_pric
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps({"month": _month(now), "usd": round(float(data.get("usd", 0.0)) + usd, 6),
+                               "total_usd": round(total_booked_usd(library) + usd, 6),
                                "assumed_calls": calls, "assumed_usd": round(assumed_usd, 6)}), encoding="utf-8")
     os.replace(tmp, path)
 
@@ -224,15 +265,14 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     worst = (worst_case_usd(config, input_tokens) if config is not None else UNPRICED_CALL_USD) * max(1, calls)
     while True:
         with _LOCK:
-            booked, reserved = booked_usd(library), _RESERVED.get(library, 0.0)
-            if booked + worst > cap + 1e-9:
+            reserved = _RESERVED.get(library, 0.0)
+            if why := _past_a_cap(library, 0.0, worst):
                 paused = _ask_run_to_pause()
                 raise CloudSpendRefusedError(
-                    f"This project's cloud spend is capped at ${cap:.2f} a month; ${booked:.2f} is spent this month and this "
-                    f"call could cost up to ${worst:.2f}, so it was not sent"
+                    f"This call could cost up to ${worst:.2f} and {why}, so it was not sent"
                     + (" and the run is pausing" if paused else "")
-                    + ". Raise the cap in the project's Set Up to go on, or wait for the month to turn.")
-            if booked + reserved + worst <= cap + 1e-9:
+                    + ". Raise the cap in the project's Set Up to go on.")
+            if not _past_a_cap(library, reserved, worst):
                 _RESERVED[library] = reserved + worst
                 break
         await asyncio.sleep(0.2)  # the cap is reachable only through calls in flight: they will end
@@ -263,23 +303,44 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
                 _book(library, spent, assumed_price=unpriced)
 
 
-def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tuple[str, str]] | None = None) -> dict:
-    """Start's plan: the cap, what is booked this month, what it leaves, and the run's estimate beside them. `over` asks before
-    the run starts; an unknown estimate (a model with no listed price) is `unpriced`, never a $0. Models with no price the
-    project has not accepted are named in `unpriced_models` and the `note`, never a refusal (#6259); spend booked at an assumed
-    price is listed apart."""
+def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tuple[str, str]] | None = None,
+              pages: int = 0) -> dict:
+    """Start's plan: the monthly cap and the project's total cap, what is booked against each, what each leaves, and the
+    run's estimate beside them. `over` asks before the run starts, naming which cap (`over_month`, `over_project`) and the cap
+    that would let the estimate through (`needed_*`); `fewer_pages` is how many of the first pages (Finder order) fit. An
+    unknown estimate (a model with no listed price) is `unpriced`, never a $0. Models with no price the project has not
+    accepted are named in `unpriced_models` and the `note`, never a refusal (#6259); spend booked at an assumed price is
+    listed apart."""
     cap = cap_usd(library) or 0.0
     done = booked_usd(library)
     remaining = max(0.0, cap - done)
+    project_cap, total = project_cap_usd(library), total_booked_usd(library)
+    project_remaining = None if project_cap is None else max(0.0, project_cap - total)
     accepted = accepted_models(library)
     to_accept = sorted({model_key(provider, model) for provider, model in cloud_models or []
                         if not has_listed_price(provider, model) and model_key(provider, model) not in accepted})
     calls, usd = assumed(library)
     note = (f"No listed price for {', '.join(to_accept)}: counted at an assumed US${UNPRICED_CALL_USD:.2f} a call and listed "
             "apart; pressing Start accepts running them." if to_accept else None)
+    known = estimate_usd is not None
+    over_month = known and estimate_usd > remaining + 1e-9
+    over_project = known and project_remaining is not None and estimate_usd > project_remaining + 1e-9
+    room = min(remaining, project_remaining if project_remaining is not None else remaining)
+    fits = int(room * pages / estimate_usd) if (over_month or over_project) and estimate_usd and pages else None
     return {"note": note, "cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
-            "over": estimate_usd is not None and estimate_usd > remaining + 1e-9, "unpriced": estimate_usd is None,
+            "over": over_month or over_project, "unpriced": estimate_usd is None,
+            "over_month": over_month, "over_project": over_project,
+            "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,
+            "project_cap_usd": project_cap, "project_spent_usd": total,
+            "needed_project_cap_usd": needed_cap_usd(total, estimate_usd) if over_project else None,
+            "fewer_pages": fits if fits else None, "pages": pages,
             "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}
+
+
+def needed_cap_usd(spent_usd: float, estimate_usd: float) -> float:
+    """The smallest whole-cent cap under which this run's estimate fits what is already booked.
+    The best estimate itself, no margin (maintainer's ruling 2026-10-30; the estimate's own accuracy is #6294)."""
+    return math.ceil(round((spent_usd + estimate_usd) * 100, 6)) / 100
 
 
 # --- a provider batch (`compute.recipe.cloud-batch-consent-and-cost`, #5940) ----------------------------------------
@@ -312,15 +373,13 @@ def batch_worst_usd(provider: str, model: str, *, max_tokens: int, input_tokens:
 def reserve_batch(library: str, provider: str, model: str, *, requests: int, max_tokens: int) -> float:
     """Hold a batch's worst case against the cap from submission until it ends (it may answer a day later); refused in
     words, before anything is sent, when the booked spend, what is held and this batch do not fit. The amount held."""
-    cap = cap_usd(library)
     worst = batch_worst_usd(provider, model, max_tokens=max_tokens) * max(1, requests)
     with _LOCK:
-        booked, reserved = booked_usd(library), _RESERVED.get(library, 0.0)
-        if cap is not None and booked + reserved + worst > cap + 1e-9:
+        reserved = _RESERVED.get(library, 0.0)
+        if why := _past_a_cap(library, reserved, worst):
             raise CloudSpendRefusedError(
-                f"This project's cloud spend is capped at ${cap:.2f} a month; ${booked:.2f} is spent and ${reserved:.2f} is "
-                f"held for calls out, and this batch of {requests} could cost up to ${worst:.2f}, so it was not sent. "
-                "Raise the cap in the project's Set Up, or send fewer pages.")
+                f"This batch of {requests} could cost up to ${worst:.2f} (${reserved:.2f} more is held for calls out) and {why}, "
+                "so it was not sent. Raise the cap in the project's Set Up, or send fewer pages.")
         _RESERVED[library] = reserved + worst
     return worst
 
