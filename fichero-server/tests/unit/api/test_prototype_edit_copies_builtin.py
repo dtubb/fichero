@@ -83,3 +83,26 @@ def test_a_change_to_a_non_builtin_is_the_plain_patch(db):
     before = len(db.query(ClassificationValue, dimension=DIM))
     _patch(db, own, {"title": TITLE, "x": {"type": "text"}})
     assert len(db.query(ClassificationValue, dimension=DIM)) == before and "x" in _get(db, "tmine").attributes
+
+
+def test_an_engine_kind_is_edited_in_place_and_no_node_moves_to_a_copy(db):
+    openings = [Document(id=f"o{i}", name=f"o{i}", path=f"/o{i}", doc_type=DocType.folder, prototype_key="opening")
+                for i in range(3)]
+    for d in openings:
+        db.save(d)
+    opening = _get(db, "opening")
+    assert opening.is_builtin
+    result = _patch(db, opening, {**opening.attributes, "extra": {"type": "text"}})
+    assert "extra" in _get(db, "opening").attributes
+    assert {db.get(Document, d.id).prototype_key for d in openings} == {"opening"}
+    assert not [v for v in db.query(ClassificationValue, dimension=DIM) if v.key.startswith("opening-copy")]
+    assert result.audit_id
+
+
+def test_a_patch_of_a_builtin_through_the_real_route_lands_on_a_copy(client, db):
+    kind = _world(db)
+    r = client.patch(f"/api/classifications/{kind.id}", json={"attributes": {"title": TITLE, "extra": {"type": "text"}}})
+    assert r.status_code == 200, r.text
+    assert r.json()["key"].startswith("tkind-copy") and "extra" in r.json()["attributes"]
+    assert _get(db, "tkind").attributes == {"title": TITLE}
+    assert db.get(Document, "own").prototype_key == r.json()["key"]

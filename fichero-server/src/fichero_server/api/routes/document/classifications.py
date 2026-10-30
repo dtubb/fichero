@@ -412,6 +412,14 @@ def _invert_patch_or_copy(before: dict | None, after: dict | None, ctx: ActionCo
     return _invert_patch(before, after, ctx)
 
 
+def _structural_keys() -> set[str]:
+    """The engine's own kinds (`folder`, `book`, `opening`, `page`): the code finds openings and containers by these keys, so
+    an edit lands on the row itself and never moves every node that carries one onto a copy."""
+    from fichero_server.db import _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS
+
+    return {seed["key"] for seed in _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS}
+
+
 def _copy_builtin_for_edit(db: Database, builtin: ClassificationValue, patch: ClassificationPatchRequest) -> tuple:
     """A column change on a built-in (attributes-and-prototypes.md section 3): a project-owned child whose parent is the
     built-in, assigned on the nodes that carried it, and the change landed on the child. A node carrying a prototype
@@ -510,7 +518,12 @@ def _action_patch_value(
     patch = ClassificationPatchRequest(
         **params.model_dump(exclude={"value_id"}, exclude_unset=True)
     )
-    if existing.is_builtin and patch.attributes is not None and existing.dimension == ClassificationDimension.document_prototype:
+    if (
+        existing.is_builtin
+        and existing.key not in _structural_keys()
+        and patch.attributes is not None
+        and existing.dimension == ClassificationDimension.document_prototype
+    ):
         value, created, documents = _copy_builtin_for_edit(db, existing, patch)
         before = {**before, "copied_for": existing.key, "created_ids": created, "documents": documents}
         after = _snap_value(value)
