@@ -144,11 +144,27 @@ struct CloudCapOffers: View {
 /// Reads the Start plan when it opens, so the amounts are the engine's for what is left to run.
 struct CloudCapChangeView: View {
     @Bindable var store: RecipeSetupStore
+    /// The run's stop, when it was paused at a cap: its refused call's own caps are offered, the plan being possibly under both.
+    var stop: CloudCapFix.Stop?
     var undo: (any UndoSetEngine)?
+    @Environment(WindowSteps.self) private var steps: WindowSteps?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Cloud spending caps").font(.headline)
+            if let stop {
+                Text(stop.words).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    if let monthly = stop.monthly {
+                        Button(monthly.title) { Task { await store.raise(monthly, project: false, undo: undo, steps: steps) } }
+                            .accessibilityIdentifier("setup.raiseMonthlyCapForStop")
+                    }
+                    if let project = stop.project {
+                        Button(project.title) { Task { await store.raise(project, project: true, undo: undo, steps: steps) } }
+                            .accessibilityIdentifier("setup.raiseProjectCapForStop")
+                    }
+                }
+            }
             if let line = store.startPlan?.cloudCap {
                 CloudCapFields(store: store, line: line, undo: undo)
                 Text(RecipeCloudCapRow.words(line)).font(.caption).foregroundStyle(.secondary)

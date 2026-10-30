@@ -115,17 +115,21 @@ struct CloudCapFixTests {
         #expect(unset?["cloud_project_cap_usd"] == nil, "unanswered keeps the saved cap, or no limit")
     }
 
-    /// The strip offers the caps' change by the engine's `stopped_at_cap`, not by reading the run's line: the status says it, the
-    /// store keeps its words, the strip has them. A status that is not stopped at a cap leaves nothing.
+    /// The strip offers the caps' change by the engine's `stopped_at_cap`, not by reading the run's line, and the popover offers the
+    /// cap that lets the refused call through, which the plan (its estimate may fit) cannot say.
     @Test func aRunPausedAtACapOffersTheChangeByTheEnginesField() throws {
-        let capped = try JSONDecoder().decode(Components.Schemas.RecipeRunStatus.self, from: Data("""
+        let status = try JSONDecoder().decode(Components.Schemas.RecipeRunStatus.self, from: Data("""
         {"job_id":"r","state":"waiting","reason":"Paused at the cloud spend cap: a call could cost up to $0.04","steps":[],"skipped":[],
-         "stopped_at_cap":true}
+         "stopped_at_cap":true,"stopped_needs_cap_usd":1.04}
         """.utf8))
-        #expect(capped.stoppedAtCap == true)
+        let stop = try #require(CloudCapFix.Stop(status))
+        #expect(stop.monthly == .init(usd: 1.04, title: "Raise the monthly cap to \(usd(1.04))") && stop.project == nil)
         var strip = ProjectRunStrip(jobId: "r", isLive: true, title: "Recipe run paused", detail: "Paused with its run")
         #expect(strip.stoppedAtCap == nil, "no field, no button: the words of the line are never read")
-        strip.stoppedAtCap = capped.reason
-        #expect(strip.stoppedAtCap?.contains("spend cap") == true)
+        strip.stoppedAtCap = stop
+        #expect(strip.stoppedAtCap?.words.contains("spend cap") == true)
+        let quiet = try JSONDecoder().decode(Components.Schemas.RecipeRunStatus.self, from: Data(
+            #"{"job_id":"r","state":"running","steps":[],"skipped":[]}"#.utf8))
+        #expect(CloudCapFix.Stop(quiet) == nil)
     }
 }

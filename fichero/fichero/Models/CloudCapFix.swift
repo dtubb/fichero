@@ -45,6 +45,27 @@ struct CloudCapFix: Equatable {
         reason = "This run is estimated at \(Self.usd(estimate)), more than " + parts.joined(separator: " and ") + "."
     }
 
+    /// A run paused at a cap, as the engine says it (`stopped_at_cap`, #6295): its words and the cap, to the cent, under which the
+    /// refused call would have been sent. The plan cannot say it: its estimate may fit while one call's worst case does not.
+    struct Stop: Equatable {
+        let words: String
+        let monthly: Raise?
+        let project: Raise?
+
+        nonisolated init?(_ status: Components.Schemas.RecipeRunStatus) {
+            guard status.stoppedAtCap == true else { return nil }
+            words = status.reason ?? "Paused at the cloud spend cap"
+            monthly = status.stoppedNeedsCapUsd.map { Raise(usd: $0, title: "Raise the monthly cap to \(CloudCapFix.usd($0))") }
+            project = status.stoppedNeedsProjectCapUsd.map { Raise(usd: $0, title: "Raise the project cap to \(CloudCapFix.usd($0))") }
+        }
+
+        nonisolated init(words: String, monthly: Raise? = nil, project: Raise? = nil) {
+            self.words = words
+            self.monthly = monthly
+            self.project = project
+        }
+    }
+
     nonisolated static func usd(_ value: Double) -> String { value.formatted(.currency(code: "USD")) }
 
     /// "Run the first 40 pages": the engine's count of the first pages that fit.

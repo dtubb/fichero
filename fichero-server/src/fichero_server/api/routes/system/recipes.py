@@ -3458,6 +3458,11 @@ class RecipeRunStatus(BaseModel):
     stopped_at_cap: bool = Field(default=False, description=(
         "a step's run was paused at a cloud spend cap and has not gone on (#6295): the app offers the caps' change; `reason` "
         "then carries the cap's words. Resume goes on after the cap is raised"))
+    stopped_needs_cap_usd: Optional[float] = Field(default=None, description=(
+        "when `stopped_at_cap` at the monthly cap: the monthly cap under which the refused call would have been sent (booked this "
+        "month plus the call's worst case, to the cent, no margin); the plan cannot say it, its estimate may fit (#6295)"))
+    stopped_needs_project_cap_usd: Optional[float] = Field(default=None, description=(
+        "when `stopped_at_cap` at the project's total cap: the total cap under which the refused call would have been sent"))
     pages_at_once: Optional[int] = Field(default=None, description=(
         "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"))
     pages_at_once_reason: Optional[str] = Field(default=None, description=(

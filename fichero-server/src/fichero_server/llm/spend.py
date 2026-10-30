@@ -233,11 +233,13 @@ def note_actual(cost_usd: float | None) -> None:
 
 #: The workflow runs stopped at a cap, by run id, with the words (#6295): what a recipe run's status says so by, so the app
 #: offers the cap's change without reading a sentence. In this process, as the hold is; a run goes on, or ends, and it is dropped.
-_STOPPED_AT_CAP: dict[str, str] = {}
+_STOPPED_AT_CAP: dict[str, dict] = {}
 
 
-def stopped_at_cap(run_ids: list[str | None]) -> str | None:
-    """The words a step run was paused at a cap with, for the first of `run_ids` that was; None when none was."""
+def stopped_at_cap(run_ids: list[str | None]) -> dict | None:
+    """What the first of `run_ids` that was paused at a cap says: `words`, and `needed_cap_usd` / `needed_project_cap_usd`, the
+    cap (to the cent, no margin) under which the refused call would have been sent (None for a cap it was not over); None when
+    none was. The plan cannot say it: its estimate may fit while one call's worst case does not (#6295)."""
     with _LOCK:
         return next((_STOPPED_AT_CAP[r] for r in run_ids if r and r in _STOPPED_AT_CAP), None)
 
@@ -260,6 +262,16 @@ def _ask_run_to_pause() -> str | None:
 
         request_pause(run_id)
     return run_id
+
+
+def _cap_stop(library: str, worst: float, why: str) -> dict:
+    """The words and the caps that would have let a refused call of `worst` through, each only for the cap it was over."""
+    cap, project_cap = cap_usd(library), project_cap_usd(library)
+    booked, total = booked_usd(library), total_booked_usd(library)
+    return {"words": f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}",
+            "needed_cap_usd": needed_cap_usd(booked, worst) if cap is not None and booked + worst > cap + 1e-9 else None,
+            "needed_project_cap_usd": (needed_cap_usd(total, worst)
+                                       if project_cap is not None and total + worst > project_cap + 1e-9 else None)}
 
 
 @contextlib.asynccontextmanager
@@ -287,7 +299,7 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
             if why := _past_a_cap(library, 0.0, worst):
                 paused = _ask_run_to_pause()
                 if paused:
-                    _STOPPED_AT_CAP[paused] = f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}"
+                    _STOPPED_AT_CAP[paused] = _cap_stop(library, worst, why)
                 raise CloudSpendRefusedError(
                     f"This call could cost up to ${worst:.2f} and {why}, so it was not sent"
                     + (" and the run is pausing" if paused else "")

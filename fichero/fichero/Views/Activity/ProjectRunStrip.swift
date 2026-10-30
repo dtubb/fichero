@@ -26,9 +26,9 @@ struct ProjectRunStrip: Equatable {
     var missed: ActivityDetails.MissedOffer?
     /// The state the strip goes by (`effectiveState`); the preview seam's live strip runs.
     var state = "running"
-    /// The cap's words when a step of the run was paused at a cloud spend cap, as the engine says it (`stopped_at_cap`, #6295): the
-    /// strip offers the caps' change by it, and says it in place of the run's own line.
-    var stoppedAtCap: String?
+    /// Set when a step of the run was paused at a cloud spend cap, as the engine says it (`stopped_at_cap`, #6295): the strip offers
+    /// the caps' change by it, says its words in place of the run's own line, and the popover offers the caps it names.
+    var stoppedAtCap: CloudCapFix.Stop?
     /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
     /// (`activity.spinner-reflects-process-liveness`, #4346).
     var spins: Bool { isLive && state == "running" }
@@ -251,15 +251,16 @@ struct ProjectRunStripView: View {
                 // A run stopped or paused at a spend cap changes the caps here, in place (#6295).
                 onChangeCaps: strip.stoppedAtCap != nil ? { changingCaps = true } : nil
             )
-            .popover(isPresented: $changingCaps, arrowEdge: .top) { capsPopover }
+            .popover(isPresented: $changingCaps, arrowEdge: .top) { capsPopover(for: strip.stoppedAtCap) }
         }
     }
 
-    /// The caps to change, beside the amounts the engine says the plan needs; the plan is read when it opens.
+    /// The caps to change, beside the amounts the engine says the plan needs and the ones that let the refused call through (`stop`);
+    /// the plan is read when it opens.
     @ViewBuilder
-    private var capsPopover: some View {
+    private func capsPopover(for stop: CloudCapFix.Stop?) -> some View {
         if let library = LibraryManager.shared.openLibraries.first(where: { $0.id == libraryId }) {
-            CloudCapChangeView(store: library.recipeSetupStore, undo: library.actionsService)
+            CloudCapChangeView(store: library.recipeSetupStore, stop: stop, undo: library.actionsService)
         }
     }
 
@@ -295,12 +296,12 @@ struct ProjectRunStripRow: View {
                     .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)
             }
             Text(strip.title).font(.callout.weight(.semibold))
-            Text(failure ?? strip.stoppedAtCap ?? strip.detail)
+            Text(failure ?? strip.stoppedAtCap?.words ?? strip.detail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .help(failure ?? strip.stoppedAtCap ?? strip.detail)
+                .help(failure ?? strip.stoppedAtCap?.words ?? strip.detail)
             Spacer(minLength: 8)
             ForEach(strip.failed) { stage in
                 if let offer = stage.offer {

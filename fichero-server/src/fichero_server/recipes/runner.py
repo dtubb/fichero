@@ -1921,8 +1921,9 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.llm.spend import stopped_at_cap
 
     capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
-    if capped and row["state"] not in ("done", "cancelled"):
-        reason = capped
+    capped = capped if row["state"] not in ("done", "cancelled") else None
+    if capped:
+        reason = capped["words"]
     elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
@@ -1932,7 +1933,9 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
-            "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped) and row["state"] not in ("done", "cancelled")}
+            "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
+            "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
+            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd")}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

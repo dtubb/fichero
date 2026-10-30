@@ -488,7 +488,8 @@ def test_a_step_run_paused_at_a_cap_is_marked_on_its_recipe_run_until_it_goes_on
 
     async def refused():
         node_context.set_current_node("n1", run_id="thread-cap-1")
-        async with spend.holding(LLMConfig(provider="openai", model="gpt-test", api_key="k"), library):
+        config = LLMConfig(provider="openai", model="gpt-test", api_key="k", max_tokens=1000)  # worst case $0.04
+        async with spend.holding(config, library):
             raise AssertionError("sent")
 
     try:
@@ -497,6 +498,9 @@ def test_a_step_run_paused_at_a_cap_is_marked_on_its_recipe_run_until_it_goes_on
         said = runner.status(db, recipe)
         assert said["stopped_at_cap"] is True
         assert "capped at $1.00 a month" in said["reason"]
+        # the plan's estimate may fit while one call's worst case does not: the stop names the cap that lets that call through
+        assert said["stopped_needs_cap_usd"] == 1.04
+        assert said["stopped_needs_project_cap_usd"] is None
         spend.forget_cap_stop("thread-cap-1")  # Resume
         assert runner.status(db, recipe)["stopped_at_cap"] is False
     finally:
