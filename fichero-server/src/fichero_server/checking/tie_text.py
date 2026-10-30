@@ -311,14 +311,26 @@ def _already_tied(db: Any, lines: list[Any], artifact_id: str) -> bool:
     return any(r.derived_from_artifact_id == artifact_id for row in lines for r in readings_of_segment(db, row.id))
 
 
-def _find_lines(db: Any, doc: Any, photo: Path, job_id: str) -> None:
-    """The page has no lines: Kraken finds them (its regions kept as the lines' parents) and they become the
-    page's pass at once, through the same save and conversion as a Find Lines run (#5487)."""
+def _current_image(db: Any, doc: Any) -> Any:
+    """The page's current image for a step that cuts or stores lines (`media/current_image.py`, #6296); None for a page with no
+    file of its own here."""
+    from fichero_server.media.current_image import current_page_image
+
+    current = current_page_image(db, doc, library_root=Path(db.path).parent)
+    return current.for_geometry() if current is not None else None
+
+
+def _find_lines(db: Any, doc: Any, photo: Path, job_id: str, current: Any = None) -> None:
+    """The page has no lines: Kraken finds them on the page's current image (its regions kept as the lines' parents) and they
+    become the page's pass at once, through the same save and conversion as a Find Lines run (#5487); stored on the photograph."""
     from fichero_server.llm import kraken_runtime
     from fichero_server.maintenance.project_conversion import convert_new_results
     from fichero_server.models import Artifact
 
-    geometry = kraken_runtime.segment_to_geometry(photo)
+    seen = current if current is not None and not current.is_original else None
+    geometry = kraken_runtime.segment_to_geometry(seen.path if seen is not None else photo)
+    if seen is not None:
+        geometry = seen.geometry_to_photograph(geometry)
     if not geometry.boxes:
         return
     db.save(Artifact(document_id=doc.id, source_document_id=doc.id, artifact_type="regions", content="",
@@ -360,8 +372,9 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             continue
+        current = _current_image(db, doc)
         if found is None and request.pass_model is None:
-            _find_lines(db, doc, photo, job_id)
+            _find_lines(db, doc, photo, job_id, current)
             found = working_lines(db, doc.id)
             counts["lines_found"] += found is not None
         if found is None:
@@ -379,10 +392,6 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 jobs.save_detail(db, job_id, json.dumps({**detail, "waited_for_kraken": detail.get("waited_for_kraken", 0) + 1}))
                 jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
                 raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
-            from fichero_server.media.current_image import current_page_image
-
-            current = current_page_image(db, doc, library_root=Path(db.path).parent)  # the page as edited (#6296)
-            current = current.for_geometry() if current is not None else None  # lines are carried onto it: needs a known frame
             if current is None or current.is_original:
                 reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
             else:
