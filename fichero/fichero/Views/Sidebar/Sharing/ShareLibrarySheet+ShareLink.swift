@@ -20,6 +20,17 @@ extension ShareLibrarySheet {
     @ViewBuilder
     var shareLinkSection: some View {
         Section("Share Link") {
+            // Which address the link carries (`sharing.share-sheet-offers-both-addresses`): Tailscale when it can work.
+            let rows = addressRows
+            if rows.filter(\.isEnabled).count > 1 {
+                Picker("Address", selection: Binding(
+                    get: { addressChoice ?? AddressChoiceModel.defaultChoice(rows: rows) ?? .thisNetwork },
+                    set: { addressChoice = $0 })) {
+                    ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("share.address.picker")
+            }
             if let pairingLink {
                 LabeledContent("Link") {
                     Text(pairingLink)

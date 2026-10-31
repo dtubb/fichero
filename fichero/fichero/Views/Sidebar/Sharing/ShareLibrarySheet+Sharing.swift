@@ -121,9 +121,15 @@ extension ShareLibrarySheet {
     /// as the `fichero://` payload iOS's `PairingQRCodePayloadDecoder` already
     /// parses. Identical to the QR and the copyable pairing link — not a second
     /// format, and never the loopback share_url.
+    /// The rows the engine's state allows; the sharing address alone when the state is not loaded.
+    var addressRows: [AddressRow] {
+        AddressChoiceModel.rows(sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward)
+    }
+
     var pairingLink: String? {
         guard let pairingCode,
-              let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
+              let reachableURL = AddressChoiceModel.root(for: addressChoice, rows: addressRows)
+                ?? (try? validatedHostedRemoteURL(from: publicBaseURL))
         else { return nil }
         let advertisedPin: String?
         switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {

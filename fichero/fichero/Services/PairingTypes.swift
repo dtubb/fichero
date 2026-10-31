@@ -183,7 +183,8 @@ final class PairingService {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
-                                      auditId: body.auditId)
+                                      auditId: body.auditId, publicBaseURL: body.publicBaseUrl, lanIP: body.lanIp,
+                                      tailnetForward: body.tailnetForward.rawValue)
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -354,4 +355,9 @@ struct SharingStateRecord: Equatable {
     let tailnetURL: String?
     let tailnetServeCommand: String?
     let auditId: String?
+    /// The host's addresses in one place (`sharing.state-names-every-address`): the sharing address the engine was started
+    /// with, its LAN IP, and who holds the tailnet forward ("ours" | "foreign" | "none"); nil from an engine before the field.
+    var publicBaseURL: String? = nil
+    var lanIP: String? = nil
+    var tailnetForward: String? = nil
 }

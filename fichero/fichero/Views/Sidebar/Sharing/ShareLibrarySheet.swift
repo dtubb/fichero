@@ -48,6 +48,9 @@ struct ShareLibrarySheet: View {
     // The short-lived, single-use pair code minted for the link — SAME code
     // semantics as the QR. nil until minted; the link cannot exist without it.
     @State var pairingCode: PairingCodeRecord?
+    /// The engine's addresses and the one the link carries (`sharing.share-sheet-offers-both-addresses`).
+    @State var sharingState: SharingStateRecord?
+    @State var addressChoice: AddressChoice?
     @State var spkiPin = ""
     @State var shareError: String?
     @State var copied = false

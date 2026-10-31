@@ -20,6 +20,8 @@ extension ShareLibrarySheet {
     func loadEverything() async {
         await usersStore.load()
         await loadMembers()
+        // The addresses the link can carry (`sharing.share-sheet-offers-both-addresses`); a failure leaves the one address.
+        if EngineConfig.engineIsLocal { sharingState = try? await PairingService(apiRoot: EngineConfig.host).sharingState() }
     }
 
     @MainActor

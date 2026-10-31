@@ -56,6 +56,8 @@ struct ShareSettingsView: View {
     /// The QR, drawn once per link and kept (`sharing.qr-drawn-once-per-payload`): a computed image was rebuilt on every
     /// body evaluation (the Devices poll every 10 s), which the person saw as the picture flashing.
     @State var qrImage: PlatformImage?
+    /// Which address the QR and Copy Link carry (`sharing.share-sheet-offers-both-addresses`); nil = the model's default.
+    @State var addressChoice: AddressChoice?
     var showAddDevice: Bool {
         get { activeSheet == .addDevice }
         nonmutating set { activeSheet = newValue ? .addDevice : (activeSheet == .addDevice ? nil : activeSheet) }
@@ -225,6 +227,7 @@ struct ShareSettingsView: View {
             case .finishing:
                 ProgressView("Finishing setup…")
             case .ready, .notReady:
+                addressRowsView
                 if let image = qrImage {
                     Image(platformImage: image)
                         .interpolation(.none)
@@ -265,6 +268,37 @@ struct ShareSettingsView: View {
         .padding()
         .frame(minWidth: 320)
         .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
+    }
+
+    /// The addresses this Mac can be reached at, the chosen one feeding the QR and Copy Link, each with its own Copy
+    /// (`sharing.share-sheet-offers-both-addresses`, #5318). A row that cannot work says why and cannot be chosen.
+    @ViewBuilder
+    private var addressRowsView: some View {
+        let rows = addressRows
+        if rows.count > 1 || rows.contains(where: { !$0.isEnabled }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Address", selection: Binding(
+                    get: { addressChoice ?? AddressChoiceModel.defaultChoice(rows: rows) ?? .thisNetwork },
+                    set: { addressChoice = $0 })) {
+                    ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("sharing.address.picker")
+                ForEach(rows) { row in
+                    HStack(spacing: 6) {
+                        Text("\(row.title): \(row.url.host ?? "")").font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
+                        Text(row.disabledReason ?? row.reach).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if row.isEnabled {
+                            Button("Copy") { copyInvite(for: row.choice) }
+                                .controlSize(.small)
+                                .accessibilityIdentifier("sharing.address.copy.\(row.choice.rawValue)")
+                        }
+                    }
+                    .accessibilityIdentifier("sharing.address.row.\(row.choice.rawValue)")
+                }
+            }
+        }
     }
 
     /// Connect to Another Mac: hosts the existing client pairing section on a sheet (`sharing.settings.connect-sheet`).
