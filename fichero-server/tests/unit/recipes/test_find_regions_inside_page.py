@@ -338,3 +338,44 @@ def test_a_turn_of_a_tagged_cut_copy_follows_the_copys_upright_picture(db, tmp_p
         assert image.kind != "original" and Path(image.path) == turned, f"tag {tag}: {image.why}"
         x, y = image.to_image.pixels(300, 100)
         assert (round(x), round(y)) == (60, 700), f"tag {tag}: {(x, y)}"
+
+
+#: The upright picture's pixels (x, y) to the raw file's, per EXIF tag, worked by hand from the tag's meaning (W, H: the
+#: upright size), NOT taken from `exif_map`: (a, b, c, d, e, f) with x' = a x + b y + c, y' = d x + e y + f.
+def _raw_of_upright(tag, w, h):
+    return {1: (1, 0, 0, 0, 1, 0), 2: (-1, 0, w, 0, 1, 0), 3: (-1, 0, w, 0, -1, h), 4: (1, 0, 0, 0, -1, h),
+            5: (0, 1, 0, 1, 0, 0), 6: (0, 1, 0, -1, 0, w), 7: (0, -1, h, -1, 0, w), 8: (0, -1, h, 1, 0, 0)}[tag]
+
+
+def test_the_page_crop_of_a_tagged_copy_holds_the_right_pixels_for_every_tag(tmp_path):
+    """A 100x60 upright page of four colours (red top-left, green top-right, blue bottom-left, yellow bottom-right, split at
+    x 50, y 30) is saved as the raw pixels each EXIF tag turns upright. The off-centre box x 40-90, y 15-45 must cut a 50x30
+    picture whose four corners are the four colours, whatever the tag."""
+    from fichero_server.media.current_image import PageImage
+    from fichero_server.media.frame_map import FrameMap, _affine
+    from fichero_server.recipes.regions import page_box_on, page_crop
+
+    scene = Image.new("RGB", (100, 60), (255, 255, 0))
+    scene.paste((255, 0, 0), (0, 0, 50, 30))
+    scene.paste((0, 255, 0), (50, 0, 100, 30))
+    scene.paste((0, 0, 255), (0, 30, 50, 60))
+    for tag in range(1, 9):
+        raw = Image.new("RGB", (60, 100) if tag in (5, 6, 7, 8) else (100, 60))
+        a, b, c, d, e, f = _raw_of_upright(tag, 100, 60)
+        for x in range(100):  # each upright pixel to its place in the raw file
+            for y in range(60):
+                raw.putpixel((round(a * x + b * y + c - (a + b < 0)), round(d * x + e * y + f - (d + e < 0))), scene.getpixel((x, y)))
+        exif = Image.Exif()
+        exif[0x0112] = tag
+        path = tmp_path / f"four{tag}.png"
+        raw.save(path, exif=exif)
+        to_image = FrameMap((100, 60), raw.size, _affine(a, b, c, d, e, f))
+        page = PageImage(str(path), "rendition", str(path), to_image=to_image)
+
+        box = page_box_on(page, [0.4, 0.25, 0.5, 0.5])
+        cut = page_crop(str(path), box, str(tmp_path))
+
+        assert cut is not None and cut[1] == (40, 15), f"tag {tag}: {cut}"
+        with Image.open(cut[0]) as crop:
+            got = [crop.getpixel(p) for p in ((4, 4), (45, 4), (4, 25), (45, 25))]
+            assert crop.size == (50, 30) and got == [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)], f"tag {tag}: {got}"
