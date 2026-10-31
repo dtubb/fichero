@@ -21,13 +21,21 @@ extension ShareLibrarySheet {
         await usersStore.load()
         await loadMembers()
         // The addresses the link can carry (`sharing.share-sheet-offers-both-addresses`); a failure leaves the one address.
+        await readSharingState()
+    }
+
+    /// Reads the addresses the link can carry, asking a few more times while the forward reads `none` or nothing came back:
+    /// the engine makes it just after it is ready. A failed read keeps the last good state (review P1, P2).
+    @MainActor
+    func readSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
-        sharingState = try? await PairingService(apiRoot: EngineConfig.host).sharingState()
-        // The engine makes the forward just after it is ready: while it reads `none`, ask a few more times (review N1).
-        for _ in 0..<3 where sharingState?.tailnetForward == "none" {
-            try? await Task.sleep(for: .seconds(2))
-            if Task.isCancelled { return }
-            sharingState = try? await PairingService(apiRoot: EngineConfig.host).sharingState()
+        for attempt in 0..<4 {
+            if attempt > 0 {
+                try? await Task.sleep(for: .seconds(2))
+                if Task.isCancelled { return }
+            }
+            if let state = try? await PairingService(apiRoot: EngineConfig.host).sharingState() { sharingState = state }
+            if !PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) { return }
         }
     }
 

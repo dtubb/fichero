@@ -144,7 +144,9 @@ struct ShareSettingsView: View {
                 if didBootstrap, appState.isBackendRunning {
                     await refreshDevices()
                     // The forward is made just after the engine is ready: while it reads `none`, ask again (review N1).
-                    if sharingState?.tailnetForward == "none" { await refreshSharingState() }
+                    if PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) {
+                        await refreshSharingState()
+                    }
                 }
             }
         }

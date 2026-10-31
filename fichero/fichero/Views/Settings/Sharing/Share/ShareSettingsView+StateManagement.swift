@@ -151,7 +151,8 @@ extension ShareSettingsView {
     func refreshSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
         let pairing = PairingService(apiRoot: EngineConfig.host)
-        sharingState = try? await pairing.sharingState()
+        // A failed read keeps the last good state: nil would end the re-read and could read as "ours" (review P2).
+        if let state = try? await pairing.sharingState() { sharingState = state }
         detectedTailnetURL = try? await pairing.detectedTailnetURL()
     }
 

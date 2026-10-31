@@ -28,6 +28,7 @@ extension ShareLibrarySheet {
             // (remote engine / iOS), where the honest fallback card renders instead.
             if !hostingEnabled && canHostFromHere {
                 await enableHostingForShare()
+                await readSharingState()  // the link goes out once: name the address that works now, not the one read at open (review P1)
             }
             loadSPKIPin()
             await mintPairingCodeIfPossible()

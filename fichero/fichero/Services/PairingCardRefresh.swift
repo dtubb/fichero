@@ -36,4 +36,10 @@ enum PairingCardRefresh {
         guard let codePID, let currentPID else { return false }
         return codePID == currentPID
     }
+
+    /// Whether the sharing state is read again: the engine answers `none` until Sharing is on and its forward is made (just
+    /// after it is ready), and a read that failed left nothing. `ours`, `foreign` and `unknown` are answers; ask no more (review P1, P2).
+    static func readsForwardAgain(stateLoaded: Bool, forward: String?) -> Bool {
+        !stateLoaded || forward == "none"
+    }
 }

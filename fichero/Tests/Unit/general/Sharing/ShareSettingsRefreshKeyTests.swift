@@ -51,4 +51,13 @@ struct ShareSettingsRefreshKeyTests {
         #expect(!PairingCardRefresh.sameEngine(codePID: nil, currentPID: 4242), "unknown: never vouch for the code")
         #expect(!PairingCardRefresh.sameEngine(codePID: 4242, currentPID: nil))
     }
+
+    @Test("the sharing state is read again while the forward says none or nothing was read, and not once it has answered")
+    func readsForwardAgainOnlyUntilAnswered() {
+        #expect(PairingCardRefresh.readsForwardAgain(stateLoaded: true, forward: "none"))
+        #expect(PairingCardRefresh.readsForwardAgain(stateLoaded: false, forward: nil))
+        for answered in ["ours", "foreign", "unknown"] {
+            #expect(!PairingCardRefresh.readsForwardAgain(stateLoaded: true, forward: answered), "\(answered) is an answer")
+        }
+    }
 }
