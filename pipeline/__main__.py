@@ -14,6 +14,7 @@
   python -m pipeline plan-approve <spec> [--apply]   after the owner approves: one issue per step, (#N) on each heading, the section becomes the Build order
   python -m pipeline send-back <item>          re-dispatch a NOT_READY item to its coder with the reviewer's findings
   python -m pipeline land <item> [--apply]     every scripts/check_*.py on the reviewed head, then push it to the integration branch only
+  python -m pipeline run-log                   rewrite agent-work/status/briefs/studio-run-log.tsv from the journal and Pi's session files
   python -m pipeline serve [--port N] [--host ADDR]
   python -m pipeline --self-test
 
@@ -27,7 +28,7 @@ import json
 import os
 import sys
 
-from pipeline import core, plan, runner  # noqa: F401 - runner and plan add their commands to core.API
+from pipeline import core, plan, runlog, runner  # noqa: F401 - runner, plan and runlog add their commands to core.API
 
 # command -> positional arguments, then options (name, kwargs)
 COMMANDS = {
@@ -58,6 +59,7 @@ COMMANDS = {
     "plan": [("spec", {"help": "a spec path from the repo root, e.g. docs/contributor_manual/specs/source/recipe-designer.md"})],
     "plan-approve": [("spec", {}), ("--apply", {"action": "store_true", "help": "really file the issues (default: dry run)"})],
     "run": [("--once", {"action": "store_true", "help": "one pass, then stop"}), ("--poll-s", {"type": float, "dest": "poll_s", "help": "seconds between passes while an answer is awaited (profile [run] poll_s, default 60)"})],
+    "run-log": [],
     "serve": [("--port", {"type": int, "default": 8765}), ("--host", {"default": "127.0.0.1", "help": "the address to bind (never 0.0.0.0 unless you mean to expose it; a Tailscale address works)"})],
 }
 
