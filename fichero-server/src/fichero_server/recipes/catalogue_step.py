@@ -27,13 +27,14 @@ def _is_folder(doc: Any) -> bool:
 
 def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
     """The folders above these pages (all the way up), deepest first; each once. Reads the pages and then each level of
-    their parents, a read a level, not the library (#6268)."""
+    their parents, a read a level, not the library (#6268), and only the tree's columns: a whole box's 35k pages read
+    whole raised the engine's peak by 2 GiB."""
     from fichero_server.models import Document
 
     nodes: dict[str, Any] = {}
     todo = set(page_ids)
     while todo:
-        for doc in db.query_in(Document, "id", todo):
+        for doc in db.query_fields_in(Document, ("id", "name", "parent_id", "doc_type", "deleted_at"), "id", todo):
             nodes[doc.id] = doc
         todo = {d.parent_id for d in nodes.values() if d.parent_id and d.parent_id not in nodes} - todo
     seen: dict[str, Any] = {}

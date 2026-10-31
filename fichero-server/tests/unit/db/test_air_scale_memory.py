@@ -176,6 +176,9 @@ def test_the_air_s_reads_and_writes_fit_its_share(the_air):
         "start: roots": lambda rng: _roots(db),
         "start: catalogue plan": lambda rng: folders_to_describe(
             db, [d.id for d in db.query_fields(Document, ["id"], parent_id=rng.choice(folders))]),
+        "start: whole box catalogue plan": lambda rng: folders_to_describe(
+            db, [p.id for f in db.query_fields(Document, ["id"], parent_id=rng.choice(["box0", "box1"]))
+                 for p in db.query_fields(Document, ["id"], parent_id=f.id)]),
         "recipe page list 1": lambda rng: db.query(Document, parent_id=rng.choice(folders)),
         "recipe page list 2": lambda rng: db.query(Document, parent_id=rng.choice(folders)),
         "recipe save": a_page_saved,
@@ -243,6 +246,11 @@ def probed(built_library, tmp_path_factory):
 def test_counting_for_training_stays_lean(probed):
     """Review H1: `_teacher` and the pass counts read every transcription whole on each plan and finished step: +2.1 GiB."""
     assert probed("assert train_offers._teacher(db) == 'a-vision-model'; train_offers.counted(db)") <= READER_PEAK_MIB
+
+
+def test_a_whole_box_catalogue_plan_stays_lean(probed):
+    """Review H2: `folders_covering` read every page of the run whole: a box of 35k pages raised the peak by 2.1 GiB."""
+    assert probed("catalogue_step.folders_to_describe(db, box_pages)") <= READER_PEAK_MIB
 
 
 def test_the_air_s_share_is_what_a_library_of_this_size_needs(monkeypatch):
