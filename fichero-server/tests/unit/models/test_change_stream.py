@@ -15,6 +15,8 @@ import asyncio
 import threading
 from datetime import datetime
 
+import sys
+
 import pytest
 
 from fichero_server.api import change_stream
@@ -45,6 +47,21 @@ from fichero_server.models.hermeneutics import (
     PatternStatus,
 )
 from fichero_server.models import Artifact, DocType, Document, FileType, Status
+
+
+@pytest.fixture(autouse=True)
+def _restore_emit_change_bindings():
+    """Put the real emit_change back in every module that imported it while a test's spy was active (#6315).
+
+    A route that first imports a module (``from ...change_stream import emit_change``) under a
+    monkeypatched spy binds the spy for the rest of the process, so later tests see no events.
+    """
+    real = change_stream.emit_change
+    yield
+    for module in list(sys.modules.values()):
+        if module is not None and getattr(module, "__name__", "").startswith("fichero_server"):
+            if getattr(module, "emit_change", real) is not real:
+                module.emit_change = real
 
 
 # ---------------------------------------------------------------------------
