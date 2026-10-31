@@ -5614,8 +5614,9 @@ class Database(DatabaseEmbeddingMixin):
         # A page hidden as blank (`media.blank_page.mark_blank`: excluded AND `metadata.blank.blank` true) is never a unit of
         # work. A page excluded for any other reason stays one, as it was before blank marking existed: no migration, and
         # pages a person excluded in earlier libraries are still counted, sampled and run.
-        "d.deleted_at IS NULL AND NOT (COALESCE(d.exclude_from_processing, FALSE) "
-        "AND COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true') "
+        # CASE, not AND: inside a NOT, an AND parses every row's metadata as JSON (line boxes and all).
+        "d.deleted_at IS NULL AND NOT (CASE WHEN COALESCE(d.exclude_from_processing, FALSE) "
+        "THEN COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END) "
         "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
@@ -5638,9 +5639,13 @@ class Database(DatabaseEmbeddingMixin):
         wanted = [r[0] for r in self.execute_fetchall(
             f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)]
 
+        keys: dict[str, tuple] = {}  # each folder's key once, shared by the pages under it: a key a page was 400 MB at 70k
+
         def node(doc_id: str) -> tuple:
-            name, sort_order, sequence, _parent = rows[doc_id]
-            return in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            if doc_id not in keys:
+                name, sort_order, sequence, _parent = rows[doc_id]
+                keys[doc_id] = in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            return keys[doc_id]
 
         def path(doc_id: str) -> tuple:
             out, seen, parent = [], {doc_id}, rows[doc_id][3]

@@ -72,3 +72,27 @@ def test_the_cards_a_translate_step_makes_for_two_levels_are_counted_apart(monke
     first, second = (done.split_done(None, c, ["p"], memo=memo) for c in cards)
     assert first != second and len(calls) == 2
     assert done.split_done(None, cards[0], ["p"], memo=memo) == first and len(calls) == 2
+
+
+def test_who_called_pages_blank_is_one_read_and_agrees_with_asking_each_page(db, monkeypatch):
+    """The plan asked page by page, a whole row each: minutes on 70k pages (review sweep 2026-10-31)."""
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+
+    pages = [_page(db, 0, 0) for _ in range(3)]
+    for page, by in zip(pages[:2], (sorting.BY_PERSON, "a-run")):
+        doc = db.get(Document, page)
+        doc.attributes = {sorting.KIND: sorting.BLANK, sorting.SET_BY: by}
+        db.save(doc)
+    expected = {p: who for p in pages if (who := done._blank_by(db, p))}
+    assert set(expected) == set(pages[:2])
+    seen = _statements(monkeypatch)
+    assert done.blank_by(db, pages) == expected and len(seen) == 1
+
+
+def test_a_plan_s_notes_do_not_ask_page_by_page_who_called_it_blank(db, monkeypatch):
+    pages = [_page(db, 0, 0) for _ in range(2)]
+    monkeypatch.setattr(done, "_blank_by", lambda *a: pytest.fail("a read a page"))
+    plan = {"runs": [{"job": "find-lines", "card": "workflow", "steps": ["find-lines"]}]}
+    assert done.annotate(db, plan)["runs"][0]["of"] == len(pages)
+

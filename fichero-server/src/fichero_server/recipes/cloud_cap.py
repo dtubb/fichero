@@ -80,13 +80,13 @@ def first_pages_of(db: Any, count: int) -> list[str]:
     """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
     runs (#6295). A photograph cut into pages is read as one, all its cuts (`runner._units`), so the first pages end at the
     last cut of the photograph they reach: the plan counts what the run reads."""
-    from fichero_server.recipes.done import _documents, _is_split_page, pages_for
+    from fichero_server.recipes.done import pages_for, split_pages
 
     pages = pages_for(db, {}, None)
     first = pages[:count]
     if len(first) == len(pages):
         return first
-    photograph = {d.id: d.parent_id for d in _documents(db, None) if not d.deleted_at and _is_split_page(d)}
+    photograph = {d.id: d.parent_id for d in split_pages(db, None)}
     reached = {photograph[p] for p in first if p in photograph}
     return first + [p for p in pages[count:] if photograph.get(p) in reached] if reached else first
 

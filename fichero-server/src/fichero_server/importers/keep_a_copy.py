@@ -40,7 +40,8 @@ def pages_in_icloud(db: Any, within: set[str] | None = None) -> list[tuple[Any, 
 
     package = Path(db.path).parent
     out = []
-    for doc in (db.query(Document) if within is None else db.query_in(Document, "id", within)):
+    fields = ("id", "name", "path", "deleted_at")  # a plan asks this over the whole library: never the page's text or line boxes
+    for doc in (db.query_fields(Document, fields) if within is None else db.query_fields_in(Document, fields, "id", within)):
         if doc.deleted_at is not None:
             continue
         original = _linked_original(package, doc)

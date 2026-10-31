@@ -51,14 +51,30 @@ def _is_split_page(doc: Any) -> bool:
     return getattr(doc.doc_type, "value", doc.doc_type) == "chunk" and bool(meta.get("split_source_id")) and not hidden_blank
 
 
+#: What the plan asks of every document. Never `page_content` or `metadata`: 70k rows of text and line boxes raised the
+#: engine's peak by 2.9 GiB for one sentence of counts (the Air, review sweep 2026-10-31).
+_DOCUMENT_FIELDS = ("id", "parent_id", "name", "doc_type", "file_type", "node_kind", "deleted_at")
+_LINES_AT_ONCE = 500
+#: What the plan's counts ask of a line's reading: not its words, of which a read library holds a million rows.
+_READING_FIELDS = ("document_id", "segment_id", "retracted_at", "derived_from_artifact_id")
+
+
 def _documents(db: Any, within: set[str] | None) -> list[Any]:
-    """Every document, or only those `within` (one folder's): the plan for a folder reads the folder, not the library (#6268)."""
-    from fichero_server.db import query_read
+    """Every document, or only those `within` (one folder's), `_DOCUMENT_FIELDS` of each: the plan for a folder reads the
+    folder, not the library (#6268)."""
     from fichero_server.models import Document
 
-    # Not query_in_committed (#6178): pages_for also runs inside a run's own transaction (runner.py), whose uncommitted
-    # pages a committed read would not see.
-    return query_read(db, Document) if within is None else db.query_in(Document, "id", within)
+    # query_fields reads what was committed only under a caller's `reading_committed` (#6178): pages_for also runs inside
+    # a run's own transaction (runner.py), whose uncommitted pages a committed read would not see.
+    return db.query_fields(Document, _DOCUMENT_FIELDS) if within is None else db.query_fields_in(Document, _DOCUMENT_FIELDS, "id", within)
+
+
+def split_pages(db: Any, within: set[str] | None) -> list[Any]:
+    """The pages a split cut from a photograph (`_is_split_page`), live: only `chunk` rows carry the metadata it asks of."""
+    from fichero_server.models import Document
+
+    rows = db.query_fields(Document, ("id", "parent_id", "doc_type", "metadata", "exclude_from_processing"), doc_type="chunk", deleted_at=None)
+    return [d for d in rows if _is_split_page(d) and (within is None or d.id in within)]
 
 
 def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:
@@ -76,7 +92,7 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within
         # the material count does not see as pages).
         material = db.unit_of_work_ids()
         known = set(material)
-        split = sorted(d.id for d in _documents(db, within) if not d.deleted_at and _is_split_page(d))
+        split = sorted(d.id for d in split_pages(db, within))
         return [i for i in material if within is None or i in within] + [d for d in split if d not in known]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material
@@ -220,11 +236,11 @@ def pages_with_readings(db: Any, pages: list[str]) -> set[str]:
 
     have: set[str] = set()
     artifacts: dict[str, set[str]] = {}
-    for a in db.query_in(Artifact, "document_id", pages):
+    for a in db.query_fields_in(Artifact, ("id", "document_id", "artifact_type"), "document_id", pages):
         if a.artifact_type == "transcription":
             have.add(a.document_id)
         artifacts.setdefault(a.document_id, set()).add(a.id)
-    for r in db.query_in(ContentRepresentation, "document_id", list(artifacts)):
+    for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(artifacts)):
         if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
             have.add(r.document_id)
     return have
@@ -254,10 +270,13 @@ def pages_with_lines(db: Any, pages: list[str], model: str | None = None) -> set
     from fichero_server.models import Segment
     from fichero_server.models.segments import SegmentPass
 
-    passes = {p.id: p.document_id for p in db.query_in(SegmentPass, "document_id", pages)
+    passes = {p.id: p.document_id for p in db.query_fields_in(SegmentPass, ("id", "document_id", "model", "deleted_at"), "document_id", pages)
               if not p.deleted_at and (model is None or p.model == model)}
-    return {passes[s.pass_id] for s in db.query_in(Segment, "pass_id", list(passes))
-            if s.kind == "line" and not s.deleted_at and s.pass_id in passes}
+    ids, have = list(passes), set()
+    for start in range(0, len(ids), _LINES_AT_ONCE):  # a read library has a million lines: never all their rows at once
+        have |= {passes[s.pass_id] for s in db.query_fields_in(Segment, ("pass_id", "kind", "deleted_at"), "pass_id", ids[start : start + _LINES_AT_ONCE])
+                 if s.kind == "line" and not s.deleted_at}
+    return have
 
 
 def pages_with_line_readings(db: Any, pages: list[str], model: str | None) -> set[str]:
@@ -266,27 +285,34 @@ def pages_with_line_readings(db: Any, pages: list[str], model: str | None) -> se
 
     have = pages_with_lines(db, pages, model)
     by_model: dict[str, set[str]] = {}
-    for a in db.query_in(Artifact, "document_id", [p for p in pages if p not in have]):
+    for a in db.query_fields_in(Artifact, ("id", "document_id", "model"), "document_id", [p for p in pages if p not in have]):
         if model is None or a.model == model:
             by_model.setdefault(a.document_id, set()).add(a.id)
-    for r in db.query_in(ContentRepresentation, "document_id", list(by_model)):
+    for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(by_model)):
         if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
             have.add(r.document_id)
     return have
 
 
 def lines_states(db: Any, pages: list[str], model: str | None = None) -> dict[str, tuple[int, int, int]]:
-    """`lines_state` for all these pages in two reads (a page with no live line is absent), the same numbers."""
+    """`lines_state` for all these pages in two reads a batch (a page with no live line is absent), the same numbers."""
+    out: dict[str, tuple[int, int, int]] = {}
+    for start in range(0, len(pages), _LINES_AT_ONCE):  # the counts stay, the million lines' rows do not
+        out.update(_lines_states(db, pages[start : start + _LINES_AT_ONCE], model))
+    return out
+
+
+def _lines_states(db: Any, pages: list[str], model: str | None) -> dict[str, tuple[int, int, int]]:
     from fichero_server.llm.working_lines import NO_WRITING_MARK
     from fichero_server.models import ContentRepresentation
     from fichero_server.models.segments import Segment
 
     lines: dict[str, list[Any]] = {}
-    for x in db.query_in(Segment, "document_id", pages):
+    for x in db.query_fields_in(Segment, ("id", "document_id", "kind", "deleted_at", "metadata"), "document_id", pages):
         if x.kind == "line" and x.deleted_at is None:
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
-    for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
+    for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(lines)):
         if r.segment_id and not r.retracted_at:  # a reading taken back is no reading (#6264)
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, tuple[int, int, int]] = {}
@@ -318,11 +344,11 @@ def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
     from fichero_server.models.segments import Segment
 
     lines: dict[str, list[Any]] = {}
-    for x in db.query_in(Segment, "document_id", pages):
+    for x in db.query_fields_in(Segment, ("id", "document_id", "kind", "deleted_at", "metadata"), "document_id", pages):
         if x.kind == "line" and x.deleted_at is None:
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
-    for r in db.query_in(ContentRepresentation, "document_id", list(lines)):
+    for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(lines)):
         if r.segment_id and not r.retracted_at:
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, PageLines] = {}
@@ -399,6 +425,20 @@ def _blank_by(db: Any, page: str) -> str | None:
 
 
 _PAGE_IMAGE_JOBS = ("find-lines", "read-a-line", "read-a-page")
+
+
+def blank_by(db: Any, pages: list[str]) -> dict[str, str]:
+    """`_blank_by` for all these pages in one read of one column, not a whole row a page (a plan over 70k pages sat on
+    this for minutes): page -> who called it blank, only the pages somebody did."""
+    from fichero_server.models import Document
+    from fichero_server.recipes import sorting
+
+    out = {}
+    for doc in db.query_fields_in(Document, ("id", "attributes"), "id", pages):
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        if attrs.get(sorting.KIND) == sorting.BLANK:
+            out[doc.id] = "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
+    return out
 
 
 def _called_blank(db: Any, page: str) -> bool:
@@ -710,7 +750,8 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
             if card.get("job") in _PAGE_IMAGE_JOBS:  # a normal run leaves blank ones out (#6271)
-                todo = [p for p in todo if _blank_by(db, p) is None or (in_run and _blank_by(db, p) == "sorting")]
+                blank = blank_by(db, todo)
+                todo = [p for p in todo if p not in blank or (in_run and blank[p] == "sorting")]
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
@@ -731,7 +772,7 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
         if done is not None and card.get("job") in _PAGE_IMAGE_JOBS:
-            by = [_blank_by(db, p) for p in todo]  # pages called blank before; not looked at again here (#6271)
+            by = list(blank_by(db, todo).values())  # pages called blank before; not looked at again here (#6271)
             sorted_out, marked = (0 if in_run else by.count("sorting")), by.count("person")  # the redo's pages stay in
             if sorted_out or marked:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
                 said = [f"{sorted_out} left out as blank by sorting (redo them to read anyway)" if sorted_out else "",

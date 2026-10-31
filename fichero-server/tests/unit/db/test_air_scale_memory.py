@@ -43,21 +43,27 @@ SECONDS = 30
 #: The median document view under the load may take this long. The Air's took 5-20 s before they failed; on the old
 #: shares here, about a minute; on the fix, 2-8 s on a loaded Pro (its slowest can pass 20 s, so the median is held).
 VIEW_SECONDS = 15
-#: One Start-plan or after-step read on the whole library may raise the engine's peak by this much. Before the slim reads
-#: `counted` raised it by 2.1 GiB, a whole box's Catalogue plan by 2.1 GiB, `material` by 2.9 GiB.
-READER_PEAK_MIB = 400
+#: One Start-plan or after-step read on the whole library may raise the engine's peak by this much, DuckDB's own 448 MiB
+#: share included. Before the slim reads `counted` raised it by 2.2 GiB, a whole box's Catalogue plan by 1.5-2.1 GiB,
+#: `material` by 2.9 GiB.
+READER_PEAK_MIB = 800
 
 
 def _build(path: Path) -> None:
     """The library, written in SQL (a minute, not ten): rows the model reads back, ids `box<b>`, `f<n>`, `p<n>_<p>`."""
     from fichero_server.db import Database
-    from fichero_server.models import Artifact, DocType, Document, FileType
-    from fichero_server.models.segments import ProvenanceKind, SegmentPass
+    from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, FileType
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.segments import ProvenanceKind, Segment, SegmentPass
 
     db = Database(path)
     db.save(Document(id="tmpl", name="t", doc_type=DocType.file, file_type=FileType.image, metadata={}))
     db.save(Artifact(id="tmpl", document_id="tmpl", artifact_type="transcription", model="a-vision-model", data={}))
     db.save(SegmentPass(id="tmpl", document_id="tmpl", name="reading", provenance_kind=ProvenanceKind.workflow, model="a-vision-model"))
+    anchor = SourceAnchor(document_id="tmpl", rect=[0.1, 0.1, 0.6, 0.05])
+    db.save(Segment(id="tmpl", document_id="tmpl", pass_id="tmpl", kind="line", anchor=anchor, bbox_x=0.1, bbox_y=0.1, bbox_w=0.6,
+                    bbox_h=0.05, tile="t", doc_kind="tmpl:line", provenance_kind=ProvenanceKind.workflow))
+    db.save(ContentRepresentation(id="tmpl", document_id="tmpl", segment_id="tmpl", kind="transcription", content="texto", source_anchor=anchor))
     c, folders = db.conn, DOCS // PAGES_PER_FOLDER
     c.execute("""INSERT INTO documents SELECT documents.* REPLACE ('box'||b AS id, NULL AS parent_id, 'folder' AS doc_type,
                  NULL AS file_type, 'B'||b AS name) FROM documents, range(2) t(b) WHERE id = 'tmpl'""")
@@ -85,8 +91,15 @@ def _build(path: Path) -> None:
                   FROM artifacts, documents d WHERE artifacts.id = 'tmpl' AND d.page_content IS NOT NULL""")
     c.execute("""INSERT INTO segment_passes SELECT segment_passes.* REPLACE ('pass'||d.id AS id, d.id AS document_id)
                   FROM segment_passes, documents d WHERE segment_passes.id = 'tmpl' AND d.page_content IS NOT NULL""")
-    c.execute("DELETE FROM artifacts WHERE id = 'tmpl'")
-    c.execute("DELETE FROM segment_passes WHERE id = 'tmpl'")
+    # And its lines, each with its reading: a million rows of each.
+    c.execute(f"""INSERT INTO segments SELECT segments.* REPLACE ('s'||d.id||'_'||k AS id, d.id AS document_id, 'pass'||d.id AS pass_id)
+                  FROM segments, documents d, range({LINES_PER_PAGE}) t(k) WHERE segments.id = 'tmpl' AND d.page_content IS NOT NULL""")
+    c.execute(f"""INSERT INTO contentrepresentations SELECT contentrepresentations.* REPLACE ('r'||d.id||'_'||k AS id, d.id AS document_id,
+                  's'||d.id||'_'||k AS segment_id, md5(d.id||k)||' '||md5(k||d.id) AS content)
+                  FROM contentrepresentations, documents d, range({LINES_PER_PAGE}) t(k)
+                  WHERE contentrepresentations.id = 'tmpl' AND d.page_content IS NOT NULL""")
+    for table in ("contentrepresentations", "segments", "artifacts", "segment_passes"):
+        c.execute(f"DELETE FROM {table} WHERE id = 'tmpl'")
     c.execute("DELETE FROM documents WHERE id = 'tmpl'")
     c.execute("CHECKPOINT")
     db.close()
@@ -234,12 +247,13 @@ def probed(built_library, tmp_path_factory):
            "PYTHONPATH": str(Path(__file__).parents[3] / "src")}
 
     def run(code: str) -> int:
-        done = subprocess.run([sys.executable, "-c", _PROBE, str(built_library), code], env=env, capture_output=True, text=True, timeout=600)
-        assert done.returncode == 0, done.stderr[-800:]
-        peak = int(done.stdout.split("PEAK")[-1])
-        print(f"{code}: +{peak} MiB")
+        finished = subprocess.run([sys.executable, "-c", _PROBE, str(built_library), code], env=env, capture_output=True, text=True, timeout=600)
+        assert finished.returncode == 0, finished.stderr[-800:]
+        peak = int(finished.stdout.split("PEAK")[-1])
+        print(f"{code[:70]}: +{peak} MiB")
         return peak
 
+    run("pass")  # the first open rebuilds the indexes (#5644): its spike would hide what the reader adds
     return run
 
 
@@ -274,6 +288,18 @@ def test_counting_for_training_stays_lean(probed):
 def test_a_whole_box_catalogue_plan_stays_lean(probed):
     """Review H2: `folders_covering` read every page of the run whole: a box of 35k pages raised the peak by 2.1 GiB."""
     assert probed("catalogue_step.folders_to_describe(db, box_pages)") <= READER_PEAK_MIB
+
+
+def test_counting_the_material_stays_lean(probed):
+    """Sibling sweep: `material`, on every plan, read the whole library twice: +2.9 GiB."""
+    assert probed("assert done.material(db)['pages'] > 60000") <= READER_PEAK_MIB
+
+
+def test_a_whole_library_plan_s_notes_stay_lean(probed):
+    """Sibling sweep: every step's pages, what each has done, who called them blank and the Catalogue's folders: the Start
+    plan over the library never finished in 10 minutes, on a whole-row read a page."""
+    cards = [{"job": job, "card": "workflow", "steps": [job]} for job in ("find-lines", "read-a-line", "describe-for-the-catalogue")]
+    assert probed(f"done.annotate(db, {{'runs': {cards!r}}})") <= READER_PEAK_MIB
 
 
 def test_the_air_s_share_is_what_a_library_of_this_size_needs(monkeypatch):
