@@ -12,7 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
-TRUSTED = {"OWNER", "COLLABORATOR"}
+TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}  # spec:197
 _PATH = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.+-]+\.(?:py|swift|md|sh|toml|json|ts|yml|yaml))(?:::(\w+))?")
 _SYMBOL = re.compile(r"`(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:\(\))?`")
 _TEST = re.compile(r"(^|/)(test_[\w-]+\.py|[\w-]+_test\.py|[\w-]+Tests?\.swift)$")
@@ -21,14 +21,28 @@ _DEF = ("^[[:space:]]*((public|private|internal|final|static|async|override) )*"
         "(def|class|func|struct|enum|protocol|actor)[[:space:]]+{}([^[:alnum:]_]|$)")
 
 
-def fetch_issue(number: int, *, repo: str = "", gh: str = "gh") -> dict:
-    argv = [gh, "issue", "view", str(number), "--json", "number,title,body,author,authorAssociation,comments"]
-    if repo:
-        argv += ["--repo", repo]
-    r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+def _api(path: str, gh: str) -> object:
+    r = subprocess.run([gh, "api", "--paginate", "--slurp", path], capture_output=True, text=True, timeout=60)
     if r.returncode:
-        raise RuntimeError(f"gh could not read issue {number}: {r.stderr.strip()}")
-    return json.loads(r.stdout)
+        raise RuntimeError(f"gh could not read {path}: {r.stderr.strip()}")
+    data = json.loads(r.stdout)
+    # --slurp wraps pages in a list; an issue (object) comes back as [obj]
+    return [x for page in data for x in (page if isinstance(page, list) else [page])] if isinstance(data, list) else data
+
+
+def fetch_issue(number: int, *, repo: str = "", gh: str = "gh") -> dict:
+    """Issue + comments from the REST API (`gh issue view` has no authorAssociation), in the shape build() reads."""
+    if not repo:
+        r = subprocess.run([gh, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+                           capture_output=True, text=True, timeout=60)
+        repo = r.stdout.strip()
+    iss = _api(f"repos/{repo}/issues/{number}", gh)
+    iss = iss[0] if isinstance(iss, list) else iss
+    comments = _api(f"repos/{repo}/issues/{number}/comments", gh)
+    return {"number": iss["number"], "title": iss["title"], "body": iss.get("body"),
+            "author": iss.get("user") or {}, "authorAssociation": iss.get("author_association"),
+            "comments": [{"author": c.get("user") or {}, "authorAssociation": c.get("author_association"),
+                          "body": c.get("body"), "createdAt": c.get("created_at", "")} for c in comments]}
 
 
 def _grep(repo: str, name: str, paths: list[str]) -> list[str]:
@@ -64,8 +78,9 @@ def localise(repo: str, text: str) -> dict:
 
 def build(issue: dict, *, repo: str) -> str:
     """The brief text. An untrusted body or comment never reaches it (named once, so the worker knows)."""
-    out = [f"# Issue #{issue['number']}: {issue['title']}", ""]
     body_ok = issue.get("authorAssociation") in TRUSTED
+    title = issue["title"] if body_ok else "(title left out: its author is not trusted)"
+    out = [f"# Issue #{issue['number']}: {title}", ""]
     out += [issue.get("body") or "", ""] if body_ok else ["(The issue body is left out: its author is not trusted.)", ""]
     comments = sorted(issue.get("comments") or [], key=lambda c: c.get("createdAt", ""), reverse=True)
     trusted = [c for c in comments if c.get("authorAssociation") in TRUSTED]
