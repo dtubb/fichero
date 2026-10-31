@@ -72,7 +72,7 @@ Lives in: the WebKit Reader (`fichero-server/src/fichero_server/api/templates/do
   and their readings are not changed. Once a person has a reading on a line, the page reads the
   line from that reading and skips its words (#5224, commit `61d332e63`; the matching behavior
   `source.textedit.an-edited-line-reads-from-itself` is still tagged GAP in `segment-editor.md`).
-- **Retiring a word whose text left the line is ruled (2026-09-28, #5190) and not built.**
+- **Retiring a word whose text left the line is ruled (2026-09-28, #5190); the engine half is built** (`models/word_spans.py`, `segment_readings.py`; pinned by `tests/unit/models/test_word_spans.py` and `tests/unit/api/test_a_word_left_out_of_its_line_is_retired.py`). The Reader's own use of it is not seen in the app.
 - **The only geometry ever worked out from text is the split's cut:** one rectangle cut in two at
   `offset / length`, both halves marked `metadata.cut = "estimated"` (`segments.py`,
   `estimated_cut`). The app does not read that mark.
