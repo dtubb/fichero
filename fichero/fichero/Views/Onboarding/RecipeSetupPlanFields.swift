@@ -167,10 +167,12 @@ struct RecipeProposalFields: View {
 /// what is offered first, never what can be reached (`source.onboard.offers-never-hides`).
 struct OfferedJobsList: View {
     let store: RecipeSetupStore
+    /// A stage page lists only its own stage's jobs (wide Set Up); nil lists all.
+    var onlyJobs: Set<String>?
 
     var body: some View {
         let inRecipe = Set((store.recipe?.steps ?? []).map(\.job))
-        let others = store.offeredJobs.filter { !inRecipe.contains($0.id) }
+        let others = store.offeredJobs.filter { !inRecipe.contains($0.id) && (onlyJobs?.contains($0.id) ?? true) }
         if !others.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
@@ -269,7 +271,7 @@ struct RecipeStartFields: View {
                 RecipeSkippedRows(store: store, onFix: onFix, project: project)
                 RecipeBuiltInRows(store: store)
                 // Steps left off until turned on, each with what it would cost and Turn On (#5677).
-                RecipeLeftOffRows(store: store)
+                if !FeatureManager.shared.isWideSetUpEnabled { RecipeLeftOffRows(store: store) }
             } else if store.recipe != nil, store.errorMessage == nil {
                 ProgressView("Planning what Start would run…").controlSize(.small)
             }

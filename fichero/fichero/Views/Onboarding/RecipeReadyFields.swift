@@ -86,12 +86,13 @@ struct RecipeReadyFields: View {
             RecipeTrainOffersFields(store: store)
         case .start:
             if let recipe = store.recipe {
-                RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
+                // Wide Set Up: a step taken out is put back on its stage's page (`wide.ready.only-what-will-run`).
+                if !FeatureManager.shared.isWideSetUpEnabled { RecipeTakenOutRows(store: store, removed: recipe.removed ?? []) }
                 RecipeCloudQuestion(store: store)
                 RecipeMoneyAndPlaceFields(store: store)
             }
             RecipeStartFields(store: store, onFix: onFix, project: project)
-            OfferedJobsList(store: store)
+            if !FeatureManager.shared.isWideSetUpEnabled { OfferedJobsList(store: store) }
             StepChoiceMenusView(store: store)
             startRow
         case .checkOnYourPages:

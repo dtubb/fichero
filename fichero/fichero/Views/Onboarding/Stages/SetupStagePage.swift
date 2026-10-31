@@ -46,6 +46,11 @@ struct SetupStagePage: View {
             whoRunsIt
             // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
+            if FeatureManager.shared.isWideSetUpEnabled {
+                // Adding a step and putting one back are on its stage's page, not on Ready (`wide.ready.adding-a-step-is-on-its-stage-page`).
+                RecipeTakenOutRows(store: store, removed: (store.recipe?.removed ?? []).filter { stage.jobs.contains($0.job) })
+                OfferedJobsList(store: store, onlyJobs: Set(stage.jobs))
+            }
             if stage.id == "prepare-images" {
                 Divider()
                 PrepareImagesCard(
