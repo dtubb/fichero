@@ -125,3 +125,48 @@ def test_link_file_is_owner_only_and_stdout_holds_no_link(host, tmp_path):
     assert "fichero://" not in result.output and "ABCD" not in result.output
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
     assert pairing.parse_link(target.read_text()).code == "ABCD-1234"
+
+
+# -- review 2026-10-31 (M): the link file is made owner-only at creation, never through someone else's file ---------------
+def test_link_file_refuses_a_symlink_and_a_directory(host, tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep me")
+    link = tmp_path / "link-is-a-symlink"
+    link.symlink_to(victim)
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--link-file", str(link)])
+    assert result.exit_code == 1 and "symlink" in result.output.lower(), result.output
+    assert victim.read_text() == "keep me", "the symlink's target was written through"
+    assert "fichero://" not in result.output
+
+    folder = tmp_path / "a-folder"
+    folder.mkdir()
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--link-file", str(folder)])
+    assert result.exit_code == 1 and "fichero://" not in result.output
+
+
+def test_link_file_replaces_the_owners_own_loose_file_with_an_owner_only_one(host, tmp_path):
+    """A pre-existing 0666 file of the caller's own never holds the link while readable: the link is written to a fresh
+    0600 file beside it and moved into place."""
+    target = tmp_path / "loose.txt"
+    target.write_text("old")
+    target.chmod(0o666)
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--link-file", str(target)])
+    assert result.exit_code == 0, result.output
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert pairing.parse_link(target.read_text()).code == "ABCD-1234"
+    assert not list(tmp_path.glob("*.tmp*")), "no temp file left behind"
+
+
+def test_write_owner_only_creates_with_excl_and_nofollow(tmp_path, monkeypatch):
+    """The temp file is created O_CREAT|O_EXCL|O_NOFOLLOW at mode 0600; the mode is never fixed up after a write."""
+    seen = []
+    real_open = pairing.os.open
+
+    def spy(path, flags, mode=0o777, *a, **k):
+        seen.append((flags, mode))
+        return real_open(path, flags, mode, *a, **k)
+
+    monkeypatch.setattr(pairing.os, "open", spy)
+    pairing.write_owner_only(tmp_path / "x", "text\n")
+    flags, mode = seen[-1]
+    assert flags & pairing.os.O_EXCL and flags & pairing.os.O_NOFOLLOW and mode == 0o600

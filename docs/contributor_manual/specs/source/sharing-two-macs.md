@@ -494,8 +494,9 @@ the addresses* (`sharing.state-names-every-address`).
   on the host mints one code and prints the pairing link for the chosen address (default: tailscale when the engine reports one, else
   this-network), or writes it to `--link-file` (0600) and prints only the address and the expiry. The link carries the pin for a
   `.local`/IP address (`spki_pin` from the mint answer) and none for `.ts.net`, the same rule as the app (`_is_public_ca`). The two
-  machines are then linked with no GUI: `fichero devices invite --link-file /tmp/l` on the host, `fichero devices pair --link-file /tmp/l` on
-  the guest. The raw code is never printed on its own. *Test:* `tests/unit/security/test_cli_mints_a_link_to_spec.py` (beside
+  machines are then linked with no GUI: `fichero devices invite --link-file ~/fichero-pair/link` on the host (a private directory, never a
+  shared `/tmp` path: the file is created owner-only at 0600 through a fresh temp file, and a symlink, a directory or another user's file
+  is refused in words), copied to the guest, then `fichero devices pair --link-file ~/fichero-pair/link` there. The raw code is never printed on its own. *Test:* `tests/unit/security/test_cli_mints_a_link_to_spec.py` (beside
   `test_cli_pairs_a_device_5907.py`): the link decodes to the engine's code and the chosen address; `.ts.net` → no `spki`; `.local` → the pin;
   `--link-file` is 0600 and stdout holds no payload.
 
@@ -556,8 +557,8 @@ Run after the slices; one record per numbered step (what the screen said, verbat
 9. **iPad (same Wi-Fi as the Air, Local Network allowed):** scan the QR with This network selected. On a campus network expect the
    network sentence; with Tailscale selected the pair succeeds. Deny Local Network in Settings › Fichero and retry This network: the sentence
    names the permission with Open Settings.
-10. **CLI (host Air, no GUI):** `fichero devices invite --link-file /tmp/l` prints the address and expiry; on the M4
-    `fichero devices pair --link-file /tmp/l` pairs; `fichero devices list` on the Air shows it; `fichero devices revoke <id>` ends it.
+10. **CLI (host Air, no GUI):** `fichero devices invite --link-file ~/fichero-pair/link` prints the address and expiry; copy the file to the M4;
+    `fichero devices pair --link-file ~/fichero-pair/link` pairs; `fichero devices list` on the Air shows it; `fichero devices revoke <id>` ends it.
 
 ### 10.9 Build order: slices, engine first, then shared Swift, then per platform
 

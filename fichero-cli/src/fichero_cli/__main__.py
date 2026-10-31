@@ -866,7 +866,11 @@ def devices_invite(
     expires = (mint.get("expires_at") or "").replace("T", " ").rstrip("Z")[:16]
     typer.echo(f"{label} ({urlparse(api_url).hostname}); the code expires {expires} UTC and works once.")
     if link_file:
-        pairing.write_owner_only(link_file, text + "\n")
+        try:
+            pairing.write_owner_only(link_file, text + "\n")
+        except (FicheroError, OSError) as exc:
+            typer.echo(f"Could not write the link file: {exc}", err=True)
+            raise typer.Exit(1) from exc
         typer.echo(f"Link written to {link_file}. On the other machine: fichero devices pair --link-file <that file>")
     else:
         typer.echo(text)

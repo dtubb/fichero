@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import getpass
 import hashlib
 import json
 import os
 import socket
 import ssl
+import stat
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -158,12 +160,35 @@ def _write_store(store: dict) -> None:
 
 
 def write_owner_only(path: Path, text: str) -> None:
-    """Write `text` to `path` readable by this user only (a pairing link is a one-time secret while it lives)."""
+    """Write `text` to `path` readable by this user only (a pairing link is a one-time secret while it lives).
+
+    The bytes never touch a file anyone else can read: a fresh temp file beside the target is created
+    O_CREAT|O_EXCL|O_NOFOLLOW at mode 0600 (never a mode fixed up after the write), then moved over the target. The
+    target may only be replaced when it does not exist or is the caller's own regular file; a symlink, a directory or
+    another user's file is refused in words (review 2026-10-31: a shared /tmp path could be pre-created by someone else)."""
+    path = Path(path)
+    try:
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if stat.S_ISLNK(existing.st_mode):
+            raise FicheroError(f"{path} is a symlink; refusing to write the link through it. Name a new file.")
+        if not stat.S_ISREG(existing.st_mode):
+            raise FicheroError(f"{path} is not a regular file; name a new file for the link.")
+        if existing.st_uid != os.getuid():
+            raise FicheroError(f"{path} belongs to another user; name a file of your own for the link.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
-    os.chmod(path, 0o600)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def device_token(engine: str | None) -> str | None:
