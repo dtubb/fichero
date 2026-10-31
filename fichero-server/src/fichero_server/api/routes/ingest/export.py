@@ -1,5 +1,6 @@
 """Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+import asyncio
 import base64
 import tempfile
 from datetime import datetime
@@ -222,7 +223,7 @@ async def export_jsonl_route(
     db: Database = Depends(get_library_database_for_write),
 ) -> JsonlExportResponse:
     """Export canonical records as a JSON Lines file."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_jsonl(
             db=db,
@@ -292,7 +293,7 @@ async def export_parquet_route(
     db: Database = Depends(get_library_database_for_write),
 ) -> ParquetExportResponse:
     """Export canonical records as a typed Parquet bundle."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_parquet(
             db=db,
@@ -320,7 +321,7 @@ async def export_eleventy_site_route(
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> EleventySiteExportResponse:
     """Publish a library, folder, or subfolder as an 11ty/Netlify static site."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_eleventy_site(
             db=db,
@@ -356,7 +357,7 @@ async def export_markdown_folder_route(
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> MarkdownFolderExportResponse:
     """Export a library, folder, or document as a Markdown folder."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_markdown_folder(
             db=db,
@@ -391,7 +392,7 @@ async def export_word_route(
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
     """Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them)."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         if request.per == "folder":
             return WordExportResponse(**export_word_transcripts(
@@ -428,7 +429,7 @@ async def export_excel_route(
     db: Database = Depends(get_library_database_for_write),
 ) -> ExcelExportResponse:
     """Export a library, folder, or document as an Excel .xlsx workbook."""
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_excel_xlsx(
             db=db,
@@ -482,10 +483,11 @@ def _documents_under(db: Database, target_id: str | None) -> list[str]:
         return []
 
 
-def _read_checked(http: Request, library_path: str, db: Database, target_id: str | None) -> None:
+async def _read_checked(http: Request, library_path: str, db: Database, target_id: str | None) -> None:
     """The id is in the body, which the write dependency never sees (a decoy id in the query stood in): read-check it and every page
     under it before a file is written (#6320)."""
-    assert_library_reads_every(http, library_path, [target_id], lambda: _documents_under(db, target_id))
+    # off the event loop: for a scoped caller this is the folder walk plus one authz lookup per page
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, [target_id], lambda: _documents_under(db, target_id))
 
 
 _WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
@@ -506,7 +508,7 @@ async def export_catalogue_workbook_route(
     suffix = ".xlsx" if request.format == "xlsx" else ".zip"
     name = f"{kept_export.WORKBOOK_NAME}{suffix}"
     # The id is in the body, which the read dependency never sees: check it here, with every page under it (#6320).
-    _read_checked(http, library_path, db, request.target_id)
+    await _read_checked(http, library_path, db, request.target_id)
     if request.kept_export_id:
         assert_library_write_authorized(http, library_path, request.target_id)  # a read export, except that this one queues a write
         kept = kept_export._export(db, request.kept_export_id)

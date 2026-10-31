@@ -314,7 +314,8 @@ async def batch_prepare_preview(
     """The folder's first, middle and last page with the correction applied, before anything runs. Writes no row."""
     # The ids are in the body, which the read dependency never sees; the pages shown are pixels, so each is read-checked (#6320).
     named = [request.folder_id, *([request.source_document_id] if request.source_document_id else [])]
-    assert_library_reads_every(http, library_path, named, lambda: [d.id for d, _page in _batch_targets(db, request)[0]])
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, named,
+                            lambda: [d.id for d, _page in _batch_targets(db, request)[0]])
     return await asyncio.to_thread(_batch_prepare_preview, db, request)
 
 
