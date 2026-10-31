@@ -51,3 +51,22 @@ def test_a_project_viewer_denied_a_folder_cannot_read_it_through_either_route(pr
     assert client.post(workbook, json={"target_id": project.ids["B"]}).status_code == 403
     assert client.post(preview, json={"folder_id": project.ids["B"], "operation": TURN}).status_code == 403
     assert client.post(workbook, json={}).status_code == 403  # the whole project holds the denied folder
+
+
+FILE_EXPORTS = ("excel", "jsonl", "parquet", "eleventy-site", "markdown-folder", "word")
+
+
+@pytest.mark.parametrize("route", FILE_EXPORTS)
+def test_the_file_exports_read_check_their_body_ids_too(project, route, tmp_path):
+    """The same hole in the siblings that write a file: a decoy id in the query stood in for the body's `target_id`."""
+    carla = _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"], role="editor")
+    client = _as(project.harness, "carla")
+    out = str(tmp_path / f"out-{route}")
+    a, b = project.ids["A"], project.ids["B"]
+    assert client.post(f"/api/export/{route}?target_id={a}", json={"target_id": b, "output_path": out}).status_code == 403
+    assert client.post(f"/api/export/{route}", json={"output_path": out}).status_code == 403  # the whole project
+    bob = project.users["bob"]
+    project.harness.app_db.set_library_acl_override(
+        user_id=bob.id, library_path=authz.normalize_library_path(project.library), target_id=b, effect="deny")
+    assert _as(project.harness, "bob").post(f"/api/export/{route}", json={"target_id": b, "output_path": out}).status_code == 403
