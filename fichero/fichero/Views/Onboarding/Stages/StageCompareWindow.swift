@@ -10,6 +10,8 @@ struct StageCompareWindow: View {
     let name: String
     let candidates: [StageCandidate]
     var useThis: ((StageCandidate) -> Void)?
+    /// The wide Set Up's compare view on this page (`CompareReadersView`), shown under the candidates; nil off the flag.
+    var readers: CompareReadersStore?
     @Environment(\.dismiss) private var dismiss
     /// nil: every model beside the others; a card: that model alone.
     @State private var only: String?
@@ -31,6 +33,7 @@ struct StageCompareWindow: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             StageCompareColumns(pageId: pageId, candidates: shown, useThis: useThis.map { use in { use($0); dismiss() } })
+            if let readers { Divider(); CompareReadersView(store: readers) }
         }
         .padding()
         .frame(minWidth: 560, minHeight: 520)

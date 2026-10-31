@@ -85,7 +85,9 @@ struct SetupStageSamples: View {
         .task { await store.load(); await store.follow() }
         .sheet(item: $comparing) { page in
             StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
-                               candidates: store.result?.candidates ?? [], useThis: useThis)
+                               candidates: store.result?.candidates ?? [], useThis: useThis,
+                               readers: FeatureManager.shared.isWideSetUpEnabled
+                                   ? CompareReadersStore(client: store.client, pageId: page.id) : nil)
         }
     }
 
