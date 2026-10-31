@@ -37,7 +37,7 @@ struct CompareReadersView: View {
             .pickerStyle(.segmented).labelsHidden().fixedSize()
             .accessibilityIdentifier("compare.mode")
             Toggle("Only lines that differ", isOn: Binding(get: { model.onlyDiffering }, set: { store.setOnlyDiffering($0) }))
-                .toggleStyle(.checkbox)
+                .compareCheckbox()
                 .accessibilityIdentifier("compare.onlyDiffering")
         }
     }
@@ -111,7 +111,7 @@ struct CompareReadersView: View {
                 ForEach(model.readers, id: \.id) { reader in
                     Toggle(reader.label, isOn: Binding(get: { !model.drawn.filter { $0.id == reader.id }.isEmpty },
                                                        set: { _ in store.toggle(reader: reader.id) }))
-                        .toggleStyle(.checkbox)
+                        .compareCheckbox()
                 }
             }
             ScrollView {
@@ -146,5 +146,16 @@ struct CompareReadersView: View {
                 }
             }
         }
+    }
+}
+
+private extension View {
+    /// The checkbox look on the Mac; the plain switch elsewhere (`.checkbox` is macOS only).
+    @ViewBuilder func compareCheckbox() -> some View {
+        #if os(macOS)
+        toggleStyle(.checkbox)
+        #else
+        self
+        #endif
     }
 }
