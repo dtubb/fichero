@@ -28,10 +28,10 @@ struct FirstRunWindow: View {
     /// The window's size on the Mac; the content column gets what the step list leaves.
     static let windowSize = CGSize(width: 820, height: 600)
 
-    @State private var step: SetupStep
+    @State var step: SetupStep
     /// Change… on a stage page's worked-out language goes back to About the Material (the step is private here).
     func showAboutMaterial() { step = .aboutMaterial }
-    @State private var flow: SetupFlow
+    @State var flow: SetupFlow
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
     /// (`source.onboard.app.provider-sheet-in-step`).
     @State var addProvider: AddProviderRequest?
@@ -81,7 +81,7 @@ struct FirstRunWindow: View {
     var store: RecipeSetupStore? { project?.recipeSetupStore }
 
     /// The pages, with one per stage chosen so far, and the stage page the person is on even if they just unticked it.
-    private var steps: [SetupStep] {
+    var steps: [SetupStep] {
         var current = flow
         let onStage: String? = if case .stage(let id) = step { id } else { nil }
         current.chosenStages = store?.stageIds(keeping: onStage) ?? []
@@ -93,9 +93,9 @@ struct FirstRunWindow: View {
             sidebar
             Divider()
             // minWidth 0: a wide row never pushes the sheet past its window (#5624).
-            content
+            paged(content
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                .clipped())
         }
         // The project's services, for every way in: Set Up… is given its project, a new project is made inside this
         // window (Your project), and a sheet hangs above the library tree that injects them (review 365, 360).
