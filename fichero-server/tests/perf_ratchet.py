@@ -14,8 +14,10 @@ So this is a RATCHET, in the direction the project wants to move:
 
   * `perf_baseline.json` records the best time each measurement has achieved.
   * A run slower than that baseline (plus a jitter allowance) FAILS.
-  * A run meaningfully faster REWRITES the baseline — the bar tightens itself,
-    permanently, with no one having to remember to lower it.
+  * A run meaningfully faster REWRITES the baseline only when
+    `FICHERO_PERF_TIGHTEN=1` — the bar tightens itself, permanently, with no
+    one having to remember to lower it. Without the env var, a faster run
+    reports the improvement but leaves the committed baseline untouched.
   * Loosening the bar requires editing the committed baseline by hand, with a
     reason. That is deliberately annoying: a slower Fichero should cost someone
     a sentence explaining why it is worth it.
@@ -76,6 +78,11 @@ def _commit() -> str:
         return "unknown"
 
 
+def _tightening_allowed() -> bool:
+    """Only write a baseline file when FICHERO_PERF_TIGHTEN=1."""
+    return os.environ.get("FICHERO_PERF_TIGHTEN") == "1"
+
+
 def _load_baseline(unit: str = "ms") -> dict[str, float]:
     """Every entry recorded in `unit`. One file, several dimensions.
 
@@ -115,6 +122,8 @@ def _write_baseline(name: str, value: float, note: str, unit: str = "ms") -> Non
     writers perfectly — last writer wins for the whole file — but it can no
     longer corrupt it, and both writers are recording the same measurements.
     """
+    if not _tightening_allowed():
+        return
     data: dict = {}
     if BASELINE_PATH.exists():
         try:
@@ -333,7 +342,7 @@ def flush_session() -> list[str]:
             }
             changed = True
 
-    if changed:
+    if changed and _tightening_allowed():
         tmp = BASELINE_PATH.with_suffix(f".{os.getpid()}.tmp")
         tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(tmp, BASELINE_PATH)
@@ -428,7 +437,7 @@ def flush_query_session() -> list[str]:
             }
             changed = True
 
-    if changed:
+    if changed and _tightening_allowed():
         tmp = BASELINE_PATH.with_suffix(f".{os.getpid()}.tmp")
         tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(tmp, BASELINE_PATH)

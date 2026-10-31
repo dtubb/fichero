@@ -45,6 +45,8 @@ def baseline(tmp_path, monkeypatch):
     monkeypatch.setattr(_ratchet, "_another_perf_run_is_active", lambda: False)
     monkeypatch.setattr(_ratchet, "_mem_peak_mb", 0.0)
     monkeypatch.setattr(_ratchet, "_mem_peak_test", "")
+    # Tests that verify baseline writing must set FICHERO_PERF_TIGHTEN=1
+    monkeypatch.setenv("FICHERO_PERF_TIGHTEN", "1")
     return path
 
 
