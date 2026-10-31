@@ -156,8 +156,8 @@ tmux_session = "studio"          # the live runner owns "pipeline"
 pi_bin = ".studio-pi/node_modules/.bin/pi"                  # Pi 1.4.0, installed inside this worktree (gitignored)
 pi_adapter = ".studio-pi/node_modules/pi-mcp-adapter/index.ts"   # 7.0.0; the global 2.8.0 targets Pi 0.74
 agent_dir = "pipeline/pi-agent"
-cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
-daily_cap_usd = 8.0             # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+cost_cap_usd = 0.75             # per SESSION; the OpenRouter budget of the trial is US$3.50 in all
+daily_cap_usd = 2.5              # across all items, summed from the journal (the lead is told before US$2.50 is passed)
 context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
 # pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
 # or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
