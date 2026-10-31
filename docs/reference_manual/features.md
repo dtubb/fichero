@@ -59,6 +59,7 @@ Build-tier visibility uses a maturity floor:
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
 | Agents | `dev` | `fichero.features.agents` | - | Knowledge | In-app agent surface still in the rawest stage. |
 | Chat | `dev` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
+| Dev workers | `dev` | - | `/api/workers` | Knowledge | Engine-run dev worker processes (the dev harness, |
 | Research | `dev` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |
 | Automation | `dev` | `fichero.features.automation` | `/api/schedules`, `/api/triggers` | Processing | Schedules, triggers, and automated flows. |
 | Workflow tools agents | `dev` | `fichero.features.workflow_tools_agents` | - | Processing | Agent-backed workflow tools still under review. |
