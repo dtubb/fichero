@@ -405,20 +405,21 @@ every kept export. The Word transcript streams one folder at a time into the zip
   writing the workbook never calls a model or reruns the Catalogue stage (#6127); a run with no
   Catalogue stage writes the fact columns and leaves the fields empty. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.cataloguer-column` — **[GAP]** (#6282) Tu nombre lists everyone involved in the
+- `catalogue.export.cataloguer-column` — **[OK]** (#6282) Tu nombre lists everyone involved in the
   row from `attribute_sources`: each person who set or accepted a field, by account name, then each
   model that set a field as "Fichero (<model>)", persons first then models, each once, joined "; ";
-  a row no source touched is empty. Test: fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
+  a row no source touched is empty. Test: fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py
+  (`test_the_thirteen_columns_render_cell_for_cell`: "Fichero (m-1)" on a described row, empty on an untouched one).
 - `catalogue.export.access-points-typed-by-the-graph` — **[GAP]** (#6282, #6267) `folder.promote_catalogue`
   types each access point by the project's entities (canonical name or alias, exact after NFC and case
   folding, no model) into `catalogue_people`, `catalogue_places`, `catalogue_institutions`; an unmatched
   point goes to Problemas and is proposed into the graph as a mention on the folder description;
   `catalogue_access_points` is unchanged; a list a person set is never overwritten; the undo puts the
   lists back. Test: fichero-server/tests/unit/recipes/test_catalogue_access_points_typed.py.
-- `catalogue.export.people-places-institutions-columns` — **[GAP]** (#6282) Lugares and Nombres read
-  `catalogue_places` and `catalogue_people` joined "; " in the attribute's order; institutions never
-  appear in either and go to the Entidades sheet. Test:
-  fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
+- `catalogue.export.people-places-institutions-columns` — **[OK]** (#6282) Lugares and Nombres read
+  `catalogue_places` and `catalogue_people` joined by the declaration's `join` ("|" in the EAP preset) in the
+  attribute's order; institutions never appear in either and go to the Entidades sheet. Test:
+  fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py and test_catalogue_sheet_formats.py.
 - `catalogue.export.dates-in-the-archives-format` — **[OK]** (#6282, #6270) the date column renders the
   start side of `catalogue_date_normalised` through the prototype's format: "17/Marzo/1892" for a day,
   "Marzo/1892" for a month, "1892" for a year, empty when there is none; `?` and `~` are dropped and
@@ -478,7 +479,8 @@ every kept export. The Word transcript streams one folder at a time into the zip
   person marked incomplete; the workbook prints a person's values and canonical name forms and marks a
   machine's proposals, and `proposals: omitted` leaves them out; Tema holds the prototype's subject
   vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
-- `catalogue.export.list-cells-follow-the-declaration` — **[GAP]** (#6282) a list column is joined by
+- `catalogue.export.list-cells-follow-the-declaration` — **[PARTIAL]** (#6282) built: a list column is joined by the declaration's `join`
+  (tested in the EAP preset). Not built: printing a person by `name_order` from the entity's surnames and given names. Full text: a list column is joined by
   the declaration's `join` ("|" in the EAP preset) and people are printed by its `name_order` from the
   entity's surnames and given names ("Apellido, Nombre"); a name with no split surname prints as
   written; the table and the export print the same string. Test:
@@ -523,7 +525,8 @@ every kept export. The Word transcript streams one folder at a time into the zip
   writes into a named kept export; the CLI and MCP reach it through the generated surface; the route
   runs the same builder as the recipe step. Test:
   fichero-server/tests/unit/api/test_export_catalogue_workbook_route.py.
-- `catalogue.export.app-doors` — **[GAP]** (#6282, #507) File ▸ Export ▸ Catalogue workbook…, File ▸
+- `catalogue.export.app-doors` — **[PARTIAL]** (#6282, #507) built: the Kept exports store carries the catalogue-workbook and Word-transcript
+  formats (KeptExportStoreTests; the Swift suites are not run on the Pro until the test host is restarted). Not built: the menu doors below. Full text: File ▸ Export ▸ Catalogue workbook…, File ▸
   Export ▸ Transcript (Word, per folder)…, the folder's context menu and the table view's Export button
   call the routes and offer a save panel; no local path is sent. Known gap until built: `POST /api/export/catalogue-workbook` is
   in the endpoint matrix's known gaps, and `POST /api/export/word` with `per: folder` still takes `output_path` from the caller
