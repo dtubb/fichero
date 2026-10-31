@@ -41,10 +41,10 @@ rules = [
 required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
 
 # Workers and the ladder run as this second macOS user; a missing user REFUSES (no fallback to the owner's user).
-# Owner set-up, once: sysadminctl -addUser fichero-builder (no admin); sudoers line `<owner> ALL=(fichero-builder) NOPASSWD: ALL`;
-# mkdir /Users/Shared/fichero-builder (writable by both, files public data only); `claude` signed in as that user;
+# Owner set-up, once: sysadminctl -addUser fichero-worker (no admin); sudoers line `<owner> ALL=(fichero-worker) NOPASSWD: ALL`;
+# mkdir /Users/Shared/fichero-worker (writable by both, files public data only); `claude` signed in as that user;
 # a venv readable by it for [check].python (the owner's .venv under ~ is not); a world-readable bare mirror to clone from.
 [jail]
-user = "fichero-builder"
-workroot = "/Users/Shared/fichero-builder"
+user = "fichero-worker"
+workroot = "/Users/Shared/fichero-worker"
 deny_read = ["~/.config/gh", "~/.ssh", "~/.claude"]
