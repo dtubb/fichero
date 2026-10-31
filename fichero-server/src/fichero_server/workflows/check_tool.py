@@ -65,8 +65,24 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     return "\n".join(kept)[-chars:]
 
 
-def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None) -> dict:
-    """Run argv (own process group, killed whole on timeout) and return the typed result."""
+_JAIL = None  # ponytail: module state set by run_ladder for the length of one ladder; per-call plumbing if two ladders overlap
+
+
+def _mkdtemp(prefix: str, readable: bool = False) -> str:
+    if _JAIL is not None:
+        d = _JAIL.mkdtemp(prefix)  # under the shared workroot, writable by the jailed user
+    else:
+        d = tempfile.mkdtemp(prefix=prefix)
+    if readable:
+        os.chmod(d, 0o755)  # a tree the jailed user reads (public repo content only)
+    return d
+
+
+def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None, as_jail: bool = True) -> dict:
+    """Run argv (own process group, killed whole on timeout) and return the typed result. While a ladder runs under a
+    jail, everything but the engine's own git steps runs as the jailed user."""
+    if _JAIL is not None and as_jail:
+        argv, env, cwd = _JAIL.argv(argv, cwd=cwd, env=env), {"PATH": os.environ.get("PATH", "")}, "/"
     t = time.time()
     out = err = ""
     code: int | None = None
@@ -95,9 +111,10 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
 def _env(root, cfg: Config, extra: dict | None = None) -> dict:
     # a scratch HOME: no gh token, no ~/.gitconfig credential helper, no user settings reach a check or a worker's conftest
     env = {k: v for k, v in os.environ.items() if k in ("PATH", "TERM", "LANG")}
-    env["HOME"] = tempfile.mkdtemp(prefix="check-home-")
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
     if cfg.base_path_env:
-        env[cfg.base_path_env] = tempfile.mkdtemp(prefix="check-base-")
+        env[cfg.base_path_env] = _mkdtemp("check-base-")
     if cfg.python_path:
         env["PYTHONPATH"] = ":".join(str(Path(root) / p) for p in cfg.python_path)
     env.update(cfg.test_env)
@@ -188,7 +205,7 @@ def _git_env() -> dict:
 
 
 def _git(root, *args, timeout_s: float = 60) -> dict:
-    return run_command("git", _git_argv(root, args), root, timeout_s, _git_env())
+    return run_command("git", _git_argv(root, args), root, timeout_s, _git_env(), as_jail=False)  # the engine's own repo
 
 
 def _lines(root, *args) -> list[str] | None:
@@ -226,7 +243,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     if not files:
         return red("no test file changed: a source change needs a test (red on base, green on the branch)")
     sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
-    base = tempfile.mkdtemp(prefix="check-base-tree-")
+    base = _mkdtemp("check-base-tree-", readable=True)
     try:
         if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
             return red(f"could not make a scratch tree at {since[:9]}")
@@ -338,7 +355,7 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks."""
     sha = (_lines(root, "rev-parse", head) or [""])[0]
-    tree = tempfile.mkdtemp(prefix="check-tree-")
+    tree = _mkdtemp("check-tree-", readable=True)
     r = _git(root, "worktree", "add", "--detach", "-q", tree, sha)
     if not r["ok"]:
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
@@ -356,6 +373,21 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
     `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite."""
+    global _JAIL
+    from . import jail as _jailmod
+    j = _jailmod.load(pinned)
+    if j is not None:  # [jail] in the rules file = the ladder runs as that user, and refuses if it is not there
+        j.require()
+        if wall := j.probe():
+            raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
+    _JAIL = j
+    try:
+        return _run_ladder(root, since, head, pinned, protected_ids)
+    finally:
+        _JAIL = None
+
+
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     if weak := weakened_tests(root, since, head, cfg):

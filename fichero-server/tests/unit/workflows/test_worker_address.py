@@ -26,6 +26,21 @@ def tmux_session():
     subprocess.run(["tmux", "kill-session", "-t", name], capture_output=True)
 
 
+@pytest.fixture
+def jail(tmp_path, monkeypatch):
+    """A jail whose `sudo` is a stand-in that runs as us (same uid, so tmux and kill work); the user must still exist."""
+    bin_ = tmp_path / "bin"  # only tmux: the dir tmux lives in may hold a gh the probe would rightly flag
+    bin_.mkdir()
+    if shutil.which("tmux"):
+        (bin_ / "tmux").symlink_to(shutil.which("tmux"))
+    monkeypatch.setenv("PATH", f"{bin_}:/usr/bin:/bin")
+    sudo = tmp_path / "sudo"
+    sudo.write_text('#!/bin/sh\nshift 4\nexec "$@"\n')
+    sudo.chmod(0o755)
+    from fichero_server.workflows.jail import Jail
+    return Jail(user="root", sudo=str(sudo), workroot=str(tmp_path))
+
+
 def _listener(tmp_path, name):
     got = tmp_path / f"{name}.txt"
     exe = tmp_path / f"claude-{name}"
@@ -43,10 +58,10 @@ def _until(pred, secs=15):
     return False
 
 
-def test_tell_reaches_only_the_current_generation(db, tmp_path, tmux_session):
+def test_tell_reaches_only_the_current_generation(db, tmp_path, tmux_session, jail):
     exe1, got1 = _listener(tmp_path, "one")
     exe2, got2 = _listener(tmp_path, "two")
-    j1 = wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session,
+    j1 = wp.start(db, kind="claude", jail=jail, brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session,
                   claude_bin=exe1, task="t1")
     assert wp.wait_for_line(j1, "up-one", 20)
     a1 = wp.address(db, "t1")
@@ -56,7 +71,7 @@ def test_tell_reaches_only_the_current_generation(db, tmp_path, tmux_session):
     assert _until(lambda: got1.exists() and "hello one" in got1.read_text())
 
     # handoff: the successor is started for the same task; the address is rewritten
-    j2 = wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session,
+    j2 = wp.start(db, kind="claude", jail=jail, brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session,
                   claude_bin=exe2, task="t1")
     assert wp.wait_for_line(j2, "up-two", 20)
     a2 = wp.address(db, "t1")

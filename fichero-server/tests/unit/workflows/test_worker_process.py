@@ -86,6 +86,21 @@ def tmux_session():
     subprocess.run(["tmux", "kill-session", "-t", name], capture_output=True)
 
 
+@pytest.fixture
+def jail(tmp_path, monkeypatch):
+    """A jail whose `sudo` is a stand-in that runs as us (same uid, so tmux and kill work); the user must still exist."""
+    bin_ = tmp_path / "bin"  # only tmux: the dir tmux lives in may hold a gh the probe would rightly flag
+    bin_.mkdir()
+    if shutil.which("tmux"):
+        (bin_ / "tmux").symlink_to(shutil.which("tmux"))
+    monkeypatch.setenv("PATH", f"{bin_}:/usr/bin:/bin")
+    sudo = tmp_path / "sudo"
+    sudo.write_text('#!/bin/sh\nshift 4\nexec "$@"\n')
+    sudo.chmod(0o755)
+    from fichero_server.workflows.jail import Jail
+    return Jail(user="root", sudo=str(sudo), workroot=str(tmp_path))
+
+
 def _fake_claude(tmp_path, body):
     exe = tmp_path / "claude"
     exe.write_text("#!/bin/sh\n" + body)
@@ -94,10 +109,10 @@ def _fake_claude(tmp_path, body):
 
 
 @tmux
-def test_claude_kind_is_an_interactive_session_with_no_inherited_mcp(db, tmp_path, tmux_session):
+def test_claude_kind_is_an_interactive_session_with_no_inherited_mcp(db, tmp_path, tmux_session, jail):
     args = tmp_path / "args.txt"
     exe = _fake_claude(tmp_path, f'printf "%s\\n" "$@" > {args}\necho "fake claude up"\nexit 3\n')
-    job = wp.start(db, kind="claude", brief="build #1", workdir=tmp_path, timeout_s=30,
+    job = wp.start(db, kind="claude", jail=jail, brief="build #1", workdir=tmp_path, timeout_s=30,
                    tmux_session=tmux_session, claude_bin=exe)
     assert wp.wait(job, 30) == "failed"
     kind, state, reason, detail = _row(db, job)
@@ -110,11 +125,19 @@ def test_claude_kind_is_an_interactive_session_with_no_inherited_mcp(db, tmp_pat
 
 
 @tmux
-def test_stop_ends_a_tmux_worker_and_everything_it_started(db, tmp_path, tmux_session):
+def test_stop_ends_a_tmux_worker_and_everything_it_started(db, tmp_path, tmux_session, jail):
     exe = _fake_claude(tmp_path, 'echo up\nsleep 300 &\nsleep 300\n')
-    job = wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session, claude_bin=exe)
+    job = wp.start(db, kind="claude", jail=jail, brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session, claude_bin=exe)
     assert wp.wait_for_line(job, "up", 20)
     pids = wp.pids(job)
     wp.stop(db, job)
     assert wp.wait(job, 20) == "cancelled"
     assert not wp.any_alive(pids)
+
+
+def test_a_claude_worker_without_the_jail_refuses_and_so_does_a_missing_user(db, tmp_path):
+    from fichero_server.workflows.jail import Jail, JailMissing
+    with pytest.raises(PermissionError, match="jail"):
+        wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=5, tmux_session="s")
+    with pytest.raises(JailMissing):
+        wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=5, tmux_session="s", jail=Jail(user="no-such-user-xyz"))

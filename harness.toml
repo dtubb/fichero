@@ -39,3 +39,12 @@ rules = [
   { re = '\bls\b[^|;&]*(&&|;|\|)[^|;&]*\brm\s+-\w*[rR]', reason = "an ls and an rm -r in one command wiped a directory once; list, then delete as separate steps" },
 ]
 required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
+
+# Workers and the ladder run as this second macOS user; a missing user REFUSES (no fallback to the owner's user).
+# Owner set-up, once: sysadminctl -addUser fichero-builder (no admin); sudoers line `<owner> ALL=(fichero-builder) NOPASSWD: ALL`;
+# mkdir /Users/Shared/fichero-builder (writable by both, files public data only); `claude` signed in as that user;
+# a venv readable by it for [check].python (the owner's .venv under ~ is not); a world-readable bare mirror to clone from.
+[jail]
+user = "fichero-builder"
+workroot = "/Users/Shared/fichero-builder"
+deny_read = ["~/.config/gh", "~/.ssh", "~/.claude"]

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sys
-
 from pathlib import Path
+
+import pytest
 
 from fichero_server.workflows import check_tool as ct
 
@@ -131,7 +132,7 @@ def test_check_tool_runs_the_ladder(tmp_path):
     assert ct.ladder(rungs[:1])["ok"] is True
 
 
-def _project(tmp_path):
+def _project(tmp_path, extra=""):
     """A throwaway project: its own harness.toml, one good guard, one skipped bad guard; plus a pinned clone of it."""
     work = tmp_path / "work"
     work.mkdir()
@@ -141,7 +142,7 @@ def _project(tmp_path):
     (work / "ci" / "lint_bad.py").write_text("raise SystemExit(7)\n")
     (work / "harness.toml").write_text(
         '[check]\nready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 2\n'
-        'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n')
+        'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n' + extra)
     g("add", "."), g("commit", "-q", "-m", "project")
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
     pinned = tmp_path / "pinned"
@@ -260,3 +261,31 @@ def test_a_workers_git_config_filter_never_runs_at_checkout(tmp_path):
     ct.diff_bound(tmp_path, base, "HEAD", ct.Config())
     ct._git(tmp_path, "worktree", "remove", "--force", tree)
     assert not marker.exists()
+
+
+def _change(work, g):
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+
+
+def test_a_missing_jail_user_refuses_the_ladder(tmp_path):
+    from fichero_server.workflows.jail import JailMissing
+    work, g, base, pinned = _project(tmp_path, '[jail]\nuser = "no-such-user-xyz"\n')
+    _change(work, g)
+    with pytest.raises(JailMissing):
+        ct.run_ladder(work, base, "HEAD", pinned)
+    assert ct._JAIL is None
+
+
+def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin:/bin:" + str(Path(sys.executable).parent))  # no gh login to trip the probe
+    sudo = tmp_path / "sudo"
+    sudo.write_text('#!/bin/sh\necho "$3" >> "%s/asked"\nshift 4\nexec "$@"\n' % tmp_path)
+    sudo.chmod(0o755)
+    work, g, base, pinned = _project(tmp_path, f'[jail]\nuser = "root"\nsudo = "{sudo}"\nworkroot = "{tmp_path}"\n')
+    _change(work, g)
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert r["ok"], r
+    assert "root" in (tmp_path / "asked").read_text()  # ready, pytest and guards went through sudo
+    assert ct._JAIL is None

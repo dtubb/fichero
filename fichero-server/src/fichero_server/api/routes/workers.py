@@ -55,7 +55,11 @@ class WorkerTellParams(BaseModel):
 def _action_start(db: Database, params: WorkerStartParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.workflows import worker_process as wp
 
-    job_id = wp.start(db, **params.model_dump())
+    from fichero_server.workflows import jail as jail_mod
+
+    # the rules file of the engine-owned checkout (never the worker's clone, which the worker can write)
+    root = os.environ.get("FICHERO_HARNESS_ROOT", "")
+    job_id = wp.start(db, **params.model_dump(), jail=jail_mod.load(root) if root else None)
     return {"job_id": job_id}, ChangeSpec(domains=["job"], target_ids=[job_id], after={"job_id": job_id, "kind": wp.KIND},
                                           emit_type="job.created")
 
