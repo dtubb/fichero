@@ -117,7 +117,7 @@ extension ShareSettingsView {
     /// which engine its code came from.
     func refreshEnginePID() async {
         guard let response = try? await appState.ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
-              case .ok(let ok) = response, let pid = (try? ok.body.json)?.enginePid else { return }
+              case .ok(let okResponse) = response, let pid = (try? okResponse.body.json)?.enginePid else { return }
         healthEnginePID = pid
     }
 
