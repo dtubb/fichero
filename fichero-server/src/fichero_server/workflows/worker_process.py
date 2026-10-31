@@ -175,6 +175,8 @@ def start(
     ponytail: --dangerously-skip-permissions as builder_hook.py does, until the per-worker sandbox lands."""
     if os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower() != "dev":
         raise PermissionError("dev workers run only on a dev-tier engine")
+    if os.environ.get("FICHERO_DEV_WORKERS") != "1":  # a dev DMG on the real library is dev tier too (review 3 H4)
+        raise PermissionError("dev workers start only when the launcher sets FICHERO_DEV_WORKERS=1")
     if kind not in ("claude", "fake"):
         raise ValueError(f"unknown worker kind {kind!r}")
     if kind == "claude":  # owner 2026-10-31: a worker runs as the second macOS user or does not start; no fallback

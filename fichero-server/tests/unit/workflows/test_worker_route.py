@@ -3,6 +3,7 @@ through the same route (dev-workflows.run.worker-start-stop, #6116)."""
 
 from __future__ import annotations
 
+import pytest
 import time
 
 from fichero_server.workflows import worker_process as wp
@@ -64,3 +65,11 @@ def test_at_dev_the_worker_actions_are_app_owner_only():
     for n in ("worker.start", "worker.stop", "worker.tell"):
         r = registry.get(n)
         assert r.owner_only and r.owner_scope == "app"
+
+
+def test_dev_tier_alone_does_not_start_a_worker(monkeypatch):
+    from fichero_server.workflows import worker_process as wp
+
+    monkeypatch.delenv("FICHERO_DEV_WORKERS")
+    with pytest.raises(PermissionError, match="FICHERO_DEV_WORKERS"):
+        wp.start(None, kind="fake", brief="x", workdir=".", timeout_s=5)

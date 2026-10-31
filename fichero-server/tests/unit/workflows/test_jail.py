@@ -25,10 +25,30 @@ def test_a_missing_user_refuses_never_falls_back(tmp_path):
         J.Jail(user="").require()
 
 
-def test_the_current_user_is_no_jail(tmp_path):
-    me = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
-    with pytest.raises(J.JailMissing, match="current user"):
-        J.Jail(user=me, sudo=_fake_sudo(tmp_path)).require()
+def _me():
+    return subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
+
+
+def test_already_the_jail_user_runs_directly_without_sudo(tmp_path):
+    j = J.Jail(user=_me(), sudo="/nonexistent/sudo")
+    j.require()  # the worker's own `check`: no sudo needed (review 3 B5)
+    out = subprocess.run(j.argv(["/bin/sh", "-c", 'echo "$A"'], cwd=tmp_path, env={"A": "1"}), capture_output=True, text=True)
+    assert out.stdout.strip() == "1" and "sudo" not in " ".join(j.argv(["true"]))
+
+
+def test_probe_always_covers_the_owners_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    j = J.Jail(user="root", sudo=_fake_sudo(tmp_path))  # deny_read empty: the floor still probes ~
+    assert j.probe() == [f"{home} is readable by root"]
+
+
+def test_load_refuses_unknown_keys(tmp_path):
+    (tmp_path / "harness.toml").write_text('[jail]\nusr = "x"\n')
+    with pytest.raises(ValueError, match="unknown keys"):
+        J.load(tmp_path)
 
 
 def test_sudo_failure_refuses(tmp_path):
@@ -52,6 +72,8 @@ def test_probe_flags_a_readable_secret(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "/usr/bin:/bin")  # the fake sudo runs as us; keep our own gh login out of it
     secret = tmp_path / "hosts.yml"
     secret.write_text("token")
+    home = tmp_path / "h"; home.mkdir(); home.chmod(0)
+    monkeypatch.setenv("HOME", str(home))
     j = J.Jail(user="root", sudo=_fake_sudo(tmp_path), deny_read=(str(secret), str(tmp_path / "absent")))
     assert j.probe() == [f"{secret} is readable by root"]
 
@@ -74,4 +96,6 @@ def test_probe_flags_a_gh_login(tmp_path, monkeypatch):
     gh.write_text("#!/bin/sh\nexit 0\n")
     gh.chmod(0o755)
     monkeypatch.setenv("PATH", f"{gh.parent}:/usr/bin:/bin")
+    home = tmp_path / "h"; home.mkdir(); home.chmod(0)  # the probe's floor wants ~ unreadable
+    monkeypatch.setenv("HOME", str(home))
     assert J.Jail(user="root", sudo=_fake_sudo(tmp_path)).probe() == ["root is signed in to gh"]

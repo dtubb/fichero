@@ -757,6 +757,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/default_workflows.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/executor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/file_watcher.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/human_review.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/jail.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/land_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync_db.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync_io.py

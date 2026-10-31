@@ -156,7 +156,7 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     (work / "mod.py").write_text("VALUE = 2\n")
     (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
     g("add", "."), g("commit", "-q", "-m", "change")
-    r = ct.run_ladder(work, base, "HEAD", pinned)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["ok"], r
     assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current"]
 
@@ -166,7 +166,7 @@ def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
     work, g, base, pinned = _project(tmp_path)
     (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the worker\n")
     g("add", "."), g("commit", "-q", "-m", "edit guard")
-    r = ct.run_ladder(work, base, "HEAD", pinned)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert not r["ok"] and r["failed"] == "pinned-checks" and [x["name"] for x in r["rungs"]] == ["pinned-checks"]
     assert "ci/lint_ok.py" in r["rungs"][0]["stderr_tail"] and "needs-maintainer" in r["rungs"][0]["stderr_tail"]
     g("reset", "-q", "--hard", base)
@@ -174,7 +174,7 @@ def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
     (work / ".claude" / "settings.json").write_text("{}")
     (work / "sitecustomize.py").write_text("print('hi')\n")
     g("add", "."), g("commit", "-q", "-m", "hooks")
-    r = ct.run_ladder(work, base, "HEAD", pinned)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["failed"] == "pinned-checks" and ".claude/settings.json" in r["rungs"][0]["stderr_tail"] and "sitecustomize.py" in r["rungs"][0]["stderr_tail"]
 
 
@@ -185,7 +185,7 @@ def test_the_ladder_runs_the_pinned_guards_not_the_workers_copies(tmp_path):
     (work / "mod.py").write_text("VALUE = 2\n")
     (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
     g("add", "."), g("commit", "-q", "-m", "add a failing guard")
-    r = ct.run_ladder(work, base, "HEAD", pinned)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert not r["ok"] and r["failed"] == "guards"
     assert [x["name"] for x in r["rungs"][-1]["results"] if not x["ok"]] == ["lint_new"]
 
@@ -224,7 +224,7 @@ def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
     g("reset", "-q", "--hard", base)
     (work / "test_old.py").write_text("import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
     g("commit", "-qam", "skip")
-    r = ct.run_ladder(work, base, "HEAD", pinned)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["failed"] == "pinned-checks" and "test_old.py" in r["rungs"][0]["stderr_tail"]
 
 
@@ -280,6 +280,10 @@ def test_a_missing_jail_user_refuses_the_ladder(tmp_path):
 
 def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "/usr/bin:/bin:" + str(Path(sys.executable).parent))  # no gh login to trip the probe
+    h = tmp_path / "ownerhome"
+    h.mkdir()
+    h.chmod(0)  # the probe's floor wants the owner's home unreadable
+    monkeypatch.setenv("HOME", str(h))
     sudo = tmp_path / "sudo"
     sudo.write_text('#!/bin/sh\necho "$3" >> "%s/asked"\nshift 4\nexec "$@"\n' % tmp_path)
     sudo.chmod(0o755)
@@ -289,3 +293,29 @@ def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
     assert r["ok"], r
     assert "root" in (tmp_path / "asked").read_text()  # ready, pytest and guards went through sudo
     assert ct._JAIL is None
+
+
+def test_no_jail_table_refuses_the_ladder(tmp_path):
+    from fichero_server.workflows.jail import JailMissing
+    work, g, base, pinned = _project(tmp_path, "")
+    _change(work, g)
+    with pytest.raises(JailMissing, match="no \\[jail\\]"):
+        ct.run_ladder(work, base, "HEAD", pinned)
+
+
+def test_unknown_check_keys_refuse(tmp_path):
+    (tmp_path / "harness.toml").write_text("[check]\nguard_glob_typo = 1\n")
+    with pytest.raises(ValueError, match="unknown keys"):
+        ct.load(tmp_path)
+
+
+def test_a_new_file_under_a_pinned_path_or_any_conftest_is_a_question(tmp_path):
+    """Review 3 H2: added files, not only changed ones, are judged; a new guard (guard_glob) is the one allowed addition."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "helper.py").write_text("x = 1\n")
+    (work / "tests").mkdir()
+    (work / "tests" / "conftest.py").write_text("import pytest\n")
+    g("add", "."), g("commit", "-q", "-m", "adds")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    err = r["rungs"][0]["stderr_tail"]
+    assert r["failed"] == "pinned-checks" and "ci/helper.py" in err and "tests/conftest.py" in err

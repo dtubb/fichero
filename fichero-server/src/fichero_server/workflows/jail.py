@@ -28,17 +28,23 @@ class Jail:
     workroot: str = ""                 # shared dir (made by the owner, readable+writable by both) for trees and scratch
     deny_read: tuple = ()              # paths the user must NOT be able to read (the probe checks each)
     sudo: str = "sudo"
+    floor: tuple | None = None         # paths always probed; None = the owner's home and libraries (tests with a same-uid stand-in pass ())
     _checked: list = field(default_factory=list, compare=False, repr=False, hash=False)
 
+    def is_self(self) -> bool:
+        """The process already runs as the jail user (a worker's own `check`): run directly, no sudo (review 3 B5)."""
+        r = subprocess.run(["id", "-u", self.user], capture_output=True, text=True) if self.user else None
+        return bool(r and r.returncode == 0 and int(r.stdout) == os.getuid())
+
     def require(self) -> None:
-        """Refuse unless the user exists, is not the current user, and `sudo -n -u user` works."""
+        """Refuse unless the user exists and we are that user or `sudo -n -u user` works."""
         if not self.user:
             raise JailMissing("no jail user configured")
         r = subprocess.run(["id", "-u", self.user], capture_output=True, text=True)
         if r.returncode:
-            raise JailMissing(f"jail user {self.user!r} does not exist: the owner creates it (sysadminctl -addUser)")
+            raise JailMissing(f"jail user {self.user!r} does not exist: the owner creates it (scripts/harness_setup_owner.sh)")
         if int(r.stdout) == os.getuid():
-            raise JailMissing(f"jail user {self.user!r} is the current user: that is no jail")
+            return  # already the jail user: nothing to sudo
         t = subprocess.run([self.sudo, "-n", "-u", self.user, "-H", "true"], capture_output=True, text=True)
         if t.returncode:
             raise JailMissing(f"cannot sudo to {self.user!r} without a password (sudoers line missing?): {t.stderr.strip()[:200]}")
@@ -49,6 +55,8 @@ class Jail:
         """`argv` as the jailed user: clean environment (only `env`), HOME the user's own, optional cwd."""
         e = [f"{k}={v}" for k, v in (env or {}).items() if k != "HOME"]
         inner = argv if cwd is None else ["/bin/sh", "-c", _CD_EXEC, "sh", str(cwd), *argv]
+        if self.is_self():
+            return ["/usr/bin/env", "-i", f"HOME={os.environ.get('HOME', '')}", *e, *inner]
         # sudo -H sets the user's own HOME; env -i then drops everything else the caller had
         return [self.sudo, "-n", "-u", self.user, "-H", "/bin/sh", "-c", 'exec /usr/bin/env -i HOME="$HOME" "$@"', "sh", *e, *inner]
 
@@ -62,7 +70,9 @@ class Jail:
         """The once-per-setup proof (M7): as the jailed user, every `deny_read` path is unreadable and `gh` has no login.
         Returns the failures (empty = the wall holds)."""
         bad = []
-        for p in self.deny_read:
+        # floor (review 3 B1): the owner's home and the real libraries are always probed, whatever the rules file lists
+        floor = self.floor if self.floor is not None else (str(Path.home()), str(Path.home() / "Fichero Projects"))
+        for p in dict.fromkeys((*floor, *self.deny_read)):
             r = subprocess.run(self.argv(["/bin/sh", "-c", f"test -r {shlex.quote(str(Path(p).expanduser()))}"], env={}),
                                capture_output=True)
             if r.returncode == 0:
@@ -74,6 +84,9 @@ class Jail:
         return bad
 
 
+_KNOWN = {"user", "workroot", "deny_read", "sudo"}
+
+
 def load(root) -> Jail | None:
     """`[jail]` of `<root>/harness.toml`; none configured = None (callers decide whether that is allowed)."""
     import tomllib
@@ -81,5 +94,7 @@ def load(root) -> Jail | None:
     c = tomllib.loads(f.read_text()).get("jail") if f.is_file() else None
     if not c:
         return None
+    if unknown := sorted(set(c) - _KNOWN):  # fail closed: a misspelt key is not silently ignored
+        raise ValueError(f"harness.toml [jail]: unknown keys {unknown}")
     return Jail(user=c.get("user", ""), workroot=c.get("workroot", ""), deny_read=tuple(c.get("deny_read", ())),
                 sudo=c.get("sudo", "sudo"))

@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 
@@ -47,7 +47,12 @@ def load(root) -> Config:
     f = Path(root) / "harness.toml"
     if not f.is_file():
         return Config()
-    c = tomllib.loads(f.read_text()).get("check", {})
+    doc = tomllib.loads(f.read_text())
+    c = doc.get("check", {})
+    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
+        raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
+    if unknown := sorted(set(doc) - {"check", "jail", "policy"}):
+        raise ValueError(f"harness.toml: unknown tables {unknown}")
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
@@ -274,7 +279,7 @@ BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
 
 def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[str]:
     """What the diff may not do: change or delete a pinned check file, add a file that would run before or instead of
-    the checks (sitecustomize, .pth, a conftest outside a test folder), or touch .claude/ (a hook there runs outside
+    the checks (sitecustomize, .pth, any conftest.py), or touch .claude/ (a hook there runs outside
     any check). Adding a new guard is allowed. Ported from the frozen pipeline's pinned-checks."""
     pinned_set = {f for f in (_lines(pinned, "ls-files") or []) if f.startswith(cfg.check_paths)}
     bad = []
@@ -285,9 +290,10 @@ def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[
             bad.append(f"{f}: a pinned check file was {'deleted' if status == 'D' else 'changed'}")
         elif f.startswith(".claude/"):
             bad.append(f"{f}: .claude/ changed")
-        elif status == "A" and (name in BYPASS_NAMES or name.endswith(".pth")
-                                or (name == "conftest.py" and not any("test" in x.lower() for x in parts[:-1]))):
-            bad.append(f"{f}: would run before or instead of the checks")
+        elif status == "A" and (name in BYPASS_NAMES or name.endswith(".pth") or name == "conftest.py"):
+            bad.append(f"{f}: would run before or instead of the checks")  # conftest by name anywhere (review 3 H2)
+        elif status == "A" and f.startswith(cfg.check_paths) and not (cfg.guard_glob and fnmatch.fnmatch(f, cfg.guard_glob)):
+            bad.append(f"{f}: a new file under a pinned path (only a new guard may be added there)")
     return bad
 
 
@@ -368,7 +374,7 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     return tree
 
 
-def run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
+def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -376,6 +382,8 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     global _JAIL
     from . import jail as _jailmod
     j = _jailmod.load(pinned)
+    if j is None and jail_required:  # review 3 B5: no [jail] means refuse, never run as the owner
+        raise _jailmod.JailMissing("no [jail] in the rules file: the ladder will not run as the owner")
     if j is not None:  # [jail] in the rules file = the ladder runs as that user, and refuses if it is not there
         j.require()
         if wall := j.probe():

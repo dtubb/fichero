@@ -38,7 +38,7 @@ def jail(tmp_path, monkeypatch):
     sudo.write_text('#!/bin/sh\nshift 4\nexec "$@"\n')
     sudo.chmod(0o755)
     from fichero_server.workflows.jail import Jail
-    return Jail(user="root", sudo=str(sudo), workroot=str(tmp_path))
+    return Jail(user="root", sudo=str(sudo), workroot=str(tmp_path), floor=())
 
 
 def _listener(tmp_path, name):
