@@ -23,9 +23,8 @@ from typing import Literal
 from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
-from fichero_server.api.auth import action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
+from fichero_server.api.auth import app_action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero_server.api.routes.auth.accounts import _current_session_user
-from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
@@ -591,12 +590,16 @@ def set_multiuser(
     request: Request,
     body: MultiuserRequest,
     app_db: AppDatabase = Depends(get_app_database),
-    db: Database = Depends(get_library_database_for_write),
-    ctx: ActionContext = Depends(action_context),
+    ctx: ActionContext = Depends(app_action_context),
 ) -> SharingStateResponse:
     """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
     switch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may
-    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential."""
+    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.
+    App-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the
+    global library package, as the known-library registry's actions do; the Settings window sends no library."""
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+
+    db: Database = get_global_database()
     if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
         raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
     _owner_only(request, app_db)
