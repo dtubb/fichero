@@ -770,6 +770,9 @@ cmd_engine() {
     esac
   done
   local py; py="$(find_python)"
+  # pytest 9.2.0 fails test_perf_disk_reclaim; a venv built from uv.lock can carry it (#6320). Refuse rather than report a false red.
+  local pt; pt="$("$py" -c 'import pytest; print(pytest.__version__)' 2>/dev/null)"
+  [[ "$pt" == "9.1.1" || -n "${GATE_ALLOW_PYTEST:-}" ]] || die "pytest is ${pt:-missing}, the gate needs 9.1.1: pip install 'pytest==9.1.1' 'pytest-asyncio==1.4.0' (GATE_ALLOW_PYTEST=1 to run anyway)"
   local args=()
   if [[ -n "$area" ]]; then
     resolve_area "$area"
