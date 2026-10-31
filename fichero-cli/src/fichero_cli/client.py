@@ -798,6 +798,14 @@ class FicheroClient:
     def revoke_device(self, device_id: str) -> Any:
         return self.request("POST", f"/api/pair/devices/{device_id}/revoke")
 
+    def sharing_state(self) -> Any:
+        """The host's sharing state: its addresses, the tailnet forward, Multi-user (`sharing.state-names-every-address`)."""
+        return self.request("GET", "/api/pair/sharing")
+
+    def create_pairing_code(self) -> Any:
+        """Mint one short-lived pairing code on this host (the owner over the engine's socket). Never logged."""
+        return self.request("POST", "/api/pair/code", json={})
+
     # -- notes -------------------------------------------------------------
     def create_note(
         self,

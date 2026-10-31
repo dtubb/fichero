@@ -314,7 +314,7 @@ The owner reports iOS cannot connect, cause unknown. Likeliest causes, ranked (n
 | `sharing.multiuser-switch-needs-no-library` (§10.4) | **[BROKEN]** (verified: 400 in the Air's log; the route's library dependency) |
 | `sharing.multiuser-switch-says-the-refusal` (§10.4) | **[GAP]** |
 | `sharing.people-pane-off-state` (§10.4) | **[GAP]** (#5917; the hint string exists, no view uses it) |
-| `sharing.cli-mints-a-link` (§10.5) | **[GAP]** (no `devices invite` command) |
+| `sharing.cli-mints-a-link` (§10.5) | **[OK]** (E3) |
 
 ## 10. Live findings 2026-10-31: the five owner items, on every platform
 
@@ -490,7 +490,7 @@ engine already lets the host's bootstrap owner mint over the Unix socket (`_pair
 `pairing.py:304-331`; the UDS transport is exempt from the https rule, `:535-536`), so no engine change is needed to mint, only to *name
 the addresses* (`sharing.state-names-every-address`).
 
-- `sharing.cli-mints-a-link` — **[GAP]** (→ #5751; new issue 4 below) `fichero devices invite [--address this-network|tailscale] [--link-file PATH]`
+- `sharing.cli-mints-a-link` — **[OK]** (→ #5751; new issue 4 below; slice E3, 2026-10-31: `fichero devices invite`, `fichero_cli/pairing.py` `invite_link`; the link's `library_path` is the CLI's `--library`, which the Mac and iOS apps still require, `sharing.ios-bad-library-path`) `fichero devices invite [--address this-network|tailscale] [--link-file PATH]`
   on the host mints one code and prints the pairing link for the chosen address (default: tailscale when the engine reports one, else
   this-network), or writes it to `--link-file` (0600) and prints only the address and the expiry. The link carries the pin for a
   `.local`/IP address (`spki_pin` from the mint answer) and none for `.ts.net`, the same rule as the app (`_is_public_ca`). The two

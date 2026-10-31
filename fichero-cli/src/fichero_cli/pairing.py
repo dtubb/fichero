@@ -18,6 +18,7 @@ import ssl
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -55,6 +56,30 @@ def parse_link(text: str) -> PairLink:
         raise FicheroError("The pairing link is damaged: ask the host for a new one.") from exc
     spki = data.get("spki") or None
     return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None)
+
+
+def _payload_of(text: str) -> bytes:
+    """The link's decoded JSON payload bytes (the parser's own reading)."""
+    url = urlparse("".join((text or "").split()))
+    payload = (parse_qs(url.query).get("payload") or [""])[0]
+    return base64.b64decode(payload + "=" * (-len(payload) % 4), altchars=b"-_")
+
+
+def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | None, library_path: str | None) -> str:
+    """The pairing link the app, the phone and `devices pair` all redeem (`sharing.cli-mints-a-link`): the app's own shape
+    (`RemoteClientPairing.inviteLinkString`: `fichero://pair?payload=<base64 JSON>`), keys sorted so the same link reads
+    the same from every machine. The pin rides only with an address that serves its own certificate; a `.ts.net` name
+    is system trust and carries none (`_is_public_ca`). Absent values leave their key out, as the app's encoder does."""
+    host = urlparse(api_url).hostname or ""
+    payload: dict[str, object] = {"v": 1, "api_url": api_url.rstrip("/"), "pair_code": code}
+    if expires_at:
+        payload["expires_at"] = expires_at
+    if spki and not _is_public_ca(host):
+        payload["spki"] = spki
+    if library_path:
+        payload["library_path"] = library_path
+    encoded = base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
+    return f"fichero://pair?payload={encoded}"
 
 
 def _is_public_ca(host: str) -> bool:
@@ -130,6 +155,15 @@ def _write_store(store: dict) -> None:
         handle.write(json.dumps(store))
     os.chmod(tmp, 0o600)  # a stale tmp keeps its mode through O_CREAT
     os.replace(tmp, DEVICES_PATH)  # atomic: a crash leaves the old file, never half a token
+
+
+def write_owner_only(path: Path, text: str) -> None:
+    """Write `text` to `path` readable by this user only (a pairing link is a one-time secret while it lives)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    os.chmod(path, 0o600)
 
 
 def device_token(engine: str | None) -> str | None:
