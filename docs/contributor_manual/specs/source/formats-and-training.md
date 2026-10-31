@@ -477,7 +477,7 @@ Each format (one import and one export behaviour each)
   exactly those.
 - `source.format.kraken-in` · `source.format.kraken-out` **[GAP]** (#4946)
 - `source.format.columnar-in` · `source.format.columnar-out` **[GAP]** (#4946)
-- `source.format.geo-in` · `source.format.geo-out` **[GAP]** (#4946, → #5125, #5126) umbrellas for the geographic
+- `source.format.geo-in` · `source.format.geo-out` **[PARTIAL]** (#4946, → #5125, #5126) umbrellas for the geographic
   formats; each is specified and tracked in `maps-and-georeference.md`'s Formats behaviours.
 - `source.format.table-in` · `source.format.table-out` — **[GAP]** (#4946) a table segment as CSV or a
   spreadsheet, each cell carrying a reference to its segment.
