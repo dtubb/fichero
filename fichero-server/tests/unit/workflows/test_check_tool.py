@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import sys
 
+from pathlib import Path
+
 from fichero_server.workflows import check_tool as ct
+
+REPO = Path(__file__).resolve().parents[4]
 
 KEYS = {"name", "argv", "exit_code", "ok", "timed_out", "seconds", "stdout_tail", "stderr_tail"}
 
@@ -44,34 +48,38 @@ def _repo(tmp_path, n_guards, bodies=None):
 
 def test_guards_refuse_when_too_few_are_found(tmp_path):
     root = _repo(tmp_path, 3)
-    r = ct.guards(root)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20))
     assert r["ok"] is False and "fewer than 20" in r["reason"] and r["results"] == []
 
 
 def test_guards_run_each_one_skip_the_listed_and_name_the_red_one(tmp_path):
     root = _repo(tmp_path, 21, {1: "raise SystemExit(2)\n", 2: "raise SystemExit(2)\n"})
-    r = ct.guards(root, skip={"check_g2"})
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, guard_skip=frozenset({"check_g2"})))
     names = [x["name"] for x in r["results"]]
     assert "check_g2" not in names and len(names) == 20
     assert r["ok"] is False and [x["name"] for x in r["results"] if not x["ok"]] == ["check_g1"]
 
 
-def test_the_default_skip_list_is_the_tomls():
-    assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= ct.DEFAULT_SKIP and len(ct.DEFAULT_SKIP) == 15
+def test_fichero_is_the_first_project_in_its_own_harness_toml():
+    cfg = ct.load(REPO)
+    assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 15
+    assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "HEAD")
+    assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
 
 
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
     (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n")
-    r = ct.pytest_rung(tmp_path, ["test_a.py"], timeout_s=120)
+    cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})
+    r = ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)
     assert r["ok"], r
 
 
 def test_pytest_with_no_files_is_red(tmp_path):
-    assert ct.pytest_rung(tmp_path, [], timeout_s=5)["ok"] is False
+    assert ct.pytest_rung(tmp_path, [], ct.Config(), timeout_s=5)["ok"] is False
 
 
 def test_contract_current_is_skipped_unless_engine_source_changed(tmp_path):
-    assert ct.contract_current(tmp_path, ["docs/x.md"]) == {"ok": True, "skipped": True, "results": []}
+    assert ct.contract_current(tmp_path, ["docs/x.md"], ct.load(REPO)) == {"ok": True, "skipped": True, "results": []}
 
 
 # --- diff bound, failing run (red on base), the ladder (dev-workflows.tool.check) ---
@@ -94,10 +102,10 @@ def test_diff_bound_trips_on_too_many_files_or_lines(tmp_path):
     (tmp_path / "a.py").write_text("x\n" * 30)
     (tmp_path / "b.py").write_text("y\n")
     g("add", "."), g("commit", "-q", "-m", "more")
-    assert ct.diff_bound(tmp_path, base, "HEAD", max_files=5, max_lines=100)["ok"]
-    r = ct.diff_bound(tmp_path, base, "HEAD", max_files=1, max_lines=100)
+    assert ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=5, max_lines=100))["ok"]
+    r = ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=1, max_lines=100))
     assert not r["ok"] and "2 files" in r["stderr_tail"]
-    assert not ct.diff_bound(tmp_path, base, "HEAD", max_files=5, max_lines=10)["ok"]
+    assert not ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=5, max_lines=10))["ok"]
 
 
 def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path):
@@ -121,3 +129,77 @@ def test_check_tool_runs_the_ladder(tmp_path):
     r = ct.ladder(rungs)
     assert calls == [1, 2] and r["ok"] is False and r["failed"] == "two" and [x["name"] for x in r["rungs"]] == ["one", "two"]
     assert ct.ladder(rungs[:1])["ok"] is True
+
+
+def _project(tmp_path):
+    """A throwaway project: its own harness.toml, one good guard, one skipped bad guard; plus a pinned clone of it."""
+    work = tmp_path / "work"
+    work.mkdir()
+    g, _ = _git_repo(work)
+    (work / "ci").mkdir()
+    (work / "ci" / "lint_ok.py").write_text("pass\n")
+    (work / "ci" / "lint_bad.py").write_text("raise SystemExit(7)\n")
+    (work / "harness.toml").write_text(
+        '[check]\nready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 2\n'
+        'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n')
+    g("add", "."), g("commit", "-q", "-m", "project")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    pinned = tmp_path / "pinned"
+    subprocess.run(["git", "clone", "-q", str(work), str(pinned)], check=True, capture_output=True)
+    return work, g, base, pinned
+
+
+def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
+    """Outside Fichero: no Fichero path, check name or env anywhere; the pinned copy's harness.toml says what to run."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert r["ok"], r
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current"]
+
+
+def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
+    """The worker edits a guard, the config, or .claude/: needs-maintainer, nothing else runs."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the worker\n")
+    g("add", "."), g("commit", "-q", "-m", "edit guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and [x["name"] for x in r["rungs"]] == ["pinned-checks"]
+    assert "ci/lint_ok.py" in r["rungs"][0]["stderr_tail"] and "needs-maintainer" in r["rungs"][0]["stderr_tail"]
+    g("reset", "-q", "--hard", base)
+    (work / ".claude").mkdir()
+    (work / ".claude" / "settings.json").write_text("{}")
+    (work / "sitecustomize.py").write_text("print('hi')\n")
+    g("add", "."), g("commit", "-q", "-m", "hooks")
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert r["failed"] == "pinned-checks" and ".claude/settings.json" in r["rungs"][0]["stderr_tail"] and "sitecustomize.py" in r["rungs"][0]["stderr_tail"]
+
+
+def test_the_ladder_runs_the_pinned_guards_not_the_workers_copies(tmp_path):
+    """A guard the worker ADDS runs (allowed); the pinned config still skips lint_bad, and the pinned bytes win."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_new.py").write_text("raise SystemExit(3)\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
+    g("add", "."), g("commit", "-q", "-m", "add a failing guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert not r["ok"] and r["failed"] == "guards"
+    assert [x["name"] for x in r["rungs"][-1]["results"] if not x["ok"]] == ["lint_new"]
+
+
+def test_no_rung_sees_the_workers_home_or_a_real_base_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", "/Users/someone")
+    cfg = ct.Config(base_path_env="PROJ_BASE")
+    env = ct._env(tmp_path, cfg)
+    assert env["HOME"] != "/Users/someone" and env["PROJ_BASE"] and env["PROJ_BASE"] != env["HOME"]
+
+
+def test_a_big_diff_is_not_truncated_by_the_output_tail(tmp_path):
+    g, base = _git_repo(tmp_path)
+    for i in range(45):
+        (tmp_path / f"f{i}.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "many")
+    r = ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=44))
+    assert not r["ok"] and "45 files" in r["stderr_tail"]
