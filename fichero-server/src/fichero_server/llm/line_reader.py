@@ -14,6 +14,7 @@ import asyncio
 import base64
 import dataclasses
 import io
+import json
 import difflib
 import logging
 import re
@@ -85,6 +86,24 @@ def answers_follow_order(answers: list[str | None], references: list[str | None]
         return True
     n = len(answers)
     return all(own >= other for shift in range(1 - n, n) if shift and (other := _alike(answers, references, shift)) is not None)
+
+
+def judge_batch_answer(raw: str, n: int) -> tuple[list[str | None] | None, str, int | None]:
+    """`parse_answer` with the reason: (answer, why, returned). `answer` is None when the reply is rejected, `why` naming the
+    check that failed (counts only, never the text). Nothing of a rejected reply is kept: a wrong length, a non-text element or
+    a cut-off reply may have shifted every later line, and index alignment cannot be proved (#6304, the full re-ask stays)."""
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return None, "the reply is not JSON", None
+    if not isinstance(answer, list):
+        return None, "the reply is not an array", None
+    if len(answer) != n:
+        return None, "the array has the wrong length", len(answer)
+    if not all(a is None or isinstance(a, str) for a in answer):
+        return None, "an element is neither text nor null", n
+    return parse_answer(raw, n), "", n
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
@@ -210,6 +229,12 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 vision_empty.add(indices[0])
                 return None
             return [text]
+        if len(indices) > 1:
+            answer, why, returned = judge_batch_answer(raw, len(indices))
+            if answer is None:
+                logger.warning("line reader %s: batch reply rejected on %s (%s): %d lines asked, %s returned; asked line by line",
+                               config.model, image_path, why, len(indices), "n/a" if returned is None else returned)
+            return answer
         answer = parse_answer(raw, len(indices))
         if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
             return [cut_short_reading(raw)]
@@ -245,8 +270,8 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
         if answer is not None and page_uri and len(indices) > 1 and not await in_order(indices, answer):
-            logger.info("line reader %s: a batch of %d lines answered out of order on %s; asked line by line",
-                        config.model, len(indices), image_path)
+            logger.warning("line reader %s: a batch of %d lines answered out of order on %s (answers do not follow the lines asked); "
+                           "nothing kept, asked line by line", config.model, len(indices), image_path)
             reasked.append(len(indices))
             answer = None
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading

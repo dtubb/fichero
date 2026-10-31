@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from fichero_server.api.change_stream import emit_change
-from fichero_server.db.library_paths import nfc_path
+from fichero_server.db.library_paths import nfc_path, canonical_library_key
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -373,7 +373,7 @@ class DatabaseManager:
         did not, so a `/var`-spelled quiesce could miss the open handle.
         The Database keeps the caller's spelling; only the KEY canonicalizes.
         """
-        return os.path.realpath(str(Path(nfc_path(package_path)).expanduser()))
+        return canonical_library_key(Path(nfc_path(package_path)).expanduser())
 
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""

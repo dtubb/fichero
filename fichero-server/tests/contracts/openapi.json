@@ -62403,6 +62403,42 @@
         "title": "DeclaredSign",
         "description": "One declared sign in a project's sign list (`source.sign.declared`, `.project-list`)."
       },
+      "DegradedFailure": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "One sentence a person can read: what stopped, the exception class, how many."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since",
+            "description": "Local time of the first failure, ISO 8601 without zone."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "area",
+          "reason",
+          "count",
+          "since"
+        ],
+        "title": "DegradedFailure",
+        "description": "One thing the engine keeps failing at, in words (`engine.silent.health-lists-degraded`). Class and count only."
+      },
       "DeletedWithIdResponse": {
         "properties": {
           "status": {
@@ -69965,6 +70001,13 @@
             "type": "string",
             "nullable": true,
             "title": "Device Token Migration Error"
+          },
+          "degraded": {
+            "items": {
+              "$ref": "#/components/schemas/DegradedFailure"
+            },
+            "type": "array",
+            "title": "Degraded"
           },
           "dependencies": {
             "additionalProperties": {

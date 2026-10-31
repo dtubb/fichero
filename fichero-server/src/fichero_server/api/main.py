@@ -50,6 +50,7 @@ from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_
 from fichero_server.db import Database, db_manager
 from fichero_server.db.app import device_token_migration_error
 from fichero_server.db.manager import LibraryNotFoundError
+from fichero_server.db.volume_dropped import LibraryVolumeNotReachable
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
@@ -1310,6 +1311,12 @@ async def _handle_duckdb_out_of_memory(request: Request, exc: duckdb.OutOfMemory
 _OUT_OF_MEMORY_SAID: set[str] = set()
 
 
+@app.exception_handler(LibraryVolumeNotReachable)
+async def _handle_library_volume_not_reachable(_request: Request, exc: LibraryVolumeNotReachable):
+    """The disk holding the library is gone (#6311): one typed 503 in words, not a 500 and a stack trace per request."""
+    return JSONResponse({"detail": str(exc), "reason": exc.reason, "library": exc.library}, status_code=503)
+
+
 @app.exception_handler(UndoRefused)
 async def _handle_undo_refused(_request: Request, exc: UndoRefused):
     """A step not taken back: a sentence and a machine reason (`safety.undo.refusal-loses-nothing`)."""
@@ -2211,10 +2218,19 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     from fichero_server import startup_warnings
+    from fichero_server.core import failure_ledger
+    from fichero_server.models import DegradedFailure
 
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
     response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}
+    try:
+        response.degraded = [DegradedFailure(**vars(d)) for d in failure_ledger.degraded()]
+    except Exception as exc:  # noqa: BLE001 -- health must never fail because of the ledger
+        response.degraded = []
+        # An empty list must not read as "nothing is degraded": say the ledger is broken, in the log and in health.
+        logger.warning("failure ledger failed while building /api/health: %s", type(exc).__name__)
+        response.dependencies = {**response.dependencies, "failure_ledger": f"failed: {type(exc).__name__}"}
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"

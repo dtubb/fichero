@@ -1,0 +1,2 @@
+2026-10-30 10:00:00,000 - fichero_server.api.main - INFO - engine up
+2026-10-30 10:00:01,000 - fichero_server.db - WARNING - Failed to create embedding for abc: x

@@ -1,0 +1,7 @@
+2026-10-30 10:00:00,000 - fichero_server.api.main - INFO - engine up
+2026-10-30 10:00:00,000 - fichero_server.db - WARNING - Failed to create embedding for a9b7ba70783b617e9998dc4dd82eb3c5: The search model's process stopped while loading the model; embedding for search will try again later.
+2026-10-30 10:00:01,000 - fichero_server.db - WARNING - Failed to create embedding for b8c37e33defde51cf91e1e03e51657da: The search model's process stopped while loading the model; embedding for search will try again later.
+2026-10-30 10:00:02,000 - fichero_server.db - WARNING - Failed to create embedding for fba9d88164f3e2d9109ee770223212a0: The search model's process stopped while loading the model; embedding for search will try again later.
+2026-10-30 10:00:03,000 - fichero_server.db - WARNING - Failed to create embedding for aa68c75c4a77c87f97fb686b2f068676: The search model's process stopped while loading the model; embedding for search will try again later.
+2026-10-30 10:00:04,000 - fichero_server.db - WARNING - Failed to create embedding for fed33392d3a48aa149a87a38b875ba4a: The search model's process stopped while loading the model; embedding for search will try again later.
+2026-10-30 10:01:01,000 - fichero_server.db - WARNING - Failed to create embedding for %s: %s — repeated 6000 times in the last minute

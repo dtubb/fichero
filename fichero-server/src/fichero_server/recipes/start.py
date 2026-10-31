@@ -179,6 +179,11 @@ _TOKENS_IN, _TOKENS_OUT = 1200, 300
 #: ponytail: per provider, not per model; a project's own past `LLM usage` for the model would refine it.
 PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT = 56_000, 400
 ANTHROPIC_PAGE_READ_TOKENS_IN = 2 * 1_600 + 400
+#: A Claude LINE read (#6294) sends a crop a line, not the page: the cut is at most 1,600 px wide (`line_cut.crop_line`) and about
+#: 130 px tall, so w*h/750 is about 280 tokens a crop; a short prompt a call; the answer is a JSON string a line, about 28 tokens.
+#: Booked on a 16-page folder this came to 2.5x the page-image figure above. ASSUMED_LINES_PER_PAGE lines go in one call (under
+#: `line_reader.MAX_LINES_PER_CALL`, the plan's `page` granularity). ponytail: the crop's real size, or the project's past `LLM usage`, would refine it.
+LINE_CROP_TOKENS_IN, LINE_ANSWER_TOKENS_OUT, LINE_READ_PROMPT_TOKENS = 280, 28, 150
 PAGE_READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
 CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
@@ -1537,8 +1542,11 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
 def _page_read_tokens(run: dict[str, Any]) -> tuple[int, int]:
     """(in, out) tokens of one page read by this cloud run: Claude's capped image, else the measured figure."""
     named = f"{run.get('provider_override') or ''}/{run.get('model_override') or ''}".lower()
-    return (ANTHROPIC_PAGE_READ_TOKENS_IN if "anthropic" in named or "claude" in named else PAGE_READ_TOKENS_IN,
-            PAGE_READ_TOKENS_OUT)
+    claude = "anthropic" in named or "claude" in named
+    if claude and run.get("job") == "read-a-line":  # the crops of the lines, one call a page (#6294)
+        return (LINE_READ_PROMPT_TOKENS + ASSUMED_LINES_PER_PAGE * LINE_CROP_TOKENS_IN,
+                ASSUMED_LINES_PER_PAGE * LINE_ANSWER_TOKENS_OUT)
+    return (ANTHROPIC_PAGE_READ_TOKENS_IN if claude else PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT)
 
 
 def _priced(run: dict[str, Any], calls: int, tokens_in: int = _TOKENS_IN, tokens_out: int = _TOKENS_OUT) -> float | None:

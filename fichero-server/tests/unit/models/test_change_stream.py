@@ -15,6 +15,8 @@ import asyncio
 import threading
 from datetime import datetime
 
+import sys
+
 import pytest
 
 from fichero_server.api import change_stream
@@ -45,6 +47,21 @@ from fichero_server.models.hermeneutics import (
     PatternStatus,
 )
 from fichero_server.models import Artifact, DocType, Document, FileType, Status
+
+
+@pytest.fixture(autouse=True)
+def _restore_emit_change_bindings():
+    """Put the real emit_change back in every module that imported it while a test's spy was active (#6315).
+
+    A route that first imports a module (``from ...change_stream import emit_change``) under a
+    monkeypatched spy binds the spy for the rest of the process, so later tests see no events.
+    """
+    real = change_stream.emit_change
+    yield
+    for module in list(sys.modules.values()):
+        if module is not None and getattr(module, "__name__", "").startswith("fichero_server"):
+            if getattr(module, "emit_change", real) is not real:
+                module.emit_change = real
 
 
 # ---------------------------------------------------------------------------
@@ -1667,17 +1684,17 @@ class TestLibraryPathCanonicalization:
         import logging
 
         hub = _ChangeHub()
-        hub.subscribe("/lib/A.fichero")  # a different, genuinely distinct library
+        hub.subscribe("/lib/A.fichero")  # the same library under another case spelling (#6309: a different library is only debug)
 
         event = ChangeEvent(type="document.updated", document_ids=["d1"])
         with caplog.at_level(logging.WARNING, logger="fichero_server.api.change_stream"):
-            delivered = hub.emit("/lib/B.fichero", event)
+            delivered = hub.emit("/lib/a.fichero", event)
 
         assert delivered == 0
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert any("0 subscribers" in r.getMessage() for r in warnings)
         msg = warnings[0].getMessage()
-        assert "/lib/B.fichero" in msg  # the dead emit key
+        assert "/lib/a.fichero" in msg  # the dead emit key
         assert "/lib/A.fichero" in msg  # the live key it drifted from
 
     def test_emit_to_zero_subscribers_no_other_keys_is_quiet(self, caplog):

@@ -2052,6 +2052,16 @@ class ContractIdentity(BaseModel):
     sha256: str
 
 
+class DegradedFailure(BaseModel):
+    """One thing the engine keeps failing at, in words (`engine.silent.health-lists-degraded`). Class and count only."""
+
+    id: str
+    area: str
+    reason: str = Field(description="One sentence a person can read: what stopped, the exception class, how many.")
+    count: int
+    since: str = Field(description="Local time of the first failure, ISO 8601 without zone.")
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -2087,6 +2097,9 @@ class HealthResponse(BaseModel):
     #: Error type name when moving old device tokens to the new clients table failed at open (#5799). The old
     #: tokens still work and the move is retried at the next open; None when nothing is pending. A warning only.
     device_token_migration_error: str | None = None
+    #: What keeps failing (`core/failure_ledger.py`): empty when nothing is. `status` stays "healthy" (the engine
+    #: answers); this list is the signal that a path (search, reading) is not working.
+    degraded: list[DegradedFailure] = Field(default_factory=list)
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution
     # names → installed version; a lib that is not installed is simply absent
