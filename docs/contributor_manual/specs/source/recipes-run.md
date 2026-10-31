@@ -376,12 +376,21 @@ replaces the Kraken figure before #6212 is coded.
   (Ann's log: the warning 6,671 times); fixed in ef6ffa17e, the refusal now said at debug. Test:
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
 - `recipes-run.memory.fits-a-small-mac-at-scale` — **[OK]** on an 8 GB Mac with four instances open, a library of about
-  70,000 documents answers the document view, the Trash, the recipe start's reads (`train_offers._roots`, the
-  Catalogue's `folders_to_describe`) and a recipe's writes at once, with no out-of-memory and a median view under the
-  test's bound. Those reads ask for the columns they use: the Trash reads the deleted rows and the folders above them,
-  the plan reads no line boxes. Was: the Air (2026-10-30) at 256 MiB per instance and 8 threads: 55 document views and
-  two recipe starts answered 500, one page was lost. Unverified on the Air until a build with this runs there. Tests:
-  `fichero-server/tests/unit/db/test_air_scale_memory.py`, `fichero-server/tests/unit/recipes/test_catalogue_reads_no_line_boxes.py`,
+  70,000 documents answers the document view, the Trash, the Start plan and a recipe's writes at once, with no
+  out-of-memory and a median view under the test's bound. Those reads ask for the columns they use: the Trash reads the
+  deleted rows and the folders above them, and the plan names its columns, so it reads no line boxes, with every step
+  option on (a certainty bar, cloud over its cap) as well as without. The legacy canvas fields are copied once per library
+  (a settings-row marker), so an open no longer parses every row's metadata; a row changed later shows through the canvas
+  read's fallback. One press of Start reads the library's pages once and outside the writer gate, so the views go on; the
+  setup, the jobs, the caps and the spending are read again inside the transaction just before the run is queued, so
+  the spending check and the queuing stay one step. Two callers of the plan at once share one plan. The answer aims to arrive inside
+  the app's 60 s request deadline: measured, not held by a test, 31 s for the whole library and 21 s for a box on a loaded
+  M1 Pro. The tests bound memory and what is read, not time. Was: the Air (2026-10-30) at 256 MiB per instance and 8
+  threads: 55 document views and two recipe starts answered 500, one page was lost. Unverified on the Air until a build
+  with this runs there. Tests: `fichero-server/tests/unit/db/test_air_scale_memory.py`,
+  `fichero-server/tests/unit/db/test_db_migrations_schema.py`,
+  `fichero-server/tests/unit/recipes/test_start_plan_does_not_grow_with_pages.py`,
+  `fichero-server/tests/unit/recipes/test_catalogue_reads_no_line_boxes.py`,
   `fichero-server/tests/unit/api/test_trash.py::test_a_trash_poll_reads_the_trash_and_the_folders_above_it_not_the_library`.
 - `recipes-run.memory.out-of-memory-says-so` — **[OK]** a request DuckDB cannot fit in its share answers 503 with
   `Retry-After: 5` and a sentence, never a 500 and a stack trace; the log says it once per route. Test:
