@@ -24,7 +24,8 @@ from fastapi.responses import StreamingResponse
 
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, write_check
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -312,6 +313,7 @@ async def execute_workflow(
     http_request: Request,
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
+    library_path: str = Depends(require_library_path),
 ) -> ExecuteAcceptedResponse:
     """
     Execute a workflow (non-blocking).
@@ -334,6 +336,9 @@ async def execute_workflow(
     Raises:
         404: Workflow not found
     """
+    # A run reads and writes the documents its inputs name, which the write dependency (path and query only) never sees (#6320).
+    if named := input_document_ids(request.inputs):
+        await write_check(http_request, library_path, db, named)
     try:
         # Load workflow. The recipe may live in this library, or be a shipped
         # DEFAULT resolved from the global library (#4450/#4102): defaults are

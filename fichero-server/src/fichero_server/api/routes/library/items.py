@@ -2,11 +2,12 @@
 
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.models.anchors import SourceAnchor
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import assert_library_reads_every, documents_under, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity, Note
 from fichero_server.models import Document
@@ -85,10 +86,15 @@ def _scopes(item_ids: list[str], documents: list[Document], descendants: bool) -
 def library_item_columns(
     request: LibraryItemColumnsRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> LibraryItemColumnsResponse:
     item_ids = list(dict.fromkeys(request.item_ids))
     if not item_ids:
         return LibraryItemColumnsResponse(items=[])
+    if http is not None:  # None: an in-process call, not a request. The counts and names of every item come back (#6320).
+        assert_library_reads_every(http, library_path, list(item_ids), lambda: [
+            d for i in item_ids for d in (documents_under(db, i) if request.include_descendants else [i])])
 
     # One hierarchy read, then fixed bulk reads below: never call item routes.
     documents = db.all(Document)

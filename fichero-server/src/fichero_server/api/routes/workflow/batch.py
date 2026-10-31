@@ -17,7 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, write_check
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
 from fichero_server.execution.batch import (
@@ -302,7 +303,12 @@ def _run_off_the_request(http_request: Request, batch_id: str, events: Any) -> S
 
 
 @router.post("", response_model=BatchResponse)
-async def create_batch(request: CreateBatchRequest, db: Database = Depends(get_library_database_for_write)) -> BatchResponse:
+async def create_batch(
+    request: CreateBatchRequest,
+    db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+) -> BatchResponse:
     """
     Create a new batch execution.
 
@@ -313,6 +319,9 @@ async def create_batch(request: CreateBatchRequest, db: Database = Depends(get_l
 
     if not request.items:
         raise HTTPException(status_code=400, detail="At least one item is required")
+    # Each item is a workflow's inputs: the documents they name are read and written by the run (#6320).
+    if named := [d for item in request.items for d in input_document_ids(item)]:
+        await write_check(http, library_path, db, named)
 
     batch = await manager.create_batch(
         workflow_id=request.workflow_id,

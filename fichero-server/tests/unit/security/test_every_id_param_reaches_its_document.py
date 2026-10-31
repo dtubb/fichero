@@ -15,6 +15,7 @@ Its own fixtures prove it fires (a guard that cannot fail is not a guard).
 
 from __future__ import annotations
 
+import re
 import typing
 
 from fastapi.routing import APIRoute
@@ -148,23 +149,76 @@ def test_revert_copys_documents_are_write_checked_by_their_ids():
     assert {"d1", "f1", "d2"} <= set(target_ids_from_params(params))
 
 
-#: A route handler whose source holds one of these asks authz about the ids it was given (or runs an audited action, whose
-#: registry check reads every id in the params).
-_CHECKS = ("registry.invoke", "registry.", "assert_library_", "assert_can_", "readable_documents", "authz.", "_read_checked")
-#: Body-model routes found by this guard (#6320) whose handler shows no check; each is a lead to read, not a clearance. The list
-#: may only shrink: a route that gains a check must leave it, and a new one may not join.
-BODY_IDS_NOT_YET_LOOKED_AT = {
-    "/api/agents/write", "/api/annotations/crop", "/api/documents/relink-originals/plan",
-    "/api/find-documents/proposals/{proposal_id}/split", "/api/hands/attributions", "/api/locations/resolve",
-    "/api/projects/{project_id}/include",
-    # served only under some test setups (the route set differs by tier), so they may be absent from a run
-    "/api/claims/assign-time-period", "/api/claims/assign-time-period-from-metadata", "/api/claims/resolve-source",
+#: A route handler whose source holds one of these asks authz about the ids it was given (or runs an audited action, whose registry check
+#: reads every id in the params). A word in the source is NOT proof it works: each such route has a denial test through the real stack
+#: (`test_body_id_routes_check_their_documents_6320.py`, `test_read_exports_check_the_body_ids_6320.py`).
+_CHECKS = ("registry.invoke", "assert_library_", "readable_documents", "_read_checked", "read_check", "write_check")
+
+#: Routes whose body holds an id and whose handler shows no check above, each CLEARED by someone who read it, with the mechanism. A new
+#: route is not on this list: it fails until it checks its ids or is read and cleared here (#6320).
+BODY_IDS_CLEARED: dict[str, str] = {
+    "/api/actions/audit/undo": "undo re-runs the recorded inverse through the action layer, which checks every id; an AuthorizationError is refused in words",
+    "/api/actions/import": "`new_id` names the action being imported, not a document",
+    "/api/agents/write": "no library and no database: adds an in-memory PolicyEngine record nothing else reads (reviewed 2026-11-01)",
+    "/api/auth/challenge": "`client_id` is a device, not a document",
+    "/api/auth/local-clients/register": "`request_id` is a pairing request, not a document",
+    "/api/auth/sign-in": "`client_id` is a device, not a document",
+    "/api/bibliography/export.bib": "listed in authz.SCOPED_LIBRARY_READ_ROUTES: the handler filters its documents through readable_rows",
+    "/api/documents/relink-originals/plan": "`_checked_root` requires the ingest owner (403 for an editor, with or without a decoy)",
+    "/api/documents/transfer/incoming": "`transfer_id` is a transfer offer; the copy itself runs through the action layer",
+    "/api/find-documents/proposals/{proposal_id}/split": "the helper `_adjust` runs registry.invoke (403 for an editor with a deny on the page)",
+    "/api/folders/{entity_type}/move": "moves workflows, searches and conversations between folder paths; no document id",
+    "/api/hands/attributions": "the helper `_answer` runs registry.invoke (403 for an editor with a deny and for a scoped editor with a decoy)",
+    "/api/hands/attributions/many": "the helper `_answer` runs registry.invoke; the segments resolve to their documents",
+    "/api/hands/attributions/withdraw-many": "the helper `_answer` runs registry.invoke; attribution ids resolve to their documents",
+    "/api/hpc/clusters": "`cluster_id` names a cluster, not a document",
+    "/api/hpc/clusters/{cluster_id}/dry-run-submit": "a dry run: `run_id` and `workflow_id` are workflow machinery, no document is read",
+    "/api/ingest/files": "`_require_ingest_owner`: the ingest owner only",
+    "/api/local-inference/profiles/validate": "a model profile, not a document",
+    "/api/migrations/rollback": "`run_id` is a migration's audit id (library maintenance, no document id); NOTE: the handler has no owner check of its own",
+    "/api/notes/{note_id}/links": "links two note records and returns the ids; no document text comes back",
+    "/api/pair/code": "`_owner_for_pairing`: the owner only",
+    "/api/policies/orchestration/{rule_id}": "an orchestration policy rule: configuration",
+    "/api/search/saved/reorder": "saved-search order: configuration",
+    "/api/settings/model-profiles": "a model profile: configuration",
+    "/api/chat/conversations/reorder": "conversation order: configuration",
+    "/api/integrations/{app_name}/import": "`external_id` is the other app's item; the handler imports into a path on the machine, no library document is named",
+    "/api/kg/entity-curation/enrich/preview": "`entity_id` is a knowledge entity; it fetches statements from Wikidata and writes nothing",
+    "/api/kg/predictions/heuristic": "no body id is read as a document: the library's claims, which a scoped person is refused (library-level read) -- an editor with a deny sees them all: OPEN, #6325",
+    "/api/model-comparison/compare-node/apply": "writes a model choice into a workflow node: configuration",
+    "/api/providers/refs": "`provider_id` names a provider: configuration",
+    "/api/providers/{provider_id}/models": "`model_id` and `provider_id` name a model and a provider: configuration",
+    "/api/research/tools/document-fetch": "fetches a URL; `project_id` is a project, and what it saves goes through the ingest owner's import",
+    "/api/research/tools/web-search": "a web search; `source_ids` only filter the answer's citations",
+    "/api/schedules": "`workflow_id` names the workflow to schedule: configuration (a schedule's inputs: OPEN, #6325)",
+    "/api/schedules/{schedule_id}": "`workflow_id` names the workflow to schedule: configuration (a schedule's inputs: OPEN, #6325)",
+    "/api/triggers": "`workflow_id` names the workflow to trigger: configuration (a trigger's inputs: OPEN, #6325)",
+    "/api/triggers/{trigger_id}": "`workflow_id` names the workflow to trigger: configuration (a trigger's inputs: OPEN, #6325)",
+    "/api/workflows": "`id` is the new workflow's own id: a recipe, not a document",
+    "/api/workflows/import": "imports a workflow file: a recipe, not a document",
+    "/api/workflows/reorder": "workflow order: configuration",
+    "/api/workflows/{workflow_id}": "`id` is the workflow's own id: a recipe, not a document",
 }
 
 
+def _body_ids(annotation) -> set[str] | None:
+    """The id-like fields of the model(s) a route's body is (unwrapping Optional/list/Annotated); None when the body is no model."""
+    found: set[str] = set()
+    seen_model = False
+    stack = [annotation]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, type) and issubclass(item, BaseModel):
+            seen_model = True
+            found |= {f for f in item.model_fields if _is_id(f)}
+        else:
+            stack.extend(typing.get_args(item))
+    return found if seen_model else None
+
+
 def body_routes_without_a_check() -> set[str]:
-    """Routes whose BODY names a document (`document_id`, `target_id`, `folder_id`...): the read/write dependency reads only the path
-    and query, so a body id is checked only if the handler does it."""
+    """Routes whose BODY holds an id (any `*_id`/`*_ids`, or a body that is no model at all): the read/write dependency reads only
+    the path and query, so a body id is checked only if the handler does it."""
     import inspect
 
     from tests.route_inventory import served_routes
@@ -173,8 +227,8 @@ def body_routes_without_a_check() -> set[str]:
     for route in served_routes(api_main.app):
         if not isinstance(route, APIRoute) or not route.body_field:
             continue
-        model = getattr(route.body_field.field_info, "annotation", None)
-        if not (isinstance(model, type) and issubclass(model, BaseModel)) or not (set(model.model_fields) & set(DOCUMENT_POINTERS)):
+        ids = _body_ids(route.body_field.field_info.annotation)
+        if ids is not None and not ids:
             continue
         try:
             source = inspect.getsource(route.endpoint)
@@ -185,13 +239,24 @@ def body_routes_without_a_check() -> set[str]:
     return found
 
 
-def test_a_route_that_takes_a_document_id_in_its_body_checks_it():
+def test_a_route_with_an_id_in_its_body_checks_it_or_says_why_it_need_not():
     found = body_routes_without_a_check()
-    assert found - BODY_IDS_NOT_YET_LOOKED_AT == set(), (
-        "a route takes a document id in its body and its handler asks authz about no id (the dependency sees only path and query): "
-        f"{sorted(found - BODY_IDS_NOT_YET_LOOKED_AT)}")
+    unread = found - set(BODY_IDS_CLEARED)
+    assert unread == set(), (
+        "a route holds an id in its body and its handler shows no check (the dependency sees only path and query). Check it with "
+        f"read_check / write_check (api/main.py) and add a denial test, or read it and clear it in BODY_IDS_CLEARED: {sorted(unread)}")
+    served = {r.path for r in served_routes_all()}
+    gone = {p for p in BODY_IDS_CLEARED if p not in served}
+    assert gone == set(), f"cleared routes that are no longer served: {sorted(gone)}"
+
+
+def served_routes_all():
     from tests.route_inventory import served_routes
 
-    served = {r.path for r in served_routes(api_main.app) if isinstance(r, APIRoute)}
-    stale = {p for p in BODY_IDS_NOT_YET_LOOKED_AT if p in served and p not in found}
-    assert stale == set(), f"checked now, take off the list: {sorted(stale)}"
+    return [r for r in served_routes(api_main.app) if isinstance(r, APIRoute)]
+
+
+def test_an_open_entry_names_its_issue():
+    """A route cleared as OPEN is a known hole, not a pass: it must say which issue holds it."""
+    bare = [path for path, why in BODY_IDS_CLEARED.items() if "OPEN" in why and not re.search(r"#\d{4,}", why)]
+    assert bare == [], bare

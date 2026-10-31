@@ -15,7 +15,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
-    assert_library_reads_every, assert_library_write_authorized, documents_under, get_library_database,
+    assert_library_reads_every, documents_under, get_library_database, write_check,
     get_library_database_for_write)
 from fichero_server.db import Database
 from fichero_server.export_service import (
@@ -498,7 +498,7 @@ async def export_catalogue_workbook_route(
     # The id is in the body, which the read dependency never sees: check it here, with every page under it (#6320).
     await _read_checked(http, library_path, db, request.target_id)
     if request.kept_export_id:
-        assert_library_write_authorized(http, library_path, request.target_id)  # a read export, except that this one queues a write
+        await write_check(http, library_path, db, [None])  # a read export, except that this one queues a write of the WHOLE project (#6320)
         kept = kept_export._export(db, request.kept_export_id)
         if kept is None or kept["format"] != "catalogue-workbook":
             raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")

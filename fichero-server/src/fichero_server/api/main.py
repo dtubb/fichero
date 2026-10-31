@@ -1876,6 +1876,15 @@ def documents_under(db: Any, target_id: str | None) -> list[str]:
         return []
 
 
+def input_document_ids(inputs: dict | None) -> list[str]:
+    """The documents a free-form workflow `inputs` dict names at its top level (what a run reads or writes)."""
+    out: list[str] = []
+    for key in ("selected_doc_ids", "doc_ids", "document_ids", "doc_id", "document_id"):
+        value = (inputs or {}).get(key)
+        out += [str(v) for v in (value if isinstance(value, (list, tuple)) else [value]) if v]
+    return out
+
+
 async def read_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
     """Off the event loop (for a scoped caller it is a folder walk and one lookup per page): every id the BODY names, with
     everything under it, is readable by the caller. An empty or missing id is the whole project."""

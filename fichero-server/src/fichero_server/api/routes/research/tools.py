@@ -38,14 +38,15 @@ from fichero_server.core.timeutil import utc_now
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 if TYPE_CHECKING:
     # Type-only: httpx is imported lazily in the tool handlers (#3985); the
     # helper's "httpx.AsyncClient"/"httpx.Response" annotations still need it.
     import httpx
 
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database_for_write, write_check
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document
 from fichero_server.models.research import (
@@ -562,8 +563,12 @@ def _ext_from_content_type(content_type: str | None, url: str) -> str:
 async def browser_save(
     request: BrowserSaveRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
+    # It writes a new document into the folder the BODY names (or the project's top level): the caller must write there (#6320).
+    await write_check(http, library_path, db, [request.parent_folder_id], deep=False)
     from fichero_server.core.egress import check_egress  # noqa: PLC0415
     check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path

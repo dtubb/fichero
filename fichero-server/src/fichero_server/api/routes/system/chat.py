@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions import mcp_chat  # noqa: F401  (registers mcp.call_tool)
@@ -22,7 +22,8 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 from fichero_server.db import Database
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
 from fichero_server.db.app import get_app_db, AppDatabase
 from fichero_server.models import (
     Conversation,
@@ -815,6 +816,8 @@ async def chat(
     request: ChatRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ChatResponse:
     """
     Send a message and get a response with RAG.
@@ -825,6 +828,11 @@ async def chat(
     4. Returns response with source citations
     """
     from fichero_server.recipes.places import bound_project  # noqa: PLC0415
+
+    # A scope the BODY names is read into the prompt: the caller must read every document in it. (No scope = the whole project's
+    # retrieval, which is not yet limited to what a scoped person may read: #6325.)
+    if request.document_ids:
+        await read_check(http, library_path, db, request.document_ids)
 
     # Every model call below is made for this project: the gate reads its own rule (`ai.where.egress-at-every-call`, #5368).
     with bound_project(ctx.library_path):
@@ -1549,6 +1557,8 @@ class ExtractTextResponse(BaseModel):
 def extract_text(
     request: ExtractTextRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ExtractTextResponse:
     """
     Extract text content from documents.
@@ -1557,6 +1567,12 @@ def extract_text(
     Can be used to re-extract text for documents imported before text extraction was working.
     """
     from fichero_server.importers.ingest import _extract_text_content
+
+    if http is not None:  # it writes the text of the documents the BODY names (none named: every one) (#6320)
+        from fichero_server.api.main import assert_library_writes_every, documents_under  # noqa: PLC0415
+
+        named = list(request.document_ids or []) or [None]
+        assert_library_writes_every(http, library_path, named, lambda: [d for i in named for d in documents_under(db, i)])
 
     extracted = 0
     skipped = 0

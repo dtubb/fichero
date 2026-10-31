@@ -9,7 +9,7 @@ import logging
 from typing import Annotated, Any, Optional
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.db.app import get_app_db
@@ -17,7 +17,7 @@ from fichero_server.db import Database
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
 # NOTE: fichero_server.llm is imported inside the one handler that prices a model
 # (#3950) — it pulls langchain_core at startup for a cost lookup.
 from fichero_server.workflows.types import (
@@ -1195,8 +1195,13 @@ async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> WorkflowCostEstimateResponse:
     """Estimate run cost from file count and per-file token assumptions."""
+    # The count of pages under a selection is itself a read of it (#6320).
+    if request.selected_doc_ids:
+        await read_check(http, library_path, db, list(request.selected_doc_ids))
     workflow = _get_workflow_or_default(db, workflow_id)
     if not workflow:
         raise HTTPException(

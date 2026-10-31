@@ -8,11 +8,12 @@ import asyncio
 import base64
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.db.app import AppDatabase, get_app_db
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database_for_write, input_document_ids, read_check
 from fichero_server.db import Database
 from fichero_server.llm.language_coverage import (
     LanguageFitModelSpec,
@@ -783,6 +784,8 @@ async def compare_vision_models(
     request: VisionCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ComparisonResultResponse:
     """Compare vision models on the same image(s).
 
@@ -794,6 +797,8 @@ async def compare_vision_models(
     - Base64 data URIs (data:image/jpeg;base64,...)
     - Library document IDs via ``doc_ids`` (rendered through Fichero storage)
     """
+    if request.doc_ids:  # the body's pages are sent to a model (#6320)
+        await read_check(http, library_path, db, request.doc_ids, deep=False)
     model_specs = _model_specs(request.models, app_db, require_capability="vision")
     images = [
         *request.images,
@@ -848,8 +853,11 @@ async def compare_workflow_across_models(
     request: WorkflowCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ComparisonResultResponse:
     """Run the same workflow once per provider/model override and compare outcomes."""
+    await read_check(http, library_path, db, [request.doc_id], deep=False)  # the body's document is read by every model (#6320)
     workflow = _workflow_from_compare_request(request, db)
     model_specs = _model_specs(
         [model.model_dump() for model in request.models],
@@ -876,8 +884,12 @@ async def compare_workflow_node(
     request: NodeCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> NodeComparisonResponse:
     """Compare one workflow node across Settings-configured models."""
+    if named := [*input_document_ids(request.inputs), *input_document_ids(request.pinned_inputs)]:
+        await read_check(http, library_path, db, named, deep=False)
     workflow = _workflow_from_request(request, db)
     node = next((n for n in workflow.nodes if n.id == request.node_id), None)
     if not node:

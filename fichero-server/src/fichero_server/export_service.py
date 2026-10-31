@@ -1930,6 +1930,8 @@ def _descendants(db: Database, root_id: str) -> list[Document]:
         if doc.id in seen:
             continue
         seen.add(doc.id)
+        if doc.deleted_at is not None:  # a trashed folder takes what is under it: the same walk `folder_scope` makes (#6320)
+            continue
         result.append(doc)
         queue.extend(db.query(Document, parent_id=doc.id))
 
