@@ -1,13 +1,13 @@
 #!/bin/bash
 # Studio trial, stage 1: the named items through the runner and Pi (Sonnet 5.5 codes and reviews; CODER=haiku for Haiku 5.5).
-# usage: pipeline/studio-stage1.sh openrouter|anthropic [issue ...]      default items: 6214 6100
+# usage: pipeline/studio-stage1.sh [anthropic|openrouter] [issue ...]      default: anthropic, items 6214 6100
 # openrouter: both models via OpenRouter, pinned to the Anthropic endpoint (the OpenRouter key in ~/.config/openrouter/).
 # anthropic: direct, with the Anthropic key in ~/.config/anthropic/.
 # Spends real money (est. US$2-6 for three items, US$1.5-4 for two; the daily cap is 8). Windows are in the tmux session `studio`
 # (tmux attach -t studio). Nothing lands (auto_land = false) and nothing is picked from GitHub (feed = false).
 set -eu
 cd "$(dirname "$0")/.."
-via=${1:?usage: studio-stage1.sh openrouter|anthropic [issue ...]}; shift
+via=anthropic; case "${1:-}" in openrouter|anthropic) via=$1; shift ;; esac
 [ $# -gt 0 ] || set -- 6214 6100
 PY=${PY:-../integration/.venv/bin/python}   # the runner's python must import the MCP SDK
 export PYTHONPATH=.
