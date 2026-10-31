@@ -2650,6 +2650,15 @@ def running_child(db: "Database", parent_id: str) -> str | None:
     return row[0] if row else None
 
 
+def children_of(db: "Database", parent_id: str, kind: str, states: tuple[str, ...]) -> list[tuple[str, str, str | None]]:
+    """`(id, state, detail)` of every job of `kind` under `parent_id` in one of `states`, newest first."""
+    _ensure(db)
+    marks = ", ".join("?" for _ in states)
+    return db.execute_fetchall(
+        f"SELECT id, state, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ({marks}) "
+        "ORDER BY created_at DESC, rowid DESC", [parent_id, kind, *states])
+
+
 def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
     _ensure(db)
     row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])

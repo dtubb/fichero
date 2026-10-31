@@ -31,10 +31,7 @@ def _words(kind: str, proposal: Any) -> list[str]:
 def worklist(db: Any) -> list[dict[str, Any]]:
     """`[{id, name, kinds, words, sample}]`: pages with a proposal first (in the project's page order), then every
     twentieth confident page that the step found a page in. A page hidden as blank is never listed."""
-    rows = {r[0]: r for r in db.execute_fetchall(
-        "SELECT d.id, d.name, json_extract_string(d.metadata, '$.prep_proposals'), "
-        "json_extract_string(d.metadata, '$.page_region.method') "
-        f"FROM documents d WHERE {db._UNIT_OF_WORK_WHERE}", committed=True)}
+    rows = {r[0]: r for r in db.prepare_check_rows()}
     proposed: list[dict[str, Any]] = []
     sampled: list[dict[str, Any]] = []
     confident = 0

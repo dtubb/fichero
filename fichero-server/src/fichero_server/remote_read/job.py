@@ -222,9 +222,7 @@ def live_child_for(db: Any, parent_job_id: str, kind: str, documents: list[str] 
     """The newest child of `kind` under the row not ended; with `documents`, the newest whose pages (`pages_of` its
     detail) cover them: a read sent ahead whose first pages have landed is still the one out for the rest (a recipe's
     batches never share a page, so it is never another batch's)."""
-    rows = db.execute_fetchall("SELECT id, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', "
-                               "'running', 'paused') ORDER BY created_at DESC, rowid DESC", [parent_job_id, kind])
-    for job_id, detail in rows:
+    for job_id, _state, detail in jobs.children_of(db, parent_job_id, kind, ("waiting", "running", "paused")):
         if documents is None or set(documents) <= set(pages_of(json.loads(detail or "{}")) or ()):
             return job_id
     return None
