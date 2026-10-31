@@ -339,7 +339,9 @@ class ImportService {
             throw ImportServiceError.unexpectedResponse(statusCode)
         }
     }
+}
 
+@MainActor extension ImportService {
     private func ingestFileInPlace(
         _ url: URL,
         mode: IngestMode,

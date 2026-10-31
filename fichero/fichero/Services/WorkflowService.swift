@@ -338,7 +338,9 @@ class WorkflowService {
             throw WorkflowServiceError.unexpectedResponse
         }
     }
+}
 
+@MainActor extension WorkflowService {
     /// Delete a workflow.
     func deleteWorkflow(_ id: String) async throws {
         let libraryPath = client.currentLibraryPath ?? ""

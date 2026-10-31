@@ -371,7 +371,9 @@ class StorageService {
     /// A flight is for one document at one epoch: a view reloading after an invalidate starts a fresh fetch instead of joining
     /// the old one and showing the old picture (## 1049).
     nonisolated static func flightKey(_ docId: String, _ epoch: Int) -> String { "\(docId)#\(epoch)" }
+}
 
+@MainActor extension StorageService {
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).
     func invalidateImageCache(for docId: String) {

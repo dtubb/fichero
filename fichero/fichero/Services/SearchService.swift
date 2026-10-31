@@ -315,7 +315,9 @@ class SearchService {
 
         return ReindexStatus(status: status, message: message)
     }
+}
 
+@MainActor extension SearchService {
     /// Extract embed status from untyped response container
     private func extractEmbedStatus(
         from container: OpenAPIRuntime.OpenAPIValueContainer,

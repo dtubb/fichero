@@ -328,7 +328,9 @@ class WorkflowExecutionService {
     }
 
     // MARK: - Pause / Cancel
+}
 
+@MainActor extension WorkflowExecutionService {
     /// Signal a pause. Returns WHAT THE ENGINE SAID (#4402).
     ///
     /// This used to return `Void`: the 200 body was decoded by the generated

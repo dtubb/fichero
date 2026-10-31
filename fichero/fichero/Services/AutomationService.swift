@@ -273,7 +273,9 @@ class AutomationService {
             throw AutomationServiceError.unexpectedResponse
         }
     }
+}
 
+@MainActor extension AutomationService {
     /// Resume a trigger
     func resumeTrigger(triggerId: String) async throws -> TriggerInfo {
         try validateId(triggerId)
