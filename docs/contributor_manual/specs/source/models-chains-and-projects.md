@@ -3187,7 +3187,9 @@ person adds, never required; and every step says plainly what it does wherever a
   still rides on Find lines between the two. A project saved before keeps its Correct step (Rulings 2026-10-01).
   *Test:* `fichero-server/tests/unit/recipes/test_transcribe_is_lines_alone_6250.py` (through the assemble route:
   [transcribe] with and without cloud, map-places, every purpose with cloud allowed).
-- `source.recipe.lines-alone-never-refused` — **[BROKEN]** (#6250) a recipe of `find-lines` and
+- `source.recipe.lines-alone-never-refused` — **[PARTIAL]** (#6250) built (ff5791b71, 8e262df73; `test_a_page_reader_adds_the_page_step_6259.py`): Use This
+  from a comparison and use-candidate with a page reader add the page step instead of refusing, and Start plans it; the refusal in
+  `bakeoff.use_this` is gone. Not pinned: the recipe check and a stage try on a find-lines + read-a-line recipe. Full text: a recipe of `find-lines` and
   `read-a-line` (with or without the add-ons below) is never refused for lacking a page step, by the
   recipe check, Start's plan, a stage try, Use This from a comparison, or choosing a model for a step.
   The job chain already passes (`jobs.unmet_inputs`: a line reader takes `lines`, which Find lines gives);

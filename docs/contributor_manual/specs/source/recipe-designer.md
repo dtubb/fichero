@@ -604,7 +604,10 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
 
-- `designer.model.every-model-step-chooses` [MISSING] (#6168, #6167, #6173) — the shared "Which model does it"
+- `designer.model.every-model-step-chooses` [PARTIAL] (#6168, #6167, #6173; #6254, #6258) — built (41ad5eec9, 575cdb87b): every step whose job
+  `needs_a_model` offers Choose a Model… (engine test `test_every_model_step_says_it_needs_a_model_and_the_finder_lists_more_than_one`; the Swift
+  test is written but not yet run). Not built: the chooser showing each way's cost, time and place for Statements, Entities and Leave out, and the
+  walk-the-registry test. Full text: the shared "Which model does it"
   chooser is offered for EVERY stage that runs a model, none left out (Statements, Entities and Leave out
   included): the ways to do the stage, each with its cost, its time and where it runs (this Mac with Apple or
   MLX, Kraken, a local model, a cloud model, Hugging Face Jobs, a cluster), the default marked, the choice
