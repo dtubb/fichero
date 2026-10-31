@@ -1,6 +1,9 @@
 """The engine starts a worker process, watches it, records it as a job row, and stops it (#6116).
 
-The worker's loop lives in the agent harness (Claude Code; `fake` replays a scenario with no model).
+The worker's loop lives in the agent harness. `claude` is an interactive session in a tmux window (as
+builder_hook.py runs it: long-running, tellable, hook-driven; NOT `claude -p`), started with an empty
+`--strict-mcp-config` so the owner's fichero MCP (the real library) never reaches it. `fake` replays a scenario
+with no model.
 The engine only holds the record: a `worker` job row (running -> done / failed / cancelled) that
 Activity shows, with the worker's last line as the row's words and its tail, exit code and cwd as
 detail. Stopping kills the worker's whole process group.
@@ -10,17 +13,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 import uuid
 from collections import deque
 from pathlib import Path
 from typing import Any
 
 from fichero_server.execution import jobs
-from fichero_server.workflows.tools.cli_agent import _build_command
 
 KIND = "worker"
 _TAIL = 20
@@ -37,9 +43,12 @@ _FAKE = (
 
 
 class _Worker:
-    def __init__(self, proc: subprocess.Popen[str]) -> None:
-        self.proc = proc
-        self.pgid = proc.pid
+    def __init__(self, pgid: int, proc: subprocess.Popen[str] | None = None) -> None:
+        self.proc = proc  # None for a tmux pane: watched by its log file and its process group
+        self.pgid = pgid
+        self.pane = ""
+        self.log = Path()
+        self.status = Path()
         self.tail: deque[str] = deque(maxlen=_TAIL)
         self.ended_by: str | None = None  # "stop" | "timeout"
         self.finished = threading.Event()
@@ -54,6 +63,8 @@ def _kill(w: _Worker) -> None:
         os.killpg(w.pgid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    if w.pane:
+        subprocess.run(["tmux", "kill-pane", "-t", w.pane], capture_output=True)
 
 
 def _watch(db: Any, job_id: str, w: _Worker, kind: str, cwd: str, timeout_s: float) -> None:
@@ -68,6 +79,39 @@ def _watch(db: Any, job_id: str, w: _Worker, kind: str, cwd: str, timeout_s: flo
         code = w.proc.wait()
     finally:
         timer.cancel()
+    _settle(db, job_id, w, kind, cwd, timeout_s, code)
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\r")
+
+
+def _watch_pane(db: Any, job_id: str, w: _Worker, kind: str, cwd: str, timeout_s: float) -> None:
+    """A tmux pane has no pipe to read: follow its pipe-pane log for the row's words, and its process group for the end."""
+    deadline = time.monotonic() + timeout_s
+    pos = 0
+    while True:
+        alive = any_alive([w.pgid])
+        if w.log.exists():
+            data = w.log.read_bytes()
+            chunk, pos = data[pos:].decode("utf-8", "replace"), len(data)
+            for line in _ANSI.sub("", chunk).splitlines():
+                if line.strip():
+                    jobs.say(db, job_id, line.strip())
+                    w.tail.append(line.strip())
+        if not alive:
+            break
+        if time.monotonic() > deadline:
+            w.ended_by = w.ended_by or "timeout"
+            _kill(w)
+        time.sleep(0.2)
+    try:
+        code = int(w.status.read_text().strip())
+    except (OSError, ValueError):
+        code = -9 if w.ended_by else None
+    _settle(db, job_id, w, kind, cwd, timeout_s, code)
+
+
+def _settle(db: Any, job_id: str, w: _Worker, kind: str, cwd: str, timeout_s: float, code: int | None) -> None:
     if w.ended_by == "stop":
         state, reason = "cancelled", "Stopped"
     elif w.ended_by == "timeout":
@@ -103,28 +147,54 @@ def start(
     workdir: str | Path,
     timeout_s: float,
     scenario: dict[str, Any] | None = None,
+    tmux_session: str = "",
+    claude_bin: str = "claude",
+    model: str = "sonnet",
 ) -> str:
-    """Start a worker of `kind` ("claude" or "fake") in `workdir`; returns its job id."""
-    if kind == "claude":
-        argv = _build_command(cli="claude", prompt=brief, use_ollama_launch=False, ollama_model="")
-    elif kind == "fake":
-        argv = [sys.executable, "-c", _FAKE, json.dumps(scenario or {})]
-    else:
+    """Start a worker of `kind` ("claude" or "fake") in `workdir`; returns its job id. `claude` needs the tmux
+    session to open its window in (`tmux_session`).
+    ponytail: --dangerously-skip-permissions as builder_hook.py does, until the per-worker sandbox lands."""
+    if kind not in ("claude", "fake"):
         raise ValueError(f"unknown worker kind {kind!r}")
+    if kind == "claude" and not tmux_session:
+        raise ValueError("a claude worker needs the tmux_session to open its window in")
     cwd = Path(workdir)
     if not cwd.is_dir():
         raise ValueError(f"workdir {str(cwd)!r} is not a directory")
     if not timeout_s or timeout_s <= 0:
         raise ValueError("a worker needs a positive timeout_s")
     job_id = f"worker-{uuid.uuid4().hex[:12]}"
+    if kind == "claude":
+        return _start_pane(db, job_id, brief, cwd, timeout_s, tmux_session, claude_bin, model)
+    argv = [sys.executable, "-c", _FAKE, json.dumps(scenario or {})]
     # As cli_agent (#5186): no stdin; own process group so a stop or timeout kills what it started.
     proc = subprocess.Popen(
         argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, errors="replace", start_new_session=True,
     )
-    w = _WORKERS[job_id] = _Worker(proc)
+    w = _WORKERS[job_id] = _Worker(proc.pid, proc)
     jobs._record(db, job_id, kind=KIND, subject=job_id, parent_id=None, state="running", reason=None, name=f"Worker ({kind})")
     threading.Thread(target=_watch, args=(db, job_id, w, kind, str(cwd), timeout_s), daemon=True).start()
+    return job_id
+
+
+def _start_pane(db: Any, job_id: str, brief: str, cwd: Path, timeout_s: float, session: str, claude_bin: str, model: str) -> str:
+    scratch = Path(tempfile.mkdtemp(prefix=f"{job_id}-"))
+    mcp = scratch / "mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {}}))  # with --strict-mcp-config: no MCP server at all, not the owner's
+    log, status = scratch / "pane.log", scratch / "exit_code"
+    cmd = (f"cd {shlex.quote(str(cwd))} && {shlex.quote(claude_bin)} --dangerously-skip-permissions --model {shlex.quote(model)} "
+           f"--strict-mcp-config --mcp-config {shlex.quote(str(mcp))} {shlex.quote(brief)}; echo $? > {shlex.quote(str(status))}")
+    r = subprocess.run(["tmux", "new-window", "-d", "-P", "-F", "#{pane_id} #{pane_pid}", "-t", session, "-n", job_id, cmd],
+                       capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError(f"tmux could not open the worker window: {r.stderr.strip()}")
+    pane, pid = r.stdout.split()
+    subprocess.run(["tmux", "pipe-pane", "-t", pane, f"cat >> {shlex.quote(str(log))}"], capture_output=True)
+    w = _WORKERS[job_id] = _Worker(int(pid))
+    w.pane, w.log, w.status = pane, log, status
+    jobs._record(db, job_id, kind=KIND, subject=job_id, parent_id=None, state="running", reason=None, name="Worker (claude)")
+    threading.Thread(target=_watch_pane, args=(db, job_id, w, "claude", str(cwd), timeout_s), daemon=True).start()
     return job_id
 
 

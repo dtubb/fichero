@@ -67,3 +67,54 @@ def test_a_missing_program_and_a_bad_workdir_are_refused(db, tmp_path):
         wp.start(db, kind="gpt", brief="x", workdir=tmp_path, timeout_s=5)
     with pytest.raises(ValueError, match="timeout"):
         wp.start(db, kind="fake", brief="x", workdir=tmp_path, timeout_s=0, scenario={})
+
+
+# --- kind "claude": an interactive session in a tmux window, as builder_hook.py runs it (not `claude -p`) ---
+
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+import uuid  # noqa: E402
+
+tmux = pytest.mark.skipif(shutil.which("tmux") is None, reason="needs tmux")
+
+
+@pytest.fixture
+def tmux_session():
+    name = f"wp_test_{uuid.uuid4().hex[:8]}"
+    subprocess.run(["tmux", "new-session", "-d", "-s", name, "-x", "200", "-y", "50"], check=True)
+    yield name
+    subprocess.run(["tmux", "kill-session", "-t", name], capture_output=True)
+
+
+def _fake_claude(tmp_path, body):
+    exe = tmp_path / "claude"
+    exe.write_text("#!/bin/sh\n" + body)
+    exe.chmod(0o755)
+    return str(exe)
+
+
+@tmux
+def test_claude_kind_is_an_interactive_session_with_no_inherited_mcp(db, tmp_path, tmux_session):
+    args = tmp_path / "args.txt"
+    exe = _fake_claude(tmp_path, f'printf "%s\\n" "$@" > {args}\necho "fake claude up"\nexit 3\n')
+    job = wp.start(db, kind="claude", brief="build #1", workdir=tmp_path, timeout_s=30,
+                   tmux_session=tmux_session, claude_bin=exe)
+    assert wp.wait(job, 30) == "failed"
+    kind, state, reason, detail = _row(db, job)
+    assert "3" in reason and json.loads(detail)["exit_code"] == 3 and "fake claude up" in json.loads(detail)["tail"]
+    given = args.read_text().splitlines()
+    assert "-p" not in given and "--print" not in given  # a long-running interactive session
+    assert "--strict-mcp-config" in given and given[-1] == "build #1"
+    mcp = json.loads(open(given[given.index("--mcp-config") + 1]).read())
+    assert mcp == {"mcpServers": {}}  # the owner's fichero MCP (the real library) never reaches a worker
+
+
+@tmux
+def test_stop_ends_a_tmux_worker_and_everything_it_started(db, tmp_path, tmux_session):
+    exe = _fake_claude(tmp_path, 'echo up\nsleep 300 &\nsleep 300\n')
+    job = wp.start(db, kind="claude", brief="x", workdir=tmp_path, timeout_s=60, tmux_session=tmux_session, claude_bin=exe)
+    assert wp.wait_for_line(job, "up", 20)
+    pids = wp.pids(job)
+    wp.stop(db, job)
+    assert wp.wait(job, 20) == "cancelled"
+    assert not wp.any_alive(pids)
