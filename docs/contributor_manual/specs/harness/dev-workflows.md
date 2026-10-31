@@ -79,7 +79,10 @@ question queue, a second activity list.
 - **Fixed steps are scripts** (`lane_ready_check.sh`, `check_*.py`, `scripts/gate`, `verify_all.sh`, `build-and-validate.sh`,
   `close_fixed_issues.py`, the `land` guard), each one Activity row with a count and a Stop where it runs long; only the
   release earns a workflow, deferred.
-- **Enforce, don't ask**: every standing rule names its layer (credential or OS, hook, guard at landing, prose only).
+- **Enforce, don't ask; declare, don't narrate**: every standing rule names its layer (credential or OS, hook, guard at
+  landing, prose only) and lives in one declarative rules file that states what must hold, not the order of work.
+- **A ratchet**: slowdowns, failures and review findings are logged with causes, a few numbers are compared with a
+  baseline on each run, and a repeated finding becomes a rule or a check (baseline table in the report).
 - **One worker kind, two capability sets**; **models by configuration, picked by results**; **small-context handoff is a
   core requirement** (the Researcher's machine is a 24 GB laptop).
 
@@ -188,6 +191,22 @@ review or synthesis; where it is off, the role falls back along its list.
   tool calls and errors, diff lines or sources saved, wall time, cost, ladder, verdicts, rework rounds, false done) is
   written from them as rows and TSV; Activity shows the rows. Test:
   `fichero-server/tests/unit/workflows/test_records_are_truth.py::test_state_and_log_read_from_records`.
+- `dev-workflows.run.rules-file` [PROPOSED] (maintainer 2026-10-31: declarative guardrails) — one rules file per project or
+  use (`harness.toml` beside the profile) declares **what must hold**, never the worker's order of work: the worktree and
+  scratch path, allowed tools and commands, required checks and their time budgets, turn and dollar budgets, machine
+  limits, landing conditions, the people list for the public boundary, the handoff line. The policy hook, the `check`
+  and `land` tools, the land gate, the watch tick and the machine watch read it; no rule lives only in prose or code,
+  and a rule that is not in the file is not enforced. The boundary is deliberate: driving a worker's steps from data was
+  the shape that lost here (the frozen runner's `[[steps]]`), so the file constrains, the worker decides. Test:
+  `fichero-server/tests/unit/workflows/test_rules_file.py::test_hook_gate_and_tick_read_the_same_rules`.
+- `dev-workflows.run.ratchet` [PROPOSED] (maintainer 2026-10-31: it only improves) — from the records and log, a small set of
+  numbers per run and per week: time from READY to landed, first-pass READY rate, review findings per issue by kind and
+  severity, stall hours (a worker gone or waiting with no row), false done, rework rounds, cost per landed issue; a
+  baseline file in the repo and a guard in the `scripts/check_*_ratchet.py` pattern that goes red when a number
+  backslides past its band, raised only with a reason; a review finding of the same kind on two issues must produce a
+  new rule in the rules file or a new check before review (the 7 spec-diff findings of 11 are the first: a spec-diff
+  check runs in `check`, not in review). Slow steps record what they waited on; failures record a kind. Test:
+  `fichero-server/tests/unit/workflows/test_ratchet.py::test_baseline_compare_and_repeat_finding_makes_a_rule`.
 - `dev-workflows.run.supervision` [PROPOSED] — a supervisor (the Lead session, a Sonnet builder, the maintainer) can stop
   any run, worker or the harness (a hold blocks landing and closing), inspect checkpoints, rows, log, handoffs and
   worktree from the Activity row or the CLI chat, and repair (resume from the last checkpoint, re-brief from the
@@ -335,9 +354,9 @@ Stage 3 is held to one step until Stage 1 has run a real cluster. `Depends on` d
 - Tests: fichero-server/tests/unit/workflows/test_review_and_land.py, fichero-server/tests/unit/workflows/test_land_gate.py, fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py
 - Size: M
 
-#### Step 1.5 — the handoff hook, records as truth, supervision
-- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.records-are-truth`, `dev-workflows.run.supervision`
-- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_records_are_truth.py, fichero-server/tests/unit/workflows/test_supervision.py
+#### Step 1.5 — the handoff hook, records as truth, supervision, the rules file, the ratchet
+- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.records-are-truth`, `dev-workflows.run.supervision`, `dev-workflows.run.rules-file`, `dev-workflows.run.ratchet`
+- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_records_are_truth.py, fichero-server/tests/unit/workflows/test_supervision.py, fichero-server/tests/unit/workflows/test_rules_file.py, fichero-server/tests/unit/workflows/test_ratchet.py
 - Size: M
 
 #### Step 1.6 — the policy hook, the watch tick, the machine watch, the two capability sets
@@ -404,6 +423,8 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.worker.handoff` | 1.5 |
 | `dev-workflows.run.records-are-truth` | 1.5 |
 | `dev-workflows.run.supervision` | 1.5 |
+| `dev-workflows.run.rules-file` | 1.5 |
+| `dev-workflows.run.ratchet` | 1.5 |
 | `dev-workflows.run.policy-hook` | 1.6 |
 | `dev-workflows.run.watch-tick` | 1.6 |
 | `dev-workflows.run.machine-watch` | 1.6 |
