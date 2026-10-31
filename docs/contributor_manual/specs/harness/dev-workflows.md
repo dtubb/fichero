@@ -276,6 +276,12 @@ back along its list and says so.
   with its brief, kind, model and grants, records it as one Activity row with a child row per tool call and report,
   installs its policy hook and commit-msg hook (`dev-workflows.run.policy-hook`), stops it on Stop, a budget hit or a hold (the process group is killed, never asked), and starts its successor when the hook hands off; no LangGraph graph drives
   the loop. Test: `fichero-server/tests/unit/workflows/test_worker_start_stop.py::test_start_record_stop_and_successor`.
+- `dev-workflows.run.worker-address` [PROPOSED] — the engine keeps, per task, the address of the worker's **current
+  generation** (its tmux pane or process group, session directory, kind, started-at), rewritten at every handoff and
+  cleared when the worker is gone; a supervisor's message goes only to the registered address (`tell` through the
+  engine, today `tell.sh <pane>` under 800 characters), and a message to a stale generation is refused with the current
+  one named, so a handoff never leaves two workers in one worktree; the address is a column on the worker's row. Test:
+  `fichero-server/tests/unit/workflows/test_worker_address.py::test_tell_reaches_only_the_current_generation`.
 - `dev-workflows.run.review-per-issue` [PROPOSED] — the `request-review` tool starts a fresh reviewer-role worker on the
   issue's commit, its verdict bound to the sha, with findings; NOT_READY returns the findings to the same session (two
   rounds, then the queue). A
@@ -341,8 +347,9 @@ back along its list and says so.
   output tokens, tool calls and errors, diff lines or sources saved, wall time, cost, ladder, verdicts, rework rounds,
   false done; shown in Activity and written as TSV. Test: `fichero-server/tests/unit/workflows/test_run_log.py::test_run_log_row`.
 - `dev-workflows.run.feeder` [PROPOSED] — scripts choose the next task: the person's pointed milestone, then urgent, then
-  bugs, then the plan's build order; claimed, blocked and running items skipped; a brief that fails lint goes to the
-  queue as a write-up, never to a worker. Test: `fichero-server/tests/unit/workflows/test_feeder.py::test_feeder_order_and_lint`.
+  bugs, then the plan's build order; claimed, blocked and running items skipped; the brief and its lint read the issue's
+  **body and its comments** (spec-link, residue and ruling comments count, newest first), so a spec id or acceptance
+  added in a comment is found; a brief that still fails lint goes to the queue as a write-up, never to a worker. Test: `fichero-server/tests/unit/workflows/test_feeder.py::test_feeder_order_and_lint`.
 - `dev-workflows.models.role-config` [PROPOSED] — a profile names a model per role (builder, reviewer, lead-model, helper,
   researcher, manager, decider): provider (`anthropic`, `openrouter`, `omlx`, `mlx_lm`, `apple`, `claude-code`), model
   id, precision, context cap, resident memory; the loader refuses a roster whose resident models exceed the machine's
@@ -485,8 +492,8 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 ### Stage 1 — a Claude Code builder runs one cluster with the hook and tools, the engine recording it; one Researcher task (weeks 1-2)
 
 #### Step 1.1 — the engine starts and stops a worker; the check tool
-- Behaviours: `dev-workflows.tool.check`, `dev-workflows.run.worker-start-stop`
-- Tests: fichero-server/tests/unit/workflows/test_worker_start_stop.py, fichero-server/tests/unit/workflows/test_check_tool.py
+- Behaviours: `dev-workflows.tool.check`, `dev-workflows.run.worker-start-stop`, `dev-workflows.run.worker-address`
+- Tests: fichero-server/tests/unit/workflows/test_worker_start_stop.py, fichero-server/tests/unit/workflows/test_check_tool.py, fichero-server/tests/unit/workflows/test_worker_address.py
 - Size: M
 
 #### Step 1.2 — worker kinds: claude today, fake for the dry run
@@ -602,6 +609,7 @@ failing case. The table is the pinning the guard reads.
 | Behaviour | Step |
 |-----------|------|
 | `dev-workflows.tool.check` | 1.1 |
+| `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.run.worker-start-stop` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
