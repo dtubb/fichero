@@ -362,6 +362,195 @@ engine's and survive (`samples._write`); a stale one is shown stale (section B),
 current. A try or Start under way when the window closes keeps running (it is a job) and the page shows
 its progress again when reopened (`source.onboard.stages.try-progress-in-place`).
 
+### J. Every step that runs a model lets the person choose it; every other step says "Fichero does this one"
+
+The rule (owner 2026-10-31): a step that calls a model has a picker; a step that calls none says plainly
+that Fichero does it, and how. What the code has today, job by job, read from `recipes/stages.py` (the
+jobs each stage offers), `recipes/jobs.py` (`needs_a_model`), `recipes/assemble.py` (`FICHERO_DOES_IT`,
+the `PREPARE` step, `_cloud_text_pick`), `recipes/seed/cards.yaml` (which jobs have a card at all) and
+the Set Up rows (`RecipeStepsView`: "Choose a Model…" or "Find a Reader…" is drawn for every job whose
+registry entry says `needs_a_model`, `RecipeSetupStore.offersFinder`; the Search step has its own field,
+`SetupSearchModelField`):
+
+| Stage | Job | Calls a model? | Picker today | What is wrong |
+| --- | --- | --- | --- | --- |
+| Prepare Images | `split-pages` | no (Apple Vision's outline, a system framework; no card) | none; the row shows a `builtin` pin "page-splitter" as if it were a model | should read "Fichero does this one: …" |
+| Prepare Images | `prepare-the-image` | no (Vision, OpenCV; Vision's text for the turn) | none; the row shows `builtin` "image-preparer" | same |
+| Find Regions | `find-regions` | yes | Choose a Model… (2 cards: Kraken `blla`, YOLO) | fine |
+| Find Lines | `find-lines` | yes | Find a Reader… (2 cards: Kraken `blla`, Apple's lines) | the plan runs `blla` only; Apple's card is for print |
+| Leave Out | `leave-out` | no (rules) | none; `builtin` "leave-out-rules" | should say Fichero does it |
+| Read | `read-a-line` | yes | Find a Reader… (6 cards) | fine |
+| Read | `read-a-page` | yes | Find a Reader… (4 cards) | fine |
+| Read | `tie-text-to-lines` | **no** (the alignment; the line reader's rough read is the anchor) | a picker, because the registry says `needs_a_model=True`; it shows the line reader | the one the owner met: a model row for a step no model does (section G) |
+| Read | `correct` | yes | Choose a Model… (2 cards, plus keyed cloud text models) | fine |
+| Read | `find-where-readers-disagree` | yes, the plan's own readers | none (built in, `needs_a_model=False`); its row names the readers | fine, said in words |
+| Normalise, Translate | `translate-transliterate-normalise` | yes | Choose a Model… (2 cards, plus keyed cloud text models) | fine |
+| Organise | `find-documents-in-a-folder` | no (rules over the text) | none; `builtin` "document-finder" | should say Fichero does it |
+| Organise | `split-into-entries` | yes (a text model) | Choose a Model…, but **no card in the catalogue**: the finder lists only the person's keyed cloud text models, else nothing | an empty picker on a Mac with no key |
+| Names | `find-names-tag-words` | yes | Choose a Model… (2 cards) | fine |
+| Names | `place-in-a-gazetteer`, `link-to-authorities` | no | none (by hand, `BY_HAND_FIX`) | fine, said |
+| Statements | `find-statements` | yes (a text model) | Choose a Model…, **no card in the catalogue** | an empty picker without a key |
+| Dates & Times | `work-out-dates` | no (rules) | none; `builtin` "date-rules" | should say Fichero does it |
+| Structured Data | `find-a-tables-cells`, `extract-to-a-table` | yes | Choose a Model…, **no card in the catalogue** | an empty picker without a key |
+| Search | `make-a-vector` | yes | its own field (2 cards) | fine |
+| Catalogue | `describe-for-the-catalogue` | yes (a text model) | Choose a Model…, **no card in the catalogue** | an empty picker without a key |
+
+So the gap is not a missing button: it is (a) five no-model steps drawn as a model row with a `builtin`
+pin, (b) one no-model step (`tie-text-to-lines`) registered as needing a model, and (c) five model steps
+with no local card, whose picker is empty on a Mac without a cloud key. The design: a step's row is one
+of two shapes, decided by the engine's registry and nothing else — **a chooser** (the step's candidates
+from `step_candidates`, the chosen one marked, Choose a Model… or Find a Reader…; a step with no
+candidate on this Mac says "No model on this Mac does this yet: add a cloud key, or <download>" with the
+nearest fix) or **"Fichero does this one: <how>"** (section G). `tie-text-to-lines` becomes
+`needs_a_model=False` with its topic sentence naming the anchor; the five text-model jobs get their
+local candidates in the catalogue as they are built, and until then the empty picker says why.
+
+**The guardrail.** `check_setup_model_pickers.py` (named here, not yet written; its test
+`test_check_setup_model_pickers.py`): for every stage in `STAGES`
+and every job the stage offers (`runs_or_by_hand`), (1) a job with `needs_a_model=True` must have at
+least one card in `cards.yaml` whose `jobs` name it, **or** be one of the text-model jobs
+`_cloud_text_pick` serves (a constant the guard imports, so the list cannot drift), **or** be in the
+guard's allowlist; (2) a job with `needs_a_model=False` must be in `FICHERO_DOES_IT`, the `PREPARE` step
+or `BY_HAND_FIX`, and have a topic with `how_it_works` (so "Fichero does this one" has words), or be in
+the allowlist; (3) the contract (`openapi.json`) must carry `needs_a_model` on `JobInfo`, which is what
+the app's row shape reads. The allowlist is a dict at the top of the script, one line per job, each with
+an issue and a reason: `NO_PICKER_YET = {"split-into-entries": "#6052: local text model card pending"}`
+— a job in the allowlist that later gains a card fails the guard as stale, so the list only shrinks. The
+guard runs in `verify_all --fast` with the other `check_*.py`.
+
+### K. Suggestions from the material: one design with the recipe designer
+
+The branch `spec/setup-how-to-run` (merged here) added to `recipe-designer.md` the condition of the
+material (`designer.material.condition-asked`, `.condition-suggested-from-a-sample`,
+`.condition-feeds-the-defaults`), the page "How do you want to run this?" (`designer.how.where`,
+`.model-kind`, `.what-matters`, `.access-derived-and-confirmed`, `.answers-pick-the-card`,
+`.risks-in-plain-words`, `.chain-risk-on-ready`, `.what-to-check`), the defaults table
+(`designer.defaults.table`, `.says-why`, `.person-wins`, `.caps-proposed-from-the-table`) and Budget
+(`designer.budget.*`), with Stage 18 of its build order. This spec **does not restate them**; it is the
+pager those pages sit in, and it adds the one thing the owner asked for on 2026-10-31 that they do not
+say: **suggestions, each with its reason, each overridable, from the script as well as the condition**.
+
+**One page order** (the merged design; the pager's row): Your Project → Add Material → About the
+Material (kind, languages and scripts, **condition**: `designer.material.condition-asked`) → **How do you
+want to run this?** (`designer.how.*`) → Choose the Stages → one page per chosen stage → Ready (plan,
+**Budget**, Start). The condition and script answers steer, through the defaults table, which stages are
+pre-ticked, which card each step suggests, and how the run is placed; every one of those is shown as a
+**suggestion row**: the suggestion, its reason in the engine's words ("faded ink on 3 of 5 sample pages:
+Clarity is on"; "the script is not Latin: the readers found for it are these two; none is installed";
+"damaged handwriting: a second review pass is suggested, the compare on your pages will tell"), and
+Change… beside it. The rows come from one engine list, `GET /api/recipes/suggestions` (the defaults
+table's chosen rows for this project's answers, each with `why`, `from` naming the answer that fired it,
+and `applied`), so the app draws and never reasons.
+
+What came from where: the condition questions, the How page, the defaults table and Budget are the
+recipe designer's (`designer.*`, 2026-10-30); the suggestion rows, their reasons and Change…, the
+script's part (a reader, a segmenter or training suggested for an unusual script), and the pager they sit
+in are this spec's (`wide.suggest.*`, 2026-10-31). `designer.defaults.says-why` and
+`wide.suggest.reason-and-override` describe one row: the first owns the words, the second the override
+and where the row is drawn. The owner's examples are rulings here: damaged handwriting may do well with
+several review passes where one reader does not — so the suggestion is a try on the samples and the
+person chooses (section M); an unusual script may need another reader or segmenter, or training — so
+the script suggestion names the readers found for the script (`source.find.one-candidate-source`), says
+when none is installed, and offers training through the existing offers (`prep.train.*`,
+`source.onboard.auto.train-offer-comes`).
+
+### L. Compare: A/B and the bake-off on the person's own page
+
+**What exists.** The engine answers one compare shape for a page, `GET
+/api/documents/{page_id}/compare-readers` (`source.compare.readers-answer`, built): the readers, the
+page's lines with every reader's text as written, per-word `variants`, agreement, the line's picture,
+which reading counts; the same route with `?try_stage=` answers a Set Up try's candidates matched line
+for line by box (`source.compare.try-candidates-same-shape`, built). The bake-off answers rows per
+candidate with CER, per-page scores (`read` with `why`), seconds, pages an hour and `cost_usd` with its
+basis (`BakeoffRow`). In the app: `BakeoffSection` is a table of rows with Use This;
+`StageComparisonView` plays each candidate's picture side by side with its measure words;
+`StageCompareWindow` and `StageCompareColumns` draw the page's picture with each candidate's boxes
+(`ShapesOverlay`) and its reading under it, one model or all, Use This One; `ReaderArtifactDiff` is a
+pure LCS diff that renders two to five texts with the differences marked, in the Reader's diff lens. The
+Segments pane's Compare mode and the two ways in are specified and not built (`source.compare.segments-mode`,
+`source.compare.ways-in`); the designer's side-by-side text is not built (`designer.compare.side-by-side-text`).
+Today, on a stage page, the pictures sit at the bottom under the table and the only comparison is by eye.
+
+**The design: one compare view, opened from the pager.** A stage page's output column, in its done
+state, has **Compare** when two or more candidates ran (a try, a bake-off, or the readers of a run); it
+opens the compare view in place of the output column (the questions stay on the left) or, from the
+Inspector's "Compare Readers", in the Segments pane as `source.compare.ways-in` says. The view:
+
+1. **The same page, the same crop, for every candidate.** One page at a time (the sample strip picks
+   it); every candidate is drawn on the page's **current image** (`current_page_image`) inside the
+   page's box, the candidates' shapes mapped onto that one frame through `frame_map` (a try's copy and
+   the project's page are the same page id; a candidate's lines carry their frame), so A and B never
+   differ by a crop or a turn. The engine serves the frame with the compare answer (`image_width`,
+   `image_height`, `frame`).
+2. **Three ways to look**, a segmented control: **Side by side** (one column per candidate, the page
+   with its boxes, its text under, `StageCompareColumns` as built, the columns scrolling together),
+   **Overlay** (one picture, every candidate's boxes in its own colour with a legend, each toggled by its
+   key), and **Wipe** (one picture, a vertical handle the person drags or arrows across; A to its left, B
+   to its right; for a text step the two readings wipe with it). The default is Side by side on the Mac
+   and Overlay on an iPhone.
+3. **Per-line diff where there is text.** Under the pictures, the line rows of the compare answer: the
+   line's picture, then one cell per candidate with its text as written, the differing words marked
+   from `variants` with the disagreement lens's marks, agreed rows quiet, a filter "only the lines that
+   differ"; for a whole-page reading (no lines yet) the two texts through `ReaderArtifactDiff`. Where
+   there is truth (checked lines), the best candidate's row shows CER per line and the inserted words
+   are marked (`designer.compare.side-by-side-text`'s words, built here).
+4. **Price and time per candidate**, in the column head: "4.2 % CER on your 3 pages · 6 s a page ·
+   free, on this Mac" or "· $0.02 a page · whole project about $18, 2 h", each figure with its basis
+   (`designer.compare.row-sentence`, `designer.compare.predicts-cost-and-time`), from the bake-off row
+   or the try candidate; a candidate without a measure says "not measured: <why>"
+   (`designer.compare.not-measured`).
+5. **Pick a winner.** Use This One under a column sets the step's model (`use-candidate`, unchanged,
+   `designer.compare.person-chooses`) and the column is marked chosen; on the project's own lines (not
+   a try's copies) clicking a reader's text is the per-line pick (`source.compare.pick`, `reading.choose`,
+   never on a try). Review's Accept all is Review's (section M), not the compare's.
+6. **Keyboard and accessibility.** ←/→ move the current candidate (and the wipe handle by 5 %), ↑/↓
+   move the line, ⌥↓ the next differing line, 1–3 show one candidate alone or all, Return is Use This
+   One for the current candidate, Esc closes. Each candidate column is an element "Candidate B, Kraken
+   CATMuS: 4.2 % error, 6 seconds a page, free"; each line cell reads "<reader>: <text>"; a row announces
+   "readers agree" or "readers differ"; the overlay's legend is a list of toggles with the colour named
+   in words; the wipe handle is an adjustable element. Reduce Motion drops the wipe's easing.
+7. **Empty and error states**, one sentence each from the engine: one candidate ("one reader: nothing
+   to compare"), no reading on the page yet, a candidate that did not read this page (its `why`: the
+   reader's error or "returned no text"), a result older than the answers (stale, section B), a try
+   whose pages are copies ("these lines are a try's, not yet the project's: Use This One sets the model;
+   picks come after Start"). Never an empty picture.
+8. **iPad and iPhone.** The columns become a horizontal pager of candidates with the line list under;
+   Overlay is the default; the wipe handle is the drag; the sample strip is a row of dots.
+
+**What it replaces.** The caption lines of counts under the pictures (`designer.compare` appendix, fact
+10) go; `StageComparisonView`'s three pictures playing side by side become the view's Side by side mode
+with the real result, not the animation; `StageCompareWindow` stays as the window host for Find Lines
+until the Segments pane's Compare mode exists, then opens that; `BakeoffSection`'s table stays as the
+summary above the view (Use This there and here are the same press). No new pane kind, no new window
+kind (the 2026-08-25 compare design and `source.compare.*` hold).
+
+### M. The owner's rulings of 2026-10-31 on tries, Leave Out and Review
+
+- **A live try is reused.** Start reuses a try's result on the pages it covered when the try ran the
+  same step with the same card and settings on the same image signature (`never-rerun-a-model-pass`,
+  #6127): those pages are counted done for that step and not run again; the run's account says "5
+  pages from your try".
+- **Tries show outside Set Up.** A try's results are visible in the Reader and the Inspector on the
+  pages it ran on, labelled as a try's ("Try, 2026-10-31, Kraken CATMuS: not yet the project's
+  reading"), never counted as the project's reading and never shown as a run's.
+- **Paid tries are allowed**, with the price on the button: "Compare on These Pages, about $0.12"; the
+  yes is the same `cost_ok` the try takes today, the spend booked against the project cap.
+- **Review has per-line accept and Accept all.** The second model's review proposals are accepted one
+  line at a time (one key) or all at once for the page ("Accept all 27"), one audited action with one
+  undo for the page. This is Review's and does not change `source.compare.pick`'s per-line rule on the
+  compare view.
+- **Leave Out has no fixed default.** Set Up decides from the page quality of the sample (the Leave Out
+  rules' own findings on the five pages: specks, marks off the page, damage read as ink; and the
+  condition answers) whether Leave Out is on, and says why on the stage page as a suggestion row
+  (section K); the person changes it.
+- **Damaged handwriting: try the samples and let the person choose.** A condition answer of damage
+  does not pick a reader or a number of review passes; it suggests a compare of the step's candidates
+  (one reader against a reader with a review pass) on the samples, and the person chooses in the
+  compare view (section L).
+- **A large cloud vision reader turns Review on**, with its price shown, as the suggestion row's reason
+  ("<reader> reads fluently and may invent: a second model reviews, about $0.03 a page"); the person can
+  turn it off.
+
 ## Behaviors
 
 ### The pager
@@ -412,6 +601,41 @@ its progress again when reopened (`source.onboard.stages.try-progress-in-place`)
 - `wide.faded.line-counts-before-and-after` — **[GAP]** (#6271) the Find Lines page's output column shows, for a sample page the paper answer calls faded or Clarity measured faded, the line count on the photograph and on the clarified copy side by side, the compare window drawing both, and Use the clarified copy; with Clarity off and a faded sample it says so with a link to Prepare Images. *Test:* `test_find_lines_try_counts_on_both_images.py` (not yet written: the try runs the segmenter on both and answers two counts), `StepOutputStateTests.swift`. Manual: TBD.
 - `wide.faded.segmenter-choices-named` — **[PARTIAL]** (#6271, #5668) the Find Lines page names its segmenter cards from the one candidate source — Kraken `blla`, Apple Vision's lines — and the person picks and compares them there; the Apple Vision line card is offered on handwriting as a candidate, adopted only when the compare shows it finds more lines that read no worse; a vision model's boxes stay a Detect Regions node option until a plan card exists. Built: the two cards, the per-stage rows, the bake-off compare. Not built: Apple's card offered on handwriting; the vision-model card. *Test:* `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py` (built; add Apple's card on handwriting), `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`. Manual: TBD.
 
+### Every model step has a picker; every other step says Fichero does it
+
+- `wide.picker.row-shape-from-the-registry` — **[BROKEN]** (#5721, #6052; section J) a step's row is one of two shapes decided by the registry's `needs_a_model` and nothing in the app: a chooser (the step's candidates from `step_candidates`, the chosen one marked, Choose a Model… or Find a Reader…) or "Fichero does this one: <how>"; today five no-model steps (`split-pages`, `prepare-the-image`, `leave-out`, `find-documents-in-a-folder`, `work-out-dates`) are drawn as a model row with a `builtin` pin, and `tie-text-to-lines` is registered as needing a model it does not have. Fixed: `tie-text-to-lines` is `needs_a_model=False` with a topic naming its anchor; a `builtin` pin is never drawn as a model. *Test:* `fichero-server/tests/unit/recipes/test_setup_stages_5668.py` (built; add: every stage job's `needs_a_model` matches the table in section J), `TieTextStepTests.swift` (not yet written: the row shape per job from a stage listing). Manual: TBD.
+- `wide.picker.empty-says-why` — **[GAP]** (#6052; section J) a model step with no candidate on this Mac (`split-into-entries`, `find-statements`, `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` with no cloud key) does not show an empty chooser: it says "No model on this Mac does this yet" with the nearest fix (add a cloud key, or the download the catalogue names once a local card exists). *Test:* `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py` (built; add: an empty candidate list carries `why` and `fix`), `TieTextStepTests.swift`. Manual: TBD.
+- `wide.picker.guard` — **[GAP]** (#6052; section J) `check_setup_model_pickers.py` fails the fast gate when a stage job with `needs_a_model=True` has no card in the catalogue and is not a text-model job `_cloud_text_pick` serves and is not allowlisted, when a job with `needs_a_model=False` has no `FICHERO_DOES_IT`, `PREPARE` or `BY_HAND_FIX` entry with a `how_it_works` topic, when `JobInfo.needs_a_model` is missing from the contract, or when an allowlist entry is stale; the allowlist is one line per job with its issue and reason. *Test:* `test_check_setup_model_pickers.py` (not yet written: a scratch registry with one unlisted model job fails, one allowlisted passes, a stale entry fails). Manual: TBD.
+
+### Suggestions from the material
+
+- `wide.suggest.one-list-from-the-engine` — **[GAP]** (#6052; section K; the rows' words are `designer.defaults.says-why`) `GET /api/recipes/suggestions` lists, for this project's answers, every default the defaults table chose — a stage pre-ticked, a step's card, a review pass, where the work runs, a cap — each with `why` in words, `from` (the answer that fired it: a condition, the script, the material's kind, the How answers), `applied`, and `change` (the step or question Change… opens); the app draws the list and reasons about none of it. *Test:* `test_suggestions_route.py` (not yet written: faded on three of five gives the Clarity row with its why; a non-Latin script gives the readers-found row; no answer gives no row). Manual: TBD.
+- `wide.suggest.reason-and-override` — **[GAP]** (#6052; section K) a suggestion is a row on the page it concerns (About the Material, How, the stage page, Ready): the suggestion, its reason, Change…; changing it is the person's choice and wins (`designer.defaults.person-wins`), the row then saying "yours" and keeping the engine's reason beside it; a suggestion never acts by itself beyond being the default it already is (open question 8). *Test:* `SuggestionRowTests.swift` (not yet written: the row's three parts from a listing; Change… writes the answer; the yours mark). Manual: TBD.
+- `wide.suggest.script-steers-reader-segmenter-training` — **[GAP]** (#6052, #5808; section K) a script with no installed reader gives a suggestion row naming the readers found for it (`source.find.one-candidate-source`), that none is installed, and the training offer where corrections could make one (`prep.train.*`); a script with no reader found says so and names the nearest (`source.onboard.nothing-fits-names-nearest`); the row never picks a reader by itself. *Test:* `test_suggestions_route.py`. Manual: TBD.
+- `wide.suggest.damage-suggests-a-try` — **[GAP]** (#6052; owner 2026-10-31, section M) a condition answer of damaged handwriting gives a suggestion row for a compare on the samples — the step's reader alone against the reader with a review pass — with its price, and the person chooses in the compare view; it never sets the review passes by itself. *Test:* `test_suggestions_route.py`. Manual: TBD.
+
+### Compare
+
+- `wide.compare.one-view-from-the-pager` — **[GAP]** (#5900, #6052; section L) a stage page whose output has two or more candidates shows Compare, which opens the compare view in the output column (the questions stay); the Inspector's Compare Readers opens the same view in the Segments pane (`source.compare.ways-in`); no new pane kind and no new window kind. *Test:* `CompareViewTests.swift` (not yet written: Compare appears at two candidates and not at one; the two doors open the same model). Manual: TBD.
+- `wide.compare.same-page-same-crop` — **[GAP]** (#5900, #6296; section L) every candidate is drawn on the page's current image inside the page box, its shapes carried onto that one frame through `frame_map`; the compare answer carries `frame` with its size; a candidate whose frame cannot be followed is drawn on the photograph and says so. *Test:* `fichero-server/tests/unit/api/test_compare_readers_5900.py` (built, unrun; add `frame` and a candidate's shapes mapped), `CompareViewTests.swift`. Manual: TBD.
+- `wide.compare.three-modes` — **[GAP]** (#5900, #6052; section L) Side by side (one column per candidate, boxes and text, columns scrolling together), Overlay (one picture, each candidate's boxes in its colour, a legend of toggles) and Wipe (one picture, a handle dragged or arrowed across, A left and B right, the texts wiping with it); Side by side is the Mac's default, Overlay the iPhone's. *Test:* `CompareViewTests.swift` (the mode model: which candidates draw at a handle position; the legend toggles). Manual: TBD.
+- `wide.compare.per-line-diff` — **[GAP]** (#5900, #6052; section L; the words of `designer.compare.side-by-side-text`) under the pictures, the compare answer's line rows: the line's picture, one cell per candidate with its text as written, differing words marked from `variants` with the disagreement lens's marks, agreed rows quiet, a filter for the lines that differ; a whole-page reading with no lines goes through `ReaderArtifactDiff`; with truth, CER per line on the best and inserted words marked. *Test:* `CompareViewTests.swift` (rows from an answer; the filter; the diff for a page reading), `fichero/Tests/Unit/general/Views/Reader/ReaderArtifactDiffTests.swift` (built). Manual: TBD.
+- `wide.compare.price-and-time-per-candidate` — **[GAP]** (#6052; section L; the figures are `designer.compare.row-sentence` and `designer.compare.predicts-cost-and-time`) each column head carries the candidate's error rate on the person's pages, seconds a page, price a page and the whole project's cost and hours, each with its basis, from the bake-off row or the try candidate; an unmeasured candidate says why. *Test:* `CompareViewTests.swift` (the head's words from a row with and without measures). Manual: TBD.
+- `wide.compare.pick-a-winner` — **[PARTIAL]** (#5900, #6052; section L) Use This One under a column sets the step's model through `use-candidate` and marks the column chosen (built: the press, `RecipeSetupStore.useCard`); on the project's own lines a click on a reader's text is the per-line pick through `reading.choose` (`source.compare.pick`), never on a try's copies, which say so. Not built: the chosen mark in the view, the per-line pick in the app. *Test:* `CompareViewTests.swift`, `fichero-server/tests/unit/api/test_compare_pick_5900.py` (built, unrun). Manual: TBD.
+- `wide.compare.keyboard-and-voiceover` — **[GAP]** (#5900; section L) ←/→ the candidate and the wipe handle, ↑/↓ the line, ⌥↓ the next differing line, 1–3 one candidate or all, Return Use This One, Esc close; each column an element with its name and figures, each cell "<reader>: <text>", a row announcing agree or differ, the legend a list of named toggles, the handle an adjustable element; Reduce Motion drops the wipe's easing. *Test:* `CompareViewTests.swift` (the key map as a pure table; the labels). Manual: TBD.
+- `wide.compare.empty-and-error-states` — **[GAP]** (#5900, #5806; section L) one candidate, no reading yet, a candidate that did not read this page (its `why`), a stale result and a try's copies each show the engine's one sentence in place of the picture or the row; never an empty picture. *Test:* `CompareViewTests.swift` (one state per answer shape). Manual: TBD.
+- `wide.compare.compact-layout` — **[GAP]** (#5900; section L) on iPad and iPhone the columns are a horizontal pager of candidates with the line list under, Overlay the default, the handle the drag, the sample strip a row of dots. *Test:* `CompareViewTests.swift` (the layout rule per width class). Manual: TBD.
+- `wide.compare.replaces-the-captions-and-the-animation` — **[GAP]** (#6052; section L) the caption lines of counts under the stage pictures go; `StageComparisonView`'s pictures become Side by side over the real result; the bake-off's table stays as the summary; `StageCompareWindow` hosts Find Lines' compare until the Segments pane's Compare mode exists. *Test:* `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift` (built; adjust: no caption counts), `CompareViewTests.swift`. Manual: TBD.
+
+### Tries, Leave Out and Review (owner 2026-10-31)
+
+- `wide.try.start-reuses-a-matching-try` — **[GAP]** (#6127; section M) Start counts a page done for a step when a try ran that step with the same card and settings on the same image signature, runs it on the other pages only, and the account says how many came from the try. *Test:* `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py` (built; add the try's pages). Manual: TBD.
+- `wide.try.shown-outside-set-up` — **[GAP]** (#5806; section M) a try's readings and lines are visible in the Reader and the Inspector on the pages it ran on, labelled as a try's with its date and model, never counted as the project's and never shown as a run's. *Test:* `test_try_results_labelled_outside_setup.py` (not yet written: the try's artifacts carry `try_stage` and are left out of the counting rule), `TryLabelTests.swift` (not yet written). Manual: TBD.
+- `wide.try.paid-with-the-price-on-the-button` — **[PARTIAL]** (#5806; section M) a try whose candidates cost money is allowed; the button says the price ("Compare on These Pages, about $0.12"); the yes is `cost_ok` and the spend is booked against the project cap. Built: the 402 and Compare, at That Cost. Not built: the price on the first button. *Test:* `fichero/Tests/Unit/general/Models/SetupStagesTests.swift` (built; add the button's words from the stage plan's cost). Manual: TBD.
+- `wide.review.accept-line-and-all` — **[GAP]** (#5720; section M) Review's proposals on a page are accepted one line at a time or all at once ("Accept all N"), one audited action with one undo for the page; the compare view's per-line rule is unchanged. *Test:* `test_review_accept_all.py` (not yet written: one action, N readings chosen, one undo). Manual: TBD.
+- `wide.leaveout.decided-from-page-quality` — **[GAP]** (#6070; section M) Leave Out has no fixed default: the sample's own Leave Out findings and the condition answers decide whether it is on, and the stage page says why as a suggestion row; the person changes it. *Test:* `fichero-server/tests/unit/recipes/test_prepare_step_setup.py` (built; add: a clean sample leaves it off with its why, a speckled one turns it on). Manual: TBD.
+- `wide.review.on-for-a-large-cloud-reader` — **[GAP]** (#6052; section M) choosing a large cloud vision reader turns Review on as a suggestion row with its price and the reason in words; the person can turn it off. *Test:* `test_suggestions_route.py`. Manual: TBD.
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -421,6 +645,10 @@ its progress again when reopened (`source.onboard.stages.try-progress-in-place`)
 | Contract | y | the stage listing's `operations`, the try's `answers_revision`, the image-chain schema | the regenerated client (`sync_openapi_schema.sh`) |
 | Click-around (XCUITest) | y | swipe and arrow keys move a page; Run this step; the strip | `fichero/Tests/UI/general/Shell/PrepareImagesSetupUITests.swift` (built, unrun; add the pager) |
 | iPhone / iPad | n | the widths are written down; no companion Set Up exists | — |
+| Pickers (engine + guard) | y | every stage job's row shape; the empty picker's why; the guard's three rules and its allowlist | `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`, `test_check_setup_model_pickers.py` |
+| Suggestions (engine + Swift) | y | the suggestions list per answer; the row's parts and Change… | `test_suggestions_route.py`, `SuggestionRowTests.swift` |
+| Compare (engine + Swift) | y | the frame on the compare answer; the modes, the diff rows, the key map, the states, the compact layout | `fichero-server/tests/unit/api/test_compare_readers_5900.py`, `CompareViewTests.swift` |
+| Tries, Leave Out, Review (engine) | y | a try's pages counted at Start; the try label outside Set Up; Accept all as one action; Leave Out from the sample | `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py`, `test_try_results_labelled_outside_setup.py`, `test_review_accept_all.py` |
 
 ## Build order
 
@@ -539,6 +767,88 @@ first and its tests run when a host is available. Engine before app throughout.
 - Size: M
 - Engine: the `prepared` rendition's transform; the try's two counts; Apple's card on handwriting. Swift: the two counts and the link; needs the host.
 
+### Stage 7 — Pickers and the guard (engine first)
+
+#### Step 7.1 — The row shape from the registry; the empty picker's why (#6052)
+- Behaviours: `wide.picker.row-shape-from-the-registry`, `wide.picker.empty-says-why`
+- Tests: fichero-server/tests/unit/recipes/test_setup_stages_5668.py, fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py, TieTextStepTests.swift
+- Depends on: 6.1
+- Size: S
+- Engine: `tie-text-to-lines` to `needs_a_model=False`, `why`/`fix` on an empty candidate list. Swift: the row shape; needs the host.
+
+#### Step 7.2 — The guard (#6052)
+- Behaviours: `wide.picker.guard`
+- Tests: test_check_setup_model_pickers.py
+- Depends on: 7.1
+- Size: S
+- Engine only: the script, its allowlist, its place in `verify_all --fast`.
+
+### Stage 8 — Suggestions (one design with the recipe designer's Stage 18)
+
+#### Step 8.1 — The suggestions list (#6052)
+- Behaviours: `wide.suggest.one-list-from-the-engine`, `wide.suggest.script-steers-reader-segmenter-training`, `wide.suggest.damage-suggests-a-try`, `wide.review.on-for-a-large-cloud-reader`
+- Tests: test_suggestions_route.py
+- Depends on: 7.1
+- Size: M
+- Engine only, after the recipe designer's Step 18.6 (the defaults table, in its own spec): the route over the defaults table, the script's rows from the candidate source, the review row.
+
+#### Step 8.2 — The suggestion rows in the pager (#6052)
+- Behaviours: `wide.suggest.reason-and-override`
+- Tests: SuggestionRowTests.swift
+- Depends on: 8.1, 5.1
+- Size: S
+- Swift; needs the host.
+
+#### Step 8.3 — Leave Out from the sample (#6070)
+- Behaviours: `wide.leaveout.decided-from-page-quality`
+- Tests: fichero-server/tests/unit/recipes/test_prepare_step_setup.py
+- Depends on: 8.1
+- Size: S
+- Engine only.
+
+### Stage 9 — Compare
+
+#### Step 9.1 — The frame on the compare answer; the figures per candidate (#5900)
+- Behaviours: `wide.compare.same-page-same-crop`, `wide.compare.price-and-time-per-candidate`
+- Tests: fichero-server/tests/unit/api/test_compare_readers_5900.py
+- Size: S
+- Engine only: `frame` and mapped shapes on the compare answer; the figures carried from the bake-off row and the try candidate.
+
+#### Step 9.2 — The compare model: modes, rows, states, pure (#5900, #6052)
+- Behaviours: `wide.compare.three-modes`, `wide.compare.per-line-diff`, `wide.compare.empty-and-error-states`
+- Tests: CompareViewTests.swift, fichero/Tests/Unit/general/Views/Reader/ReaderArtifactDiffTests.swift
+- Depends on: 9.1
+- Size: M
+- Swift, pure (no view): its tests run when the host is back.
+
+#### Step 9.3 — The view in the pager and in the Segments pane (#5900)
+- Behaviours: `wide.compare.one-view-from-the-pager`
+- Tests: CompareViewTests.swift
+- Depends on: 9.2, 4.2
+- Size: M
+- Swift; needs the host.
+
+#### Step 9.4 — Pick a winner, keys, VoiceOver, compact (#5900)
+- Behaviours: `wide.compare.pick-a-winner`, `wide.compare.keyboard-and-voiceover`, `wide.compare.compact-layout`, `wide.compare.replaces-the-captions-and-the-animation`
+- Tests: CompareViewTests.swift, fichero-server/tests/unit/api/test_compare_pick_5900.py, fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift
+- Depends on: 9.3
+- Size: M
+- Swift, with the per-line pick on the engine's existing action; needs the host.
+
+### Stage 10 — Tries and Review (owner 2026-10-31)
+
+#### Step 10.1 — Start reuses a try; a try is labelled outside Set Up; the price on the button (#6127, #5806)
+- Behaviours: `wide.try.start-reuses-a-matching-try`, `wide.try.shown-outside-set-up`, `wide.try.paid-with-the-price-on-the-button`
+- Tests: fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py, test_try_results_labelled_outside_setup.py, TryLabelTests.swift, fichero/Tests/Unit/general/Models/SetupStagesTests.swift
+- Size: M
+- Engine: the done rule and the try label. Swift: the label and the button's words; needs the host.
+
+#### Step 10.2 — Review's Accept all (#5720)
+- Behaviours: `wide.review.accept-line-and-all`
+- Tests: test_review_accept_all.py
+- Size: S
+- Engine: one action, one undo. The button is the Review surface's (`readings-and-apparatus.md`), not this spec's.
+
 ## Accessibility identifiers
 
 | Identifier | What it is on |
@@ -584,6 +894,19 @@ first and its tests run when a host is available. Engine before app throughout.
    page asks the condition and the script, and each answer changes which steps are offered, which
    model each step suggests, and says why in words. Which condition and script answers should steer which
    steps is for the owner to list.
+7. **Which condition and script answers steer which steps and suggestions** (section K). Proposed
+   mapping for the defaults table: faded ink → Clarity on; tight binding → Crop's flatten on; ruled
+   lines → the ruling answer kept; show-through → its answer; torn, stains, water damage → Leave Out on
+   and a compare suggested; damaged handwriting → a compare of reader against reader-with-review on the
+   samples; a script with no installed reader → the readers found for it and the training offer; a
+   script with no word spaces → the reader must say so on its card. The owner lists what is missing.
+8. **Whether a suggestion ever acts without a tap.** Recommended: never beyond being the default it
+   already is — a suggestion row is the default already applied and marked as the engine's, Change… is
+   the person's; nothing runs, downloads or spends from a suggestion alone.
+9. **Review's Accept all against the compare view's per-line pick.** The ruling gives Review a page-wide
+   Accept all; `source.compare.pick` (#5900) forbids a pick-all on the compare view. Recommended: both
+   stand, as written in section M — Review accepts its own proposals, the compare view picks a line.
+10. **The compare view's default mode** on the Mac: Side by side (recommended) or Overlay.
 
 ## Rulings
 
@@ -598,3 +921,12 @@ first and its tests run when a host is available. Engine before app throughout.
 - 2026-10-31 (owner, third note, paraphrased): damaged handwriting may be handled well by several steps of
   review where a single reader is not, and an unusual script may need a different approach again, so the
   material's condition and script steer the steps and the model suggested for each (open question 6).
+- 2026-10-31 (owner, fourth note, paraphrased): every step that runs a model lets the person choose it
+  and a step with no model says Fichero does it; onboarding suggests how to do things from the
+  material (script, condition, how to run it) with the reason in words and an override; one design
+  with the recipe designer's How page, not two (section K).
+- 2026-10-31 (owner, fifth note, paraphrased; section M): Start reuses a matching try; tries show outside
+  Set Up labelled as tries; Review has per-line accept and Accept all; paid tries are allowed with the
+  price on the button; Leave Out has no fixed default and Set Up decides from page quality, saying why;
+  damaged handwriting: try the samples and the person chooses; Review on, price shown, for a large cloud
+  vision reader; a real compare view for A/B and bake-off results, folded into the pager (section L).

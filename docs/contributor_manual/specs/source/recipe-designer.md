@@ -13,6 +13,15 @@
 > recipe file holds and never holds, starting from one, following a published one).
 > **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
+> **Added 2026-10-30, DRAFT until the maintainer rules (nothing is built until then):** the condition questions in
+> section 3, the "How do you want to run this?" questions and the risks in section 4, the defaults table in
+> section 4b, Budget in section 11b, and Stage 18 of the build order (`designer.material.condition-*`,
+> `designer.how.*`, `designer.defaults.*`, `designer.budget.*`). The maintainer's request of 2026-10-30, from
+> #6295 (no budget control in Set Up) and #6294 (the estimate under-prices a cloud line read). Those lines are
+> tagged **[GAP]** meaning nothing is built, as the maintainer asked; each names the test file that would pin it.
+> **Ruled 2026-10-30 (the maintainer):** open questions 5, 7, 8 and 9 of the 2026-10-30 additions (page order, the two
+> caps, no margin on the estimate, fewer pages as a Start), recorded under "Rulings (the maintainer, 2026-10-30)";
+> question 6 (the defaults table's rows) stays open.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
 > inlined in the appendix "Screens review facts") and the owner's directions of 2026-10-24, paraphrased.
@@ -193,13 +202,42 @@ facts, including the bundled font for a script macOS lacks, come from `recipes/d
   (Canadian Syllabics, U+1400…) have no font here and show as boxes until one is added", naming the
   fallback family. The Reader uses the same answer.
 
+**Improves — the condition of the material (the maintainer, 2026-10-30; DRAFT).** Today About the Material asks
+what the material is (handwriting, print, typescript, text: `answers.materials`, `recipes/answers.py`) and the
+engine measures faded pages from a sample by itself (`source.onboard.auto.prepare-damaged-images` (P),
+`recipes/prepare.py`); nothing asks about damage, and the Prepare Images questions are two with fixed defaults
+(`recipes/stages.py`; `prep.setup.three-questions-suggested-from-a-sample` (G)).
+- `designer.material.condition-asked` [GAP] (#6052, #6295; issue to file on approval) — About the Material
+  asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
+  from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
+  from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines
+  under the writing; with one line of help each, in plain words, saying what Fichero does about it. Saved as
+  `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
+  `test_condition_answers.py` (the list is the engine's; an unknown id is
+  refused; none ticked saves an empty list, never a default).
+- `designer.material.condition-suggested-from-a-sample` [GAP] (#6052; issue to file on approval) — the engine ticks a condition
+  beforehand only when its sample measure says so (faded from `recipes/prepare.py`'s grey spread; show-through
+  from the mirrored-verso match and tight binding from the gutter curve of
+  `prep.setup.three-questions-suggested-from-a-sample`, once built), each suggested tick labelled "from 3 of 5
+  sample pages"; a condition no measure can see (torn, stains, water damage) is never pre-ticked. The person
+  changes any tick. *Test:* `test_condition_suggested_from_a_sample.py`.
+- `designer.material.condition-feeds-the-defaults` [GAP] (#6052; issue to file on approval) — the condition answers and the kind of
+  material are rows of the defaults table (section 4b): they choose the preparation steps (contrast for faded,
+  show-through suppression, flattening for a tight binding, ruling removal), the reader kind (a CTC reader on
+  clean print; a vision-language reader offered for damaged handwriting), and whether a Review pass is on by
+  default; each chosen default says which answer chose it. *Test:*
+  `test_defaults_from_condition.py`.
+
 - `designer.onboarding.metadata-language` [MISSING] (#6180) — onboarding (About the Material) offers the METADATA
   LANGUAGE: the language of the catalogue's field labels and descriptions, which is not necessarily the language
   of the records. It defaults to the project's primary language and the person can choose another separately; the
   choice is saved with the project's answers and read by the Catalogue stage (`catalogue.folder-description-fields`,
   cataloguing.md), which writes labels and descriptions in it. Changing it never re-runs a folder already described.
 
-### 4. How do you want to work? (new page, after About the Material, before Choose the Stages)
+### 4. How do you want to run this? (new page, after About the Material, before Choose the Stages)
+
+*Page order is ruled (the maintainer's ruling, 2026-10-30): How comes after About the Material and before Choose
+the Stages, so the material's facts are known before the models are narrowed.*
 
 **Exists.** The routes: `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and
 distil routes for the volume with whole-project cost, time and accuracy, each figure marked measured or
@@ -218,6 +256,66 @@ the cluster offer, with no live start until the key and sign-in land (#5238;
 `compute.job.recipe-is-a-slurm-chain` (G)); Hugging Face as a place (`ai.where.hf-endpoint-is-a-place` (G));
 training offered from 5,000 pages, teacher-and-student above 100,000 pages or the cost limit
 (`source.recipe.volume-rule` (P)).
+
+**Improves — the questions first (the maintainer, 2026-10-30; DRAFT).** The page opens with four short
+questions, before the route cards and before Choose the Stages, so the defaults the later pages follow fit the
+person; the cards (below) become the engine's answer to them, not a choice made cold. What the person has is
+derived, never asked twice (`source.onboard.derives-not-asks` (P): `recipes/derived.py` already reports this
+Mac's chip and memory, the providers with a key and the places work can run).
+- `designer.how.where` [GAP] (#6052; issue to file on approval) — "Where should the work run?": this Mac · another machine of mine
+  · a cluster · the cloud, each a tick with one sentence of consequence (pages stay here / leave to your own
+  machine / to the cluster's administrators / to a company), limited to the places Set Up Fichero allows
+  (`source.onboard.places-cap-projects` (P)); a place the app does not allow is shown greyed with the engine's
+  reason and a link, never hidden. Saved as `answers.how.places` (a list). *Test:*
+  `test_how_questions.py` (the offered places are the app's allowed ones; a
+  disallowed place is listed with its reason, not dropped).
+- `designer.how.model-kind` [GAP] (#6052; issue to file on approval) — "Which kind of model?": small local models (Kraken, Apple's
+  recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
+  vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
+  regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
+  person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
+  that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
+- `designer.how.what-matters` [GAP] (#6052; issue to file on approval; extends `designer.path.what-matters-most`) — "What matters
+  most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
+  this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
+  `designer.path.cloud-question-on-the-page` stays unanswered; the other three break ties inside the noise band
+  as section 7 says (`designer.path.what-matters-most` keeps predictability as the compare's label). Saved as
+  `answers.how.matters`. *Test:* same file (privacy never writes `cloud_allowed`).
+- `designer.how.access-derived-and-confirmed` [GAP] (#6052; issue to file on approval) — "What you have" is shown, not asked: this
+  Mac's memory in one sentence (the route's own), the providers with a key saved, the Hugging Face token, each
+  cluster signed in, each from `recipes/derived.py` and the places route, with Add a Key…, Add a Token…, Sign
+  In… beside what is missing (the existing sheets). The person confirms with Continue; nothing on this line is
+  stored in the project. *Test:* `test_how_access_is_derived.py` (the line is
+  the derived route's; a saved key changes it; nothing is written to the answers).
+- `designer.how.answers-pick-the-card` [GAP] (#6052; issue to file on approval) — the four answers choose which route card is
+  proposed (`designer.path.choosing-is-a-default`): this Mac + privacy → (d); cloud + quality → (c); a cluster
+  or Hugging Face + cost → (b); cloud allowed + a large archive (the volume rule) → (a). The chosen card says
+  "proposed from your answers; change here"; the other cards stay. Changing an answer re-proposes; a card the
+  person chose by hand is never re-proposed over. *Test:* `test_how_answers_pick_the_card.py`.
+
+**Improves — the risks in plain words (the maintainer, 2026-10-30; DRAFT).** `designer.rank.predictability-in-words`
+says a model's trade-off on its row; these say the same once, where the choice is made, and on the plan.
+- `designer.how.risks-in-plain-words` [GAP] (#6052; issue to file on approval) — the page carries one short block, the engine's
+  text (`recipes/seed/topics.yaml`, as `prep.setup.how-it-works-is-the-engines-sentence` does), with "Learn more"
+  → manual "Reading the numbers": *"Some steps are deterministic tools: given the same page they do the same thing
+  every time, and when they are wrong they are wrong in plain sight (a line missed, a word misread). Models that
+  read fluently can also invent: a word that is not on the page, a spelling 'corrected', a line skipped without
+  a gap. Fichero measures this as the insertion rate and shows it beside accuracy. Steps feed each other: a
+  line the layout step missed is never read, a name the reader got wrong is the name the Names step finds, so
+  an early error carries through the chain. Check the earliest steps first."* Shown on every project, not only
+  when a large model is chosen. *Test:* `test_risks_text_is_the_engines.py`
+  (the text is served by the engine; the app has no copy).
+- `designer.how.chain-risk-on-ready` [GAP] (#6052; issue to file on approval) — Ready says, in one line per model step, what feeds
+  it and what it feeds ("Read takes the lines Find Lines found; Names, Dates and Statements take what Read
+  wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
+  line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
+  *Test:* `test_chain_risk_on_ready.py`.
+- `designer.how.what-to-check` [GAP] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
+  gains one block, "What to check": for each model step that ran, the pages the engine is least sure of (lowest
+  certainty for a CTC reader; highest insertion rate against Kraken's reading, or the lines the order check
+  re-asked, for a vision-language reader), at most five, opened in the Reader by one press; a deterministic step
+  lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
+  `test_what_to_check_after_a_run.py`.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`
@@ -270,6 +368,50 @@ training offered from 5,000 pages, teacher-and-student above 100,000 pages or th
     this Mac. Predictability: highest; a Kraken reader reads only what is on the line, though it may
     misread a word. Next: Compare the shipped readers, then Start; you can teach a better local model
     on your corrections later."*
+
+### 4b. The defaults table: from the answers to the recipe's steps, models and caps (the maintainer, 2026-10-30; DRAFT)
+
+**Exists.** Setup's rules choose a card per step from the material (`source.recipe.reader-pick-from-the-material` (P),
+`assemble._rank_key`/`_choose`), the volume rule places training (`source.recipe.volume-rule` (P)), faded pages add
+the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a path sets teaching defaults
+(`designer.path.sets-teaching-defaults`). The rules are spread over `assemble.py`, `prepare.py`, `start.py` and
+`routes.py`, and none says on screen *why* a default was chosen.
+
+**Improves.**
+- `designer.defaults.table` [GAP] (#6052; issue to file on approval) — one vendored table, `recipes/seed/defaults-by-answers.yaml`,
+  maps the answers (kind of material, condition, where, model kind, what matters, the volume) to the recipe's
+  defaults: which stages are ticked, each step's default candidate kind (CTC reader, vision-language reader,
+  Apple's recognition, a cloud or local place), whether Review is on, the preparation steps, and the proposed caps.
+  Each row has a `why` sentence. The engine applies it in one place (`assemble.py`), after the filters and before
+  the rank, so `source.recipe.reader-pick-from-the-material` and the prepare-step rule become rows of it. The
+  first rows (to be checked against the maintainer's judgement, open question 6):
+
+  | Answers | Default steps | Default model kind | Cap proposed | Why (as shown) |
+  |---|---|---|---|---|
+  | print or typescript, clean, this Mac | Find the layout, Read, Search | Apple's recognition or a shipped Kraken print reader; no Review | none (free) | "clean print reads well with a free reader that never invents text" |
+  | handwriting, clean, this Mac, privacy | Find the layout, Read, Review (unsure lines only), Search | Kraken reader for the script and period; Review by a local model if one fits | none (free) | "nothing leaves this Mac; the unsure lines are checked again" |
+  | handwriting, faded or stained | + Prepare Images (contrast, stain flattening) | as above | as above | "faded ink reads better after contrast; the original is kept" |
+  | handwriting, show-through | + Prepare Images (show-through suppression) | as above | as above | "writing from the other side is dimmed before reading" |
+  | handwriting, tight binding | + Prepare Images (flatten toward the gutter) | as above | as above | "text that curves into the gutter is flattened first" |
+  | handwriting, torn or water damage | + Leave Out (damaged areas), Review on | vision-language reader offered beside the CTC one, compared | the route's estimate | "a damaged page needs a reader that uses context, and a check for what it invents" |
+  | cloud allowed, quality | Read by a large cloud model; Review off | large vision-language model | the route's estimate, rounded up to the dollar | "a large model reads a hard hand best; the cap is Fichero's best estimate of the cost, and it learns from what your project has booked" |
+  | cloud allowed, cost, large archive | path (a): cloud first pages, then Teach | as the path | the first pages' estimate | "the cloud reads the first pages, your corrections teach a free model for the rest" |
+  | a cluster or Hugging Face, cost | path (b) | the person's readers there | the Hugging Face cap at the route's estimate | "long runs go where your allocation is" |
+
+  *Test:* `test_defaults_table.py` (every row loads; every answer combination
+  the questions can produce hits exactly one row or the fallback row; the chosen defaults match the table for
+  each row above).
+- `designer.defaults.says-why` [GAP] (#6052; issue to file on approval) — every default a stage page or Ready shows carries the
+  table row's `why` in grey under it ("chosen because: faded ink, this Mac only"), served by the engine with
+  the plan; a default with no row says "Fichero's usual default". *Test:*
+  `test_defaults_say_why.py`.
+- `designer.defaults.person-wins` [GAP] (#6052; issue to file on approval) — a choice the person made on a stage page, in the
+  finder or on Ready is never replaced by the table when an answer changes; the changed default is offered
+  beside it ("your answers now suggest X; keep Y?"), as `source.onboard.step-choice-overrides-the-pick` keeps a
+  choice over the rules. *Test:* `test_defaults_never_override_a_choice.py`.
+- `designer.defaults.caps-proposed-from-the-table` [GAP] (#6052; issue to file on approval) — the table's cap column is what
+  `designer.path.caps-proposed-not-written` proposes; it is written only on the person's confirmation of the
+  typed figure (section 11b). *Test:* in `test_defaults_table.py` (a proposal writes nothing).
 
 ### 5. Choose the Stages
 
@@ -640,6 +782,91 @@ itself and what will not run (`source.onboard.ready-speaks-plainly` (P), `source
   is the sum of the stages' predictions, shown against the route's figure in one line ("your path
   estimated US$120; measured on your pages, US$96").
 
+### 11b. Budget (the maintainer, 2026-10-30, #6295, #6294; DRAFT)
+
+**Exists.** Every project has a cloud spend cap, US$10 a month unless set (`ai.where.cloud-spend-cap` (P), #5943,
+`answers.cloud_spend_cap_usd`, booked in `recipe/cloud-spend.json`); a cap below $0 is refused by
+`answers.normalise`; the Start plan carries `cloud_cap` (`CloudCapLine`: cap, spent, remaining, estimate, `over`,
+the unpriced models) and Start is refused while the estimate is over what the cap leaves, with one sentence,
+"Raise the cap in Set Up, or choose a cheaper model" (`_cap_refusals`, `api/routes/system/recipes.py`); the app's
+`RecipeCloudCapRow` on Ready holds the cap field and the words (uncompiled, 2026-10-28); the Hugging Face cap is
+a second field (`source.onboard.spend-cap` (P)); the cap is saved through `project.save_setup` (audited,
+undoable); the estimate prices a cloud line read at assumed tokens (`start.LINE_TOKENS_IN/OUT`, the page image
+per provider `source.onboard.estimate-counts-the-image` (P), #6265) and nothing reads what the project has
+already booked for the same model and job; a run at the cap is asked to pause and the person resumes
+(`ai.where.cloud-spend-cap`, `designer.run.cap-stops-and-says`). **Found 2026-10-29 (#6295):** the refusal
+reaches the last screen with no control that fixes it; the cap is changed outside the app. **Found 2026-10-28
+(#6294):** a 16-page folder estimated $0.33 booked about 2.5× that, so a cap set at the estimate paused the run
+at 9 of 16 pages.
+
+**Ruled (the maintainer's ruling, 2026-10-30).** A Start may be blocked by either of two caps, the project cap or
+the monthly cap, and the experience must let a person update **both** in place: in the Budget block on Ready, and
+on the refusal and the paused-at-cap screens. Today a Start is blocked with no way to change either cap in the app.
+There is **no margin multiplier**: the estimate says what Fichero thinks the run will cost, its best estimate with
+its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
+
+**Improves.**
+- `designer.budget.beside-the-estimate` [GAP] (#6295) — Ready has one Budget block, above Start: the estimate
+  for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
+  and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
+  whichever cap would block Start can be updated from the block: **this run, at most** and **this
+  project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
+  in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
+  (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
+  `test_budget_in_the_plan.py` (the plan carries both caps and the basis).
+- `designer.budget.basis-per-step` [GAP] (#6295) — the estimate is shown per step and per page, each with its
+  basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
+  a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
+  field of the served estimate (`measured` · `assumed` · `unpriced`), never worked out in the app. *Test:*
+  `test_estimate_basis_per_step.py`.
+- `designer.budget.estimate-from-booked-usage` [GAP] (#6294) — once the project has booked calls for the same
+  model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
+  booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
+  labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
+  the estimate lets a run finish (#6294's case: after the first pages the estimate reads the booked figure). No
+  margin is applied on top (the maintainer's ruling, 2026-10-30): the figure shown is Fichero's best estimate, its
+  basis beside it, and the booked costs are how it improves.
+  *Test:* `test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
+  at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
+  the new estimate is not refused).
+- `designer.budget.run-cap` [GAP] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
+  the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
+  deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
+  The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
+  measured, with no margin multiplier, the maintainer's ruling, 2026-10-30) and written only when the person confirms the typed figure
+  (`designer.path.caps-proposed-not-written`). *Test:*
+  `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
+  remaining refuses at the run cap; the project cap still refuses first when lower).
+- `designer.budget.refusal-offers-the-fix` [GAP] (#6295) — a Start refused for the cap says, in plain words,
+  which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
+  the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
+  same screen (the maintainer's ruling, 2026-10-30): **Raise the cap to $N** (N = the estimate, rounded up to the
+  dollar, with no margin; the cap that is refusing, project or monthly);
+  **Change the model for <step>** (opens the one finder on that step, `designer.rank.finder-for-every-model-step`,
+  the cheaper candidates first with their cost a page); **Run fewer pages** (the number of pages that fit what
+  the cap leaves, sent as a Start of the first N pages in Finder order, the maintainer's ruling, 2026-10-30: the
+  pages are named as `documents` in the existing Start request, `source.recipe.folder-scoped-start`, with no new
+  request field; offering "the folders that fit" is a later slice). The engine
+  serves the fixes (`refusal.fixes[]`: `kind`, `step`, `raise_to_usd`, `pages_that_fit`); the app computes none.
+  *Test:* `test_cap_refusal_offers_the_fix_6295.py` (each fix is served with
+  its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
+  and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
+  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal).
+- `designer.budget.change-is-audited-and-undoable` [GAP] (#6295) — raising or lowering either cap, from the
+  field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
+  when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
+  `project.save_setup`'s audit and invert, so a cap change never writes any other answer. A cap raised during a
+  paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
+  `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
+  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen).
+- `designer.budget.fix-during-the-run` [GAP] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
+  paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
+  fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
+  change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
+  far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
+  *Test:* `test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
+  raised through the action; a stop keeps the finished pages).
+
 ### 12. Start, and the run
 
 **Exists.** Start runs the steps in order, in batches, resumable, status in Activity, each step counting
@@ -826,7 +1053,10 @@ screenshots (`docs/assets/recipe-designer/`).
 | Review, layout | `designer.review.kind` · `designer.layout.region-model` |
 | Workflow | `designer.step.open-in-editor.<job>` · `designer.step.adjust-in-editor.<job>` |
 | Teach | `designer.teach.offer` · `designer.teach.candidate.<distil|fine-tune>` · `designer.teach.where` · `designer.teach.learn-more` |
-| Ready | `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals` |
+| Ready | `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals` · `designer.ready.chain.<job>` |
+| How (2026-10-30) | `designer.how.where.<place>` · `designer.how.model-kind.<kind>` · `designer.how.matters.<speed|cost|quality|privacy>` · `designer.how.access` · `designer.how.risks` · `designer.how.learn-more` |
+| Condition | `designer.material.condition.<id>` |
+| Budget | `designer.budget.run-cap` · `designer.budget.project-cap` · `designer.budget.step.<job>` · `designer.budget.fix.<raise|change-model|fewer-pages>` |
 | Material | `designer.material.imported-truth` · `designer.material.script-display` |
 | Sharing | `designer.share.export` · `designer.share.import` |
 
@@ -846,6 +1076,13 @@ screenshots (`docs/assets/recipe-designer/`).
 | `designer.teach.offer` | Teach a model… | Train a smaller model on your checked lines; offered, never started by itself | `designer.teach.offer` | [MISSING] |
 | `designer.ready.change.<job>` | Change… | Choose another model for this step | `designer.ready.change` | [MISSING] |
 | `designer.material.imported-truth` | Use as the measure | Your imported transcriptions become the reference every comparison is measured against | `designer.material.imported-truth` | [MISSING] |
+| `designer.material.condition.<id>` | the condition's name | What Fichero does about it, in one line (the engine's) | `designer.material.condition` | [GAP] |
+| `designer.how.where.<place>` | the place's name | Where this project's work may run; pages leave this Mac only for a place you tick | `designer.how.where` | [GAP] |
+| `designer.how.model-kind.<kind>` | the kind's name | Small local models read only what is on the line; large models read fluently and may invent | `designer.how.model-kind` | [GAP] |
+| `designer.how.matters.<x>` | What matters most | Picks the defaults and breaks ties between models that read equally well | `designer.how.matters` | [GAP] |
+| `designer.budget.run-cap` | This run, at most | Cloud spending this run may reach; the run pauses at it and asks | `designer.budget.run-cap` | [GAP] |
+| `designer.budget.project-cap` | This project a month, at most | Cloud spending this project may reach in a month; audited and undoable | `designer.budget.project-cap` | [GAP] |
+| `designer.budget.fix.<kind>` | Raise the cap to $N · Change the model… · Run fewer pages | The fix in place for a Start the cap refused | `designer.budget.fix` | [GAP] |
 
 All strings through the String Catalog; no `Text(verbatim:)`. Presence scans are not behavioural tests;
 every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()` covers it.
@@ -897,10 +1134,33 @@ only. Questions 1–3 and 5–9 are ruled as follows; question 4 stays open.
 Set Up screens items 5, 9 and 13 (appendix): one "Choose a model…" on every model step; Ready as one
 line per step with Change…; the duplicate grey example line removed (one is kept).
 
+## Rulings (the maintainer, 2026-10-30)
+
+On the open questions of the 2026-10-30 additions; question 6 (the defaults table's rows) stays open.
+
+5. **Page order.** How do you want to run this? comes after About the Material and before Choose the Stages
+   (section 4, as drafted).
+7. **Caps.** A Start may be blocked by either the project cap or the monthly cap, and the experience lets a person
+   update both in place: in the Budget block on Ready and on the refusal and the paused-at-cap screens
+   (`designer.budget.beside-the-estimate`, `designer.budget.refusal-offers-the-fix`,
+   `designer.budget.fix-during-the-run`). Today a Start is blocked with no way to change either cap in the app.
+8. **Margin.** There is no margin multiplier. The estimate says what Fichero thinks it will cost, its best
+   estimate with its basis, and it learns from the project's booked costs
+   (`designer.budget.estimate-from-booked-usage`).
+9. **Fewer pages.** The "Run fewer pages" fix starts the first N pages, in Finder order
+   (`designer.budget.refusal-offers-the-fix`).
+
 ## Open question for the creative director
 
 4. The dictionary-word rule for "lines changed beyond the CER" (needs a word list per language; none
    for Latin abbreviations); until ruled it stays [PROPOSED] and the insertion rate is the one number.
+
+## Open question for the maintainer (the 2026-10-30 additions; a recommendation)
+
+6. **The defaults table's rows.** The nine rows in section 4b are a first draft from the specs' own rules;
+   the maintainer's judgement on each cell (which reader for damaged handwriting; whether Review defaults on
+   for a large cloud model) is what makes the table right. *Recommend:* rule row by row on approval; the
+   table is data, so a changed row is a one-line change and a test.
 
 ## Appendix: screens review facts (2026-10-24, read from the code; inlined so nothing cites a local note)
 
@@ -1124,3 +1384,47 @@ Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #544
 - Behaviours: `designer.onboarding.metadata-language`
 - Tests: fichero-server/tests/unit/recipes/test_metadata_language_answer.py, fichero/Tests/Unit/general/Recipes/MetadataLanguageTests.swift
 - Size: S
+
+### Stage 18 — Set Up asks how, asks about the condition, and has a Budget (the maintainer, 2026-10-30; DRAFT until ruled)
+
+Engine before app in every step; the Budget steps first because #6295 and #6294 stop runs today.
+
+#### Step 18.1 — The estimate's basis per step; the estimate learns from booked usage (#6294)
+- Behaviours: `designer.budget.basis-per-step`, `designer.budget.estimate-from-booked-usage`
+- Tests: fichero-server/tests/unit/recipes/test_estimate_basis_per_step.py, fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py
+- Size: M
+
+#### Step 18.2 — The run cap, the audited cap action, the refusal's fixes (#6295)
+- Behaviours: `designer.budget.run-cap`, `designer.budget.change-is-audited-and-undoable`, `designer.budget.refusal-offers-the-fix`
+- Tests: fichero-server/tests/unit/llm/test_run_cap_holds_with_the_project_cap.py, fichero-server/tests/unit/recipes/test_set_budget_is_audited_and_undoable.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py
+- Depends on: 18.1
+- Size: M
+
+#### Step 18.3 — The Budget block on Ready; the fix in place during a run (#6295)
+- Behaviours: `designer.budget.beside-the-estimate`, `designer.budget.fix-during-the-run`
+- Tests: fichero/Tests/Unit/general/Models/BudgetBlockTests.swift, fichero/Tests/Unit/general/Models/BudgetRefusalFixTests.swift, fichero-server/tests/unit/recipes/test_budget_in_the_plan.py, fichero-server/tests/unit/recipes/test_run_cap_fix_in_place.py
+- Depends on: 18.2
+- Size: M
+
+#### Step 18.4 — The condition of the material: asked, suggested from a sample
+- Behaviours: `designer.material.condition-asked`, `designer.material.condition-suggested-from-a-sample`
+- Tests: fichero-server/tests/unit/recipes/test_condition_answers.py, fichero-server/tests/unit/recipes/test_condition_suggested_from_a_sample.py
+- Size: S
+
+#### Step 18.5 — How do you want to run this: the four questions, and the card they pick
+- Behaviours: `designer.how.where`, `designer.how.model-kind`, `designer.how.what-matters`, `designer.how.access-derived-and-confirmed`, `designer.how.answers-pick-the-card`
+- Tests: fichero-server/tests/unit/recipes/test_how_questions.py, fichero-server/tests/unit/recipes/test_how_access_is_derived.py, fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py
+- Depends on: 5.2
+- Size: M
+
+#### Step 18.6 — The defaults table, saying why, the person wins
+- Behaviours: `designer.defaults.table`, `designer.defaults.says-why`, `designer.defaults.person-wins`, `designer.defaults.caps-proposed-from-the-table`, `designer.material.condition-feeds-the-defaults`
+- Tests: fichero-server/tests/unit/recipes/test_defaults_table.py, fichero-server/tests/unit/recipes/test_defaults_say_why.py, fichero-server/tests/unit/recipes/test_defaults_never_override_a_choice.py, fichero-server/tests/unit/recipes/test_defaults_from_condition.py
+- Depends on: 18.4, 18.5
+- Size: M
+
+#### Step 18.7 — The risks in plain words: on the page, on Ready, after the run
+- Behaviours: `designer.how.risks-in-plain-words`, `designer.how.chain-risk-on-ready`, `designer.how.what-to-check`
+- Tests: fichero-server/tests/unit/recipes/test_risks_text_is_the_engines.py, fichero-server/tests/unit/recipes/test_chain_risk_on_ready.py, fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py
+- Depends on: 18.5
+- Size: M
