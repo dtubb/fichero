@@ -454,6 +454,7 @@ nav:
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
               - Attributes & Prototypes (foundation): contributor_manual/specs/source/attributes-and-prototypes.md
               - Catalogue Workbook Export: contributor_manual/specs/source/catalogue-export.md
+              - Engine Silent Failures: contributor_manual/specs/source/engine-silent-failures.md
               - Sharing a Library Between Macs: contributor_manual/specs/source/sharing-two-macs.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Image Enhancement: contributor_manual/specs/source/image-enhancement.md

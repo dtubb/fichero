@@ -236,6 +236,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/cores.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/egress.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/failure_ledger.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/failure_text.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/fast_exit.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/logging.py

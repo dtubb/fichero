@@ -6408,8 +6408,15 @@ class Database(DatabaseEmbeddingMixin):
             # anyway — so an entirely unembedded library looked identical to a
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
-            logger.warning("Failed to create embedding for %s: %s", doc.id, e)
+            logger.warning("Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
+            from fichero_server.core import failure_ledger
             from fichero_server.db.embed_process import EmbedderUnavailable
+
+            failure_ledger.note(
+                "search", "embed", type(e.__cause__ or e).__name__,
+                sentence="Search is not indexing new pages: the search model cannot be loaded"
+                if isinstance(e, EmbedderUnavailable) else "Search is not indexing new pages: embedding fails",
+            )
 
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,
