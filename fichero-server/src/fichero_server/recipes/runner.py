@@ -950,6 +950,18 @@ def _run_publish(db: Any, card: dict[str, Any], parent: str) -> tuple[str | None
 logger = logging.getLogger(__name__)
 
 
+#: What the queue raises through a step on purpose (stop, come back later, out of reach, a pause): never swallowed as an error.
+_RUN_CONTROL = (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach, ParkedOnStepRun, WorkflowPaused, WorkflowCancelled)
+
+
+def _title_of(card: dict[str, Any]) -> str:
+    from fichero_server.recipes.jobs import get_job
+
+    known = get_job(card.get("job") or "")
+    topic = known.topic if known else None
+    return topic.title if topic else ", ".join(card["steps"])
+
+
 def could_not_start(card: dict[str, Any], exc: Exception) -> str:
     """One plain line for a step whose work raised before it could report an end (#5684): what the person can do,
     never the technical text, which goes to the log. A native library that would not load (a dlopen, a missing
@@ -1614,11 +1626,25 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             continue
         if early is not None:
             documents, scratch, kinds = early.documents, early.scratch, early.kinds
+            already = scratch.get("already_done", 0)
+            if card["card"] not in ("publish", "catalogue"):
+                _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
         else:
-            documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
-        already = scratch.get("already_done", 0)
-        if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
-            _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            try:
+                documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+                already = scratch.get("already_done", 0)
+                if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
+                    _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the step fails alone before anything is sent or spent; the rest go on (#6298)
+                logger.exception("recipe step %s: its pages could not be worked out", named)
+                why = f"{_title_of(card)} was not run: Fichero hit an error working out its pages (the log has the detail)."
+                here[index]["state"] = states[index] = "failed"
+                _settle(step, "failed", None, why)
+                problems.append(why)
+                jobs.save_detail(db, job_id, json.dumps(detail))
+                continue
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1691,9 +1717,15 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             # each batch's job, kept in the checkpoint: the step is timed over all of them (#6215)
             step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
-        if card["card"] not in ("publish", "catalogue"):
-            _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
-        _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+        try:
+            if card["card"] not in ("publish", "catalogue"):
+                _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
+            _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+        except _RUN_CONTROL:
+            raise
+        except Exception:  # noqa: BLE001 -- the step's own end is saved above; only its bookkeeping is lost, said, the run goes on (#6298)
+            logger.exception("recipe step %s: could not update its counts after it ended", named)
+            problems.append(f"step {named} ended, but Fichero hit an error updating its counts afterwards (the log has the detail)")
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
 
