@@ -79,3 +79,34 @@ def test_a_null_in_the_middle_is_left_alone(monkeypatch, tmp_path):
 def test_a_reply_with_no_null_is_left_alone(monkeypatch, tmp_path):
     read, asked, _ = _run(monkeypatch, tmp_path, [_q([_t(i) for i in range(4)])])
     assert asked == [4] and [read[f"s{i}"] for i in range(4)] == TEXTS
+
+
+def test_the_reask_goes_through_the_real_vision_cache_to_the_model(monkeypatch, tmp_path):
+    """Only the model underneath is faked: the second ask must not be a content-cache hit (a changed prompt, a different key)."""
+    from langchain_core.messages import AIMessage
+
+    path, geometry = _page(tmp_path)
+    calls = []
+    replies = [_q([_t(1), _t(2), _t(3), "null"]), _q([_t(i) for i in range(4)])]
+
+    class Fake:
+        async def ainvoke(self, msgs):
+            calls.append(1)
+            return AIMessage(content=replies[min(len(calls) - 1, 1)])
+
+    async def ready(*a, **k):
+        return None
+
+    monkeypatch.setattr(llm, "get_langchain_model", lambda c: Fake())
+    monkeypatch.setattr(llm, "_ensure_managed_local_provider_ready", ready)
+    monkeypatch.setattr(llm, "record_call_usage", lambda *a, **k: None)
+    monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda *a, **k: None)
+    llm._LLM_RESULT_CACHE.clear()
+    out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x", api_key="k"), granularity="page"))
+    read = {b.metadata["segment_id"]: b.text for b in out.boxes if b.level == OCRGeometryLevel.LINE}
+    assert len(calls) == 2, "the re-ask never reached the model"
+    assert [read[f"s{i}"] for i in range(4)] == TEXTS
+
+
+def test_the_reask_prompt_differs_from_the_first():
+    assert line_reader.prompt_for(4, reask=True) != line_reader.prompt_for(4)
