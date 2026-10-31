@@ -45,9 +45,25 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
     /// that fails later in ways nobody could diagnose (design ruling 1). Carries
     /// the rendered mismatch so both versions reach the user.
     case contractMismatch(headline: String, detail: String)
+    /// The host answered and made the device, but this device could not keep the key (a Keychain refusal: on the DMG
+    /// builds before 2026-10-31, errSecMissingEntitlement). The device was revoked on the host again and nothing was
+    /// paired (`sharing.failed-save-spends-nothing`); the OSStatus goes to the log, never to the person.
+    case tokenNotSaved
+
+    /// "This Mac" / "This iPhone" / "This iPad": the device the sentence is about.
+    static var thisDevice: String {
+        #if os(macOS)
+        return "This Mac"
+        #else
+        return UIDevice.current.userInterfaceIdiom == .pad ? "This iPad" : "This iPhone"
+        #endif
+    }
 
     var errorDescription: String? {
         switch self {
+        case .tokenNotSaved:
+            return "\(Self.thisDevice) couldn't save the connection key in its Keychain, so nothing was paired. "
+                + "Update Fichero on \(Self.thisDevice.lowercased()) and ask for a new link."
         case .missingPairCode:
             #if os(macOS)
             return "Paste the invite link from the host Mac."

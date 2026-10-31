@@ -50,6 +50,7 @@ extension ShareSettingsView {
         guard let pairingQRPayload else { return nil }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .sortedKeys  // the same bytes as the copied link (`sharing.qr-drawn-once-per-payload`)
         guard let data = try? encoder.encode(pairingQRPayload) else { return nil }
         let filter = CIFilter.qrCodeGenerator()
         filter.message = data

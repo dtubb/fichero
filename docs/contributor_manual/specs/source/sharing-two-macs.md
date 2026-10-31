@@ -309,8 +309,8 @@ The owner reports iOS cannot connect, cause unknown. Likeliest causes, ranked (n
 | `sharing.tailnet-forward-whenever-tailscale-is-up` (§10.1) | **[GAP]** (engine) |
 | `sharing.card-keeps-its-code` (§10.2) | **[BROKEN]** (verified: `refreshKey` carries `isBackendRunning`; Air log: a mint after each health check) |
 | `sharing.qr-drawn-once-per-payload` (§10.2) | **[BROKEN]** (verified: per-process key order, QR rebuilt per render) |
-| `sharing.token-saves-on-every-build` (§10.3) | **[BROKEN]** (verified: no keychain entitlement on the Air's and the Pro's DMG builds) |
-| `sharing.failed-save-spends-nothing` (§10.3) | **[GAP]** |
+| `sharing.token-saves-on-every-build` (§10.3) | **[PARTIAL]** (S1 written, not yet built; the DMG gap proved live) |
+| `sharing.failed-save-spends-nothing` (§10.3) | **[PARTIAL]** (S1 written, not yet built) |
 | `sharing.multiuser-switch-needs-no-library` (§10.4) | **[BROKEN]** (verified: 400 in the Air's log; the route's library dependency) |
 | `sharing.multiuser-switch-says-the-refusal` (§10.4) | **[GAP]** |
 | `sharing.people-pane-off-state` (§10.4) | **[GAP]** (#5917; the hint string exists, no view uses it) |
@@ -427,14 +427,14 @@ in memory (`:1043`, #6133).
   `kSecAttrAccessible` attribute is kept on every platform. A token a Debug build wrote earlier into the data-protection keychain is not found
   by the login-keychain query: that Mac re-pairs once, and the restore diagnostic says so (`PairingRestoreDiagnostics`). The alternative,
   adding `keychain-access-groups` to `FicheroRelease.entitlements`, needs a Developer ID provisioning profile and is **not** the path taken.
-  *Test:* `AuthTokenKeychainQueryTests.swift`: on macOS the remote-token query has no data-protection key and the session-token query matches
-  it; on iOS it has the key; `remoteTokenAccessibilityValue` reads back `AfterFirstUnlock` after a write (exists, `#3772`).
+  *Test:* `KeychainTokenAccessibilityTests.swift` (exists, extended): on macOS the remote-token query has no data-protection key and no
+  protection class is read back; on iOS it has the key and reads back `AfterFirstUnlock` (`#3772`); a transient token is read once and gone.
 - `sharing.failed-save-spends-nothing` — **[GAP]** (→ #5049, umbrella; new issue 2 below) when the token cannot be saved (any `AuthTokenStorageError`), the client
   calls `revoke-self` with the token it holds, forgets the host, and says: **"This Mac couldn't save the connection key in its Keychain, so
   nothing was paired. Update Fichero on this Mac and ask for a new link."** (never the OSStatus number, which goes to the log and Copy
   details). The host's Devices list then shows nothing for it. Same on iPhone/iPad with "this iPhone"/"this iPad". *Test:*
-  `PairingPersistFailureTests.swift`: a fake pair + a throwing keychain → `revoke-self` is called with that token, no `PairedHostEndpointStore`
-  entry, the sentence. Engine: `test_a_device_revokes_its_own_pairing_6133.py` (exists) already proves `revoke-self` right after `pair`.
+  `PairingPersistFailureTests.swift` (written): a throwing persist → the revoke is asked while the middleware holds that token, then it is
+  gone, nothing saved, the sentence. Engine: `test_a_device_revokes_its_own_pairing_6133.py` (exists) already proves `revoke-self` right after `pair`.
 
 ### 10.4 The Multi-user switch does not stick; Create Account gives a 404 (owner item 4)
 
@@ -508,7 +508,7 @@ the addresses* (`sharing.state-names-every-address`).
 | `sharing.tailnet-forward-whenever-tailscale-is-up` | `test_forward_made_with_a_local_sharing_address_to_spec.py` | — | — |
 | `sharing.card-keeps-its-code` | — | `ShareSettingsRefreshKeyTests`, `PairingCodeRenewalTests` (exists) | `SharingPaneUITests/testCodeSurvivesAHealthCheck` (`fichero-ui-mac`) |
 | `sharing.qr-drawn-once-per-payload` | — | `PairingLinkEncodingTests` | — |
-| `sharing.token-saves-on-every-build` | — | `AuthTokenKeychainQueryTests` (Mac + iOS arms) | `IOSConnectPairingUITests/testPairStoresTokenAndOpens` (`fichero-ui-ios`), `IPadConnectPairingUITests` (`fichero-ui-ipad`), seeded host |
+| `sharing.token-saves-on-every-build` | — | `KeychainTokenAccessibilityTests` (Mac + iOS arms) | `IOSConnectPairingUITests/testPairStoresTokenAndOpens` (`fichero-ui-ios`), `IPadConnectPairingUITests` (`fichero-ui-ipad`), seeded host |
 | `sharing.failed-save-spends-nothing` | `test_a_device_revokes_its_own_pairing_6133.py` (exists) | `PairingPersistFailureTests` | — |
 | `sharing.multiuser-switch-needs-no-library` | `test_multiuser_switch_needs_no_library_to_spec.py`, `test_owner_session_sets_the_switch_5908.py` (exists) | — | `SharingPaneUITests/testMultiuserSwitchFlips` (`fichero-ui-mac`) |
 | `sharing.multiuser-switch-says-the-refusal` | — | `MultiuserSwitchWordsTests` | — |
@@ -558,6 +558,7 @@ Swift tests are written and marked "written, not yet built" until a build runs t
 - **S1** `sharing.token-saves-on-every-build` + `sharing.failed-save-spends-nothing` + `sharing.qr-drawn-once-per-payload`'s encoders: `AuthTokenMiddleware`
   macOS queries; `RemoteClientPairing.inviteLinkString` and the QR encoder `.sortedKeys`; `pairAndPersistHost`/the Mac sheet call `revoke-self` on a
   persist failure; tests above (`fichero-api-client` package tests + general).
+- **S1b** (optional, not taken) the entitlement route instead of the login keychain: `com.apple.application-identifier` = `QAPB6CWYR6.app.fichero.fichero` and `keychain-access-groups` = [the same] in `FicheroRelease.entitlements` (literal team id: the DMG lane substitutes nothing), which the embedded Developer ID profile authorises; no `release-all.sh` change. Only if a shared data-protection item is ever needed on a Mac.
 - **S2** `sharing.multiuser-switch-says-the-refusal` + the People off-state model (`PeoplePaneOffState`, platform-aware words).
 - **M1** `sharing.card-keeps-its-code` + `sharing.qr-drawn-once-per-payload`'s cache: `refreshKey`, `@State qrImage` keyed on the link; Mac UI test.
 - **M2** `sharing.share-sheet-offers-both-addresses`: Add Device sheet + project Share sheet rows; Mac UI test.

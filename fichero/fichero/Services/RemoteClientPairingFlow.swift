@@ -1,11 +1,14 @@
 import FicheroAPIClient
 import Foundation
+import OSLog
 #if canImport(UIKit)
 import UIKit
 #endif
 
 //  Extracted for file_length (#5113). Byte-for-byte, behaviour unchanged. Imports are the
 //  SOURCE file's; the path was asserted free before writing.
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "RemoteClientPairing")
 
 //  These two moved WITH the flow, not with the types: Swift's `private` is FILE-scoped, so a
 //  `private struct` left behind in RemoteClientPairing.swift was 'inaccessible due to private
@@ -71,6 +74,9 @@ enum RemoteClientPairing {
     static func inviteLinkString(from payload: PairingQRCodePayload) throws -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        // Sorted keys: JSONEncoder orders keys per PROCESS otherwise (three launches, three orders, 2026-10-31), so two
+        // copies of one link differed by eye and the QR's bytes differed from the link's (`sharing.qr-drawn-once-per-payload`).
+        encoder.outputFormatting = .sortedKeys
         let data = try encoder.encode(payload)
         let encodedPayload = data.base64EncodedString().addingPercentEncoding(
             withAllowedCharacters: PairingInviteLink.queryValueAllowedCharacters
@@ -315,7 +321,7 @@ enum RemoteClientPairing {
         // confirm call needs the device token in the Keychain, so persist the
         // token first; if confirmation fails, clear it — never leave a
         // half-persisted pairing behind.
-        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        try await storeTokenOrRevoke(result, expectedSPKIPin: normalizedSPKIPin)
         do {
             try await confirmLibraryAccess(
                 libraryPath: libraryPath,
@@ -328,6 +334,36 @@ enum RemoteClientPairing {
         }
         try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
         return result.apiRoot
+    }
+
+    /// Keeps the device token, or undoes the pairing it belongs to (`sharing.failed-save-spends-nothing`).
+    ///
+    /// The host spends the code and makes the device row BEFORE it answers, so a token the Keychain refuses would
+    /// leave a device on the host that nobody holds a key for, and a code the person cannot use again. When the save
+    /// fails, the token is used once more, in memory only, to ask the host to revoke this very device
+    /// (`POST /api/pair/devices/revoke-self`, #6133), then dropped; the person reads `tokenNotSaved`, the OSStatus goes
+    /// to the log. `persist` and `revoke` are injectable so a test can refuse the save without a Keychain.
+    @MainActor
+    static func storeTokenOrRevoke(
+        _ result: PairingExchangeResult,
+        expectedSPKIPin: String?,
+        persist: (String, URL) throws -> Void = { try PairingService.persistAuthToken($0, for: $1) },
+        revoke: ((FicheroClient) async -> Bool)? = nil
+    ) async throws {
+        do {
+            try persist(result.deviceToken, result.apiRoot)
+        } catch {
+            logger.error(
+                "Pairing: the device token could not be saved (\(String(describing: error), privacy: .public)); revoking the device on the host")
+            let host = result.apiRoot.absoluteString
+            AuthTokenMiddleware.holdTransientRemoteToken(result.deviceToken, hostString: host)
+            defer { AuthTokenMiddleware.dropTransientRemoteToken(hostString: host) }
+            if let client = try? FicheroClient(baseURL: result.apiRoot, expectedSPKIPin: expectedSPKIPin) {
+                let revoked = await (revoke.map { await $0(client) } ?? revokeOwnPairing(client: client))
+                if !revoked { logger.warning("Pairing: the host did not revoke the unsaved device") }
+            }
+            throw RemoteClientPairingError.tokenNotSaved
+        }
     }
 
     /// #3372: verify the paired credential can actually access `libraryPath`
