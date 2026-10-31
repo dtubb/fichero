@@ -102,10 +102,11 @@ the engine done, the app not seen in a build); a started recipe does not redo wh
   Start: Set Up's (`FirstRunWindow.showStartedRun`), the Project menu's and Run the Recipe on This Folder…
   (`FocusedCommandButtons+Recipe.swift`), each through `FirstRunWindow.startedRunSelection`. Test:
   fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift (`testStart_landsOnTheRecipeRunItQueued`).
-- `recipes-run.journey.cloud-by-default-per-step` — **[GAP]** (#6234, #6233) per the owner's ruling (2026-10-27), a
+- `recipes-run.journey.cloud-by-default-per-step` — **[GAP]** (#6233) per the owner's ruling (2026-10-27), a
   recipe step's model is a cloud one by default where the person has a provider, and the person can choose local or
   cloud for any step; Start's plan shows each step's cost, and a provider with a Batch API is sent its pages as a
-  batch. A Mac with no provider key (the M4 test machine) runs every step locally.
+  batch. Built: each step's cost beside its seconds (#6234, closed; `recipes-run.timing.cost-per-step`) and the
+  batch path. Open: the cloud default and where the local/cloud line sits (#6233). A Mac with no provider key (the M4 test machine) runs every step locally.
 
 ### 3. The run: batches, order, progress
 
