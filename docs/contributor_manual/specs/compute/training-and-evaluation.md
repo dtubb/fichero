@@ -85,7 +85,7 @@ noise; and the person's corrections of the new model's output feed the next trai
   faster, lower carbon, trainable, smaller, card id); kept in `recipe/bakeoffs/<id>.yaml`; `use_this`
   writes an override on the recipe for the project or a folder, with the reason in words, through the
   audited `project.save_setup`. Routes in
-  `fichero-server/src/fichero_server/api/routes/system/recipes.py` (`/api/recipes/project/bakeoffs`,
+  `fichero-server/src/fichero_server/api/routes/system/recipe_bakeoffs.py` (`/api/recipes/project/bakeoffs`,
   list, result, `/use`); CLI and MCP generated (`fichero_recipes_start_bakeoff`,
   `fichero_recipes_use_bakeoff_choice`). Tested in
   `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`. App:
