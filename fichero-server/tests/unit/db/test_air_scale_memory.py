@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -41,15 +43,21 @@ SECONDS = 30
 #: The median document view under the load may take this long. The Air's took 5-20 s before they failed; on the old
 #: shares here, about a minute; on the fix, 2-8 s on a loaded Pro (its slowest can pass 20 s, so the median is held).
 VIEW_SECONDS = 15
+#: One Start-plan or after-step read on the whole library may raise the engine's peak by this much. Before the slim reads
+#: `counted` raised it by 2.1 GiB, a whole box's Catalogue plan by 2.1 GiB, `material` by 2.9 GiB.
+READER_PEAK_MIB = 400
 
 
 def _build(path: Path) -> None:
     """The library, written in SQL (a minute, not ten): rows the model reads back, ids `box<b>`, `f<n>`, `p<n>_<p>`."""
     from fichero_server.db import Database
-    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.models import Artifact, DocType, Document, FileType
+    from fichero_server.models.segments import ProvenanceKind, SegmentPass
 
     db = Database(path)
     db.save(Document(id="tmpl", name="t", doc_type=DocType.file, file_type=FileType.image, metadata={}))
+    db.save(Artifact(id="tmpl", document_id="tmpl", artifact_type="transcription", model="a-vision-model", data={}))
+    db.save(SegmentPass(id="tmpl", document_id="tmpl", name="reading", provenance_kind=ProvenanceKind.workflow, model="a-vision-model"))
     c, folders = db.conn, DOCS // PAGES_PER_FOLDER
     c.execute("""INSERT INTO documents SELECT documents.* REPLACE ('box'||b AS id, NULL AS parent_id, 'folder' AS doc_type,
                  NULL AS file_type, 'B'||b AS name) FROM documents, range(2) t(b) WHERE id = 'tmpl'""")
@@ -71,6 +79,14 @@ def _build(path: Path) -> None:
                  ELSE to_json({{'thumbnail': 'storage/x.jpg', 'width': 3000, 'height': 4000}}) END AS metadata)
             FROM documents, range({start}, {min(folders, start + 100)}) t(f), range({PAGES_PER_FOLDER}) u(p)
             WHERE id = 'tmpl'""")
+    # Each read page: its reader's transcription artifact (the text and the line boxes again) and its pass.
+    c.execute("""INSERT INTO artifacts SELECT artifacts.* REPLACE ('a'||d.id AS id, d.id AS document_id,
+                  d.page_content AS content, d.metadata AS data)
+                  FROM artifacts, documents d WHERE artifacts.id = 'tmpl' AND d.page_content IS NOT NULL""")
+    c.execute("""INSERT INTO segment_passes SELECT segment_passes.* REPLACE ('pass'||d.id AS id, d.id AS document_id)
+                  FROM segment_passes, documents d WHERE segment_passes.id = 'tmpl' AND d.page_content IS NOT NULL""")
+    c.execute("DELETE FROM artifacts WHERE id = 'tmpl'")
+    c.execute("DELETE FROM segment_passes WHERE id = 'tmpl'")
     c.execute("DELETE FROM documents WHERE id = 'tmpl'")
     c.execute("CHECKPOINT")
     db.close()
@@ -189,6 +205,44 @@ def test_the_air_s_reads_and_writes_fit_its_share(the_air):
     typical = view_seconds[len(view_seconds) // 2]
     print(f"views: {len(view_seconds)}, median {typical:.1f} s, slowest {view_seconds[-1]:.1f} s; {done}")
     assert typical <= VIEW_SECONDS, f"a typical document view took {typical:.0f} s (the Air's thrash): {done}"
+
+
+_PROBE = """
+import resource, sys
+from fichero_server.core import duckdb_session as ds
+ds.physical_memory_bytes = lambda: 8 * 1024**3
+from fichero_server.db import Database
+from fichero_server.models import Document
+from fichero_server.recipes import catalogue_step, done, train_offers
+db = Database(sys.argv[1])
+box_pages = [p.id for f in db.query_fields(Document, ["id"], parent_id="box0") for p in db.query_fields(Document, ["id"], parent_id=f.id)]
+before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+exec(sys.argv[2])
+print("PEAK", (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) // 1024**2, flush=True)
+"""
+
+
+@pytest.fixture(scope="module")
+def probed(built_library, tmp_path_factory):
+    """Run one reader in a process of its own, as the engine holds it at the Air's share: how many MiB it raised the
+    process's peak by (macOS `ru_maxrss`, bytes). Own process: a freed heap in this one would hide the peak."""
+    home = tmp_path_factory.mktemp("air-probe-home")
+    env = {**os.environ, "HOME": str(home), "FICHERO_BASE_PATH": str(home), "FICHERO_DUCKDB_MEMORY_LIMIT": "448MiB",
+           "PYTHONPATH": str(Path(__file__).parents[3] / "src")}
+
+    def run(code: str) -> int:
+        done = subprocess.run([sys.executable, "-c", _PROBE, str(built_library), code], env=env, capture_output=True, text=True, timeout=600)
+        assert done.returncode == 0, done.stderr[-800:]
+        peak = int(done.stdout.split("PEAK")[-1])
+        print(f"{code}: +{peak} MiB")
+        return peak
+
+    return run
+
+
+def test_counting_for_training_stays_lean(probed):
+    """Review H1: `_teacher` and the pass counts read every transcription whole on each plan and finished step: +2.1 GiB."""
+    assert probed("assert train_offers._teacher(db) == 'a-vision-model'; train_offers.counted(db)") <= READER_PEAK_MIB
 
 
 def test_the_air_s_share_is_what_a_library_of_this_size_needs(monkeypatch):

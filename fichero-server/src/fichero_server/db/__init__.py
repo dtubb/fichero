@@ -3633,7 +3633,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
         where = " AND ".join([*(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()),
                               *(f"{k} IS NOT NULL" for k in not_null)]) or "TRUE"
-        rows, columns = self._execute_fetch_with_columns(
+        rows, columns = self._fields_fetch(
             f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
             {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
         )
@@ -3648,7 +3648,7 @@ class Database(DatabaseEmbeddingMixin):
         values, out = list(dict.fromkeys(values)), []
         for start in range(0, len(values), 500):
             chunk = values[start : start + 500]
-            rows, columns = self._execute_fetch_with_columns(
+            rows, columns = self._fields_fetch(
                 f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} "
                 f"WHERE {column} IN ({','.join(f'$v{i}' for i in range(len(chunk)))})",
                 {f"v{i}": value for i, value in enumerate(chunk)},
@@ -3656,11 +3656,15 @@ class Database(DatabaseEmbeddingMixin):
             out.extend(self._field_records(model, fields, rows, columns))
         return out
 
+    def _fields_fetch(self, sql: str, params: dict):
+        """A `query_fields` read: of what was committed, off the transaction gate, under a caller's `reading_committed` (#6178)."""
+        return (self._read_fetch_with_columns if self._reads_committed_now() else self._execute_fetch_with_columns)(sql, params)
+
     def _field_records(self, model: Type[BaseModel], fields: Sequence[str], rows, columns) -> list[SimpleNamespace]:
         out = []
         for row in rows:
             parsed = self._parse_json_fields(model, dict(zip(columns, row)))
-            if "id" in parsed and parsed["id"] is None:
+            if "id" in columns and parsed["id"] is None:
                 continue  # a null-PK ghost, skipped as `_hydrate_row` skips it
             out.append(SimpleNamespace(**{name: parsed[name] for name in fields}))
         return out
