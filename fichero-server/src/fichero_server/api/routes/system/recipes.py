@@ -2747,8 +2747,8 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
 
 
 @single_flight
-async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[str, ...], first_pages: Optional[int]) -> dict[str, Any]:
-    """A plan a caller is already waiting for is shared: past the app's deadline, asking again stacked plans, each from the start.
+async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[str, ...], first_pages: Optional[int], setup_saved: Any = None) -> dict[str, Any]:
+    """`setup_saved` only keys the flight: a load after a save gets a plan of its own. A plan a caller is already waiting for is shared: past the app's deadline, asking again stacked plans, each from the start.
     Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate."""
     return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages)))
 
@@ -2770,8 +2770,10 @@ async def get_start_plan(
 ) -> StartPlan:
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
+    from fichero_server.recipes.project import setup_stamp
+
     try:
-        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages)
+        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages, setup_saved=setup_stamp(_library(db)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if summary:

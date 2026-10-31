@@ -315,3 +315,37 @@ def test_lines_known_on_the_same_reads_answers_any_pages_without_asking_again(db
         got = done.kraken_lines_known(db, list(ids), memo)
         assert {**got, "sures": sorted(got["sures"], key=str)} == {**want, "sures": sorted(want["sures"], key=str)}
     assert first["lines"] == expected[tuple(pages)]["lines"]
+
+
+def test_a_reload_after_a_save_does_not_join_the_plan_from_before_it(db, tmp_path, monkeypatch):
+    """Review M2: the Start sheet could show the old cap until the next load."""
+    import asyncio
+    import time
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.recipes import project
+
+    project.write_project_setup(tmp_path, {"cloud_spend_cap_usd": 1}, None)
+
+    def plan(*a, **k):
+        cap = project.read_saved_answers(tmp_path)["cloud_spend_cap_usd"]
+        time.sleep(0.3)
+        return {"cap_seen": cap}
+
+    monkeypatch.setattr(routes, "_library", lambda db_: tmp_path)
+    monkeypatch.setattr(routes, "_cluster_names", lambda http: [])
+    monkeypatch.setattr(routes, "_start_plan", plan)
+    monkeypatch.setattr(routes, "StartPlan", lambda **kw: kw)
+
+    def reload():
+        return routes.get_start_plan(http=SimpleNamespace(), folder_id=None, summary=False, first_pages=None, db=db)
+
+    async def in_flight_then_saved():
+        first = asyncio.ensure_future(reload())
+        await asyncio.sleep(0.1)
+        project.write_project_setup(tmp_path, {"cloud_spend_cap_usd": 99}, None)
+        return await asyncio.gather(first, reload())
+
+    before, after = asyncio.run(in_flight_then_saved())
+    assert (before["cap_seen"], after["cap_seen"]) == (1, 99)
