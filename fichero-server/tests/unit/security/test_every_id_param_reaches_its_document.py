@@ -136,3 +136,13 @@ class TestTheGuardFires:
         assert problems({}, {}, self.RESOLVED, schema, {}) == [
             "Stamp points at a document (document_id) but has no resolver and is not declared library-scoped"]
         assert problems({}, {}, self.RESOLVED, schema, {"Stamp": "a reason"}) == []
+
+
+def test_revert_copys_documents_are_write_checked_by_their_ids():
+    """`classification.revert_copy` names the documents it re-assigns inside `documents` (dumped rows): the write check collects
+    the `id` of every row, so a person denied one of them cannot revert a copy that would change it."""
+    from fichero_server.api.routes.document.classifications import ClassificationRevertCopyParams
+    from fichero_server.security.authz import target_ids_from_params
+
+    params = ClassificationRevertCopyParams(value_ids=["v1"], documents=[{"id": "d1", "parent_id": "f1"}, {"id": "d2"}])
+    assert {"d1", "f1", "d2"} <= set(target_ids_from_params(params))
