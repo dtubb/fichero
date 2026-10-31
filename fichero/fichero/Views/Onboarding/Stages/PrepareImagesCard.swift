@@ -20,6 +20,7 @@ struct PrepareImagesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if FeatureManager.shared.isWideSetUpEnabled { PrepareOperationRowsView(store: store) }
             if let facts = store.prepareFacts {
                 if !facts.howItWorks.isEmpty {
                     Text(facts.howItWorks).font(.callout).fixedSize(horizontal: false, vertical: true)
@@ -145,4 +146,33 @@ enum FolderYesNo: Hashable {
         estimate: "About 2 min for 374 pages on this Mac (estimate). Nothing leaves this Mac.",
         howItWorks: "Finds each page, squares it, turns it upright and straightens it.")
     return PrepareImagesCard(store: store).padding().frame(width: 420)
+}
+
+/// The operations as switches (`wide.prepare.four-operations-listed`): split, straighten, crop, clarity, each with the engine's
+/// sentence, the person's switch the one answer `prepare_operations`. Behind the `wideSetUp` flag.
+struct PrepareOperationRowsView: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        let rows = store.prepareOperationRows
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(rows) { row in
+                    Toggle(isOn: Binding(get: { row.isOn }, set: { store.setPrepareOperation(row.id, on: $0) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.title).font(.body)
+                            Text(row.sentence).font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let note = row.note {
+                                Text(note).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("prepareImages.operation.\(row.id)")
+                }
+                Text(PrepareOperationRows.summary(of: rows)).font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("prepareImages.operations.summary")
+            }
+        }
+    }
 }
