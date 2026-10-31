@@ -187,7 +187,9 @@ extension ShareLibrarySheet {
     /// "cannot proceed". The link is genuinely valid on a LAN, so it is still
     /// offered; we just say what its reach is and where to widen it.
     var localNetworkOnlyAdvisory: String? {
-        guard RemoteAccessConfig.isLocalNetworkOnly(publicBaseURL) else { return nil }
+        // The address the link carries, not the sharing address: a `.local` sharer's link may name its `.ts.net` row (review Q1).
+        let linked = AddressChoiceModel.root(for: addressChoice, rows: addressRows)?.absoluteString ?? publicBaseURL
+        guard RemoteAccessConfig.isLocalNetworkOnly(linked) else { return nil }
         return "This address only works on the same local network, and some networks "
             + "(many campus and office ones) can't reach it at all. To connect from "
             + "anywhere, set a Tailscale address in Settings → Sharing → Advanced."
