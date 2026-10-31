@@ -1762,8 +1762,11 @@ def assert_library_read_authorized(
     request: Request,
     library_path: str,
     target_id: str | None = None,
+    *,
+    named: list[str | None] | None = None,
 ) -> None:
-    """Authorize a user-initiated request before touching a library path."""
+    """Authorize a user-initiated request before touching a library path. `named`: the ids a handler read from the BODY
+    (None: the whole library); they replace the path and query ids, which a caller can set to anything (#6320)."""
     from fichero_server.security import authz
     from fichero_server.api.auth import library_access_denial_payload
 
@@ -1772,7 +1775,8 @@ def assert_library_read_authorized(
 
     user = getattr(getattr(request, "state", None), "user", None)
     # Every id the request names, not only the first (#5180); none -> the library itself.
-    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
+    targets = named if named is not None else (
+        [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None]))
     try:
         for target in targets:
             authz.assert_can_read(user, library_path, target)
@@ -1790,6 +1794,22 @@ def assert_library_read_authorized(
                 detail=str(exc),
             )
         ) from exc
+
+
+def assert_library_reads_every(request: Request, library_path: str, named: list[str | None], scope: Callable[[], Sequence[str]]) -> None:
+    """A read of the documents a body names: each named id (None: the whole library), then every document `scope()` lists
+    under them, so a page denied inside a readable folder is refused too. Refused whole, never quietly cut down."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    assert_library_read_authorized(request, library_path, named=named)
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    try:
+        authz.assert_can_read_every(getattr(getattr(request, "state", None), "user", None), library_path, scope(), bootstrap=False)
+    except authz.AuthorizationError as exc:
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(request, library_path, required="read", detail=str(exc))) from exc
 
 
 def assert_library_write_authorized(

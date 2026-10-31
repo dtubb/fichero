@@ -13,7 +13,9 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import assert_library_write_authorized, get_library_database, get_library_database_for_write
+from fichero_server.api.main import (
+    assert_library_reads_every, assert_library_write_authorized, get_library_database,
+    get_library_database_for_write)
 from fichero_server.db import Database
 from fichero_server.export_service import (
     export_catalogue_xlsx,
@@ -449,6 +451,19 @@ class CatalogueWorkbookResponse(BaseModel):
     job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
 
 
+def _documents_under(db: Database, target_id: str | None) -> list[str]:
+    """The live documents a workbook of `target_id` (None: the library) reads."""
+    from fichero_server.db.document_tree import live_document_rows
+    from fichero_server.recipes.runner import folder_scope
+
+    if target_id is None:
+        return list(live_document_rows(db))
+    try:
+        return sorted(folder_scope(db, target_id))
+    except LookupError:  # not a live document: the export says so itself
+        return []
+
+
 _WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
 
 
@@ -466,8 +481,10 @@ async def export_catalogue_workbook_route(
 
     suffix = ".xlsx" if request.format == "xlsx" else ".zip"
     name = f"{kept_export.WORKBOOK_NAME}{suffix}"
+    # The id is in the body, which the read dependency never sees: check it here, with every page under it (#6320).
+    assert_library_reads_every(http, library_path, [request.target_id], lambda: _documents_under(db, request.target_id))
     if request.kept_export_id:
-        assert_library_write_authorized(http, library_path)  # a read export, except that this one queues a write
+        assert_library_write_authorized(http, library_path, request.target_id)  # a read export, except that this one queues a write
         kept = kept_export._export(db, request.kept_export_id)
         if kept is None or kept["format"] != "catalogue-workbook":
             raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")
