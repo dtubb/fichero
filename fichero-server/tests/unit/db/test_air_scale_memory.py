@@ -303,6 +303,37 @@ def test_every_step_a_recipe_can_turn_on_stays_lean(probed):
     assert probed(code) <= READER_PEAK_MIB
 
 
+def test_a_plan_with_every_option_that_adds_a_read_stays_lean(probed):
+    """Review H3, through the real `_start_plan`: every `KNOWS_DONE` step, the Catalogue, a certainty bar, cloud over its cap
+    (so `first_pages_that_fit` runs), and the corrected-lines count `held_after_failure` asks."""
+    code = """
+from pathlib import Path
+from fichero_server.api.routes.system import recipes as r
+from fichero_server.llm import spend
+from fichero_server.recipes import project, start
+from fichero_server.workflows import model_comparison
+
+cards = [{"workflow": job, "job": job, "steps": [job], "card": "workflow", "runs_on": "this-mac", "model_override": "m", "model": "m"}
+         for job in ALL_KNOWS_DONE + ("describe-for-the-catalogue",)]
+for card in cards:
+    if card["job"] == "correct":
+        card.update(runs_on="cloud:anthropic", provider_override="anthropic", tool_config={"transcribe_review": {"only_below_confidence": 0.6}})
+    if card["job"] == "translate-transliterate-normalise":
+        card["tool_config"] = {"analyze": {"reading_kind": "translation"}}
+real = start.plan_start
+start.plan_start = lambda *a, **k: {**real(None, stays_local=False), "runs": cards, "workflows": cards}
+model_comparison.estimate_cost = lambda model, tokens_in, tokens_out, provider="": tokens_in / 1200 * 0.01
+spend.has_listed_price = lambda provider, model: True
+project.write_project_setup(Path(sys.argv[1]).parent, {"cloud_spend_cap_usd": 1}, None)
+plan = r._start_plan(db, None, clusters=[])
+assert plan["cloud_cap"]["over"] and plan["cloud_cap"].get("fewer_pages") is not None, plan["cloud_cap"]
+assert plan["estimate"]["pages"] > 60000
+assert train_offers._corrected_lines(db) >= 0
+assert done.material(db, set(box_pages))["pages"] == len(box_pages)
+"""
+    assert probed(f"ALL_KNOWS_DONE = {ALL_KNOWS_DONE!r}\n{code}") <= READER_PEAK_MIB
+
+
 def test_the_canvas_backfill_fits_the_floor(built_library, tmp_path, monkeypatch):
     """Review M1: at the 256 MiB floor it failed on every open ("failed to allocate 16.0 MiB (244.5/256 MiB)"); the failure
     was recorded and the open went on."""
