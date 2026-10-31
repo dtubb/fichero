@@ -166,10 +166,7 @@ def _box_to_photograph(box: Any, back: FrameMap) -> Any:
 
 
 def _size_of(path: Path) -> tuple[float, float]:
-    from PIL import Image
-
-    with Image.open(path) as image:
-        return float(image.width), float(image.height)
+    return _file_frame(path)[1]  # guarded: `Unmappable` for a file that is missing or not a picture
 
 
 def _upright_size_of(path: Path) -> tuple[float, float]:
@@ -287,13 +284,10 @@ def _same_frame_map(rendition: Any, path: Path, photograph: Path, photo_size: tu
     from PIL import Image
 
     from fichero_server.media.frame_map import identity
-    from fichero_server.media.upright import upright_size
 
     if rendition.frame_status == "unknown":
         raise Unmappable("the rendition's frame is marked unknown")
-    with Image.open(path) as opened:
-        own = upright_size(opened)
-        own_tag = int(opened.getexif().get(0x0112, 1) or 1)
+    own_tag, _, own = _file_frame(path)
     with Image.open(photograph) as photo:
         photo_tag = int(photo.getexif().get(0x0112, 1) or 1)
     shape = photo_size[0] / photo_size[1]

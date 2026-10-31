@@ -283,30 +283,56 @@ def test_a_tagged_copy_cut_from_the_photograph_carries_an_off_centre_box_and_its
         assert (account["lines_inside"], account["lines_outside"]) == (1, 0), f"tag {tag}"
 
 
-def test_a_rendition_that_cannot_be_read_does_not_stop_the_batch(db, tmp_path, monkeypatch):
-    """A cut rendition whose parent file is gone, and one whose file is not a picture, are passed over (the photograph is
-    read); the other page in the batch is still found."""
+def _bad_rendition_page(db, tmp_path, case):
+    """A page with one rendition that cannot be read, four ways (each opens a file the old code opened unguarded)."""
     from fichero_server.models import NodeRegion, Rendition
-    from fichero_server.recipes.regions import find_regions
 
-    seen: list = []
-    monkeypatch.setattr(kraken_runtime, "segment_lines", _upright_stub(seen))
-    bad, good = _page(db, tmp_path, BOX), _page(db, tmp_path, BOX)
-    parent = Rendition(document_id=bad.id, role="crop", path=str(tmp_path / "gone.png"), pixel_width=100, pixel_height=100,
-                       transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8]))
-    db.save(parent)
-    child = tmp_path / "child.png"
-    Image.new("RGB", (80, 80)).save(child)
-    db.save(Rendition(document_id=bad.id, role="crop", path=str(child), pixel_width=80, pixel_height=80,
-                      derived_from_rendition_id=parent.id, transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8], rendition_id=parent.id)))
+    page = _page(db, tmp_path, BOX)
+    ok = tmp_path / "ok.png"
+    Image.new("RGB", (800, 640)).save(ok)
     notpic = tmp_path / "notpic.png"
     notpic.write_text("not a picture")
-    db.save(Rendition(document_id=good.id, role="crop", path=str(notpic), pixel_width=100, pixel_height=100,
-                      transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8])))
+    gone = str(tmp_path / "gone.png")
+    cut = NodeRegion(rect=[0.1, 0.1, 0.8, 0.8])
+    if case == "no transform, not a picture":
+        db.save(Rendition(document_id=page.id, role="enhanced", path=str(notpic), pixel_width=1000, pixel_height=800))
+    elif case == "transform, no size, not a picture":
+        db.save(Rendition(document_id=page.id, role="crop", path=str(notpic), transform=cut))
+    else:  # a turn of a parent whose file is gone: the parent has no transform, or a transform and no recorded size
+        parent = Rendition(document_id=page.id, role="enhanced" if case.startswith("parent with no") else "crop", path=gone,
+                           **({"transform": cut} if "with transform" in case else {}),
+                           **({"pixel_width": 1000, "pixel_height": 800} if "no transform" in case else {}))
+        db.save(parent)
+        db.save(Rendition(document_id=page.id, role="rotated", path=str(ok), pixel_width=800, pixel_height=640,
+                          derived_from_rendition_id=parent.id,
+                          transform=NodeRegion(rect=[0, 0, 1, 1], rendition_id=parent.id, angle=90)))
+    return page
 
-    account = find_regions(db, [bad.id, good.id], "run-1", "blla", provider="kraken")
 
-    assert account["pages"] == 2 and seen == [(600, 640), (600, 640)], "both pages were read, on the photograph"
+BAD_RENDITIONS = ("no transform, not a picture", "transform, no size, not a picture", "parent with no transform, file missing",
+                  "parent with transform, no recorded size, file missing")
+
+
+def test_a_rendition_that_cannot_be_read_does_not_stop_the_batch(db, tmp_path, monkeypatch):
+    """Each bad rendition is passed over (the photograph is read) and the other page in the batch is still found; the same
+    goes for the two other callers of the page's current image (tie_text's `_current_image`, line_check's inline call)."""
+    from fichero_server.checking.tie_text import _current_image
+    from fichero_server.media.current_image import current_page_image
+    from fichero_server.recipes.regions import find_regions
+
+    for case in BAD_RENDITIONS:
+        sub = tmp_path / str(BAD_RENDITIONS.index(case))
+        sub.mkdir()
+        seen: list = []
+        monkeypatch.setattr(kraken_runtime, "segment_lines", _upright_stub(seen))
+        bad = _bad_rendition_page(db, sub, case)
+        good = _page(db, sub, BOX)
+
+        account = find_regions(db, [bad.id, good.id], "run-1", "blla", provider="kraken")
+
+        assert account["pages"] == 2 and seen == [(600, 640), (600, 640)], f"{case}: {account} {seen}"
+        for current in (_current_image(db, bad), (current_page_image(db, bad, library_root=sub)).for_geometry()):
+            assert current.is_original, f"{case}: {current.why}"
 
 
 def test_a_turn_of_a_tagged_cut_copy_follows_the_copys_upright_picture(db, tmp_path):
