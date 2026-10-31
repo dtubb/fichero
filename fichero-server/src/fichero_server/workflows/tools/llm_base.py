@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
 from fichero_server.media.ocr_geometry import OCRGeometryResult
+from fichero_server.media.current_image import IMAGE_READ
 from fichero_server.workflows.types import PortDef, DataType
 from fichero_server.workflows.tools._doc_lookup import find_document_by_path
 from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
@@ -969,7 +970,9 @@ def _save_artifact_sync(
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
             if final_metadata_field:
-                doc.metadata[final_metadata_field] = data if data else content[:1000]
+                # The image marker (#6296) is provenance for the cache, not the field's value: without more, the field is the text.
+                shown = {k: v for k, v in (data or {}).items() if k != IMAGE_READ}
+                doc.metadata[final_metadata_field] = shown if shown else content[:1000]
             if custom_metadata:
                 doc.metadata.update(custom_metadata)
             doc.updated_at = utc_now()
