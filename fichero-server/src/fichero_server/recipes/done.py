@@ -60,10 +60,16 @@ _LINES_AT_ONCE = 500
 _READING_FIELDS = ("document_id", "segment_id", "retracted_at", "derived_from_artifact_id")
 
 
-def _documents(db: Any, within: set[str] | None) -> list[Any]:
+def _documents(db: Any, within: set[str] | None, memo: dict | None = None) -> list[Any]:
     """Every document, or only those `within` (one folder's), `_DOCUMENT_FIELDS` of each: the plan for a folder reads the
-    folder, not the library (#6268)."""
+    folder, not the library (#6268). `memo`: one plan's, so the library is read once however many steps ask."""
     from fichero_server.models import Document
+
+    if memo is not None:
+        if within is None and "documents" not in memo:
+            memo["documents"] = db.query_fields(Document, _DOCUMENT_FIELDS)
+        if "documents" in memo:
+            return memo["documents"] if within is None else [d for d in memo["documents"] if d.id in within]
 
     # query_fields reads what was committed only under a caller's `reading_committed` (#6178): pages_for also runs inside
     # a run's own transaction (runner.py), whose uncommitted pages a committed read would not see.
@@ -78,20 +84,23 @@ def split_pages(db: Any, within: set[str] | None) -> list[Any]:
     and 70k of them held in Python cost 1.2 GiB and a minute."""
     from fichero_server.models import Document
 
-    if within is not None:
-        rows = db.query_fields_in(Document, ("id", "parent_id", "doc_type", "metadata", "exclude_from_processing", "deleted_at"), "id", within)
-        return [SimpleNamespace(id=d.id, parent_id=d.parent_id) for d in rows if not d.deleted_at and _is_split_page(d)]
-    ids = [d.id for d in db.query_fields(Document, ("id",), doc_type="chunk", deleted_at=None)]
+    if within is None:
+        ids = [d.id for d in db.query_fields(Document, ("id",), doc_type="chunk", deleted_at=None)]
+    else:
+        ids = [d.id for d in db.query_fields_in(Document, ("id", "doc_type", "deleted_at"), "id", within)
+               if not d.deleted_at and getattr(d.doc_type, "value", d.doc_type) == "chunk"]
     return [SimpleNamespace(id=page, parent_id=parent) for start in range(0, len(ids), _LINES_AT_ONCE)
             for page, parent in db.cut_pages_of(ids[start : start + _LINES_AT_ONCE])]
 
 
-def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:
-    """The pages (or, for a split, the photographs) this card runs on now; with `within`, only a folder's."""
+def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None,
+              memo: dict | None = None) -> list[str]:
+    """The pages (or, for a split, the photographs) this card runs on now; with `within`, only a folder's. `memo`: one
+    plan's: the order of 70k pages is worked out once, not once a step and twice a card."""
 
     if card.get("job") == "split-pages":
         if documents is None:
-            docs = [d for d in _documents(db, within) if not d.deleted_at
+            docs = [d for d in _documents(db, within, memo) if not d.deleted_at
                     and getattr(d.doc_type, "value", d.doc_type) == "file"
                     and getattr(d.file_type, "value", d.file_type) == "image"]
             return sorted(d.id for d in docs)
@@ -99,10 +108,15 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within
     if documents is None:
         # The project's material, and the pages a split cut from a photograph (stored as its `chunk` children, which
         # the material count does not see as pages).
-        material = db.unit_of_work_ids()
-        known = set(material)
-        split = sorted(d.id for d in split_pages(db, within))
-        return [i for i in material if within is None or i in within] + [d for d in split if d not in known]
+        memo = {} if memo is None else memo
+        if "material" not in memo:
+            memo["material"] = db.unit_of_work_ids()
+            memo["material_set"] = set(memo["material"])
+        material, known = memo["material"], memo["material_set"]
+        if within is None and "split_ids" not in memo:
+            memo["split_ids"] = sorted(d.id for d in split_pages(db, None))
+        split = memo["split_ids"] if "split_ids" in memo else sorted(d.id for d in split_pages(db, within))
+        return [i for i in material if within is None or i in within] + [d for d in split if d not in known and (within is None or d in within)]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material
         # A diary entry split from a page is not a page to read (`unit_of_work_ids`): it never stands in for its page, so
@@ -138,7 +152,7 @@ def _words(n: int, key: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
+def material(db: Any, within: set[str] | None = None, memo: dict | None = None) -> dict[str, Any]:
     """The project's pages, as the plan counts them, and what they are in words (#5498): the pages a started
     recipe runs over (`pages_for`), one figure for the estimate and the run. The sentence says what is counted
     ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not (the PDF a page came from, a
@@ -148,8 +162,8 @@ def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
     from collections import Counter
 
 
-    ids = [i for i in pages_for(db, {}, None, within) if within is None or i in within]
-    docs = {d.id: d for d in _documents(db, within)
+    ids = [i for i in pages_for(db, {}, None, within, memo) if within is None or i in within]
+    docs = {d.id: d for d in _documents(db, within, memo)
             if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")}
     counted: Counter[str] = Counter()
     for doc_id in ids:
@@ -461,17 +475,29 @@ def _blank_by(db: Any, page: str) -> str | None:
 _PAGE_IMAGE_JOBS = ("find-lines", "read-a-line", "read-a-page")
 
 
-def blank_by(db: Any, pages: list[str]) -> dict[str, str]:
+def blank_by(db: Any, pages: list[str], memo: dict | None = None) -> dict[str, str]:
     """`_blank_by` for all these pages in one read of one column, not a whole row a page (a plan over 70k pages sat on
-    this for minutes): page -> who called it blank, only the pages somebody did."""
+    this for minutes): page -> who called it blank, only the pages somebody did. Over more than a batch of pages, one read
+    of the library's pages that name it, kept in one plan's `memo`."""
     from fichero_server.models import Document
     from fichero_server.recipes import sorting
 
+    def who(attrs: Any) -> str | None:
+        if not isinstance(attrs, dict) or attrs.get(sorting.KIND) != sorting.BLANK:
+            return None
+        return "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
+
+    if memo is not None and "blank" in memo or len(pages) > _LINES_AT_ONCE:
+        held = (memo or {}).get("blank")
+        if held is None:
+            held = {page: by for page, attrs in db.documents_attributes_naming(sorting.BLANK) if (by := who(attrs))}
+            if memo is not None:
+                memo["blank"] = held
+        return {p: held[p] for p in pages if p in held}
     out = {}
     for doc in db.query_fields_in(Document, ("id", "attributes"), "id", pages):
-        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
-        if attrs.get(sorting.KIND) == sorting.BLANK:
-            out[doc.id] = "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
+        if by := who(doc.attributes):
+            out[doc.id] = by
     return out
 
 
@@ -714,10 +740,13 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str], own: set[str] | 
         return _split_done(db, card, pages, own)
     key = (tuple(card.get("steps") or ()), json.dumps(card.get("tool_config"), sort_keys=True, default=str),
            card.get("job"), card.get("model"), card.get("model_override"), card.get("provider"), card.get("workflow_id"),
-           tuple(pages), frozenset(own or ()))
-    if key not in memo:
-        memo[key] = _split_done(db, card, pages, own)
-    return memo[key]
+           frozenset(own or ()))
+    held = memo.get(key)
+    if held is None or not held["pages"].issuperset(pages):  # asked of fewer pages (the first N), a page's answer is the same
+        todo, done = _split_done(db, card, pages, own)
+        held = memo[key] = {"pages": set(pages), "todo": set(todo), "knows": done is not None}
+    todo = [p for p in pages if p in held["todo"]]
+    return todo, (len(pages) - len(todo) if held["knows"] else None)
 
 
 def _split_done(db: Any, card: dict[str, Any], pages: list[str],
@@ -848,11 +877,11 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
         taken = taken or (redone and card.get("job") in _PAGE_IMAGE_JOBS)
         if card.get("card") != "workflow" or redone:
             continue
-        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
+        pages = [p for p in pages_for(db, card, None, within, memo) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
             if card.get("job") in _PAGE_IMAGE_JOBS:  # a normal run leaves blank ones out (#6271)
-                blank = blank_by(db, todo)
+                blank = blank_by(db, todo, memo)
                 todo = [p for p in todo if p not in blank or (in_run and blank[p] == "sorting")]
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
@@ -868,13 +897,13 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         redone = bool(redo and redo.intersection(card["steps"]) and card.get("job") in _PAGE_IMAGE_JOBS)
         in_run = (taken or redone) and card.get("job") in _PAGE_IMAGE_JOBS  # the redone step reads them too
         taken = taken or redone
-        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
+        pages = [p for p in pages_for(db, card, None, within, memo) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
         if done is not None and card.get("job") in _PAGE_IMAGE_JOBS:
-            by = list(blank_by(db, todo).values())  # pages called blank before; not looked at again here (#6271)
+            by = list(blank_by(db, todo, memo).values())  # pages called blank before; not looked at again here (#6271)
             sorted_out, marked = (0 if in_run else by.count("sorting")), by.count("person")  # the redo's pages stay in
             if sorted_out or marked:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
                 said = [f"{sorted_out} left out as blank by sorting (redo them to read anyway)" if sorted_out else "",
@@ -885,7 +914,7 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
             from fichero_server.recipes.catalogue_step import folders_to_describe
 
-            todo, current = folders_to_describe(db, pages)
+            todo, current = folders_to_describe(db, pages, memo)
             card["done"], card["of"] = current, current + len(todo)
             card["note"] = (f"describes {len(todo)} folder{'' if len(todo) == 1 else 's'}; {current} already described"
                             if todo else f"already described on all {current} folders; nothing to run")

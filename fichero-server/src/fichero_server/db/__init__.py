@@ -3646,6 +3646,12 @@ class Database(DatabaseEmbeddingMixin):
                 raise ValueError(f"Invalid column name: {name}")
         self._ensure_table(model)
         values, out = list(dict.fromkeys(values)), []
+        if len(values) > 500:  # one scan with the list as one value, not a scan of the column for each 500 (70 for a box)
+            rows, columns = self._fields_fetch(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {column} IN (SELECT unnest($values))",
+                {"values": values},
+            )
+            return self._field_records(model, fields, rows, columns)
         for start in range(0, len(values), 500):
             chunk = values[start : start + 500]
             rows, columns = self._fields_fetch(
@@ -5620,6 +5626,12 @@ class Database(DatabaseEmbeddingMixin):
         "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
+
+    def documents_attributes_naming(self, value: str) -> list[tuple[str, Any]]:
+        """(id, attributes) of the documents whose attributes mention `value`: one scan of one column for a whole library."""
+        rows = self.execute_fetchall(
+            "SELECT id, attributes FROM documents WHERE contains(CAST(attributes AS VARCHAR), ?)", [f'"{value}"'], committed=True)
+        return [(row[0], json.loads(row[1]) if isinstance(row[1], str) else row[1]) for row in rows]
 
     def cut_pages_of(self, ids: list[str]) -> list[tuple[str, str | None]]:
         """(id, parent_id) of these `chunk` rows that are pages cut from a photograph and not hidden as blank: JSON read

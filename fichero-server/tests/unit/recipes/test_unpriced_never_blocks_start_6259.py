@@ -41,7 +41,7 @@ def test_start_goes_on_and_records_the_yes_for_every_unpriced_model_it_names(cli
     routes = _unpriced_plan(client, monkeypatch, [])
     invoke = routes.registry.invoke
     monkeypatch.setattr(routes.registry, "invoke", lambda db, name, *a, **k: None if name == "project.start" else invoke(db, name, *a, **k))
-    monkeypatch.setattr(routes, "_as_started", lambda db, plan: (_ for _ in ()).throw(LookupError("started")))
+    monkeypatch.setattr(routes, "_as_started", lambda db, plan, *_: (_ for _ in ()).throw(LookupError("started")))
     with pytest.raises(LookupError, match="started"):  # the run itself is stubbed: only the yes is asked of it
         client.post("/api/recipes/project/start", json={})  # no accept_unpriced sent: the Start itself is the yes
     assert spend.accepted_models(_library(db)) == ["acme/mystery"]
@@ -67,7 +67,7 @@ def test_a_refused_start_still_keeps_the_yes_and_a_fixed_start_does_not_ask_agai
     plan["refusals"] = []  # the person fixes the cap and presses Start again
     invoke = routes.registry.invoke
     monkeypatch.setattr(routes.registry, "invoke", lambda db, name, *a, **k: None if name == "project.start" else invoke(db, name, *a, **k))
-    monkeypatch.setattr(routes, "_as_started", lambda db, plan: (_ for _ in ()).throw(LookupError("started")))
+    monkeypatch.setattr(routes, "_as_started", lambda db, plan, *_: (_ for _ in ()).throw(LookupError("started")))
     with pytest.raises(LookupError, match="started"):
         client.post("/api/recipes/project/start", json={})
     assert len([a for a in db.all(ActionAudit) if a.action_name == "cloud.accept_unpriced"]) == 1, "it was not asked again"

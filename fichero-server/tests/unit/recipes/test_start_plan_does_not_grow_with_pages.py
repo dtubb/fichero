@@ -140,7 +140,7 @@ def test_the_cards_a_translate_step_makes_for_two_levels_are_counted_apart(monke
     cards = [r for r in plan["runs"] if r["job"] == "translate-transliterate-normalise"]
     assert len(cards) == 2 and "id" not in cards[0], plan["skipped"]
     calls: list[dict] = []
-    monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: calls.append(card) or ([], len(calls)))
+    monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: calls.append(card) or ((["p"], 0) if len(calls) == 1 else ([], 1)))
     memo: dict = {}
     first, second = (done.split_done(None, c, ["p"], memo=memo) for c in cards)
     assert first != second and len(calls) == 2
@@ -206,4 +206,78 @@ def test_the_library_s_cut_pages_agree_with_asking_each_page(db):
     expected = {kept.id, excluded_only.id}
     assert {d.id for d in done.split_pages(db, None)} == expected
     assert {d.id for d in done.split_pages(db, None)} == {d.id for d in db.query(Document, doc_type=DocType.chunk) if not d.deleted_at and done._is_split_page(d)}
+
+
+def test_one_press_of_start_reads_the_library_once_and_outside_the_transaction(client, db, folder, with_material, monkeypatch):  # noqa: F811
+    """Review H2: POST built the plan three times, the middle one under the writer gate: writers waited for the whole plan."""
+    _set_up(client)
+    asked: list[bool] = []
+    real_ids = Database.unit_of_work_ids
+    monkeypatch.setattr(Database, "unit_of_work_ids", lambda self: asked.append(self.in_transaction) or real_ids(self))
+    done_in: list[tuple[str, bool]] = []
+    real = done._split_done
+    monkeypatch.setattr(done, "_split_done", lambda db_, card, pages, own=None: done_in.append((card["job"], db_.in_transaction)) or real(db_, card, pages, own))
+    answer = client.post("/api/recipes/project/start", json={})
+    assert answer.status_code == 200, answer.text
+    assert asked[0] is False and True not in asked, "the order of the pages is worked out before the transaction, not in it"
+    assert done_in and not any(held for _, held in done_in), done_in
+
+
+def test_the_spending_check_is_asked_again_inside_the_transaction(client, db, folder, with_material, monkeypatch):  # noqa: F811
+    """The plan's reads are kept; the cap is not. Money booked while the plan was read refuses the Start, as it did when the
+    whole plan ran under the gate."""
+    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.llm import spend as cloud_spend
+
+    _set_up(client)
+    held: list[bool] = []
+    real = cloud_spend.plan_line
+
+    def line(library, **kw):
+        held.append(db.in_transaction)
+        out = real(library, **kw)
+        return {**out, "over": True, "over_month": True, "estimate_usd": 9.0, "remaining_usd": 1.0, "cap_usd": 1.0, "needed_cap_usd": 9.0,
+                "over_project": False} if db.in_transaction else out
+
+    monkeypatch.setattr(cloud_spend, "plan_line", line)
+    monkeypatch.setattr(routes, "first_pages_that_fit", lambda *a, **k: None)
+    answer = client.post("/api/recipes/project/start", json={})
+    assert answer.status_code == 422 and "monthly cap" in answer.text, answer.text
+    assert True in held and False in held
+
+
+def test_two_callers_of_the_plan_share_one_plan(db, monkeypatch):
+    import asyncio
+
+    from fichero_server.api.routes.system import recipes as routes
+
+    built = []
+
+    def plan(*a, **k):
+        built.append(1)
+        import time
+
+        time.sleep(0.2)
+        return {"refusals": []}
+
+    monkeypatch.setattr(routes, "_start_plan", plan)
+
+    async def both():
+        return await asyncio.gather(*[routes._plan_once(db=db, folder_id=None, clusters=(), first_pages=None) for _ in range(2)])
+
+    asyncio.run(both())
+    assert len(built) == 1
+
+
+def test_a_second_plan_on_the_same_reads_asks_nothing_of_the_pages(client, db, folder, with_material, monkeypatch):  # noqa: F811
+    from fichero_server.api.routes.system import recipes as routes
+
+    _set_up(client)
+    memo: dict = {}
+    first = routes._start_plan(db, None, clusters=[], memo=memo)
+    seen = _statements(monkeypatch)
+    again = routes._start_plan(db, None, clusters=[], memo=memo)
+    assert again["estimate"] == first["estimate"] and again["runs"] == first["runs"]
+    heavy = [s for s in seen if any(t in s for t in ('"segments"', '"contentrepresentations"', "page_content", "ocr_geometry"))]
+    assert not heavy, heavy
 

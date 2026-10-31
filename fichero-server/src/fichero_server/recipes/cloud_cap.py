@@ -76,17 +76,20 @@ def only_if_set(**named: Any) -> dict[str, Any]:
     return {key: value for key, value in named.items() if value is not None}
 
 
-def first_pages_of(db: Any, count: int) -> list[str]:
+def first_pages_of(db: Any, count: int, memo: dict | None = None) -> list[str]:
     """The first `count` pages of the project in Finder order (the order a run reads them in, #5849): what "run fewer pages"
     runs (#6295). A photograph cut into pages is read as one, all its cuts (`runner._units`), so the first pages end at the
     last cut of the photograph they reach: the plan counts what the run reads."""
     from fichero_server.recipes.done import pages_for, split_pages
 
-    pages = pages_for(db, {}, None)
+    memo = {} if memo is None else memo
+    pages = pages_for(db, {}, None, memo=memo)
     first = pages[:count]
     if len(first) == len(pages):
         return first
-    photograph = {d.id: d.parent_id for d in split_pages(db, None)}
+    if "photograph" not in memo:
+        memo["photograph"] = {d.id: d.parent_id for d in split_pages(db, None)}
+    photograph = memo["photograph"]
     reached = {photograph[p] for p in first if p in photograph}
     return first + [p for p in pages[count:] if photograph.get(p) in reached] if reached else first
 
@@ -109,7 +112,7 @@ def cap_refusals(plan: dict) -> None:
     plan["refusals"] = [*plan["refusals"], line["refusal"]]
 
 
-def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pages: int, price: Callable[[set[str]], dict[str, Any]]) -> Optional[int]:
+def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pages: int, price: Callable[[set[str]], dict[str, Any]], memo: dict | None = None) -> Optional[int]:
     """The most first pages (Finder order) whose own estimate, priced as the plan prices it (only what each step has still to
     do, review passes by their lines), fits what the caps leave; None when not even one page does. Found by halving, since the
     price only grows with the pages; the price is the plan's best estimate, no margin (#6295). `price(pages)` is the plan's own
@@ -119,7 +122,7 @@ def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pa
         left.append(line["project_remaining_usd"])
     room = min(left)
     def fits(count: int) -> bool:
-        cost = price(set(first_pages_of(db, count)))["total_cost_usd"]
+        cost = price(set(first_pages_of(db, count, memo)))["total_cost_usd"]
         return cost is not None and cost <= room + 1e-9
 
     low, high = 0, pages - 1  # `low` fits (no page costs nothing); the whole run does not
@@ -144,11 +147,11 @@ def catalogue_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in runs if r.get("card") == "catalogue"]
 
 
-def folders_covering(db: Any, page_ids: list[str]) -> int:
+def folders_covering(db: Any, page_ids: list[str], memo: dict | None = None) -> int:
     """How many folders a Catalogue run over these pages describes (each folder above them, once; those already described are not priced)."""
     from fichero_server.recipes.catalogue_step import folders_to_describe
 
-    return len(folders_to_describe(db, page_ids)[0]) if page_ids else 0
+    return len(folders_to_describe(db, page_ids, memo)[0]) if page_ids else 0
 
 
 def estimate_on(db: Any, plan: dict[str, Any], pages: dict[str, Any], within: set[str] | None, memo: dict) -> dict[str, Any]:
@@ -158,5 +161,5 @@ def estimate_on(db: Any, plan: dict[str, Any], pages: dict[str, Any], within: se
     from fichero_server.recipes.start import estimate
 
     return estimate(plan["workflows"], pages["pages"], lines_known(db, plan["workflows"], pages["ids"]),
-                    catalogue=catalogue_runs(plan["runs"]), folders=folders_covering(db, pages["ids"]),
+                    catalogue=catalogue_runs(plan["runs"]), folders=folders_covering(db, pages["ids"], memo),
                     todo=todo_counts(db, plan, within, memo=memo))
