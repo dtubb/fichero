@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -36,7 +37,7 @@ def test_current_profile_loads_with_every_required_section():
     assert config.pi_model_id(config.at_tier(cfg, coders[0], "small")) == "anthropic/claude-haiku-5-5", "the small tier"
     assert all(w.get("tier") for role in cfg["roles"].values() for w in role), "roles name a tier, not a model"
     assert all(w["kind"] == "pi" for role in cfg["roles"].values() for w in role), "no other worker kind on this branch"
-    assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 30.0, "US$5 per session, US$30 per day (owner 2026-10-26)"
+    assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 10.0, "US$5 per session, US$10 per day (studio trial)"
     import json
     declared = {m["id"] for m in json.load(open(config.ROOT / "pipeline/pi-agent/models.json"))["providers"]["anthropic"]["models"]}
     assert {"claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"} <= declared, "Pi knows the models' context and price"
@@ -47,3 +48,15 @@ def test_missing_section_is_an_error(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PROJECTS", tmp_path)
     with pytest.raises(ValueError, match=r"\[repo\] lacks worktrees"):
         config.load("bad")
+
+
+def test_studio_trial_shares_nothing_with_the_live_runner():
+    """The studio branch's runner has its own tmux session, branch names, state folder, Pi and agent dir, and lands nothing."""
+    from pipeline import STATE
+    cfg = config.load()
+    assert cfg["workers"]["tmux_session"] == "studio" and cfg["repo"]["branch_prefix"] == "studio"
+    assert cfg["run"]["auto_land"] is False
+    assert STATE.name == ROOT.name != "integration", "the journal lives under this checkout's own name"
+    assert cfg["workers"]["agent_dir"] == "pipeline/pi-agent", "a copy inside this worktree"
+    for k in ("pi_bin", "pi_adapter"):
+        assert not Path(cfg["workers"][k]).is_absolute() and (ROOT / cfg["workers"][k]).exists(), f"{k} is Pi installed inside the worktree"

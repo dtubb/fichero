@@ -1,14 +1,59 @@
 {
-  "_comment": "Pi 0.75.5's own catalogue stops at claude-sonnet-4-5, so the current Anthropic models are declared here (Pi otherwise passes an unknown id through with no context size or price, and the cost cap would read $0). reasoning is off on all three: Pi 0.75.5 sends thinking.type=enabled, which these models refuse with a 400 (they want thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it — then flip reasoning back on. ponytail: the prices are the 4.x generation's per million tokens until the 5.5 sheet is checked. The omlx provider is the end state (pipeline.worker-roles): not run now; the self-test loads nothing.",
+  "_comment": "Pi 0.75.5's own catalogue stops at claude-sonnet-4-5, so the current Anthropic models are declared here (Pi otherwise passes an unknown id through with no context size or price, and the cost cap would read $0). reasoning is off on all three: Pi 0.75.5 sends thinking.type=enabled, which these models refuse with a 400 (they want thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it \u2014 then flip reasoning back on. ponytail: the prices are the 4.x generation's per million tokens until the 5.5 sheet is checked. The omlx provider is the end state (pipeline.worker-roles): not run now; the self-test loads nothing. Stage 2 (OpenRouter): prices are per million tokens from the endpoints API on 2026-10-31 for the ONE endpoint each model is pinned to by compat.openRouterRouting (sent as the request's `provider` field; allow_fallbacks false, so a down endpoint fails loudly instead of routing to another precision). contextWindow is the 64k cap the runner works to, not the model's 262k.",
   "providers": {
     "anthropic": {
       "models": [
-        {"id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "contextWindow": 200000, "maxTokens": 64000,
-         "reasoning": false, "input": ["text", "image"], "cost": {"input": 3.0, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75}},
-        {"id": "claude-haiku-5-5", "name": "Claude Haiku 5.5", "contextWindow": 200000, "maxTokens": 64000,
-         "reasoning": false, "input": ["text", "image"], "cost": {"input": 1.0, "output": 5.0, "cacheRead": 0.1, "cacheWrite": 1.25}},
-        {"id": "claude-opus-5-5", "name": "Claude Opus 5.5", "contextWindow": 200000, "maxTokens": 32000,
-         "reasoning": false, "input": ["text", "image"], "cost": {"input": 15.0, "output": 75.0, "cacheRead": 1.5, "cacheWrite": 18.75}}
+        {
+          "id": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5",
+          "contextWindow": 200000,
+          "maxTokens": 64000,
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 3.0,
+            "output": 15.0,
+            "cacheRead": 0.3,
+            "cacheWrite": 3.75
+          }
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5",
+          "contextWindow": 200000,
+          "maxTokens": 64000,
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 1.0,
+            "output": 5.0,
+            "cacheRead": 0.1,
+            "cacheWrite": 1.25
+          }
+        },
+        {
+          "id": "claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "contextWindow": 200000,
+          "maxTokens": 32000,
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 15.0,
+            "output": 75.0,
+            "cacheRead": 1.5,
+            "cacheWrite": 18.75
+          }
+        }
       ]
     },
     "omlx": {
@@ -16,8 +61,81 @@
       "api": "openai-completions",
       "apiKey": "OMLX_API_KEY",
       "models": [
-        {"id": "qwen3.5-9b", "name": "Qwen 3.5 9B (local, oMLX)", "contextWindow": 65536, "maxTokens": 16384,
-         "reasoning": false, "input": ["text"], "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}
+        {
+          "id": "qwen3.5-9b",
+          "name": "Qwen 3.5 9B (local, oMLX)",
+          "contextWindow": 65536,
+          "maxTokens": 16384,
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
+    "openrouter": {
+      "models": [
+        {
+          "id": "qwen/qwen3-coder-next",
+          "name": "Qwen3 Coder Next (OpenRouter, Parasail bf16)",
+          "contextWindow": 65536,
+          "maxTokens": 16384,
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.12,
+            "output": 0.8,
+            "cacheRead": 0.07,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "openRouterRouting": {
+              "only": [
+                "parasail/bf16"
+              ],
+              "allow_fallbacks": false,
+              "require_parameters": true
+            }
+          }
+        },
+        {
+          "id": "qwen/qwen3.8-27b",
+          "name": "Qwen3.8 27B (OpenRouter, Chutes fp8)",
+          "contextWindow": 32768,
+          "maxTokens": 16384,
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.039,
+            "output": 1.25,
+            "cacheRead": 0.0039,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "openRouterRouting": {
+              "order": [
+                "chutes/fp8",
+                "near-ai/fp8"
+              ],
+              "only": [
+                "chutes/fp8",
+                "near-ai/fp8"
+              ],
+              "allow_fallbacks": false,
+              "require_parameters": true
+            }
+          }
+        }
       ]
     }
   }

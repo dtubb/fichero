@@ -144,6 +144,14 @@ def test_worktree_is_made_off_base_and_removed_with_git(scratch, issues, fake_co
     assert not wt.exists()
 
 
+def test_worktree_branch_uses_the_profile_prefix(scratch, issues, fake_coder):
+    """A second runner on the same git repo must not collide with the live one on branch names."""
+    scratch["cfg"]["repo"]["branch_prefix"] = "studio"
+    fake_coder()
+    wt = Path(core.start([1001], task="t2")["worktree"])
+    assert git(wt, "rev-parse", "--abbrev-ref", "HEAD") == "studio/t2"
+
+
 def test_batch_of_three_issues_gives_three_commits_and_three_check_lines(scratch, issues, fake_coder):
     fc = fake_coder()
     out = core.start([1001, 1002, 1003], milestone="demo")
@@ -576,6 +584,28 @@ def test_brief_carries_spec_lines_files_and_the_test_to_write(scratch, issues):
     assert "tests/test_new.py::test_new" in text and "must fail before your change" in text
     assert iss["localised"]["size"] == "small"
     assert any(e["event"] == "localised" and e["files"] == ["src/mod.py"] for e in journal.read())
+
+
+def test_the_brief_states_the_diff_bound_the_issue_or_the_profile_sets(scratch, issues):
+    scratch["cfg"]["ladder"].append({"name": "diff-bound", "kind": "diff-bound", "max_lines": 150, "max_files": 6})
+    body = "Change `base` in src/mod.py. Test: tests/test_new.py::test_new"
+    a = dict(issues[1001], body=body)
+    a["localised"] = core.localised(a, "t", "1001")
+    assert "## Diff bound: 150 lines" in core.brief(a, "t")
+    b = dict(issues[1001], body=body + "\nDiff bound: 40")
+    b["localised"] = core.localised(b, "t", "1001")
+    assert "## Diff bound: 40 lines" in core.brief(b, "t")
+    assert [e["bound"] for e in journal.read() if e["event"] == "localised"] == [150, 40]
+
+
+def test_each_provider_has_its_own_context_cap(scratch, issues, fake_coder):
+    """The window a batch may fill is the provider's: open models take 64k where the hosted API takes 200k."""
+    scratch["cfg"]["workers"]["context_tokens_by"] = {"openrouter": 5000}   # the first coder is openrouter
+    fc = fake_coder()
+    fc.context = 900  # 90 % of the global 1000, 18 % of this provider's 5000
+    core.start([1001, 1002], milestone="demo")
+    why = [e.get("why") for e in journal.read() if e["event"] == "transition"]
+    assert not [e for e in journal.read() if e["event"] == "handoff"], f"no handoff: the cap is the provider's 5000 ({why})"
 
 
 def test_brief_is_a_stable_prefix_then_the_issue_tail(scratch, issues):

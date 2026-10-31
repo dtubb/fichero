@@ -99,6 +99,8 @@ def state() -> dict:
             if not e["ok"]:
                 it["attempts"] += 1
                 it["retry_text"] = "\n\n".join(f"[{r['name']}] {r['text']}" for r in e["results"] if not r["ok"])
+        elif ev == "localised" and it:
+            it["bound"] = e.get("bound")
         elif ev == "retry" and it:  # a binding NOT_READY: counts as an attempt, its findings are the retry text
             it["attempts"] += 1
             it["retry_text"] = e["text"]
@@ -360,6 +362,8 @@ def localised(issue: dict, task: str, key: str) -> dict:
     c = cfg()
     text = (issue.get("body") or "") + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
     loc = localise.localise(c["repo"]["path"], text)
+    default = next((r["max_lines"] for r in c["ladder"] if r.get("kind") == "diff-bound"), None)
+    loc["bound"] = localise.bound(text, default)
     if loc["size"] == "unknown":
         w = config.at_tier(c, workers()[0], "small")
         dirs = sorted({str(Path(f).parent) for f in checks.git(c["repo"]["path"], "ls-files").splitlines()
@@ -370,10 +374,10 @@ def localised(issue: dict, task: str, key: str) -> dict:
         st = coder.ask_once(c, w, prompt, session)
         journal.append("cost", issue=_n(key), key=key, task=task, session=str(session), usd=round(st["cost_usd"], 4),
                        tokens=st["tokens"], model=st["model"] or w["model"], tools={})
-        loc = dict(localise.localise(c["repo"]["path"], text + "\n" + st["answer"]), by_model=True)
+        loc = dict(localise.localise(c["repo"]["path"], text + "\n" + st["answer"]), by_model=True, bound=loc["bound"])
     journal.append("localised", issue=_n(key), key=key, task=task, files=loc["files"], symbols=sorted(loc["symbols"]),
                    tests=[t["path"] + (f"::{t['name']}" if t["name"] else "") for t in loc["tests"]], size=loc["size"],
-                   by_model=loc.get("by_model", False))
+                   by_model=loc.get("by_model", False), bound=loc["bound"])
     return loc
 
 
@@ -386,7 +390,7 @@ def brief_rules() -> list[str]:
              "`get_symbol_source` / `get_file_outline`), then edit. The `mcp` tool (the wide set) is a brief miss: "
              "use it only when the brief truly lacks something, and say what in `pipeline_report`.",
              "2. Ponytail: the shortest correct diff; no new abstractions; a `ponytail:` comment on each known ceiling.",
-             "3. Write the test first from the spec's words and see it fail; then make it pass. Run only your own tests.",
+             "3. Write the test first from the spec's words and see it fail; paste that failing run (the last lines of pytest) in a ``` block in your commit message body; then make it pass. Run only your own tests.",
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
              "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
@@ -429,7 +433,7 @@ def _worktree(task: str, base: str | None = None) -> Path:
         remotes = checks.git(c["repo"]["path"], "remote").split()
         if base.split("/")[0] in remotes:  # a remote-tracking base is refreshed first; a local branch is used as is
             checks.sh(["git", "fetch", "-q", base.split("/")[0]], cwd=c["repo"]["path"])
-        checks.git(c["repo"]["path"], "worktree", "add", "-q", "-b", f"pipeline/{task}", str(wt), base)
+        checks.git(c["repo"]["path"], "worktree", "add", "-q", "-b", f"{c['repo'].get('branch_prefix', 'pipeline')}/{task}", str(wt), base)
         checks.sh(["git", "config", "extensions.worktreeConfig", "true"], cwd=wt)  # every runner git: hooks off (checks.GIT)
         for k, v in (("user.name", "Claude"), ("user.email", c["github"]["agent_email"])):
             checks.sh(["git", "config", "--worktree", k, v], cwd=wt)
@@ -637,7 +641,7 @@ def _parked(s: dict, milestone: str, c: dict) -> dict | None:
         if not p.get("parked") or p["window"] not in live:
             continue
         age = time.time() - time.mktime(time.strptime(p["parked"], "%Y-%m-%dT%H:%M:%S"))
-        room = coder.status(Path(p["session_dir"]))["context"] < w["context_tokens"] * w["batch_end_pct"] / 100
+        room = coder.status(Path(p["session_dir"]))["context"] < coder.context_cap(c, (p.get("model") or "/").split("/")[0]) * w["batch_end_pct"] / 100
         if age > w["park_ttl_minutes"] * 60 or not room:
             coder.stop_window(c, win)
             journal.append("worker_gone", window=win, task=p["task"], why="parked past park_ttl or context full")
@@ -767,7 +771,7 @@ def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs
     with ThreadPoolExecutor(max_workers=1) as pool:
         for k, iss in briefs.items():
             w = c["workers"]
-            if coder.status(sess[0])["context"] >= w["context_tokens"] * w["batch_end_pct"] / 100:
+            if coder.status(sess[0])["context"] >= coder.context_cap(c, worker["provider"]) * w["batch_end_pct"] / 100:
                 # near the end of the context: a fresh window takes the rest from a short note (a pending check finishes first)
                 if pending and settle(pending) != "checked":
                     out[k] = "queued"
@@ -812,7 +816,7 @@ def check(issue, since: str | None = None, locked: bool = False, sha: str | None
     _wait_room("pytest", it["task"])
     with journal.Lock("test-run"):
         results = checks.run_all(wt, cfg(), since=since, protected_ids=tuple(it["start_args"].get("ids") or ()),
-                                approved=it.get("approved_checks"), head=sha)
+                                approved=it.get("approved_checks"), head=sha, bound=it.get("bound"))
     if not given and _head(wt) != sha:
         results.append({"name": "head-moved", "ok": False, "seconds": 0, "text": f"a commit landed during the checks ({sha[:9]} -> {_head(wt)[:9]})"})
     ok = bool(results) and all(r["ok"] for r in results)

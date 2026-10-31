@@ -66,6 +66,14 @@ def test_pi_command_loads_only_the_pipeline_agent_dir(scratch, tmp_path):
     assert all(v.get("lifecycle") == "eager" for v in mcp.values()), "tools are visible from the first turn"
 
 
+def test_the_profile_can_name_its_own_pi_install(scratch, tmp_path):
+    cfg = scratch["cfg"]
+    assert "pi" in coder.pi_command(cfg, {"provider": "anthropic", "model": "m"}, tmp_path)
+    cfg["workers"].update(pi_bin=".studio-pi/bin/pi", pi_adapter=".studio-pi/adapter.ts")
+    cmd = coder.pi_command(cfg, {"provider": "anthropic", "model": "m"}, tmp_path)
+    assert str(coder.ROOT / ".studio-pi/bin/pi") in cmd and str(coder.ROOT / ".studio-pi/adapter.ts") in cmd
+
+
 def test_reviewer_prompt_carries_the_ponytail_lens(scratch, tmp_path):
     cmd = coder.pi_command(scratch["cfg"], {"provider": "anthropic", "model": "m"}, tmp_path / "s", role="reviewer")
     lens = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--append-system-prompt" and cmd[i + 1].endswith("ponytail-reviewer.md")]
@@ -285,3 +293,13 @@ def test_a_proxy_call_is_counted_as_a_brief_miss(tmp_path):
         {"type": "toolCall", "name": "mcp", "arguments": {"tool": "jcodemunch_get_repo_outline"}}]}}])
     st = coder.parse_session(tmp_path / "s.jsonl")
     assert st["proxy_calls"] == 1 and st["tool_calls"]["jcodemunch_get_repo_outline"] == 1
+
+
+def test_context_cap_is_the_providers_else_the_global_one():
+    w = {"context_tokens": 200000, "context_tokens_by": {"omlx": 65536}}
+    assert coder.context_cap({"workers": w}, "omlx") == 65536 and coder.context_cap({"workers": w}, "anthropic") == 200000
+
+
+def test_session_counts_output_tokens_and_failed_tool_calls():
+    st = coder.parse_session(Path(__file__).parent / "fixtures" / "pi-session-redacted.jsonl")
+    assert st["tool_errors"] == 2 and st["output"] > 100, (st["tool_errors"], st["output"])

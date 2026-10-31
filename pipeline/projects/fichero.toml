@@ -6,6 +6,7 @@ path = ""                       # empty = the folder that holds pipeline/
 base = "origin/integration"     # branch the worktrees come off and the checks compare with
 main = "main"
 worktrees = ".worktrees/pipeline"
+branch_prefix = "studio"        # worktree branches are studio/<task>: the live runner owns pipeline/<task> in the same git repo
 specs = "docs/contributor_manual/specs"
 # A diff touching any of these goes to needs-maintainer: the checks run from the runner's pinned checkout and a
 # coder may not edit the check it is judged by (pipeline.pinned-checks). The runner's own code and tests are not
@@ -31,6 +32,15 @@ commit_trailer = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 # The check ladder (pipeline.quick-checks-per-item). Each rung is an existing script, run from the pinned checkout
 # with the worktree as cwd. {worktree} and {files} are filled in by the runner.
+[[ladder]]
+name = "diff-bound"             # cheapest first: the whole diff stays inside the bound the brief stated ("Diff bound: N" in the issue, else this)
+kind = "diff-bound"
+max_lines = 150
+max_files = 6
+[[ladder]]
+name = "failing-run-pasted"     # a source change shows its test seen red, in a commit message
+kind = "failing-run-pasted"
+paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
 [[ladder]]
 name = "ready"
 cmd = "{pinned}/scripts/lane_ready_check.sh HEAD"
@@ -131,7 +141,7 @@ machine = "m4"
 # `python -m pipeline run` (pipeline.schedule): seconds between passes while an answer is awaited; issues per start
 [run]
 poll_s = 60
-auto_land = true   # #6179, owner 2026-10-26: reviewed READY items land on integration (never main)
+auto_land = false  # studio trial: nothing lands by itself (the live profile has true, #6179)
 batch = 3
 
 [machines]
@@ -140,15 +150,17 @@ air = "air"       # ssh host
 m4 = "m4"
 
 [workers]
-tmux_session = "pipeline"
-pi_adapter = "~/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts"
+tmux_session = "studio"          # the live runner owns "pipeline"
+pi_bin = ".studio-pi/node_modules/.bin/pi"                  # Pi 1.4.0, installed inside this worktree (gitignored)
+pi_adapter = ".studio-pi/node_modules/pi-mcp-adapter/index.ts"   # 7.0.0; the global 2.8.0 targets Pi 0.74
 agent_dir = "pipeline/pi-agent"
 cost_cap_usd = 5.0              # per SESSION (a coder or reviewer window), read live from its Pi log
-daily_cap_usd = 30.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
+daily_cap_usd = 10.0            # across all items, summed from the journal; `resume --raise-cap N` lifts it for today
 context_tokens_max = 120000     # ponytail: a guess at a useful context; measure and set
 # pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
 # or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
 context_tokens = 200000         # the coder model's context window (Pi reports usage against it)
+context_tokens_by = { anthropic = 200000, openrouter = 65536, omlx = 65536 }   # per provider: open models are run at 64k
 batch_budget_pct = 40           # the share of context a batch's brief + issues may take at the start
 batch_end_pct = 80              # end the session (handoff note) once the session has used this share of context
 batch_max_issues = 10           # ponytail: a ceiling, not the sizing rule; the budget sizes the batch
@@ -198,6 +210,14 @@ tier = "big"
 
 # provider -> the env var Pi reads and the key file; the worker wrapper reads the file, the runner never does.
 # A lane key (its own credit limit) is preferred when its file exists (pipeline.key-per-lane).
+# The precision each open model is served at (the run log's column; the OpenRouter pin in models.json is what enforces it)
+[precision]
+"qwen/qwen3-coder-next" = "bf16"
+"qwen/qwen3.8-27b" = "fp8"
+
+[studio]
+stage = "1"                      # the run log's stage column: 1 Anthropic, 2 OpenRouter, 3 Studio
+
 [keys]
 openrouter = { env = "OPENROUTER_API_KEY", files = ["~/.config/openrouter/key-lane", "~/.config/openrouter/key"] }
 anthropic = { env = "ANTHROPIC_API_KEY", files = ["~/.config/anthropic/key-lane", "~/.config/anthropic/key"] }

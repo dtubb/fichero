@@ -154,3 +154,4 @@ pipeline/pi-agent/auth.json
 pipeline/pi-agent/*.log
 pipeline/pi-agent/mcp-cache.json
 pipeline/pi-agent/bin/
+.studio-pi/

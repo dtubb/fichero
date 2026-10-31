@@ -100,8 +100,8 @@ def pi_command(cfg: dict, worker: dict, session_dir: Path, role: str = "coder", 
     principles and the role's ponytail rules."""
     agent = ROOT / cfg["workers"]["agent_dir"]
     env_var, key_file = key_source(cfg, worker)
-    cmd = [str(WRAPPER), env_var or "-", key_file or "-", "pi",
-           "--no-extensions", "-e", str(Path(cfg["workers"]["pi_adapter"]).expanduser()),
+    cmd = [str(WRAPPER), env_var or "-", key_file or "-", pi_exe(cfg),
+           "--no-extensions", "-e", str(in_tree(cfg["workers"]["pi_adapter"])),
            *(["--mcp-config", str(mcp_config(cfg, mcp_bin(task, role), docs))] if task else []),
            # no AGENTS.md/CLAUDE.md: 68 KB (~17k tokens) per turn and a "read STATE.md first" that sends a worker
            # exploring; the brief and the role's rules are the whole prompt
@@ -117,7 +117,7 @@ def ask_once(cfg: dict, worker: dict, prompt: str, session_dir: Path) -> dict:
     (cost, tokens) plus `answer`, the model's text."""
     env_var, key_file = key_source(cfg, worker)
     session_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [str(WRAPPER), env_var or "-", key_file or "-", "pi", "-p", "--no-tools", "--no-extensions", "--no-skills",
+    cmd = [str(WRAPPER), env_var or "-", key_file or "-", pi_exe(cfg), "-p", "--no-tools", "--no-extensions", "--no-skills",
            "--no-prompt-templates", "--no-themes", "--no-context-files", "--session-dir", str(session_dir),
            "--model", pi_model_id(worker), prompt]
     try:
@@ -126,6 +126,23 @@ def ask_once(cfg: dict, worker: dict, prompt: str, session_dir: Path) -> dict:
     except subprocess.TimeoutExpired:
         answer = ""
     return dict(status(session_dir), answer=answer)
+
+
+def in_tree(p: str) -> Path:
+    """A profile path: absolute or ~ as is, relative to this checkout (Pi installed inside the worktree)."""
+    return ROOT / Path(p).expanduser()
+
+
+def context_cap(cfg: dict, provider: str) -> int:
+    """The context window of the provider's coder model: [workers] context_tokens_by, else context_tokens."""
+    w = cfg["workers"]
+    return w.get("context_tokens_by", {}).get(provider, w["context_tokens"])
+
+
+def pi_exe(cfg: dict) -> str:
+    """The Pi to run: the profile's own install when it names a path, else `pi` from PATH."""
+    b = cfg["workers"].get("pi_bin", "pi")
+    return str(in_tree(b)) if "/" in b else b
 
 
 def window_env_args(env: dict) -> list[str]:
@@ -199,7 +216,8 @@ def brief_file(task: str, name: str, text: str) -> Path:
 
 EMPTY = {"cost_usd": 0.0, "tokens": 0, "tool_calls": Counter(), "idle": False, "last_text": "", "rate_limited": False,
          "model": "", "turns": 0, "prompts": 0, "started": False, "error": "", "transient": False,
-         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0, "proxy_calls": 0, "context": 0}
+         "cache_read": 0, "cache_write": 0, "fresh": 0, "cache_hit": 0.0, "proxy_calls": 0, "context": 0,
+         "output": 0, "tool_errors": 0}
 
 
 def cache_hit(s: dict) -> float:
@@ -241,6 +259,7 @@ def parse_session(path: Path) -> dict:
             details = u.get("prompt_tokens_details") or {}
             out["cache_read"] += u.get("cacheRead") or u.get("cache_read_input_tokens") or details.get("cached_tokens") or 0
             out["cache_write"] += u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0
+            out["output"] += u.get("output") or u.get("output_tokens") or u.get("completion_tokens") or 0
             out["fresh"] += u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0
             out["context"] = (u.get("input") or u.get("input_tokens") or 0) + (u.get("cacheRead") or u.get("cache_read_input_tokens") or 0) + (
                 u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0)  # the latest turn's prompt: what the window holds now
@@ -266,6 +285,8 @@ def parse_session(path: Path) -> dict:
                     out["tool_calls"][name] += 1
                 elif c.get("type") == "text" and c.get("text"):
                     out["last_text"] = c["text"]
+        elif role == "toolResult":
+            out["tool_errors"] += bool(m.get("isError"))
         elif role == "user":
             out["idle"] = False  # a prompt or a tool result is in, the answer is not
             # a human prompt is a string or a text block; Claude Code also files tool results as `user` lines
