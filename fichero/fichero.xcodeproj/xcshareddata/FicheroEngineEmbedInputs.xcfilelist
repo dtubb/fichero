@@ -903,4 +903,5 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/zoom.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/transcription_accuracy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/validation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/worker_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/workflow_store.py
